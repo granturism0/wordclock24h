@@ -277,7 +277,7 @@ timeserver_convert_time (struct tm * tmp, uint32_t seconds_since_1900)
             {
                 if (mytm->tm_wday == 0)                                     // today last sunday?
                 {
-                    if (mytm->tm_hour >= 3)                                 // after 03:00 we have winter time
+                    if (mytm->tm_hour >= 2)                                 // after 02:00 standard time basis we have winter time
                     {
                         summertime = 0;
                     }
@@ -296,12 +296,5 @@ timeserver_convert_time (struct tm * tmp, uint32_t seconds_since_1900)
         }
     }
 
-    tmp->tm_year    = mytm->tm_year;
-    tmp->tm_mon     = mytm->tm_mon;
-    tmp->tm_mday    = mytm->tm_mday;
-    tmp->tm_wday    = dayofweek (mytm->tm_mday, mytm->tm_mon + 1, mytm->tm_year + 1900);
-    tmp->tm_isdst   = mytm->tm_isdst;
-    tmp->tm_hour    = mytm->tm_hour;
-    tmp->tm_min     = mytm->tm_min;
-    tmp->tm_sec     = mytm->tm_sec;
+    *tmp = *mytm;
 }

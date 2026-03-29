@@ -75,25 +75,26 @@
 #define SK6812_BIT_PER_LED          24                          // 3 * 8bit per LED, each bit costs 1.20us time
 #endif
 
-#if 0
+#if 0 // only usable for SK6812
 
-#define SK6812_TIM_PERIOD_TIME      1200                        // 1200 ns
-#define SK6812_TIM_PRESCALER        0                           // no prescaler
-#define SK6812_T0H_TIME             300                         // 300ns
-#define SK6812_T0L_TIME             900                         // 900ns
-#define SK6812_T1H_TIME             600                         // 600ns
-#define SK6812_T1L_TIME             600                         // 600ns
-#define SK6812_PAUSE_TIME           80000                       // pause, should be longer than 80us
-
-#else
-
-#define SK6812_TIM_PERIOD_TIME      1400                        // 1400 ns
+#define SK6812_TIM_PERIOD_TIME      1400                        // 1400ns
 #define SK6812_TIM_PRESCALER        0                           // no prescaler
 #define SK6812_T0H_TIME             400                         // 400ns
 #define SK6812_T0L_TIME             1000                        // 1000ns
 #define SK6812_T1H_TIME             700                         // 700ns
 #define SK6812_T1L_TIME             700                         // 700ns
-#define SK6812_PAUSE_TIME           100000                      // pause, should be longer than 80us
+#define SK6812_PAUSE_TIME           100000                      // pause, should be longer than 80us for SK6812, should be 200us for SKC6812
+
+#else // usable for SK6812 and SK6812C
+
+#define SK6812_TIM_PERIOD_TIME      1250                        // 1250ns
+#define SK6812_TIM_PRESCALER        0                           // no prescaler
+#define SK6812_T0H_TIME             300                         // 300ns
+#define SK6812_T0L_TIME             950                         // 950ns
+#define SK6812_T1H_TIME             750                         // 750ns
+#define SK6812_T1L_TIME             500                         // 500ns
+#define SK6812_PAUSE_TIME           250000                      // pause, should be longer than 80us for SK6812, should be longer than 200us for SKC6812
+
 
 #endif
 

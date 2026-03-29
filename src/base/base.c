@@ -416,24 +416,25 @@ my_rand (void)
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
 struct tm *
-my_gmtime (time_t * tvp)
+my_gmtime (time_t * t)
 {
-    static struct tm    tm;
-    int                 year;
-    int                 mon;
-    int                 day;
-    int                 hour;
-    int                 min;
-    int                 sec;
-
-    time_t              tv = *tvp;
+    static struct tm tm;
+    int              year;
+    int              mon;
+    int              day;
+    int              hour;
+    int              min;
+    int              sec;
+    int              yday;
+    time_t           tv = *t;
+    time_t           days_since_epoch;
 
     year = 1970;
+    days_since_epoch = tv / 86400;
 
     for (;;)
     {
-        day = (IS_LEAP_YEAR(year) ? 366 : 365);
-
+        day = (IS_LEAP_YEAR (year) ? 366 : 365);
         sec = day * 24 * 3600;
 
         if (tv >= sec)
@@ -448,9 +449,11 @@ my_gmtime (time_t * tvp)
         year++;
     }
 
+    yday = tv / (24 * 3600);
+
     for (mon = 0; mon < 12; mon++)
     {
-        if (mon == 1 && IS_LEAP_YEAR(year))
+        if (mon == 1 && IS_LEAP_YEAR (year))
         {
             day = 29;
         }
@@ -488,6 +491,9 @@ my_gmtime (time_t * tvp)
     tm.tm_hour  = hour;
     tm.tm_min   = min;
     tm.tm_sec   = sec;
+    tm.tm_yday  = yday;
+    tm.tm_wday  = (4 + days_since_epoch) % 7;   // 1970-01-01 war Donnerstag
+    tm.tm_isdst = 0;                            // UTC hat keine Sommerzeit
 
-    return (&tm);
+    return &tm;
 }
