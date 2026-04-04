@@ -1,4 +1,4 @@
-const APP_VERSION = "1.13.60";
+const APP_VERSION = "1.0.0";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -110,13 +110,45 @@ const fallbackWordclockRows = [
 const LAYOUT_PREVIEW_SOURCES = [
   {
     file: "wc12h-tables-ch1.txt",
+    aliases: ["ch1", "schweizerdeutsch1", "schweizerdeutsch-1", "swiss1", "swiss-1"],
     signature: "ff020a0b17000000000082000384000803010006010803020006020803030002030305040003040304040803050005050504060006060605070005070504080004080704090006090803010000534348",
     display: "ESKISCHAFÜFVIERTUBFZÄÄZWÄNZGSIVORABOHAUBIEPMEISZWÖISDRÜVIERIFÜFIQTSÄCHSISIBNIACHTINÜNIELZÄNIERBEUFIZWÖUFIAMUHR"
   },
   {
     file: "wc12h-tables-ch2.txt",
+    aliases: ["ch2", "schweizerdeutsch2", "schweizerdeutsch-2", "swiss2", "swiss-2"],
     signature: "ff020a0b17000000000082000384010004010506000803020006020803030002030305040003040304040803050005050605060006060605070005070604080004080704090006090803010000534348",
     display: "ESKESCHAZÄÄFÖIFCVIERTUZWÄNZGSIVORABOHAUBIEGEEISZWÖISDRÜVIERITFÖIFISÄCHSISEBNIACHTIENÜNILZÄNIERBELFIZWÖLFINAUHR"
+  },
+  {
+    file: "wc12h-tables-ch3.txt",
+    aliases: ["ch3", "schweizerdeutsch3", "schweizerdeutsch-3", "swiss3", "swiss-3"],
+    signature: "0a0b170000000000820003840008030100070108030200060208030300020303050400020403030408030500050505040600050606050700050705040800050807040900060908030000010000534348",
+    display: "ÄSKISCHAFÜFVIERTELFZÄÄZWENZGSIVORABOHALBIEPMISEZWÜISDRÜVIERIFÜFIQTSÄXSICSIBNIACHTINÜNIELZÄÄNIRBELFIZWÖLFIAMUHR"
+  },
+  {
+    file: "wc12h-tables-ch4.txt",
+    aliases: ["ch4", "schweizerdeutsch4", "schweizerdeutsch-4", "swiss4", "swiss-4"],
+    signature: "0a0b170000000000020003040008030100040104070202070301020307040400050407040500040504030508030600050606050700040707040800030803040807040900050908030000010000534348",
+    display: "ESUISCHKZÄÄFÜNFVIERTELWSZWANZIGUHNABHFLNVOORHALBIHZDREIVIERAISPELFSÄGGSTSIIBENÜÜNHUEACHTZÄÄZWAIFÜNFZWÖLFPEXUUR"
+  },
+  {
+    file: "wc12h-tables-ch5.txt",
+    aliases: ["ch5", "schweizerdeutsch5", "schweizerdeutsch-5", "swiss5", "swiss-5"],
+    signature: "0a0b170000000000820003840100030104070008030200060208030300020303050400030403040408030500050506040600060805060700050706040800040607040900060908030000010000534348",
+    display: "ESKISCHAZÄÄFÜFIVIERTELZWANZGSIVORABOHAUBIEGEEISZWÖISDRÜVIERITFÜFIMSECHSIWELFIACHTIENÜNILZÄNIESIEBNIZWÖLFINAUHR"
+  },
+  {
+    file: "wc12h-tables-ch6.txt",
+    aliases: ["ch6", "schweizerdeutsch6", "schweizerdeutsch-6", "swiss6", "swiss-6"],
+    signature: "0a0b170000000000820003840100040104070202070300050306020308030400050407030500040504070600060606050700040705050800040804040808030900060906050908030000010000534348",
+    display: "ÄSUISCHKMEWFÜFIVIERTELWSZWENZIGUHZÄHNILABVORHALBIKFDRIMELFISEGSCHISIEBNIZÄHNIZWEIHACHTIUNINIFÜFIEISZWELFIVIERI"
+  },
+  {
+    file: "wc12h-tables-ch7.txt",
+    aliases: ["ch7", "schweizerdeutsch7", "schweizerdeutsch-7", "swiss7", "swiss-7"],
+    signature: "0a0b170000000000820003840100040104070008030200060208030300020303050400030403040408030500050507040600060606050700050706040800040807040900060908030000010000534348",
+    display: "ESKESCHAZÄÄFÜÜFVIERTELZWÄNZGSIVORABOHALBIEGEEISZWOISDRÜVIERITXFÜFISÄCHSISIBNIACHTIENÜNILZÄNIERBELFIZWÖLFINAUHR"
   },
   {
     file: "wc12h-tables-de.txt",
@@ -2278,7 +2310,7 @@ async function uploadLocalEspUpdate(event) {
 
   button.disabled = true;
   button.textContent = "lädt hoch...";
-  document.getElementById("updated-at").textContent = "ESP-Firmware wird lokal hochgeladen...";
+  announceStatus("ESP-Firmware wird lokal hochgeladen...", "warn");
   document.getElementById("local-update-note").textContent = "ESP-Firmware wird lokal hochgeladen...";
 
   try {
@@ -2296,14 +2328,14 @@ async function uploadLocalEspUpdate(event) {
 
   button.textContent = "läuft...";
   try {
-    await fetch("/api/local_esp_restart", { cache: "no-store" });
+    await apiFetch("/api/local_esp_restart");
   } catch (error) {
   }
   document.getElementById("update-progress-shell").classList.remove("is-hidden");
   document.getElementById("update-progress-visual").classList.add("is-hidden");
   document.getElementById("update-progress-frame").classList.add("is-hidden");
   document.getElementById("update-progress-note").textContent = "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.";
-  document.getElementById("updated-at").textContent = "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.";
+  announceStatus("ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.", "warn");
   pendingProgressAction = "esp-local-update";
   pendingProgressButtonId = "local-update-esp-submit-button";
   button.dataset.restoreText = "ESP lokal aktualisieren";
@@ -2324,7 +2356,7 @@ async function uploadLocalStm32Update(event) {
 
   button.disabled = true;
   button.textContent = "lädt hoch...";
-  document.getElementById("updated-at").textContent = "STM32-Firmware wird lokal hochgeladen...";
+  announceStatus("STM32-Firmware wird lokal hochgeladen...", "warn");
   document.getElementById("local-update-note").textContent = "STM32-Firmware wird lokal hochgeladen...";
 
   try {
@@ -2386,17 +2418,16 @@ async function downloadUpdateAppBundle() {
 
   const button = document.getElementById("update-app-bundle-button");
 
-  button.disabled = true;
-  button.textContent = "läuft...";
+  beginButtonFeedback(button, "läuft...");
 
   try {
-    await fetch("/api/update_download_app_bundle", { cache: "no-store" });
-    document.getElementById("updated-at").textContent = "App-Paket geladen. Seite wird neu geladen.";
+    await apiFetch("/api/update_download_app_bundle");
+    announceStatus("App-Paket geladen. Seite wird neu geladen.", "ok");
+    finishButtonFeedback(button, "App-Paket laden", "success", "geladen");
     setTimeout(() => window.location.reload(), 1200);
   } catch (error) {
-    document.getElementById("updated-at").textContent = "App-Paket konnte nicht geladen werden";
-    button.disabled = false;
-    button.textContent = "App-Paket laden";
+    announceStatus("App-Paket konnte nicht geladen werden", "error");
+    finishButtonFeedback(button, "App-Paket laden", "error", "Fehler");
   }
 }
 
@@ -2413,7 +2444,7 @@ function triggerStm32Update() {
   const fileName = document.getElementById("update-stm32-select").value || "";
 
   if (!fileName) {
-    document.getElementById("updated-at").textContent = "Bitte zuerst eine STM32-Datei auswählen";
+    announceStatus("Bitte zuerst eine STM32-Datei auswählen", "warn");
     return;
   }
 
@@ -2428,7 +2459,7 @@ function triggerTableUpdate() {
   const fileName = document.getElementById("update-table-select").value || "";
 
   if (!fileName) {
-    document.getElementById("updated-at").textContent = "Bitte zuerst eine Layout-Tabelle auswählen";
+    announceStatus("Bitte zuerst eine Layout-Tabelle auswählen", "warn");
     return;
   }
 
@@ -2453,13 +2484,13 @@ async function resetStm32() {
   localUpdateButton.textContent = "läuft...";
 
   try {
-    await fetch("/api/maintenance_reset_stm32", { cache: "no-store" });
-    document.getElementById("updated-at").textContent = "STM32-Reset wurde ausgelöst. Warte auf Abschluss...";
+    await apiFetch("/api/maintenance_reset_stm32");
+    announceStatus("STM32-Reset wurde ausgelöst. Warte auf Abschluss...", "warn");
     await sleep(4000);
-    document.getElementById("updated-at").textContent = "STM32 wurde zurückgesetzt";
+    announceStatus("STM32 wurde zurückgesetzt", "ok");
     await loadData();
   } catch (error) {
-    document.getElementById("updated-at").textContent = "STM32 konnte nicht zurückgesetzt werden";
+    announceStatus("STM32 konnte nicht zurückgesetzt werden", "error");
   } finally {
     maintenanceButton.disabled = false;
     localUpdateButton.disabled = false;
@@ -2499,13 +2530,13 @@ async function showFsFile(fileName) {
   }
 
   try {
-    const response = await fetch("/api/fs_show?filename=" + encodeURIComponent(fileName), { cache: "no-store" });
+    const response = await apiFetch("/api/fs_show?filename=" + encodeURIComponent(fileName));
     const text = await response.text();
     document.getElementById("fs-preview-content").textContent = text || "(leer)";
     document.getElementById("fs-action-status").textContent = "Datei „" + fileName + "“ wird angezeigt.";
-    document.getElementById("updated-at").textContent = fileName + " geladen";
+    announceStatus(fileName + " geladen", "ok");
   } catch (error) {
-    document.getElementById("updated-at").textContent = "Datei konnte nicht geladen werden";
+    announceStatus("Datei konnte nicht geladen werden", "error");
   }
 }
 
@@ -2519,12 +2550,12 @@ async function deleteFsFile(fileName) {
   }
 
   try {
-    await fetch("/api/fs_remove?filename=" + encodeURIComponent(fileName), { cache: "no-store" });
+    await apiFetch("/api/fs_remove?filename=" + encodeURIComponent(fileName));
     document.getElementById("fs-preview-content").textContent = "Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.";
     document.getElementById("fs-action-status").textContent = "Datei „" + fileName + "“ wurde gelöscht.";
     await loadData();
   } catch (error) {
-    document.getElementById("updated-at").textContent = "Datei konnte nicht gelöscht werden";
+    announceStatus("Datei konnte nicht gelöscht werden", "error");
   }
 }
 
@@ -2546,7 +2577,7 @@ function handleUploadSubmit(event) {
   const fileName = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0].name : "";
   document.getElementById("fs-action-status").textContent =
     "Upload gestartet: " + targetName + (fileName ? " <- " + fileName : "");
-  document.getElementById("updated-at").textContent = "Upload wurde gestartet...";
+  announceStatus("Upload wurde gestartet...", "warn");
 }
 
 function handleLegacyFrameLoad() {
@@ -2572,7 +2603,7 @@ function handleLegacyFrameLoad() {
     }
   } catch (error) {
   }
-  document.getElementById("updated-at").textContent = "Legacy-Aktion beantwortet";
+  announceStatus("Legacy-Aktion beantwortet", "ok");
   setTimeout(loadData, 1500);
 }
 
@@ -2598,12 +2629,6 @@ function handleProgressFrameLoad() {
   } catch (error) {
     note.textContent = "Update-Antwort empfangen.";
   }
-}
-
-function triggerLegacyAction(url, message, reloadDelay) {
-  document.getElementById("updated-at").textContent = message;
-  document.getElementById("legacy-action-frame").src = url;
-  setTimeout(loadData, reloadDelay || 2000);
 }
 
 function startProgressAction(url, message, actionType, buttonId, buttonText) {
@@ -4087,8 +4112,7 @@ function parseLayoutTable(text) {
 }
 
 function resolveLayoutRows(currentTable, table) {
-  const source = LAYOUT_PREVIEW_SOURCES.find((item) => item.file === currentTable)
-    || LAYOUT_PREVIEW_SOURCES.find((item) => currentTable.endsWith("-local.txt") && table.normalizedHex.startsWith(item.signature));
+  const source = findLayoutPreviewSource(currentTable, table);
   const display = source ? source.display : "";
 
   if (!display || !table || !table.rows || !table.columns) {
@@ -4102,6 +4126,24 @@ function resolveLayoutRows(currentTable, table) {
   }
 
   return rows;
+}
+
+function normalizeLayoutFileName(fileName) {
+  return String(fileName || "")
+    .split("/")
+    .pop()
+    .trim()
+    .toLowerCase();
+}
+
+function findLayoutPreviewSource(fileName, table) {
+  const normalizedFileName = normalizeLayoutFileName(fileName);
+  const normalizedHex = table && table.normalizedHex ? table.normalizedHex : "";
+
+  return LAYOUT_PREVIEW_SOURCES.find((item) => normalizeLayoutFileName(item.file) === normalizedFileName)
+    || LAYOUT_PREVIEW_SOURCES.find((item) => Array.isArray(item.aliases) && item.aliases.includes(normalizedFileName.replace(/\.txt$/, "")))
+    || LAYOUT_PREVIEW_SOURCES.find((item) => normalizedHex && item.signature && normalizedHex.startsWith(item.signature))
+    || null;
 }
 
 function getDefaultLayoutPreview(settings) {
@@ -4367,7 +4409,7 @@ async function syncPersistedAmbilightState(state) {
   const desired = state === "on" ? "on" : "off";
 
   try {
-    await fetch("/api/ambilight_online_set?value=" + desired, { cache: "no-store" });
+    await apiFetch("/api/ambilight_online_set?value=" + desired);
   } catch (error) {
   }
 }
