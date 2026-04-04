@@ -154,6 +154,8 @@ static int      http_response_len = 0;
 
 static void             http_json_ok ();
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
+static int              http_api_stm32_log ();
+static int              http_api_stm32_log_clear ();
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
@@ -210,6 +212,43 @@ void
 http_send (String s)
 {
     http_send (s.c_str());
+}
+
+static void
+http_send_json_escaped (const char * s)
+{
+    while (s && *s)
+    {
+        char ch = *s++;
+
+        switch (ch)
+        {
+            case '\\':
+                http_send (FS("\\\\"));
+                break;
+            case '"':
+                http_send (FS("\\\""));
+                break;
+            case '\r':
+                http_send (FS("\\r"));
+                break;
+            case '\n':
+                http_send (FS("\\n"));
+                break;
+            case '\t':
+                http_send (FS("\\t"));
+                break;
+            default:
+            {
+                char buffer[2];
+
+                buffer[0] = ch;
+                buffer[1] = '\0';
+                http_send (buffer);
+                break;
+            }
+        }
+    }
 }
 
 static const char *
@@ -8538,6 +8577,42 @@ flash_stm32_local (bool post = false)
     return 0;
 }
 
+static int
+http_api_stm32_log ()
+{
+    uint16_t idx;
+    uint16_t count = stm32_log_get_count ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"count\":"));
+    http_send (String(count));
+    http_send (FS(",\"lines\":["));
+
+    for (idx = 0; idx < count; idx++)
+    {
+        if (idx > 0)
+        {
+            http_send (FS(","));
+        }
+
+        http_send (FS("\""));
+        http_send_json_escaped (stm32_log_get_line (idx));
+        http_send (FS("\""));
+    }
+
+    http_send (FS("]}"));
+    http_flush ();
+    return 0;
+}
+
+static int
+http_api_stm32_log_clear ()
+{
+    stm32_log_clear ();
+    http_json_ok ();
+    return 0;
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * http server
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -8755,6 +8830,14 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/eeprom_settings_set"))
     {
         rtc = http_api_eeprom_settings_set ();
+    }
+    else if (! strcmp (path, "/api/stm32_log"))
+    {
+        rtc = http_api_stm32_log ();
+    }
+    else if (! strcmp (path, "/api/stm32_log_clear"))
+    {
+        rtc = http_api_stm32_log_clear ();
     }
     else if (! strcmp (path, "/api/network_client_set"))
     {

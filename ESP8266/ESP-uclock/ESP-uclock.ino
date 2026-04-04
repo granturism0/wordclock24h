@@ -69,6 +69,70 @@
 
 
 #define CMD_BUFFER_SIZE     128                                             // maximum size of command buffer
+#define STM32_LOG_LINES     64
+#define STM32_LOG_LINE_LEN  120
+
+static void           icon_info (const char * fname, const char * name);
+
+static char              stm32_log_lines[STM32_LOG_LINES][STM32_LOG_LINE_LEN + 1];
+static uint16_t          stm32_log_next_idx = 0;
+static uint16_t          stm32_log_line_count = 0;
+
+void
+stm32_log_append (const char * line)
+{
+    if (! line || ! *line)
+    {
+        return;
+    }
+
+    strncpy (stm32_log_lines[stm32_log_next_idx], line, STM32_LOG_LINE_LEN);
+    stm32_log_lines[stm32_log_next_idx][STM32_LOG_LINE_LEN] = '\0';
+
+    stm32_log_next_idx = (stm32_log_next_idx + 1) % STM32_LOG_LINES;
+
+    if (stm32_log_line_count < STM32_LOG_LINES)
+    {
+        stm32_log_line_count++;
+    }
+}
+
+void
+stm32_log_clear (void)
+{
+    uint16_t idx;
+
+    for (idx = 0; idx < STM32_LOG_LINES; idx++)
+    {
+        stm32_log_lines[idx][0] = '\0';
+    }
+
+    stm32_log_next_idx = 0;
+    stm32_log_line_count = 0;
+}
+
+uint16_t
+stm32_log_get_count (void)
+{
+    return stm32_log_line_count;
+}
+
+const char *
+stm32_log_get_line (uint16_t idx)
+{
+    uint16_t start_idx;
+    uint16_t real_idx;
+
+    if (idx >= stm32_log_line_count)
+    {
+        return "";
+    }
+
+    start_idx = (stm32_log_next_idx + STM32_LOG_LINES - stm32_log_line_count) % STM32_LOG_LINES;
+    real_idx = (start_idx + idx) % STM32_LOG_LINES;
+
+    return stm32_log_lines[real_idx];
+}
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
  * global setup
@@ -1033,8 +1097,7 @@ loop()
             }
             else
             {
-                Serial.println ("ERROR invalid command");
-                Serial.flush ();
+                stm32_log_append (cmd_buffer);
             }
 
             cmd_buffer[0] = '\0';

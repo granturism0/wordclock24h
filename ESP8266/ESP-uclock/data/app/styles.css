@@ -439,6 +439,21 @@ h2 {
   gap: 12px;
 }
 
+.log-window {
+  margin: 0;
+  min-height: 220px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid rgba(143, 211, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d7e7ff;
+  padding: 16px 18px;
+  font: 500 0.9rem/1.5 "SFMono-Regular", "SF Mono", "Menlo", "Consolas", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .field {
   display: grid;
   gap: 8px;

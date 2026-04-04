@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.1.3";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -364,6 +364,8 @@ document.getElementById("dfplayer-silence-stop-save-button").addEventListener("c
 document.getElementById("dfplayer-play-button").addEventListener("click", playDfplayerTrack);
 document.getElementById("debug-apply-button").addEventListener("click", applyDebugOverrides);
 document.getElementById("debug-reset-button").addEventListener("click", resetDebugOverrides);
+document.getElementById("stm32-log-refresh-button").addEventListener("click", refreshStm32Log);
+document.getElementById("stm32-log-clear-button").addEventListener("click", clearStm32Log);
 document.getElementById("datetime-save-button").addEventListener("click", saveDateTime);
 document.getElementById("learn-ir-button").addEventListener("click", learnIrRemote);
 document.getElementById("app-version").textContent = "App-Version " + APP_VERSION;
@@ -561,7 +563,7 @@ async function loadData(options) {
     return;
   }
   try {
-    const [settingsText, displayPower, ambilightPower, overlayIcons, networkInfo, fsInfo, fsList, updateStatus, updateTableInfo, eepromSettings] = await Promise.all([
+    const [settingsText, displayPower, ambilightPower, overlayIcons, networkInfo, fsInfo, fsList, updateStatus, updateTableInfo, eepromSettings, stm32Log] = await Promise.all([
       fetch("/get_settings", { cache: "no-store" }).then((response) => response.text()),
       fetch("/display_power", { cache: "no-store" }).then((response) => response.text()),
       fetch("/ambilight_power", { cache: "no-store" }).then((response) => response.text()),
@@ -585,7 +587,10 @@ async function loadData(options) {
         .catch(() => ({})),
       fetch("/api/eeprom_settings", { cache: "no-store" })
         .then((response) => response.ok ? response.json() : {})
-        .catch(() => ({}))
+        .catch(() => ({})),
+      fetch("/api/stm32_log", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : { lines: [] })
+        .catch(() => ({ lines: [] }))
     ]);
 
     overlayIconsCache = Array.isArray(overlayIcons) ? overlayIcons : [];
@@ -613,6 +618,7 @@ async function loadData(options) {
     updateWeatherControls(settings);
     updateNetworkControls(settings, networkInfo);
     updateMaintenanceControls(settings, currentEepromSettings);
+    updateStm32Log(stm32Log);
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
     updateLdrControls(settings);
@@ -640,6 +646,59 @@ async function loadData(options) {
     announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
   } catch (error) {
     announceStatus("Daten konnten nicht geladen werden", "error");
+  }
+}
+
+function updateStm32Log(logData) {
+  const meta = document.getElementById("stm32-log-meta");
+  const output = document.getElementById("stm32-log-output");
+  const lines = logData && Array.isArray(logData.lines) ? logData.lines : [];
+  const count = typeof (logData && logData.count) === "number" ? logData.count : lines.length;
+
+  if (!lines.length) {
+    meta.textContent = "Noch keine STM32-Logs vorhanden.";
+    output.textContent = "Noch keine STM32-Logs vorhanden.";
+    return;
+  }
+
+  meta.textContent = count + " Log-Zeile" + (count === 1 ? "" : "n") + " im Puffer.";
+  output.textContent = lines.join("\n");
+  output.scrollTop = output.scrollHeight;
+}
+
+async function refreshStm32Log() {
+  const button = document.getElementById("stm32-log-refresh-button");
+
+  beginButtonFeedback(button, "lädt...");
+
+  try {
+    const response = await apiFetch("/api/stm32_log");
+    const data = await response.json();
+    updateStm32Log(data);
+    finishButtonFeedback(button, "Logs neu laden", "success", "geladen");
+  } catch (error) {
+    announceStatus("STM32-Logs konnten nicht geladen werden", "error");
+    finishButtonFeedback(button, "Logs neu laden", "error", "Fehler");
+  }
+}
+
+async function clearStm32Log() {
+  const button = document.getElementById("stm32-log-clear-button");
+
+  if (!window.confirm("STM32-Logbuch wirklich leeren?")) {
+    return;
+  }
+
+  beginButtonFeedback(button, "leert...");
+
+  try {
+    await apiFetch("/api/stm32_log_clear");
+    updateStm32Log({ count: 0, lines: [] });
+    announceStatus("STM32-Logbuch wurde geleert", "ok");
+    finishButtonFeedback(button, "Logs leeren", "success", "geleert");
+  } catch (error) {
+    announceStatus("STM32-Logbuch konnte nicht geleert werden", "error");
+    finishButtonFeedback(button, "Logs leeren", "error", "Fehler");
   }
 }
 
@@ -3354,10 +3413,14 @@ async function autoResetStm32AfterFlash() {
     setStm32ProgressStage(8);
     document.getElementById("updated-at").textContent = "STM32 wurde nach dem Flash automatisch zurückgesetzt";
     document.getElementById("update-progress-note").textContent = "STM32-Update erfolgreich abgeschlossen.";
-    await loadData();
     stopStm32Progress();
     resetProgressButton();
     finishProgressUi(2200);
+    try {
+      await loadData();
+    } catch (error) {
+      announceStatus("Daten konnten nach dem STM32-Update nicht neu geladen werden", "warn");
+    }
   } catch (error) {
     document.getElementById("update-progress-note").textContent = "STM32-Flash fertig, automatischer Reset ist fehlgeschlagen.";
     stopStm32Progress();

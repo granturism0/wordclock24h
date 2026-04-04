@@ -29,5 +29,9 @@ extern void             statusmsg (const char *, const char *);
 extern void             debugmsg (String);
 extern void             debugmsg (const char *);
 extern void             debugmsg (const char *, const char *);
+extern void             stm32_log_append (const char *);
+extern void             stm32_log_clear (void);
+extern uint16_t         stm32_log_get_count (void);
+extern const char *     stm32_log_get_line (uint16_t);
 
 #endif

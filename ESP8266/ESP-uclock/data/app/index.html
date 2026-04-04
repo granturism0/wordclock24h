@@ -151,6 +151,24 @@
             </div>
           </div>
         </section>
+
+        <section id="stm32-log-panel" class="panel is-hidden">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Debug</p>
+              <h2>STM32-Logbuch</h2>
+              <p class="hint">Zeigt nicht erkannte Debug-Zeilen vom STM32 an, die über die UART beim ESP ankommen.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div class="hero-actions">
+              <button id="stm32-log-refresh-button" class="button" type="button">Logs neu laden</button>
+              <button id="stm32-log-clear-button" class="button" type="button">Logs leeren</button>
+            </div>
+            <p id="stm32-log-meta" class="hint">Noch keine STM32-Logs vorhanden.</p>
+            <pre id="stm32-log-output" class="log-window">Noch keine STM32-Logs vorhanden.</pre>
+          </div>
+        </section>
       </section>
 
       <section class="module-section" data-module="network">
@@ -587,30 +605,6 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Sicherung</p>
-              <h2>Einstellungen exportieren und importieren</h2>
-              <p class="hint">Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.</p>
-            </div>
-          </div>
-          <div class="control-stack">
-            <div id="backup-info-list" class="info-list"></div>
-            <div class="hero-actions">
-              <button id="settings-export-button" class="button primary" type="button">Einstellungen exportieren</button>
-            </div>
-            <label class="field">
-              <span class="label">Sicherungsdatei importieren</span>
-              <input id="settings-import-file-input" type="file" accept=".json,application/json">
-            </label>
-            <div class="hero-actions">
-              <button id="settings-import-button" class="button" type="button">Einstellungen importieren</button>
-            </div>
-            <p id="settings-backup-note" class="hint">Noch keine Sicherungsaktion ausgeführt.</p>
-          </div>
-        </section>
-
         <section id="files-panel" class="panel">
           <div class="panel-head"><div><p class="eyebrow">Dateien</p><h2>LittleFS</h2><p class="hint">Dateien anzeigen, löschen und die bekannten Legacy-Ziele direkt hochladen.</p></div></div>
           <div class="control-stack">
@@ -660,6 +654,30 @@
               <label class="field"><span class="label">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex,.txt" required></label>
               <button id="local-update-stm32-submit-button" class="button primary" type="submit">STM32 lokal aktualisieren</button>
             </form>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Sicherung</p>
+              <h2>Einstellungen exportieren und importieren</h2>
+              <p class="hint">Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div id="backup-info-list" class="info-list"></div>
+            <div class="hero-actions">
+              <button id="settings-export-button" class="button primary" type="button">Einstellungen exportieren</button>
+            </div>
+            <label class="field">
+              <span class="label">Sicherungsdatei importieren</span>
+              <input id="settings-import-file-input" type="file" accept=".json,application/json">
+            </label>
+            <div class="hero-actions">
+              <button id="settings-import-button" class="button" type="button">Einstellungen importieren</button>
+            </div>
+            <p id="settings-backup-note" class="hint">Noch keine Sicherungsaktion ausgeführt.</p>
           </div>
         </section>
       </section>
