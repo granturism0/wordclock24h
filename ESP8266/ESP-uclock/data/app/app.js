@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -80,6 +80,9 @@ const STR = {
   UPDATE_PATH: 10,
   DATE_TICKER_FORMAT: 11
 };
+
+const BACKUP_FORMAT = "wordclock-settings-backup";
+const BACKUP_VERSION = 1;
 
 const HW = {
   STM32_MASK: 0x07,
@@ -258,6 +261,8 @@ let weatherMarker = null;
 let selectedWeatherLocation = null;
 let currentFsFiles = [];
 let currentLayoutPreview = null;
+let currentSettingsSnapshot = null;
+let currentEepromSettings = null;
 const layoutPreviewCache = {};
 let pendingProgressAction = "";
 let pendingProgressButtonId = "";
@@ -309,10 +314,12 @@ document.getElementById("update-app-bundle-button").addEventListener("click", do
 document.getElementById("update-esp-button").addEventListener("click", triggerEspUpdate);
 document.getElementById("update-stm32-button").addEventListener("click", triggerStm32Update);
 document.getElementById("update-table-button").addEventListener("click", triggerTableUpdate);
+document.getElementById("settings-export-button").addEventListener("click", exportSettingsBackup);
+document.getElementById("settings-import-button").addEventListener("click", importSettingsBackup);
+document.getElementById("settings-import-file-input").addEventListener("change", handleSettingsImportFileChange);
 document.getElementById("maintenance-reset-stm32-button").addEventListener("click", resetStm32);
 document.getElementById("maintenance-reset-eeprom-button").addEventListener("click", resetEeprom);
 document.getElementById("files-format-fs-button").addEventListener("click", formatLittleFsFromFiles);
-document.getElementById("local-update-reset-button").addEventListener("click", resetStm32);
 document.getElementById("local-update-esp-form").addEventListener("submit", uploadLocalEspUpdate);
 document.getElementById("local-update-stm32-form").addEventListener("submit", uploadLocalStm32Update);
 document.getElementById("temperature-rtc-correction-save-button").addEventListener("click", saveRtcTemperatureCorrection);
@@ -506,6 +513,9 @@ function setActiveModule(moduleName) {
   try {
     localStorage.setItem(MODULE_STORAGE_KEY, target);
   } catch (_) {}
+  if (target === "main") {
+    scheduleWordclockSizing();
+  }
 }
 
 function restoreActiveModule() {
@@ -551,7 +561,7 @@ async function loadData(options) {
     return;
   }
   try {
-    const [settingsText, displayPower, ambilightPower, overlayIcons, networkInfo, fsInfo, fsList, updateStatus, updateTableInfo] = await Promise.all([
+    const [settingsText, displayPower, ambilightPower, overlayIcons, networkInfo, fsInfo, fsList, updateStatus, updateTableInfo, eepromSettings] = await Promise.all([
       fetch("/get_settings", { cache: "no-store" }).then((response) => response.text()),
       fetch("/display_power", { cache: "no-store" }).then((response) => response.text()),
       fetch("/ambilight_power", { cache: "no-store" }).then((response) => response.text()),
@@ -572,12 +582,17 @@ async function loadData(options) {
         .catch(() => ({})),
       fetch("/api/update_table_files", { cache: "no-store" })
         .then((response) => response.ok ? response.json() : {})
+        .catch(() => ({})),
+      fetch("/api/eeprom_settings", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : {})
         .catch(() => ({}))
     ]);
 
     overlayIconsCache = Array.isArray(overlayIcons) ? overlayIcons : [];
     currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
     const settings = parseSettings(settingsText);
+    currentSettingsSnapshot = settings;
+    currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : {};
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
     currentLayoutPreview = await loadWordclockLayoutPreview(updateTableInfo, settings);
@@ -597,7 +612,7 @@ async function loadData(options) {
     updateTextControls(settings);
     updateWeatherControls(settings);
     updateNetworkControls(settings, networkInfo);
-    updateMaintenanceControls(settings);
+    updateMaintenanceControls(settings, currentEepromSettings);
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
     updateLdrControls(settings);
@@ -1040,9 +1055,528 @@ function updateNetworkControls(settings, networkInfo) {
     " | Modus: " + (networkInfo.mode || "-");
 }
 
-function updateMaintenanceControls(settings) {
+function updateMaintenanceControls(settings, eepromSettings) {
   document.getElementById("update-host-input").value = settings.strvars[STR.UPDATE_HOST] || "";
   document.getElementById("update-path-input").value = settings.strvars[STR.UPDATE_PATH] || "";
+
+  const infoItems = [
+    ["WLAN-Client", eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "-"],
+    ["Zugangspunkt", eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "-"],
+    ["Bootmodus", eepromSettings && eepromSettings.boot_as_ap ? "Access Point" : "WLAN-Client"]
+  ];
+
+  renderList("backup-info-list", infoItems);
+}
+
+function setSettingsBackupNote(message, tone) {
+  const note = document.getElementById("settings-backup-note");
+  if (note) {
+    note.textContent = message;
+  }
+  if (tone) {
+    announceStatus(message, tone);
+  }
+}
+
+function handleSettingsImportFileChange() {
+  const input = document.getElementById("settings-import-file-input");
+  const file = input && input.files && input.files[0];
+  setSettingsBackupNote(file ? "Ausgewählt: " + file.name : "Noch keine Sicherungsdatei ausgewählt.");
+}
+
+function buildSettingsBackup(settings, eepromSettings) {
+  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
+  const displayFlags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
+  const tftFlags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
+  const ambilightModeFlags = Number((settings.almodes || []).find((entry) => entry.idx === (settings.numvars[NUM.AMBILIGHT_MODE] || 0))?.flags || 0);
+
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exported_at: new Date().toISOString(),
+    source: {
+      app_version: APP_VERSION,
+      firmware_version: settings.strvars[STR.VERSION] || "",
+      esp_version: settings.strvars[STR.ESP8266_VERSION] || "",
+      eeprom_version: settings.strvars[STR.EEPROM_VERSION] || ""
+    },
+    settings: {
+      display: {
+        power: !!settings.numvars[NUM.DISPLAY_POWER],
+        mode: Number(settings.numvars[NUM.DISPLAY_MODE] || 0),
+        brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
+        automatic_brightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
+        permanent_it_is: !!(displayFlags & 0x01),
+        ticker_text: settings.strvars[STR.TICKER_TEXT] || "",
+        date_ticker_format: settings.strvars[STR.DATE_TICKER_FORMAT] || "",
+        ticker_deceleration: Number(settings.numvars[NUM.TICKER_DECELERATION] || 0),
+        color: cloneColor(settings.dspcolors[0]),
+        dim_curve: buildDimCurveArray(settings.num8arrays[0])
+      },
+      network: {
+        timeserver: settings.strvars[STR.TIMESERVER] || "",
+        timezone_offset: Number(timezone.offset || 0),
+        summertime: !!timezone.summertime,
+        wifi_ssid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
+        wifi_key: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
+        ap_ssid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
+        ap_key: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
+        boot_as_ap: !!(eepromSettings && eepromSettings.boot_as_ap)
+      },
+      maintenance: {
+        update_host: settings.strvars[STR.UPDATE_HOST] || "",
+        update_path: settings.strvars[STR.UPDATE_PATH] || ""
+      },
+      climate: {
+        weather_appid: settings.strvars[STR.WEATHER_APPID] || "",
+        weather_city: settings.strvars[STR.WEATHER_CITY] || "",
+        weather_lon: settings.strvars[STR.WEATHER_LON] || "",
+        weather_lat: settings.strvars[STR.WEATHER_LAT] || "",
+        rtc_temp_correction: Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0),
+        ds18xx_temp_correction: Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0),
+        ldr_min: Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0),
+        ldr_max: Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0)
+      },
+      animations: {
+        display_mode: Number(settings.numvars[NUM.ANIMATION_MODE] || 0),
+        color_mode: Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0),
+        display_profiles: (settings.dispanims || []).map((entry) => ({
+          idx: Number(entry.idx),
+          deceleration: Number(entry.deceleration || 0),
+          favourite: !!(Number(entry.flags || 0) & 0x02)
+        })),
+        color_profiles: (settings.coloranims || []).map((entry) => ({
+          idx: Number(entry.idx),
+          deceleration: Number(entry.deceleration || 0)
+        }))
+      },
+      tft: {
+        rgb: !!(tftFlags & 0x01),
+        hflip: !!(tftFlags & 0x02),
+        vflip: !!(tftFlags & 0x04)
+      },
+      ambilight: {
+        online: !!settings.numvars[NUM.AMBILIGHT_IS_UP],
+        power: !!settings.numvars[NUM.DISPLAY_AMBILIGHT_POWER],
+        mode: Number(settings.numvars[NUM.AMBILIGHT_MODE] || 0),
+        leds: Number(settings.numvars[NUM.AMBILIGHT_LEDS] || 0),
+        offset: Number(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0),
+        brightness: Number(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0),
+        color: cloneColor(settings.dspcolors[1]),
+        marker_color: cloneColor(settings.dspcolors[2]),
+        sync_ambilight: !!(displayFlags & 0x02),
+        sync_markers: !!(displayFlags & 0x04),
+        fade_clock_seconds: !!(displayFlags & 0x08),
+        seconds_markers: !!(ambilightModeFlags & 0x02),
+        dim_curve: buildDimCurveArray(settings.num8arrays[1]),
+        profiles: (settings.almodes || []).map((entry) => ({
+          idx: Number(entry.idx),
+          deceleration: Number(entry.deceleration || 0)
+        }))
+      },
+      dfplayer: {
+        volume: Number(settings.numvars[NUM.DFPLAYER_VOLUME] || 0),
+        mode: Number(settings.numvars[NUM.DFPLAYER_MODE] || 0),
+        bell_flags: Number(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0),
+        speak_cycle: Number(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0),
+        silence_start: Number(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
+        silence_stop: Number(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0),
+        alarms: buildAlarmBackup(settings.alarmtimes || [])
+      },
+      overlays: {
+        items: buildOverlayBackup(settings)
+      },
+      timers: {
+        display: buildTimerBackup(settings.nighttimes || [], false),
+        ambilight: buildTimerBackup(settings.ambinighttimes || [], true)
+      }
+    }
+  };
+}
+
+function cloneColor(color) {
+  return {
+    red: Number((color && color.red) || 0),
+    green: Number((color && color.green) || 0),
+    blue: Number((color && color.blue) || 0),
+    white: Number((color && color.white) || 0)
+  };
+}
+
+function buildDimCurveArray(values) {
+  const result = [];
+  for (let idx = 0; idx <= 15; idx += 1) {
+    result.push(Number(values && values[idx] !== undefined ? values[idx] : 0));
+  }
+  return result;
+}
+
+function buildAlarmBackup(items) {
+  return (items || []).slice().sort((a, b) => a.idx - b.idx).map((item) => ({
+    idx: Number(item.idx),
+    active: !!(Number(item.flags || 0) & 0x80),
+    from: (Number(item.flags || 0) & 0x38) >> 3,
+    to: Number(item.flags || 0) & 0x07,
+    hour: Math.floor(Number(item.minutes || 0) / 60),
+    minute: Number(item.minutes || 0) % 60
+  }));
+}
+
+function buildOverlayBackup(settings) {
+  const count = Number(settings.numvars[NUM.OVERLAY_N_OVERLAYS] || 0);
+  return (settings.overlays || [])
+    .filter((item) => Number(item.idx) < count)
+    .sort((a, b) => a.idx - b.idx)
+    .map((item) => ({
+      idx: Number(item.idx),
+      active: !!(Number(item.flags || 0) & 0x01),
+      type: Number(item.type || 0),
+      value: item.text || "",
+      interval: Number(item.interval || 0),
+      duration: Number(item.duration || 0),
+      date_code: Number(item.date_code || 0),
+      month: item.date_start ? ((Number(item.date_start) >> 8) & 0xff) : 0,
+      day: item.date_start ? (Number(item.date_start) & 0xff) : 0,
+      days: Number(item.days || 0)
+    }));
+}
+
+function buildTimerBackup(items, withAction) {
+  return (items || []).slice().sort((a, b) => a.idx - b.idx).map((item) => ({
+    idx: Number(item.idx),
+    active: !!(Number(item.flags || 0) & 0x80),
+    switch_on: withAction ? !!(Number(item.flags || 0) & 0x40) : false,
+    from: (Number(item.flags || 0) & 0x38) >> 3,
+    to: Number(item.flags || 0) & 0x07,
+    hour: Math.floor(Number(item.minutes || 0) / 60),
+    minute: Number(item.minutes || 0) % 60
+  }));
+}
+
+async function exportSettingsBackup() {
+  const button = document.getElementById("settings-export-button");
+
+  beginButtonFeedback(button, "exportiert...");
+
+  try {
+    if (!currentSettingsSnapshot) {
+      await loadData();
+    }
+
+    const backup = buildSettingsBackup(currentSettingsSnapshot || parseSettings(""), currentEepromSettings || {});
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
+    link.href = URL.createObjectURL(blob);
+    link.download = "wordclock-settings-" + timestamp + ".json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    setSettingsBackupNote("Einstellungen wurden exportiert.", "ok");
+    finishButtonFeedback(button, "Einstellungen exportieren", "success", "exportiert");
+  } catch (error) {
+    setSettingsBackupNote("Einstellungen konnten nicht exportiert werden.", "error");
+    finishButtonFeedback(button, "Einstellungen exportieren", "error", "Fehler");
+  }
+}
+
+async function importSettingsBackup() {
+  const input = document.getElementById("settings-import-file-input");
+  const button = document.getElementById("settings-import-button");
+  const file = input && input.files && input.files[0];
+
+  if (!file) {
+    setSettingsBackupNote("Bitte zuerst eine Sicherungsdatei auswählen.", "warn");
+    return;
+  }
+
+  beginButtonFeedback(button, "importiert...");
+
+  try {
+    const backup = JSON.parse(await file.text());
+
+    if (backup.format !== BACKUP_FORMAT) {
+      throw new Error("invalid-backup-format");
+    }
+
+    if (!window.confirm("Einstellungen aus „" + file.name + "“ jetzt importieren?")) {
+      finishButtonFeedback(button, "Einstellungen importieren");
+      return;
+    }
+
+    hasUnsavedEdits = false;
+    await applySettingsBackup(backup);
+    await loadData();
+    setSettingsBackupNote("Einstellungen wurden importiert.", "ok");
+    finishButtonFeedback(button, "Einstellungen importieren", "success", "importiert");
+  } catch (error) {
+    setSettingsBackupNote("Einstellungen konnten nicht importiert werden.", "error");
+    finishButtonFeedback(button, "Einstellungen importieren", "error", "Fehler");
+  }
+}
+
+async function applySettingsBackup(backup) {
+  const settings = backup && backup.settings ? backup.settings : {};
+
+  await importNetworkSettings(settings.network);
+  await importMaintenanceSettings(settings.maintenance);
+  await importDisplaySettings(settings.display);
+  await importClimateSettings(settings.climate);
+  await importAnimationSettings(settings.animations);
+  await importTftSettings(settings.tft);
+  await importAmbilightSettings(settings.ambilight);
+  await importDfplayerSettings(settings.dfplayer);
+  await importOverlaySettings(settings.overlays);
+  await importTimerSettings(settings.timers);
+}
+
+async function importNetworkSettings(network) {
+  if (!network) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Netzwerk- und EEPROM-Einstellungen...");
+
+  await apiFetch("/api/network_timeserver_set?value=" + encodeURIComponent(network.timeserver || ""));
+  await apiFetch("/api/network_timezone_set?value=" + encodeURIComponent(Number(network.timezone_offset || 0)));
+  await apiFetch("/api/network_summertime_set?value=" + (network.summertime ? "on" : "off"));
+
+  const query = new URLSearchParams({
+    ssid: network.wifi_ssid || "",
+    key: network.wifi_key || "",
+    ap_ssid: network.ap_ssid || "",
+    ap_key: network.ap_key || "",
+    boot_as_ap: network.boot_as_ap ? "on" : "off"
+  });
+  await apiFetch("/api/eeprom_settings_set?" + query.toString());
+}
+
+async function importDisplaySettings(display) {
+  if (!display) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Display-Einstellungen...");
+
+  await apiFetch("/api/display_power_set?value=" + (display.power ? "on" : "off"));
+  await apiFetch("/api/display_mode_set?value=" + encodeURIComponent(Number(display.mode || 0)));
+  await apiFetch("/api/display_brightness_set?value=" + encodeURIComponent(Number(display.brightness || 0)));
+  await apiFetch("/api/auto_brightness_set?value=" + (display.automatic_brightness ? "on" : "off"));
+  await apiFetch("/api/display_it_is_set?value=" + (display.permanent_it_is ? "on" : "off"));
+  await apiFetch("/api/ticker_set?value=" + encodeURIComponent(display.ticker_text || ""));
+  await apiFetch("/api/date_ticker_format_set?value=" + encodeURIComponent(display.date_ticker_format || ""));
+  await apiFetch("/api/ticker_deceleration_set?value=" + encodeURIComponent(Number(display.ticker_deceleration || 0)));
+  await saveImportedColor("/api/display_color_set", display.color);
+  await saveImportedDimCurve("/api/display_dim_level_set", display.dim_curve);
+}
+
+async function importMaintenanceSettings(maintenance) {
+  if (!maintenance) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
+
+  await apiFetch("/api/update_host_set?value=" + encodeURIComponent(maintenance.update_host || ""));
+  await apiFetch("/api/update_path_set?value=" + encodeURIComponent(maintenance.update_path || ""));
+}
+
+async function importClimateSettings(climate) {
+  if (!climate) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Klima- und Wetter-Einstellungen...");
+
+  await apiFetch("/api/weather_appid_set?value=" + encodeURIComponent(climate.weather_appid || ""));
+  await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(climate.weather_city || ""));
+  await apiFetch("/api/weather_coordinates_set?lon=" + encodeURIComponent(climate.weather_lon || "") + "&lat=" + encodeURIComponent(climate.weather_lat || ""));
+  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Number(climate.rtc_temp_correction || 0)));
+  await apiFetch("/api/temperature_ds18xx_correction_set?value=" + encodeURIComponent(Number(climate.ds18xx_temp_correction || 0)));
+  await apiFetch("/api/ldr_min_value_set?value=" + encodeURIComponent(Number(climate.ldr_min || 0)));
+  await apiFetch("/api/ldr_max_value_set?value=" + encodeURIComponent(Number(climate.ldr_max || 0)));
+}
+
+async function importAnimationSettings(animations) {
+  if (!animations) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Animationen...");
+
+  await apiFetch("/api/animation_mode_set?value=" + encodeURIComponent(Number(animations.display_mode || 0)));
+  await apiFetch("/api/color_animation_mode_set?value=" + encodeURIComponent(Number(animations.color_mode || 0)));
+
+  for (const entry of (animations.display_profiles || [])) {
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0)) +
+      "&favourite=" + (entry.favourite ? "on" : "off");
+    await apiFetch("/api/animation_profile_set" + query);
+  }
+
+  for (const entry of (animations.color_profiles || [])) {
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0));
+    await apiFetch("/api/color_animation_profile_set" + query);
+  }
+}
+
+async function importTftSettings(tft) {
+  if (!tft) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere TFT-Einstellungen...");
+
+  const query = "?rgb=" + (tft.rgb ? "on" : "off") +
+    "&hflip=" + (tft.hflip ? "on" : "off") +
+    "&vflip=" + (tft.vflip ? "on" : "off");
+  await apiFetch("/api/tft_flags_set" + query);
+}
+
+async function importAmbilightSettings(ambilight) {
+  if (!ambilight) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Ambilight-Einstellungen...");
+
+  await apiFetch("/api/ambilight_online_set?value=" + (ambilight.online ? "on" : "off"));
+  await apiFetch("/api/ambilight_power_set?value=" + (ambilight.power ? "on" : "off"));
+  await apiFetch("/api/ambilight_mode_set?value=" + encodeURIComponent(Number(ambilight.mode || 0)));
+  await apiFetch("/api/ambilight_leds_set?value=" + encodeURIComponent(Number(ambilight.leds || 0)));
+  await apiFetch("/api/ambilight_offset_set?value=" + encodeURIComponent(Number(ambilight.offset || 0)));
+  await apiFetch("/api/ambilight_brightness_set?value=" + encodeURIComponent(Number(ambilight.brightness || 0)));
+  await saveImportedColor("/api/ambilight_color_set", ambilight.color);
+  await saveImportedColor("/api/marker_color_set", ambilight.marker_color);
+  await apiFetch("/api/sync_ambilight_set?value=" + (ambilight.sync_ambilight ? "on" : "off"));
+  await apiFetch("/api/sync_markers_set?value=" + (ambilight.sync_markers ? "on" : "off"));
+  await apiFetch("/api/fade_clock_seconds_set?value=" + (ambilight.fade_clock_seconds ? "on" : "off"));
+  await apiFetch("/api/ambilight_markers_set?value=" + (ambilight.seconds_markers ? "on" : "off"));
+  await saveImportedDimCurve("/api/ambilight_dim_level_set", ambilight.dim_curve);
+
+  for (const entry of (ambilight.profiles || [])) {
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0));
+    await apiFetch("/api/ambilight_mode_profile_set" + query);
+  }
+}
+
+async function importDfplayerSettings(dfplayer) {
+  if (!dfplayer) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere DFPlayer-Einstellungen...");
+
+  await apiFetch("/api/dfplayer_volume_set?value=" + encodeURIComponent(Number(dfplayer.volume || 0)));
+  await apiFetch("/api/dfplayer_mode_set?value=" + encodeURIComponent(Number(dfplayer.mode || 0)));
+  await apiFetch("/api/dfplayer_bell_flags_set?flag15=" + ((Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off") +
+    "&flag30=" + ((Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off") +
+    "&flag45=" + ((Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"));
+  await apiFetch("/api/dfplayer_speak_cycle_set?value=" + encodeURIComponent(Number(dfplayer.speak_cycle || 0)));
+  await apiFetch("/api/dfplayer_silence_start_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_start || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_start || 0) % 60));
+  await apiFetch("/api/dfplayer_silence_stop_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_stop || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_stop || 0) % 60));
+
+  const alarmMap = new Map((dfplayer.alarms || []).map((entry) => [Number(entry.idx || 0), entry]));
+
+  for (let idx = 0; idx < 8; idx += 1) {
+    const entry = alarmMap.get(idx) || { idx, active: false, from: 0, to: 0, hour: 0, minute: 0 };
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&active=" + (entry.active ? "on" : "off") +
+      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
+      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
+      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
+      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
+    await apiFetch("/api/dfplayer_alarm_set" + query);
+  }
+}
+
+async function importOverlaySettings(overlays) {
+  if (!overlays) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Overlays...");
+
+  const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
+  const currentCount = Number(currentSettingsSnapshot && currentSettingsSnapshot.numvars ? (currentSettingsSnapshot.numvars[NUM.OVERLAY_N_OVERLAYS] || 0) : 0);
+
+  for (let idx = currentCount - 1; idx >= items.length; idx -= 1) {
+    await apiFetch("/api/overlay_delete?idx=" + encodeURIComponent(idx));
+  }
+
+  for (const entry of items) {
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&active=" + (entry.active ? "on" : "off") +
+      "&type=" + encodeURIComponent(Number(entry.type || 0)) +
+      "&value=" + encodeURIComponent(entry.value || "") +
+      "&interval=" + encodeURIComponent(Number(entry.interval || 0)) +
+      "&duration=" + encodeURIComponent(Number(entry.duration || 0)) +
+      "&date_code=" + encodeURIComponent(Number(entry.date_code || 0)) +
+      "&month=" + encodeURIComponent(Number(entry.month || 0)) +
+      "&day=" + encodeURIComponent(Number(entry.day || 0)) +
+      "&days=" + encodeURIComponent(Number(entry.days || 1));
+    await apiFetch("/api/overlay_set" + query);
+  }
+}
+
+async function importTimerSettings(timers) {
+  if (!timers) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Timer...");
+
+  const displayMap = new Map((timers.display || []).map((entry) => [Number(entry.idx || 0), entry]));
+  const ambilightMap = new Map((timers.ambilight || []).map((entry) => [Number(entry.idx || 0), entry]));
+
+  for (let idx = 0; idx < 8; idx += 1) {
+    const entry = displayMap.get(idx) || { idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 };
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&active=" + (entry.active ? "on" : "off") +
+      "&switch_on=" + (entry.switch_on ? "on" : "off") +
+      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
+      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
+      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
+      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
+    await apiFetch("/api/timer_set" + query);
+  }
+
+  for (let idx = 0; idx < 8; idx += 1) {
+    const entry = ambilightMap.get(idx) || { idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 };
+    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+      "&active=" + (entry.active ? "on" : "off") +
+      "&switch_on=" + (entry.switch_on ? "on" : "off") +
+      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
+      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
+      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
+      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
+    await apiFetch("/api/ambilight_timer_set" + query);
+  }
+}
+
+async function saveImportedColor(endpoint, color) {
+  if (!color) {
+    return;
+  }
+
+  const query = "?red=" + encodeURIComponent(Number(color.red || 0)) +
+    "&green=" + encodeURIComponent(Number(color.green || 0)) +
+    "&blue=" + encodeURIComponent(Number(color.blue || 0)) +
+    "&white=" + encodeURIComponent(Number(color.white || 0));
+  await apiFetch(endpoint + query);
+}
+
+async function saveImportedDimCurve(endpoint, values) {
+  if (!Array.isArray(values)) {
+    return;
+  }
+
+  for (let idx = 0; idx < values.length && idx <= 15; idx += 1) {
+    await apiFetch(endpoint + "?idx=" + encodeURIComponent(idx) + "&value=" + encodeURIComponent(Number(values[idx] || 0)));
+  }
 }
 
 function updateDateTimeControls(settings) {
@@ -2476,12 +3010,9 @@ async function resetStm32() {
   }
 
   const maintenanceButton = document.getElementById("maintenance-reset-stm32-button");
-  const localUpdateButton = document.getElementById("local-update-reset-button");
 
   maintenanceButton.disabled = true;
-  localUpdateButton.disabled = true;
   maintenanceButton.textContent = "läuft...";
-  localUpdateButton.textContent = "läuft...";
 
   try {
     await apiFetch("/api/maintenance_reset_stm32");
@@ -2493,9 +3024,7 @@ async function resetStm32() {
     announceStatus("STM32 konnte nicht zurückgesetzt werden", "error");
   } finally {
     maintenanceButton.disabled = false;
-    localUpdateButton.disabled = false;
     maintenanceButton.textContent = "STM32 zurücksetzen";
-    localUpdateButton.textContent = "STM32 zurücksetzen";
   }
 }
 
@@ -3851,6 +4380,7 @@ function renderHealthList(settings, ambilightOnline, dfplayerOnline) {
 
 function renderWordclock(active, settings, layoutPreview) {
   const root = document.getElementById("wordclock-grid");
+  ensureWordclockResizeObserver();
   root.innerHTML = "";
   const preview = layoutPreview || {};
   const rows = Array.isArray(preview.rows) && preview.rows.length ? preview.rows : fallbackWordclockRows;
@@ -3880,15 +4410,41 @@ function renderWordclock(active, settings, layoutPreview) {
 }
 
 let wordclockSizingFrame = 0;
+let wordclockSizingTimeout = 0;
+let wordclockResizeObserver = null;
 
 function scheduleWordclockSizing() {
   if (wordclockSizingFrame) {
     window.cancelAnimationFrame(wordclockSizingFrame);
   }
+  if (wordclockSizingTimeout) {
+    window.clearTimeout(wordclockSizingTimeout);
+    wordclockSizingTimeout = 0;
+  }
   wordclockSizingFrame = window.requestAnimationFrame(() => {
     wordclockSizingFrame = 0;
     updateWordclockSizing();
   });
+  wordclockSizingTimeout = window.setTimeout(() => {
+    wordclockSizingTimeout = 0;
+    updateWordclockSizing();
+  }, 140);
+}
+
+function ensureWordclockResizeObserver() {
+  if (wordclockResizeObserver || typeof ResizeObserver === "undefined") {
+    return;
+  }
+
+  const panel = document.querySelector(".wordclock-panel");
+  if (!panel) {
+    return;
+  }
+
+  wordclockResizeObserver = new ResizeObserver(() => {
+    scheduleWordclockSizing();
+  });
+  wordclockResizeObserver.observe(panel);
 }
 
 function updateWordclockSizing() {

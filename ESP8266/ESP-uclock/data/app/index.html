@@ -564,7 +564,7 @@
             </div>
             <div id="update-server-files-block" class="control-stack">
               <div class="panel-head compact"><div><span class="label">Dateien vom Server</span></div></div>
-              <div class="hero-actions">
+              <div class="hero-actions compact-actions">
                 <button id="update-table-button" class="button" type="button">Layout-Tabelle laden</button>
                 <button id="update-assets-button" class="button" type="button">Icon-Dateien laden</button>
                 <button id="update-app-bundle-button" class="button primary" type="button">App-Paket laden</button>
@@ -584,6 +584,30 @@
               <button id="maintenance-reset-stm32-button" class="button" type="button">STM32 zurücksetzen</button>
               <button id="maintenance-reset-eeprom-button" class="button" type="button">EEPROM zurücksetzen</button>
             </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Sicherung</p>
+              <h2>Einstellungen exportieren und importieren</h2>
+              <p class="hint">Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div id="backup-info-list" class="info-list"></div>
+            <div class="hero-actions">
+              <button id="settings-export-button" class="button primary" type="button">Einstellungen exportieren</button>
+            </div>
+            <label class="field">
+              <span class="label">Sicherungsdatei importieren</span>
+              <input id="settings-import-file-input" type="file" accept=".json,application/json">
+            </label>
+            <div class="hero-actions">
+              <button id="settings-import-button" class="button" type="button">Einstellungen importieren</button>
+            </div>
+            <p id="settings-backup-note" class="hint">Noch keine Sicherungsaktion ausgeführt.</p>
           </div>
         </section>
 
@@ -624,7 +648,7 @@
           </div>
         </section>
 
-        <section id="local-update-panel" class="panel panel-span-2">
+        <section id="local-update-panel" class="panel">
           <div class="panel-head"><div><p class="eyebrow">Lokales Update</p><h2>ESP- und STM32-Dateien hochladen</h2><p class="hint">Lokale Firmware-Dateien können direkt hochgeladen werden, ohne den Update-Server zu verwenden.</p></div></div>
           <div class="control-stack">
             <p id="local-update-note" class="hint">Lokal-Update wird vorbereitet...</p>
@@ -636,7 +660,6 @@
               <label class="field"><span class="label">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex,.txt" required></label>
               <button id="local-update-stm32-submit-button" class="button primary" type="submit">STM32 lokal aktualisieren</button>
             </form>
-            <div class="hero-actions"><button id="local-update-reset-button" class="button" type="button">STM32 nach lokalem Update zurücksetzen</button></div>
           </div>
         </section>
       </section>

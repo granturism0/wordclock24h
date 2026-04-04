@@ -127,6 +127,10 @@ h2 {
   margin-top: 8px;
 }
 
+.compact-actions {
+  margin-top: 2px;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -714,6 +718,20 @@ h2 {
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.local-update-form {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.local-update-form .button {
+  justify-self: start;
+  margin-top: 4px;
 }
 
 .code-block {

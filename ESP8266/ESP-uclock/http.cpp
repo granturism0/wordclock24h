@@ -6196,6 +6196,88 @@ http_api_network_ap_set ()
 }
 
 static int
+http_api_eeprom_settings ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ssid\":\""));
+    http_send (sanitize_json_string (eeprom_ssid).c_str ());
+    http_send (FS("\",\"key\":\""));
+    http_send (sanitize_json_string (eeprom_ssidkey).c_str ());
+    http_send (FS("\",\"ap_ssid\":\""));
+    http_send (sanitize_json_string (eeprom_ap_ssid).c_str ());
+    http_send (FS("\",\"ap_key\":\""));
+    http_send (sanitize_json_string (eeprom_ap_ssidkey).c_str ());
+    http_send (FS("\",\"flags\":"));
+    http_send (eeprom_flags ? "1" : "0");
+    http_send (FS(",\"boot_as_ap\":"));
+    http_send ((eeprom_flags & EEPROM_FLAG_BOOT_AS_AP) ? "true" : "false");
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_eeprom_settings_set ()
+{
+    char * ssid = http_get_param ("ssid");
+    char * key = http_get_param ("key");
+    char * ap_ssid = http_get_param ("ap_ssid");
+    char * ap_key = http_get_param ("ap_key");
+    char * boot_as_ap = http_get_param ("boot_as_ap");
+
+    if (! ssid)     { ssid = (char *) ""; }
+    if (! key)      { key = (char *) ""; }
+    if (! ap_ssid)  { ap_ssid = (char *) ""; }
+    if (! ap_key)   { ap_key = (char *) ""; }
+
+    String pssid = ssid;
+    String pkey = key;
+    String pap_ssid = ap_ssid;
+    String pap_key = ap_key;
+
+    if (! pssid.equals (eeprom_ssid))
+    {
+        pssid.toCharArray (eeprom_ssid, EEPROM_SSID_LEN);
+        eeprom_save_ssid ();
+    }
+
+    if (! pkey.equals (eeprom_ssidkey))
+    {
+        pkey.toCharArray (eeprom_ssidkey, EEPROM_SSID_KEY_LEN);
+        eeprom_save_ssidkey ();
+    }
+
+    if (! pap_ssid.equals (eeprom_ap_ssid))
+    {
+        pap_ssid.toCharArray (eeprom_ap_ssid, EEPROM_AP_SSID_LEN);
+        eeprom_save_ap_ssid ();
+    }
+
+    if (! pap_key.equals (eeprom_ap_ssidkey))
+    {
+        pap_key.toCharArray (eeprom_ap_ssidkey, EEPROM_AP_SSID_KEY_LEN);
+        eeprom_save_ap_ssidkey ();
+    }
+
+    if (boot_as_ap && ! strcmp (boot_as_ap, "on"))
+    {
+        eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
+    }
+    else
+    {
+        eeprom_flags &= ~EEPROM_FLAG_BOOT_AS_AP;
+    }
+
+    eeprom_save_flags ();
+    eeprom_commit ();
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
 http_api_network_timeserver_set ()
 {
     char * value = http_get_param ("value");
@@ -6614,6 +6696,22 @@ http_api_ldr_min_set ()
 }
 
 static int
+http_api_ldr_min_value_set ()
+{
+    int value = atoi (http_get_param ("value"));
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+
+    set_numvar (LDR_MIN_VALUE_NUM_VAR, value);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
 http_api_ldr_max_set ()
 {
     rpc (LDR_MAX_VALUE_RPC_VAR);
@@ -6621,6 +6719,22 @@ http_api_ldr_max_set ()
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ldr_max_value_set ()
+{
+    int value = atoi (http_get_param ("value"));
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+
+    set_numvar (LDR_MAX_VALUE_NUM_VAR, value);
+    http_json_ok ();
 
     return 0;
 }
@@ -8634,6 +8748,14 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_network_scan ();
     }
+    else if (! strcmp (path, "/api/eeprom_settings"))
+    {
+        rtc = http_api_eeprom_settings ();
+    }
+    else if (! strcmp (path, "/api/eeprom_settings_set"))
+    {
+        rtc = http_api_eeprom_settings_set ();
+    }
     else if (! strcmp (path, "/api/network_client_set"))
     {
         rtc = http_api_network_client_set ();
@@ -8722,9 +8844,17 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_ldr_min_set ();
     }
+    else if (! strcmp (path, "/api/ldr_min_value_set"))
+    {
+        rtc = http_api_ldr_min_value_set ();
+    }
     else if (! strcmp (path, "/api/ldr_max_set"))
     {
         rtc = http_api_ldr_max_set ();
+    }
+    else if (! strcmp (path, "/api/ldr_max_value_set"))
+    {
+        rtc = http_api_ldr_max_value_set ();
     }
     else if (! strcmp (path, "/api/animation_mode_set"))
     {
