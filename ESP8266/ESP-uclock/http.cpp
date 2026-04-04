@@ -11,6 +11,7 @@
  */
 #include <ESP8266WiFi.h>
 #include <ESP8266httpUpdate.h>
+#include <Updater.h>
 #include <WString.h>
 #include <FS.h>
 #include <LittleFS.h>
@@ -144,6 +145,17 @@ static int      http_response_len = 0;
 #define MAX_UPDATE_FILENAME_LEN                     64
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * pwa parameters
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define PWA_PREFIX                                  "/app"
+#define PWA_INDEX_FILE                              "app-index.html"
+#define APP_BUNDLE_FILENAME                         "app-bundle.txt"
+
+static void             http_json_ok ();
+static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -198,6 +210,186 @@ void
 http_send (String s)
 {
     http_send (s.c_str());
+}
+
+static const char *
+http_content_type (const char * path)
+{
+    const char * p = strrchr (path, '.');
+
+    if (! p)
+    {
+        return "text/plain";
+    }
+
+    if (! strcmp (p, ".html"))
+    {
+        return "text/html; charset=utf-8";
+    }
+    else if (! strcmp (p, ".css"))
+    {
+        return "text/css; charset=utf-8";
+    }
+    else if (! strcmp (p, ".js"))
+    {
+        return "application/javascript; charset=utf-8";
+    }
+    else if (! strcmp (p, ".webmanifest"))
+    {
+        return "application/manifest+json; charset=utf-8";
+    }
+    else if (! strcmp (p, ".json"))
+    {
+        return "application/json; charset=utf-8";
+    }
+    else if (! strcmp (p, ".svg"))
+    {
+        return "image/svg+xml";
+    }
+    else if (! strcmp (p, ".png"))
+    {
+        return "image/png";
+    }
+    else if (! strcmp (p, ".ico"))
+    {
+        return "image/x-icon";
+    }
+
+    return "text/plain";
+}
+
+static uint_fast8_t
+http_send_fs_file (const char * filename, const char * content_type)
+{
+    uint_fast8_t    rtc = 0;
+
+    LittleFS.begin ();
+
+    if (LittleFS.exists (filename))
+    {
+        File fp = LittleFS.open (filename, "r");
+
+        if (fp)
+        {
+            http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
+            http_send (content_type);
+            http_send (FS("\r\nCache-Control: no-cache\r\n\r\n"));
+
+            while (fp.available ())
+            {
+                char    buf[257];
+                size_t  len = fp.readBytes (buf, sizeof (buf) - 1);
+
+                if (len > 0)
+                {
+                    buf[len] = '\0';
+                    http_send (buf);
+                }
+            }
+
+            fp.close ();
+            http_flush ();
+            rtc = 1;
+        }
+    }
+
+    LittleFS.end ();
+    return rtc;
+}
+
+static bool
+app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
+{
+    size_t idx = 0;
+
+    if (! asset_path || ! *asset_path)
+    {
+        return false;
+    }
+
+    for (const char * p = asset_path; *p && idx < maxlen - 1; p++)
+    {
+        if (*p == '/')
+        {
+            filename[idx++] = '-';
+        }
+        else
+        {
+            filename[idx++] = *p;
+        }
+    }
+
+    filename[idx] = '\0';
+    return idx > 0;
+}
+
+static uint_fast8_t
+http_app (const char * path)
+{
+    char            filename[128];
+    const char *    content_type;
+    uint_fast8_t    is_pwa_index = 0;
+
+    if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
+    {
+        strncpy (filename, PWA_INDEX_FILE, sizeof (filename) - 1);
+        filename[sizeof (filename) - 1] = '\0';
+        is_pwa_index = 1;
+    }
+    else if (! strncmp (path, PWA_PREFIX "/", strlen (PWA_PREFIX "/")))
+    {
+        char asset_path[128];
+
+        snprintf (asset_path, sizeof (asset_path), "app/%s", path + strlen (PWA_PREFIX "/"));
+
+        if (! app_asset_filename (asset_path, filename, sizeof (filename)))
+        {
+            http_send (FS("HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\n\r\nPWA asset not found\r\n"));
+            http_flush ();
+            return 0;
+        }
+    }
+    else
+    {
+        return 0;
+    }
+
+    content_type = http_content_type (filename);
+
+    if (! http_send_fs_file (filename, content_type))
+    {
+        if (is_pwa_index)
+        {
+            http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+            http_send (FS(
+                "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+                "<title>WordClock App noch nicht installiert</title>"
+                "<style>"
+                "body{font-family:Arial,sans-serif;background:#0b1422;color:#eef4ff;padding:24px;line-height:1.5;}"
+                ".card{max-width:680px;margin:0 auto;background:#132033;border:1px solid rgba(255,255,255,.08);"
+                "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
+                "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}a{display:inline-block;margin:8px 12px 0 0;"
+                "padding:12px 16px;border-radius:999px;text-decoration:none;background:#2d5275;color:#fff;"
+                "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
+                "</style></head><body><div class='card'>"
+                "<h1>WordClock App ist noch nicht installiert</h1>"
+                "<p>Auf diesem Gerät wurden noch keine App-Dateien in das LittleFS geladen.</p>"
+                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder vom Update-Server laden.</p>"
+                "<a href='/fs'>Zu Dateien / App-Paket</a>"
+                "<a href='/update'>Zu Update</a>"
+                "<a href='/'>Zur Legacy-Seite</a>"
+                "</div></body></html>"
+            ));
+        }
+        else
+        {
+            http_send (FS("HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\n\r\nPWA asset not found\r\n"));
+        }
+        http_flush ();
+    }
+
+    return 0;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -1048,6 +1240,7 @@ begin_box (const char * title)
     menu_entry ("fs", "Files");
     menu_entry ("update", "Update");
     menu_entry ("flash_stm32_local", "Local Update");
+    http_send_FS ("<a href=\"/app\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
 
     http_send_FS ("</td><td style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
 
@@ -3910,6 +4103,7 @@ download_file (const char * host, const char * path, const char * filename)
 }
 
 #define READ_LINE_TIMEOUT   2000  // 2000 msec
+#define READ_BODY_TIMEOUT   5000  // 5000 msec
 
 static bool
 read_line (String& line)
@@ -3948,6 +4142,265 @@ read_line (String& line)
     return (rtc);
 }
 
+static bool
+read_post_headers (size_t * content_length)
+{
+    String line;
+
+    *content_length = 0;
+
+    while (read_line (line))
+    {
+        if (line == "")
+        {
+            if (http_client.available () && http_client.peek () == '\n')
+            {
+                http_client.read ();
+            }
+            return true;
+        }
+        else if (line.startsWith ("Content-Length:"))
+        {
+            *content_length = (size_t) strtoul (line.substring (15).c_str (), NULL, 10);
+        }
+    }
+
+    return false;
+}
+
+static bool
+read_request_body_to_file (File& f, size_t content_length)
+{
+    unsigned long start_millis = millis ();
+
+    while (content_length > 0)
+    {
+        if (http_client.available ())
+        {
+            uint8_t buf[256];
+            size_t  chunk = http_client.available ();
+
+            if (chunk > sizeof (buf))
+            {
+                chunk = sizeof (buf);
+            }
+
+            if (chunk > content_length)
+            {
+                chunk = content_length;
+            }
+
+            int n = http_client.read (buf, chunk);
+
+            if (n > 0)
+            {
+                f.write (buf, n);
+                content_length -= n;
+                start_millis = millis ();
+                yield ();
+            }
+        }
+        else if ((millis () - start_millis) >= READ_BODY_TIMEOUT)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static size_t
+read_request_body_to_update (size_t content_length)
+{
+    size_t written = 0;
+    unsigned long start_millis = millis ();
+
+    while (written < content_length)
+    {
+        if (http_client.available ())
+        {
+            uint8_t buf[256];
+            size_t  chunk = http_client.available ();
+
+            if (chunk > sizeof (buf))
+            {
+                chunk = sizeof (buf);
+            }
+
+            if (chunk > content_length - written)
+            {
+                chunk = content_length - written;
+            }
+
+            int n = http_client.read (buf, chunk);
+
+            if (n > 0)
+            {
+                size_t just_written = Update.write (buf, n);
+
+                if (just_written != (size_t) n)
+                {
+                    return written + just_written;
+                }
+
+                written += just_written;
+                start_millis = millis ();
+                yield ();
+            }
+        }
+        else if ((millis () - start_millis) >= READ_BODY_TIMEOUT)
+        {
+            return written;
+        }
+    }
+
+    return written;
+}
+
+static size_t
+skip_leading_body_newlines (void)
+{
+    size_t skipped = 0;
+    unsigned long start_millis = millis ();
+
+    while ((millis () - start_millis) < READ_BODY_TIMEOUT)
+    {
+        if (http_client.available ())
+        {
+            int ch = http_client.peek ();
+
+            if (ch == '\r' || ch == '\n')
+            {
+                http_client.read ();
+                skipped++;
+                continue;
+            }
+            break;
+        }
+    }
+
+    return skipped;
+}
+
+static bool
+fs_read_line (File& fp, String& line)
+{
+    int c;
+
+    line = "";
+
+    while ((c = fp.read ()) >= 0)
+    {
+        if (c == '\r')
+        {
+            continue;
+        }
+        else if (c == '\n')
+        {
+            return true;
+        }
+
+        line += (char) c;
+    }
+
+    return line.length () > 0;
+}
+
+static int
+install_app_bundle (const char * bundle_filename)
+{
+    int     rtc = 0;
+    String  line;
+
+    LittleFS.begin ();
+
+    File bundle = LittleFS.open (bundle_filename, "r");
+
+    if (bundle)
+    {
+        File out = (File) 0;
+
+        if (LittleFS.exists ("app"))
+        {
+            LittleFS.remove ("app");
+        }
+
+        if (fs_read_line (bundle, line) && line == "WCAPPBUNDLE 1")
+        {
+            rtc = 1;
+
+            while (fs_read_line (bundle, line))
+            {
+                if (line == "END_BUNDLE")
+                {
+                    break;
+                }
+                else if (line.startsWith ("FILE "))
+                {
+                    String fname = line.substring (5);
+                    char   flat_fname[128];
+
+                    if (out)
+                    {
+                        out.close ();
+                    }
+
+                    if (! fname.startsWith ("app/"))
+                    {
+                        rtc = 0;
+                        break;
+                    }
+
+                    if (! app_asset_filename (fname.c_str(), flat_fname, sizeof (flat_fname)))
+                    {
+                        rtc = 0;
+                        break;
+                    }
+
+                    out = LittleFS.open (flat_fname, "w+");
+
+                    if (! out)
+                    {
+                        rtc = 0;
+                        break;
+                    }
+                }
+                else if (line == "END_FILE")
+                {
+                    if (out)
+                    {
+                        out.close ();
+                    }
+                }
+                else
+                {
+                    if (! out)
+                    {
+                        rtc = 0;
+                        break;
+                    }
+
+                    out.write ((const uint8_t *) line.c_str (), line.length ());
+                    out.write ('\n');
+                }
+
+                yield ();
+            }
+
+            if (out)
+            {
+                out.close ();
+            }
+        }
+
+        bundle.close ();
+        LittleFS.remove (bundle_filename);
+    }
+
+    LittleFS.end ();
+    return rtc;
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * LittleFS page
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -3960,6 +4413,9 @@ read_line (String& line)
 #define POST_ICON_WEATHER_FILE    2
 #define POST_TABLES_FILE          3
 #define POST_DISPLAY_FILE         4
+#define POST_APP_BUNDLE_FILE      5
+
+#define APP_BUNDLE_TMP_FILE       "app-bundle.tmp"
 
 static uint_fast8_t
 http_fs (int post = POST_ICON_NONE)
@@ -3974,12 +4430,15 @@ http_fs (int post = POST_ICON_NONE)
     const char *    fname_weather   = (const char *) 0;
     const char *    fname_tables    = (const char *) 0;
     const char *    fname_display   = (const char *) 0;
+    const char *    fname_app_bundle = APP_BUNDLE_TMP_FILE;
     const char *    show_fname      = (const char *) 0;
     const char *    tables_filter   = (const char *) 0;
     char *          update_host;
     char *          update_path;
     FSInfo          fsinfo;
     int             download_rtc = 2;
+    int             app_bundle_rtc = -1;
+    int             app_bundle_available = 0;
     STR_VAR *       sv;
     int             len;
     uint_fast8_t    rtc = 0;
@@ -4030,6 +4489,12 @@ http_fs (int post = POST_ICON_NONE)
         set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
     }
 
+    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
+    {
+        app_bundle_available = 1;
+        httpclient_stop ();
+    }
+
     if (post != POST_ICON_NONE)
     {
         File f = (File) 0;
@@ -4063,6 +4528,10 @@ http_fs (int post = POST_ICON_NONE)
             {
                 f = LittleFS.open(fname_display, "w+");
             }
+        }
+        else if (post == POST_APP_BUNDLE_FILE)
+        {
+            f = LittleFS.open (fname_app_bundle, "w+");
         }
 
         if (f)
@@ -4113,10 +4582,16 @@ http_fs (int post = POST_ICON_NONE)
                     f.write((const unsigned char*)line.c_str(), line.length());
                     f.write('\r');
                     f.write('\n');
+                    yield ();
                 }
             }
 
             f.close();
+
+            if (post == POST_APP_BUNDLE_FILE)
+            {
+                app_bundle_rtc = install_app_bundle (fname_app_bundle);
+            }
         }
         else
         {
@@ -4175,6 +4650,17 @@ http_fs (int post = POST_ICON_NONE)
 
             LittleFS.end ();
         }
+        else if (! strcmp (action, "dwnappbundle"))
+        {
+            LittleFS.begin ();
+            download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
+            LittleFS.end ();
+
+            if (download_rtc == 1)
+            {
+                app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
+            }
+        }
         else if (! strcmp (action, "remove"))
         {
             char * fname = http_get_param ("filename");
@@ -4204,6 +4690,15 @@ http_fs (int post = POST_ICON_NONE)
     else if (download_rtc == 1)
     {
         http_send_FS ("download successful<BR>");
+    }
+
+    if (app_bundle_rtc == 0)
+    {
+        http_send_FS ("WordClock App bundle installation failed<BR>");
+    }
+    else if (app_bundle_rtc == 1)
+    {
+        http_send_FS ("WordClock App bundle installed successfully<BR>");
     }
 
     sv = get_strvar (UPDATE_HOST_VAR);
@@ -4382,6 +4877,23 @@ http_fs (int post = POST_ICON_NONE)
     }
 
     http_send_FS ("<table>");
+
+    http_send_FS ("<tr><td colspan='3'><B>WordClock App bundle (/app)</B></td></tr>");
+    http_send_FS ("<tr><td colspan='3'>Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.</td></tr>");
+    if (app_bundle_available)
+    {
+        http_send_FS ("<tr><td colspan='3'>"
+                      "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
+                      "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
+                      "</form>"
+                      "</td></tr>");
+    }
+    http_send_FS ("<tr><td>app-bundle.txt</td><td>"
+            "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
+            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>"
+            "</td><td><input type='submit' class='button' name='submit' value='Install App'></td>"
+            "</form></tr>"
+            );
 
     if (fname_icon)
     {
@@ -4941,12 +5453,164 @@ sanitize_xml_string(const String& str)
     return result;
 }
 
+String
+sanitize_json_string (const String& str)
+{
+    String result;
+
+    for (unsigned int i = 0; i < str.length (); i++)
+    {
+        switch (str[i])
+        {
+            case '\\':
+                result += "\\\\";
+                break;
+            case '"':
+                result += "\\\"";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            default:
+                result += str[i];
+                break;
+        }
+    }
+
+    return result;
+}
+
+static void
+http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len)
+{
+    int len;
+    int l = 0;
+
+    if (buffer_len == 0)
+    {
+        return;
+    }
+
+    buffer[0] = '\0';
+    len = httpclient (host, path, filename);
+
+    if (len > 0)
+    {
+        int ch;
+
+        while (len > 0)
+        {
+            ch = httpclient_read (&len);
+
+            if (ch != '\r' && ch != '\n' && l < (int) buffer_len - 1)
+            {
+                buffer[l++] = ch;
+            }
+        }
+
+        httpclient_stop ();
+    }
+
+    buffer[l] = '\0';
+}
+
+static String
+http_fetch_remote_text (const char * host, const char * path, const char * filename, size_t max_len)
+{
+    int len;
+    String result;
+
+    len = httpclient (host, path, filename);
+
+    if (len > 0)
+    {
+        int ch;
+
+        while (len > 0 && result.length () < max_len)
+        {
+            ch = httpclient_read (&len);
+
+            if (ch >= 0)
+            {
+                result += (char) ch;
+            }
+        }
+
+        httpclient_stop ();
+    }
+
+    return result;
+}
+
+static void
+http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter)
+{
+    stm32_default_filename[0] = '\0';
+    *filter = (const char *) NULL;
+
+    if (hardware_configuration == 0xFFFF || max_len == 0)
+    {
+        return;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H:                       strcat (stm32_default_filename, "wc24h-");          break;
+        case HW_WC_12H:                       strcat (stm32_default_filename, "wc12h-");          break;
+        case HW_UCLOCK:                       strcat (stm32_default_filename, "uc-");             break;
+    }
+
+    switch (hardware_configuration & HW_STM32_MASK)
+    {
+        case HW_STM32_F103C8:                 strcat (stm32_default_filename, "stm32f103-");        *filter = "stm32f103-"; break;
+        case HW_STM32_F401RE:                 strcat (stm32_default_filename, "stm32f401-");        *filter = "stm32f401-"; break;
+        case HW_STM32_F411RE:                 strcat (stm32_default_filename, "stm32f411-");        *filter = "stm32f411-"; break;
+        case HW_STM32_F446RE:                 strcat (stm32_default_filename, "stm32f446-");        *filter = "stm32f446-"; break;
+        case HW_STM32_F407VE:                 strcat (stm32_default_filename, "stm32f407-");        *filter = "stm32f407-"; break;
+        case HW_STM32_F401CC:
+        {
+            switch (hardware_configuration & HW_OSC_FREQUENCY_MASK)
+            {
+                case HW_OSC_FREQUENCY_8MHZ:   strcat (stm32_default_filename, "stm32f401cc-8-");    *filter = "stm32f401cc-8-"; break;
+                case HW_OSC_FREQUENCY_25MHZ:  strcat (stm32_default_filename, "stm32f401cc-25-");   *filter = "stm32f401cc-25-"; break;
+            }
+            break;
+        }
+        case HW_STM32_F411CE:
+        {
+            switch (hardware_configuration & HW_OSC_FREQUENCY_MASK)
+            {
+                case HW_OSC_FREQUENCY_8MHZ:   strcat (stm32_default_filename, "stm32f411ce-8-");    *filter = "stm32f411ce-8-"; break;
+                case HW_OSC_FREQUENCY_25MHZ:  strcat (stm32_default_filename, "stm32f411ce-25-");   *filter = "stm32f411ce-25-"; break;
+            }
+            break;
+        }
+    }
+
+    switch (hardware_configuration & HW_LED_MASK)
+    {
+        case HW_LED_WS2812_GRB_LED:     strcat (stm32_default_filename, "ws2812-grb.hex");  break;
+        case HW_LED_WS2812_RGB_LED:     strcat (stm32_default_filename, "ws2812-rgb.hex");  break;
+        case HW_LED_APA102_RGB_LED:     strcat (stm32_default_filename, "apa102-grb.hex");  break;
+        case HW_LED_SK6812_RGB_LED:     strcat (stm32_default_filename, "sk6812-rgb.hex");  break;
+        case HW_LED_SK6812_RGBW_LED:    strcat (stm32_default_filename, "sk6812-rgbw.hex"); break;
+        case HW_LED_TFTLED_RGB_LED:     strcat (stm32_default_filename, "tftled-rgb.hex");  break;
+    }
+}
+
 static int
 http_get_settings()
 {
     char          buff[255];
     int           i;
     uint_fast8_t  ui;
+    TM *          tm;
 
     http_send(FS("HTTP/1.0 200 OK\r\n\r\n"));
     http_send(FS("<settings>"));
@@ -4965,10 +5629,43 @@ http_get_settings()
         http_send(buff);
     }
 
+    // tm vars
+    for (i = 0; i < MAX_TM_VARIABLES; i++)
+    {
+        tm = get_tm_var ((TM_VARIABLE) i);
+
+        if (tm)
+        {
+            sprintf (buff, FS("<tmvar idx=\"%d\" year=\"%d\" month=\"%d\" day=\"%d\" hour=\"%d\" minute=\"%d\" second=\"%d\" wday=\"%d\" />"),
+                i,
+                tm->tm_year + 1900,
+                tm->tm_mon + 1,
+                tm->tm_mday,
+                tm->tm_hour,
+                tm->tm_min,
+                tm->tm_sec,
+                tm->tm_wday);
+            http_send (buff);
+        }
+    }
+
     // colors
     for (i = 0; i < MAX_DSP_COLOR_VARIABLES; i++)
     {
         sprintf(buff, FS("<dspcolor idx=\"%d\" red=\"%d\" green=\"%d\" blue=\"%d\" white=\"%d\" />"), i, dspcolorvars[i].red, dspcolorvars[i].green, dspcolorvars[i].blue, dspcolorvars[i].white);
+        http_send(buff);
+    }
+
+    // num8 arrays
+    for (i = 0; i < MAX_BRIGHTNESS + 1; i++)
+    {
+        sprintf(buff, FS("<num8array var=\"%d\" idx=\"%d\" value=\"%d\" />"), DISPLAY_DIMMED_DISPLAY_COLORS, i, get_num8_array(DISPLAY_DIMMED_DISPLAY_COLORS, i));
+        http_send(buff);
+    }
+
+    for (i = 0; i < MAX_BRIGHTNESS + 1; i++)
+    {
+        sprintf(buff, FS("<num8array var=\"%d\" idx=\"%d\" value=\"%d\" />"), DISPLAY_DIMMED_AMBILIGHT_COLORS, i, get_num8_array(DISPLAY_DIMMED_AMBILIGHT_COLORS, i));
         http_send(buff);
     }
 
@@ -5022,8 +5719,2365 @@ http_get_settings()
         http_send(buff);
     }
 
+    // ambilight night times
+    for (i = 0; i < MAX_NIGHT_TIME_VARIABLES; i++)
+    {
+        sprintf(buff, FS("<ambinighttime idx=\"%d\" minutes=\"%d\" flags=\"%d\"/>"), i, ambilightnighttimevars[i].minutes, ambilightnighttimevars[i].flags);
+        http_send(buff);
+    }
+
+    // alarm times
+    for (i = 0; i < MAX_ALARM_TIME_VARIABLES; i++)
+    {
+        sprintf(buff, FS("<alarmtime idx=\"%d\" minutes=\"%d\" flags=\"%d\"/>"), i, alarmtimevars[i].minutes, alarmtimevars[i].flags);
+        http_send(buff);
+    }
+
+    // overlays
+    for (i = 0; i < MAX_OVERLAYS; i++)
+    {
+        sprintf(buff, FS("<overlay idx=\"%d\" type=\"%d\" interval=\"%d\" duration=\"%d\" date_code=\"%d\" date_start=\"%d\" days=\"%d\" flags=\"%d\" text=\"%s\"/>"),
+            i,
+            overlays[i].type,
+            overlays[i].interval,
+            overlays[i].duration,
+            overlays[i].date_code,
+            overlays[i].date_start,
+            overlays[i].days,
+            overlays[i].flags,
+            sanitize_xml_string(overlays[i].text).c_str());
+        http_send(buff);
+    }
+
     http_send(FS("</settings>"));
     http_flush();
+
+    return 0;
+}
+
+static int
+http_get_display_power ()
+{
+    http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n"));
+    http_send(get_numvar (DISPLAY_POWER_NUM_VAR) ? "on\n" : "off\n");
+    http_flush();
+
+    return 0;
+}
+
+static int
+http_get_ambilight_power ()
+{
+    http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n"));
+    http_send(get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on\n" : "off\n");
+    http_flush();
+
+    return 0;
+}
+
+static int
+http_api_display_power_set ()
+{
+    char * value = http_get_param ("value");
+
+    if (value && ! strcmp (value, "on"))
+    {
+        set_numvar (DISPLAY_POWER_NUM_VAR, 1);
+    }
+    else if (value && ! strcmp (value, "off"))
+    {
+        set_numvar (DISPLAY_POWER_NUM_VAR, 0);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"display_power\":\""));
+    http_send (get_numvar (DISPLAY_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_power_set ()
+{
+    char * value = http_get_param ("value");
+
+    if (value && ! strcmp (value, "on"))
+    {
+        set_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR, 1);
+    }
+    else if (value && ! strcmp (value, "off"))
+    {
+        set_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR, 0);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_power\":\""));
+    http_send (get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_display_brightness_set ()
+{
+    char * value = http_get_param ("value");
+    int    brightness = atoi (value ? value : "0");
+
+    if (brightness < 0)
+    {
+        brightness = 0;
+    }
+    else if (brightness > 15)
+    {
+        brightness = 15;
+    }
+
+    set_numvar (DISPLAY_BRIGHTNESS_NUM_VAR, brightness);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"display_brightness\":"));
+    char buf[8];
+    sprintf (buf, "%d", brightness);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_auto_brightness_set ()
+{
+    char * value = http_get_param ("value");
+
+    if (value && ! strcmp (value, "on"))
+    {
+        set_numvar (DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE_NUM_VAR, 1);
+    }
+    else if (value && ! strcmp (value, "off"))
+    {
+        set_numvar (DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE_NUM_VAR, 0);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"auto_brightness\":\""));
+    http_send (get_numvar (DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_display_mode_set ()
+{
+    char * value = http_get_param ("value");
+    int    mode = atoi (value ? value : "0");
+
+    if (mode < 0)
+    {
+        mode = 0;
+    }
+    else if (mode >= display_modes_count)
+    {
+        mode = display_modes_count ? display_modes_count - 1 : 0;
+    }
+
+    set_numvar (DISPLAY_MODE_NUM_VAR, mode);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"display_mode\":"));
+    char buf[8];
+    sprintf (buf, "%d", mode);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_display_it_is_set ()
+{
+    uint_fast8_t flags = get_numvar (DISPLAY_FLAGS_NUM_VAR);
+
+    if (http_get_on_off_value ("value", flags & DISPLAY_FLAGS_PERMANENT_IT_IS))
+    {
+        flags |= DISPLAY_FLAGS_PERMANENT_IT_IS;
+    }
+    else
+    {
+        flags &= ~DISPLAY_FLAGS_PERMANENT_IT_IS;
+    }
+
+    set_numvar (DISPLAY_FLAGS_NUM_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_ticker_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (TICKER_TEXT_STR_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_date_ticker_format_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (DATE_TICKER_FORMAT_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ticker_deceleration_set ()
+{
+    char * value = http_get_param ("value");
+    int    deceleration = atoi (value ? value : "0");
+
+    if (deceleration < 0)
+    {
+        deceleration = 0;
+    }
+    else if (deceleration > 255)
+    {
+        deceleration = 255;
+    }
+
+    set_numvar (TICKER_DECELRATION_NUM_VAR, deceleration);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ticker_deceleration\":"));
+    char buf[8];
+    sprintf (buf, "%d", deceleration);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_test_display ()
+{
+    rpc (TEST_DISPLAY_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_weather_appid_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (WEATHER_APPID_STR_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_weather_city_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (WEATHER_CITY_STR_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_weather_coordinates_set ()
+{
+    char * lon = http_get_param ("lon");
+    char * lat = http_get_param ("lat");
+
+    if (! lon)
+    {
+        lon = (char *) "";
+    }
+
+    if (! lat)
+    {
+        lat = (char *) "";
+    }
+
+    strsubst (lon, ',', '.');
+    strsubst (lat, ',', '.');
+
+    set_strvar (WEATHER_LON_STR_VAR, lon);
+    set_strvar (WEATHER_LAT_STR_VAR, lat);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_weather_get_now ()
+{
+    rpc (GET_WEATHER_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_weather_get_forecast ()
+{
+    rpc (GET_WEATHER_FC_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_scan ()
+{
+    int networks;
+    int idx;
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ssid\":\""));
+    http_send (sanitize_xml_string(wifi_ssid).c_str());
+    http_send (FS("\",\"ip\":\""));
+    http_send (sanitize_xml_string(wifi_ip_address).c_str());
+    http_send (FS("\",\"mode\":\""));
+    http_send (wifi_ap_mode ? "ap" : "client");
+    http_send (FS("\",\"networks\":["));
+
+    networks = WiFi.scanNetworks();
+
+    for (idx = 0; idx < networks; idx++)
+    {
+        if (idx)
+        {
+            http_send (FS(","));
+        }
+
+        http_send (FS("\""));
+        http_send (sanitize_xml_string(WiFi.SSID(idx)).c_str());
+        http_send (FS("\""));
+    }
+
+    http_send (FS("]}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_client_set ()
+{
+    char * ssid = http_get_param ("ssid");
+    char * key  = http_get_param ("key");
+
+    if (! ssid)
+    {
+        ssid = (char *) "";
+    }
+
+    if (! key)
+    {
+        key = (char *) "";
+    }
+
+    wifi_connect (ssid, key, true);
+
+    String pssid = ssid;
+    String pkey = key;
+
+    if (! pssid.equals (eeprom_ssid))
+    {
+        pssid.toCharArray (eeprom_ssid, EEPROM_SSID_LEN);
+        eeprom_save_ssid ();
+    }
+
+    if (! pkey.equals (eeprom_ssidkey))
+    {
+        pkey.toCharArray (eeprom_ssidkey, EEPROM_SSID_KEY_LEN);
+        eeprom_save_ssidkey ();
+    }
+
+    eeprom_flags &= ~EEPROM_FLAG_BOOT_AS_AP;
+    eeprom_save_flags ();
+    eeprom_commit ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_ap_set ()
+{
+    char * ssid = http_get_param ("ssid");
+    char * key  = http_get_param ("key");
+
+    if (! ssid)
+    {
+        ssid = (char *) "";
+    }
+
+    if (! key)
+    {
+        key = (char *) "";
+    }
+
+    if (strlen (key) >= 10)
+    {
+        String ap_ssid = ssid;
+        String ap_key  = key;
+
+        if (! ap_ssid.equals (eeprom_ap_ssid))
+        {
+            ap_ssid.toCharArray (eeprom_ap_ssid, EEPROM_AP_SSID_LEN);
+            eeprom_save_ap_ssid ();
+        }
+
+        if (! ap_key.equals (eeprom_ap_ssidkey))
+        {
+            ap_key.toCharArray (eeprom_ap_ssidkey, EEPROM_AP_SSID_KEY_LEN);
+            eeprom_save_ap_ssidkey ();
+        }
+
+        eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
+        eeprom_save_flags ();
+        eeprom_commit ();
+
+        wifi_ap (ssid, key);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_timeserver_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (TIMESERVER_STR_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_timezone_set ()
+{
+    char * value = http_get_param ("value");
+    int tz = atoi (value ? value : "0");
+    uint_fast16_t utz = 0;
+
+    if (tz < 0)
+    {
+        utz = -tz;
+        utz |= 0x100;
+    }
+    else
+    {
+        utz = tz;
+    }
+
+    if (get_numvar (TIMEZONE_NUM_VAR) & 0x200)
+    {
+        utz |= 0x200;
+    }
+
+    set_numvar (TIMEZONE_NUM_VAR, utz);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_summertime_set ()
+{
+    char * value = http_get_param ("value");
+    uint_fast16_t utz = get_numvar (TIMEZONE_NUM_VAR);
+
+    if (value && ! strcmp (value, "on"))
+    {
+        utz |= 0x200;
+    }
+    else
+    {
+        utz &= ~0x200;
+    }
+
+    set_numvar (TIMEZONE_NUM_VAR, utz);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_get_time ()
+{
+    rpc (GET_NET_TIME_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_network_wps ()
+{
+    wifi_wps ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_host_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (UPDATE_HOST_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_path_set ()
+{
+    char * value = http_get_param ("value");
+
+    set_strvar (UPDATE_PATH_VAR, value ? value : "");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_download_assets ()
+{
+    const char * fname_icon = (const char *) 0;
+    const char * fname_weather = (const char *) 0;
+    int download_rtc = 2;
+    STR_VAR * sv;
+    char * update_host;
+    char * update_path;
+
+    if (hardware_configuration != 0xFFFF)
+    {
+        switch (hardware_configuration & HW_WC_MASK)
+        {
+            case HW_WC_24H:
+                fname_icon = "wc24h-icon.txt";
+                fname_weather = "wc24h-weather.txt";
+                break;
+            case HW_WC_12H:
+                fname_icon = "wc12h-icon.txt";
+                fname_weather = "wc12h-weather.txt";
+                break;
+            case HW_UCLOCK:
+                fname_icon = "uc-icon.txt";
+                fname_weather = "uc-weather.txt";
+                break;
+        }
+    }
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    LittleFS.begin ();
+
+    if (fname_icon)
+    {
+        download_rtc = download_file (update_host, update_path, fname_icon);
+    }
+
+    if (fname_weather)
+    {
+        download_rtc = download_file (update_host, update_path, fname_weather);
+    }
+
+    LittleFS.end ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (download_rtc == 1 ? "true" : "false");
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_download_app_bundle ()
+{
+    int download_rtc = 2;
+    int app_bundle_rtc = -1;
+    STR_VAR * sv;
+    char * update_host;
+    char * update_path;
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    LittleFS.begin ();
+    download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
+    LittleFS.end ();
+
+    if (download_rtc == 1)
+    {
+        app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send ((download_rtc == 1 && app_bundle_rtc == 1) ? "true" : "false");
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_maintenance_format_fs ()
+{
+    LittleFS.begin ();
+    LittleFS.format ();
+    LittleFS.end ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_maintenance_reset_stm32 ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+    delay (200);
+    stm32_reset ();
+
+    return 0;
+}
+
+static int
+http_api_maintenance_reset_eeprom ()
+{
+    rpc (RESET_EEPROM_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_datetime_set ()
+{
+    TM  tm;
+    int year = atoi (http_get_param ("year"));
+    int month = atoi (http_get_param ("month"));
+    int day = atoi (http_get_param ("day"));
+    int hour = atoi (http_get_param ("hour"));
+    int minute = atoi (http_get_param ("minute"));
+
+    if (year < 2000)
+    {
+        year = 2000;
+    }
+    else if (year > 2999)
+    {
+        year = 2999;
+    }
+
+    if (month < 1)
+    {
+        month = 1;
+    }
+    else if (month > 12)
+    {
+        month = 12;
+    }
+
+    if (day < 1)
+    {
+        day = 1;
+    }
+    else if (day > 31)
+    {
+        day = 31;
+    }
+
+    if (hour < 0)
+    {
+        hour = 0;
+    }
+    else if (hour > 23)
+    {
+        hour = 23;
+    }
+
+    if (minute < 0)
+    {
+        minute = 0;
+    }
+    else if (minute > 59)
+    {
+        minute = 59;
+    }
+
+    tm.tm_year = year - 1900;
+    tm.tm_mon = month - 1;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = minute;
+    tm.tm_sec = 0;
+    tm.tm_wday = dayofweek (day, month, year);
+
+    set_tm_var (CURRENT_TM_VAR, &tm);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_learn_ir ()
+{
+    rpc (LEARN_IR_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_temperature_display ()
+{
+    rpc (DISPLAY_TEMPERATURE_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_temperature_rtc_correction_set ()
+{
+    uint_fast8_t temp_index = get_numvar (RTC_TEMP_INDEX_NUM_VAR);
+    uint_fast8_t old_correction = get_numvar (RTC_TEMP_CORRECTION_NUM_VAR);
+    int temp_corr = atoi (http_get_param ("value"));
+
+    if (temp_corr < 0)
+    {
+        temp_corr = -temp_corr;
+    }
+
+    if (old_correction > temp_corr)
+    {
+        temp_index += (old_correction - temp_corr);
+    }
+    else
+    {
+        temp_index -= (temp_corr - old_correction);
+    }
+
+    set_numvar (RTC_TEMP_INDEX_NUM_VAR, temp_index);
+    set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, temp_corr);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_temperature_ds18xx_correction_set ()
+{
+    uint_fast8_t temp_index = get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
+    uint_fast8_t old_correction = get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR);
+    int temp_corr = atoi (http_get_param ("value"));
+
+    if (temp_corr < 0)
+    {
+        temp_corr = -temp_corr;
+    }
+
+    if (old_correction > temp_corr)
+    {
+        temp_index += (old_correction - temp_corr);
+    }
+    else
+    {
+        temp_index -= (temp_corr - old_correction);
+    }
+
+    set_numvar (DS18XX_TEMP_INDEX_NUM_VAR, temp_index);
+    set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, temp_corr);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ldr_min_set ()
+{
+    rpc (LDR_MIN_VALUE_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ldr_max_set ()
+{
+    rpc (LDR_MAX_VALUE_RPC_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_animation_mode_set ()
+{
+    int value = atoi (http_get_param ("value"));
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+    else if (value >= max_display_animation_variables)
+    {
+        value = max_display_animation_variables ? max_display_animation_variables - 1 : 0;
+    }
+
+    set_numvar (ANIMATION_MODE_NUM_VAR, value);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_color_animation_mode_set ()
+{
+    int value = atoi (http_get_param ("value"));
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+    else if (value >= MAX_COLOR_ANIMATION_VARIABLES)
+    {
+        value = MAX_COLOR_ANIMATION_VARIABLES - 1;
+    }
+
+    set_numvar (COLOR_ANIMATION_MODE_NUM_VAR, value);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_animation_profile_set ()
+{
+    uint_fast8_t idx = atoi (http_get_param ("idx"));
+    uint_fast8_t deceleration = atoi (http_get_param ("deceleration"));
+    uint_fast8_t favourite = 0;
+
+    if (idx < max_display_animation_variables)
+    {
+        DISPLAY_ANIMATION * da = get_display_animation_var (idx);
+
+        if (deceleration >= ANIMATION_MIN_DECELERATION && deceleration <= ANIMATION_MAX_DECELERATION)
+        {
+            set_display_animation_deceleration (idx, deceleration);
+        }
+
+        favourite = (http_get_param ("favourite") && ! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
+
+        if (favourite)
+        {
+            set_display_animation_flags (idx, da->flags | ANIMATION_FLAG_FAVOURITE);
+        }
+        else
+        {
+            set_display_animation_flags (idx, da->flags & ~ANIMATION_FLAG_FAVOURITE);
+        }
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_animation_profile_default ()
+{
+    uint_fast8_t idx = atoi (http_get_param ("idx"));
+
+    if (idx < max_display_animation_variables)
+    {
+        DISPLAY_ANIMATION * da = get_display_animation_var (idx);
+        set_display_animation_deceleration (idx, da->default_deceleration);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_color_animation_profile_set ()
+{
+    uint_fast8_t idx = atoi (http_get_param ("idx"));
+    uint_fast8_t deceleration = atoi (http_get_param ("deceleration"));
+
+    if (idx < MAX_COLOR_ANIMATION_VARIABLES && deceleration <= COLOR_ANIMATION_MAX_DECELERATION)
+    {
+        set_color_animation_deceleration ((COLOR_ANIMATION_VARIABLE) idx, deceleration);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_color_animation_profile_default ()
+{
+    COLOR_ANIMATION_VARIABLE idx = (COLOR_ANIMATION_VARIABLE) atoi (http_get_param ("idx"));
+
+    if (idx < MAX_COLOR_ANIMATION_VARIABLES)
+    {
+        COLOR_ANIMATION * ca = get_color_animation_var (idx);
+        set_color_animation_deceleration (idx, ca->default_deceleration);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_display_dim_level_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+    int value = atoi (http_get_param ("value"));
+
+    if (idx >= 0 && idx <= MAX_BRIGHTNESS)
+    {
+        if (value < 0)
+        {
+            value = 0;
+        }
+        else if (value > 15)
+        {
+            value = 15;
+        }
+
+        set_num8_array (DISPLAY_DIMMED_DISPLAY_COLORS, idx, value);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_dim_level_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+    int value = atoi (http_get_param ("value"));
+
+    if (idx >= 0 && idx <= MAX_BRIGHTNESS)
+    {
+        if (value < 0)
+        {
+            value = 0;
+        }
+        else if (value > 15)
+        {
+            value = 15;
+        }
+
+        set_num8_array (DISPLAY_DIMMED_AMBILIGHT_COLORS, idx, value);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_tft_flags_set ()
+{
+    uint_fast8_t flags = 0;
+
+    if (http_get_param ("rgb") && ! strcmp (http_get_param ("rgb"), "on"))
+    {
+        flags |= SSD1963_GLOBAL_FLAGS_RGB_ORDER;
+    }
+
+    if (http_get_param ("hflip") && ! strcmp (http_get_param ("hflip"), "on"))
+    {
+        flags |= SSD1963_GLOBAL_FLAGS_FLIP_HORIZONTAL;
+    }
+
+    if (http_get_param ("vflip") && ! strcmp (http_get_param ("vflip"), "on"))
+    {
+        flags |= SSD1963_GLOBAL_FLAGS_FLIP_VERTICAL;
+    }
+
+    set_numvar (SSD1963_FLAGS_NUM_VAR, flags);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_brightness_set ()
+{
+    char * value = http_get_param ("value");
+    int    brightness = atoi (value ? value : "0");
+
+    if (brightness < 0)
+    {
+        brightness = 0;
+    }
+    else if (brightness > 15)
+    {
+        brightness = 15;
+    }
+
+    set_numvar (AMBILIGHT_BRIGHTNESS_NUM_VAR, brightness);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_brightness\":"));
+    char buf[8];
+    sprintf (buf, "%d", brightness);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_mode_set ()
+{
+    char * value = http_get_param ("value");
+    int    mode = atoi (value ? value : "0");
+
+    if (mode < 0)
+    {
+        mode = 0;
+    }
+    else if (mode >= MAX_AMBILIGHT_MODE_VARIABLES)
+    {
+        mode = MAX_AMBILIGHT_MODE_VARIABLES - 1;
+    }
+
+    set_numvar (AMBILIGHT_MODE_NUM_VAR, mode);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_mode\":"));
+    char buf[8];
+    sprintf (buf, "%d", mode);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_leds_set ()
+{
+    char * value = http_get_param ("value");
+    int    leds = atoi (value ? value : "0");
+
+    if (leds < 0)
+    {
+        leds = 0;
+    }
+    else if (leds > 999)
+    {
+        leds = 999;
+    }
+
+    set_numvar (AMBILIGHT_LEDS_NUM_VAR, leds);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_leds\":"));
+    char buf[8];
+    sprintf (buf, "%d", leds);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_offset_set ()
+{
+    char * value = http_get_param ("value");
+    int    offset = atoi (value ? value : "0");
+
+    if (offset < 0)
+    {
+        offset = 0;
+    }
+    else if (offset > 999)
+    {
+        offset = 999;
+    }
+
+    set_numvar (AMBILIGHT_OFFSET_NUM_VAR, offset);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_offset\":"));
+    char buf[8];
+    sprintf (buf, "%d", offset);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_mode_profile_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+    int deceleration = atoi (http_get_param ("deceleration"));
+
+    if (idx >= 0 && idx < MAX_AMBILIGHT_MODE_VARIABLES)
+    {
+        if (deceleration < 0)
+        {
+            deceleration = 0;
+        }
+        else if (deceleration > AMBILIGHT_MODE_MAX_DECELERATION)
+        {
+            deceleration = AMBILIGHT_MODE_MAX_DECELERATION;
+        }
+
+        set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, deceleration);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_mode_profile_default ()
+{
+    int idx = atoi (http_get_param ("idx"));
+
+    if (idx >= 0 && idx < MAX_AMBILIGHT_MODE_VARIABLES)
+    {
+        AMBILIGHT_MODE * am = get_ambilight_mode_var ((AMBILIGHT_MODE_VARIABLE) idx);
+
+        if (am)
+        {
+            set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, am->default_deceleration);
+        }
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static void
+http_json_ok ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+}
+
+static uint_fast8_t
+http_get_on_off_value (const char * param, uint_fast8_t current_value)
+{
+    char * value = http_get_param (param);
+
+    if (value && ! strcmp (value, "on"))
+    {
+        return 1;
+    }
+    else if (value && ! strcmp (value, "off"))
+    {
+        return 0;
+    }
+
+    return current_value;
+}
+
+static uint_fast8_t
+http_get_color_component (const char * param)
+{
+    char * value = http_get_param (param);
+    int    component = atoi (value ? value : "0");
+
+    if (component < 0)
+    {
+        component = 0;
+    }
+    else if (component > 63)
+    {
+        component = 63;
+    }
+
+    return component;
+}
+
+static int
+http_api_set_dsp_color (DSP_COLOR_VARIABLE var)
+{
+    DSP_COLORS   rgbw;
+    uint_fast8_t use_rgbw = get_numvar (DISPLAY_USE_RGBW_NUM_VAR);
+
+    rgbw.red     = http_get_color_component ("red");
+    rgbw.green   = http_get_color_component ("green");
+    rgbw.blue    = http_get_color_component ("blue");
+    rgbw.white   = use_rgbw ? http_get_color_component ("white") : 0;
+
+    set_dsp_color_var (var, &rgbw, use_rgbw);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_display_color_set ()
+{
+    return http_api_set_dsp_color (DISPLAY_DSP_COLOR_VAR);
+}
+
+static int
+http_api_ambilight_color_set ()
+{
+    return http_api_set_dsp_color (AMBILIGHT_DSP_COLOR_VAR);
+}
+
+static int
+http_api_marker_color_set ()
+{
+    return http_api_set_dsp_color (AMBILIGHT_MARKER_DSP_COLOR_VAR);
+}
+
+static int
+http_api_sync_ambilight_set ()
+{
+    uint_fast8_t flags = get_numvar (DISPLAY_FLAGS_NUM_VAR);
+
+    if (http_get_on_off_value ("value", flags & DISPLAY_FLAGS_SYNC_AMBILIGHT))
+    {
+        flags |= DISPLAY_FLAGS_SYNC_AMBILIGHT;
+    }
+    else
+    {
+        flags &= ~DISPLAY_FLAGS_SYNC_AMBILIGHT;
+    }
+
+    set_numvar (DISPLAY_FLAGS_NUM_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_sync_markers_set ()
+{
+    uint_fast8_t flags = get_numvar (DISPLAY_FLAGS_NUM_VAR);
+
+    if (http_get_on_off_value ("value", flags & DISPLAY_FLAGS_SYNC_CLOCK_MARKERS))
+    {
+        flags |= DISPLAY_FLAGS_SYNC_CLOCK_MARKERS;
+    }
+    else
+    {
+        flags &= ~DISPLAY_FLAGS_SYNC_CLOCK_MARKERS;
+    }
+
+    set_numvar (DISPLAY_FLAGS_NUM_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_fade_clock_seconds_set ()
+{
+    uint_fast8_t flags = get_numvar (DISPLAY_FLAGS_NUM_VAR);
+
+    if (http_get_on_off_value ("value", flags & DISPLAY_FLAGS_FADE_CLOCK_SECONDS))
+    {
+        flags |= DISPLAY_FLAGS_FADE_CLOCK_SECONDS;
+    }
+    else
+    {
+        flags &= ~DISPLAY_FLAGS_FADE_CLOCK_SECONDS;
+    }
+
+    set_numvar (DISPLAY_FLAGS_NUM_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_markers_set ()
+{
+    AMBILIGHT_MODE * am = get_ambilight_mode_var (CLOCK_AMBILIGHT_MODE_VAR);
+    uint_fast8_t     flags = am ? am->flags : 0;
+
+    if (http_get_on_off_value ("value", flags & AMBILIGHT_FLAG_SECONDS_MARKER))
+    {
+        flags |= AMBILIGHT_FLAG_SECONDS_MARKER;
+    }
+    else
+    {
+        flags &= ~AMBILIGHT_FLAG_SECONDS_MARKER;
+    }
+
+    set_ambilight_mode_flags (CLOCK_AMBILIGHT_MODE_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_online_set ()
+{
+    char * value = http_get_param ("value");
+
+    if (value && ! strcmp (value, "on"))
+    {
+        set_numvar (AMBILIGHT_IS_UP_NUM_VAR, 1);
+    }
+    else if (value && ! strcmp (value, "off"))
+    {
+        set_numvar (AMBILIGHT_IS_UP_NUM_VAR, 0);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ambilight_online\":\""));
+    http_send (get_numvar (AMBILIGHT_IS_UP_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_volume_set ()
+{
+    char * value = http_get_param ("value");
+    int    volume = atoi (value ? value : "0");
+
+    if (volume < 0)
+    {
+        volume = 0;
+    }
+    else if (volume > DFPLAYER_MAX_VOLUME)
+    {
+        volume = DFPLAYER_MAX_VOLUME;
+    }
+
+    set_numvar (DFPLAYER_VOLUME_NUM_VAR, volume);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"dfplayer_volume\":"));
+    char buf[8];
+    sprintf (buf, "%d", volume);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_mode_set ()
+{
+    char * value = http_get_param ("value");
+    int    mode = atoi (value ? value : "0");
+
+    if (mode < DFPLAYER_MODE_NONE)
+    {
+        mode = DFPLAYER_MODE_NONE;
+    }
+    else if (mode > DFPLAYER_MODE_SPEAK)
+    {
+        mode = DFPLAYER_MODE_SPEAK;
+    }
+
+    set_numvar (DFPLAYER_MODE_NUM_VAR, mode);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_bell_flags_set ()
+{
+    uint_fast8_t flags = DFPLAYER_MODE_BELL_FLAG_NONE;
+
+    if (http_get_on_off_value ("m15", 0))
+    {
+        flags |= DFPLAYER_MODE_BELL_FLAG_15;
+    }
+    if (http_get_on_off_value ("m30", 0))
+    {
+        flags |= DFPLAYER_MODE_BELL_FLAG_30;
+    }
+    if (http_get_on_off_value ("m45", 0))
+    {
+        flags |= DFPLAYER_MODE_BELL_FLAG_45;
+    }
+
+    set_numvar (DFPLAYER_BELL_FLAGS_NUM_VAR, flags);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_speak_cycle_set ()
+{
+    char * value = http_get_param ("value");
+    int    speak_cycle = atoi (value ? value : "0");
+
+    if (speak_cycle < 0)
+    {
+        speak_cycle = 0;
+    }
+    else if (speak_cycle > 255)
+    {
+        speak_cycle = 255;
+    }
+
+    set_numvar (DFPLAYER_SPEAK_CYCLE_NUM_VAR, speak_cycle);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_silence_start_set ()
+{
+    int hour = atoi (http_get_param ("hour"));
+    int minute = atoi (http_get_param ("minute"));
+
+    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60)
+    {
+        set_numvar (DFPLAYER_SILENCE_START_NUM_VAR, hour * 60 + minute);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_silence_stop_set ()
+{
+    int hour = atoi (http_get_param ("hour"));
+    int minute = atoi (http_get_param ("minute"));
+
+    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60)
+    {
+        set_numvar (DFPLAYER_SILENCE_STOP_NUM_VAR, hour * 60 + minute);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_play ()
+{
+    int folder = atoi (http_get_param ("folder"));
+    int track = atoi (http_get_param ("track"));
+
+    if (folder < 0)
+    {
+        folder = 0;
+    }
+    else if (folder > 255)
+    {
+        folder = 255;
+    }
+
+    if (track < 0)
+    {
+        track = 0;
+    }
+    else if (track > 255)
+    {
+        track = 255;
+    }
+
+    set_numvar (DFPLAYER_PLAY_FOLDER_TRACK_NUM_VAR, folder << 8 | track);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_dfplayer_alarm_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+
+    if (idx >= 0 && idx < MAX_ALARM_TIME_VARIABLES)
+    {
+        ALARM_TIME *    at;
+        uint_fast8_t    from_day;
+        uint_fast8_t    to_day;
+        uint_fast16_t   minutes;
+        uint_fast8_t    flags;
+
+        at = get_alarm_time_var ((ALARM_TIME_VARIABLE) idx);
+        flags = at ? at->flags : 0;
+
+        if (http_get_on_off_value ("active", 0))
+        {
+            flags |= ALARM_TIME_FLAG_ACTIVE;
+        }
+        else
+        {
+            flags &= ~ALARM_TIME_FLAG_ACTIVE;
+        }
+
+        from_day = atoi (http_get_param ("from"));
+        to_day = atoi (http_get_param ("to"));
+
+        flags &= ~(ALARM_TIME_FROM_DAY_MASK | ALARM_TIME_TO_DAY_MASK);
+        flags |= ALARM_TIME_FROM_DAY_MASK & (from_day << 3);
+        flags |= ALARM_TIME_TO_DAY_MASK & to_day;
+
+        minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
+        set_alarm_time_var ((ALARM_TIME_VARIABLE) idx, minutes, flags);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_overlay_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+    int n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    if (idx >= 0 && idx < MAX_OVERLAYS)
+    {
+        if (idx == n_overlays && n_overlays < MAX_OVERLAYS)
+        {
+            n_overlays++;
+            set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays);
+        }
+
+        if (idx < n_overlays)
+        {
+            uint_fast8_t val;
+            uint_fast8_t valmm;
+            uint_fast8_t valdd;
+            char * text;
+
+            if (http_get_on_off_value ("active", 0))
+            {
+                overlays[idx].flags |= OVERLAY_FLAG_ACTIVE;
+            }
+            else
+            {
+                overlays[idx].flags &= ~OVERLAY_FLAG_ACTIVE;
+            }
+
+            overlays[idx].type = atoi (http_get_param ("type"));
+            val = atoi (http_get_param ("interval"));
+
+            if (val == 0)
+            {
+                val = 5;
+            }
+
+            overlays[idx].interval = val;
+
+            val = atoi (http_get_param ("duration"));
+
+            if (val < 5)
+            {
+                val = 5;
+            }
+            else if (val > 9)
+            {
+                val = 9;
+            }
+
+            overlays[idx].duration = val;
+            overlays[idx].date_code = atoi (http_get_param ("date_code"));
+
+            valmm = atoi (http_get_param ("month"));
+            valdd = atoi (http_get_param ("day"));
+
+            if (valmm < 1 || valmm > 12 || valdd < 1 || valdd > 31)
+            {
+                overlays[idx].date_start = 0;
+            }
+            else
+            {
+                overlays[idx].date_start  = (valmm << 8) | valdd;
+            }
+
+            val = atoi (http_get_param ("days"));
+
+            if (val < 1)
+            {
+                val = 1;
+            }
+
+            overlays[idx].days = val;
+
+            text = http_get_param ("value");
+
+            if (text)
+            {
+                strncpy (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
+                overlays[idx].text[OVERLAY_MAX_TEXT_LEN] = '\0';
+            }
+
+            set_overlay_var (idx);
+        }
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_overlay_display ()
+{
+    int idx = atoi (http_get_param ("idx"));
+
+    if (idx >= 0 && idx < get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR))
+    {
+        set_numvar (DISPLAY_OVERLAY_NUM_VAR, idx);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_overlay_delete ()
+{
+    int idx = atoi (http_get_param ("idx"));
+    int n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    int i;
+
+    if (idx >= 0 && idx < n_overlays)
+    {
+        for (i = idx; i < n_overlays - 1; i++)
+        {
+            overlays[i] = overlays[i + 1];
+            set_overlay_var (i);
+        }
+
+        if (n_overlays > 0)
+        {
+            memset (&overlays[n_overlays - 1], 0, sizeof (OVERLAY));
+            set_overlay_var (n_overlays - 1);
+            set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays - 1);
+        }
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_timer_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+
+    if (idx >= 0 && idx < MAX_NIGHT_TIME_VARIABLES)
+    {
+        uint_fast8_t flags = 0;
+        uint_fast8_t from_day = atoi (http_get_param ("from"));
+        uint_fast8_t to_day = atoi (http_get_param ("to"));
+        uint_fast16_t minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
+
+        if (http_get_on_off_value ("active", 0))
+        {
+            flags |= NIGHT_TIME_FLAG_ACTIVE;
+        }
+
+        if (http_get_on_off_value ("switch_on", 0))
+        {
+            flags |= NIGHT_TIME_FLAG_SWITCH_ON;
+        }
+
+        flags |= NIGHT_TIME_FROM_DAY_MASK & (from_day << 3);
+        flags |= NIGHT_TIME_TO_DAY_MASK & to_day;
+
+        set_night_time_var (0, (NIGHT_TIME_VARIABLE) idx, minutes, flags);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_timer_set ()
+{
+    int idx = atoi (http_get_param ("idx"));
+
+    if (idx >= 0 && idx < MAX_NIGHT_TIME_VARIABLES)
+    {
+        uint_fast8_t flags = 0;
+        uint_fast8_t from_day = atoi (http_get_param ("from"));
+        uint_fast8_t to_day = atoi (http_get_param ("to"));
+        uint_fast16_t minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
+
+        if (http_get_on_off_value ("active", 0))
+        {
+            flags |= NIGHT_TIME_FLAG_ACTIVE;
+        }
+
+        if (http_get_on_off_value ("switch_on", 0))
+        {
+            flags |= NIGHT_TIME_FLAG_SWITCH_ON;
+        }
+
+        flags |= NIGHT_TIME_FROM_DAY_MASK & (from_day << 3);
+        flags |= NIGHT_TIME_TO_DAY_MASK & to_day;
+
+        set_night_time_var (1, (NIGHT_TIME_VARIABLE) idx, minutes, flags);
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_overlay_icons ()
+{
+    const char *  fname = (const char *) 0;
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("["));
+
+    if (hardware_configuration != 0xFFFF)
+    {
+        switch (hardware_configuration & HW_WC_MASK)
+        {
+            case HW_WC_24H: fname = "wc24h-icon.txt";  break;
+            case HW_WC_12H: fname = "wc12h-icon.txt";  break;
+            case HW_UCLOCK: fname = "uc-icon.txt";     break;
+        }
+    }
+
+    LittleFS.begin ();
+
+    if (fname)
+    {
+        File fp = LittleFS.open (fname, "r");
+
+        if (fp)
+        {
+            int   ch = fp.read ();
+            int   first = 1;
+            char  icon_name[32 + 1];
+
+            while (ch == '*')
+            {
+                int i = 0;
+
+                while ((ch = fp.read ()) != EOF)
+                {
+                    if (ch == '\r' || ch == '\n')
+                    {
+                        break;
+                    }
+
+                    if (i < 32)
+                    {
+                        icon_name[i++] = ch;
+                    }
+                }
+
+                icon_name[i] = '\0';
+                trim (icon_name);
+
+                if (! first)
+                {
+                    http_send (FS(","));
+                }
+
+                http_send (FS("\""));
+                http_send (sanitize_xml_string(icon_name).c_str());
+                http_send (FS("\""));
+                first = 0;
+
+                while ((ch = fp.read()) != '*' && ch >= 0)
+                {
+                    ;
+                }
+            }
+
+            fp.close ();
+        }
+    }
+
+    LittleFS.end ();
+
+    http_send (FS("]"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_fs_info ()
+{
+    FSInfo fsinfo;
+
+    LittleFS.begin ();
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+
+    if (LittleFS.info (fsinfo))
+    {
+        char buf[16];
+
+        http_send (FS("{\"ok\":true"));
+
+        sprintf (buf, "%d", fsinfo.totalBytes);
+        http_send (FS(",\"total\":"));
+        http_send (buf);
+
+        sprintf (buf, "%d", fsinfo.usedBytes);
+        http_send (FS(",\"used\":"));
+        http_send (buf);
+
+        sprintf (buf, "%d", fsinfo.blockSize);
+        http_send (FS(",\"block_size\":"));
+        http_send (buf);
+
+        sprintf (buf, "%d", fsinfo.pageSize);
+        http_send (FS(",\"page_size\":"));
+        http_send (buf);
+
+        sprintf (buf, "%d", fsinfo.maxOpenFiles);
+        http_send (FS(",\"max_open_files\":"));
+        http_send (buf);
+
+        sprintf (buf, "%d", fsinfo.maxPathLength);
+        http_send (FS(",\"max_path_length\":"));
+        http_send (buf);
+
+        http_send (FS("}"));
+    }
+    else
+    {
+        http_send (FS("{\"ok\":false}"));
+    }
+
+    LittleFS.end ();
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_fs_list ()
+{
+    Dir dir;
+    int first = 1;
+
+    LittleFS.begin ();
+    dir = LittleFS.openDir ("");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"files\":["));
+
+    while (dir.next ())
+    {
+        File f = dir.openFile ("r");
+        char sizebuf[16];
+
+        if (! first)
+        {
+            http_send (FS(","));
+        }
+
+        sprintf (sizebuf, "%d", f ? f.size () : 0);
+        http_send (FS("{\"name\":\""));
+        http_send (sanitize_json_string (dir.fileName ()).c_str ());
+        http_send (FS("\",\"size\":"));
+        http_send (sizebuf);
+        http_send (FS("}"));
+
+        if (f)
+        {
+            f.close ();
+        }
+
+        first = 0;
+    }
+
+    LittleFS.end ();
+
+    http_send (FS("]}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_fs_show ()
+{
+    char * fname = http_get_param ("filename");
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+
+    if (fname && *fname)
+    {
+        LittleFS.begin ();
+        File fp = LittleFS.open (fname, "r");
+
+        if (fp)
+        {
+            while (fp.available ())
+            {
+                char b[64];
+                int n = fp.readBytes (b, sizeof (b));
+
+                if (n > 0)
+                {
+                    for (int i = 0; i < n; i++)
+                    {
+                        char cbuf[2];
+                        cbuf[0] = b[i];
+                        cbuf[1] = '\0';
+                        http_send (cbuf);
+                    }
+                }
+            }
+
+            fp.close ();
+        }
+
+        LittleFS.end ();
+    }
+
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_fs_remove ()
+{
+    char * fname = http_get_param ("filename");
+
+    if (fname && *fname)
+    {
+        LittleFS.begin ();
+        LittleFS.remove (fname);
+        LittleFS.end ();
+    }
+
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
+http_api_update_status ()
+{
+    STR_VAR * sv;
+    char * update_host;
+    char * update_path;
+    uint32_t flashsize;
+    char new_esp_version[16];
+    char new_wc_version[16];
+    char stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
+    const char * filter = (const char *) NULL;
+    String release_notes;
+    uint_fast8_t assets_available = 0;
+    uint_fast8_t app_bundle_available = 0;
+    const char * fname_icon = (const char *) 0;
+    const char * fname_weather = (const char *) 0;
+    int len;
+    int first = 1;
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        sv = get_strvar (UPDATE_HOST_VAR);
+        update_host = sv->str;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        sv = get_strvar (UPDATE_PATH_VAR);
+        update_path = sv->str;
+    }
+
+    flashsize = ESP.getFlashChipRealSize ();
+    http_fetch_remote_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
+    http_fetch_remote_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
+    release_notes = http_fetch_remote_text (update_host, update_path, RELEASENOTE_HTML, 3072);
+    http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
+
+    if (hardware_configuration != 0xFFFF)
+    {
+        switch (hardware_configuration & HW_WC_MASK)
+        {
+            case HW_WC_24H:
+                fname_icon = "wc24h-icon.txt";
+                fname_weather = "wc24h-weather.txt";
+                break;
+            case HW_WC_12H:
+                fname_icon = "wc12h-icon.txt";
+                fname_weather = "wc12h-weather.txt";
+                break;
+            case HW_UCLOCK:
+                fname_icon = "uc-icon.txt";
+                fname_weather = "uc-weather.txt";
+                break;
+        }
+    }
+
+    if (fname_icon && fname_weather)
+    {
+        int len_icon = httpclient (update_host, update_path, fname_icon);
+
+        if (len_icon > 0)
+        {
+            httpclient_stop ();
+
+            int len_weather = httpclient (update_host, update_path, fname_weather);
+
+            if (len_weather > 0)
+            {
+                assets_available = 1;
+                httpclient_stop ();
+            }
+        }
+    }
+
+    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
+    {
+        app_bundle_available = 1;
+        httpclient_stop ();
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"flash_size\":"));
+
+    char buf[16];
+    sprintf (buf, "%d", flashsize);
+    http_send (buf);
+
+    http_send (FS(",\"can_update\":"));
+    http_send (flashsize >= 4194304 ? "true" : "false");
+    http_send (FS(",\"local_update_supported\":"));
+    http_send (flashsize >= 1048576 ? "true" : "false");
+    http_send (FS(",\"assets_available\":"));
+    http_send (assets_available ? "true" : "false");
+    http_send (FS(",\"app_bundle_available\":"));
+    http_send (app_bundle_available ? "true" : "false");
+    http_send (FS(",\"esp_version\":\""));
+    http_send (sanitize_json_string (ESP_VERSION).c_str ());
+    http_send (FS("\",\"esp_available\":\""));
+    http_send (sanitize_json_string (new_esp_version).c_str ());
+    http_send (FS("\",\"wc_version\":\""));
+    http_send (sanitize_json_string (get_strvar (VERSION_STR_VAR)->str).c_str ());
+    http_send (FS("\",\"wc_available\":\""));
+    http_send (sanitize_json_string (new_wc_version).c_str ());
+    http_send (FS("\",\"release_notes\":\""));
+    http_send (sanitize_json_string (release_notes).c_str ());
+    http_send (FS("\",\"stm32_default\":\""));
+    http_send (sanitize_json_string (stm32_default_filename).c_str ());
+    http_send (FS("\",\"stm32_files\":["));
+
+    len = httpclient (update_host, update_path, WC_LIST_TXT);
+
+    if (len > 0)
+    {
+        char fname[MAX_UPDATE_FILENAME_LEN];
+        int ch;
+        int l = 0;
+
+        while (len > 0)
+        {
+            ch = httpclient_read (&len);
+
+            if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
+            {
+                fname[l++] = ch;
+            }
+            else if (ch == '\n')
+            {
+                int show_option = 1;
+
+                fname[l] = '\0';
+                l = 0;
+
+                if (filter)
+                {
+                    int fname_len = strlen (fname);
+
+                    if (fname_len < 6 || strncmp (fname + 6, filter, strlen (filter)) != 0)
+                    {
+                        show_option = 0;
+                    }
+                }
+
+                if (show_option)
+                {
+                    if (! first)
+                    {
+                        http_send (FS(","));
+                    }
+
+                    http_send (FS("\""));
+                    http_send (sanitize_json_string (fname).c_str ());
+                    http_send (FS("\""));
+                    first = 0;
+                }
+            }
+        }
+
+        httpclient_stop ();
+    }
+
+    http_send (FS("]}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_table_files ()
+{
+    STR_VAR * sv;
+    char * update_host;
+    char * update_path;
+    const char * tables_filter = (const char *) NULL;
+    char * current_tables = tables_fname ();
+    int len;
+    int first = 1;
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        sv = get_strvar (UPDATE_HOST_VAR);
+        update_host = sv->str;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        sv = get_strvar (UPDATE_PATH_VAR);
+        update_path = sv->str;
+    }
+
+    if (hardware_configuration != 0xFFFF)
+    {
+        switch (hardware_configuration & HW_WC_MASK)
+        {
+            case HW_WC_24H: tables_filter = "wc24h-tables-"; break;
+            case HW_WC_12H: tables_filter = "wc12h-tables-"; break;
+            default:        tables_filter = (const char *) NULL; break;
+        }
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"current_table\":\""));
+    http_send (sanitize_json_string (current_tables ? current_tables : "").c_str ());
+    http_send (FS("\",\"table_files\":["));
+
+    if (tables_filter)
+    {
+        len = httpclient (update_host, update_path, WC_TABLES_LIST_TXT);
+
+        if (len > 0)
+        {
+            char fname[MAX_UPDATE_FILENAME_LEN];
+            int ch;
+            int l = 0;
+
+            while (len > 0)
+            {
+                ch = httpclient_read (&len);
+
+                if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
+                {
+                    fname[l++] = ch;
+                }
+                else if (ch == '\n')
+                {
+                    fname[l] = '\0';
+                    l = 0;
+
+                    if (fname[0] && ! strncmp (fname, tables_filter, strlen (tables_filter)))
+                    {
+                        if (! first)
+                        {
+                            http_send (FS(","));
+                        }
+
+                        http_send (FS("\""));
+                        http_send (sanitize_json_string (fname).c_str ());
+                        http_send (FS("\""));
+                        first = 0;
+                    }
+                }
+            }
+
+            httpclient_stop ();
+        }
+    }
+
+    http_send (FS("]}"));
+    http_flush ();
 
     return 0;
 }
@@ -5036,6 +8090,204 @@ reset_button (void)
                   "</form>\r\n");
 
 }
+
+static uint_fast8_t
+run_local_stm32_flash_response ()
+{
+    http_header("Local Update", NULL, NULL);
+    begin_box ("Local Update");
+
+    for (int i = 0; i < 100; i++)
+    {
+        http_send ("          ");
+    }
+
+    LittleFS.begin ();
+    stm32_flash_from_local();
+    LittleFS.remove ("stm32.hex");
+    LittleFS.end ();
+    http_send_FS ("Done. <font color=red>Please Reset your STM32 now!</font></B><BR>\r\n");
+    reset_button ();
+    end_box ();
+    http_trailer ();
+    http_flush ();
+    return 0;
+}
+
+static uint_fast8_t
+http_api_local_stm32_upload ()
+{
+    size_t      content_length = 0;
+    uint32_t    flashsize = ESP.getFlashChipRealSize ();
+    uint_fast8_t ok = 0;
+
+    if (flashsize >= 1048576 && read_post_headers (&content_length) && content_length > 0)
+    {
+        LittleFS.begin ();
+
+        File f = LittleFS.open ("stm32.hex", "w+");
+
+        if (f)
+        {
+            ok = read_request_body_to_file (f, content_length) ? 1 : 0;
+            f.close ();
+        }
+
+        LittleFS.end ();
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+    http_send (FS("}"));
+    http_flush ();
+    return 0;
+}
+
+static uint_fast8_t
+http_api_local_stm32_flash ()
+{
+    uint_fast8_t exists = 0;
+
+    LittleFS.begin ();
+    exists = LittleFS.exists ("stm32.hex") ? 1 : 0;
+    LittleFS.end ();
+
+    if (exists)
+    {
+        return run_local_stm32_flash_response ();
+    }
+
+    http_send (FS("HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("Keine lokale STM32-Datei vorhanden.\r\n"));
+    http_flush ();
+    return 0;
+}
+
+static uint_fast8_t
+http_api_local_esp_update ()
+{
+    size_t      content_length = 0;
+    uint32_t    max_sketch_space = (ESP.getFreeSketchSpace () - 0x1000) & 0xFFFFF000;
+    uint_fast8_t ok = 0;
+    uint16_t    error_code = 0;
+    size_t      bytes_written = 0;
+    size_t      skipped = 0;
+    size_t      first_chunk_len = 0;
+    uint_fast8_t begin_ok = 0;
+    uint_fast8_t stream_ok = 0;
+    uint_fast8_t end_ok = 0;
+    size_t      progress_before_end = 0;
+    size_t      remaining_before_end = 0;
+    uint8_t     first_chunk[8];
+
+    if (read_post_headers (&content_length) && content_length > 0 && content_length < max_sketch_space)
+    {
+        Update.runAsync (true);
+        skipped = skip_leading_body_newlines ();
+
+        if (Update.begin (max_sketch_space, U_FLASH))
+        {
+            begin_ok = 1;
+
+            while (first_chunk_len < sizeof (first_chunk) && first_chunk_len < content_length)
+            {
+                unsigned long start_millis = millis ();
+
+                while (! http_client.available () && (millis () - start_millis) < READ_BODY_TIMEOUT)
+                {
+                    yield ();
+                }
+
+                if (! http_client.available ())
+                {
+                    break;
+                }
+
+                int ch = http_client.read ();
+
+                if (ch < 0)
+                {
+                    break;
+                }
+
+                first_chunk[first_chunk_len++] = (uint8_t) ch;
+            }
+
+            if (first_chunk_len > 0)
+            {
+                bytes_written = Update.write (first_chunk, first_chunk_len);
+            }
+
+            if (bytes_written == first_chunk_len)
+            {
+                bytes_written += read_request_body_to_update (content_length - first_chunk_len);
+            }
+
+            stream_ok = bytes_written == content_length ? 1 : 0;
+            progress_before_end = Update.progress ();
+            remaining_before_end = Update.remaining ();
+
+            if (stream_ok && Update.end (true))
+            {
+                end_ok = 1;
+                ok = 1;
+            }
+            else
+            {
+                error_code = Update.getError ();
+                Update.end ();
+            }
+        }
+        else
+        {
+            error_code = Update.getError ();
+        }
+    }
+    else if (content_length >= max_sketch_space)
+    {
+        error_code = 1001;
+    }
+    else
+    {
+        error_code = 1000;
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+    http_send (FS(",\"error\":"));
+    char errbuf[16];
+    sprintf (errbuf, "%u", error_code);
+    http_send (errbuf);
+    http_send (FS(",\"detail\":\""));
+    char chunkbuf[32];
+    int chunkbuf_len = 0;
+    for (size_t i = 0; i < first_chunk_len && chunkbuf_len < (int) sizeof (chunkbuf) - 3; i++)
+    {
+        chunkbuf_len += sprintf (chunkbuf + chunkbuf_len, "%02X", first_chunk[i]);
+    }
+    char detailbuf[192];
+    sprintf (detailbuf, "len=%u max=%u skip=%u first=%s begin=%u written=%u progress=%u remaining=%u stream=%u end=%u", (unsigned) content_length, (unsigned) max_sketch_space, (unsigned) skipped, chunkbuf_len ? chunkbuf : "--", begin_ok, (unsigned) bytes_written, (unsigned) progress_before_end, (unsigned) remaining_before_end, stream_ok, end_ok);
+    http_send (sanitize_json_string (detailbuf).c_str ());
+    http_send (FS("\""));
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static uint_fast8_t
+http_api_local_esp_restart ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true}"));
+    http_flush ();
+    delay (500);
+    ESP.restart ();
+    return 0;
+}
+
 static uint_fast8_t
 flash_stm32_local (bool post = false)
 {
@@ -5119,18 +8371,7 @@ flash_stm32_local (bool post = false)
     
                     f.close();
 
-                    http_header("Local Update", NULL, NULL);
-                    begin_box ("Local Update");
-
-                    for (i = 0; i < 100; i++)
-                    {                                                   // send 1000 spaces to force Browser to begin rendering
-                        http_send ("          "); 
-                    }
-    
-                    stm32_flash_from_local();
-                    // LittleFS.remove("stm32.hex");
-                    http_send_FS ("Done. <font color=red>Please Reset your STM32 now!</font></B><BR>\r\n");
-                    reset_button ();
+                    return run_local_stm32_flash_response ();
                 }
                 else
                 {
@@ -5312,9 +8553,350 @@ http (const char * path, const char * const_param)
     {
         rtc = flash_stm32_local ();
     }
+    else if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/") ||
+             ! strncmp (path, PWA_PREFIX "/", strlen (PWA_PREFIX "/")))
+    {
+        rtc = http_app (path);
+    }
     else if (! strcmp (path, "/get_settings"))
     {
         rtc = http_get_settings ();
+    }
+    else if (! strcmp (path, "/display_power"))
+    {
+        rtc = http_get_display_power ();
+    }
+    else if (! strcmp (path, "/ambilight_power"))
+    {
+        rtc = http_get_ambilight_power ();
+    }
+    else if (! strcmp (path, "/api/display_power_set"))
+    {
+        rtc = http_api_display_power_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_power_set"))
+    {
+        rtc = http_api_ambilight_power_set ();
+    }
+    else if (! strcmp (path, "/api/display_brightness_set"))
+    {
+        rtc = http_api_display_brightness_set ();
+    }
+    else if (! strcmp (path, "/api/auto_brightness_set"))
+    {
+        rtc = http_api_auto_brightness_set ();
+    }
+    else if (! strcmp (path, "/api/display_mode_set"))
+    {
+        rtc = http_api_display_mode_set ();
+    }
+    else if (! strcmp (path, "/api/display_it_is_set"))
+    {
+        rtc = http_api_display_it_is_set ();
+    }
+    else if (! strcmp (path, "/api/ticker_set"))
+    {
+        rtc = http_api_ticker_set ();
+    }
+    else if (! strcmp (path, "/api/date_ticker_format_set"))
+    {
+        rtc = http_api_date_ticker_format_set ();
+    }
+    else if (! strcmp (path, "/api/ticker_deceleration_set"))
+    {
+        rtc = http_api_ticker_deceleration_set ();
+    }
+    else if (! strcmp (path, "/api/test_display"))
+    {
+        rtc = http_api_test_display ();
+    }
+    else if (! strcmp (path, "/api/weather_appid_set"))
+    {
+        rtc = http_api_weather_appid_set ();
+    }
+    else if (! strcmp (path, "/api/weather_city_set"))
+    {
+        rtc = http_api_weather_city_set ();
+    }
+    else if (! strcmp (path, "/api/weather_coordinates_set"))
+    {
+        rtc = http_api_weather_coordinates_set ();
+    }
+    else if (! strcmp (path, "/api/weather_get_now"))
+    {
+        rtc = http_api_weather_get_now ();
+    }
+    else if (! strcmp (path, "/api/weather_get_forecast"))
+    {
+        rtc = http_api_weather_get_forecast ();
+    }
+    else if (! strcmp (path, "/api/network_scan"))
+    {
+        rtc = http_api_network_scan ();
+    }
+    else if (! strcmp (path, "/api/network_client_set"))
+    {
+        rtc = http_api_network_client_set ();
+    }
+    else if (! strcmp (path, "/api/network_ap_set"))
+    {
+        rtc = http_api_network_ap_set ();
+    }
+    else if (! strcmp (path, "/api/network_timeserver_set"))
+    {
+        rtc = http_api_network_timeserver_set ();
+    }
+    else if (! strcmp (path, "/api/network_timezone_set"))
+    {
+        rtc = http_api_network_timezone_set ();
+    }
+    else if (! strcmp (path, "/api/network_summertime_set"))
+    {
+        rtc = http_api_network_summertime_set ();
+    }
+    else if (! strcmp (path, "/api/network_get_time"))
+    {
+        rtc = http_api_network_get_time ();
+    }
+    else if (! strcmp (path, "/api/network_wps"))
+    {
+        rtc = http_api_network_wps ();
+    }
+    else if (! strcmp (path, "/api/update_host_set"))
+    {
+        rtc = http_api_update_host_set ();
+    }
+    else if (! strcmp (path, "/api/update_path_set"))
+    {
+        rtc = http_api_update_path_set ();
+    }
+    else if (! strcmp (path, "/api/update_status"))
+    {
+        rtc = http_api_update_status ();
+    }
+    else if (! strcmp (path, "/api/update_table_files"))
+    {
+        rtc = http_api_update_table_files ();
+    }
+    else if (! strcmp (path, "/api/update_download_assets"))
+    {
+        rtc = http_api_update_download_assets ();
+    }
+    else if (! strcmp (path, "/api/update_download_app_bundle"))
+    {
+        rtc = http_api_update_download_app_bundle ();
+    }
+    else if (! strcmp (path, "/api/maintenance_format_fs"))
+    {
+        rtc = http_api_maintenance_format_fs ();
+    }
+    else if (! strcmp (path, "/api/maintenance_reset_stm32"))
+    {
+        rtc = http_api_maintenance_reset_stm32 ();
+    }
+    else if (! strcmp (path, "/api/maintenance_reset_eeprom"))
+    {
+        rtc = http_api_maintenance_reset_eeprom ();
+    }
+    else if (! strcmp (path, "/api/datetime_set"))
+    {
+        rtc = http_api_datetime_set ();
+    }
+    else if (! strcmp (path, "/api/learn_ir"))
+    {
+        rtc = http_api_learn_ir ();
+    }
+    else if (! strcmp (path, "/api/temperature_display"))
+    {
+        rtc = http_api_temperature_display ();
+    }
+    else if (! strcmp (path, "/api/temperature_rtc_correction_set"))
+    {
+        rtc = http_api_temperature_rtc_correction_set ();
+    }
+    else if (! strcmp (path, "/api/temperature_ds18xx_correction_set"))
+    {
+        rtc = http_api_temperature_ds18xx_correction_set ();
+    }
+    else if (! strcmp (path, "/api/ldr_min_set"))
+    {
+        rtc = http_api_ldr_min_set ();
+    }
+    else if (! strcmp (path, "/api/ldr_max_set"))
+    {
+        rtc = http_api_ldr_max_set ();
+    }
+    else if (! strcmp (path, "/api/animation_mode_set"))
+    {
+        rtc = http_api_animation_mode_set ();
+    }
+    else if (! strcmp (path, "/api/color_animation_mode_set"))
+    {
+        rtc = http_api_color_animation_mode_set ();
+    }
+    else if (! strcmp (path, "/api/animation_profile_set"))
+    {
+        rtc = http_api_animation_profile_set ();
+    }
+    else if (! strcmp (path, "/api/animation_profile_default"))
+    {
+        rtc = http_api_animation_profile_default ();
+    }
+    else if (! strcmp (path, "/api/color_animation_profile_set"))
+    {
+        rtc = http_api_color_animation_profile_set ();
+    }
+    else if (! strcmp (path, "/api/color_animation_profile_default"))
+    {
+        rtc = http_api_color_animation_profile_default ();
+    }
+    else if (! strcmp (path, "/api/display_dim_level_set"))
+    {
+        rtc = http_api_display_dim_level_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_dim_level_set"))
+    {
+        rtc = http_api_ambilight_dim_level_set ();
+    }
+    else if (! strcmp (path, "/api/tft_flags_set"))
+    {
+        rtc = http_api_tft_flags_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_brightness_set"))
+    {
+        rtc = http_api_ambilight_brightness_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_mode_set"))
+    {
+        rtc = http_api_ambilight_mode_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_leds_set"))
+    {
+        rtc = http_api_ambilight_leds_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_offset_set"))
+    {
+        rtc = http_api_ambilight_offset_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_mode_profile_set"))
+    {
+        rtc = http_api_ambilight_mode_profile_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_mode_profile_default"))
+    {
+        rtc = http_api_ambilight_mode_profile_default ();
+    }
+    else if (! strcmp (path, "/api/display_color_set"))
+    {
+        rtc = http_api_display_color_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_color_set"))
+    {
+        rtc = http_api_ambilight_color_set ();
+    }
+    else if (! strcmp (path, "/api/marker_color_set"))
+    {
+        rtc = http_api_marker_color_set ();
+    }
+    else if (! strcmp (path, "/api/sync_ambilight_set"))
+    {
+        rtc = http_api_sync_ambilight_set ();
+    }
+    else if (! strcmp (path, "/api/sync_markers_set"))
+    {
+        rtc = http_api_sync_markers_set ();
+    }
+    else if (! strcmp (path, "/api/fade_clock_seconds_set"))
+    {
+        rtc = http_api_fade_clock_seconds_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_markers_set"))
+    {
+        rtc = http_api_ambilight_markers_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_online_set"))
+    {
+        rtc = http_api_ambilight_online_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_volume_set"))
+    {
+        rtc = http_api_dfplayer_volume_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_mode_set"))
+    {
+        rtc = http_api_dfplayer_mode_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_bell_flags_set"))
+    {
+        rtc = http_api_dfplayer_bell_flags_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_speak_cycle_set"))
+    {
+        rtc = http_api_dfplayer_speak_cycle_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_silence_start_set"))
+    {
+        rtc = http_api_dfplayer_silence_start_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_silence_stop_set"))
+    {
+        rtc = http_api_dfplayer_silence_stop_set ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_play"))
+    {
+        rtc = http_api_dfplayer_play ();
+    }
+    else if (! strcmp (path, "/api/dfplayer_alarm_set"))
+    {
+        rtc = http_api_dfplayer_alarm_set ();
+    }
+    else if (! strcmp (path, "/api/overlay_set"))
+    {
+        rtc = http_api_overlay_set ();
+    }
+    else if (! strcmp (path, "/api/overlay_display"))
+    {
+        rtc = http_api_overlay_display ();
+    }
+    else if (! strcmp (path, "/api/overlay_delete"))
+    {
+        rtc = http_api_overlay_delete ();
+    }
+    else if (! strcmp (path, "/api/timer_set"))
+    {
+        rtc = http_api_timer_set ();
+    }
+    else if (! strcmp (path, "/api/ambilight_timer_set"))
+    {
+        rtc = http_api_ambilight_timer_set ();
+    }
+    else if (! strcmp (path, "/api/overlay_icons"))
+    {
+        rtc = http_api_overlay_icons ();
+    }
+    else if (! strcmp (path, "/api/fs_info"))
+    {
+        rtc = http_api_fs_info ();
+    }
+    else if (! strcmp (path, "/api/fs_list"))
+    {
+        rtc = http_api_fs_list ();
+    }
+    else if (! strcmp (path, "/api/fs_show"))
+    {
+        rtc = http_api_fs_show ();
+    }
+    else if (! strcmp (path, "/api/fs_remove"))
+    {
+        rtc = http_api_fs_remove ();
+    }
+    else if (! strcmp (path, "/api/local_stm32_flash"))
+    {
+        rtc = http_api_local_stm32_flash ();
+    }
+    else if (! strcmp (path, "/api/local_esp_restart"))
+    {
+        rtc = http_api_local_esp_restart ();
     }
     else
     {
@@ -5349,6 +8931,18 @@ http_post(const String& sPath)
     else if (sPath == "/fs-display")
     {
         http_fs (POST_DISPLAY_FILE);
+    }
+    else if (sPath == "/fs-app-bundle")
+    {
+        http_fs (POST_APP_BUNDLE_FILE);
+    }
+    else if (sPath == "/api/local_stm32_upload")
+    {
+        http_api_local_stm32_upload ();
+    }
+    else if (sPath == "/api/local_esp_update")
+    {
+        http_api_local_esp_update ();
     }
 }
 

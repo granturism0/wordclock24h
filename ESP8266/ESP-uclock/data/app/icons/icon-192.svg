@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="44" fill="#07101a"/>
+  <rect x="20" y="20" width="152" height="152" rx="32" fill="#0d1d31" stroke="#24486f"/>
+  <g fill="#ffd063" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700">
+    <text x="38" y="58">ES IST</text>
+    <text x="38" y="82">VIERTEL</text>
+    <text x="38" y="106">NEUN</text>
+    <text x="38" y="130">UHR</text>
+  </g>
+  <circle cx="150" cy="44" r="10" fill="#71e7b0"/>
+</svg>

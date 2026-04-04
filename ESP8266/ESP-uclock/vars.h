@@ -137,6 +137,8 @@ typedef enum
     MAX_NUM_VARIABLES                                                       // must be the last member
 } NUM_VARIABLE;
 
+#define AMBILIGHT_IS_UP_NUM_VAR              OBSOLETE_2_NUMVAR
+
 extern unsigned int     numvars[MAX_NUM_VARIABLES];
 extern unsigned int     get_numvar (NUM_VARIABLE);
 extern unsigned int     set_numvar (NUM_VARIABLE, unsigned int);

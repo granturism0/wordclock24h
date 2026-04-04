@@ -1111,4 +1111,5 @@ void
 vars_init (void)
 {
     numvars[HARDWARE_CONFIGURATION_NUM_VAR] = 0xFFFF;
+    numvars[AMBILIGHT_IS_UP_NUM_VAR] = 1;
 }
