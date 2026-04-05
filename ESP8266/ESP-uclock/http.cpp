@@ -4917,23 +4917,6 @@ http_fs (int post = POST_ICON_NONE)
 
     http_send_FS ("<table>");
 
-    http_send_FS ("<tr><td colspan='3'><B>WordClock App bundle (/app)</B></td></tr>");
-    http_send_FS ("<tr><td colspan='3'>Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.</td></tr>");
-    if (app_bundle_available)
-    {
-        http_send_FS ("<tr><td colspan='3'>"
-                      "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
-                      "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
-                      "</form>"
-                      "</td></tr>");
-    }
-    http_send_FS ("<tr><td>app-bundle.txt</td><td>"
-            "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>"
-            "</td><td><input type='submit' class='button' name='submit' value='Install App'></td>"
-            "</form></tr>"
-            );
-
     if (fname_icon)
     {
         http_send_FS ("<tr><td>");
@@ -4981,6 +4964,23 @@ http_fs (int post = POST_ICON_NONE)
                 "</form></tr>"
                 );
     }
+
+    http_send_FS ("<tr><td colspan='3'><B>WordClock App bundle (/app)</B></td></tr>");
+    http_send_FS ("<tr><td colspan='3'>Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.</td></tr>");
+    if (app_bundle_available)
+    {
+        http_send_FS ("<tr><td colspan='3'>"
+                      "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
+                      "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
+                      "</form>"
+                      "</td></tr>");
+    }
+    http_send_FS ("<tr><td>app-bundle.txt</td><td>"
+            "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
+            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>"
+            "</td><td><input type='submit' class='button' name='submit' value='Install App'></td>"
+            "</form></tr>"
+            );
 
     http_send_FS ("</table>");
 

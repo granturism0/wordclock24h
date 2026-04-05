@@ -174,7 +174,7 @@ h2 {
 
 .layout {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .module-nav {
@@ -185,6 +185,7 @@ h2 {
   position: sticky;
   top: max(8px, env(safe-area-inset-top));
   z-index: 20;
+  margin-bottom: 2px;
 }
 
 .module-nav::-webkit-scrollbar {
@@ -209,7 +210,7 @@ h2 {
 
 .module-section {
   display: none;
-  gap: 16px;
+  gap: 14px;
 }
 
 .module-section.is-active {
@@ -217,7 +218,7 @@ h2 {
 }
 
 .module-banner {
-  padding: 18px 20px;
+  padding: 16px 20px;
   border-radius: var(--radius-xl);
   border: 1px solid var(--line);
   background:
@@ -225,6 +226,7 @@ h2 {
     radial-gradient(circle at top right, rgba(143, 211, 255, 0.08), transparent 34%);
   box-shadow: var(--shadow);
   grid-column: 1 / -1;
+  margin-top: 0;
 }
 
 .module-banner .hint {
@@ -406,6 +408,21 @@ h2 {
   text-shadow:
     0 0 10px var(--wc-glow-strong),
     0 0 22px var(--wc-glow-soft);
+}
+
+.wordclock-panel.is-rainbow-preview .wordclock-grid span.active {
+  color: var(--wc-active-color);
+  text-shadow:
+    0 0 10px var(--wc-glow-strong),
+    0 0 22px var(--wc-glow-soft);
+}
+
+.wordclock-panel.is-rainbow-preview .wordclock-corner.is-active {
+  background: var(--wc-active-color);
+  border-color: var(--wc-glow-strong);
+  box-shadow:
+    0 0 18px var(--wc-glow-strong),
+    0 0 28px var(--wc-glow-soft);
 }
 
 .info-list {
@@ -1020,6 +1037,14 @@ h2 {
   .panel.spotlight {
     grid-column: 1 / 2;
     grid-row: 1 / span 2;
+  }
+
+  .module-section .module-banner {
+    grid-row: 1;
+  }
+
+  .module-section[data-module="main"] .panel.spotlight {
+    grid-row: 2 / span 2;
   }
 }
 

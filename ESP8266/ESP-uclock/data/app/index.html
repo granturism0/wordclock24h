@@ -304,7 +304,10 @@
               <div class="panel-head compact"><div><span class="label">Display-Farbe</span><strong id="display-color-preview" class="color-preview"></strong></div></div>
               <p id="display-color-note" class="hint">Display-Farbe ist wählbar, wenn keine Farbanimation aktiv ist.</p>
               <label class="field"><span class="label">RGB</span><input id="display-color-rgb" type="color" value="#ffffff"></label>
-              <label id="display-color-white-field" class="field"><span class="label">Weißkanal</span><input id="display-color-white" type="range" min="0" max="63" value="0"></label>
+              <label id="display-color-white-field" class="field">
+                <div class="slider-row"><span class="label">Weißkanal</span><strong id="display-color-white-value" class="value-pill">0</strong></div>
+                <input id="display-color-white" type="range" min="0" max="63" value="0">
+              </label>
               <button id="display-color-save-button" class="button primary" type="button">Display-Farbe speichern</button>
             </section>
             <label class="field"><span class="label">Display-Modus</span><select id="display-mode-select"></select></label>
@@ -437,13 +440,19 @@
             <section id="ambilight-color-card" class="color-card">
               <div class="panel-head compact"><div><span class="label">Ambilight-Farbe</span><strong id="ambilight-color-preview" class="color-preview"></strong></div></div>
               <label class="field"><span class="label">RGB</span><input id="ambilight-color-rgb" type="color" value="#ffffff"></label>
-              <label id="ambilight-color-white-field" class="field"><span class="label">Weißkanal</span><input id="ambilight-color-white" type="range" min="0" max="63" value="0"></label>
+              <label id="ambilight-color-white-field" class="field">
+                <div class="slider-row"><span class="label">Weißkanal</span><strong id="ambilight-color-white-value" class="value-pill">0</strong></div>
+                <input id="ambilight-color-white" type="range" min="0" max="63" value="0">
+              </label>
               <button id="ambilight-color-save-button" class="button primary" type="button">Ambilight-Farbe speichern</button>
             </section>
             <section id="marker-color-card" class="color-card">
               <div class="panel-head compact"><div><span class="label">Marker-Farbe</span><strong id="marker-color-preview" class="color-preview"></strong></div></div>
               <label class="field"><span class="label">RGB</span><input id="marker-color-rgb" type="color" value="#ffffff"></label>
-              <label id="marker-color-white-field" class="field"><span class="label">Weißkanal</span><input id="marker-color-white" type="range" min="0" max="63" value="0"></label>
+              <label id="marker-color-white-field" class="field">
+                <div class="slider-row"><span class="label">Weißkanal</span><strong id="marker-color-white-value" class="value-pill">0</strong></div>
+                <input id="marker-color-white" type="range" min="0" max="63" value="0">
+              </label>
               <button id="marker-color-save-button" class="button primary" type="button">Marker-Farbe speichern</button>
             </section>
           </div>

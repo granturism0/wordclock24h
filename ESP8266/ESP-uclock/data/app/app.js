@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.3";
+const APP_VERSION = "1.1.18";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -263,7 +263,12 @@ let currentFsFiles = [];
 let currentLayoutPreview = null;
 let currentSettingsSnapshot = null;
 let currentEepromSettings = null;
+let currentUpdateStatus = {};
 const layoutPreviewCache = {};
+let activeLoadCount = 0;
+let loadRequestSerial = 0;
+let lastWordclockRenderSignature = "";
+let lastWordclockThemeSignature = "";
 let pendingProgressAction = "";
 let pendingProgressButtonId = "";
 let stm32ProgressTimer = 0;
@@ -272,6 +277,9 @@ let stm32ProgressAdvanceTimer = 0;
 let stm32ProgressMonitorTimer = 0;
 let stm32AutoResetStarted = false;
 let hasUnsavedEdits = false;
+let wordclockSizingFrame = 0;
+let wordclockSizingTimeout = 0;
+let wordclockResizeObserver = null;
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
@@ -355,6 +363,9 @@ document.getElementById("ambilight-timer-save-all-button").addEventListener("cli
   document.getElementById(prefix + "-color-white").addEventListener("input", () => updateLiveColorPreview(prefix));
 });
 document.getElementById("dfplayer-volume-slider").addEventListener("input", syncDfplayerVolumeLabel);
+["display", "ambilight", "marker"].forEach((prefix) => {
+  document.getElementById(prefix + "-color-white").addEventListener("input", () => syncWhiteChannelLabel(prefix));
+});
 document.getElementById("dfplayer-volume-save-button").addEventListener("click", saveDfplayerVolume);
 document.getElementById("dfplayer-mode-save-button").addEventListener("click", saveDfplayerMode);
 document.getElementById("dfplayer-bell-save-button").addEventListener("click", saveDfplayerBellFlags);
@@ -518,6 +529,9 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
+  if (target === "maintenance" && currentSettingsSnapshot) {
+    void loadData({ maintenancePriority: true });
+  }
 }
 
 function restoreActiveModule() {
@@ -562,50 +576,33 @@ async function loadData(options) {
     announceStatus("Automatische Aktualisierung pausiert, bis ungespeicherte Änderungen gespeichert sind", "warn");
     return;
   }
+  if (opts.auto && activeLoadCount > 0) {
+    return;
+  }
+  const requestId = ++loadRequestSerial;
+  activeLoadCount += 1;
   try {
-    const [settingsText, displayPower, ambilightPower, overlayIcons, networkInfo, fsInfo, fsList, updateStatus, updateTableInfo, eepromSettings, stm32Log] = await Promise.all([
-      fetch("/get_settings", { cache: "no-store" }).then((response) => response.text()),
-      fetch("/display_power", { cache: "no-store" }).then((response) => response.text()),
-      fetch("/ambilight_power", { cache: "no-store" }).then((response) => response.text()),
-      fetch("/api/overlay_icons", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : [])
-        .catch(() => []),
-      fetch("/api/network_scan", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : { networks: [] })
-        .catch(() => ({ networks: [] })),
-      fetch("/api/fs_info", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : {})
-        .catch(() => ({})),
-      fetch("/api/fs_list", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : { files: [] })
-        .catch(() => ({ files: [] })),
-      fetch("/api/update_status", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : {})
-        .catch(() => ({})),
-      fetch("/api/update_table_files", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : {})
-        .catch(() => ({})),
-      fetch("/api/eeprom_settings", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : {})
-        .catch(() => ({})),
-      fetch("/api/stm32_log", { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : { lines: [] })
-        .catch(() => ({ lines: [] }))
-    ]);
+    const coreData = await loadCoreData();
+    if (requestId !== loadRequestSerial) {
+      return;
+    }
 
-    overlayIconsCache = Array.isArray(overlayIcons) ? overlayIcons : [];
-    currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
-    const settings = parseSettings(settingsText);
+    overlayIconsCache = Array.isArray(coreData.overlayIcons) ? coreData.overlayIcons : [];
+    const settings = resolveSettingsSnapshot(coreData.settingsText);
     currentSettingsSnapshot = settings;
-    currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : {};
+    currentEepromSettings = currentEepromSettings || {};
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
-    currentLayoutPreview = await loadWordclockLayoutPreview(updateTableInfo, settings);
+    currentLayoutPreview = currentLayoutPreview || getDefaultLayoutPreview(settings);
     const ambilightOnline = isAmbilightOnline(settings, debugOverrides);
-    renderOverview(settings, displayPower.trim(), ambilightPower.trim(), debugOverrides, updateStatus);
-    renderWordclock(displayPower.trim() === "on", settings, currentLayoutPreview);
-    updateDisplayButton(displayPower.trim());
-    updateAmbilightButton(ambilightPower.trim(), ambilightOnline);
+    renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus || {});
+    try {
+      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+    } catch (error) {
+      console.error("Wordclock preview failed", error);
+    }
+    updateDisplayButton(coreData.displayPower);
+    updateAmbilightButton(coreData.ambilightPower, ambilightOnline);
     updateAmbilightOnlineButton(ambilightOnline ? "on" : "off");
     updateAmbilightAvailability(ambilightOnline ? "on" : "off");
     updateBrightnessControl(
@@ -616,37 +613,140 @@ async function loadData(options) {
     updateDisplayFlagControls(settings);
     updateTextControls(settings);
     updateWeatherControls(settings);
-    updateNetworkControls(settings, networkInfo);
+    updateNetworkControls(settings, coreData.networkInfo);
     updateMaintenanceControls(settings, currentEepromSettings);
-    updateStm32Log(stm32Log);
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
     updateLdrControls(settings);
-    updateAnimationControls(settings);
+    try {
+      updateAnimationControls(settings);
+    } catch (error) {
+      console.error("Animation controls failed", error);
+    }
     updateTftVisibility(settings, debugOverrides);
     updateTftControls(settings);
     updateAmbilightBrightnessControl(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0);
     updateAmbilightModeControl(settings);
     updateAmbilightNumberControls(settings);
-    updateColorControls(settings, ambilightOnline, debugOverrides);
+    try {
+      updateColorControls(settings, ambilightOnline, debugOverrides);
+    } catch (error) {
+      console.error("Color controls failed", error);
+    }
     updateFlagControls(settings, ambilightOnline);
     updateDfplayerControls(settings, debugOverrides);
-    renderAnimationProfiles(settings);
-    renderColorAnimationProfiles(settings);
+    try {
+      renderAnimationProfiles(settings);
+      renderColorAnimationProfiles(settings);
+    } catch (error) {
+      console.error("Animation profile render failed", error);
+    }
     renderAmbilightModeProfiles(settings);
     renderDimCurves(settings);
     renderDfplayerAlarmRows(settings);
     renderOverlayRows(settings);
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
-    renderFileSystem(fsInfo, currentFsFiles, settings);
-    updateUpdateStatus(updateStatus, updateTableInfo, settings);
-    updateLocalUpdateControls(updateStatus);
     hasUnsavedEdits = false;
     announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
+
+    void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
     announceStatus("Daten konnten nicht geladen werden", "error");
+  } finally {
+    activeLoadCount = Math.max(0, activeLoadCount - 1);
   }
+}
+
+async function loadCoreData() {
+  const [settingsText, displayPowerText, ambilightPowerText, overlayIcons, networkInfo] = await Promise.all([
+    settleFetchText("/get_settings", "", 2500),
+    settleFetchText("/display_power", "off", 1800),
+    settleFetchText("/ambilight_power", "off", 1800),
+    settleFetchJson("/api/overlay_icons", [], 1800),
+    settleFetchJson("/api/network_scan", { networks: [] }, 2500)
+  ]);
+
+  return {
+    settingsText,
+    displayPower: String(displayPowerText || "off").trim(),
+    ambilightPower: String(ambilightPowerText || "off").trim(),
+    overlayIcons,
+    networkInfo
+  };
+}
+
+function resolveSettingsSnapshot(settingsText) {
+  const parsedSettings = parseSettings(settingsText);
+  const hasParsedContent =
+    Object.keys(parsedSettings.numvars).length ||
+    Object.keys(parsedSettings.strvars).length ||
+    Object.keys(parsedSettings.tmvars).length;
+
+  return hasParsedContent ? parsedSettings : (currentSettingsSnapshot || parsedSettings);
+}
+
+async function loadSecondaryData(requestId, settings, coreData, debugOverrides, options) {
+  const opts = options || {};
+  const maintenanceActive = getActiveModuleName() === "maintenance" || !!opts.maintenancePriority;
+
+  try {
+    const updateStatus = await settleFetchJson("/api/update_status", currentUpdateStatus || {}, 8000);
+    if (requestId !== loadRequestSerial) {
+      return;
+    }
+
+    currentUpdateStatus = updateStatus || currentUpdateStatus || {};
+    renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus);
+
+    const updateTableInfo = await settleFetchJson("/api/update_table_files", {}, 8000);
+    if (requestId !== loadRequestSerial) {
+      return;
+    }
+
+    updateUpdateStatus(currentUpdateStatus, updateTableInfo, settings);
+    updateLocalUpdateControls(currentUpdateStatus);
+
+    try {
+      const preview = await loadWordclockLayoutPreview(updateTableInfo, settings);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      if (preview && preview.rows && preview.rows.length) {
+        currentLayoutPreview = preview;
+      }
+      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+    } catch (error) {
+      console.error("Wordclock preview refresh failed", error);
+    }
+
+    if (!maintenanceActive) {
+      return;
+    }
+
+    const [fsInfo, fsList, eepromSettings, stm32Log] = await Promise.all([
+      settleFetchJson("/api/fs_info", {}, 5000),
+      settleFetchJson("/api/fs_list", { files: [] }, 6000),
+      settleFetchJson("/api/eeprom_settings", {}, 5000),
+      settleFetchJson("/api/stm32_log", { lines: [] }, 3000)
+    ]);
+
+    if (requestId !== loadRequestSerial) {
+      return;
+    }
+
+    currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
+    currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
+    updateMaintenanceControls(settings, currentEepromSettings);
+    updateStm32Log(stm32Log);
+    renderFileSystem(fsInfo, currentFsFiles, settings);
+  } catch (_) {
+  }
+}
+
+function getActiveModuleName() {
+  const activeSection = document.querySelector(".module-section.is-active");
+  return activeSection ? (activeSection.dataset.module || "main") : "main";
 }
 
 function updateStm32Log(logData) {
@@ -970,11 +1070,26 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
     ["Automatische Helligkeit", automatic],
     ["LED-Fähigkeiten", ledCapabilities.label],
     ["Zeitserver", settings.strvars[STR.TIMESERVER] || "-"],
-    ["Wetter-Ort", settings.strvars[STR.WEATHER_CITY] || "-"],
-    ["Ticker", settings.strvars[STR.TICKER_TEXT] || "-"],
-    ["Datumsformat", settings.strvars[STR.DATE_TICKER_FORMAT] || "-"],
     ["Ticker-Verzögerung", String(settings.numvars[NUM.TICKER_DECELERATION] || 0)]
   ];
+
+  const weatherLocation = settings.strvars[STR.WEATHER_CITY]
+    ? settings.strvars[STR.WEATHER_CITY]
+    : ((settings.strvars[STR.WEATHER_LON] || settings.strvars[STR.WEATHER_LAT])
+      ? (settings.strvars[STR.WEATHER_LON] || "-") + " / " + (settings.strvars[STR.WEATHER_LAT] || "-")
+      : "");
+
+  if (weatherLocation) {
+    configItems.splice(configItems.length - 1, 0, ["Wetter-Ort", weatherLocation]);
+  }
+
+  if (settings.strvars[STR.TICKER_TEXT]) {
+    configItems.splice(configItems.length - 1, 0, ["Ticker", settings.strvars[STR.TICKER_TEXT]]);
+  }
+
+  if (settings.strvars[STR.DATE_TICKER_FORMAT]) {
+    configItems.splice(configItems.length - 1, 0, ["Datumsformat", settings.strvars[STR.DATE_TICKER_FORMAT]]);
+  }
 
   if (ambilightOnline) {
     configItems.splice(4, 0,
@@ -1729,19 +1844,21 @@ function updateAmbilightNumberControls(settings) {
 function updateColorControls(settings, ambilightOnline, debugOverrides) {
   const capabilities = getLedCapabilities(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
   const useRgbw = capabilities.whiteChannel && !!settings.numvars[NUM.DISPLAY_USE_RGBW];
+  const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+  const displayColor = settings.dspcolors[0] || { red: 63, green: 45, blue: 18, white: 0 };
+  const ambilightColor = settings.dspcolors[1] || { red: 63, green: 45, blue: 18, white: 0 };
+  const markerColor = settings.dspcolors[2] || { red: 63, green: 45, blue: 18, white: 0 };
 
-  applyColorCapabilities(capabilities, useRgbw, ambilightOnline);
-  applyWordclockTheme(settings.dspcolors[0], useRgbw);
-
-  setColorControl("display", settings.dspcolors[0], useRgbw);
-  setColorControl("ambilight", settings.dspcolors[1], useRgbw);
-  setColorControl("marker", settings.dspcolors[2], useRgbw);
+  applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode);
+  setColorControl("display", displayColor, useRgbw, false);
+  setColorControl("ambilight", ambilightColor, useRgbw);
+  setColorControl("marker", markerColor, useRgbw);
+  applyWordclockTheme(displayColor, useRgbw, colorAnimationMode);
 }
 
-function applyColorCapabilities(capabilities, useRgbw, ambilightOnline) {
+function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode) {
   const note = document.getElementById("color-capability-note");
   const displayColorNote = document.getElementById("display-color-note");
-  const colorAnimationMode = Number(document.getElementById("color-animation-mode-select").value || 0);
   const canEditDisplayColor = capabilities.hasColor && colorAnimationMode === 0;
 
   note.textContent = capabilities.whiteChannel && !useRgbw
@@ -2291,7 +2408,7 @@ function renderTimerRows(settings, isAmbilight) {
   });
 }
 
-function setColorControl(prefix, color, useRgbw) {
+function setColorControl(prefix, color, useRgbw, syncTheme) {
   const current = color || { red: 0, green: 0, blue: 0, white: 0 };
   const rgbInput = document.getElementById(prefix + "-color-rgb");
   const whiteInput = document.getElementById(prefix + "-color-white");
@@ -2299,7 +2416,8 @@ function setColorControl(prefix, color, useRgbw) {
   rgbInput.value = rgb63ToHex(current);
   whiteInput.value = String(current.white || 0);
   whiteInput.disabled = !useRgbw;
-  updateLiveColorPreview(prefix);
+  syncWhiteChannelLabel(prefix);
+  updateLiveColorPreview(prefix, syncTheme !== false);
 }
 
 function updateFlagControls(settings, ambilightOnline) {
@@ -2323,7 +2441,7 @@ function setActionToggleButton(id, onText, offText, enabled) {
   button.classList.toggle("primary", enabled);
 }
 
-function updateLiveColorPreview(prefix) {
+function updateLiveColorPreview(prefix, syncTheme) {
   const preview = document.getElementById(prefix + "-color-preview");
   const rgbInput = document.getElementById(prefix + "-color-rgb");
   const whiteInput = document.getElementById(prefix + "-color-white");
@@ -2337,13 +2455,13 @@ function updateLiveColorPreview(prefix) {
     white
   }, !whiteInput.disabled);
 
-  if (prefix === "display") {
+  if (prefix === "display" && syncTheme !== false) {
     applyWordclockTheme({
       red: rgb.red,
       green: rgb.green,
       blue: rgb.blue,
       white
-    }, !whiteInput.disabled);
+    }, !whiteInput.disabled, 0);
   }
 }
 
@@ -2357,6 +2475,15 @@ function syncAmbilightBrightnessLabel() {
 
 function syncDfplayerVolumeLabel() {
   document.getElementById("dfplayer-volume-value").textContent = document.getElementById("dfplayer-volume-slider").value;
+}
+
+function syncWhiteChannelLabel(prefix) {
+  const input = document.getElementById(prefix + "-color-white");
+  const value = document.getElementById(prefix + "-color-white-value");
+
+  if (input && value) {
+    value.textContent = input.value;
+  }
 }
 
 async function saveDisplayMode() {
@@ -2748,7 +2875,8 @@ async function reverseLookupWeatherLocation(lat, lon) {
   }
 }
 
-function applyWeatherMapSelection() {
+async function applyWeatherMapSelection() {
+  const button = document.getElementById("weather-map-apply-button");
   const city = document.getElementById("weather-map-city-input").value || "";
   const lon = document.getElementById("weather-map-lon-input").value || "";
   const lat = document.getElementById("weather-map-lat-input").value || "";
@@ -2757,7 +2885,20 @@ function applyWeatherMapSelection() {
   document.getElementById("weather-lon-input").value = lon;
   document.getElementById("weather-lat-input").value = lat;
   document.getElementById("weather-location-preview").textContent = "Aus Karte gewählt: " + (city || "-") + " | " + (lon || "-") + " / " + (lat || "-");
-  closeWeatherMapPicker();
+
+  beginButtonFeedback(button, "übernimmt...");
+
+  try {
+    await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(city));
+    await apiFetch("/api/weather_coordinates_set?lon=" + encodeURIComponent(lon) + "&lat=" + encodeURIComponent(lat));
+    await loadData();
+    closeWeatherMapPicker();
+    announceStatus("Wetter-Ort und Koordinaten wurden übernommen", "ok");
+    finishButtonFeedback(button, "In Wetter übernehmen", "success", "übernommen");
+  } catch (error) {
+    announceStatus("Wetter-Ort und Koordinaten konnten nicht übernommen werden", "error");
+    finishButtonFeedback(button, "In Wetter übernehmen", "error", "Fehler");
+  }
 }
 
 async function saveNetworkClient() {
@@ -3575,6 +3716,31 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   } finally {
     window.clearTimeout(timer);
   }
+}
+
+function settleWithTimeout(promise, fallbackValue, timeoutMs) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => fallbackValue),
+    new Promise((resolve) => {
+      window.setTimeout(() => resolve(fallbackValue), timeoutMs || 1500);
+    })
+  ]);
+}
+
+function settleFetchText(url, fallbackValue, timeoutMs) {
+  return settleWithTimeout(
+    fetch(url, { cache: "no-store" }).then((response) => response.ok ? response.text() : fallbackValue),
+    fallbackValue,
+    timeoutMs
+  );
+}
+
+function settleFetchJson(url, fallbackValue, timeoutMs) {
+  return settleWithTimeout(
+    fetch(url, { cache: "no-store" }).then((response) => response.ok ? response.json() : fallbackValue),
+    fallbackValue,
+    timeoutMs
+  );
 }
 
 function probeDeviceReadyViaFrame(url, timeoutMs) {
@@ -4443,10 +4609,27 @@ function renderHealthList(settings, ambilightOnline, dfplayerOnline) {
 
 function renderWordclock(active, settings, layoutPreview) {
   const root = document.getElementById("wordclock-grid");
-  ensureWordclockResizeObserver();
-  root.innerHTML = "";
   const preview = layoutPreview || {};
   const rows = Array.isArray(preview.rows) && preview.rows.length ? preview.rows : fallbackWordclockRows;
+  const current = settings && settings.tmvars ? settings.tmvars[0] : {};
+  const renderSignature = [
+    active ? "1" : "0",
+    preview.file || "",
+    rows.join("|"),
+    String(current.hour || 0),
+    String(current.minute || 0),
+    String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_FLAGS] || 0) : 0),
+    String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_MODE] || 0) : 0)
+  ].join("::");
+
+  if (renderSignature === lastWordclockRenderSignature) {
+    scheduleWordclockSizing();
+    return;
+  }
+
+  lastWordclockRenderSignature = renderSignature;
+  ensureWordclockResizeObserver();
+  root.innerHTML = "";
   const columnCount = Math.max(...rows.map((row) => row.length), 1);
   const activeSet = buildActiveWordSet(settings, preview, rows);
 
@@ -4471,10 +4654,6 @@ function renderWordclock(active, settings, layoutPreview) {
   renderWordclockCorners(settings, preview);
   scheduleWordclockSizing();
 }
-
-let wordclockSizingFrame = 0;
-let wordclockSizingTimeout = 0;
-let wordclockResizeObserver = null;
 
 function scheduleWordclockSizing() {
   if (wordclockSizingFrame) {
@@ -4608,11 +4787,14 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
   }
 
   try {
-    const response = await fetch("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" });
+    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 1800);
     const text = await response.text();
+    if (!text || !text.trim()) {
+      return fallbackPreview;
+    }
     const table = parseLayoutTable(text);
     const rows = resolveLayoutRows(currentTable, table);
-    const preview = { file: currentTable, table, rows };
+    const preview = { file: currentTable, table, rows: rows.length ? rows : fallbackPreview.rows };
 
     layoutPreviewCache[currentTable] = preview;
     return preview;
@@ -4819,7 +5001,6 @@ function buildLayoutActiveWordSet(settings, table) {
   }
 
   const activeWords = new Set();
-  const itIsMode = !!(minuteEntry.flags & MDF_IT_IS_1);
   const showItIs = !!(displayFlags & 0x01);
   let pmMode = 0;
   let isMidnight = false;
@@ -4863,7 +5044,9 @@ function buildLayoutActiveWordSet(settings, table) {
   }
 
   const activeCells = new Set();
-  const fullOrHalfHour = minute === 0 || minute === 30;
+  const fullOrHalfHour = table.minuteCount === 12
+    ? (minuteIndex === 0 || minuteIndex === Math.floor(table.minuteCount / 2))
+    : (minute === 0 || minute === 30);
 
   activeWords.forEach((wordIdx) => {
     const illumination = table.illumination[wordIdx];
@@ -4878,7 +5061,7 @@ function buildLayoutActiveWordSet(settings, table) {
     const length = illumination.len & ILLUMINATION_LEN_MASK;
     let doShow = true;
 
-    if (!fullOrHalfHour && isItIsWord && ((!showItIs) || (!itIsMode))) {
+    if (!fullOrHalfHour && isItIsWord && !showItIs) {
       doShow = false;
     } else if (!pmMode && isPmWord) {
       doShow = false;
@@ -5157,7 +5340,7 @@ function getAmbilightModeName(settings) {
 
 function getDfplayerModeName(mode) {
   return ({
-    0: "Keiner",
+    0: "Keine",
     1: "Glocke",
     2: "Sprache"
   }[mode] || String(mode || 0));
@@ -5182,7 +5365,7 @@ function localizeAmbilightModeName(name) {
 
 function localizeAnimationName(name) {
   return ({
-    None: "Keiner",
+    None: "Keine",
     Normal: "Normal",
     Clock: "Uhr",
     Rainbow: "Regenbogen",
@@ -5303,21 +5486,42 @@ function buildColorPreview(color, useRgbw) {
   return "linear-gradient(90deg, " + rgb + ", rgb(" + white + ", " + white + ", " + white + "))";
 }
 
-function applyWordclockTheme(color, useRgbw) {
+function applyWordclockTheme(color, useRgbw, colorAnimationMode) {
   const panel = document.querySelector(".wordclock-panel");
 
   if (!panel) {
     return;
   }
 
-  const ledColor = mixRgbwToCss(color || { red: 63, green: 45, blue: 18, white: 0 }, useRgbw);
-  const glowStrong = colorWithAlpha(ledColor, 0.42);
-  const glowSoft = colorWithAlpha(ledColor, 0.2);
+  const animationMode = Number(colorAnimationMode || 0);
+  const ledColor = animationMode !== 0
+    ? "rgb(255, 255, 255)"
+    : mixRgbwToCss(color || { red: 63, green: 45, blue: 18, white: 0 }, useRgbw);
+  const isRainbow = Number(colorAnimationMode || 0) === 1;
+  const activeColor = ledColor;
+  const glowStrong = colorWithAlpha(activeColor, 0.42);
+  const glowSoft = colorWithAlpha(activeColor, 0.2);
   const inactive = "rgba(0, 0, 0, 0.7)";
   const cornerIdle = "rgba(0, 0, 0, 0.78)";
   const cornerBorder = "rgba(255, 255, 255, 0.08)";
+  const themeSignature = [
+    String(activeColor),
+    String(glowStrong),
+    String(glowSoft),
+    String(inactive),
+    String(cornerIdle),
+    String(cornerBorder),
+    isRainbow ? "1" : "0"
+  ].join("::");
 
-  panel.style.setProperty("--wc-active-color", ledColor);
+  if (themeSignature === lastWordclockThemeSignature) {
+    return;
+  }
+
+  lastWordclockThemeSignature = themeSignature;
+
+  panel.classList.toggle("is-rainbow-preview", isRainbow);
+  panel.style.setProperty("--wc-active-color", activeColor);
   panel.style.setProperty("--wc-glow-strong", glowStrong);
   panel.style.setProperty("--wc-glow-soft", glowSoft);
   panel.style.setProperty("--wc-inactive-color", inactive);
@@ -5361,7 +5565,7 @@ function minutesToTimeValue(totalMinutes) {
 }
 
 function buildWeekdayOptions(selected) {
-  const days = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const days = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   return days.map((day, idx) => (
     '<option value="' + idx + '"' + (idx === selected ? " selected" : "") + ">" + day + "</option>"
   )).join("");
