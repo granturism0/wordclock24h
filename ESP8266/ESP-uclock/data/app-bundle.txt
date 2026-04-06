@@ -4653,7 +4653,7 @@ function renderWordclock(active, settings, layoutPreview) {
     });
   });
 
-  renderWordclockCorners(settings, preview);
+  renderWordclockCorners(active, settings, preview);
   scheduleWordclockSizing();
 }
 
@@ -5083,7 +5083,7 @@ function buildLayoutActiveWordSet(settings, table) {
   return activeCells;
 }
 
-function renderWordclockCorners(settings, layoutPreview) {
+function renderWordclockCorners(active, settings, layoutPreview) {
   const corners = document.getElementById("wordclock-corners");
 
   if (!corners) {
@@ -5094,7 +5094,7 @@ function renderWordclockCorners(settings, layoutPreview) {
   const current = settings && settings.tmvars ? settings.tmvars[0] : {};
   const minute = Number(current.minute || 0);
   const is12hLayout = isTwelveHourLayout(layoutPreview, config);
-  const activeCount = is12hLayout ? minute % 5 : 0;
+  const activeCount = active && is12hLayout ? minute % 5 : 0;
 
   corners.classList.toggle("is-hidden", !is12hLayout);
 
