@@ -1,6 +1,6 @@
 WCAPPBUNDLE 1
 FILE app/app.js
-const APP_VERSION = "1.2.10";
+const APP_VERSION = "1.2.11";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -270,6 +270,7 @@ let currentLayoutPreview = null;
 let currentSettingsSnapshot = null;
 let currentEepromSettings = null;
 let currentUpdateStatus = {};
+let currentNetworkInfo = {};
 const layoutPreviewCache = {};
 let activeLoadCount = 0;
 let loadRequestSerial = 0;
@@ -411,14 +412,42 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+let statusToneResetTimer = 0;
+let buttonFeedbackTimers = new WeakMap();
+let alignedAutoRefreshTimeout = 0;
+let alignedAutoRefreshInterval = 0;
+
 loadDebugOverridesIntoUi();
 restoreActiveModule();
 loadData();
-setInterval(() => loadData({ auto: true }), 15000);
+startAlignedAutoRefresh();
 window.addEventListener("resize", scheduleWordclockSizing);
 
-let statusToneResetTimer = 0;
-let buttonFeedbackTimers = new WeakMap();
+function startAlignedAutoRefresh() {
+  const intervalMs = 5000;
+  const phaseOffsetMs = 1000;
+
+  if (alignedAutoRefreshTimeout) {
+    window.clearTimeout(alignedAutoRefreshTimeout);
+    alignedAutoRefreshTimeout = 0;
+  }
+  if (alignedAutoRefreshInterval) {
+    window.clearInterval(alignedAutoRefreshInterval);
+    alignedAutoRefreshInterval = 0;
+  }
+
+  const now = Date.now();
+  const nextAlignedTick = Math.floor(now / intervalMs) * intervalMs + intervalMs + phaseOffsetMs;
+  const delayToNextTick = Math.max(phaseOffsetMs, nextAlignedTick - now);
+
+  alignedAutoRefreshTimeout = window.setTimeout(() => {
+    alignedAutoRefreshTimeout = 0;
+    void loadData({ auto: true });
+    alignedAutoRefreshInterval = window.setInterval(() => {
+      void loadData({ auto: true });
+    }, intervalMs);
+  }, delayToNextTick);
+}
 
 function handleDirtyFormInteraction(event) {
   const target = event.target;
@@ -542,8 +571,12 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
-  if (target === "maintenance" && currentSettingsSnapshot) {
-    void loadData({ maintenancePriority: true });
+  if (currentSettingsSnapshot) {
+    if (target === "maintenance") {
+      void loadData({ maintenancePriority: true });
+    } else if (target === "network" || target === "overlays") {
+      void loadData();
+    }
   }
   syncLiveDisplayColorPolling(currentSettingsSnapshot);
   syncStm32LogPolling();
@@ -602,10 +635,10 @@ async function loadData(options) {
       return;
     }
 
-    overlayIconsCache = Array.isArray(coreData.overlayIcons) ? coreData.overlayIcons : [];
     const settings = resolveSettingsSnapshot(coreData.settingsText);
     currentSettingsSnapshot = settings;
     currentEepromSettings = currentEepromSettings || {};
+    currentNetworkInfo = currentNetworkInfo || {};
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
     currentLayoutPreview = currentLayoutPreview || restoreStoredLayoutPreview() || getDefaultLayoutPreview(settings);
@@ -628,7 +661,7 @@ async function loadData(options) {
     updateDisplayFlagControls(settings);
     updateTextControls(settings);
     updateWeatherControls(settings);
-    updateNetworkControls(settings, coreData.networkInfo);
+    updateNetworkControls(settings, currentNetworkInfo);
     updateMaintenanceControls(settings, currentEepromSettings);
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
@@ -667,27 +700,27 @@ async function loadData(options) {
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
-    announceStatus("Daten konnten nicht geladen werden", "error");
+    if (!currentSettingsSnapshot) {
+      announceStatus("Daten konnten nicht geladen werden", "error");
+    } else {
+      console.warn("Refresh incomplete, keeping previous snapshot", error);
+    }
   } finally {
     activeLoadCount = Math.max(0, activeLoadCount - 1);
   }
 }
 
 async function loadCoreData() {
-  const [settingsText, displayPowerText, ambilightPowerText, overlayIcons, networkInfo] = await Promise.all([
+  const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
     settleFetchText("/get_settings", "", 2500),
     settleFetchText("/display_power", "off", 1800),
-    settleFetchText("/ambilight_power", "off", 1800),
-    settleFetchJson("/api/overlay_icons", [], 1800),
-    settleFetchJson("/api/network_scan", { networks: [] }, 2500)
+    settleFetchText("/ambilight_power", "off", 1800)
   ]);
 
   return {
     settingsText,
     displayPower: String(displayPowerText || "off").trim(),
-    ambilightPower: String(ambilightPowerText || "off").trim(),
-    overlayIcons,
-    networkInfo
+    ambilightPower: String(ambilightPowerText || "off").trim()
   };
 }
 
@@ -720,6 +753,8 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   const activeModule = getActiveModuleName();
   const maintenanceActive = activeModule === "maintenance" || !!opts.maintenancePriority;
   const systemActive = activeModule === "system";
+  const networkActive = activeModule === "network";
+  const overlaysActive = activeModule === "overlays";
 
   try {
     const updateStatus = await settleFetchJson("/api/update_status", currentUpdateStatus || {}, 8000);
@@ -749,6 +784,22 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
       renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
     } catch (error) {
       console.error("Wordclock preview refresh failed", error);
+    }
+
+    if (networkActive) {
+      currentNetworkInfo = await settleFetchJson("/api/network_scan", currentNetworkInfo || { networks: [] }, 2500);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      updateNetworkControls(settings, currentNetworkInfo || {});
+    }
+
+    if (overlaysActive) {
+      overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 1800);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      renderOverlayRows(settings);
     }
 
     if (!maintenanceActive && !systemActive) {
@@ -3782,8 +3833,26 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
   resetProgressButton();
 }
 
-function reloadAppPage() {
+async function reloadAppPage() {
   clearEspReloadWatchdog();
+  try {
+    if ("caches" in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(
+        cacheKeys
+          .filter((key) => key.indexOf("wordclock-app-") === 0)
+          .map((key) => caches.delete(key))
+      );
+    }
+
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.update().catch(() => {})));
+    }
+  } catch (error) {
+    // Ignore cache/service worker cleanup errors and continue with the reload.
+  }
+
   const url = new URL(window.location.href);
   url.searchParams.set("_reload", String(Date.now()));
   window.location.replace(url.toString());

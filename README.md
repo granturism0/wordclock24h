@@ -10,3 +10,7 @@ Die moderne WordClock-PWA für den ESP8266 ist hier dokumentiert:
 
 - [README-PWA.md](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/README-PWA.md)
 - [APP-BUNDLE.md](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/APP-BUNDLE.md)
+
+## Changelog
+
+- [CHANGELOG.md](/Users/daniel/Documents/GitHub/wordclock24h/CHANGELOG.md)

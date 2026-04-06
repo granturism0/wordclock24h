@@ -338,6 +338,98 @@ http_send_fs_file (const char * filename, const char * content_type)
 }
 
 static bool
+http_app_installation_complete (void)
+{
+    static const char * required_files[] =
+    {
+        "app-index.html",
+        "app-app.js",
+        "app-styles.css",
+        "app-manifest.webmanifest",
+        "app-sw.js",
+        "app-icons-icon-192.svg",
+        "app-icons-icon-512.svg"
+    };
+    bool file_found[sizeof (required_files) / sizeof (required_files[0])] = { false };
+    uint_fast8_t idx;
+    bool rtc = true;
+
+    LittleFS.begin ();
+
+    Dir dir = LittleFS.openDir ("");
+
+    while (dir.next ())
+    {
+        String file_name = dir.fileName ();
+
+        for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
+        {
+            if (! strcmp (file_name.c_str (), required_files[idx]))
+            {
+                file_found[idx] = true;
+                break;
+            }
+        }
+    }
+
+    for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
+    {
+        if (! file_found[idx])
+        {
+            rtc = false;
+            break;
+        }
+    }
+
+    LittleFS.end ();
+    return rtc;
+}
+
+static bool         download_file (const char * host, const char * path, const char * filename);
+static int          install_app_bundle (const char * bundle_filename);
+
+static int
+http_try_auto_install_app_bundle (void)
+{
+    int         download_rtc = 0;
+    int         app_bundle_rtc = 0;
+    STR_VAR *   sv;
+    char *      update_host;
+    char *      update_path;
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        sv = get_strvar (UPDATE_HOST_VAR);
+        update_host = sv->str;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        sv = get_strvar (UPDATE_PATH_VAR);
+        update_path = sv->str;
+    }
+
+    LittleFS.begin ();
+    download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
+    LittleFS.end ();
+
+    if (download_rtc == 1)
+    {
+        app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
+    }
+
+    return (download_rtc == 1 && app_bundle_rtc == 1) ? 1 : 0;
+}
+
+static bool
 app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
 {
     size_t idx = 0;
@@ -369,6 +461,8 @@ http_app (const char * path)
     char            filename[128];
     const char *    content_type;
     uint_fast8_t    is_pwa_index = 0;
+    uint_fast8_t    sent = 0;
+    bool            app_complete;
 
     if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
     {
@@ -395,8 +489,88 @@ http_app (const char * path)
     }
 
     content_type = http_content_type (filename);
+    app_complete = http_app_installation_complete ();
 
-    if (! http_send_fs_file (filename, content_type))
+    if (! is_pwa_index || app_complete)
+    {
+        sent = http_send_fs_file (filename, content_type);
+    }
+
+    if (sent)
+    {
+        return 0;
+    }
+
+    if (! app_complete && is_pwa_index)
+    {
+        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>Neue App wird vorbereitet</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;background:#0b1422;color:#eef4ff;padding:24px;line-height:1.5;}"
+            ".card{max-width:760px;margin:0 auto;background:#132033;border:1px solid rgba(255,255,255,.08);"
+            "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
+            "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}strong{color:#fff;}"
+            ".status{margin:18px 0;padding:16px 18px;border-radius:14px;background:#0f1b2c;border:1px solid rgba(255,255,255,.08);"
+            "color:#d7e6fb;font-weight:600;}"
+            ".muted{font-size:14px;color:#9fb3cf;}"
+            ".actions{display:none;margin-top:18px;}"
+            "a{display:inline-block;margin:8px 12px 0 0;padding:12px 16px;border-radius:999px;text-decoration:none;"
+            "background:#2d5275;color:#fff;border:1px solid rgba(255,255,255,.15);}"
+            "</style></head><body><div class='card'>"
+            "<h1>Neue App wird vorbereitet</h1>"
+            "<p>Die WordClock App ist auf diesem Gerät noch nicht vollständig installiert.</p>"
+            "<div id='status' class='status'>Verbinde mit Update-Server und starte Installation...</div>"
+            "<p class='muted'>Bitte diese Seite offen lassen. Nach erfolgreicher Installation wird automatisch in die neue App gewechselt.</p>"
+            "<div id='actions' class='actions' style='display:none'>"
+            "<a href='/app'>Erneut versuchen</a>"
+            "<a href='/fs'>Zu Dateien / App-Paket</a>"
+            "<a href='/update'>Zu Update</a>"
+            "<a href='/'>Zur Legacy-Seite</a>"
+            "</div>"
+            "<script>"
+            "(function(){"
+              "var status=document.getElementById('status');"
+              "var actions=document.getElementById('actions');"
+              "var finished=false;"
+              "function showError(msg){finished=true;status.textContent=msg;actions.style.display='block';}"
+              "window.setTimeout(function(){if(!finished){status.textContent='Lade neue App vom Server...';}},350);"
+              "window.setTimeout(function(){if(!finished){status.textContent='Installiere neue App auf dem Gerät...';}},3500);"
+              "window.setTimeout(function(){if(!finished){showError('Der automatische Installationsversuch hat keine rechtzeitige Antwort geliefert. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das App-Paket prüfen.');}},20000);"
+              "fetch('/api/update_download_app_bundle',{cache:'no-store'})"
+                ".then(function(r){return r.json();})"
+                ".then(function(data){"
+                  "if(finished){return;}"
+                  "if(data&&data.ok){"
+                    "finished=true;"
+                    "status.textContent='Neue App wurde installiert. Wechsel zur neuen App...';"
+                    "window.setTimeout(function(){window.location.replace('/app');},900);"
+                  "}else{"
+                    "if(data&&data.error==='download_failed'){"
+                      "showError('Das App-Paket konnte vom konfigurierten Server nicht geladen werden. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das bereitgestellte app-bundle.txt prüfen.');"
+                    "}else if(data&&data.error==='install_failed'){"
+                      "showError('Das App-Paket wurde geladen, konnte aber auf dem Gerät nicht erfolgreich installiert werden. Bitte LittleFS und das App-Paket prüfen.');"
+                    "}else{"
+                      "showError('Automatische Installation nicht erfolgreich. Bitte Update-Host, Update-Pfad oder App-Paket prüfen.');"
+                    "}"
+                  "}"
+                "})"
+                ".catch(function(){if(!finished){showError('Automatische Installation konnte nicht gestartet werden. Bitte manuell prüfen.');}});"
+            "})();"
+            "</script>"
+            "</div></body></html>"
+        ));
+        http_flush ();
+        return 0;
+    }
+    if (! app_complete && http_try_auto_install_app_bundle ())
+    {
+        sent = http_send_fs_file (filename, content_type);
+    }
+
+    if (! sent)
     {
         if (is_pwa_index)
         {
@@ -414,8 +588,8 @@ http_app (const char * path)
                 "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
                 "</style></head><body><div class='card'>"
                 "<h1>WordClock App ist noch nicht installiert</h1>"
-                "<p>Auf diesem Gerät wurden noch keine App-Dateien in das LittleFS geladen.</p>"
-                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder vom Update-Server laden.</p>"
+                "<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"
+                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"
                 "<a href='/fs'>Zu Dateien / App-Paket</a>"
                 "<a href='/update'>Zu Update</a>"
                 "<a href='/'>Zur Legacy-Seite</a>"
@@ -1280,7 +1454,7 @@ begin_box (const char * title)
     menu_entry ("fs", "Files");
     menu_entry ("update", "Update");
     menu_entry ("flash_stm32_local", "Local Update");
-    http_send_FS ("<a href=\"/app\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
+    http_send_FS ("<a href=\"/app/\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
 
     http_send_FS ("</td><td style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
 
@@ -6519,9 +6693,18 @@ http_api_update_download_app_bundle ()
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":"));
-    http_send ((download_rtc == 1 && app_bundle_rtc == 1) ? "true" : "false");
-    http_send (FS("}"));
+    if (download_rtc != 1)
+    {
+        http_send (FS("{\"ok\":false,\"error\":\"download_failed\"}"));
+    }
+    else if (app_bundle_rtc != 1)
+    {
+        http_send (FS("{\"ok\":false,\"error\":\"install_failed\"}"));
+    }
+    else
+    {
+        http_send (FS("{\"ok\":true}"));
+    }
     http_flush ();
 
     return 0;
