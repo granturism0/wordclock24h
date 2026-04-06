@@ -392,6 +392,7 @@ typedef struct
     uint_fast8_t    ambilight_led_offset;
     uint_fast8_t    ambilight_leds;
     DSP_COLORS      display_colors;
+    DSP_COLORS      saved_display_colors;
     DSP_COLORS      ambilight_colors;
     DSP_COLORS      saved_ambilight_colors;
     DSP_COLORS      ambilight_marker_colors;

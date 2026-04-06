@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.18";
+const APP_VERSION = "1.2.10";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -12,6 +12,10 @@ const DIM_CURVE_PRESET_NAMES = {
   kontrast: "Kontrast",
   nacht: "Nacht"
 };
+const DAYLIGHT_RED =   [0, 0, 0, 15, 31, 47, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 47, 31, 15, 0, 0];
+const DAYLIGHT_GREEN = [0, 0, 0,  0,  0,  0,  0,  0,  0, 15, 31, 47, 63, 47, 31, 15,  0,  0,  0,  0,  0,  0, 0, 0];
+const DAYLIGHT_BLUE =  [63, 47, 31, 15, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 31, 47, 63, 63, 63, 63, 63, 63];
+const RAINBOW_PREVIEW_COLOR = { red: 0, green: 0, blue: 63, white: 0 };
 
 let espReloadWatchdogId = 0;
 const TABLES_VERSION_MAGIC = 0xff;
@@ -280,10 +284,17 @@ let hasUnsavedEdits = false;
 let wordclockSizingFrame = 0;
 let wordclockSizingTimeout = 0;
 let wordclockResizeObserver = null;
+let liveDisplayColorTimer = 0;
+let currentLiveDisplayColor = null;
+let lastLiveDisplayColorMode = 0;
+let stm32LogTimer = 0;
+let stm32LogRefreshInFlight = false;
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
 const AMBILIGHT_STORAGE_KEY = "wordclock-app-ambilight-online";
+const LAYOUT_PREVIEW_STORAGE_KEY = "wordclock-app-layout-preview";
+const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
 
 document.getElementById("reload-button").addEventListener("click", manualReloadApp);
 document.getElementById("display-toggle-button").addEventListener("click", toggleDisplayPower);
@@ -532,6 +543,8 @@ function setActiveModule(moduleName) {
   if (target === "maintenance" && currentSettingsSnapshot) {
     void loadData({ maintenancePriority: true });
   }
+  syncLiveDisplayColorPolling(currentSettingsSnapshot);
+  syncStm32LogPolling();
 }
 
 function restoreActiveModule() {
@@ -593,11 +606,11 @@ async function loadData(options) {
     currentEepromSettings = currentEepromSettings || {};
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
-    currentLayoutPreview = currentLayoutPreview || getDefaultLayoutPreview(settings);
+    currentLayoutPreview = currentLayoutPreview || restoreStoredLayoutPreview() || getDefaultLayoutPreview(settings);
     const ambilightOnline = isAmbilightOnline(settings, debugOverrides);
     renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus || {});
     try {
-      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
     } catch (error) {
       console.error("Wordclock preview failed", error);
     }
@@ -686,9 +699,25 @@ function resolveSettingsSnapshot(settingsText) {
   return hasParsedContent ? parsedSettings : (currentSettingsSnapshot || parsedSettings);
 }
 
+function isDisplayPowerOn(displayPowerText, settings) {
+  const normalized = String(displayPowerText || "").trim().toLowerCase();
+
+  if (normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "off") {
+    return false;
+  }
+
+  return !!(settings && settings.numvars && settings.numvars[NUM.DISPLAY_POWER]);
+}
+
 async function loadSecondaryData(requestId, settings, coreData, debugOverrides, options) {
   const opts = options || {};
-  const maintenanceActive = getActiveModuleName() === "maintenance" || !!opts.maintenancePriority;
+  const activeModule = getActiveModuleName();
+  const maintenanceActive = activeModule === "maintenance" || !!opts.maintenancePriority;
+  const systemActive = activeModule === "system";
 
   try {
     const updateStatus = await settleFetchJson("/api/update_status", currentUpdateStatus || {}, 8000);
@@ -715,31 +744,51 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
       if (preview && preview.rows && preview.rows.length) {
         currentLayoutPreview = preview;
       }
-      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
     } catch (error) {
       console.error("Wordclock preview refresh failed", error);
     }
 
-    if (!maintenanceActive) {
+    if (!maintenanceActive && !systemActive) {
       return;
     }
 
-    const [fsInfo, fsList, eepromSettings, stm32Log] = await Promise.all([
-      settleFetchJson("/api/fs_info", {}, 5000),
-      settleFetchJson("/api/fs_list", { files: [] }, 6000),
-      settleFetchJson("/api/eeprom_settings", {}, 5000),
-      settleFetchJson("/api/stm32_log", { lines: [] }, 3000)
-    ]);
+    const requests = [];
+
+    if (maintenanceActive) {
+      requests.push(
+        settleFetchJson("/api/fs_info", {}, 5000),
+        settleFetchJson("/api/fs_list", { files: [] }, 6000),
+        settleFetchJson("/api/eeprom_settings", {}, 5000)
+      );
+    }
+
+    if (systemActive || maintenanceActive) {
+      requests.push(settleFetchJson("/api/stm32_log", { lines: [] }, 3000));
+    }
+
+    const responses = await Promise.all(requests);
 
     if (requestId !== loadRequestSerial) {
       return;
     }
 
-    currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
-    currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
-    updateMaintenanceControls(settings, currentEepromSettings);
-    updateStm32Log(stm32Log);
-    renderFileSystem(fsInfo, currentFsFiles, settings);
+    let cursor = 0;
+
+    if (maintenanceActive) {
+      const fsInfo = responses[cursor++];
+      const fsList = responses[cursor++];
+      const eepromSettings = responses[cursor++];
+
+      currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
+      currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
+      updateMaintenanceControls(settings, currentEepromSettings);
+      renderFileSystem(fsInfo, currentFsFiles, settings);
+    }
+
+    if (systemActive || maintenanceActive) {
+      updateStm32Log(responses[cursor++]);
+    }
   } catch (_) {
   }
 }
@@ -766,15 +815,51 @@ function updateStm32Log(logData) {
   output.scrollTop = output.scrollHeight;
 }
 
+async function fetchStm32Log(silent) {
+  if (stm32LogRefreshInFlight) {
+    return;
+  }
+
+  stm32LogRefreshInFlight = true;
+
+  try {
+    const response = await apiFetch("/api/stm32_log");
+    const data = await response.json();
+    updateStm32Log(data);
+    return data;
+  } catch (error) {
+    if (!silent) {
+      throw error;
+    }
+  } finally {
+    stm32LogRefreshInFlight = false;
+  }
+}
+
+function syncStm32LogPolling() {
+  if (getActiveModuleName() !== "system") {
+    if (stm32LogTimer) {
+      window.clearInterval(stm32LogTimer);
+      stm32LogTimer = 0;
+    }
+    return;
+  }
+
+  if (!stm32LogTimer) {
+    void fetchStm32Log(true);
+    stm32LogTimer = window.setInterval(() => {
+      void fetchStm32Log(true);
+    }, 2500);
+  }
+}
+
 async function refreshStm32Log() {
   const button = document.getElementById("stm32-log-refresh-button");
 
   beginButtonFeedback(button, "lädt...");
 
   try {
-    const response = await apiFetch("/api/stm32_log");
-    const data = await response.json();
-    updateStm32Log(data);
+    await fetchStm32Log(false);
     finishButtonFeedback(button, "Logs neu laden", "success", "geladen");
   } catch (error) {
     announceStatus("STM32-Logs konnten nicht geladen werden", "error");
@@ -1109,6 +1194,7 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   }
 
   renderList("config-list", configItems);
+  renderPreviewDebug(settings);
   updateModuleAvailability(settings, debugOverrides);
 }
 
@@ -1816,6 +1902,24 @@ function updateTftVisibility(settings, debugOverrides) {
   document.getElementById("tft-panel").classList.toggle("is-hidden", !isVisible);
 }
 
+function renderPreviewDebug(settings) {
+  const mode = Number(settings && settings.numvars ? (settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0);
+  const modeEntry = settings && Array.isArray(settings.coloranims)
+    ? settings.coloranims.find((entry) => Number(entry.idx) === mode)
+    : null;
+  const staticColor = settings && settings.dspcolors ? settings.dspcolors[0] : null;
+  const layoutFile = currentLayoutPreview && currentLayoutPreview.file
+    ? currentLayoutPreview.file
+    : "Fallback";
+
+  renderList("preview-debug-list", [
+    ["Farbanimation", modeEntry ? localizeAnimationName(modeEntry.name || String(mode)) : String(mode)],
+    ["Gespeicherte Display-Farbe", formatRgbwColor(staticColor)],
+    ["Live-Farbe vom Gerät", formatRgbwColor(currentLiveDisplayColor)],
+    ["Vorschau-Layout", layoutFile]
+  ]);
+}
+
 function updateAmbilightBrightnessControl(value) {
   const slider = document.getElementById("ambilight-brightness-slider");
   slider.value = value;
@@ -1845,15 +1949,29 @@ function updateColorControls(settings, ambilightOnline, debugOverrides) {
   const capabilities = getLedCapabilities(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
   const useRgbw = capabilities.whiteChannel && !!settings.numvars[NUM.DISPLAY_USE_RGBW];
   const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+  const persistedLiveColor = colorAnimationMode !== 0 ? restoreStoredLiveDisplayColor(colorAnimationMode) : null;
   const displayColor = settings.dspcolors[0] || { red: 63, green: 45, blue: 18, white: 0 };
   const ambilightColor = settings.dspcolors[1] || { red: 63, green: 45, blue: 18, white: 0 };
   const markerColor = settings.dspcolors[2] || { red: 63, green: 45, blue: 18, white: 0 };
+
+  if (!currentLiveDisplayColor && persistedLiveColor) {
+    currentLiveDisplayColor = persistedLiveColor;
+  }
 
   applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode);
   setColorControl("display", displayColor, useRgbw, false);
   setColorControl("ambilight", ambilightColor, useRgbw);
   setColorControl("marker", markerColor, useRgbw);
-  applyWordclockTheme(displayColor, useRgbw, colorAnimationMode);
+  if (colorAnimationMode === 0) {
+    applyWordclockTheme(displayColor, useRgbw, colorAnimationMode);
+  } else if (colorAnimationMode === 1) {
+    applyWordclockTheme(currentLiveDisplayColor || RAINBOW_PREVIEW_COLOR, useRgbw, colorAnimationMode);
+  } else if (colorAnimationMode === 2) {
+    applyWordclockTheme(currentLiveDisplayColor || getDaylightPreviewColor(settings), useRgbw, colorAnimationMode);
+  } else if (currentLiveDisplayColor) {
+    applyWordclockTheme(currentLiveDisplayColor, useRgbw, colorAnimationMode);
+  }
+  syncLiveDisplayColorPolling(settings);
 }
 
 function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode) {
@@ -4779,7 +4897,7 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
   const fallbackPreview = getDefaultLayoutPreview(settings);
 
   if (!currentTable) {
-    return fallbackPreview;
+    return currentLayoutPreview || restoreStoredLayoutPreview() || fallbackPreview;
   }
 
   if (layoutPreviewCache[currentTable]) {
@@ -4787,19 +4905,63 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
   }
 
   try {
-    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 1800);
+    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 8000);
     const text = await response.text();
     if (!text || !text.trim()) {
-      return fallbackPreview;
+      return currentLayoutPreview || restoreStoredLayoutPreview() || null;
     }
     const table = parseLayoutTable(text);
     const rows = resolveLayoutRows(currentTable, table);
     const preview = { file: currentTable, table, rows: rows.length ? rows : fallbackPreview.rows };
 
     layoutPreviewCache[currentTable] = preview;
+    storeLayoutPreview(preview);
     return preview;
   } catch (error) {
-    return fallbackPreview;
+    return currentLayoutPreview || restoreStoredLayoutPreview() || null;
+  }
+}
+
+function restoreStoredLayoutPreview() {
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_PREVIEW_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.rows) || !parsed.rows.length) {
+      return null;
+    }
+
+    if (parsed.table && (
+      !Array.isArray(parsed.table.illumination) ||
+      !Array.isArray(parsed.table.modes) ||
+      !Array.isArray(parsed.table.hours) ||
+      !Array.isArray(parsed.table.minutes)
+    )) {
+      parsed.table = null;
+    }
+
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeLayoutPreview(preview) {
+  try {
+    if (!preview || !Array.isArray(preview.rows) || !preview.rows.length) {
+      return;
+    }
+
+    window.localStorage.setItem(LAYOUT_PREVIEW_STORAGE_KEY, JSON.stringify({
+      file: preview.file || "",
+      rows: preview.rows,
+      table: preview.table || null
+    }));
+  } catch (error) {
+    // Ignore storage failures; the current session preview still works.
   }
 }
 
@@ -5091,8 +5253,9 @@ function renderWordclockCorners(settings, layoutPreview) {
   const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
   const current = settings && settings.tmvars ? settings.tmvars[0] : {};
   const minute = Number(current.minute || 0);
+  const displayPower = Number(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_POWER] || 0) : 0);
   const is12hLayout = isTwelveHourLayout(layoutPreview, config);
-  const activeCount = is12hLayout ? minute % 5 : 0;
+  const activeCount = is12hLayout && displayPower ? (minute % 5) : 0;
 
   corners.classList.toggle("is-hidden", !is12hLayout);
 
@@ -5346,6 +5509,22 @@ function getDfplayerModeName(mode) {
   }[mode] || String(mode || 0));
 }
 
+function formatRgbwColor(color) {
+  if (!color || (
+    typeof color.red !== "number" &&
+    typeof color.green !== "number" &&
+    typeof color.blue !== "number" &&
+    typeof color.white !== "number"
+  )) {
+    return "-";
+  }
+
+  return "R " + String(Number(color.red || 0)) +
+    " / G " + String(Number(color.green || 0)) +
+    " / B " + String(Number(color.blue || 0)) +
+    " / W " + String(Number(color.white || 0));
+}
+
 function localizeDisplayModeName(name) {
   return ({
     Normal: "Normal",
@@ -5482,7 +5661,7 @@ function hexToRgb63(hex) {
 
 function buildColorPreview(color, useRgbw) {
   const rgb = rgb63ToHex(color);
-  const white = useRgbw ? Math.round(((color.white || 0) / 63) * 255) : 0;
+  const white = Math.round(((color.white || 0) / 63) * 255);
   return "linear-gradient(90deg, " + rgb + ", rgb(" + white + ", " + white + ", " + white + "))";
 }
 
@@ -5494,7 +5673,8 @@ function applyWordclockTheme(color, useRgbw, colorAnimationMode) {
   }
 
   const animationMode = Number(colorAnimationMode || 0);
-  const ledColor = animationMode !== 0
+  const hasExplicitColor = !!(color && typeof color.red === "number" && typeof color.green === "number" && typeof color.blue === "number");
+  const ledColor = animationMode !== 0 && !hasExplicitColor
     ? "rgb(255, 255, 255)"
     : mixRgbwToCss(color || { red: 63, green: 45, blue: 18, white: 0 }, useRgbw);
   const isRainbow = Number(colorAnimationMode || 0) === 1;
@@ -5529,14 +5709,158 @@ function applyWordclockTheme(color, useRgbw, colorAnimationMode) {
   panel.style.setProperty("--wc-corner-border", cornerBorder);
 }
 
+function shouldUseLiveDisplayColor(settings) {
+  return !!(
+    settings &&
+    settings.numvars &&
+    Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) !== 0 &&
+    (getActiveModuleName() === "main" || getActiveModuleName() === "system")
+  );
+}
+
+function getDaylightPreviewColor(settings) {
+  const current = settings && settings.tmvars ? (settings.tmvars[0] || {}) : {};
+  let hour = Number(current.hour || 0);
+
+  if (!Number.isFinite(hour) || hour < 0) {
+    hour = 0;
+  }
+
+  hour %= 24;
+
+  return {
+    red: DAYLIGHT_RED[hour] || 0,
+    green: DAYLIGHT_GREEN[hour] || 0,
+    blue: DAYLIGHT_BLUE[hour] || 0,
+    white: 0
+  };
+}
+
+function restoreStoredLiveDisplayColor(mode) {
+  try {
+    const raw = window.localStorage.getItem(LIVE_DISPLAY_COLOR_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || Number(parsed.mode || 0) !== Number(mode || 0)) {
+      return null;
+    }
+
+    if (typeof parsed.red !== "number" || typeof parsed.green !== "number" || typeof parsed.blue !== "number") {
+      return null;
+    }
+
+    return {
+      red: Number(parsed.red || 0),
+      green: Number(parsed.green || 0),
+      blue: Number(parsed.blue || 0),
+      white: Number(parsed.white || 0)
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeLiveDisplayColor(mode, color) {
+  try {
+    if (!color) {
+      return;
+    }
+
+    window.localStorage.setItem(LIVE_DISPLAY_COLOR_STORAGE_KEY, JSON.stringify({
+      mode: Number(mode || 0),
+      red: Number(color.red || 0),
+      green: Number(color.green || 0),
+      blue: Number(color.blue || 0),
+      white: Number(color.white || 0)
+    }));
+  } catch (error) {
+    // Ignore storage failures; live polling still works.
+  }
+}
+
+async function refreshLiveDisplayColor() {
+  if (!shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+    return;
+  }
+
+  const response = await settleFetchJson("/api/live_display_color", null, 3000);
+
+  if (!response || response.ok !== true) {
+    return;
+  }
+
+  currentLiveDisplayColor = {
+    red: Number(response.red || 0),
+    green: Number(response.green || 0),
+    blue: Number(response.blue || 0),
+    white: Number(response.white || 0)
+  };
+  storeLiveDisplayColor(currentSettingsSnapshot && currentSettingsSnapshot.numvars
+    ? Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0)
+    : 0,
+  currentLiveDisplayColor);
+
+  if (currentSettingsSnapshot) {
+    renderPreviewDebug(currentSettingsSnapshot);
+  }
+
+  if (!currentSettingsSnapshot || !shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+    return;
+  }
+
+  const capabilities = getLedCapabilities(currentSettingsSnapshot.numvars[NUM.HARDWARE_CONFIGURATION] || 0, loadDebugOverrides());
+  const useRgbw = capabilities.whiteChannel && !!currentSettingsSnapshot.numvars[NUM.DISPLAY_USE_RGBW];
+  const colorAnimationMode = Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+
+  applyWordclockTheme(currentLiveDisplayColor, useRgbw, colorAnimationMode);
+}
+
+function syncLiveDisplayColorPolling(settings) {
+  const enabled = shouldUseLiveDisplayColor(settings);
+  const nextMode = settings && settings.numvars ? Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0;
+  const modeChanged = enabled && nextMode !== lastLiveDisplayColorMode;
+
+  if (!enabled) {
+    if (liveDisplayColorTimer) {
+      window.clearInterval(liveDisplayColorTimer);
+      liveDisplayColorTimer = 0;
+    }
+    currentLiveDisplayColor = null;
+    lastLiveDisplayColorMode = 0;
+    return;
+  }
+
+  if (modeChanged) {
+    currentLiveDisplayColor = restoreStoredLiveDisplayColor(nextMode);
+  }
+
+  lastLiveDisplayColorMode = nextMode;
+
+  if (!liveDisplayColorTimer) {
+    void refreshLiveDisplayColor();
+    liveDisplayColorTimer = window.setInterval(() => {
+      void refreshLiveDisplayColor();
+    }, 1200);
+  } else if (modeChanged || !currentLiveDisplayColor) {
+    void refreshLiveDisplayColor();
+  }
+}
+
 function mixRgbwToCss(color, useRgbw) {
   const base = rgb63ToRgb255(color || {});
-  const white = useRgbw ? Math.round(((color && color.white) || 0) / 63 * 255) : 0;
+  const white = Math.round((((color && color.white) || 0) / 63) * 255);
+  const whiteRatio = Math.max(0, Math.min(1, white / 255));
+  const mixedRed = Math.round(base.red + (255 - base.red) * whiteRatio);
+  const mixedGreen = Math.round(base.green + (255 - base.green) * whiteRatio);
+  const mixedBlue = Math.round(base.blue + (255 - base.blue) * whiteRatio);
 
   return "rgb(" +
-    String(Math.min(255, base.red + white)) + ", " +
-    String(Math.min(255, base.green + white)) + ", " +
-    String(Math.min(255, base.blue + white)) +
+    String(mixedRed) + ", " +
+    String(mixedGreen) + ", " +
+    String(mixedBlue) +
     ")";
 }
 

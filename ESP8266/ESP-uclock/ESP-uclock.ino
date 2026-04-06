@@ -1095,9 +1095,9 @@ loop()
                 Serial.println ("");
                 Serial.flush ();
             }
-            else
+            else if (! strncmp (cmd_buffer, "LOG ", 4))
             {
-                stm32_log_append (cmd_buffer);
+                stm32_log_append (cmd_buffer + 4);
             }
 
             cmd_buffer[0] = '\0';

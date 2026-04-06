@@ -156,6 +156,7 @@ static void             http_json_ok ();
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static int              http_api_stm32_log ();
 static int              http_api_stm32_log_clear ();
+static int              http_api_live_display_color ();
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
@@ -7232,6 +7233,27 @@ http_api_marker_color_set ()
 }
 
 static int
+http_api_live_display_color ()
+{
+    DSP_COLORS rgbw;
+    char       buf[160];
+
+    get_dsp_color_var (DISPLAY_DSP_COLOR_VAR, &rgbw);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    sprintf (buf,
+             FS("{\"ok\":true,\"red\":%d,\"green\":%d,\"blue\":%d,\"white\":%d}"),
+             rgbw.red,
+             rgbw.green,
+             rgbw.blue,
+             rgbw.white);
+    http_send (buf);
+    http_flush ();
+
+    return 0;
+}
+
+static int
 http_api_sync_ambilight_set ()
 {
     uint_fast8_t flags = get_numvar (DISPLAY_FLAGS_NUM_VAR);
@@ -8838,6 +8860,10 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/stm32_log_clear"))
     {
         rtc = http_api_stm32_log_clear ();
+    }
+    else if (! strcmp (path, "/api/live_display_color"))
+    {
+        rtc = http_api_live_display_color ();
     }
     else if (! strcmp (path, "/api/network_client_set"))
     {

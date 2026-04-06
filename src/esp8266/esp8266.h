@@ -107,6 +107,7 @@ extern volatile uint_fast8_t            esp8266_ten_ms_tick;
 extern uint_fast8_t                     esp8266_get_message (void);
 extern void                             esp8266_send_cmd (const char *, const char *, uint_fast8_t);
 extern void                             esp8266_send_data (unsigned char *, uint_fast8_t);
+extern void                             esp8266_send_log_line (const char *);
 extern uint_fast8_t                     esp8266_get_up_status (void);
 extern uint_fast8_t                     esp8266_get_online_status (void);
 extern char *                           esp8266_get_access_point_connected (void);

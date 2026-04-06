@@ -3130,6 +3130,7 @@ display_init_color_animation_rainbow (void)
 {
     SET_DSP_RGB(display.display_colors, MAX_COLOR_STEPS - 1, 0, 0, 0);
     display_calc_dimmed_display_colors ();
+    var_send_display_colors ();
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -3141,13 +3142,20 @@ display_init_color_animation_daylight (void)
 {
     SET_DSP_RGB(display.display_colors, daylight_red[gmain.hour], daylight_green[gmain.hour], daylight_blue[gmain.hour], 0);
     display_calc_dimmed_display_colors ();
+    var_send_display_colors ();
 }
 
-static void
+static
+void
 display_init_color_animation (void)
 {
     switch (display.color_animation_mode)
     {
+        case COLOR_ANIMATION_MODE_NONE:
+            COPY_DSP_RGB (display.display_colors, display.saved_display_colors);
+            display_calc_dimmed_display_colors ();
+            var_send_display_colors ();
+            break;
         case COLOR_ANIMATION_MODE_RAINBOW:  display_init_color_animation_rainbow  (); break;
         case COLOR_ANIMATION_MODE_DAYLIGHT: display_init_color_animation_daylight (); break;
     }
@@ -3518,6 +3526,7 @@ display_read_config_from_eep (uint32_t eep_version)
         display.ambilight_leds                  = ambilight_leds8;
         display.ambilight_led_offset            = ambilight_led_offset8;
 
+        COPY_DSP_RGB (display.saved_display_colors, display.display_colors);
         save_power_is_on                        = display.display_power_is_on;
         display.display_power_is_on             = FALSE;
 
@@ -3543,21 +3552,22 @@ display_read_config_from_eep (uint32_t eep_version)
  * save display colors in EEPROM
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+static
+void
 display_save_display_colors (void)
 {
     uint8_t display_rgb_color_buf8[3];
 
-    display_rgb_color_buf8[0] = display.display_colors.red;
-    display_rgb_color_buf8[1] = display.display_colors.green;
-    display_rgb_color_buf8[2] = display.display_colors.blue;
+    display_rgb_color_buf8[0] = display.saved_display_colors.red;
+    display_rgb_color_buf8[1] = display.saved_display_colors.green;
+    display_rgb_color_buf8[2] = display.saved_display_colors.blue;
 
     eep_write (EEPROM_DATA_OFFSET_DSP_COLORS, display_rgb_color_buf8, EEPROM_DATA_SIZE_DSP_COLORS);
 
 #if DSP_USE_SK6812_RGBW == 1
     uint8_t display_w_color8;
 
-    display_w_color8 = display.display_colors.white;
+    display_w_color8 = display.saved_display_colors.white;
     eep_write (EEPROM_DATA_OFFSET_DSP_W_COLOR, &display_w_color8, EEPROM_DATA_SIZE_DSP_W_COLOR);
 #endif
 }
@@ -5195,6 +5205,7 @@ display_animation (void)
                     if (display_rainbow_changed)
                     {
                         display_calc_dimmed_display_colors ();
+                        var_send_display_colors ();
                     }
                     else
                     {
@@ -5584,8 +5595,13 @@ display_decrement_display_color_white (uint_fast8_t do_sync)
 void
 display_set_display_colors (DSP_COLORS * rgb)
 {
-    COPY_DSP_RGB_SAFE (display.display_colors, rgb);
-    display_calc_dimmed_display_colors ();
+    COPY_DSP_RGB_SAFE (display.saved_display_colors, rgb);
+
+    if (display.color_animation_mode == COLOR_ANIMATION_MODE_NONE)
+    {
+        COPY_DSP_RGB_SAFE (display.display_colors, rgb);
+        display_calc_dimmed_display_colors ();
+    }
 
     display_save_display_colors ();
 }

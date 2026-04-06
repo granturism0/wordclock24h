@@ -152,12 +152,23 @@
           </div>
         </section>
 
-        <section id="stm32-log-panel" class="panel is-hidden">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Debug</p>
+              <h2>Vorschau-Farben</h2>
+              <p class="hint">Zeigt gespeicherte Display-Farbe, aktuelle Live-Farbe vom Gerät und das verwendete Vorschau-Layout.</p>
+            </div>
+          </div>
+          <div id="preview-debug-list" class="info-list"></div>
+        </section>
+
+        <section id="stm32-log-panel" class="panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Debug</p>
               <h2>STM32-Logbuch</h2>
-              <p class="hint">Zeigt nicht erkannte Debug-Zeilen vom STM32 an, die über die UART beim ESP ankommen.</p>
+              <p class="hint">Zeigt bewusst markierte STM32-Logzeilen an, die über die ESP-UART in die Weboberfläche gespiegelt werden.</p>
             </div>
           </div>
           <div class="control-stack">
