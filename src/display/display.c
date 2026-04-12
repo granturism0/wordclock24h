@@ -1191,6 +1191,35 @@ display_show_new_display (uint_fast8_t mask)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * repaint current display words with the current dimmed display color
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_repaint_current_display (void)
+{
+    display_show_new_display (CURRENT_STATE);
+#if DSP_MINUTE_LEDS != 0
+    display_flush_minute_leds ();
+#endif
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * throttle live color sync to ESP during running color animations
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_send_live_colors_throttled (uint_fast8_t force)
+{
+    static uint_fast8_t  last_second = 0xFF;
+
+    if (force || gmain.second != last_second)
+    {
+        last_second = gmain.second;
+        var_send_display_colors ();
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * display_set_new_states - copy target states to new states
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -3374,11 +3403,15 @@ display_read_config_from_eep (uint32_t eep_version)
         if (eep_version >= EEPROM_VERSION_2_9)
         {
             uint8_t dimmed_ambilight_colors8[MAX_BRIGHTNESS + 1];
+            uint8_t date_ticker_format8[EEPROM_DATA_SIZE_DATE_TICKER_FORMAT];
 
             eep_read (EEPROM_DATA_OFFSET_AMBI_MARKER_COLORS, ambilight_marker_rgb_color_buf8, EEPROM_DATA_SIZE_AMBI_MARKER_COLORS);
             eep_read (EEPROM_DATA_OFFSET_AMBI_W_COLOR,       &ambilight_marker_w_color8,      EEPROM_DATA_SIZE_AMBI_MARKER_W_COLOR);
-            eep_read (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT, display.date_ticker_format,      EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
+            eep_read (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT, date_ticker_format8,             EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
             eep_read (EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS, dimmed_ambilight_colors8,   EEPROM_DATA_SIZE_DIMMED_AMBILIGHT_COLORS);
+
+            memcpy (display.date_ticker_format, date_ticker_format8, EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
+            display.date_ticker_format[DATE_TICKER_FORMAT_LEN - 1] = '\0';
 
             for (idx = 0; idx <= MAX_BRIGHTNESS; idx++)                              // MAX_BRIGHTNESS + 1!
             {
@@ -3943,7 +3976,11 @@ display_save_ticker_deceleration (void)
 static void
 display_save_date_ticker_format (void)
 {
-    eep_write (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT, display.date_ticker_format, EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
+    uint8_t date_ticker_format8[EEPROM_DATA_SIZE_DATE_TICKER_FORMAT];
+
+    memset (date_ticker_format8, 0, sizeof (date_ticker_format8));
+    strncpy ((char *) date_ticker_format8, (const char *) display.date_ticker_format, EEPROM_DATA_SIZE_DATE_TICKER_FORMAT - 1);
+    eep_write (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT, date_ticker_format8, EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -5196,7 +5233,8 @@ display_animation (void)
                     if (display_rainbow_changed)
                     {
                         display_calc_dimmed_display_colors ();
-                        var_send_display_colors ();
+                        display_repaint_current_display ();
+                        display_send_live_colors_throttled (0);
                     }
                     else
                     {
@@ -5245,7 +5283,8 @@ display_animation (void)
                 {
                     last_hour = gmain.hour;
                     display_init_color_animation_daylight ();
-                    var_send_display_colors ();
+                    display_repaint_current_display ();
+                    display_send_live_colors_throttled (1);
                 }
             }
 

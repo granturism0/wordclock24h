@@ -134,3 +134,23 @@ ESP-Verhalten geändert:
 - Nach Firmware-Änderungen muss die Firmware neu auf den ESP.
 - Wenn die App nicht aktuell wirkt, PWA/Browser einmal neu laden.
 - Die PWA liest echte Gerätedaten über die API-Endpunkte des ESP und nutzt keine separate Backend-Struktur.
+
+## Aktueller Arbeitsstand
+
+Der aktuell verifizierte gemeinsame Release-Stand ist:
+
+- `build/releases/wordclock-release-2026-04-08-2217.zip`
+
+PWA-Stand dazu:
+
+- Version `1.2.28`
+
+Wichtige Punkte dieses Stands:
+
+- Overlay-Restore ist repariert (Overlays werden nach dem STM32-Reset neu gesetzt)
+- `Ambilight online/offline` wird korrekt wiederhergestellt (localStorage-State wird beim Import mitgesetzt)
+- Sommerzeit wird nach dem STM32-Reset nochmals gesetzt
+- Netzwerk-/Zeiteinstellungen werden nach dem Restore nochmals verifiziert
+- `days`-Feld in Overlays wird beim Backup-Import korrekt übernommen (Fallback-Bug behoben)
+- Retry-Prüfung für Display- und Klima-Einstellungen deckt nun alle relevanten Felder ab
+- Backup-Version wird beim Import geprüft

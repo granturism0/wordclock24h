@@ -379,6 +379,64 @@ static uint_fast8_t             esp8266_is_online           = 0;
 static uint32_t                 eep_version                 = 0xFFFFFFFF;
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * log reset flags captured by RCC_CSR
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+log_reset_flags (void)
+{
+    uint_fast8_t    have_flag = 0;
+
+    log_message ("Reset flags:");
+
+    if (RCC_GetFlagStatus (RCC_FLAG_LPWRRST) != RESET)
+    {
+        log_message ("  LPWRRST");
+        have_flag = 1;
+    }
+    if (RCC_GetFlagStatus (RCC_FLAG_WWDGRST) != RESET)
+    {
+        log_message ("  WWDGRST");
+        have_flag = 1;
+    }
+    if (RCC_GetFlagStatus (RCC_FLAG_IWDGRST) != RESET)
+    {
+        log_message ("  IWDGRST");
+        have_flag = 1;
+    }
+    if (RCC_GetFlagStatus (RCC_FLAG_SFTRST) != RESET)
+    {
+        log_message ("  SFTRST");
+        have_flag = 1;
+    }
+    if (RCC_GetFlagStatus (RCC_FLAG_PORRST) != RESET)
+    {
+        log_message ("  PORRST");
+        have_flag = 1;
+    }
+    if (RCC_GetFlagStatus (RCC_FLAG_PINRST) != RESET)
+    {
+        log_message ("  PINRST");
+        have_flag = 1;
+    }
+#ifdef RCC_FLAG_BORRST
+    if (RCC_GetFlagStatus (RCC_FLAG_BORRST) != RESET)
+    {
+        log_message ("  BORRST");
+        have_flag = 1;
+    }
+#endif
+
+    if (! have_flag)
+    {
+        log_message ("  none");
+    }
+
+    RCC_ClearFlag ();
+    log_flush ();
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * global private variables, modified by timer ISR
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -755,10 +813,16 @@ static uint_fast8_t
 read_update_host_from_eep (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         update_host_buf[EEPROM_DATA_SIZE_UPDATE_HOSTNAME];
 
     if (eep_is_up)
     {
-        rtc = eep_read (EEPROM_DATA_OFFSET_UPDATE_HOSTNAME, (uint8_t *) gmain.update_host, EEPROM_DATA_SIZE_UPDATE_HOSTNAME);
+        if (eep_read (EEPROM_DATA_OFFSET_UPDATE_HOSTNAME, update_host_buf, EEPROM_DATA_SIZE_UPDATE_HOSTNAME))
+        {
+            memcpy (gmain.update_host, update_host_buf, EEPROM_DATA_SIZE_UPDATE_HOSTNAME);
+            gmain.update_host[EEPROM_MAX_HOSTNAME_LEN - 1] = '\0';
+            rtc = 1;
+        }
     }
 
     return rtc;
@@ -772,10 +836,13 @@ static uint_fast8_t
 write_update_host_to_eep (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         update_host_buf[EEPROM_DATA_SIZE_UPDATE_HOSTNAME];
 
     if (eep_is_up)
     {
-        rtc = eep_write (EEPROM_DATA_OFFSET_UPDATE_HOSTNAME, (uint8_t *) gmain.update_host, EEPROM_DATA_SIZE_UPDATE_HOSTNAME);
+        memset (update_host_buf, 0, sizeof (update_host_buf));
+        strncpy ((char *) update_host_buf, gmain.update_host, EEPROM_DATA_SIZE_UPDATE_HOSTNAME - 1);
+        rtc = eep_write (EEPROM_DATA_OFFSET_UPDATE_HOSTNAME, update_host_buf, EEPROM_DATA_SIZE_UPDATE_HOSTNAME);
     }
 
     return rtc;
@@ -789,10 +856,16 @@ static uint_fast8_t
 read_update_path_from_eep (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         update_path_buf[EEPROM_DATA_SIZE_UPDATE_PATH];
 
     if (eep_is_up)
     {
-        rtc = eep_read (EEPROM_DATA_OFFSET_UPDATE_PATH, (uint8_t *) gmain.update_path, EEPROM_DATA_SIZE_UPDATE_PATH);
+        if (eep_read (EEPROM_DATA_OFFSET_UPDATE_PATH, update_path_buf, EEPROM_DATA_SIZE_UPDATE_PATH))
+        {
+            memcpy (gmain.update_path, update_path_buf, EEPROM_DATA_SIZE_UPDATE_PATH);
+            gmain.update_path[EEPROM_MAX_UPDATE_PATH_LEN - 1] = '\0';
+            rtc = 1;
+        }
     }
 
     return rtc;
@@ -806,10 +879,13 @@ static uint_fast8_t
 write_update_path_to_eep (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         update_path_buf[EEPROM_DATA_SIZE_UPDATE_PATH];
 
     if (eep_is_up)
     {
-        rtc = eep_write (EEPROM_DATA_OFFSET_UPDATE_PATH, (uint8_t *) gmain.update_path, EEPROM_DATA_SIZE_UPDATE_PATH);
+        memset (update_path_buf, 0, sizeof (update_path_buf));
+        strncpy ((char *) update_path_buf, gmain.update_path, EEPROM_DATA_SIZE_UPDATE_PATH - 1);
+        rtc = eep_write (EEPROM_DATA_OFFSET_UPDATE_PATH, update_path_buf, EEPROM_DATA_SIZE_UPDATE_PATH);
     }
 
     return rtc;
@@ -831,8 +907,10 @@ read_main_parameters_from_eep (void)
             if (read_update_host_from_eep () &&
                 read_update_path_from_eep ())
             {
-                if (gmain.update_host[0] >= 'a' && gmain.update_host[0] <= 'z' &&
-                    gmain.update_path[0] >= 'a' && gmain.update_path[0] <= 'z')
+                if (gmain.update_host[0] != '\0' &&
+                    gmain.update_path[0] != '\0' &&
+                    (uint8_t) gmain.update_host[0] != 0xFF &&
+                    (uint8_t) gmain.update_path[0] != 0xFF)
                 {                                                                   // eeprom correctly initialized?
                     rtc = 1;
                 }
@@ -1401,9 +1479,9 @@ schedule_esp8266_numeric_variable (char * parameters)
             break;
         }
 
-#ifdef BLACK_BOARD                                                              // TFT & SSD1963 only for STM32F407
         case SSD1963_FLAGS_NUM_VAR:
         {
+#ifdef BLACK_BOARD                                                              // TFT & SSD1963 only for STM32F407
             if (ssd1963.flags != val)
             {
 #if DSP_USE_TFTLED_RGB == 1
@@ -1411,9 +1489,11 @@ schedule_esp8266_numeric_variable (char * parameters)
 #endif
                 debug_log_printf ("cmd: set ssd1963_flags = %d\r\n", val);
             }
+#else
+            debug_log_printf ("cmd: set ssd1963_flags = %d, but TFT is not active on this hardware\r\n", val);
+#endif
             break;
         }
-#endif
 
         case DISPLAY_BRIGHTNESS_NUM_VAR:
         {
@@ -1629,6 +1709,11 @@ schedule_esp8266_numeric_variable (char * parameters)
             debug_log_printf ("cmd: set dfplayer speak cycle = %d\r\n", val);
             break;
         }
+        case OBSOLETE_2_NUMVAR:
+        {
+            debug_log_printf ("cmd: set obsolete num var idx %d ignored\r\n", var_idx);
+            break;
+        }
         default:
         {
             log_printf ("cmd: set unknown num var idx %d: %d\r\n", var_idx, val);
@@ -1798,6 +1883,7 @@ schedule_esp8266_string_variable (char * parameters)
         case UPDATE_HOST_VAR:
         {
             strncpy (gmain.update_host, parameters, EEPROM_MAX_HOSTNAME_LEN - 1);
+            gmain.update_host[EEPROM_MAX_HOSTNAME_LEN - 1] = '\0';
             write_update_host_to_eep ();
             debug_log_printf ("cmd: set update host = '%s'\r\n", parameters);
             break;
@@ -1806,6 +1892,7 @@ schedule_esp8266_string_variable (char * parameters)
         case UPDATE_PATH_VAR:
         {
             strncpy (gmain.update_path, parameters, EEPROM_MAX_UPDATE_PATH_LEN - 1);
+            gmain.update_path[EEPROM_MAX_UPDATE_PATH_LEN - 1] = '\0';
             write_update_path_to_eep ();
             debug_log_printf ("cmd: set update path = '%s'\r\n", parameters);
             break;
@@ -2661,6 +2748,7 @@ main (void)
 
     log_message ("\r\nWelcome to WordClock Logger!");
     log_message ("----------------------------");
+    log_reset_flags ();
 
     log_message ("irmp_init...");
     log_flush ();

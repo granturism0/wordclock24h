@@ -49,6 +49,21 @@ Erzeugt:
 - Die PWA-Dateien werden flach im LittleFS abgelegt, z. B. `app-index.html`, `app-app.js`, `app-styles.css`
 - Das Routing von `/app/...` auf diese Dateien übernimmt die Firmware in [http.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/http.cpp)
 - Wenn unter `/app` noch keine App installiert ist, liefert die Firmware eine Hinweisseite
+- Die PWA-Quelldateien unter `data/app` tragen einheitliche Dateikopf-Kommentare
+- Die aktuelle PWA-Version des zuletzt gebauten Arbeitsstands ist `1.2.28`
+
+## Aktueller Stand
+
+Der aktuell verifizierte gemeinsame Stand ist:
+
+- `build/releases/wordclock-release-2026-04-08-2217.zip`
+
+Wichtig daran:
+
+- Restore von Overlays wurde repariert
+- Restore von Netzwerk-/Zeiteinstellungen wird nach dem ersten Import nochmals verifiziert
+- `Ambilight online/offline` wird nach dem `STM32`-Reset nochmals als Laufzeitstatus gesetzt
+- die PWA springt nach erfolgreichen Update-/Flash-Aktionen an die ursprüngliche Scroll-Position zurück
 
 ## Ergänzende Doku
 

@@ -259,7 +259,9 @@ set_strvar (STR_VARIABLE var, const char * p)
 
     if (var < MAX_STR_VARIABLES)
     {
+        memset (strvars[var].str, 0, strvars[var].maxlen + 1);
         strncpy (strvars[var].str, p, strvars[var].maxlen);
+        strvars[var].str[strvars[var].maxlen] = '\0';
         Serial.printf ("CMD S%02x%s\r\n", (int) var, p);
         Serial.flush ();
         rtc =  1;
@@ -589,6 +591,7 @@ set_overlay_var (uint_fast8_t idx)
     Serial.printf ("CMD OY%02x%02x\r\n", idx, overlays[idx].days);
     Serial.printf ("CMD ON%02x%s\r\n",   idx, overlays[idx].text);
     Serial.printf ("CMD OF%02x%02x\r\n", idx, overlays[idx].flags);
+    Serial.flush ();
 
     return 1;
 }
@@ -759,7 +762,9 @@ var_set_parameter (char * parameters)
 
             if (var_idx < MAX_STR_VARIABLES)
             {
+                memset (strvars[var_idx].str, 0, strvars[var_idx].maxlen + 1);
                 strncpy (strvars[var_idx].str, parameters, strvars[var_idx].maxlen);
+                strvars[var_idx].str[strvars[var_idx].maxlen] = '\0';
             }
             break;
         }

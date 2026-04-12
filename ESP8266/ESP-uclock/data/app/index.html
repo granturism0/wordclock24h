@@ -1,3 +1,16 @@
+<!--
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * index.html - WordClock progressive web app markup
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+-->
 <!doctype html>
 <html lang="de">
 <head>
@@ -9,6 +22,7 @@
   <title>WordClock</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="manifest" href="/app/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/app/icons/icon-192.svg">
   <link rel="stylesheet" href="/app/styles.css">
 </head>
 <body>
@@ -265,9 +279,9 @@
           <div class="panel-head"><div><p class="eyebrow">Temperatur</p><h2>Sensoren und Korrektur</h2></div></div>
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
-            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
             <button id="temperature-ds18xx-correction-save-button" class="button primary" type="button">DS18xx-Korrektur speichern</button>
-            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
             <button id="temperature-rtc-correction-save-button" class="button primary" type="button">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button">Temperatur anzeigen</button>
           </div>

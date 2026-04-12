@@ -402,9 +402,7 @@ http_try_auto_install_app_bundle (void)
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
-        sv = get_strvar (UPDATE_HOST_VAR);
-        update_host = sv->str;
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -412,9 +410,7 @@ http_try_auto_install_app_bundle (void)
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
-        sv = get_strvar (UPDATE_PATH_VAR);
-        update_path = sv->str;
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     LittleFS.begin ();
@@ -4692,7 +4688,7 @@ http_fs (int post = POST_ICON_NONE)
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -4700,7 +4696,7 @@ http_fs (int post = POST_ICON_NONE)
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
@@ -5264,7 +5260,7 @@ http_update (void)
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -5272,7 +5268,7 @@ http_update (void)
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (do_update)
@@ -6865,7 +6861,7 @@ http_api_temperature_rtc_correction_set ()
         temp_index -= (temp_corr - old_correction);
     }
 
-    set_numvar (RTC_TEMP_INDEX_NUM_VAR, temp_index);
+    numvars[RTC_TEMP_INDEX_NUM_VAR] = temp_index;
     set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, temp_corr);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -6896,7 +6892,7 @@ http_api_temperature_ds18xx_correction_set ()
         temp_index -= (temp_corr - old_correction);
     }
 
-    set_numvar (DS18XX_TEMP_INDEX_NUM_VAR, temp_index);
+    numvars[DS18XX_TEMP_INDEX_NUM_VAR] = temp_index;
     set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, temp_corr);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -7176,6 +7172,17 @@ http_api_tft_flags_set ()
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_display_use_rgbw_set ()
+{
+    uint_fast8_t use_rgbw = http_get_on_off_value ("value", get_numvar (DISPLAY_USE_RGBW_NUM_VAR));
+
+    set_numvar (DISPLAY_USE_RGBW_NUM_VAR, use_rgbw ? 1 : 0);
+    http_json_ok ();
 
     return 0;
 }
@@ -8196,9 +8203,7 @@ http_api_update_status ()
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
-        sv = get_strvar (UPDATE_HOST_VAR);
-        update_host = sv->str;
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -8206,9 +8211,7 @@ http_api_update_status ()
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
-        sv = get_strvar (UPDATE_PATH_VAR);
-        update_path = sv->str;
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     flashsize = ESP.getFlashChipRealSize ();
@@ -8362,9 +8365,7 @@ http_api_update_table_files ()
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
-        sv = get_strvar (UPDATE_HOST_VAR);
-        update_host = sv->str;
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -8372,9 +8373,7 @@ http_api_update_table_files ()
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
-        sv = get_strvar (UPDATE_PATH_VAR);
-        update_path = sv->str;
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (hardware_configuration != 0xFFFF)
@@ -9183,6 +9182,10 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/tft_flags_set"))
     {
         rtc = http_api_tft_flags_set ();
+    }
+    else if (! strcmp (path, "/api/display_use_rgbw_set"))
+    {
+        rtc = http_api_display_use_rgbw_set ();
     }
     else if (! strcmp (path, "/api/ambilight_brightness_set"))
     {

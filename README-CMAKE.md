@@ -1,5 +1,11 @@
 # STM-Build mit CMake
 
+Aktueller Abschlussstand:
+
+- STM-Version: `3.2.0`
+- ESP-Version: `3.2.0`
+- PWA-Version: `1.2.43`
+
 Dieses Setup baut die STM-Firmware außerhalb von EmBitz für:
 
 - `STM32F103` mit `SK6812 RGBW`
@@ -168,6 +174,22 @@ Wichtig für diesen Stand:
 - Status- und Fehlerseiten des Legacy-/Autoinstallationspfads sind bereinigt und mit echten Umlauten versehen
 - PWA-Version dieses Stands: `1.2.11`
 - die instabilen Init-Aufrufe bleiben weiterhin bewusst draußen
+
+Der aktuell verifizierte Arbeitsstand mit stabilem Restore, Overlay-Fix und Scroll-Rücksprung nach Update-Aktionen ist:
+
+- `build/releases/wordclock-release-2026-04-08-2131.zip`
+
+Wichtig für diesen Stand:
+
+- PWA-Version: `1.2.28`
+- Overlay-Restore ist repariert
+  - Ursache war fehlendes `Serial.flush()` in [vars.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/vars.cpp) bei `set_overlay_var()`
+- der laufende Live-Farbpfad für `Rainbow` ist in [display.c](/Users/daniel/Documents/GitHub/wordclock24h/src/display/display.c) gedrosselt
+  - Live-Farbversand nicht mehr bei jedem einzelnen Farbschritt
+  - stattdessen höchstens einmal pro Sekunde
+- `Daylight` sendet die Live-Farbe weiterhin nur beim echten Stundenwechsel
+- Update-/Flash-Aktionen der PWA merken die Ausgangsposition und springen bei Erfolg an die ursprüngliche Scroll-Position zurück
+- PWA-Quelldateien unter `ESP8266/ESP-uclock/data/app` tragen jetzt einheitliche Dateikopf-Kommentare
 
 ## Ausgaben
 

@@ -65,7 +65,7 @@
 #define ESP8266_MAX_FIRMWARE_LEN        15
 #define ESP8266_MAX_ACCESSPOINT_LEN     31
 #define ESP8266_MAX_IPADDRESS_LEN       15
-#define ESP8266_MAX_CMD_LEN             63
+#define ESP8266_MAX_CMD_LEN             127
 #define ESP8266_MAX_TIME_LEN            15
 #define ESP8266_MAX_WEATHER_LEN         63
 #define ESP8266_MAX_FILEDATA_LEN        (2+ESP8266_MAX_CMD_LEN)          // 2 bytes for length, max 2x16 characters in HEX
