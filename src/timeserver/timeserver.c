@@ -52,12 +52,18 @@ uint_fast8_t
 timeserver_read_data_from_eep (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         timeserver_buf[EEPROM_DATA_SIZE_TIMESERVER];
     uint8_t         tz[EEPROM_DATA_SIZE_TIMEZONE];
 
+    memset (timeserver_buf, 0, sizeof (timeserver_buf));
+
     if (eep_is_up &&
-        eep_read (EEPROM_DATA_OFFSET_TIMESERVER, (uint8_t *) timeserver.timeserver, MAX_IPADDR_LEN) &&
+        eep_read (EEPROM_DATA_OFFSET_TIMESERVER, timeserver_buf, EEPROM_DATA_SIZE_TIMESERVER) &&
         eep_read (EEPROM_DATA_OFFSET_TIMEZONE, tz, EEPROM_DATA_SIZE_TIMEZONE))
     {
+        memcpy (timeserver.timeserver, timeserver_buf, EEPROM_DATA_SIZE_TIMESERVER);
+        timeserver.timeserver[EEPROM_DATA_SIZE_TIMESERVER] = '\0';
+
         timeserver.timezone = tz[1];
 
         if (tz[0] == '-')       // old format: '-' or '+'
@@ -92,7 +98,8 @@ timeserver_read_data_from_eep (void)
     }
     else
     {
-        strncpy ((char *) timeserver.timeserver, NET_TIME_HOST, MAX_IPADDR_LEN);
+        strncpy ((char *) timeserver.timeserver, NET_TIME_HOST, EEPROM_DATA_SIZE_TIMESERVER - 1);
+        timeserver.timeserver[EEPROM_DATA_SIZE_TIMESERVER - 1] = '\0';
         timeserver.timezone = NET_TIME_GMT_OFFSET;
         timeserver.observe_summertime = 1;
     }
@@ -108,9 +115,13 @@ static uint_fast8_t
 timeserver_save_timeserver (void)
 {
     uint_fast8_t    rtc = 0;
+    uint8_t         timeserver_buf[EEPROM_DATA_SIZE_TIMESERVER];
+
+    memset (timeserver_buf, 0, sizeof (timeserver_buf));
+    strncpy ((char *) timeserver_buf, (char *) timeserver.timeserver, EEPROM_DATA_SIZE_TIMESERVER - 1);
 
     if (eep_is_up &&
-        eep_write (EEPROM_DATA_OFFSET_TIMESERVER, (uint8_t *) timeserver.timeserver, EEPROM_DATA_SIZE_TIMESERVER))
+        eep_write (EEPROM_DATA_OFFSET_TIMESERVER, timeserver_buf, EEPROM_DATA_SIZE_TIMESERVER))
     {
         rtc = 1;
     }
@@ -206,7 +217,8 @@ timeserver_set_timeserver (char * new_timeserver)
 {
     uint_fast8_t    rtc;
 
-    strcpy ((char *) timeserver.timeserver, new_timeserver);
+    strncpy ((char *) timeserver.timeserver, new_timeserver, EEPROM_DATA_SIZE_TIMESERVER - 1);
+    timeserver.timeserver[EEPROM_DATA_SIZE_TIMESERVER - 1] = '\0';
     rtc = timeserver_save_timeserver ();
     return rtc;
 }

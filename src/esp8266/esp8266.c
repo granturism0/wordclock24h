@@ -33,6 +33,7 @@
 volatile uint_fast8_t                   esp8266_ten_ms_tick;            // should be set every 10 msec to 1, see IRQ in main.c
 
 ESP8266_GLOBALS                         esp8266;
+static uint_fast8_t                     esp8266_uart_ready;
 
 #if defined (DISCO_BOARD)                                               // STM32F4 Discovery Board: RST=PC5 CH_PD=PC4 FLASH=PC3
 
@@ -525,6 +526,51 @@ esp8266_send_data (unsigned char * data, uint_fast8_t len)
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
+ * send a debug log line to ESP8266
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+esp8266_send_log_line (const char * line)
+{
+    char ch;
+
+    if (! esp8266_uart_ready || ! line)
+    {
+        return;
+    }
+
+    while (*line == '\r' || *line == '\n')
+    {
+        line++;
+    }
+
+    if (! *line)
+    {
+        return;
+    }
+
+    esp8266_uart_puts ("LOG ");
+
+    while ((ch = *line++) != '\0')
+    {
+        if (ch == '\r')
+        {
+            continue;
+        }
+
+        if (ch == '\n')
+        {
+            break;
+        }
+
+        esp8266_uart_putc (ch);
+    }
+
+    esp8266_uart_puts ("\r\n");
+    esp8266_uart_flush ();
+}
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
  * reset ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -620,6 +666,7 @@ esp8266_flash (void)
     log_init (115200);
     esp8266_gpio_init ();
     esp8266_uart_init (115200);
+    esp8266_uart_ready = 1;
 
     GPIO_RESET_BIT(ESP8266_FLASH_PORT, ESP8266_FLASH_PIN);
     GPIO_RESET_BIT(ESP8266_RST_PORT, ESP8266_RST_PIN);
@@ -660,6 +707,7 @@ esp8266_init (void)
 
         esp8266_gpio_init ();
         esp8266_uart_init (115200);
+        esp8266_uart_ready = 1;
         esp8266_reset ();
     }
 

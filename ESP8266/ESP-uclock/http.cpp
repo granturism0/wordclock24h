@@ -45,6 +45,7 @@ static uint_fast16_t        hardware_configuration = 0xFFFF;
 #define DEFAULT_UPDATE_PATH                         "update"
 
 #define ESP_WORDCLOCK_TXT                           "ESP-WordClock.txt"             // avaliable version of ESP8266 firmware
+#define APP_VERSION_TXT                             "app-version.txt"               // available version of app bundle
 #define ESP_WORDCLOCK_BIN                           "ESP-WordClock-4M.bin"          // name of ES8266 firmware bin file
 
 #define RELEASENOTE_HTML                            "releasenote.html"              // release notes
@@ -156,6 +157,7 @@ static void             http_json_ok ();
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static int              http_api_stm32_log ();
 static int              http_api_stm32_log_clear ();
+static int              http_api_live_display_color ();
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
@@ -337,6 +339,94 @@ http_send_fs_file (const char * filename, const char * content_type)
 }
 
 static bool
+http_app_installation_complete (void)
+{
+    static const char * required_files[] =
+    {
+        "app-index.html",
+        "app-app.js",
+        "app-styles.css",
+        "app-manifest.webmanifest",
+        "app-sw.js",
+        "app-icons-icon-192.svg",
+        "app-icons-icon-512.svg"
+    };
+    bool file_found[sizeof (required_files) / sizeof (required_files[0])] = { false };
+    uint_fast8_t idx;
+    bool rtc = true;
+
+    LittleFS.begin ();
+
+    Dir dir = LittleFS.openDir ("");
+
+    while (dir.next ())
+    {
+        String file_name = dir.fileName ();
+
+        for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
+        {
+            if (! strcmp (file_name.c_str (), required_files[idx]))
+            {
+                file_found[idx] = true;
+                break;
+            }
+        }
+    }
+
+    for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
+    {
+        if (! file_found[idx])
+        {
+            rtc = false;
+            break;
+        }
+    }
+
+    LittleFS.end ();
+    return rtc;
+}
+
+static bool         download_file (const char * host, const char * path, const char * filename);
+static int          install_app_bundle (const char * bundle_filename);
+
+static int
+http_try_auto_install_app_bundle (void)
+{
+    int         download_rtc = 0;
+    int         app_bundle_rtc = 0;
+    STR_VAR *   sv;
+    char *      update_host;
+    char *      update_path;
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        update_host = (char *) DEFAULT_UPDATE_HOST;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        update_path = (char *) DEFAULT_UPDATE_PATH;
+    }
+
+    LittleFS.begin ();
+    download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
+    LittleFS.end ();
+
+    if (download_rtc == 1)
+    {
+        app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
+    }
+
+    return (download_rtc == 1 && app_bundle_rtc == 1) ? 1 : 0;
+}
+
+static bool
 app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
 {
     size_t idx = 0;
@@ -368,6 +458,8 @@ http_app (const char * path)
     char            filename[128];
     const char *    content_type;
     uint_fast8_t    is_pwa_index = 0;
+    uint_fast8_t    sent = 0;
+    bool            app_complete;
 
     if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
     {
@@ -394,8 +486,88 @@ http_app (const char * path)
     }
 
     content_type = http_content_type (filename);
+    app_complete = http_app_installation_complete ();
 
-    if (! http_send_fs_file (filename, content_type))
+    if (! is_pwa_index || app_complete)
+    {
+        sent = http_send_fs_file (filename, content_type);
+    }
+
+    if (sent)
+    {
+        return 0;
+    }
+
+    if (! app_complete && is_pwa_index)
+    {
+        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>Neue App wird vorbereitet</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;background:#0b1422;color:#eef4ff;padding:24px;line-height:1.5;}"
+            ".card{max-width:760px;margin:0 auto;background:#132033;border:1px solid rgba(255,255,255,.08);"
+            "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
+            "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}strong{color:#fff;}"
+            ".status{margin:18px 0;padding:16px 18px;border-radius:14px;background:#0f1b2c;border:1px solid rgba(255,255,255,.08);"
+            "color:#d7e6fb;font-weight:600;}"
+            ".muted{font-size:14px;color:#9fb3cf;}"
+            ".actions{display:none;margin-top:18px;}"
+            "a{display:inline-block;margin:8px 12px 0 0;padding:12px 16px;border-radius:999px;text-decoration:none;"
+            "background:#2d5275;color:#fff;border:1px solid rgba(255,255,255,.15);}"
+            "</style></head><body><div class='card'>"
+            "<h1>Neue App wird vorbereitet</h1>"
+            "<p>Die WordClock App ist auf diesem Gerät noch nicht vollständig installiert.</p>"
+            "<div id='status' class='status'>Verbinde mit Update-Server und starte Installation...</div>"
+            "<p class='muted'>Bitte diese Seite offen lassen. Nach erfolgreicher Installation wird automatisch in die neue App gewechselt.</p>"
+            "<div id='actions' class='actions' style='display:none'>"
+            "<a href='/app'>Erneut versuchen</a>"
+            "<a href='/fs'>Zu Dateien / App-Paket</a>"
+            "<a href='/update'>Zu Update</a>"
+            "<a href='/'>Zur Legacy-Seite</a>"
+            "</div>"
+            "<script>"
+            "(function(){"
+              "var status=document.getElementById('status');"
+              "var actions=document.getElementById('actions');"
+              "var finished=false;"
+              "function showError(msg){finished=true;status.textContent=msg;actions.style.display='block';}"
+              "window.setTimeout(function(){if(!finished){status.textContent='Lade neue App vom Server...';}},350);"
+              "window.setTimeout(function(){if(!finished){status.textContent='Installiere neue App auf dem Gerät...';}},3500);"
+              "window.setTimeout(function(){if(!finished){showError('Der automatische Installationsversuch hat keine rechtzeitige Antwort geliefert. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das App-Paket prüfen.');}},20000);"
+              "fetch('/api/update_download_app_bundle',{cache:'no-store'})"
+                ".then(function(r){return r.json();})"
+                ".then(function(data){"
+                  "if(finished){return;}"
+                  "if(data&&data.ok){"
+                    "finished=true;"
+                    "status.textContent='Neue App wurde installiert. Wechsel zur neuen App...';"
+                    "window.setTimeout(function(){window.location.replace('/app');},900);"
+                  "}else{"
+                    "if(data&&data.error==='download_failed'){"
+                      "showError('Das App-Paket konnte vom konfigurierten Server nicht geladen werden. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das bereitgestellte app-bundle.txt prüfen.');"
+                    "}else if(data&&data.error==='install_failed'){"
+                      "showError('Das App-Paket wurde geladen, konnte aber auf dem Gerät nicht erfolgreich installiert werden. Bitte LittleFS und das App-Paket prüfen.');"
+                    "}else{"
+                      "showError('Automatische Installation nicht erfolgreich. Bitte Update-Host, Update-Pfad oder App-Paket prüfen.');"
+                    "}"
+                  "}"
+                "})"
+                ".catch(function(){if(!finished){showError('Automatische Installation konnte nicht gestartet werden. Bitte manuell prüfen.');}});"
+            "})();"
+            "</script>"
+            "</div></body></html>"
+        ));
+        http_flush ();
+        return 0;
+    }
+    if (! app_complete && http_try_auto_install_app_bundle ())
+    {
+        sent = http_send_fs_file (filename, content_type);
+    }
+
+    if (! sent)
     {
         if (is_pwa_index)
         {
@@ -413,8 +585,8 @@ http_app (const char * path)
                 "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
                 "</style></head><body><div class='card'>"
                 "<h1>WordClock App ist noch nicht installiert</h1>"
-                "<p>Auf diesem Gerät wurden noch keine App-Dateien in das LittleFS geladen.</p>"
-                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder vom Update-Server laden.</p>"
+                "<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"
+                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"
                 "<a href='/fs'>Zu Dateien / App-Paket</a>"
                 "<a href='/update'>Zu Update</a>"
                 "<a href='/'>Zur Legacy-Seite</a>"
@@ -596,10 +768,15 @@ http_style (void)
     http_send_FS ("H3 {FONT-SIZE: 16px}\r\n");
     http_send_FS ("TH {color: darkblue}\r\n");
     http_send_FS ("A {text-decoration: none}\r\n");
-    http_send_FS ("A:link {background: none; color: #eeee00}\r\n");
-    http_send_FS ("A:visited {background: none; color: #eeee00}\r\n");
-    http_send_FS ("A:hover {background: none; color: #ffffff}\r\n");
-    http_send_FS ("A:active {background: none; color: #ffff00}\r\n");
+    http_send_FS (".nav-pane {color: #ffffff}\r\n");
+    http_send_FS (".content-pane {color: #000000}\r\n");
+    http_send_FS (".nav-pane a:link, .nav-pane a:visited {background: none; color: #eeee00}\r\n");
+    http_send_FS (".nav-pane a:hover {background: none; color: #ffffff}\r\n");
+    http_send_FS (".nav-pane a:active {background: none; color: #ffff00}\r\n");
+    http_send_FS (".content-pane a:link {background: none; color: #0000cc}\r\n");
+    http_send_FS (".content-pane a:visited {background: none; color: #551a8b}\r\n");
+    http_send_FS (".content-pane a:hover {background: none; color: #000099}\r\n");
+    http_send_FS (".content-pane a:active {background: none; color: #cc0000}\r\n");
     http_send_FS ("SELECT,BUTTON,.button,.custom-file-upload\r\n");
     http_send_FS ("{\r\n");
     http_send_FS (" background: none;\r\n");
@@ -631,7 +808,7 @@ http_style (void)
 static void
 http_header (const char * title, const char * refresh, const char * url)
 {
-    http_send_FS ("HTTP/1.0 200 OK\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>");
+    http_send_FS ("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n<!DOCTYPE html>\r\n<html><head><meta charset=\"utf-8\"><title>");
 
     http_send (pgm_name);
 
@@ -1249,7 +1426,7 @@ menu_entry (const char * page, const char * entry)
 static void
 begin_box (const char * title)
 {
-    http_send_FS ("<table class=\"bigtable\"><tr><td style=\"padding:10px\" valign=\"top\" bgcolor=\"#000080\">"
+    http_send_FS ("<table class=\"bigtable\"><tr><td class=\"nav-pane\" style=\"padding:10px\" valign=\"top\" bgcolor=\"#000080\">"
                   "<font color=white><H1>");
 
     http_send (pgm_name);
@@ -1279,9 +1456,9 @@ begin_box (const char * title)
     menu_entry ("fs", "Files");
     menu_entry ("update", "Update");
     menu_entry ("flash_stm32_local", "Local Update");
-    http_send_FS ("<a href=\"/app\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
+    http_send_FS ("<a href=\"/app/\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
 
-    http_send_FS ("</td><td style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
+    http_send_FS ("</td><td class=\"content-pane\" style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
 
     if (title && *title)
     {
@@ -4517,7 +4694,7 @@ http_fs (int post = POST_ICON_NONE)
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -4525,7 +4702,7 @@ http_fs (int post = POST_ICON_NONE)
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
@@ -4915,7 +5092,7 @@ http_fs (int post = POST_ICON_NONE)
                       "<P>\r\n");
     }
 
-    http_send_FS ("<table>");
+    http_send_FS ("<table style=\"width:auto\">");
 
     if (fname_icon)
     {
@@ -4923,9 +5100,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_icon);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-icon' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -4935,9 +5112,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_weather);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-icon-weather' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -4947,9 +5124,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_tables);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-tables' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -4959,27 +5136,32 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_display);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-display' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
-    http_send_FS ("<tr><td colspan='3'><B>WordClock App bundle (/app)</B></td></tr>");
-    http_send_FS ("<tr><td colspan='3'>Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.</td></tr>");
+    http_send_FS ("</table><P>\r\n");
+
+    http_send_FS ("<B>WordClock App bundle (/app)</B><BR>\r\n");
+    http_send_FS ("Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.<P>\r\n");
+
     if (app_bundle_available)
     {
-        http_send_FS ("<tr><td colspan='3'>"
+        http_send_FS (
                       "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
                       "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
                       "</form>"
-                      "</td></tr>");
+                      "<P>\r\n");
     }
+
+    http_send_FS ("<table style=\"width:auto\">");
     http_send_FS ("<tr><td>app-bundle.txt</td><td>"
             "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>"
-            "</td><td><input type='submit' class='button' name='submit' value='Install App'></td>"
-            "</form></tr>"
+            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>&nbsp;"
+            "<input type='submit' class='button' name='submit' value='Install App'>"
+            "</form></td></tr>"
             );
 
     http_send_FS ("</table>");
@@ -5036,7 +5218,9 @@ http_update (void)
 {
     const char *        thispage = "update";
     const char *        update_header_cols[UPDATE_HEADER_COLS]               = { "Name", "Value" };
+    const char *        refresh_url = "/update";
     char *              action;
+    char *              return_to_app;
     char                flash_stm32_filename[MAX_UPDATE_FILENAME_LEN];
     char                stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     int                 do_update = 0;
@@ -5058,6 +5242,12 @@ http_update (void)
     sprintf (flashsizebuf, "%d", flashsize);
 
     action = http_get_param ("action");
+    return_to_app = http_get_param ("return_to_app");
+
+    if (return_to_app && ! strcmp (return_to_app, "1"))
+    {
+        refresh_url = "/app/";
+    }
 
     if (action)
     {
@@ -5089,7 +5279,7 @@ http_update (void)
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -5097,12 +5287,12 @@ http_update (void)
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (do_update)
     {
-        http_header ("Update", "40", "/update");
+        http_header ("Update", "40", refresh_url);
     }
     else if (do_reset)
     {
@@ -6518,9 +6708,18 @@ http_api_update_download_app_bundle ()
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":"));
-    http_send ((download_rtc == 1 && app_bundle_rtc == 1) ? "true" : "false");
-    http_send (FS("}"));
+    if (download_rtc != 1)
+    {
+        http_send (FS("{\"ok\":false,\"error\":\"download_failed\"}"));
+    }
+    else if (app_bundle_rtc != 1)
+    {
+        http_send (FS("{\"ok\":false,\"error\":\"install_failed\"}"));
+    }
+    else
+    {
+        http_send (FS("{\"ok\":true}"));
+    }
     http_flush ();
 
     return 0;
@@ -6681,7 +6880,7 @@ http_api_temperature_rtc_correction_set ()
         temp_index -= (temp_corr - old_correction);
     }
 
-    set_numvar (RTC_TEMP_INDEX_NUM_VAR, temp_index);
+    numvars[RTC_TEMP_INDEX_NUM_VAR] = temp_index;
     set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, temp_corr);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -6712,7 +6911,7 @@ http_api_temperature_ds18xx_correction_set ()
         temp_index -= (temp_corr - old_correction);
     }
 
-    set_numvar (DS18XX_TEMP_INDEX_NUM_VAR, temp_index);
+    numvars[DS18XX_TEMP_INDEX_NUM_VAR] = temp_index;
     set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, temp_corr);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -6997,6 +7196,17 @@ http_api_tft_flags_set ()
 }
 
 static int
+http_api_display_use_rgbw_set ()
+{
+    uint_fast8_t use_rgbw = http_get_on_off_value ("value", get_numvar (DISPLAY_USE_RGBW_NUM_VAR));
+
+    set_numvar (DISPLAY_USE_RGBW_NUM_VAR, use_rgbw ? 1 : 0);
+    http_json_ok ();
+
+    return 0;
+}
+
+static int
 http_api_ambilight_brightness_set ()
 {
     char * value = http_get_param ("value");
@@ -7229,6 +7439,27 @@ static int
 http_api_marker_color_set ()
 {
     return http_api_set_dsp_color (AMBILIGHT_MARKER_DSP_COLOR_VAR);
+}
+
+static int
+http_api_live_display_color ()
+{
+    DSP_COLORS rgbw;
+    char       buf[160];
+
+    get_dsp_color_var (DISPLAY_DSP_COLOR_VAR, &rgbw);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    sprintf (buf,
+             FS("{\"ok\":true,\"red\":%d,\"green\":%d,\"blue\":%d,\"white\":%d}"),
+             rgbw.red,
+             rgbw.green,
+             rgbw.blue,
+             rgbw.white);
+    http_send (buf);
+    http_flush ();
+
+    return 0;
 }
 
 static int
@@ -7975,6 +8206,7 @@ http_api_update_status ()
     char * update_path;
     uint32_t flashsize;
     char new_esp_version[16];
+    char new_app_version[16];
     char new_wc_version[16];
     char stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     const char * filter = (const char *) NULL;
@@ -7991,9 +8223,7 @@ http_api_update_status ()
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
-        sv = get_strvar (UPDATE_HOST_VAR);
-        update_host = sv->str;
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -8001,13 +8231,12 @@ http_api_update_status ()
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
-        sv = get_strvar (UPDATE_PATH_VAR);
-        update_path = sv->str;
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     flashsize = ESP.getFlashChipRealSize ();
     http_fetch_remote_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
+    http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, new_app_version, sizeof (new_app_version));
     http_fetch_remote_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
     release_notes = http_fetch_remote_text (update_host, update_path, RELEASENOTE_HTML, 3072);
     http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
@@ -8074,6 +8303,8 @@ http_api_update_status ()
     http_send (sanitize_json_string (ESP_VERSION).c_str ());
     http_send (FS("\",\"esp_available\":\""));
     http_send (sanitize_json_string (new_esp_version).c_str ());
+    http_send (FS("\",\"app_available\":\""));
+    http_send (sanitize_json_string (new_app_version).c_str ());
     http_send (FS("\",\"wc_version\":\""));
     http_send (sanitize_json_string (get_strvar (VERSION_STR_VAR)->str).c_str ());
     http_send (FS("\",\"wc_available\":\""));
@@ -8157,9 +8388,7 @@ http_api_update_table_files ()
 
     if (! update_host[0])
     {
-        set_strvar (UPDATE_HOST_VAR, DEFAULT_UPDATE_HOST);
-        sv = get_strvar (UPDATE_HOST_VAR);
-        update_host = sv->str;
+        update_host = (char *) DEFAULT_UPDATE_HOST;
     }
 
     sv = get_strvar (UPDATE_PATH_VAR);
@@ -8167,9 +8396,7 @@ http_api_update_table_files ()
 
     if (! update_path[0])
     {
-        set_strvar (UPDATE_PATH_VAR, DEFAULT_UPDATE_PATH);
-        sv = get_strvar (UPDATE_PATH_VAR);
-        update_path = sv->str;
+        update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
     if (hardware_configuration != 0xFFFF)
@@ -8839,6 +9066,10 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_stm32_log_clear ();
     }
+    else if (! strcmp (path, "/api/live_display_color"))
+    {
+        rtc = http_api_live_display_color ();
+    }
     else if (! strcmp (path, "/api/network_client_set"))
     {
         rtc = http_api_network_client_set ();
@@ -8974,6 +9205,10 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/tft_flags_set"))
     {
         rtc = http_api_tft_flags_set ();
+    }
+    else if (! strcmp (path, "/api/display_use_rgbw_set"))
+    {
+        rtc = http_api_display_use_rgbw_set ();
     }
     else if (! strcmp (path, "/api/ambilight_brightness_set"))
     {

@@ -129,6 +129,7 @@ typedef enum
     UPDATE_HOST_VAR,
     UPDATE_PATH_VAR,
     DATE_TICKER_FORMAT_VAR,
+    RESET_CAUSE_STR_VAR,
     MAX_STR_VARIABLES                                                       // must be the last member
 } STR_VARIABLE;
 
@@ -260,6 +261,7 @@ extern void         var_send_weather_appid (void);
 extern void         var_send_weather_city (void);
 extern void         var_send_weather_lon (void);
 extern void         var_send_weather_lat (void);
+extern void         var_send_reset_cause (void);
 extern void         var_send_tm (void);
 extern void         var_send_display_colors (void);
 extern void         var_send_ambilight_colors (void);

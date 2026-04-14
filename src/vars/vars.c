@@ -86,7 +86,7 @@ var_send_short (const char * id, uint_fast32_t var, uint_fast16_t value)
 static void
 var_send_string (const char * id, uint_fast32_t var, const char * value)
 {
-    char            buf[64];
+    char            buf[160];
 
     sprintf (buf, "%s%02x%s", id, (int) var, value);
     var_send_buf (buf);
@@ -157,7 +157,7 @@ var_send_num16_array (NUM16_ARRAY var, uint_fast16_t * p, uint_fast8_t n)
 static void
 var_send_str_variable (STR_VARIABLE var, const char * value)
 {
-    char            buf[64];
+    char            buf[160];
 
     if (var < MAX_STR_VARIABLES && value)
     {
@@ -707,6 +707,12 @@ var_send_date_ticker_format (void)
 }
 
 void
+var_send_reset_cause (void)
+{
+    var_send_str_variable (RESET_CAUSE_STR_VAR, main_get_reset_cause ());
+}
+
+void
 var_send_tm (void)
 {
     var_send_tm_variable (CURRENT_TM_VAR, &(gmain.tm));
@@ -938,6 +944,7 @@ var_send_all_variables (void)
     var_send_update_host ();
     var_send_update_path ();
     var_send_date_ticker_format ();
+    var_send_reset_cause ();
 
     var_send_tm ();
 

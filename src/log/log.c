@@ -11,6 +11,7 @@
  */
 #include <stdio.h>
 #include "log.h"
+#include "esp8266.h"
 
 #undef UART_PREFIX
 #define UART_PREFIX     log
@@ -29,6 +30,7 @@ log_vprintf (const char * fmt, va_list ap)
 
     (void) vsnprintf ((char *) str_buf, STRBUF_SIZE, fmt, ap);
     (void) log_uart_puts (str_buf);
+    esp8266_send_log_line (str_buf);
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------

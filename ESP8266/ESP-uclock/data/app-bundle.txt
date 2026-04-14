@@ -1,6 +1,17 @@
 WCAPPBUNDLE 1
 FILE app/app.js
-const APP_VERSION = "1.1.18";
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * app.js - WordClock progressive web app logic
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+const APP_VERSION = "1.2.55";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -14,6 +25,10 @@ const DIM_CURVE_PRESET_NAMES = {
   kontrast: "Kontrast",
   nacht: "Nacht"
 };
+const DAYLIGHT_RED =   [0, 0, 0, 15, 31, 47, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 47, 31, 15, 0, 0];
+const DAYLIGHT_GREEN = [0, 0, 0,  0,  0,  0,  0,  0,  0, 15, 31, 47, 63, 47, 31, 15,  0,  0,  0,  0,  0,  0, 0, 0];
+const DAYLIGHT_BLUE =  [63, 47, 31, 15, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 31, 47, 63, 63, 63, 63, 63, 63];
+const RAINBOW_PREVIEW_COLOR = { red: 0, green: 0, blue: 63, white: 0 };
 
 let espReloadWatchdogId = 0;
 const TABLES_VERSION_MAGIC = 0xff;
@@ -80,17 +95,21 @@ const STR = {
   WEATHER_LAT: 8,
   UPDATE_HOST: 9,
   UPDATE_PATH: 10,
-  DATE_TICKER_FORMAT: 11
+  DATE_TICKER_FORMAT: 11,
+  RESET_CAUSE: 12
 };
 
 const BACKUP_FORMAT = "wordclock-settings-backup";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
 const HW = {
   STM32_MASK: 0x07,
   WC_MASK: 0x07 << 3,
   LED_MASK: 0x07 << 6,
   OSC_MASK: 0x07 << 9,
+  WC_24H: 0x00 << 3,
+  WC_12H: 0x01 << 3,
+  UCLOCK: 0x02 << 3,
   LED_WS2812_GRB: 0x00 << 6,
   LED_WS2812_RGB: 0x01 << 6,
   LED_APA102_RGB: 0x02 << 6,
@@ -266,6 +285,8 @@ let currentLayoutPreview = null;
 let currentSettingsSnapshot = null;
 let currentEepromSettings = null;
 let currentUpdateStatus = {};
+let currentUpdateTableInfo = {};
+let currentNetworkInfo = {};
 const layoutPreviewCache = {};
 let activeLoadCount = 0;
 let loadRequestSerial = 0;
@@ -282,10 +303,20 @@ let hasUnsavedEdits = false;
 let wordclockSizingFrame = 0;
 let wordclockSizingTimeout = 0;
 let wordclockResizeObserver = null;
+let liveDisplayColorTimer = 0;
+let currentLiveDisplayColor = null;
+let lastLiveDisplayColorMode = 0;
+let stm32LogTimer = 0;
+let stm32LogRefreshInFlight = false;
+let settingsImportInProgress = false;
+let progressReturnScrollY = null;
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
 const AMBILIGHT_STORAGE_KEY = "wordclock-app-ambilight-online";
+const LAYOUT_PREVIEW_STORAGE_KEY = "wordclock-app-layout-preview";
+const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
+const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
 
 document.getElementById("reload-button").addEventListener("click", manualReloadApp);
 document.getElementById("display-toggle-button").addEventListener("click", toggleDisplayPower);
@@ -385,6 +416,15 @@ document.getElementById("app-version").textContent = "App-Version " + APP_VERSIO
 document.getElementById("app-version-card").textContent = APP_VERSION;
 document.getElementById("legacy-action-frame").addEventListener("load", handleLegacyFrameLoad);
 document.getElementById("update-progress-frame").addEventListener("load", handleProgressFrameLoad);
+
+window.setTimeout(() => {
+  try {
+    if (window.sessionStorage.getItem(PROGRESS_SCROLL_RESTORE_KEY)) {
+      restoreProgressReturnScrollPosition();
+    }
+  } catch (_) {
+  }
+}, 250);
 document.querySelectorAll(".upload-form").forEach((form) => {
   form.addEventListener("submit", handleUploadSubmit);
 });
@@ -400,14 +440,42 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+let statusToneResetTimer = 0;
+let buttonFeedbackTimers = new WeakMap();
+let alignedAutoRefreshTimeout = 0;
+let alignedAutoRefreshInterval = 0;
+
 loadDebugOverridesIntoUi();
 restoreActiveModule();
 loadData();
-setInterval(() => loadData({ auto: true }), 15000);
+startAlignedAutoRefresh();
 window.addEventListener("resize", scheduleWordclockSizing);
 
-let statusToneResetTimer = 0;
-let buttonFeedbackTimers = new WeakMap();
+function startAlignedAutoRefresh() {
+  const intervalMs = 5000;
+  const phaseOffsetMs = 1000;
+
+  if (alignedAutoRefreshTimeout) {
+    window.clearTimeout(alignedAutoRefreshTimeout);
+    alignedAutoRefreshTimeout = 0;
+  }
+  if (alignedAutoRefreshInterval) {
+    window.clearInterval(alignedAutoRefreshInterval);
+    alignedAutoRefreshInterval = 0;
+  }
+
+  const now = Date.now();
+  const nextAlignedTick = Math.floor(now / intervalMs) * intervalMs + intervalMs + phaseOffsetMs;
+  const delayToNextTick = Math.max(phaseOffsetMs, nextAlignedTick - now);
+
+  alignedAutoRefreshTimeout = window.setTimeout(() => {
+    alignedAutoRefreshTimeout = 0;
+    void loadData({ auto: true });
+    alignedAutoRefreshInterval = window.setInterval(() => {
+      void loadData({ auto: true });
+    }, intervalMs);
+  }, delayToNextTick);
+}
 
 function handleDirtyFormInteraction(event) {
   const target = event.target;
@@ -461,6 +529,10 @@ async function apiFetch(url, options) {
 
   if (!response.ok) {
     throw new Error("http-" + response.status);
+  }
+
+  if (settingsImportInProgress) {
+    await sleep(180);
   }
 
   return response;
@@ -531,9 +603,15 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
-  if (target === "maintenance" && currentSettingsSnapshot) {
-    void loadData({ maintenancePriority: true });
+  if (currentSettingsSnapshot) {
+    if (target === "maintenance") {
+      void loadData({ maintenancePriority: true });
+    } else if (target === "network" || target === "overlays") {
+      void loadData();
+    }
   }
+  syncLiveDisplayColorPolling(currentSettingsSnapshot);
+  syncStm32LogPolling();
 }
 
 function restoreActiveModule() {
@@ -578,6 +656,9 @@ async function loadData(options) {
     announceStatus("Automatische Aktualisierung pausiert, bis ungespeicherte Änderungen gespeichert sind", "warn");
     return;
   }
+  if (opts.auto && settingsImportInProgress) {
+    return;
+  }
   if (opts.auto && activeLoadCount > 0) {
     return;
   }
@@ -589,17 +670,17 @@ async function loadData(options) {
       return;
     }
 
-    overlayIconsCache = Array.isArray(coreData.overlayIcons) ? coreData.overlayIcons : [];
     const settings = resolveSettingsSnapshot(coreData.settingsText);
     currentSettingsSnapshot = settings;
     currentEepromSettings = currentEepromSettings || {};
+    currentNetworkInfo = currentNetworkInfo || {};
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
-    currentLayoutPreview = currentLayoutPreview || getDefaultLayoutPreview(settings);
+    currentLayoutPreview = currentLayoutPreview || restoreStoredLayoutPreview() || getDefaultLayoutPreview(settings);
     const ambilightOnline = isAmbilightOnline(settings, debugOverrides);
     renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus || {});
     try {
-      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
     } catch (error) {
       console.error("Wordclock preview failed", error);
     }
@@ -615,7 +696,7 @@ async function loadData(options) {
     updateDisplayFlagControls(settings);
     updateTextControls(settings);
     updateWeatherControls(settings);
-    updateNetworkControls(settings, coreData.networkInfo);
+    updateNetworkControls(settings, currentNetworkInfo);
     updateMaintenanceControls(settings, currentEepromSettings);
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
@@ -654,27 +735,27 @@ async function loadData(options) {
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
-    announceStatus("Daten konnten nicht geladen werden", "error");
+    if (!currentSettingsSnapshot) {
+      announceStatus("Daten konnten nicht geladen werden", "error");
+    } else {
+      console.warn("Refresh incomplete, keeping previous snapshot", error);
+    }
   } finally {
     activeLoadCount = Math.max(0, activeLoadCount - 1);
   }
 }
 
 async function loadCoreData() {
-  const [settingsText, displayPowerText, ambilightPowerText, overlayIcons, networkInfo] = await Promise.all([
+  const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
     settleFetchText("/get_settings", "", 2500),
     settleFetchText("/display_power", "off", 1800),
-    settleFetchText("/ambilight_power", "off", 1800),
-    settleFetchJson("/api/overlay_icons", [], 1800),
-    settleFetchJson("/api/network_scan", { networks: [] }, 2500)
+    settleFetchText("/ambilight_power", "off", 1800)
   ]);
 
   return {
     settingsText,
     displayPower: String(displayPowerText || "off").trim(),
-    ambilightPower: String(ambilightPowerText || "off").trim(),
-    overlayIcons,
-    networkInfo
+    ambilightPower: String(ambilightPowerText || "off").trim()
   };
 }
 
@@ -688,9 +769,27 @@ function resolveSettingsSnapshot(settingsText) {
   return hasParsedContent ? parsedSettings : (currentSettingsSnapshot || parsedSettings);
 }
 
+function isDisplayPowerOn(displayPowerText, settings) {
+  const normalized = String(displayPowerText || "").trim().toLowerCase();
+
+  if (normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "off") {
+    return false;
+  }
+
+  return !!(settings && settings.numvars && settings.numvars[NUM.DISPLAY_POWER]);
+}
+
 async function loadSecondaryData(requestId, settings, coreData, debugOverrides, options) {
   const opts = options || {};
-  const maintenanceActive = getActiveModuleName() === "maintenance" || !!opts.maintenancePriority;
+  const activeModule = getActiveModuleName();
+  const maintenanceActive = activeModule === "maintenance" || !!opts.maintenancePriority;
+  const systemActive = activeModule === "system";
+  const networkActive = activeModule === "network";
+  const overlaysActive = activeModule === "overlays";
 
   try {
     const updateStatus = await settleFetchJson("/api/update_status", currentUpdateStatus || {}, 8000);
@@ -706,6 +805,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
       return;
     }
 
+    currentUpdateTableInfo = updateTableInfo || currentUpdateTableInfo || {};
     updateUpdateStatus(currentUpdateStatus, updateTableInfo, settings);
     updateLocalUpdateControls(currentUpdateStatus);
 
@@ -717,31 +817,67 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
       if (preview && preview.rows && preview.rows.length) {
         currentLayoutPreview = preview;
       }
-      renderWordclock(coreData.displayPower === "on", settings, currentLayoutPreview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
     } catch (error) {
       console.error("Wordclock preview refresh failed", error);
     }
 
-    if (!maintenanceActive) {
+    if (networkActive) {
+      currentNetworkInfo = await settleFetchJson("/api/network_scan", currentNetworkInfo || { networks: [] }, 2500);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      updateNetworkControls(settings, currentNetworkInfo || {});
+    }
+
+    if (overlaysActive) {
+      overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 1800);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      renderOverlayRows(settings);
+    }
+
+    if (!maintenanceActive && !systemActive) {
       return;
     }
 
-    const [fsInfo, fsList, eepromSettings, stm32Log] = await Promise.all([
-      settleFetchJson("/api/fs_info", {}, 5000),
-      settleFetchJson("/api/fs_list", { files: [] }, 6000),
-      settleFetchJson("/api/eeprom_settings", {}, 5000),
-      settleFetchJson("/api/stm32_log", { lines: [] }, 3000)
-    ]);
+    const requests = [];
+
+    if (maintenanceActive) {
+      requests.push(
+        settleFetchJson("/api/fs_info", {}, 5000),
+        settleFetchJson("/api/fs_list", { files: [] }, 6000),
+        settleFetchJson("/api/eeprom_settings", {}, 5000)
+      );
+    }
+
+    if (systemActive || maintenanceActive) {
+      requests.push(settleFetchJson("/api/stm32_log", { lines: [] }, 3000));
+    }
+
+    const responses = await Promise.all(requests);
 
     if (requestId !== loadRequestSerial) {
       return;
     }
 
-    currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
-    currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
-    updateMaintenanceControls(settings, currentEepromSettings);
-    updateStm32Log(stm32Log);
-    renderFileSystem(fsInfo, currentFsFiles, settings);
+    let cursor = 0;
+
+    if (maintenanceActive) {
+      const fsInfo = responses[cursor++];
+      const fsList = responses[cursor++];
+      const eepromSettings = responses[cursor++];
+
+      currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
+      currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
+      updateMaintenanceControls(settings, currentEepromSettings);
+      renderFileSystem(fsInfo, currentFsFiles, settings);
+    }
+
+    if (systemActive || maintenanceActive) {
+      updateStm32Log(responses[cursor++]);
+    }
   } catch (_) {
   }
 }
@@ -768,15 +904,59 @@ function updateStm32Log(logData) {
   output.scrollTop = output.scrollHeight;
 }
 
+async function fetchStm32Log(silent) {
+  if (stm32LogRefreshInFlight) {
+    return;
+  }
+
+  stm32LogRefreshInFlight = true;
+
+  try {
+    const response = await apiFetch("/api/stm32_log");
+    const data = await response.json();
+    updateStm32Log(data);
+    return data;
+  } catch (error) {
+    if (!silent) {
+      throw error;
+    }
+  } finally {
+    stm32LogRefreshInFlight = false;
+  }
+}
+
+function syncStm32LogPolling() {
+  if (settingsImportInProgress) {
+    if (stm32LogTimer) {
+      window.clearInterval(stm32LogTimer);
+      stm32LogTimer = 0;
+    }
+    return;
+  }
+
+  if (getActiveModuleName() !== "system") {
+    if (stm32LogTimer) {
+      window.clearInterval(stm32LogTimer);
+      stm32LogTimer = 0;
+    }
+    return;
+  }
+
+  if (!stm32LogTimer) {
+    void fetchStm32Log(true);
+    stm32LogTimer = window.setInterval(() => {
+      void fetchStm32Log(true);
+    }, 2500);
+  }
+}
+
 async function refreshStm32Log() {
   const button = document.getElementById("stm32-log-refresh-button");
 
   beginButtonFeedback(button, "lädt...");
 
   try {
-    const response = await apiFetch("/api/stm32_log");
-    const data = await response.json();
-    updateStm32Log(data);
+    await fetchStm32Log(false);
     finishButtonFeedback(button, "Logs neu laden", "success", "geladen");
   } catch (error) {
     announceStatus("STM32-Logs konnten nicht geladen werden", "error");
@@ -1075,6 +1255,10 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
     ["Ticker-Verzögerung", String(settings.numvars[NUM.TICKER_DECELERATION] || 0)]
   ];
 
+  if (settings.strvars[STR.RESET_CAUSE]) {
+    configItems.unshift(["Letzter STM32-Neustart", settings.strvars[STR.RESET_CAUSE]]);
+  }
+
   const weatherLocation = settings.strvars[STR.WEATHER_CITY]
     ? settings.strvars[STR.WEATHER_CITY]
     : ((settings.strvars[STR.WEATHER_LON] || settings.strvars[STR.WEATHER_LAT])
@@ -1111,6 +1295,7 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   }
 
   renderList("config-list", configItems);
+  renderPreviewDebug(settings);
   updateModuleAvailability(settings, debugOverrides);
 }
 
@@ -1260,7 +1445,37 @@ function handleSettingsImportFileChange() {
   setSettingsBackupNote(file ? "Ausgewählt: " + file.name : "Noch keine Sicherungsdatei ausgewählt.");
 }
 
-function buildSettingsBackup(settings, eepromSettings) {
+function collectUsedOverlayIconNames(items) {
+  return Array.from(new Set(
+    (items || [])
+      .filter((item) => Number(item.type || 0) === 1 && String(item.value || "").trim())
+      .map((item) => String(item.value || "").trim())
+  )).sort();
+}
+
+function buildAssetBackup(settings, updateTableInfo) {
+  const config = settings && settings.numvars ? Number(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
+  const wcType = config & HW.WC_MASK;
+  let assetPrefix = "";
+
+  if (wcType === HW.WC_24H) {
+    assetPrefix = "wc24h";
+  } else if (wcType === HW.WC_12H) {
+    assetPrefix = "wc12h";
+  } else if (wcType === HW.UCLOCK) {
+    assetPrefix = "uc";
+  }
+
+  const overlayItems = buildOverlayBackup(settings);
+
+  return {
+    layout_table: updateTableInfo && updateTableInfo.current_table ? String(updateTableInfo.current_table) : "",
+    used_icons: collectUsedOverlayIconNames(overlayItems),
+    asset_prefix: assetPrefix
+  };
+}
+
+function buildSettingsBackup(settings, eepromSettings, updateTableInfo) {
   const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
   const displayFlags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
   const tftFlags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
@@ -1276,10 +1491,12 @@ function buildSettingsBackup(settings, eepromSettings) {
       esp_version: settings.strvars[STR.ESP8266_VERSION] || "",
       eeprom_version: settings.strvars[STR.EEPROM_VERSION] || ""
     },
+    assets: buildAssetBackup(settings, updateTableInfo),
     settings: {
       display: {
         power: !!settings.numvars[NUM.DISPLAY_POWER],
         mode: Number(settings.numvars[NUM.DISPLAY_MODE] || 0),
+        use_rgbw: !!settings.numvars[NUM.DISPLAY_USE_RGBW],
         brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
         automatic_brightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
         permanent_it_is: !!(displayFlags & 0x01),
@@ -1439,7 +1656,14 @@ async function exportSettingsBackup() {
       await loadData();
     }
 
-    const backup = buildSettingsBackup(currentSettingsSnapshot || parseSettings(""), currentEepromSettings || {});
+    if (!currentEepromSettings || !currentEepromSettings.ok) {
+      currentEepromSettings = await settleFetchJson("/api/eeprom_settings", {}, 5000);
+    }
+    if (!currentUpdateTableInfo || typeof currentUpdateTableInfo.current_table !== "string") {
+      currentUpdateTableInfo = await settleFetchJson("/api/update_table_files", {}, 5000);
+    }
+
+    const backup = buildSettingsBackup(currentSettingsSnapshot || parseSettings(""), currentEepromSettings || {}, currentUpdateTableInfo || {});
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
@@ -1476,18 +1700,26 @@ async function importSettingsBackup() {
       throw new Error("invalid-backup-format");
     }
 
+    if (Number(backup.version || 0) !== BACKUP_VERSION) {
+      throw new Error("unsupported-backup-version");
+    }
+
     if (!window.confirm("Einstellungen aus „" + file.name + "“ jetzt importieren?")) {
       finishButtonFeedback(button, "Einstellungen importieren");
       return;
     }
 
+    setSettingsBackupNote("Starte Wiederherstellung der Sicherung...");
     hasUnsavedEdits = false;
     await applySettingsBackup(backup);
-    await loadData();
-    setSettingsBackupNote("Einstellungen wurden importiert.", "ok");
     finishButtonFeedback(button, "Einstellungen importieren", "success", "importiert");
   } catch (error) {
-    setSettingsBackupNote("Einstellungen konnten nicht importiert werden.", "error");
+    const message = error && error.message === "invalid-backup-format"
+      ? "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei."
+      : error && error.message === "unsupported-backup-version"
+        ? "Inkompatible Backup-Version – Datei mit einer neueren App erstellt."
+        : "Einstellungen konnten nicht importiert werden.";
+    setSettingsBackupNote(message, "error");
     finishButtonFeedback(button, "Einstellungen importieren", "error", "Fehler");
   }
 }
@@ -1495,16 +1727,485 @@ async function importSettingsBackup() {
 async function applySettingsBackup(backup) {
   const settings = backup && backup.settings ? backup.settings : {};
 
-  await importNetworkSettings(settings.network);
-  await importMaintenanceSettings(settings.maintenance);
-  await importDisplaySettings(settings.display);
-  await importClimateSettings(settings.climate);
-  await importAnimationSettings(settings.animations);
-  await importTftSettings(settings.tft);
-  await importAmbilightSettings(settings.ambilight);
-  await importDfplayerSettings(settings.dfplayer);
-  await importOverlaySettings(settings.overlays);
-  await importTimerSettings(settings.timers);
+  settingsImportInProgress = true;
+  try {
+    await importMaintenanceSettings(settings.maintenance);
+    await sleep(250);
+    await restoreBackupAssets(backup && backup.assets ? backup.assets : {}, settings);
+    await sleep(250);
+    await importDisplaySettings(settings.display);
+    await sleep(250);
+    await importClimateSettings(settings.climate);
+    await sleep(250);
+    await importAnimationSettings(settings.animations);
+    await sleep(250);
+    await importTftSettings(settings.tft);
+    await sleep(250);
+    await importAmbilightSettings(settings.ambilight);
+    await sleep(250);
+    await importDfplayerSettings(settings.dfplayer);
+    await sleep(250);
+    await importOverlaySettings(settings.overlays);
+    await sleep(500);
+    await importTimerSettings(settings.timers);
+    await sleep(800);
+    setSettingsBackupNote("Prüfe importierte Einstellungen...");
+    await sleep(600);
+    await loadData();
+    await retryImportedSectionsIfNeeded(settings);
+    await sleep(400);
+    await loadData();
+    await importNetworkSettings(settings.network);
+    await sleep(400);
+    await loadData();
+    await retryImportedNetworkSettingsIfNeeded(settings.network);
+    await sleep(400);
+    await importSensorCorrectionSettings(settings.climate);
+    await sleep(600);
+    await loadData();
+    if (sensorCorrectionsImportNeedsRetry(settings.climate, currentSettingsSnapshot)) {
+      setSettingsBackupNote("Übernehme Sensor-Korrekturen erneut...");
+      await importSensorCorrectionSettings(settings.climate);
+      await sleep(600);
+      await loadData();
+    }
+    await finalizeImportedCriticalPersistenceSettings(settings);
+    await finalizeRtcCorrectionPersistence(settings.climate);
+    setSettingsBackupNote("Warte, bis Einstellungen dauerhaft gespeichert sind...");
+    await sleep(5000);
+    await loadData();
+    setSettingsBackupNote("Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...");
+    announceStatus("Import abgeschlossen. STM32 wird automatisch neu gestartet", "warn");
+    await apiFetch("/api/maintenance_reset_stm32");
+    await sleep(4500);
+    await finalizeRtcCorrectionPersistence(settings.climate);
+    setSettingsBackupNote("STM32 wurde neu gestartet. Lade Daten neu...");
+    await loadData();
+    setSettingsBackupNote("Import abgeschlossen. App wird neu geladen...", "success");
+    announceStatus("Import abgeschlossen. App wird neu geladen", "ok");
+    setTimeout(reloadAppPage, 1200);
+  } finally {
+    settingsImportInProgress = false;
+  }
+}
+
+function networkImportNeedsRetry(network, settings, eepromSettings) {
+  if (!network || !settings) {
+    return false;
+  }
+
+  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
+
+  if (String(network.timeserver || "") !== String(settings.strvars[STR.TIMESERVER] || "")) {
+    return true;
+  }
+
+  if (Number(network.timezone_offset || 0) !== Number(timezone.offset || 0)) {
+    return true;
+  }
+
+  if (!!network.summertime !== !!timezone.summertime) {
+    return true;
+  }
+
+  if (eepromSettings && eepromSettings.ok && !!network.boot_as_ap !== !!eepromSettings.boot_as_ap) {
+    return true;
+  }
+
+  return false;
+}
+
+async function retryImportedNetworkSettingsIfNeeded(network) {
+  if (!network) {
+    return;
+  }
+
+  if (networkImportNeedsRetry(network, currentSettingsSnapshot, currentEepromSettings)) {
+    setSettingsBackupNote("Übernehme Netzwerk- und Zeiteinstellungen erneut...");
+    await importNetworkSettings(network);
+    await sleep(400);
+    await loadData();
+  }
+}
+
+async function finalizeImportedNetworkTimeSettings(network) {
+  if (!network) {
+    return;
+  }
+
+  setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen abschließend...");
+  await importNetworkTimeSettings(network);
+  await sleep(1000);
+  await loadData();
+
+  if (networkImportNeedsRetry(network, currentSettingsSnapshot, currentEepromSettings)) {
+    setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...");
+    await importNetworkTimeSettings(network);
+    await sleep(1500);
+    await loadData();
+  }
+}
+
+async function finalizeImportedCriticalPersistenceSettings(settings) {
+  const climate = settings && settings.climate ? settings.climate : null;
+  const network = settings && settings.network ? settings.network : null;
+  const maintenance = settings && settings.maintenance ? settings.maintenance : null;
+
+  if (climate) {
+    setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschließend...");
+    await importSensorCorrectionSettings(climate);
+    await sleep(1000);
+  }
+
+  if (network) {
+    await finalizeImportedNetworkTimeSettings(network);
+  }
+
+  if (maintenance) {
+    setSettingsBackupNote("Übernehme Update-Host und Update-Pfad abschließend...");
+    await importMaintenanceSettings(maintenance);
+    await sleep(1000);
+    await loadData();
+
+    if (maintenanceImportNeedsRetry(maintenance, currentSettingsSnapshot)) {
+      setSettingsBackupNote("Übernehme Update-Host und Update-Pfad erneut...");
+      await importMaintenanceSettings(maintenance);
+      await sleep(1500);
+      await loadData();
+    }
+  }
+
+  if (climate) {
+    await loadData();
+    if (sensorCorrectionsImportNeedsRetry(climate, currentSettingsSnapshot)) {
+      setSettingsBackupNote("Übernehme Temperatur-Korrekturen erneut...");
+      await importSensorCorrectionSettings(climate);
+      await sleep(1200);
+      await loadData();
+    }
+
+    if (rtcCorrectionImportNeedsRetry(climate, currentSettingsSnapshot)) {
+      setSettingsBackupNote("Übernehme RTC-Korrektur abschließend...");
+      await importRtcCorrectionSetting(climate);
+      await sleep(1800);
+      await loadData();
+
+      if (rtcCorrectionImportNeedsRetry(climate, currentSettingsSnapshot)) {
+        setSettingsBackupNote("Übernehme RTC-Korrektur erneut...");
+        await importRtcCorrectionSetting(climate);
+        await sleep(2200);
+        await loadData();
+      }
+    }
+  }
+}
+
+function overlayItemsEqual(expectedItems, actualSettings) {
+  const expected = Array.isArray(expectedItems) ? expectedItems.slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0)) : [];
+  const actual = buildOverlayBackup(actualSettings || {}).slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0));
+
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  return expected.every((entry, index) => {
+    const current = actual[index] || {};
+    return !!entry.active === !!current.active &&
+      Number(entry.type || 0) === Number(current.type || 0) &&
+      String(entry.value || "") === String(current.value || "") &&
+      Number(entry.interval || 0) === Number(current.interval || 0) &&
+      Number(entry.duration || 0) === Number(current.duration || 0) &&
+      Number(entry.date_code || 0) === Number(current.date_code || 0) &&
+      Number(entry.month || 0) === Number(current.month || 0) &&
+      Number(entry.day || 0) === Number(current.day || 0) &&
+      Number(entry.days || 0) === Number(current.days || 0);
+  });
+}
+
+function timerItemsEqual(expectedItems, actualItems, withAction) {
+  const expected = Array.isArray(expectedItems) ? expectedItems.slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0)) : [];
+  const actual = buildTimerBackup(actualItems || [], withAction).slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0));
+
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  return expected.every((entry, index) => {
+    const current = actual[index] || {};
+    return Number(entry.idx || 0) === Number(current.idx || 0) &&
+      !!entry.active === !!current.active &&
+      (!withAction || !!entry.switch_on === !!current.switch_on) &&
+      Number(entry.from || 0) === Number(current.from || 0) &&
+      Number(entry.to || 0) === Number(current.to || 0) &&
+      Number(entry.hour || 0) === Number(current.hour || 0) &&
+      Number(entry.minute || 0) === Number(current.minute || 0);
+  });
+}
+
+function displayImportNeedsRetry(display, settings) {
+  if (!display || !settings) {
+    return false;
+  }
+
+  const flags = Number(settings.numvars[NUM.DISPLAY_FLAGS] || 0);
+  if (!!display.permanent_it_is !== !!(flags & 0x01)) {
+    return true;
+  }
+  if (Number(display.mode || 0) !== Number(settings.numvars[NUM.DISPLAY_MODE] || 0)) {
+    return true;
+  }
+  if (Number(display.brightness || 0) !== Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0)) {
+    return true;
+  }
+  if (!!display.automatic_brightness !== !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE]) {
+    return true;
+  }
+  if (String(display.ticker_text || "") !== String(settings.strvars[STR.TICKER_TEXT] || "")) {
+    return true;
+  }
+  if (String(display.date_ticker_format || "") !== String(settings.strvars[STR.DATE_TICKER_FORMAT] || "")) {
+    return true;
+  }
+  return false;
+}
+
+function climateImportNeedsRetry(climate, settings) {
+  if (!climate || !settings) {
+    return false;
+  }
+
+  return String(climate.weather_city || "") !== String(settings.strvars[STR.WEATHER_CITY] || "") ||
+    String(climate.weather_lon || "") !== String(settings.strvars[STR.WEATHER_LON] || "") ||
+    String(climate.weather_lat || "") !== String(settings.strvars[STR.WEATHER_LAT] || "") ||
+    Number(climate.ldr_min || 0) !== Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0) ||
+    Number(climate.ldr_max || 0) !== Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0);
+}
+
+function sensorCorrectionsImportNeedsRetry(climate, settings) {
+  if (!climate || !settings) {
+    return false;
+  }
+
+  return Number(climate.rtc_temp_correction || 0) !== Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0) ||
+    Number(climate.ds18xx_temp_correction || 0) !== Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0);
+}
+
+function rtcCorrectionImportNeedsRetry(climate, settings) {
+  if (!climate || !settings) {
+    return false;
+  }
+
+  return Number(climate.rtc_temp_correction || 0) !== Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0);
+}
+
+function maintenanceImportNeedsRetry(maintenance, settings) {
+  if (!maintenance || !settings) {
+    return false;
+  }
+
+  return String(maintenance.update_host || "") !== String(settings.strvars[STR.UPDATE_HOST] || "") ||
+    String(maintenance.update_path || "") !== String(settings.strvars[STR.UPDATE_PATH] || "");
+}
+
+function overlaysImportNeedsRetry(overlays, settings) {
+  if (!overlays || !settings) {
+    return false;
+  }
+
+  return !overlayItemsEqual(overlays.items || [], settings);
+}
+
+function timersImportNeedsRetry(timers, settings) {
+  if (!timers || !settings) {
+    return false;
+  }
+
+  return !timerItemsEqual(timers.display || [], settings.nighttimes || [], false) ||
+    !timerItemsEqual(timers.ambilight || [], settings.ambinighttimes || [], true);
+}
+
+async function retryImportedSectionsIfNeeded(settings) {
+  const snapshot = currentSettingsSnapshot;
+
+  if (!snapshot) {
+    return;
+  }
+
+  if (displayImportNeedsRetry(settings.display, snapshot)) {
+    setSettingsBackupNote("Übernehme Display-Einstellungen erneut...");
+    await importDisplaySettings(settings.display);
+  }
+
+  if (climateImportNeedsRetry(settings.climate, snapshot)) {
+    setSettingsBackupNote("Übernehme Klima- und Wetter-Einstellungen erneut...");
+    await importClimateSettings(settings.climate);
+  }
+
+  if (overlaysImportNeedsRetry(settings.overlays, snapshot)) {
+    setSettingsBackupNote("Übernehme Overlays erneut...");
+    await importOverlaySettings(settings.overlays);
+  }
+
+  if (timersImportNeedsRetry(settings.timers, snapshot)) {
+    setSettingsBackupNote("Übernehme Timer erneut...");
+    await importTimerSettings(settings.timers);
+  }
+}
+
+function normalizeFsFileName(name) {
+  return String(name || "").split("/").pop();
+}
+
+function hasFsFile(files, fileName) {
+  const wanted = normalizeFsFileName(fileName);
+  return (files || []).some((entry) => normalizeFsFileName(entry && entry.name) === wanted);
+}
+
+async function ensureFsFileList(forceRefresh) {
+  if (!forceRefresh && Array.isArray(currentFsFiles) && currentFsFiles.length) {
+    return currentFsFiles;
+  }
+
+  const fsList = await settleFetchJson("/api/fs_list", { files: [] }, 6000);
+  currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
+  return currentFsFiles;
+}
+
+async function ensureUpdateTableInfo(forceRefresh) {
+  if (!forceRefresh && currentUpdateTableInfo && typeof currentUpdateTableInfo.current_table === "string") {
+    return currentUpdateTableInfo;
+  }
+
+  currentUpdateTableInfo = await settleFetchJson("/api/update_table_files", {}, 6000);
+  return currentUpdateTableInfo || {};
+}
+
+function getLayoutTableFamilyPrefix(fileName) {
+  const normalized = normalizeFsFileName(fileName);
+
+  if (normalized.indexOf("wc12h-tables-") === 0) {
+    return "wc12h-tables-";
+  }
+  if (normalized.indexOf("wc24h-tables-") === 0) {
+    return "wc24h-tables-";
+  }
+  return "";
+}
+
+function getOverlayAssetFiles(settings, assets) {
+  const layoutTable = assets && assets.layout_table ? normalizeFsFileName(assets.layout_table) : "";
+  const prefixFromBackup = String(assets && assets.asset_prefix ? assets.asset_prefix : "").trim();
+  let prefix = "";
+
+  if (layoutTable.indexOf("wc24h-") === 0 || prefixFromBackup === "wc24h") {
+    prefix = "wc24h";
+  } else if (layoutTable.indexOf("wc12h-") === 0 || prefixFromBackup === "wc12h") {
+    prefix = "wc12h";
+  } else if (layoutTable.indexOf("uc-") === 0 || prefixFromBackup === "uc") {
+    prefix = "uc";
+  } else if (settings && settings.numvars) {
+    const wcType = Number(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) & HW.WC_MASK;
+    if (wcType === HW.WC_24H) {
+      prefix = "wc24h";
+    } else if (wcType === HW.WC_12H) {
+      prefix = "wc12h";
+    } else if (wcType === HW.UCLOCK) {
+      prefix = "uc";
+    }
+  }
+
+  return prefix ? {
+    iconFile: prefix + "-icon.txt",
+    weatherFile: prefix + "-weather.txt"
+  } : {
+    iconFile: "",
+    weatherFile: ""
+  };
+}
+
+async function triggerTableRestoreDownload(fileName) {
+  const response = await fetchWithTimeout("/fs?action=dwntable&tablefile=" + encodeURIComponent(fileName), { cache: "no-store" }, 20000);
+  await response.text().catch(() => "");
+}
+
+async function restoreBackupLayoutTable(assets) {
+  const desiredTable = normalizeFsFileName(assets && assets.layout_table);
+  if (!desiredTable) {
+    return;
+  }
+
+  let files = await ensureFsFileList(true);
+  let updateTableInfo = await ensureUpdateTableInfo(true);
+  const familyPrefix = getLayoutTableFamilyPrefix(desiredTable);
+
+  if (hasFsFile(files, desiredTable) && normalizeFsFileName(updateTableInfo.current_table) === desiredTable) {
+    return;
+  }
+
+  setSettingsBackupNote("Stelle Layout-Tabelle wieder her...");
+
+  if (familyPrefix) {
+    const filesToRemove = files
+      .map((entry) => normalizeFsFileName(entry && entry.name))
+      .filter((name) => name && name.indexOf(familyPrefix) === 0 && name !== desiredTable);
+
+    for (const fileName of filesToRemove) {
+      await apiFetch("/api/fs_remove?filename=" + encodeURIComponent(fileName));
+    }
+  }
+
+  await triggerTableRestoreDownload(desiredTable);
+  await sleep(250);
+  files = await ensureFsFileList(true);
+  updateTableInfo = await ensureUpdateTableInfo(true);
+  currentLayoutPreview = null;
+
+  if (!hasFsFile(files, desiredTable) || normalizeFsFileName(updateTableInfo.current_table) !== desiredTable) {
+    throw new Error("layout-restore-failed");
+  }
+}
+
+async function restoreBackupOverlayAssets(assets, settings) {
+  const assetFiles = getOverlayAssetFiles(settings, assets);
+  const usedIcons = Array.isArray(assets && assets.used_icons) ? assets.used_icons.filter(Boolean).map((name) => String(name).trim()) : [];
+  if (!assetFiles.iconFile && !usedIcons.length) {
+    return;
+  }
+
+  let files = await ensureFsFileList(true);
+  overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 3000);
+  let icons = Array.isArray(overlayIconsCache) ? overlayIconsCache.slice() : [];
+  const filesOk = assetFiles.iconFile ? (hasFsFile(files, assetFiles.iconFile) && hasFsFile(files, assetFiles.weatherFile)) : true;
+  const iconsOk = usedIcons.every((iconName) => icons.indexOf(iconName) >= 0);
+
+  if (filesOk && iconsOk) {
+    return;
+  }
+
+  setSettingsBackupNote("Stelle Icon- und Overlay-Dateien wieder her...");
+  const response = await apiFetch("/api/update_download_assets");
+  const result = await response.json().catch(() => ({}));
+  if (!result || !result.ok) {
+    throw new Error("overlay-assets-download-failed");
+  }
+
+  await sleep(250);
+  files = await ensureFsFileList(true);
+  overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 3000);
+  icons = Array.isArray(overlayIconsCache) ? overlayIconsCache.slice() : [];
+
+  const restoredFilesOk = assetFiles.iconFile ? (hasFsFile(files, assetFiles.iconFile) && hasFsFile(files, assetFiles.weatherFile)) : true;
+  const restoredIconsOk = usedIcons.every((iconName) => icons.indexOf(iconName) >= 0);
+
+  if (!restoredFilesOk || !restoredIconsOk) {
+    throw new Error("overlay-assets-restore-failed");
+  }
+}
+
+async function restoreBackupAssets(assets, settings) {
+  setSettingsBackupNote("Prüfe benötigte Dateien...");
+  await restoreBackupLayoutTable(assets);
+  await restoreBackupOverlayAssets(assets, settings || currentSettingsSnapshot || {});
 }
 
 async function importNetworkSettings(network) {
@@ -1514,9 +2215,7 @@ async function importNetworkSettings(network) {
 
   setSettingsBackupNote("Importiere Netzwerk- und EEPROM-Einstellungen...");
 
-  await apiFetch("/api/network_timeserver_set?value=" + encodeURIComponent(network.timeserver || ""));
-  await apiFetch("/api/network_timezone_set?value=" + encodeURIComponent(Number(network.timezone_offset || 0)));
-  await apiFetch("/api/network_summertime_set?value=" + (network.summertime ? "on" : "off"));
+  await importNetworkTimeSettings(network);
 
   const query = new URLSearchParams({
     ssid: network.wifi_ssid || "",
@@ -1528,6 +2227,19 @@ async function importNetworkSettings(network) {
   await apiFetch("/api/eeprom_settings_set?" + query.toString());
 }
 
+async function importNetworkTimeSettings(network) {
+  if (!network) {
+    return;
+  }
+
+  await apiFetch("/api/network_timeserver_set?value=" + encodeURIComponent(network.timeserver || ""));
+  await sleep(700);
+  await apiFetch("/api/network_timezone_set?value=" + encodeURIComponent(Number(network.timezone_offset || 0)));
+  await sleep(300);
+  await apiFetch("/api/network_summertime_set?value=" + (network.summertime ? "on" : "off"));
+  await sleep(300);
+}
+
 async function importDisplaySettings(display) {
   if (!display) {
     return;
@@ -1537,8 +2249,10 @@ async function importDisplaySettings(display) {
 
   await apiFetch("/api/display_power_set?value=" + (display.power ? "on" : "off"));
   await apiFetch("/api/display_mode_set?value=" + encodeURIComponent(Number(display.mode || 0)));
-  await apiFetch("/api/display_brightness_set?value=" + encodeURIComponent(Number(display.brightness || 0)));
+  await apiFetch("/api/display_use_rgbw_set?value=" + (display.use_rgbw ? "on" : "off"));
   await apiFetch("/api/auto_brightness_set?value=" + (display.automatic_brightness ? "on" : "off"));
+  await sleep(150);
+  await apiFetch("/api/display_brightness_set?value=" + encodeURIComponent(Number(display.brightness || 0)));
   await apiFetch("/api/display_it_is_set?value=" + (display.permanent_it_is ? "on" : "off"));
   await apiFetch("/api/ticker_set?value=" + encodeURIComponent(display.ticker_text || ""));
   await apiFetch("/api/date_ticker_format_set?value=" + encodeURIComponent(display.date_ticker_format || ""));
@@ -1555,7 +2269,9 @@ async function importMaintenanceSettings(maintenance) {
   setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
 
   await apiFetch("/api/update_host_set?value=" + encodeURIComponent(maintenance.update_host || ""));
+  await sleep(500);
   await apiFetch("/api/update_path_set?value=" + encodeURIComponent(maintenance.update_path || ""));
+  await sleep(500);
 }
 
 async function importClimateSettings(climate) {
@@ -1568,10 +2284,40 @@ async function importClimateSettings(climate) {
   await apiFetch("/api/weather_appid_set?value=" + encodeURIComponent(climate.weather_appid || ""));
   await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(climate.weather_city || ""));
   await apiFetch("/api/weather_coordinates_set?lon=" + encodeURIComponent(climate.weather_lon || "") + "&lat=" + encodeURIComponent(climate.weather_lat || ""));
-  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Number(climate.rtc_temp_correction || 0)));
-  await apiFetch("/api/temperature_ds18xx_correction_set?value=" + encodeURIComponent(Number(climate.ds18xx_temp_correction || 0)));
   await apiFetch("/api/ldr_min_value_set?value=" + encodeURIComponent(Number(climate.ldr_min || 0)));
   await apiFetch("/api/ldr_max_value_set?value=" + encodeURIComponent(Number(climate.ldr_max || 0)));
+}
+
+async function importSensorCorrectionSettings(climate) {
+  if (!climate) {
+    return;
+  }
+
+  setSettingsBackupNote("Importiere Sensor-Korrekturen...");
+  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)))));
+  await sleep(400);
+  await apiFetch("/api/temperature_ds18xx_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0)))));
+  await sleep(400);
+}
+
+async function importRtcCorrectionSetting(climate) {
+  if (!climate) {
+    return;
+  }
+
+  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)))));
+}
+
+async function finalizeRtcCorrectionPersistence(climate) {
+  if (!climate) {
+    return;
+  }
+
+  const rtcCorrection = Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)));
+  setSettingsBackupNote("Übernehme RTC-Korrektur als letzten Persistenzschritt...");
+  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(rtcCorrection));
+  await sleep(1800);
+  await loadData();
 }
 
 async function importAnimationSettings(animations) {
@@ -1618,7 +2364,9 @@ async function importAmbilightSettings(ambilight) {
 
   setSettingsBackupNote("Importiere Ambilight-Einstellungen...");
 
-  await apiFetch("/api/ambilight_online_set?value=" + (ambilight.online ? "on" : "off"));
+  const ambilightOnlineValue = ambilight.online ? "on" : "off";
+  await apiFetch("/api/ambilight_online_set?value=" + ambilightOnlineValue);
+  setPersistedAmbilightState(ambilightOnlineValue);
   await apiFetch("/api/ambilight_power_set?value=" + (ambilight.power ? "on" : "off"));
   await apiFetch("/api/ambilight_mode_set?value=" + encodeURIComponent(Number(ambilight.mode || 0)));
   await apiFetch("/api/ambilight_leds_set?value=" + encodeURIComponent(Number(ambilight.leds || 0)));
@@ -1648,9 +2396,9 @@ async function importDfplayerSettings(dfplayer) {
 
   await apiFetch("/api/dfplayer_volume_set?value=" + encodeURIComponent(Number(dfplayer.volume || 0)));
   await apiFetch("/api/dfplayer_mode_set?value=" + encodeURIComponent(Number(dfplayer.mode || 0)));
-  await apiFetch("/api/dfplayer_bell_flags_set?flag15=" + ((Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off") +
-    "&flag30=" + ((Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off") +
-    "&flag45=" + ((Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"));
+  await apiFetch("/api/dfplayer_bell_flags_set?m15=" + ((Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off") +
+    "&m30=" + ((Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off") +
+    "&m45=" + ((Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"));
   await apiFetch("/api/dfplayer_speak_cycle_set?value=" + encodeURIComponent(Number(dfplayer.speak_cycle || 0)));
   await apiFetch("/api/dfplayer_silence_start_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_start || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_start || 0) % 60));
   await apiFetch("/api/dfplayer_silence_stop_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_stop || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_stop || 0) % 60));
@@ -1677,14 +2425,15 @@ async function importOverlaySettings(overlays) {
   setSettingsBackupNote("Importiere Overlays...");
 
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
-  const currentCount = Number(currentSettingsSnapshot && currentSettingsSnapshot.numvars ? (currentSettingsSnapshot.numvars[NUM.OVERLAY_N_OVERLAYS] || 0) : 0);
-
-  for (let idx = currentCount - 1; idx >= items.length; idx -= 1) {
-    await apiFetch("/api/overlay_delete?idx=" + encodeURIComponent(idx));
+  for (let idx = 0; idx < 32; idx += 1) {
+    try {
+      await apiFetch("/api/overlay_delete?idx=0");
+    } catch (_) {}
   }
 
-  for (const entry of items) {
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
+  for (let idx = 0; idx < items.length; idx += 1) {
+    const entry = items[idx] || {};
+    const query = "?idx=" + encodeURIComponent(idx) +
       "&active=" + (entry.active ? "on" : "off") +
       "&type=" + encodeURIComponent(Number(entry.type || 0)) +
       "&value=" + encodeURIComponent(entry.value || "") +
@@ -1818,6 +2567,24 @@ function updateTftVisibility(settings, debugOverrides) {
   document.getElementById("tft-panel").classList.toggle("is-hidden", !isVisible);
 }
 
+function renderPreviewDebug(settings) {
+  const mode = Number(settings && settings.numvars ? (settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0);
+  const modeEntry = settings && Array.isArray(settings.coloranims)
+    ? settings.coloranims.find((entry) => Number(entry.idx) === mode)
+    : null;
+  const staticColor = settings && settings.dspcolors ? settings.dspcolors[0] : null;
+  const layoutFile = currentLayoutPreview && currentLayoutPreview.file
+    ? currentLayoutPreview.file
+    : "Fallback";
+
+  renderList("preview-debug-list", [
+    ["Farbanimation", modeEntry ? localizeAnimationName(modeEntry.name || String(mode)) : String(mode)],
+    ["Gespeicherte Display-Farbe", formatRgbwColor(staticColor)],
+    ["Live-Farbe vom Gerät", formatRgbwColor(currentLiveDisplayColor)],
+    ["Vorschau-Layout", layoutFile]
+  ]);
+}
+
 function updateAmbilightBrightnessControl(value) {
   const slider = document.getElementById("ambilight-brightness-slider");
   slider.value = value;
@@ -1847,15 +2614,29 @@ function updateColorControls(settings, ambilightOnline, debugOverrides) {
   const capabilities = getLedCapabilities(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
   const useRgbw = capabilities.whiteChannel && !!settings.numvars[NUM.DISPLAY_USE_RGBW];
   const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+  const persistedLiveColor = colorAnimationMode !== 0 ? restoreStoredLiveDisplayColor(colorAnimationMode) : null;
   const displayColor = settings.dspcolors[0] || { red: 63, green: 45, blue: 18, white: 0 };
   const ambilightColor = settings.dspcolors[1] || { red: 63, green: 45, blue: 18, white: 0 };
   const markerColor = settings.dspcolors[2] || { red: 63, green: 45, blue: 18, white: 0 };
+
+  if (!currentLiveDisplayColor && persistedLiveColor) {
+    currentLiveDisplayColor = persistedLiveColor;
+  }
 
   applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode);
   setColorControl("display", displayColor, useRgbw, false);
   setColorControl("ambilight", ambilightColor, useRgbw);
   setColorControl("marker", markerColor, useRgbw);
-  applyWordclockTheme(displayColor, useRgbw, colorAnimationMode);
+  if (colorAnimationMode === 0) {
+    applyWordclockTheme(displayColor, useRgbw, colorAnimationMode);
+  } else if (colorAnimationMode === 1) {
+    applyWordclockTheme(currentLiveDisplayColor || RAINBOW_PREVIEW_COLOR, useRgbw, colorAnimationMode);
+  } else if (colorAnimationMode === 2) {
+    applyWordclockTheme(currentLiveDisplayColor || getDaylightPreviewColor(settings), useRgbw, colorAnimationMode);
+  } else if (currentLiveDisplayColor) {
+    applyWordclockTheme(currentLiveDisplayColor, useRgbw, colorAnimationMode);
+  }
+  syncLiveDisplayColorPolling(settings);
 }
 
 function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAnimationMode) {
@@ -2111,10 +2892,12 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const statusItems = [
     ["ESP-Flash", flashSize ? String(flashSize) + " Bytes" : "-"],
     ["OTA-Update", updateStatus.can_update ? "möglich" : "nicht möglich"],
-    ["ESP-Version", updateStatus.esp_version || (settings.strvars[STR.ESP8266_VERSION] || "-")],
-    ["ESP verfügbar", updateStatus.esp_available || "-"],
     ["WordClock-Version", updateStatus.wc_version || (settings.strvars[STR.VERSION] || "-")],
     ["WordClock verfügbar", updateStatus.wc_available || "-"],
+    ["ESP-Version", updateStatus.esp_version || (settings.strvars[STR.ESP8266_VERSION] || "-")],
+    ["ESP verfügbar", updateStatus.esp_available || "-"],
+    ["App-Version", APP_VERSION],
+    ["App verfügbar", updateStatus.app_available || "-"],
     ["Standard STM32", updateStatus.stm32_default || "-"]
   ];
 
@@ -2737,8 +3520,7 @@ async function searchWeatherLocation() {
     return;
   }
 
-  button.disabled = true;
-  button.textContent = "sucht...";
+  beginButtonFeedback(button, "sucht...");
   status.textContent = "Ort wird gesucht...";
 
   try {
@@ -2751,6 +3533,7 @@ async function searchWeatherLocation() {
 
     if (!Array.isArray(results) || !results.length) {
       status.textContent = "Kein Treffer für diesen Ort gefunden.";
+      finishButtonFeedback(button, "Suchen", "error", "kein Treffer");
       return;
     }
 
@@ -2762,11 +3545,10 @@ async function searchWeatherLocation() {
     setWeatherMapSelection(lat, lon, city);
     weatherMap.setView([lat, lon], 11);
     status.textContent = "Ort gefunden und auf der Karte gesetzt.";
+    finishButtonFeedback(button, "Suchen", "success", "gefunden");
   } catch (error) {
     status.textContent = "Ortssuche konnte nicht geladen werden.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Suchen";
+    finishButtonFeedback(button, "Suchen", "error", "Fehler");
   }
 }
 
@@ -2784,8 +3566,7 @@ function useCurrentWeatherLocation() {
     return;
   }
 
-  button.disabled = true;
-  button.textContent = "liest...";
+  beginButtonFeedback(button, "liest...");
   status.textContent = "Aktueller Standort wird gelesen...";
 
   navigator.geolocation.getCurrentPosition(
@@ -2797,8 +3578,7 @@ function useCurrentWeatherLocation() {
       weatherMap.setView([lat, lon], 12);
       status.textContent = "Aktueller Standort gesetzt.";
       reverseLookupWeatherLocation(lat, lon);
-      button.disabled = false;
-      button.textContent = "Aktuellen Standort verwenden";
+      finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
     },
     (error) => {
       if (error && error.code === 1) {
@@ -2810,8 +3590,6 @@ function useCurrentWeatherLocation() {
       } else {
         useApproximateWeatherLocation("Standort konnte nicht gelesen werden. Näherungsstandort wird ermittelt...");
       }
-      button.disabled = false;
-      button.textContent = "Aktuellen Standort verwenden";
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
   );
@@ -2821,8 +3599,7 @@ async function useApproximateWeatherLocation(initialMessage) {
   const button = document.getElementById("weather-current-location-button");
   const status = document.getElementById("weather-map-status");
 
-  button.disabled = true;
-  button.textContent = "ermittelt...";
+  beginButtonFeedback(button, "ermittelt...");
   status.textContent = initialMessage || "Näherungsstandort über Internetverbindung wird ermittelt...";
 
   try {
@@ -2846,11 +3623,10 @@ async function useApproximateWeatherLocation(initialMessage) {
     status.textContent = city
       ? "Näherungsstandort gesetzt: " + city + "."
       : "Näherungsstandort wurde gesetzt.";
+    finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
   } catch (error) {
     status.textContent = "Standort konnte auch näherungsweise nicht ermittelt werden.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Aktuellen Standort verwenden";
+    finishButtonFeedback(button, "Aktuellen Standort verwenden", "error", "Fehler");
   }
 }
 
@@ -3173,7 +3949,12 @@ function triggerEspUpdate() {
   }
 
   startProgressAction("/update?action=update", "ESP-Update wird gestartet...", "esp-update", "update-esp-button", "ESP-Firmware aktualisieren");
-  waitForDeviceReady(90000, 5000, "ESP wieder erreichbar. Seite wird neu geladen.", true);
+  waitForDeviceReady(120000, 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
+    forcedReloadAfterMs: 90000,
+    reloadWatchdogDelayMs: 95000,
+    requireReconnectCycle: true,
+    waitingMessage: "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
+  });
 }
 
 function triggerStm32Update() {
@@ -3350,6 +4131,7 @@ function handleProgressFrameLoad() {
       note.textContent = "Layout-Tabelle wurde geladen.";
       resetProgressButton();
       finishProgressUi(1800);
+      scheduleProgressReturnScroll(1900);
       setTimeout(loadData, 1500);
       return;
     }
@@ -3367,8 +4149,8 @@ function startProgressAction(url, message, actionType, buttonId, buttonText) {
   pendingProgressButtonId = buttonId || "";
   const progressShell = document.getElementById("update-progress-shell");
   const progressFrame = document.getElementById("update-progress-frame");
-  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "layout-table";
-  const hideFrame = actionType === "esp-update" || actionType === "layout-table";
+  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "layout-table" || actionType === "esp-update";
+  const hideFrame = actionType === "layout-table";
 
   progressShell.classList.remove("is-hidden");
   progressFrame.classList.toggle("progress-frame-hidden", keepFrameActiveInBackground);
@@ -3389,11 +4171,40 @@ function startProgressAction(url, message, actionType, buttonId, buttonText) {
     stopStm32Progress();
   }
   progressFrame.src = "about:blank";
+  rememberProgressReturnScrollPosition();
   progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => {
+    if (actionType === "esp-update") {
+      submitProgressFrameRequest(url, "update-progress-frame");
+      return;
+    }
+
     const separator = url.indexOf("?") >= 0 ? "&" : "?";
     progressFrame.src = url + separator + "_ts=" + Date.now();
   }, 0);
+}
+
+function submitProgressFrameRequest(url, targetFrameName) {
+  const absoluteUrl = new URL(url, window.location.origin);
+  const form = document.createElement("form");
+
+  form.method = "GET";
+  form.action = absoluteUrl.pathname;
+  form.target = targetFrameName;
+  form.style.display = "none";
+
+  absoluteUrl.searchParams.set("_ts", String(Date.now()));
+  absoluteUrl.searchParams.forEach((value, key) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 }
 
 function startStm32StreamingAction(url, message, buttonId, buttonText) {
@@ -3404,8 +4215,8 @@ function startStm32StreamingAction(url, message, buttonId, buttonText) {
   const progressFrame = document.getElementById("update-progress-frame");
 
   progressShell.classList.remove("is-hidden");
-  progressFrame.classList.add("is-hidden");
-  progressFrame.classList.remove("progress-frame-hidden");
+  progressFrame.classList.remove("is-hidden");
+  progressFrame.classList.add("progress-frame-hidden");
   document.getElementById("update-progress-visual").classList.remove("is-hidden");
   document.getElementById("update-progress-note").textContent = message;
   document.getElementById("updated-at").textContent = message;
@@ -3419,50 +4230,13 @@ function startStm32StreamingAction(url, message, buttonId, buttonText) {
   }
 
   beginStm32Progress();
+  rememberProgressReturnScrollPosition();
   progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  const xhr = new XMLHttpRequest();
-  const separator = url.indexOf("?") >= 0 ? "&" : "?";
-  xhr.open("GET", url + separator + "_ts=" + Date.now(), true);
-
-  xhr.onprogress = () => {
-    const text = xhr.responseText || "";
-    syncStm32ProgressFromText(text);
-
-    if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
-      stm32AutoResetStarted = true;
-      setStm32ProgressStage(5);
-      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-      autoResetStm32AfterFlash();
-    }
-  };
-
-  xhr.onload = () => {
-    const text = xhr.responseText || "";
-    syncStm32ProgressFromText(text);
-
-    if (xhr.status < 200 || xhr.status >= 300) {
-      document.getElementById("update-progress-note").textContent = "STM32-Flash konnte nicht gestartet werden.";
-      stopStm32Progress();
-      resetProgressButton();
-      return;
-    }
-
-    if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
-      stm32AutoResetStarted = true;
-      setStm32ProgressStage(5);
-      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-      autoResetStm32AfterFlash();
-    }
-  };
-
-  xhr.onerror = () => {
-    document.getElementById("update-progress-note").textContent = "STM32-Flash konnte nicht gestartet werden.";
-    stopStm32Progress();
-    resetProgressButton();
-  };
-
-  xhr.send();
+  progressFrame.src = "about:blank";
+  window.setTimeout(() => {
+    submitProgressFrameRequest(url, "update-progress-frame");
+    monitorStm32ProgressFrame();
+  }, 0);
 }
 
 function startStm32StreamingUpload(file, buttonId, buttonText) {
@@ -3489,6 +4263,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
     }
 
     beginStm32Progress();
+    rememberProgressReturnScrollPosition();
     progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
 
     const xhr = new XMLHttpRequest();
@@ -3505,7 +4280,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
       const text = xhr.responseText || "";
       syncStm32ProgressFromText(text);
 
-      if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
+      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
         stm32AutoResetStarted = true;
         setStm32ProgressStage(5);
         document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
@@ -3521,11 +4296,12 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
         stopStm32Progress();
         resetProgressButton();
+        clearProgressReturnScrollPosition();
         reject(new Error("stm32 local failed"));
         return;
       }
 
-      if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
+      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
         stm32AutoResetStarted = true;
         setStm32ProgressStage(5);
         document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
@@ -3539,6 +4315,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
       document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
       stopStm32Progress();
       resetProgressButton();
+      clearProgressReturnScrollPosition();
       reject(new Error("stm32 local failed"));
     };
 
@@ -3559,6 +4336,7 @@ async function autoResetStm32AfterFlash() {
     stopStm32Progress();
     resetProgressButton();
     finishProgressUi(2200);
+    scheduleProgressReturnScroll(2300);
     try {
       await loadData();
     } catch (error) {
@@ -3571,14 +4349,18 @@ async function autoResetStm32AfterFlash() {
   }
 }
 
-async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloadPage) {
+async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloadPage, options) {
   const deadline = Date.now() + timeoutMs;
-  const forcedReloadAt = Date.now() + Math.min(timeoutMs, 25000);
+  const config = options || {};
+  const forcedReloadAt = Date.now() + Math.min(timeoutMs, config.forcedReloadAfterMs || 25000);
   const note = document.getElementById("update-progress-note");
   const probeUrls = ["/display_power", "/api/status", "/get_settings", "/"];
+  const waitingMessage = config.waitingMessage || "Warte auf Neustart des ESP...";
+  const requireReconnectCycle = !!config.requireReconnectCycle;
+  let reconnectCycleObserved = !requireReconnectCycle;
 
   if (reloadPage) {
-    scheduleEspReloadWatchdog(Math.min(timeoutMs, 30000));
+    scheduleEspReloadWatchdog(Math.min(timeoutMs, config.reloadWatchdogDelayMs || 30000));
   }
 
   scrollUpdateProgressIntoView();
@@ -3594,6 +4376,9 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
         }, 1800);
 
         if (response.ok) {
+          if (!reconnectCycleObserved) {
+            continue;
+          }
           clearEspReloadWatchdog();
           note.textContent = readyMessage;
           document.getElementById("updated-at").textContent = readyMessage;
@@ -3603,11 +4388,13 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
           if (reloadPage) {
             setTimeout(reloadAppPage, 1200);
           } else {
+            scheduleProgressReturnScroll(1000);
             setTimeout(loadData, 1200);
           }
           return;
         }
       } catch (error) {
+        reconnectCycleObserved = true;
       }
     }
 
@@ -3616,6 +4403,9 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
         const separator = probeUrl.indexOf("?") >= 0 ? "&" : "?";
         const frameLoaded = await probeDeviceReadyViaFrame(probeUrl + separator + "_ts=" + Date.now(), 1800);
         if (frameLoaded) {
+          if (!reconnectCycleObserved) {
+            continue;
+          }
           clearEspReloadWatchdog();
           note.textContent = readyMessage;
           document.getElementById("updated-at").textContent = readyMessage;
@@ -3625,15 +4415,17 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
           if (reloadPage) {
             setTimeout(reloadAppPage, 1200);
           } else {
+            scheduleProgressReturnScroll(1000);
             setTimeout(loadData, 1200);
           }
           return;
         }
       } catch (error) {
+        reconnectCycleObserved = true;
       }
     }
 
-    note.textContent = "Warte auf Neustart des ESP...";
+    note.textContent = waitingMessage;
     scrollUpdateProgressIntoView();
 
     if (reloadPage && Date.now() >= forcedReloadAt) {
@@ -3664,8 +4456,26 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
   resetProgressButton();
 }
 
-function reloadAppPage() {
+async function reloadAppPage() {
   clearEspReloadWatchdog();
+  try {
+    if ("caches" in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(
+        cacheKeys
+          .filter((key) => key.indexOf("wordclock-app-") === 0)
+          .map((key) => caches.delete(key))
+      );
+    }
+
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.update().catch(() => {})));
+    }
+  } catch (error) {
+    // Ignore cache/service worker cleanup errors and continue with the reload.
+  }
+
   const url = new URL(window.location.href);
   url.searchParams.set("_reload", String(Date.now()));
   window.location.replace(url.toString());
@@ -3789,6 +4599,48 @@ function scrollUpdateProgressIntoView() {
   }
 }
 
+function rememberProgressReturnScrollPosition() {
+  progressReturnScrollY = window.scrollY || window.pageYOffset || 0;
+  try {
+    window.sessionStorage.setItem(PROGRESS_SCROLL_RESTORE_KEY, String(progressReturnScrollY));
+  } catch (_) {
+  }
+}
+
+function clearProgressReturnScrollPosition() {
+  progressReturnScrollY = null;
+  try {
+    window.sessionStorage.removeItem(PROGRESS_SCROLL_RESTORE_KEY);
+  } catch (_) {
+  }
+}
+
+function restoreProgressReturnScrollPosition() {
+  let target = progressReturnScrollY;
+
+  if (target === null || target === undefined) {
+    try {
+      const stored = window.sessionStorage.getItem(PROGRESS_SCROLL_RESTORE_KEY);
+      if (stored !== null && stored !== "") {
+        target = Number(stored);
+      }
+    } catch (_) {
+    }
+  }
+
+  if (!Number.isFinite(target)) {
+    clearProgressReturnScrollPosition();
+    return;
+  }
+
+  window.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  window.setTimeout(clearProgressReturnScrollPosition, 900);
+}
+
+function scheduleProgressReturnScroll(delayMs) {
+  window.setTimeout(restoreProgressReturnScrollPosition, delayMs || 0);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -3870,6 +4722,48 @@ function stopStm32Progress() {
   }
 }
 
+function readUpdateProgressFrameText() {
+  try {
+    const frame = document.getElementById("update-progress-frame");
+    const body = frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body;
+    return body ? (body.textContent || "") : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function monitorStm32ProgressFrame() {
+  if (stm32ProgressMonitorTimer) {
+    window.clearInterval(stm32ProgressMonitorTimer);
+  }
+
+  stm32ProgressMonitorTimer = window.setInterval(() => {
+    const text = readUpdateProgressFrameText();
+    const normalized = (text || "").replace(/\s+/g, " ").trim();
+
+    if (!normalized) {
+      return;
+    }
+
+    syncStm32ProgressFromText(text);
+
+    if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
+      stm32AutoResetStarted = true;
+      setStm32ProgressStage(5);
+      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+      autoResetStm32AfterFlash();
+      return;
+    }
+
+    if (normalized.indexOf("Flash failed") >= 0 || normalized.indexOf("Check failed") >= 0 || normalized.indexOf("verify failed") >= 0) {
+      document.getElementById("update-progress-note").textContent = "STM32-Flash ist fehlgeschlagen.";
+      stopStm32Progress();
+      resetProgressButton();
+      clearProgressReturnScrollPosition();
+    }
+  }, 250);
+}
+
 function setStm32ProgressStage(stage) {
   stm32ProgressStage = stage;
   const steps = [
@@ -3934,6 +4828,18 @@ function syncStm32ProgressFromText(text) {
   }
 }
 
+function hasStm32FlashFinished(text) {
+  const normalized = (text || "").replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized.indexOf("Please Reset your STM32 now") >= 0 ||
+    normalized.indexOf("Check successful") >= 0 ||
+    normalized.indexOf("Done.") >= 0;
+}
+
 async function saveRtcTemperatureCorrection() {
   await saveTemperatureCorrection("temperature-rtc-correction-input", "temperature-rtc-correction-save-button", "/api/temperature_rtc_correction_set", "RTC-Korrektur speichern", "RTC-Korrektur konnte nicht gespeichert werden");
 }
@@ -3945,7 +4851,7 @@ async function saveDs18xxTemperatureCorrection() {
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
   const button = document.getElementById(buttonId);
   const input = document.getElementById(inputId);
-  const value = Math.max(0, Math.min(255, Number(input.value || 0)));
+  const value = Math.max(0, Math.min(10, Number(input.value || 0)));
   input.value = String(value);
 
   beginButtonFeedback(button, "speichert...");
@@ -4459,21 +5365,31 @@ async function saveOverlay(idx) {
 }
 
 async function displayOverlay(idx) {
+  const button = document.querySelector('[data-overlay-display="' + idx + '"]');
+
+  beginButtonFeedback(button, "zeigt...");
   try {
     await apiFetch("/api/overlay_display?idx=" + encodeURIComponent(idx));
     announceStatus("Overlay " + idx + " wird angezeigt", "ok");
+    finishButtonFeedback(button, "Anzeigen", "success", "gestartet");
   } catch (error) {
     announceStatus("Overlay konnte nicht angezeigt werden", "error");
+    finishButtonFeedback(button, "Anzeigen", "error", "Fehler");
   }
 }
 
 async function deleteOverlay(idx) {
+  const button = document.querySelector('[data-overlay-delete="' + idx + '"]');
+
+  beginButtonFeedback(button, "löscht...");
   try {
     await apiFetch("/api/overlay_delete?idx=" + encodeURIComponent(idx));
     await loadData();
     announceStatus("Overlay wurde gelöscht", "ok");
+    finishButtonFeedback(button, "Löschen", "success", "gelöscht");
   } catch (error) {
     announceStatus("Overlay konnte nicht gelöscht werden", "error");
+    finishButtonFeedback(button, "Löschen", "error", "Fehler");
   }
 }
 
@@ -4653,7 +5569,7 @@ function renderWordclock(active, settings, layoutPreview) {
     });
   });
 
-  renderWordclockCorners(active, settings, preview);
+  renderWordclockCorners(settings, preview);
   scheduleWordclockSizing();
 }
 
@@ -4781,7 +5697,7 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
   const fallbackPreview = getDefaultLayoutPreview(settings);
 
   if (!currentTable) {
-    return fallbackPreview;
+    return currentLayoutPreview || restoreStoredLayoutPreview() || fallbackPreview;
   }
 
   if (layoutPreviewCache[currentTable]) {
@@ -4789,19 +5705,63 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
   }
 
   try {
-    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 1800);
+    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 8000);
     const text = await response.text();
     if (!text || !text.trim()) {
-      return fallbackPreview;
+      return currentLayoutPreview || restoreStoredLayoutPreview() || null;
     }
     const table = parseLayoutTable(text);
     const rows = resolveLayoutRows(currentTable, table);
     const preview = { file: currentTable, table, rows: rows.length ? rows : fallbackPreview.rows };
 
     layoutPreviewCache[currentTable] = preview;
+    storeLayoutPreview(preview);
     return preview;
   } catch (error) {
-    return fallbackPreview;
+    return currentLayoutPreview || restoreStoredLayoutPreview() || null;
+  }
+}
+
+function restoreStoredLayoutPreview() {
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_PREVIEW_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.rows) || !parsed.rows.length) {
+      return null;
+    }
+
+    if (parsed.table && (
+      !Array.isArray(parsed.table.illumination) ||
+      !Array.isArray(parsed.table.modes) ||
+      !Array.isArray(parsed.table.hours) ||
+      !Array.isArray(parsed.table.minutes)
+    )) {
+      parsed.table = null;
+    }
+
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeLayoutPreview(preview) {
+  try {
+    if (!preview || !Array.isArray(preview.rows) || !preview.rows.length) {
+      return;
+    }
+
+    window.localStorage.setItem(LAYOUT_PREVIEW_STORAGE_KEY, JSON.stringify({
+      file: preview.file || "",
+      rows: preview.rows,
+      table: preview.table || null
+    }));
+  } catch (error) {
+    // Ignore storage failures; the current session preview still works.
   }
 }
 
@@ -5083,7 +6043,7 @@ function buildLayoutActiveWordSet(settings, table) {
   return activeCells;
 }
 
-function renderWordclockCorners(active, settings, layoutPreview) {
+function renderWordclockCorners(settings, layoutPreview) {
   const corners = document.getElementById("wordclock-corners");
 
   if (!corners) {
@@ -5093,8 +6053,9 @@ function renderWordclockCorners(active, settings, layoutPreview) {
   const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
   const current = settings && settings.tmvars ? settings.tmvars[0] : {};
   const minute = Number(current.minute || 0);
+  const displayPower = Number(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_POWER] || 0) : 0);
   const is12hLayout = isTwelveHourLayout(layoutPreview, config);
-  const activeCount = active && is12hLayout ? minute % 5 : 0;
+  const activeCount = is12hLayout && displayPower ? (minute % 5) : 0;
 
   corners.classList.toggle("is-hidden", !is12hLayout);
 
@@ -5348,6 +6309,22 @@ function getDfplayerModeName(mode) {
   }[mode] || String(mode || 0));
 }
 
+function formatRgbwColor(color) {
+  if (!color || (
+    typeof color.red !== "number" &&
+    typeof color.green !== "number" &&
+    typeof color.blue !== "number" &&
+    typeof color.white !== "number"
+  )) {
+    return "-";
+  }
+
+  return "R " + String(Number(color.red || 0)) +
+    " / G " + String(Number(color.green || 0)) +
+    " / B " + String(Number(color.blue || 0)) +
+    " / W " + String(Number(color.white || 0));
+}
+
 function localizeDisplayModeName(name) {
   return ({
     Normal: "Normal",
@@ -5409,7 +6386,8 @@ function loadDebugOverridesIntoUi() {
   document.getElementById("debug-tft-select").value = overrides.tft;
 }
 
-function applyDebugOverrides() {
+async function applyDebugOverrides() {
+  const button = document.getElementById("debug-apply-button");
   const overrides = {
     ambilight: document.getElementById("debug-ambilight-select").value,
     dfplayer: document.getElementById("debug-dfplayer-select").value,
@@ -5417,12 +6395,20 @@ function applyDebugOverrides() {
     tft: document.getElementById("debug-tft-select").value
   };
 
-  saveDebugOverrides(overrides);
-  document.getElementById("updated-at").textContent = "Overrides aktiv";
-  loadData();
+  beginButtonFeedback(button, "übernimmt...");
+  try {
+    saveDebugOverrides(overrides);
+    document.getElementById("updated-at").textContent = "Overrides aktiv";
+    await loadData();
+    finishButtonFeedback(button, "Overrides anwenden", "success", "aktiv");
+  } catch (error) {
+    announceStatus("Overrides konnten nicht angewendet werden", "error");
+    finishButtonFeedback(button, "Overrides anwenden", "error", "Fehler");
+  }
 }
 
-function resetDebugOverrides() {
+async function resetDebugOverrides() {
+  const button = document.getElementById("debug-reset-button");
   const overrides = {
     ambilight: "auto",
     dfplayer: "auto",
@@ -5430,10 +6416,17 @@ function resetDebugOverrides() {
     tft: "auto"
   };
 
-  saveDebugOverrides(overrides);
-  loadDebugOverridesIntoUi();
-  document.getElementById("updated-at").textContent = "Overrides zurückgesetzt";
-  loadData();
+  beginButtonFeedback(button, "setzt zurück...");
+  try {
+    saveDebugOverrides(overrides);
+    loadDebugOverridesIntoUi();
+    document.getElementById("updated-at").textContent = "Overrides zurückgesetzt";
+    await loadData();
+    finishButtonFeedback(button, "Overrides zurücksetzen", "success", "zurückgesetzt");
+  } catch (error) {
+    announceStatus("Overrides konnten nicht zurückgesetzt werden", "error");
+    finishButtonFeedback(button, "Overrides zurücksetzen", "error", "Fehler");
+  }
 }
 
 function onOff(value) {
@@ -5484,7 +6477,7 @@ function hexToRgb63(hex) {
 
 function buildColorPreview(color, useRgbw) {
   const rgb = rgb63ToHex(color);
-  const white = useRgbw ? Math.round(((color.white || 0) / 63) * 255) : 0;
+  const white = Math.round(((color.white || 0) / 63) * 255);
   return "linear-gradient(90deg, " + rgb + ", rgb(" + white + ", " + white + ", " + white + "))";
 }
 
@@ -5496,7 +6489,8 @@ function applyWordclockTheme(color, useRgbw, colorAnimationMode) {
   }
 
   const animationMode = Number(colorAnimationMode || 0);
-  const ledColor = animationMode !== 0
+  const hasExplicitColor = !!(color && typeof color.red === "number" && typeof color.green === "number" && typeof color.blue === "number");
+  const ledColor = animationMode !== 0 && !hasExplicitColor
     ? "rgb(255, 255, 255)"
     : mixRgbwToCss(color || { red: 63, green: 45, blue: 18, white: 0 }, useRgbw);
   const isRainbow = Number(colorAnimationMode || 0) === 1;
@@ -5531,14 +6525,166 @@ function applyWordclockTheme(color, useRgbw, colorAnimationMode) {
   panel.style.setProperty("--wc-corner-border", cornerBorder);
 }
 
+function shouldUseLiveDisplayColor(settings) {
+  return !!(
+    settings &&
+    settings.numvars &&
+    Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) !== 0 &&
+    (getActiveModuleName() === "main" || getActiveModuleName() === "system")
+  );
+}
+
+function getDaylightPreviewColor(settings) {
+  const current = settings && settings.tmvars ? (settings.tmvars[0] || {}) : {};
+  let hour = Number(current.hour || 0);
+
+  if (!Number.isFinite(hour) || hour < 0) {
+    hour = 0;
+  }
+
+  hour %= 24;
+
+  return {
+    red: DAYLIGHT_RED[hour] || 0,
+    green: DAYLIGHT_GREEN[hour] || 0,
+    blue: DAYLIGHT_BLUE[hour] || 0,
+    white: 0
+  };
+}
+
+function restoreStoredLiveDisplayColor(mode) {
+  try {
+    const raw = window.localStorage.getItem(LIVE_DISPLAY_COLOR_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || Number(parsed.mode || 0) !== Number(mode || 0)) {
+      return null;
+    }
+
+    if (typeof parsed.red !== "number" || typeof parsed.green !== "number" || typeof parsed.blue !== "number") {
+      return null;
+    }
+
+    return {
+      red: Number(parsed.red || 0),
+      green: Number(parsed.green || 0),
+      blue: Number(parsed.blue || 0),
+      white: Number(parsed.white || 0)
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeLiveDisplayColor(mode, color) {
+  try {
+    if (!color) {
+      return;
+    }
+
+    window.localStorage.setItem(LIVE_DISPLAY_COLOR_STORAGE_KEY, JSON.stringify({
+      mode: Number(mode || 0),
+      red: Number(color.red || 0),
+      green: Number(color.green || 0),
+      blue: Number(color.blue || 0),
+      white: Number(color.white || 0)
+    }));
+  } catch (error) {
+    // Ignore storage failures; live polling still works.
+  }
+}
+
+async function refreshLiveDisplayColor() {
+  if (!shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+    return;
+  }
+
+  const response = await settleFetchJson("/api/live_display_color", null, 3000);
+
+  if (!response || response.ok !== true) {
+    return;
+  }
+
+  currentLiveDisplayColor = {
+    red: Number(response.red || 0),
+    green: Number(response.green || 0),
+    blue: Number(response.blue || 0),
+    white: Number(response.white || 0)
+  };
+  storeLiveDisplayColor(currentSettingsSnapshot && currentSettingsSnapshot.numvars
+    ? Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0)
+    : 0,
+  currentLiveDisplayColor);
+
+  if (currentSettingsSnapshot) {
+    renderPreviewDebug(currentSettingsSnapshot);
+  }
+
+  if (!currentSettingsSnapshot || !shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+    return;
+  }
+
+  const capabilities = getLedCapabilities(currentSettingsSnapshot.numvars[NUM.HARDWARE_CONFIGURATION] || 0, loadDebugOverrides());
+  const useRgbw = capabilities.whiteChannel && !!currentSettingsSnapshot.numvars[NUM.DISPLAY_USE_RGBW];
+  const colorAnimationMode = Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+
+  applyWordclockTheme(currentLiveDisplayColor, useRgbw, colorAnimationMode);
+}
+
+function syncLiveDisplayColorPolling(settings) {
+  if (settingsImportInProgress) {
+    if (liveDisplayColorTimer) {
+      window.clearInterval(liveDisplayColorTimer);
+      liveDisplayColorTimer = 0;
+    }
+    return;
+  }
+
+  const enabled = shouldUseLiveDisplayColor(settings);
+  const nextMode = settings && settings.numvars ? Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0;
+  const modeChanged = enabled && nextMode !== lastLiveDisplayColorMode;
+
+  if (!enabled) {
+    if (liveDisplayColorTimer) {
+      window.clearInterval(liveDisplayColorTimer);
+      liveDisplayColorTimer = 0;
+    }
+    currentLiveDisplayColor = null;
+    lastLiveDisplayColorMode = 0;
+    return;
+  }
+
+  if (modeChanged) {
+    currentLiveDisplayColor = restoreStoredLiveDisplayColor(nextMode);
+  }
+
+  lastLiveDisplayColorMode = nextMode;
+
+  if (!liveDisplayColorTimer) {
+    void refreshLiveDisplayColor();
+    liveDisplayColorTimer = window.setInterval(() => {
+      void refreshLiveDisplayColor();
+    }, 1200);
+  } else if (modeChanged || !currentLiveDisplayColor) {
+    void refreshLiveDisplayColor();
+  }
+}
+
 function mixRgbwToCss(color, useRgbw) {
   const base = rgb63ToRgb255(color || {});
-  const white = useRgbw ? Math.round(((color && color.white) || 0) / 63 * 255) : 0;
+  const white = Math.round((((color && color.white) || 0) / 63) * 255);
+  const whiteRatio = Math.max(0, Math.min(1, white / 255));
+  const mixedRed = Math.round(base.red + (255 - base.red) * whiteRatio);
+  const mixedGreen = Math.round(base.green + (255 - base.green) * whiteRatio);
+  const mixedBlue = Math.round(base.blue + (255 - base.blue) * whiteRatio);
 
   return "rgb(" +
-    String(Math.min(255, base.red + white)) + ", " +
-    String(Math.min(255, base.green + white)) + ", " +
-    String(Math.min(255, base.blue + white)) +
+    String(mixedRed) + ", " +
+    String(mixedGreen) + ", " +
+    String(mixedBlue) +
     ")";
 }
 
@@ -5680,6 +6826,19 @@ function escapeHtml(value) {
 }
 END_FILE
 FILE app/icons/icon-192.svg
+<!--
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * icon-192.svg - WordClock progressive web app icon (192px)
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
   <rect width="192" height="192" rx="44" fill="#07101a"/>
   <rect x="20" y="20" width="152" height="152" rx="32" fill="#0d1d31" stroke="#24486f"/>
@@ -5693,6 +6852,19 @@ FILE app/icons/icon-192.svg
 </svg>
 END_FILE
 FILE app/icons/icon-512.svg
+<!--
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * icon-512.svg - WordClock progressive web app icon (512px)
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="120" fill="#07101a"/>
   <rect x="48" y="48" width="416" height="416" rx="88" fill="#0d1d31" stroke="#24486f" stroke-width="8"/>
@@ -5706,6 +6878,19 @@ FILE app/icons/icon-512.svg
 </svg>
 END_FILE
 FILE app/index.html
+<!--
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * index.html - WordClock progressive web app markup
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+-->
 <!doctype html>
 <html lang="de">
 <head>
@@ -5717,6 +6902,7 @@ FILE app/index.html
   <title>WordClock</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="manifest" href="/app/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/app/icons/icon-192.svg">
   <link rel="stylesheet" href="/app/styles.css">
 </head>
 <body>
@@ -5860,12 +7046,23 @@ FILE app/index.html
           </div>
         </section>
 
-        <section id="stm32-log-panel" class="panel is-hidden">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Debug</p>
+              <h2>Vorschau-Farben</h2>
+              <p class="hint">Zeigt gespeicherte Display-Farbe, aktuelle Live-Farbe vom Gerät und das verwendete Vorschau-Layout.</p>
+            </div>
+          </div>
+          <div id="preview-debug-list" class="info-list"></div>
+        </section>
+
+        <section id="stm32-log-panel" class="panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Debug</p>
               <h2>STM32-Logbuch</h2>
-              <p class="hint">Zeigt nicht erkannte Debug-Zeilen vom STM32 an, die über die UART beim ESP ankommen.</p>
+              <p class="hint">Zeigt bewusst markierte STM32-Logzeilen an, die über die ESP-UART in die Weboberfläche gespiegelt werden.</p>
             </div>
           </div>
           <div class="control-stack">
@@ -5962,9 +7159,9 @@ FILE app/index.html
           <div class="panel-head"><div><p class="eyebrow">Temperatur</p><h2>Sensoren und Korrektur</h2></div></div>
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
-            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
             <button id="temperature-ds18xx-correction-save-button" class="button primary" type="button">DS18xx-Korrektur speichern</button>
-            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
             <button id="temperature-rtc-correction-save-button" class="button primary" type="button">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button">Temperatur anzeigen</button>
           </div>
@@ -6459,6 +7656,12 @@ FILE app/index.html
 END_FILE
 FILE app/manifest.webmanifest
 {
+  "x-header": {
+    "file": "manifest.webmanifest",
+    "description": "WordClock progressive web app manifest",
+    "copyright": "Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch",
+    "license": "GPL-2.0-or-later"
+  },
   "name": "WordClock App",
   "short_name": "WordClock",
   "start_url": "/app/",
@@ -6483,6 +7686,17 @@ FILE app/manifest.webmanifest
 }
 END_FILE
 FILE app/styles.css
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * styles.css - WordClock progressive web app styles
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
 :root {
   --bg: #050913;
   --panel: rgba(11, 22, 37, 0.84);
@@ -7566,6 +8780,17 @@ h2 {
 }
 END_FILE
 FILE app/sw.js
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * sw.js - WordClock progressive web app service worker
+ *
+ * Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
 const CACHE_NAME = "wordclock-app-v1";
 const ASSETS = [
   "/app/",

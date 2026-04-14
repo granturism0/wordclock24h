@@ -15,7 +15,8 @@
 #include <time.h>
 #include "eeprom-data.h"
 
-#define VERSION                     "3.1.5"
+#define VERSION                     "3.2.0"
+#define MAX_RESET_CAUSE_LEN         63
 
 #define MAX_EEPROM_VERSION_LEN      4
 
@@ -138,5 +139,6 @@ extern void                         show_icon (const char *, uint_fast8_t);
 extern char *                       get_date (void);
 extern char *                       get_time (void);
 extern void                         main_set_ambilight_clock_wait_cycles (void);
+extern const char *                 main_get_reset_cause (void);
 
 #endif

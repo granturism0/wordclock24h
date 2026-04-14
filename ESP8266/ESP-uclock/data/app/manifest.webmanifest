@@ -1,4 +1,10 @@
 {
+  "x-header": {
+    "file": "manifest.webmanifest",
+    "description": "WordClock progressive web app manifest",
+    "copyright": "Copyright (c) 2026 Daniel Kocher - danny(at)ewanet.ch",
+    "license": "GPL-2.0-or-later"
+  },
   "name": "WordClock App",
   "short_name": "WordClock",
   "start_url": "/app/",

@@ -189,6 +189,7 @@ extern uint_fast8_t         set_num16_array (NUM16_ARRAY, uint32_t, uint_fast16_
 #define MAX_UPDATE_HOST_LEN             (64 - 1)
 #define MAX_UPDATE_PATH_LEN             (64 - 1)
 #define MAX_DATE_TICKER_FORMAT_LEN      (6 - 1)
+#define MAX_RESET_CAUSE_LEN             63
 
 typedef struct
 {
@@ -210,6 +211,7 @@ typedef enum
     UPDATE_HOST_VAR,
     UPDATE_PATH_VAR,
     DATE_TICKER_FORMAT_VAR,
+    RESET_CAUSE_STR_VAR,
     MAX_STR_VARIABLES                                                   // must be the last member
 } STR_VARIABLE;
 
