@@ -48,6 +48,7 @@ python3 ESP8266/ESP-uclock/tools/build-app-bundle.py
 Ergebnis:
 
 - [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt)
+- `build/esp8266/app-version.txt`
 
 Zusätzliche Hilfsdateien:
 
@@ -61,6 +62,7 @@ Es gibt zwei Wege.
 1. Download vom Update-Server
 
 - `app-bundle.txt` auf denselben Update-Server legen wie die übrigen OTA-Dateien
+- zusätzlich `app-version.txt` auf denselben Update-Server legen
 - auf dem Gerät `http://<esp-ip>/fs` öffnen
 - `Update Host` und `Update Path` wie gewohnt setzen
 - im Bereich `WordClock App bundle (/app)` den Download auslösen
@@ -119,7 +121,7 @@ Nur PWA geändert:
 
 1. Dateien unter [data/app](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app) anpassen
 2. `sh ESP8266/ESP-uclock/tools/release-app-bundle.sh`
-3. neues [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt) auf den Server legen oder über `/fs` hochladen
+3. neues [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt) und `build/esp8266/app-version.txt` auf den Server legen oder das Bundle über `/fs` hochladen
 4. `/app` neu laden
 
 ESP-Verhalten geändert:
@@ -139,18 +141,17 @@ ESP-Verhalten geändert:
 
 Der aktuell verifizierte gemeinsame Release-Stand ist:
 
-- `build/releases/wordclock-release-2026-04-08-2217.zip`
+- `build/releases/wordclock-release-2026-04-15-0127.zip`
 
 PWA-Stand dazu:
 
-- Version `1.2.28`
+- Version `1.2.55`
 
 Wichtige Punkte dieses Stands:
 
-- Overlay-Restore ist repariert (Overlays werden nach dem STM32-Reset neu gesetzt)
-- `Ambilight online/offline` wird korrekt wiederhergestellt (localStorage-State wird beim Import mitgesetzt)
-- Sommerzeit wird nach dem STM32-Reset nochmals gesetzt
-- Netzwerk-/Zeiteinstellungen werden nach dem Restore nochmals verifiziert
-- `days`-Feld in Overlays wird beim Backup-Import korrekt übernommen (Fallback-Bug behoben)
-- Retry-Prüfung für Display- und Klima-Einstellungen deckt nun alle relevanten Felder ab
-- Backup-Version wird beim Import geprüft
+- relevante `STM32`-Reset-Ursachen werden in der PWA sichtbar, ohne dass ein serielles Kabel nötig ist
+- der Überblick blendet `Letzter STM32-Neustart` nur ein, wenn beim aktuellen Boot wirklich ein relevanter Reset erkannt wurde
+- `STM32`-Faults und echte Hänger führen jetzt zu einem kontrollierten Neustart statt zu dauerhaftem Stillstand
+- die Watchdog-Initialisierung wurde nach hinten verlegt und gegen ein Boot-Hängen abgesichert
+- die Update-Übersicht zeigt lokale und verfügbare App-Version getrennt an
+- die Server-Prüfung der App-Version basiert auf `app-version.txt`

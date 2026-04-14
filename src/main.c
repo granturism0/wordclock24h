@@ -377,6 +377,42 @@ MAIN_GLOBALS                    gmain;
  */
 static uint_fast8_t             esp8266_is_online           = 0;
 static uint32_t                 eep_version                 = 0xFFFFFFFF;
+static char                     current_reset_cause[MAX_RESET_CAUSE_LEN + 1] = "";
+
+#define WATCHDOG_TIMEOUT_MS      20000UL
+
+static void                     watchdog_init (void);
+static void                     watchdog_reload (void);
+static void                     fault_reset (const char *);
+static void                     append_reset_cause (const char *);
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * log reset flags captured by RCC_CSR
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+append_reset_cause (const char * cause)
+{
+    size_t len;
+
+    if (! cause || ! *cause)
+    {
+        return;
+    }
+
+    len = strlen (current_reset_cause);
+
+    if (len > 0 && len < MAX_RESET_CAUSE_LEN - 2)
+    {
+        strncat (current_reset_cause, ", ", MAX_RESET_CAUSE_LEN - len);
+        len = strlen (current_reset_cause);
+    }
+
+    if (len < MAX_RESET_CAUSE_LEN)
+    {
+        strncat (current_reset_cause, cause, MAX_RESET_CAUSE_LEN - len);
+    }
+}
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * log reset flags captured by RCC_CSR
@@ -387,27 +423,33 @@ log_reset_flags (void)
 {
     uint_fast8_t    have_flag = 0;
 
+    current_reset_cause[0] = '\0';
+
     log_message ("Reset flags:");
 
     if (RCC_GetFlagStatus (RCC_FLAG_LPWRRST) != RESET)
     {
         log_message ("  LPWRRST");
         have_flag = 1;
+        append_reset_cause ("Low-power reset");
     }
     if (RCC_GetFlagStatus (RCC_FLAG_WWDGRST) != RESET)
     {
         log_message ("  WWDGRST");
         have_flag = 1;
+        append_reset_cause ("WWDG reset");
     }
     if (RCC_GetFlagStatus (RCC_FLAG_IWDGRST) != RESET)
     {
         log_message ("  IWDGRST");
         have_flag = 1;
+        append_reset_cause ("Watchdog reset");
     }
     if (RCC_GetFlagStatus (RCC_FLAG_SFTRST) != RESET)
     {
         log_message ("  SFTRST");
         have_flag = 1;
+        append_reset_cause ("Software reset");
     }
     if (RCC_GetFlagStatus (RCC_FLAG_PORRST) != RESET)
     {
@@ -424,6 +466,7 @@ log_reset_flags (void)
     {
         log_message ("  BORRST");
         have_flag = 1;
+        append_reset_cause ("Brownout reset");
     }
 #endif
 
@@ -434,6 +477,118 @@ log_reset_flags (void)
 
     RCC_ClearFlag ();
     log_flush ();
+}
+
+const char *
+main_get_reset_cause (void)
+{
+    return current_reset_cause;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * initialize independent watchdog with a moderate timeout to recover from hangs
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+watchdog_init (void)
+{
+    uint32_t timeout = 1000000UL;
+
+#if defined (STM32F103)
+    IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
+    IWDG_SetPrescaler (IWDG_Prescaler_256);
+    IWDG_SetReload ((WATCHDOG_TIMEOUT_MS * 40UL) / 256UL);             // LSI approx. 40kHz on STM32F1
+
+    while ((IWDG_GetFlagStatus (IWDG_FLAG_PVU) != RESET || IWDG_GetFlagStatus (IWDG_FLAG_RVU) != RESET) && timeout > 0)
+    {
+        timeout--;
+    }
+#else
+    IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
+    IWDG_SetPrescaler (IWDG_Prescaler_256);
+    IWDG_SetReload ((WATCHDOG_TIMEOUT_MS * 32UL) / 256UL);             // LSI approx. 32kHz on STM32F4
+
+    while ((IWDG_GetFlagStatus (IWDG_FLAG_PVU) != RESET || IWDG_GetFlagStatus (IWDG_FLAG_RVU) != RESET) && timeout > 0)
+    {
+        timeout--;
+    }
+#endif
+
+    if (timeout == 0)
+    {
+        log_message ("IWDG init timeout, watchdog disabled");
+        log_flush ();
+        return;
+    }
+
+    IWDG_ReloadCounter ();
+    IWDG_Enable ();
+
+    log_printf ("IWDG enabled: timeout=%lums\r\n", WATCHDOG_TIMEOUT_MS);
+    log_flush ();
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * reload independent watchdog
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+watchdog_reload (void)
+{
+    IWDG_ReloadCounter ();
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * log fault details and force a clean system reset instead of hanging forever
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+fault_reset (const char * reason)
+{
+    __disable_irq ();
+
+    log_message ("");
+    log_message ("fatal fault detected");
+    log_message (reason);
+    log_printf ("  CFSR=0x%08lX HFSR=0x%08lX ICSR=0x%08lX\r\n", SCB->CFSR, SCB->HFSR, SCB->ICSR);
+    log_printf ("  MMFAR=0x%08lX BFAR=0x%08lX\r\n", SCB->MMFAR, SCB->BFAR);
+    log_flush ();
+
+    for (volatile uint32_t idx = 0; idx < 2000000UL; idx++)
+    {
+        ;
+    }
+
+    NVIC_SystemReset ();
+
+    while (1)
+    {
+        ;
+    }
+}
+
+void
+HardFault_Handler (void)
+{
+    fault_reset ("HardFault");
+}
+
+void
+MemManage_Handler (void)
+{
+    fault_reset ("MemManage");
+}
+
+void
+BusFault_Handler (void)
+{
+    fault_reset ("BusFault");
+}
+
+void
+UsageFault_Handler (void)
+{
+    fault_reset ("UsageFault");
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -2995,9 +3150,11 @@ main (void)
     }
 
     main_set_ambilight_clock_wait_cycles ();
+    watchdog_init ();
 
     while (1)
     {
+        watchdog_reload ();
         local_uptime = uptime;                                                          // cache volatile variable in local variable
 
         if (esp8266_is_up)                                                              // if user pressed user button, set ESP8266 to AP mode

@@ -11,7 +11,7 @@ FILE app/app.js
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.2.43";
+const APP_VERSION = "1.2.55";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -95,7 +95,8 @@ const STR = {
   WEATHER_LAT: 8,
   UPDATE_HOST: 9,
   UPDATE_PATH: 10,
-  DATE_TICKER_FORMAT: 11
+  DATE_TICKER_FORMAT: 11,
+  RESET_CAUSE: 12
 };
 
 const BACKUP_FORMAT = "wordclock-settings-backup";
@@ -1253,6 +1254,10 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
     ["Zeitserver", settings.strvars[STR.TIMESERVER] || "-"],
     ["Ticker-Verzögerung", String(settings.numvars[NUM.TICKER_DECELERATION] || 0)]
   ];
+
+  if (settings.strvars[STR.RESET_CAUSE]) {
+    configItems.unshift(["Letzter STM32-Neustart", settings.strvars[STR.RESET_CAUSE]]);
+  }
 
   const weatherLocation = settings.strvars[STR.WEATHER_CITY]
     ? settings.strvars[STR.WEATHER_CITY]
@@ -2887,10 +2892,12 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const statusItems = [
     ["ESP-Flash", flashSize ? String(flashSize) + " Bytes" : "-"],
     ["OTA-Update", updateStatus.can_update ? "möglich" : "nicht möglich"],
-    ["ESP-Version", updateStatus.esp_version || (settings.strvars[STR.ESP8266_VERSION] || "-")],
-    ["ESP verfügbar", updateStatus.esp_available || "-"],
     ["WordClock-Version", updateStatus.wc_version || (settings.strvars[STR.VERSION] || "-")],
     ["WordClock verfügbar", updateStatus.wc_available || "-"],
+    ["ESP-Version", updateStatus.esp_version || (settings.strvars[STR.ESP8266_VERSION] || "-")],
+    ["ESP verfügbar", updateStatus.esp_available || "-"],
+    ["App-Version", APP_VERSION],
+    ["App verfügbar", updateStatus.app_available || "-"],
     ["Standard STM32", updateStatus.stm32_default || "-"]
   ];
 
@@ -3513,8 +3520,7 @@ async function searchWeatherLocation() {
     return;
   }
 
-  button.disabled = true;
-  button.textContent = "sucht...";
+  beginButtonFeedback(button, "sucht...");
   status.textContent = "Ort wird gesucht...";
 
   try {
@@ -3527,6 +3533,7 @@ async function searchWeatherLocation() {
 
     if (!Array.isArray(results) || !results.length) {
       status.textContent = "Kein Treffer für diesen Ort gefunden.";
+      finishButtonFeedback(button, "Suchen", "error", "kein Treffer");
       return;
     }
 
@@ -3538,11 +3545,10 @@ async function searchWeatherLocation() {
     setWeatherMapSelection(lat, lon, city);
     weatherMap.setView([lat, lon], 11);
     status.textContent = "Ort gefunden und auf der Karte gesetzt.";
+    finishButtonFeedback(button, "Suchen", "success", "gefunden");
   } catch (error) {
     status.textContent = "Ortssuche konnte nicht geladen werden.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Suchen";
+    finishButtonFeedback(button, "Suchen", "error", "Fehler");
   }
 }
 
@@ -3560,8 +3566,7 @@ function useCurrentWeatherLocation() {
     return;
   }
 
-  button.disabled = true;
-  button.textContent = "liest...";
+  beginButtonFeedback(button, "liest...");
   status.textContent = "Aktueller Standort wird gelesen...";
 
   navigator.geolocation.getCurrentPosition(
@@ -3573,8 +3578,7 @@ function useCurrentWeatherLocation() {
       weatherMap.setView([lat, lon], 12);
       status.textContent = "Aktueller Standort gesetzt.";
       reverseLookupWeatherLocation(lat, lon);
-      button.disabled = false;
-      button.textContent = "Aktuellen Standort verwenden";
+      finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
     },
     (error) => {
       if (error && error.code === 1) {
@@ -3586,8 +3590,6 @@ function useCurrentWeatherLocation() {
       } else {
         useApproximateWeatherLocation("Standort konnte nicht gelesen werden. Näherungsstandort wird ermittelt...");
       }
-      button.disabled = false;
-      button.textContent = "Aktuellen Standort verwenden";
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
   );
@@ -3597,8 +3599,7 @@ async function useApproximateWeatherLocation(initialMessage) {
   const button = document.getElementById("weather-current-location-button");
   const status = document.getElementById("weather-map-status");
 
-  button.disabled = true;
-  button.textContent = "ermittelt...";
+  beginButtonFeedback(button, "ermittelt...");
   status.textContent = initialMessage || "Näherungsstandort über Internetverbindung wird ermittelt...";
 
   try {
@@ -3622,11 +3623,10 @@ async function useApproximateWeatherLocation(initialMessage) {
     status.textContent = city
       ? "Näherungsstandort gesetzt: " + city + "."
       : "Näherungsstandort wurde gesetzt.";
+    finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
   } catch (error) {
     status.textContent = "Standort konnte auch näherungsweise nicht ermittelt werden.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Aktuellen Standort verwenden";
+    finishButtonFeedback(button, "Aktuellen Standort verwenden", "error", "Fehler");
   }
 }
 
@@ -3949,7 +3949,12 @@ function triggerEspUpdate() {
   }
 
   startProgressAction("/update?action=update", "ESP-Update wird gestartet...", "esp-update", "update-esp-button", "ESP-Firmware aktualisieren");
-  waitForDeviceReady(90000, 5000, "ESP wieder erreichbar. Seite wird neu geladen.", true);
+  waitForDeviceReady(120000, 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
+    forcedReloadAfterMs: 90000,
+    reloadWatchdogDelayMs: 95000,
+    requireReconnectCycle: true,
+    waitingMessage: "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
+  });
 }
 
 function triggerStm32Update() {
@@ -4144,8 +4149,8 @@ function startProgressAction(url, message, actionType, buttonId, buttonText) {
   pendingProgressButtonId = buttonId || "";
   const progressShell = document.getElementById("update-progress-shell");
   const progressFrame = document.getElementById("update-progress-frame");
-  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "layout-table";
-  const hideFrame = actionType === "esp-update" || actionType === "layout-table";
+  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "layout-table" || actionType === "esp-update";
+  const hideFrame = actionType === "layout-table";
 
   progressShell.classList.remove("is-hidden");
   progressFrame.classList.toggle("progress-frame-hidden", keepFrameActiveInBackground);
@@ -4169,9 +4174,37 @@ function startProgressAction(url, message, actionType, buttonId, buttonText) {
   rememberProgressReturnScrollPosition();
   progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => {
+    if (actionType === "esp-update") {
+      submitProgressFrameRequest(url, "update-progress-frame");
+      return;
+    }
+
     const separator = url.indexOf("?") >= 0 ? "&" : "?";
     progressFrame.src = url + separator + "_ts=" + Date.now();
   }, 0);
+}
+
+function submitProgressFrameRequest(url, targetFrameName) {
+  const absoluteUrl = new URL(url, window.location.origin);
+  const form = document.createElement("form");
+
+  form.method = "GET";
+  form.action = absoluteUrl.pathname;
+  form.target = targetFrameName;
+  form.style.display = "none";
+
+  absoluteUrl.searchParams.set("_ts", String(Date.now()));
+  absoluteUrl.searchParams.forEach((value, key) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 }
 
 function startStm32StreamingAction(url, message, buttonId, buttonText) {
@@ -4182,8 +4215,8 @@ function startStm32StreamingAction(url, message, buttonId, buttonText) {
   const progressFrame = document.getElementById("update-progress-frame");
 
   progressShell.classList.remove("is-hidden");
-  progressFrame.classList.add("is-hidden");
-  progressFrame.classList.remove("progress-frame-hidden");
+  progressFrame.classList.remove("is-hidden");
+  progressFrame.classList.add("progress-frame-hidden");
   document.getElementById("update-progress-visual").classList.remove("is-hidden");
   document.getElementById("update-progress-note").textContent = message;
   document.getElementById("updated-at").textContent = message;
@@ -4199,51 +4232,11 @@ function startStm32StreamingAction(url, message, buttonId, buttonText) {
   beginStm32Progress();
   rememberProgressReturnScrollPosition();
   progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  const xhr = new XMLHttpRequest();
-  const separator = url.indexOf("?") >= 0 ? "&" : "?";
-  xhr.open("GET", url + separator + "_ts=" + Date.now(), true);
-
-  xhr.onprogress = () => {
-    const text = xhr.responseText || "";
-    syncStm32ProgressFromText(text);
-
-    if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
-      stm32AutoResetStarted = true;
-      setStm32ProgressStage(5);
-      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-      autoResetStm32AfterFlash();
-    }
-  };
-
-  xhr.onload = () => {
-    const text = xhr.responseText || "";
-    syncStm32ProgressFromText(text);
-
-    if (xhr.status < 200 || xhr.status >= 300) {
-      document.getElementById("update-progress-note").textContent = "STM32-Flash konnte nicht gestartet werden.";
-      stopStm32Progress();
-      resetProgressButton();
-      clearProgressReturnScrollPosition();
-      return;
-    }
-
-    if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
-      stm32AutoResetStarted = true;
-      setStm32ProgressStage(5);
-      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-      autoResetStm32AfterFlash();
-    }
-  };
-
-  xhr.onerror = () => {
-    document.getElementById("update-progress-note").textContent = "STM32-Flash konnte nicht gestartet werden.";
-    stopStm32Progress();
-    resetProgressButton();
-    clearProgressReturnScrollPosition();
-  };
-
-  xhr.send();
+  progressFrame.src = "about:blank";
+  window.setTimeout(() => {
+    submitProgressFrameRequest(url, "update-progress-frame");
+    monitorStm32ProgressFrame();
+  }, 0);
 }
 
 function startStm32StreamingUpload(file, buttonId, buttonText) {
@@ -4287,7 +4280,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
       const text = xhr.responseText || "";
       syncStm32ProgressFromText(text);
 
-      if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
+      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
         stm32AutoResetStarted = true;
         setStm32ProgressStage(5);
         document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
@@ -4308,7 +4301,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         return;
       }
 
-      if (!stm32AutoResetStarted && text.indexOf("Please Reset your STM32 now") >= 0) {
+      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
         stm32AutoResetStarted = true;
         setStm32ProgressStage(5);
         document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
@@ -4356,14 +4349,18 @@ async function autoResetStm32AfterFlash() {
   }
 }
 
-async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloadPage) {
+async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloadPage, options) {
   const deadline = Date.now() + timeoutMs;
-  const forcedReloadAt = Date.now() + Math.min(timeoutMs, 25000);
+  const config = options || {};
+  const forcedReloadAt = Date.now() + Math.min(timeoutMs, config.forcedReloadAfterMs || 25000);
   const note = document.getElementById("update-progress-note");
   const probeUrls = ["/display_power", "/api/status", "/get_settings", "/"];
+  const waitingMessage = config.waitingMessage || "Warte auf Neustart des ESP...";
+  const requireReconnectCycle = !!config.requireReconnectCycle;
+  let reconnectCycleObserved = !requireReconnectCycle;
 
   if (reloadPage) {
-    scheduleEspReloadWatchdog(Math.min(timeoutMs, 30000));
+    scheduleEspReloadWatchdog(Math.min(timeoutMs, config.reloadWatchdogDelayMs || 30000));
   }
 
   scrollUpdateProgressIntoView();
@@ -4379,6 +4376,9 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
         }, 1800);
 
         if (response.ok) {
+          if (!reconnectCycleObserved) {
+            continue;
+          }
           clearEspReloadWatchdog();
           note.textContent = readyMessage;
           document.getElementById("updated-at").textContent = readyMessage;
@@ -4394,6 +4394,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
           return;
         }
       } catch (error) {
+        reconnectCycleObserved = true;
       }
     }
 
@@ -4402,6 +4403,9 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
         const separator = probeUrl.indexOf("?") >= 0 ? "&" : "?";
         const frameLoaded = await probeDeviceReadyViaFrame(probeUrl + separator + "_ts=" + Date.now(), 1800);
         if (frameLoaded) {
+          if (!reconnectCycleObserved) {
+            continue;
+          }
           clearEspReloadWatchdog();
           note.textContent = readyMessage;
           document.getElementById("updated-at").textContent = readyMessage;
@@ -4417,10 +4421,11 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
           return;
         }
       } catch (error) {
+        reconnectCycleObserved = true;
       }
     }
 
-    note.textContent = "Warte auf Neustart des ESP...";
+    note.textContent = waitingMessage;
     scrollUpdateProgressIntoView();
 
     if (reloadPage && Date.now() >= forcedReloadAt) {
@@ -4717,6 +4722,48 @@ function stopStm32Progress() {
   }
 }
 
+function readUpdateProgressFrameText() {
+  try {
+    const frame = document.getElementById("update-progress-frame");
+    const body = frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body;
+    return body ? (body.textContent || "") : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function monitorStm32ProgressFrame() {
+  if (stm32ProgressMonitorTimer) {
+    window.clearInterval(stm32ProgressMonitorTimer);
+  }
+
+  stm32ProgressMonitorTimer = window.setInterval(() => {
+    const text = readUpdateProgressFrameText();
+    const normalized = (text || "").replace(/\s+/g, " ").trim();
+
+    if (!normalized) {
+      return;
+    }
+
+    syncStm32ProgressFromText(text);
+
+    if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
+      stm32AutoResetStarted = true;
+      setStm32ProgressStage(5);
+      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+      autoResetStm32AfterFlash();
+      return;
+    }
+
+    if (normalized.indexOf("Flash failed") >= 0 || normalized.indexOf("Check failed") >= 0 || normalized.indexOf("verify failed") >= 0) {
+      document.getElementById("update-progress-note").textContent = "STM32-Flash ist fehlgeschlagen.";
+      stopStm32Progress();
+      resetProgressButton();
+      clearProgressReturnScrollPosition();
+    }
+  }, 250);
+}
+
 function setStm32ProgressStage(stage) {
   stm32ProgressStage = stage;
   const steps = [
@@ -4779,6 +4826,18 @@ function syncStm32ProgressFromText(text) {
     }
     note.textContent = "STM32-Firmware wird geschrieben und verifiziert.";
   }
+}
+
+function hasStm32FlashFinished(text) {
+  const normalized = (text || "").replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized.indexOf("Please Reset your STM32 now") >= 0 ||
+    normalized.indexOf("Check successful") >= 0 ||
+    normalized.indexOf("Done.") >= 0;
 }
 
 async function saveRtcTemperatureCorrection() {
@@ -5306,21 +5365,31 @@ async function saveOverlay(idx) {
 }
 
 async function displayOverlay(idx) {
+  const button = document.querySelector('[data-overlay-display="' + idx + '"]');
+
+  beginButtonFeedback(button, "zeigt...");
   try {
     await apiFetch("/api/overlay_display?idx=" + encodeURIComponent(idx));
     announceStatus("Overlay " + idx + " wird angezeigt", "ok");
+    finishButtonFeedback(button, "Anzeigen", "success", "gestartet");
   } catch (error) {
     announceStatus("Overlay konnte nicht angezeigt werden", "error");
+    finishButtonFeedback(button, "Anzeigen", "error", "Fehler");
   }
 }
 
 async function deleteOverlay(idx) {
+  const button = document.querySelector('[data-overlay-delete="' + idx + '"]');
+
+  beginButtonFeedback(button, "löscht...");
   try {
     await apiFetch("/api/overlay_delete?idx=" + encodeURIComponent(idx));
     await loadData();
     announceStatus("Overlay wurde gelöscht", "ok");
+    finishButtonFeedback(button, "Löschen", "success", "gelöscht");
   } catch (error) {
     announceStatus("Overlay konnte nicht gelöscht werden", "error");
+    finishButtonFeedback(button, "Löschen", "error", "Fehler");
   }
 }
 
@@ -6317,7 +6386,8 @@ function loadDebugOverridesIntoUi() {
   document.getElementById("debug-tft-select").value = overrides.tft;
 }
 
-function applyDebugOverrides() {
+async function applyDebugOverrides() {
+  const button = document.getElementById("debug-apply-button");
   const overrides = {
     ambilight: document.getElementById("debug-ambilight-select").value,
     dfplayer: document.getElementById("debug-dfplayer-select").value,
@@ -6325,12 +6395,20 @@ function applyDebugOverrides() {
     tft: document.getElementById("debug-tft-select").value
   };
 
-  saveDebugOverrides(overrides);
-  document.getElementById("updated-at").textContent = "Overrides aktiv";
-  loadData();
+  beginButtonFeedback(button, "übernimmt...");
+  try {
+    saveDebugOverrides(overrides);
+    document.getElementById("updated-at").textContent = "Overrides aktiv";
+    await loadData();
+    finishButtonFeedback(button, "Overrides anwenden", "success", "aktiv");
+  } catch (error) {
+    announceStatus("Overrides konnten nicht angewendet werden", "error");
+    finishButtonFeedback(button, "Overrides anwenden", "error", "Fehler");
+  }
 }
 
-function resetDebugOverrides() {
+async function resetDebugOverrides() {
+  const button = document.getElementById("debug-reset-button");
   const overrides = {
     ambilight: "auto",
     dfplayer: "auto",
@@ -6338,10 +6416,17 @@ function resetDebugOverrides() {
     tft: "auto"
   };
 
-  saveDebugOverrides(overrides);
-  loadDebugOverridesIntoUi();
-  document.getElementById("updated-at").textContent = "Overrides zurückgesetzt";
-  loadData();
+  beginButtonFeedback(button, "setzt zurück...");
+  try {
+    saveDebugOverrides(overrides);
+    loadDebugOverridesIntoUi();
+    document.getElementById("updated-at").textContent = "Overrides zurückgesetzt";
+    await loadData();
+    finishButtonFeedback(button, "Overrides zurücksetzen", "success", "zurückgesetzt");
+  } catch (error) {
+    announceStatus("Overrides konnten nicht zurückgesetzt werden", "error");
+    finishButtonFeedback(button, "Overrides zurücksetzen", "error", "Fehler");
+  }
 }
 
 function onOff(value) {

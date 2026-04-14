@@ -707,6 +707,12 @@ var_send_date_ticker_format (void)
 }
 
 void
+var_send_reset_cause (void)
+{
+    var_send_str_variable (RESET_CAUSE_STR_VAR, main_get_reset_cause ());
+}
+
+void
 var_send_tm (void)
 {
     var_send_tm_variable (CURRENT_TM_VAR, &(gmain.tm));
@@ -938,6 +944,7 @@ var_send_all_variables (void)
     var_send_update_host ();
     var_send_update_path ();
     var_send_date_ticker_format ();
+    var_send_reset_cause ();
 
     var_send_tm ();
 

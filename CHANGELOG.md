@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-04-15 PWA Update Visibility And UX Polish
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-04-15-0127.zip`
+- STM-Version: `3.2.0`
+- ESP-Version: `3.2.0`
+- PWA-Version: `1.2.55`
+
+Wichtige Punkte:
+
+- die PWA zeigt die Versionsstände jetzt in der Reihenfolge `WordClock`, `ESP`, `App`
+- zusätzlich zur lokalen `App-Version` wird jetzt auch `App verfügbar` vom Update-Server angezeigt
+- dafür wird beim Build eine `app-version.txt` erzeugt und zusammen mit `app-bundle.txt` ins Release aufgenommen
+- der Update-Server muss für die PWA-Versionsprüfung jetzt sowohl `app-bundle.txt` als auch `app-version.txt` bereitstellen
+- mehrere bislang stille PWA-Aktionen haben jetzt konsistentes Button-Feedback, darunter `Overrides anwenden`, `Overrides zurücksetzen`, Overlay-Aktionen und Teile des Wetterdialogs
+
+## 2026-04-15 PWA ESP Update Timing Fix
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-04-15-0024.zip`
+- STM-Version: `3.2.0`
+- ESP-Version: `3.2.0`
+- PWA-Version: `1.2.45`
+
+Wichtige Punkte:
+
+- der ESP-Updatepfad der PWA wartet jetzt deutlich länger, bevor Reconnect und Reload gestartet werden
+- damit orientiert sich die PWA wieder am Legacy-Verhalten des ESP-Updates mit rund `40` Sekunden Reconnect-Zeit
+- der zu frühe PWA-Reload nach ca. `25-30` Sekunden wird vermieden und bricht das ESP-Update nicht mehr vorzeitig ab
+- der PWA-Button für ESP-Updates verwendet jetzt wieder den bewährten Legacy-Updatepfad als Top-Level-Navigation statt eines versteckten `iframe`
+- Legacy-Weboberfläche liefert HTML jetzt mit `UTF-8`-Charset aus und verwendet wieder gut lesbare Linkfarben statt Gelb/Weiß auf Weiß
+
+## 2026-04-14 Runtime Recovery And Reset Visibility
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-04-15-0024.zip`
+- STM-Version: `3.2.0`
+- ESP-Version: `3.2.0`
+- PWA-Version: `1.2.44`
+
+Wichtige Punkte:
+
+- `STM32`-Schutzmaßnahmen ergänzt: `IWDG` mit ca. `20 s` Timeout
+- `HardFault`, `MemManage`, `BusFault` und `UsageFault` führen nicht mehr in eine Endlosschleife, sondern loggen kurz und starten das Board kontrolliert neu
+- Reset-Ursachen aus den `RCC`-Flags werden beim Boot weiterhin geloggt
+- relevante Reset-Ursachen werden jetzt zusätzlich ohne serielles Kabel in die PWA gespiegelt
+- in der PWA erscheint im Überblick nur beim aktuellen Boot und nur bei relevanten Flags ein Eintrag `Letzter STM32-Neustart`
+- frühe blockierende Watchdog-Initialisierung wurde korrigiert, damit der Controller nach `Reset flags:` normal weiter bootet
+
+Hinweise:
+
+- normale Einschalt-/Pin-Resets werden in der PWA bewusst nicht angezeigt
+- für die Anzeige in `/app` müssen sowohl die `STM32`-Firmware als auch das aktuelle `app-bundle.txt` ausgerollt werden
+
 ## 2026-04-09 Finalized Restore Release
 
 Aktueller verifizierter Abschlussstand:

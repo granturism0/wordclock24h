@@ -12,12 +12,14 @@ ESP_FQBN ?= esp8266:esp8266:generic:baud=115200,xtal=80,CrystalFreq=26,FlashFreq
 ESP_OUTPUT_BASENAME ?= ESP-WordClock-4M
 APP_BUNDLE_SCRIPT ?= ESP8266/ESP-uclock/tools/release-app-bundle.sh
 APP_BUNDLE_FILE ?= ESP8266/ESP-uclock/data/app-bundle.txt
+APP_VERSION_SOURCE ?= ESP8266/ESP-uclock/data/app/app.js
+APP_VERSION_FILE ?= $(ESP_BUILD_DIR)/app-version.txt
 RELEASE_DIR ?= build/releases
 RELEASE_ZIP ?= $(RELEASE_DIR)/wordclock-release-$(shell date +"%Y-%m-%d-%H%M").zip
 STM_VERSION_FILE ?= $(BUILD_DIR)/wc.txt
 ESP_VERSION_FILE ?= $(ESP_BUILD_DIR)/ESP-WordClock.txt
 
-.PHONY: configure f103 f411 all esp app-bundle release-zip stm-version-file esp-version-file clean clean-stm clean-esp clean-release
+.PHONY: configure f103 f411 all esp app-bundle release-zip stm-version-file esp-version-file app-version-file clean clean-stm clean-esp clean-release
 
 configure:
 	$(CMAKE) $(CONFIGURE_ARGS)
@@ -52,11 +54,16 @@ esp-version-file:
 app-bundle:
 	sh $(APP_BUNDLE_SCRIPT)
 
-release-zip: app-bundle f103 f411 esp
+app-version-file:
+	mkdir -p $(ESP_BUILD_DIR)
+	grep '^const APP_VERSION' $(APP_VERSION_SOURCE) | head -n 1 | cut -d'"' -f2 > $(APP_VERSION_FILE)
+
+release-zip: app-bundle app-version-file f103 f411 esp
 	mkdir -p $(RELEASE_DIR)
 	rm -f $(RELEASE_ZIP)
 	zip -j $(RELEASE_ZIP) \
 		$(APP_BUNDLE_FILE) \
+		$(APP_VERSION_FILE) \
 		$(BUILD_DIR)/wc12h-stm32f103-sk6812-rgbw.hex \
 		$(BUILD_DIR)/wc12h-stm32f411ce-25-sk6812-rgbw.hex \
 		$(STM_VERSION_FILE) \

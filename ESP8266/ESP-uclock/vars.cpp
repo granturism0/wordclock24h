@@ -221,6 +221,7 @@ static char weather_lat[MAX_WEATHER_LAT_LEN + 1];
 static char update_host[MAX_UPDATE_HOST_LEN + 1];
 static char update_path[MAX_UPDATE_PATH_LEN + 1];
 static char date_ticker_format[MAX_DATE_TICKER_FORMAT_LEN + 1];
+static char reset_cause[MAX_RESET_CAUSE_LEN + 1];
 
 STR_VAR strvars[MAX_STR_VARIABLES] =
 {
@@ -236,6 +237,7 @@ STR_VAR strvars[MAX_STR_VARIABLES] =
     { update_host,          MAX_UPDATE_HOST_LEN },
     { update_path,          MAX_UPDATE_PATH_LEN },
     { date_ticker_format,   MAX_DATE_TICKER_FORMAT_LEN },
+    { reset_cause,          MAX_RESET_CAUSE_LEN },
 };
 
 

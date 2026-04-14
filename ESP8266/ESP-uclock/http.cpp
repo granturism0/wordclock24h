@@ -45,6 +45,7 @@ static uint_fast16_t        hardware_configuration = 0xFFFF;
 #define DEFAULT_UPDATE_PATH                         "update"
 
 #define ESP_WORDCLOCK_TXT                           "ESP-WordClock.txt"             // avaliable version of ESP8266 firmware
+#define APP_VERSION_TXT                             "app-version.txt"               // available version of app bundle
 #define ESP_WORDCLOCK_BIN                           "ESP-WordClock-4M.bin"          // name of ES8266 firmware bin file
 
 #define RELEASENOTE_HTML                            "releasenote.html"              // release notes
@@ -767,10 +768,15 @@ http_style (void)
     http_send_FS ("H3 {FONT-SIZE: 16px}\r\n");
     http_send_FS ("TH {color: darkblue}\r\n");
     http_send_FS ("A {text-decoration: none}\r\n");
-    http_send_FS ("A:link {background: none; color: #eeee00}\r\n");
-    http_send_FS ("A:visited {background: none; color: #eeee00}\r\n");
-    http_send_FS ("A:hover {background: none; color: #ffffff}\r\n");
-    http_send_FS ("A:active {background: none; color: #ffff00}\r\n");
+    http_send_FS (".nav-pane {color: #ffffff}\r\n");
+    http_send_FS (".content-pane {color: #000000}\r\n");
+    http_send_FS (".nav-pane a:link, .nav-pane a:visited {background: none; color: #eeee00}\r\n");
+    http_send_FS (".nav-pane a:hover {background: none; color: #ffffff}\r\n");
+    http_send_FS (".nav-pane a:active {background: none; color: #ffff00}\r\n");
+    http_send_FS (".content-pane a:link {background: none; color: #0000cc}\r\n");
+    http_send_FS (".content-pane a:visited {background: none; color: #551a8b}\r\n");
+    http_send_FS (".content-pane a:hover {background: none; color: #000099}\r\n");
+    http_send_FS (".content-pane a:active {background: none; color: #cc0000}\r\n");
     http_send_FS ("SELECT,BUTTON,.button,.custom-file-upload\r\n");
     http_send_FS ("{\r\n");
     http_send_FS (" background: none;\r\n");
@@ -802,7 +808,7 @@ http_style (void)
 static void
 http_header (const char * title, const char * refresh, const char * url)
 {
-    http_send_FS ("HTTP/1.0 200 OK\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>");
+    http_send_FS ("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n<!DOCTYPE html>\r\n<html><head><meta charset=\"utf-8\"><title>");
 
     http_send (pgm_name);
 
@@ -1420,7 +1426,7 @@ menu_entry (const char * page, const char * entry)
 static void
 begin_box (const char * title)
 {
-    http_send_FS ("<table class=\"bigtable\"><tr><td style=\"padding:10px\" valign=\"top\" bgcolor=\"#000080\">"
+    http_send_FS ("<table class=\"bigtable\"><tr><td class=\"nav-pane\" style=\"padding:10px\" valign=\"top\" bgcolor=\"#000080\">"
                   "<font color=white><H1>");
 
     http_send (pgm_name);
@@ -1452,7 +1458,7 @@ begin_box (const char * title)
     menu_entry ("flash_stm32_local", "Local Update");
     http_send_FS ("<a href=\"/app/\" style=\"text-decoration: none\"><font color=#ffff00><B>New App</B></font></a><BR>");
 
-    http_send_FS ("</td><td style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
+    http_send_FS ("</td><td class=\"content-pane\" style=\"padding:10px\"  align=\"left\" valign=\"top\">\r\n");      // fm: center?
 
     if (title && *title)
     {
@@ -5086,7 +5092,7 @@ http_fs (int post = POST_ICON_NONE)
                       "<P>\r\n");
     }
 
-    http_send_FS ("<table>");
+    http_send_FS ("<table style=\"width:auto\">");
 
     if (fname_icon)
     {
@@ -5094,9 +5100,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_icon);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-icon' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -5106,9 +5112,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_weather);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-icon-weather' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -5118,9 +5124,9 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_tables);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-tables' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
@@ -5130,27 +5136,32 @@ http_fs (int post = POST_ICON_NONE)
         http_send (fname_display);
         http_send_FS ("</td><td>"
                 "<form method='post' action='fs-display' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>"
-                "</td><td><input type='submit' class='button' name='submit' value='Upload'></td>"
-                "</form></tr>"
+                "<label class='custom-file-upload'><input type='file' name='fileField'>File...</label>&nbsp;"
+                "<input type='submit' class='button' name='submit' value='Upload'>"
+                "</form></td></tr>"
                 );
     }
 
-    http_send_FS ("<tr><td colspan='3'><B>WordClock App bundle (/app)</B></td></tr>");
-    http_send_FS ("<tr><td colspan='3'>Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.</td></tr>");
+    http_send_FS ("</table><P>\r\n");
+
+    http_send_FS ("<B>WordClock App bundle (/app)</B><BR>\r\n");
+    http_send_FS ("Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.<P>\r\n");
+
     if (app_bundle_available)
     {
-        http_send_FS ("<tr><td colspan='3'>"
+        http_send_FS (
                       "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
                       "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
                       "</form>"
-                      "</td></tr>");
+                      "<P>\r\n");
     }
+
+    http_send_FS ("<table style=\"width:auto\">");
     http_send_FS ("<tr><td>app-bundle.txt</td><td>"
             "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>"
-            "</td><td><input type='submit' class='button' name='submit' value='Install App'></td>"
-            "</form></tr>"
+            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>&nbsp;"
+            "<input type='submit' class='button' name='submit' value='Install App'>"
+            "</form></td></tr>"
             );
 
     http_send_FS ("</table>");
@@ -5207,7 +5218,9 @@ http_update (void)
 {
     const char *        thispage = "update";
     const char *        update_header_cols[UPDATE_HEADER_COLS]               = { "Name", "Value" };
+    const char *        refresh_url = "/update";
     char *              action;
+    char *              return_to_app;
     char                flash_stm32_filename[MAX_UPDATE_FILENAME_LEN];
     char                stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     int                 do_update = 0;
@@ -5229,6 +5242,12 @@ http_update (void)
     sprintf (flashsizebuf, "%d", flashsize);
 
     action = http_get_param ("action");
+    return_to_app = http_get_param ("return_to_app");
+
+    if (return_to_app && ! strcmp (return_to_app, "1"))
+    {
+        refresh_url = "/app/";
+    }
 
     if (action)
     {
@@ -5273,7 +5292,7 @@ http_update (void)
 
     if (do_update)
     {
-        http_header ("Update", "40", "/update");
+        http_header ("Update", "40", refresh_url);
     }
     else if (do_reset)
     {
@@ -8187,6 +8206,7 @@ http_api_update_status ()
     char * update_path;
     uint32_t flashsize;
     char new_esp_version[16];
+    char new_app_version[16];
     char new_wc_version[16];
     char stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     const char * filter = (const char *) NULL;
@@ -8216,6 +8236,7 @@ http_api_update_status ()
 
     flashsize = ESP.getFlashChipRealSize ();
     http_fetch_remote_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
+    http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, new_app_version, sizeof (new_app_version));
     http_fetch_remote_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
     release_notes = http_fetch_remote_text (update_host, update_path, RELEASENOTE_HTML, 3072);
     http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
@@ -8282,6 +8303,8 @@ http_api_update_status ()
     http_send (sanitize_json_string (ESP_VERSION).c_str ());
     http_send (FS("\",\"esp_available\":\""));
     http_send (sanitize_json_string (new_esp_version).c_str ());
+    http_send (FS("\",\"app_available\":\""));
+    http_send (sanitize_json_string (new_app_version).c_str ());
     http_send (FS("\",\"wc_version\":\""));
     http_send (sanitize_json_string (get_strvar (VERSION_STR_VAR)->str).c_str ());
     http_send (FS("\",\"wc_available\":\""));
