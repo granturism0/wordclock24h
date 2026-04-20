@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.2.77";
+const APP_VERSION = "1.2.79";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -321,6 +321,10 @@ function bindElementEvent(id, eventName, handler) {
   document.getElementById(id).addEventListener(eventName, handler);
 }
 
+function bindDomEvent(target, eventName, handler, options) {
+  target.addEventListener(eventName, handler, options);
+}
+
 function bindElementEvents(bindings) {
   bindings.forEach(([id, eventName, handler]) => {
     bindElementEvent(id, eventName, handler);
@@ -332,6 +336,34 @@ function bindPrefixEvents(prefixes, bindingsByPrefix) {
     bindingsByPrefix(prefix).forEach(([id, eventName, handler]) => {
       bindElementEvent(id, eventName, handler);
     });
+  });
+}
+
+function bindQueryAll(root, selector, eventName, handler) {
+  root.querySelectorAll(selector).forEach((element) => {
+    element.addEventListener(eventName, () => handler(element));
+  });
+}
+
+function bindDataAction(root, dataAttr, handler) {
+  bindQueryAll(root, "[" + dataAttr + "]", "click", (element) => {
+    handler(Number(element.getAttribute(dataAttr)));
+  });
+}
+
+function bindIndexedSuffixAction(root, selector, eventName, handler) {
+  bindQueryAll(root, selector, eventName, (element) => {
+    handler(Number(element.id.split("-").pop()), element);
+  });
+}
+
+function bindDelegatedEvent(root, eventName, selector, handler) {
+  bindDomEvent(root, eventName, (event) => {
+    const target = event.target && event.target.closest ? event.target.closest(selector) : null;
+    if (!target || !root.contains(target)) {
+      return;
+    }
+    handler(target, event);
   });
 }
 
@@ -446,8 +478,11 @@ window.setTimeout(() => {
   } catch (_) {
   }
 }, 250);
-document.querySelectorAll(".module-chip").forEach((button) => {
-  button.addEventListener("click", () => setActiveModule(button.getAttribute("data-module-target") || "main"));
+bindDelegatedEvent(document, "click", ".module-chip", (button) => {
+  setActiveModule(button.getAttribute("data-module-target") || "main");
+});
+bindDelegatedEvent(document, "change", "#health-ambilight-select", () => {
+  void saveAmbilightOnlineState();
 });
 document.addEventListener("input", handleDirtyFormInteraction, true);
 document.addEventListener("change", handleDirtyFormInteraction, true);
@@ -2813,9 +2848,7 @@ function renderDfplayerAlarmRows(settings) {
     );
   }).join("");
 
-  root.querySelectorAll("[data-alarm-save]").forEach((button) => {
-    button.addEventListener("click", () => saveDfplayerAlarm(Number(button.getAttribute("data-alarm-save"))));
-  });
+  bindDataAction(root, "data-alarm-save", saveDfplayerAlarm);
 }
 
 function renderAnimationProfiles(settings) {
@@ -2837,15 +2870,9 @@ function renderAnimationProfiles(settings) {
     "</section>"
   )).join("");
 
-  root.querySelectorAll("[data-an-save]").forEach((button) => {
-    button.addEventListener("click", () => saveAnimationProfile(Number(button.getAttribute("data-an-save"))));
-  });
-  root.querySelectorAll("[data-an-default]").forEach((button) => {
-    button.addEventListener("click", () => resetAnimationProfileDefault(Number(button.getAttribute("data-an-default"))));
-  });
-  root.querySelectorAll('input[id^="an-dec-"]').forEach((input) => {
-    input.addEventListener("input", () => syncProfileRangeValue("an", Number(input.id.split("-").pop())));
-  });
+  bindDataAction(root, "data-an-save", saveAnimationProfile);
+  bindDataAction(root, "data-an-default", resetAnimationProfileDefault);
+  bindIndexedSuffixAction(root, 'input[id^="an-dec-"]', "input", (idx) => syncProfileRangeValue("an", idx));
 }
 
 function renderColorAnimationProfiles(settings) {
@@ -2866,15 +2893,9 @@ function renderColorAnimationProfiles(settings) {
     "</section>"
   )).join("");
 
-  root.querySelectorAll("[data-can-save]").forEach((button) => {
-    button.addEventListener("click", () => saveColorAnimationProfile(Number(button.getAttribute("data-can-save"))));
-  });
-  root.querySelectorAll("[data-can-default]").forEach((button) => {
-    button.addEventListener("click", () => resetColorAnimationProfileDefault(Number(button.getAttribute("data-can-default"))));
-  });
-  root.querySelectorAll('input[id^="can-dec-"]').forEach((input) => {
-    input.addEventListener("input", () => syncProfileRangeValue("can", Number(input.id.split("-").pop())));
-  });
+  bindDataAction(root, "data-can-save", saveColorAnimationProfile);
+  bindDataAction(root, "data-can-default", resetColorAnimationProfileDefault);
+  bindIndexedSuffixAction(root, 'input[id^="can-dec-"]', "input", (idx) => syncProfileRangeValue("can", idx));
 }
 
 function syncProfileRangeValue(prefix, idx) {
@@ -2902,12 +2923,8 @@ function renderAmbilightModeProfiles(settings) {
     "</section>"
   )).join("") : '<p class="hint">Für die erkannte Hardware gibt es keine konfigurierbaren Ambilight-Modi.</p>';
 
-  root.querySelectorAll("[data-alm-save]").forEach((button) => {
-    button.addEventListener("click", () => saveAmbilightModeProfile(Number(button.getAttribute("data-alm-save"))));
-  });
-  root.querySelectorAll("[data-alm-default]").forEach((button) => {
-    button.addEventListener("click", () => resetAmbilightModeProfile(Number(button.getAttribute("data-alm-default"))));
-  });
+  bindDataAction(root, "data-alm-save", saveAmbilightModeProfile);
+  bindDataAction(root, "data-alm-default", resetAmbilightModeProfile);
 }
 
 function renderFileSystem(fsInfo, files, settings) {
@@ -2928,12 +2945,8 @@ function renderFileSystem(fsInfo, files, settings) {
     "</section>"
   )).join("") : '<p class="hint">Noch keine Dateien im LittleFS gefunden.</p>';
 
-  root.querySelectorAll("[data-fs-show]").forEach((button) => {
-    button.addEventListener("click", () => showFsFile(button.getAttribute("data-fs-show") || ""));
-  });
-  root.querySelectorAll("[data-fs-delete]").forEach((button) => {
-    button.addEventListener("click", () => deleteFsFile(button.getAttribute("data-fs-delete") || ""));
-  });
+  bindQueryAll(root, "[data-fs-show]", "click", (button) => showFsFile(button.getAttribute("data-fs-show") || ""));
+  bindQueryAll(root, "[data-fs-delete]", "click", (button) => deleteFsFile(button.getAttribute("data-fs-delete") || ""));
 
   updateFsUploadTargets(settings);
 }
@@ -3182,11 +3195,9 @@ function renderDimCurveList(rootId, values, prefix) {
   }
 
   root.innerHTML = rows.join("");
-  root.querySelectorAll('input[id^="' + prefix + '-dim-"]').forEach((input) => {
-    input.addEventListener("input", () => {
-      syncDimCurveValue(prefix, Number(input.id.split("-").pop()));
-      syncDimPresetSelection(prefix);
-    });
+  bindIndexedSuffixAction(root, 'input[id^="' + prefix + '-dim-"]', "input", (idx) => {
+    syncDimCurveValue(prefix, idx);
+    syncDimPresetSelection(prefix);
   });
 }
 
@@ -3338,31 +3349,14 @@ function renderOverlayRows(settings) {
     );
   }).join("");
 
-  root.querySelectorAll("[data-overlay-save]").forEach((button) => {
-    button.addEventListener("click", () => saveOverlay(Number(button.getAttribute("data-overlay-save"))));
+  bindDataAction(root, "data-overlay-save", saveOverlay);
+  bindDataAction(root, "data-overlay-display", displayOverlay);
+  bindDataAction(root, "data-overlay-delete", deleteOverlay);
+  bindIndexedSuffixAction(root, "[id^='ov-type-']", "change", (idx) => {
+    void handleOverlayTypeChange(idx);
   });
-
-  root.querySelectorAll("[data-overlay-display]").forEach((button) => {
-    button.addEventListener("click", () => displayOverlay(Number(button.getAttribute("data-overlay-display"))));
-  });
-
-  root.querySelectorAll("[data-overlay-delete]").forEach((button) => {
-    button.addEventListener("click", () => deleteOverlay(Number(button.getAttribute("data-overlay-delete"))));
-  });
-
-  root.querySelectorAll("[id^='ov-type-']").forEach((select) => {
-    select.addEventListener("change", () => {
-      void handleOverlayTypeChange(Number(select.id.split("-").pop()));
-    });
-  });
-
-  root.querySelectorAll("[id^='ov-datecode-']").forEach((select) => {
-    select.addEventListener("change", () => updateOverlayRowVisibility(Number(select.id.split("-").pop())));
-  });
-
-  root.querySelectorAll("[id^='ov-month-'], [id^='ov-day-']").forEach((input) => {
-    input.addEventListener("input", () => updateOverlayRowVisibility(Number(input.id.split("-").pop())));
-  });
+  bindIndexedSuffixAction(root, "[id^='ov-datecode-']", "change", (idx) => updateOverlayRowVisibility(idx));
+  bindIndexedSuffixAction(root, "[id^='ov-month-'], [id^='ov-day-']", "input", (idx) => updateOverlayRowVisibility(idx));
 }
 
 function renderTimerRows(settings, isAmbilight) {
@@ -3401,12 +3395,8 @@ function renderTimerRows(settings, isAmbilight) {
     );
   }).join("");
 
-  root.querySelectorAll("[data-" + (isAmbilight ? "at" : "t") + "-save]").forEach((button) => {
-    button.addEventListener("click", () => saveTimerRow(Number(button.getAttribute("data-" + (isAmbilight ? "at" : "t") + "-save")), isAmbilight));
-  });
-  root.querySelectorAll("[data-" + (isAmbilight ? "at" : "t") + "-clear]").forEach((button) => {
-    button.addEventListener("click", () => clearTimerRow(Number(button.getAttribute("data-" + (isAmbilight ? "at" : "t") + "-clear")), isAmbilight));
-  });
+  bindDataAction(root, "data-" + (isAmbilight ? "at" : "t") + "-save", (idx) => saveTimerRow(idx, isAmbilight));
+  bindDataAction(root, "data-" + (isAmbilight ? "at" : "t") + "-clear", (idx) => clearTimerRow(idx, isAmbilight));
 }
 
 function setColorControl(prefix, color, useRgbw, syncTheme) {
@@ -4023,13 +4013,13 @@ function uploadRawFile(url, file, onProgress, onUploadComplete) {
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
 
-    xhr.upload.addEventListener("progress", (event) => {
+    bindDomEvent(xhr.upload, "progress", (event) => {
       if (onProgress) {
         onProgress(event.loaded, event.total || file.size);
       }
     });
 
-    xhr.upload.addEventListener("load", () => {
+    bindDomEvent(xhr.upload, "load", () => {
       if (onUploadComplete) {
         onUploadComplete();
       }
@@ -6017,12 +6007,12 @@ function probeDeviceReadyViaFrame(url, timeoutMs) {
       finish(false);
     }, timeoutMs || 1500);
 
-    frame.addEventListener("load", () => {
+    bindDomEvent(frame, "load", () => {
       window.clearTimeout(timer);
       finish(true);
     }, { once: true });
 
-    frame.addEventListener("error", () => {
+    bindDomEvent(frame, "error", () => {
       window.clearTimeout(timer);
       finish(false);
     }, { once: true });
@@ -6940,7 +6930,6 @@ function renderHealthList(settings, ambilightOnline, dfplayerOnline) {
   const select = document.getElementById("health-ambilight-select");
   if (select) {
     select.value = ambilightOnline ? "on" : "off";
-    select.addEventListener("change", saveAmbilightOnlineState);
   }
 }
 
