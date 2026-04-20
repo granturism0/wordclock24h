@@ -467,6 +467,20 @@ h2 {
   gap: 12px;
 }
 
+.animation-current-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.animation-current-row {
+  display: grid;
+  gap: 12px;
+}
+
+.animation-current-row .field {
+  margin: 0;
+}
+
 .log-window {
   margin: 0;
   min-height: 220px;
@@ -899,6 +913,15 @@ h2 {
 @media (min-width: 900px) {
   .module-section[data-module="animations"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .animation-current-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .animation-current-row .button {
+    white-space: nowrap;
   }
 
   .profile-grid {

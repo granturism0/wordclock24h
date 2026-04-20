@@ -152,12 +152,566 @@ static int      http_response_len = 0;
 #define PWA_PREFIX                                  "/app"
 #define PWA_INDEX_FILE                              "app-index.html"
 #define APP_BUNDLE_FILENAME                         "app-bundle.txt"
+#define APP_BUNDLE_TMP_FILE                         "app-bundle.tmp"
 
 static void             http_json_ok ();
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
+static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
 static int              http_api_stm32_log ();
 static int              http_api_stm32_log_clear ();
+static int              http_api_remote_stm32_flash ();
+static int              http_api_remote_esp_update ();
+static int              http_api_device_ready ();
+static int              http_api_reconnect_probe ();
+static int              http_api_settings_xml ();
+static int              http_api_display_power ();
+static int              http_api_ambilight_power ();
+static int              http_api_power_status ();
+static int              http_api_update_progress ();
+static uint_fast8_t     http_api_app_bundle_upload ();
+static uint_fast8_t     http_filename_matches (const char * actual, const char * expected);
+static uint_fast8_t     http_local_stm32_filename_matches (const char * actual);
+static uint_fast8_t     http_remote_stm32_filename_matches (const char * actual);
+static uint_fast8_t     http_table_download_filename_matches (const char * actual);
+static void             http_remove_table_family_files (const char * keep_filename);
 static int              http_api_live_display_color ();
+static const char *     http_get_configured_icon_filename (void);
+static const char *     http_get_configured_weather_filename (void);
+static const char *     http_find_existing_filename (const char * preferred, const char * const * candidates, size_t candidate_count);
+static String           sanitize_json_string (const String& str);
+
+typedef struct
+{
+    uint_fast8_t    active;
+    char            type[16];
+    char            state[24];
+    char            message[128];
+    uint32_t        progress_current;
+    uint32_t        progress_total;
+    uint32_t        error_code;
+    uint32_t        started_at;
+    uint32_t        updated_at;
+    uint32_t        finished_at;
+} UPDATE_PROGRESS;
+
+static UPDATE_PROGRESS   update_progress;
+
+static void
+update_progress_copy (char * dst, size_t dst_size, const char * src)
+{
+    if (! dst || ! dst_size)
+    {
+        return;
+    }
+
+    strncpy (dst, src ? src : "", dst_size - 1);
+    dst[dst_size - 1] = '\0';
+}
+
+static uint_fast8_t
+http_filename_matches (const char * actual, const char * expected)
+{
+    return actual && expected && ! strcmp (actual, expected) ? 1 : 0;
+}
+
+static uint_fast8_t
+http_tables_filename_matches (const char * actual, const char * target_filename)
+{
+    size_t expected_prefix_len;
+
+    if (! actual || ! target_filename)
+    {
+        return 0;
+    }
+
+    expected_prefix_len = strlen (target_filename);
+
+    if (expected_prefix_len < strlen ("local.txt"))
+    {
+        return 0;
+    }
+
+    expected_prefix_len -= strlen ("local.txt");
+
+    if (strncmp (actual, target_filename, expected_prefix_len))
+    {
+        return 0;
+    }
+
+    return strstr (actual, ".txt") && ! strcmp (actual + strlen (actual) - 4, ".txt") ? 1 : 0;
+}
+
+static const char *
+http_get_configured_icon_filename (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "wc24h-icon.txt";
+        case HW_WC_12H: return "wc12h-icon.txt";
+        case HW_UCLOCK: return "uc-icon.txt";
+    }
+
+    return (const char *) 0;
+}
+
+static const char *
+http_get_configured_weather_filename (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "wc24h-weather.txt";
+        case HW_WC_12H: return "wc12h-weather.txt";
+        case HW_UCLOCK: return "uc-weather.txt";
+    }
+
+    return (const char *) 0;
+}
+
+static const char *
+http_get_tables_family_prefix (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "wc24h-tables-";
+        case HW_WC_12H: return "wc12h-tables-";
+    }
+
+    return (const char *) 0;
+}
+
+static const char *
+http_get_default_layout_preview_filename (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "wc24h-tables-de.txt";
+        case HW_WC_12H: return "wc12h-tables-de.txt";
+    }
+
+    return (const char *) 0;
+}
+
+static uint_fast8_t
+http_get_default_layout_columns (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return 11;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return 18;
+        case HW_WC_12H: return 11;
+        default: return 11;
+    }
+}
+
+static const char *
+http_get_asset_prefix (void)
+{
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "wc24h";
+        case HW_WC_12H: return "wc12h";
+        case HW_UCLOCK: return "uc";
+    }
+
+    return (const char *) 0;
+}
+
+static const char *
+http_get_hardware_label (void)
+{
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: return "WC24h";
+        case HW_WC_12H: return "WC12h";
+        case HW_UCLOCK: return "uClock";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_processor_label (void)
+{
+    switch (hardware_configuration & HW_STM32_MASK)
+    {
+        case HW_STM32_F103C8: return "STM32F103C8";
+        case HW_STM32_F401RE: return "STM32F401RE";
+        case HW_STM32_F411RE: return "STM32F411RE";
+        case HW_STM32_F446RE: return "STM32F446RE";
+        case HW_STM32_F407VE: return "STM32F407VE";
+        case HW_STM32_F401CC: return "STM32F401CC";
+        case HW_STM32_F411CE: return "STM32F411CE";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_board_label (void)
+{
+    switch (hardware_configuration & HW_STM32_MASK)
+    {
+        case HW_STM32_F103C8: return "BluePill";
+        case HW_STM32_F401RE:
+        case HW_STM32_F411RE:
+        case HW_STM32_F446RE: return "Nucleo";
+        case HW_STM32_F407VE: return "BlackBoard";
+        case HW_STM32_F401CC:
+        case HW_STM32_F411CE: return "BlackPill";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_frequency_label (void)
+{
+    switch (hardware_configuration & HW_STM32_MASK)
+    {
+        case HW_STM32_F103C8: return "72 MHz";
+        case HW_STM32_F401RE: return "84 MHz";
+        case HW_STM32_F411RE: return "100 MHz";
+        case HW_STM32_F446RE: return "180 MHz";
+        case HW_STM32_F407VE: return "168 MHz";
+        case HW_STM32_F401CC: return "84 MHz";
+        case HW_STM32_F411CE: return "100 MHz";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_oscillator_label (void)
+{
+    switch (hardware_configuration & HW_OSC_FREQUENCY_MASK)
+    {
+        case HW_OSC_FREQUENCY_8MHZ: return "8 MHz";
+        case HW_OSC_FREQUENCY_25MHZ: return "25 MHz";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_display_label (void)
+{
+    switch (hardware_configuration & HW_LED_MASK)
+    {
+        case HW_LED_WS2812_GRB_LED: return "WS2812 GRB";
+        case HW_LED_WS2812_RGB_LED: return "WS2812 RGB";
+        case HW_LED_APA102_RGB_LED: return "APA102 RGB";
+        case HW_LED_SK6812_RGB_LED: return "SK6812 RGB";
+        case HW_LED_SK6812_RGBW_LED: return "SK6812 RGBW";
+        case HW_LED_TFTLED_RGB_LED: return "TFT RGB";
+    }
+
+    return "unbekannt";
+}
+
+static const char *
+http_get_display_led_mode (void)
+{
+    switch (hardware_configuration & HW_LED_MASK)
+    {
+        case HW_LED_SK6812_RGBW_LED: return "rgbw";
+        case HW_LED_WS2812_GRB_LED:
+        case HW_LED_WS2812_RGB_LED:
+        case HW_LED_APA102_RGB_LED:
+        case HW_LED_SK6812_RGB_LED: return "rgb";
+        case HW_LED_TFTLED_RGB_LED: return "tft";
+    }
+
+    return "none";
+}
+
+static void
+http_json_send_field_prefix (const char * key)
+{
+    http_send (FS(",\""));
+    http_send (key);
+    http_send (FS("\":"));
+}
+
+static void
+http_json_send_bool_field (const char * key, uint_fast8_t value)
+{
+    http_json_send_field_prefix (key);
+    http_send (value ? "true" : "false");
+}
+
+static void
+http_json_send_uint_field (const char * key, unsigned long value)
+{
+    http_json_send_field_prefix (key);
+    http_send (String (value).c_str ());
+}
+
+static void
+http_json_send_string_field (const char * key, const char * value)
+{
+    http_json_send_field_prefix (key);
+    http_send (FS("\""));
+    http_send (sanitize_json_string (value ? value : "").c_str ());
+    http_send (FS("\""));
+}
+
+static void
+http_json_send_string_field (const char * key, const String& value)
+{
+    http_json_send_string_field (key, value.c_str ());
+}
+
+static const char *
+http_get_local_update_message (uint32_t flashsize)
+{
+    if (flashsize < 1048576UL)
+    {
+        return "Lokales Update ist bei dieser ESP-Flashgroesse nicht verfuegbar.";
+    }
+
+    return "ESP- oder STM32-Datei auswaehlen und direkt lokal hochladen.";
+}
+
+static const char *
+http_find_existing_filename (const char * preferred, const char * const * candidates, size_t candidate_count)
+{
+    size_t idx;
+
+    if (preferred && LittleFS.exists (preferred))
+    {
+        return preferred;
+    }
+
+    for (idx = 0; idx < candidate_count; idx++)
+    {
+        const char * candidate = candidates[idx];
+
+        if (candidate && (! preferred || strcmp (candidate, preferred)) && LittleFS.exists (candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return preferred;
+}
+
+static uint_fast8_t
+http_local_stm32_filename_matches (const char * actual)
+{
+    char            default_filename[MAX_UPDATE_FILENAME_LEN];
+    const char *    filter = (const char *) NULL;
+
+    if (! actual)
+    {
+        return 0;
+    }
+
+    http_build_stm32_default_filename (default_filename, sizeof (default_filename), &filter);
+
+    if (! default_filename[0])
+    {
+        return 0;
+    }
+
+    return http_filename_matches (actual, default_filename);
+}
+
+static uint_fast8_t
+http_remote_stm32_filename_matches (const char * actual)
+{
+    char            default_filename[MAX_UPDATE_FILENAME_LEN];
+    const char *    filter = (const char *) NULL;
+
+    if (! actual || ! *actual)
+    {
+        return 0;
+    }
+
+    http_build_stm32_default_filename (default_filename, sizeof (default_filename), &filter);
+
+    if (! filter || strlen (actual) < 6)
+    {
+        return 0;
+    }
+
+    return ! strncmp (actual + 6, filter, strlen (filter)) ? 1 : 0;
+}
+
+static uint_fast8_t
+http_local_esp_filename_matches (const char * actual)
+{
+    size_t len;
+
+    if (! actual)
+    {
+        return 0;
+    }
+
+    len = strlen (actual);
+
+    return len >= 4 && ! strcmp (actual + len - 4, ".bin") ? 1 : 0;
+}
+
+static uint_fast8_t
+http_table_download_filename_matches (const char * actual)
+{
+    const char * prefix = (const char *) NULL;
+
+    if (! actual)
+    {
+        return 0;
+    }
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: prefix = "wc24h-tables-"; break;
+        case HW_WC_12H: prefix = "wc12h-tables-"; break;
+        default:        prefix = (const char *) NULL; break;
+    }
+
+    if (! prefix)
+    {
+        return 0;
+    }
+
+    return ! strncmp (actual, prefix, strlen (prefix)) && strstr (actual, ".txt") && ! strcmp (actual + strlen (actual) - 4, ".txt") ? 1 : 0;
+}
+
+static void
+http_remove_table_family_files (const char * keep_filename)
+{
+    Dir             dir;
+    const char *    prefix = (const char *) NULL;
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H: prefix = "wc24h-tables-"; break;
+        case HW_WC_12H: prefix = "wc12h-tables-"; break;
+        default:        prefix = (const char *) NULL; break;
+    }
+
+    if (! prefix)
+    {
+        return;
+    }
+
+    dir = LittleFS.openDir ("");
+
+    while (dir.next ())
+    {
+        String str = dir.fileName ();
+        const char * current = str.c_str ();
+        int len = strlen (current);
+
+        if (! strncmp (current, prefix, strlen (prefix)) &&
+            len > 4 &&
+            ! strcmp (current + len - 4, ".txt") &&
+            (! keep_filename || strcmp (current, keep_filename)))
+        {
+            LittleFS.remove (current);
+        }
+    }
+}
+
+void
+update_progress_begin (const char * type, const char * state, const char * message)
+{
+    memset (&update_progress, 0, sizeof (update_progress));
+    update_progress.active = 1;
+    update_progress.started_at = millis ();
+    update_progress.updated_at = update_progress.started_at;
+    update_progress_copy (update_progress.type, sizeof (update_progress.type), type);
+    update_progress_copy (update_progress.state, sizeof (update_progress.state), state ? state : "starting");
+    update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
+}
+
+void
+update_progress_state (const char * state, const char * message)
+{
+    update_progress.updated_at = millis ();
+
+    if (state)
+    {
+        update_progress_copy (update_progress.state, sizeof (update_progress.state), state);
+    }
+
+    if (message)
+    {
+        update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
+    }
+}
+
+void
+update_progress_set_progress (uint32_t current, uint32_t total)
+{
+    update_progress.progress_current = current;
+    update_progress.progress_total = total;
+    update_progress.updated_at = millis ();
+}
+
+void
+update_progress_complete (const char * message)
+{
+    update_progress.active = 0;
+    update_progress.updated_at = millis ();
+    update_progress.finished_at = update_progress.updated_at;
+    update_progress_copy (update_progress.state, sizeof (update_progress.state), "done");
+
+    if (message)
+    {
+        update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
+    }
+}
+
+void
+update_progress_fail (uint32_t error_code, const char * message)
+{
+    update_progress.active = 0;
+    update_progress.error_code = error_code;
+    update_progress.updated_at = millis ();
+    update_progress.finished_at = update_progress.updated_at;
+    update_progress_copy (update_progress.state, sizeof (update_progress.state), "error");
+
+    if (message)
+    {
+        update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
+    }
+}
+
+void
+update_progress_clear (void)
+{
+    memset (&update_progress, 0, sizeof (update_progress));
+}
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
@@ -335,6 +889,7 @@ http_send_fs_file (const char * filename, const char * content_type)
     }
 
     LittleFS.end ();
+
     return rtc;
 }
 
@@ -351,31 +906,14 @@ http_app_installation_complete (void)
         "app-icons-icon-192.svg",
         "app-icons-icon-512.svg"
     };
-    bool file_found[sizeof (required_files) / sizeof (required_files[0])] = { false };
     uint_fast8_t idx;
     bool rtc = true;
 
     LittleFS.begin ();
 
-    Dir dir = LittleFS.openDir ("");
-
-    while (dir.next ())
-    {
-        String file_name = dir.fileName ();
-
-        for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
-        {
-            if (! strcmp (file_name.c_str (), required_files[idx]))
-            {
-                file_found[idx] = true;
-                break;
-            }
-        }
-    }
-
     for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
     {
-        if (! file_found[idx])
+        if (! LittleFS.exists (required_files[idx]))
         {
             rtc = false;
             break;
@@ -498,75 +1036,6 @@ http_app (const char * path)
         return 0;
     }
 
-    if (! app_complete && is_pwa_index)
-    {
-        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
-        http_send (FS(
-            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
-            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-            "<title>Neue App wird vorbereitet</title>"
-            "<style>"
-            "body{font-family:Arial,sans-serif;background:#0b1422;color:#eef4ff;padding:24px;line-height:1.5;}"
-            ".card{max-width:760px;margin:0 auto;background:#132033;border:1px solid rgba(255,255,255,.08);"
-            "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
-            "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}strong{color:#fff;}"
-            ".status{margin:18px 0;padding:16px 18px;border-radius:14px;background:#0f1b2c;border:1px solid rgba(255,255,255,.08);"
-            "color:#d7e6fb;font-weight:600;}"
-            ".muted{font-size:14px;color:#9fb3cf;}"
-            ".actions{display:none;margin-top:18px;}"
-            "a{display:inline-block;margin:8px 12px 0 0;padding:12px 16px;border-radius:999px;text-decoration:none;"
-            "background:#2d5275;color:#fff;border:1px solid rgba(255,255,255,.15);}"
-            "</style></head><body><div class='card'>"
-            "<h1>Neue App wird vorbereitet</h1>"
-            "<p>Die WordClock App ist auf diesem Gerät noch nicht vollständig installiert.</p>"
-            "<div id='status' class='status'>Verbinde mit Update-Server und starte Installation...</div>"
-            "<p class='muted'>Bitte diese Seite offen lassen. Nach erfolgreicher Installation wird automatisch in die neue App gewechselt.</p>"
-            "<div id='actions' class='actions' style='display:none'>"
-            "<a href='/app'>Erneut versuchen</a>"
-            "<a href='/fs'>Zu Dateien / App-Paket</a>"
-            "<a href='/update'>Zu Update</a>"
-            "<a href='/'>Zur Legacy-Seite</a>"
-            "</div>"
-            "<script>"
-            "(function(){"
-              "var status=document.getElementById('status');"
-              "var actions=document.getElementById('actions');"
-              "var finished=false;"
-              "function showError(msg){finished=true;status.textContent=msg;actions.style.display='block';}"
-              "window.setTimeout(function(){if(!finished){status.textContent='Lade neue App vom Server...';}},350);"
-              "window.setTimeout(function(){if(!finished){status.textContent='Installiere neue App auf dem Gerät...';}},3500);"
-              "window.setTimeout(function(){if(!finished){showError('Der automatische Installationsversuch hat keine rechtzeitige Antwort geliefert. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das App-Paket prüfen.');}},20000);"
-              "fetch('/api/update_download_app_bundle',{cache:'no-store'})"
-                ".then(function(r){return r.json();})"
-                ".then(function(data){"
-                  "if(finished){return;}"
-                  "if(data&&data.ok){"
-                    "finished=true;"
-                    "status.textContent='Neue App wurde installiert. Wechsel zur neuen App...';"
-                    "window.setTimeout(function(){window.location.replace('/app');},900);"
-                  "}else{"
-                    "if(data&&data.error==='download_failed'){"
-                      "showError('Das App-Paket konnte vom konfigurierten Server nicht geladen werden. Bitte Update-Host, Update-Pfad, Servererreichbarkeit oder das bereitgestellte app-bundle.txt prüfen.');"
-                    "}else if(data&&data.error==='install_failed'){"
-                      "showError('Das App-Paket wurde geladen, konnte aber auf dem Gerät nicht erfolgreich installiert werden. Bitte LittleFS und das App-Paket prüfen.');"
-                    "}else{"
-                      "showError('Automatische Installation nicht erfolgreich. Bitte Update-Host, Update-Pfad oder App-Paket prüfen.');"
-                    "}"
-                  "}"
-                "})"
-                ".catch(function(){if(!finished){showError('Automatische Installation konnte nicht gestartet werden. Bitte manuell prüfen.');}});"
-            "})();"
-            "</script>"
-            "</div></body></html>"
-        ));
-        http_flush ();
-        return 0;
-    }
-    if (! app_complete && http_try_auto_install_app_bundle ())
-    {
-        sent = http_send_fs_file (filename, content_type);
-    }
-
     if (! sent)
     {
         if (is_pwa_index)
@@ -586,7 +1055,7 @@ http_app (const char * path)
                 "</style></head><body><div class='card'>"
                 "<h1>WordClock App ist noch nicht installiert</h1>"
                 "<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"
-                "<p><strong>Weiter so:</strong> App-Paket über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"
+                "<p><strong>Weiter so:</strong> App-Paket manuell über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"
                 "<a href='/fs'>Zu Dateien / App-Paket</a>"
                 "<a href='/update'>Zu Update</a>"
                 "<a href='/'>Zur Legacy-Seite</a>"
@@ -1477,30 +1946,15 @@ end_box (void)
 static uint_fast8_t
 icon_files_exist (void)
 {
-    const char *    fname_icon = (const char *) 0;
-    const char *    fname_weather = (const char *) 0;
+    static const char * const icon_candidates[] = { "wc24h-icon.txt", "wc12h-icon.txt", "uc-icon.txt" };
+    static const char * const weather_candidates[] = { "wc24h-weather.txt", "wc12h-weather.txt", "uc-weather.txt" };
+    const char *    fname_icon;
+    const char *    fname_weather;
     uint_fast8_t    rtc = 0;
 
     LittleFS.begin();
-
-    if (hardware_configuration != 0xFFFF)
-    {
-        switch (hardware_configuration & HW_WC_MASK)
-        {
-            case HW_WC_24H:
-                fname_icon       = "wc24h-icon.txt";
-                fname_weather    = "wc24h-weather.txt";
-                break;
-            case HW_WC_12H:
-                fname_icon       = "wc12h-icon.txt";
-                fname_weather    = "wc12h-weather.txt";
-                break;
-            case HW_UCLOCK:
-                fname_icon       = "uc-icon.txt";
-                fname_weather    = "uc-weather.txt";
-                break;
-        }
-    }
+    fname_icon = http_find_existing_filename (http_get_configured_icon_filename (), icon_candidates, sizeof (icon_candidates) / sizeof (icon_candidates[0]));
+    fname_weather = http_find_existing_filename (http_get_configured_weather_filename (), weather_candidates, sizeof (weather_candidates) / sizeof (weather_candidates[0]));
 
     if (fname_icon && fname_weather && LittleFS.exists(fname_icon) && LittleFS.exists(fname_weather))
     {
@@ -2594,6 +3048,7 @@ http_ambilight_brightness (void)
 static void
 select_icons (const char * id, const char * name)
 {
+    static const char * const icon_candidates[] = { "wc24h-icon.txt", "wc12h-icon.txt", "uc-icon.txt" };
     const char *  fname = (const char *) 0;
     char          icon_name[32 + 1];
 
@@ -2605,15 +3060,7 @@ select_icons (const char * id, const char * name)
 
     LittleFS.begin ();
 
-    if (hardware_configuration != 0xFFFF)
-    {
-        switch (hardware_configuration & HW_WC_MASK)
-        {
-            case HW_WC_24H: fname = "wc24h-icon.txt";  break;
-            case HW_WC_12H: fname = "wc12h-icon.txt";  break;
-            case HW_UCLOCK: fname = "uc-icon.txt";  break;
-        }
-    }
+    fname = http_find_existing_filename (http_get_configured_icon_filename (), icon_candidates, sizeof (icon_candidates) / sizeof (icon_candidates[0]));
 
     if (fname)
     {
@@ -2968,6 +3415,7 @@ http_animations (void)
             {
                 DISPLAY_ANIMATION * da = get_display_animation_var (animation_idx);
                 set_display_animation_deceleration (animation_idx, da->default_deceleration);
+                set_display_animation_flags (animation_idx, da->flags | ANIMATION_FLAG_FAVOURITE);
             }
         }
         else if (! strncmp (action, "savean", 6))
@@ -4631,8 +5079,6 @@ install_app_bundle (const char * bundle_filename)
 #define POST_DISPLAY_FILE         4
 #define POST_APP_BUNDLE_FILE      5
 
-#define APP_BUNDLE_TMP_FILE       "app-bundle.tmp"
-
 static uint_fast8_t
 http_fs (int post = POST_ICON_NONE)
 {
@@ -5209,6 +5655,139 @@ http_fs (int post = POST_ICON_NONE)
     return rtc;
 }
 
+static const char *
+http_get_fs_upload_filename (uint_fast8_t post)
+{
+    uint_fast16_t led;
+
+    if (hardware_configuration == 0xFFFF)
+    {
+        return (const char *) 0;
+    }
+
+    led = hardware_configuration & HW_LED_MASK;
+
+    switch (hardware_configuration & HW_WC_MASK)
+    {
+        case HW_WC_24H:
+            switch (post)
+            {
+                case POST_ICON_FILE:         return "wc24h-icon.txt";
+                case POST_ICON_WEATHER_FILE: return "wc24h-weather.txt";
+                case POST_TABLES_FILE:       return "wc24h-tables-local.txt";
+                case POST_DISPLAY_FILE:      return led == HW_LED_TFTLED_RGB_LED ? "wc24h-display-local.txt" : (const char *) 0;
+            }
+            break;
+
+        case HW_WC_12H:
+            switch (post)
+            {
+                case POST_ICON_FILE:         return "wc12h-icon.txt";
+                case POST_ICON_WEATHER_FILE: return "wc12h-weather.txt";
+                case POST_TABLES_FILE:       return "wc12h-tables-local.txt";
+                case POST_DISPLAY_FILE:      return led == HW_LED_TFTLED_RGB_LED ? "wc12h-display-local.txt" : (const char *) 0;
+            }
+            break;
+
+        case HW_UCLOCK:
+            switch (post)
+            {
+                case POST_ICON_FILE:         return "uc-icon.txt";
+                case POST_ICON_WEATHER_FILE: return "uc-weather.txt";
+            }
+            break;
+    }
+
+    return (const char *) 0;
+}
+
+static uint_fast8_t
+http_api_fs_upload (uint_fast8_t post)
+{
+    const char *    filename = http_get_fs_upload_filename (post);
+    const char *    target_filename = filename;
+    size_t          content_length = 0;
+    uint_fast8_t    ok = 0;
+    uint32_t        error_code = 0;
+    char *          uploaded_name = http_get_param ("filename");
+
+    if (! filename)
+    {
+        error_code = 1;
+    }
+    else if ((post == POST_TABLES_FILE && ! http_tables_filename_matches (uploaded_name, filename)) ||
+             (post != POST_TABLES_FILE && ! http_filename_matches (uploaded_name, filename)))
+    {
+        error_code = 5;
+    }
+    else if (! read_post_headers (&content_length) || content_length == 0)
+    {
+        error_code = 2;
+    }
+    else
+    {
+        LittleFS.begin ();
+
+        if (post == POST_TABLES_FILE)
+        {
+            target_filename = uploaded_name;
+            http_remove_table_family_files (target_filename);
+        }
+
+        File f = LittleFS.open (target_filename, "w+");
+
+        if (! f)
+        {
+            error_code = 3;
+        }
+        else
+        {
+            ok = read_request_body_to_file (f, content_length) ? 1 : 0;
+            f.close ();
+
+            if (! ok)
+            {
+                LittleFS.remove (target_filename);
+                error_code = 4;
+            }
+            else if (post == POST_TABLES_FILE)
+            {
+                tables_init ();
+            }
+        }
+
+        LittleFS.end ();
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code).c_str ());
+        http_send (FS(",\"detail\":\""));
+
+        switch (error_code)
+        {
+            case 1: http_send (FS("target unavailable")); break;
+            case 2: http_send (FS("invalid request")); break;
+            case 3: http_send (FS("open failed")); break;
+            case 4: http_send (FS("upload failed")); break;
+            case 5: http_send (FS("invalid filename")); break;
+            default: http_send (FS("unknown error")); break;
+        }
+
+        http_send (FS("\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * HTTP update
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -5310,6 +5889,7 @@ http_update (void)
         if (flash_stm32_filename[0])
         {
             int i;
+            bool ok;
 
             for (i = 0; i < 100; i++)
             {                                                   // send 1000 spaces to force Browser to begin rendering
@@ -5327,10 +5907,20 @@ http_update (void)
             Serial.println (flash_stm32_filename);
 
             delay (200);
-            stm32_flash_from_server (update_host, update_path, flash_stm32_filename);
+            update_progress_begin ("stm32", "starting", "STM32-Update wird vorbereitet.");
+            ok = stm32_flash_from_server (update_host, update_path, flash_stm32_filename);
             delay (200);
             Serial.println ("End of flashmode\r\n");
             Serial.flush ();
+
+            if (ok)
+            {
+                update_progress_complete ("STM32-Flash abgeschlossen. Warte auf Reset.");
+            }
+            else if (! update_progress.error_code)
+            {
+                update_progress_fail (1, "STM32-Flash fehlgeschlagen.");
+            }
 
             http_send_FS ("Done. <font color=red>Please Reset your STM32 now!</font></B><BR>\r\n"
                           "<form method=\"GET\" action=\"/update\">\r\n"
@@ -5343,12 +5933,14 @@ http_update (void)
         }
         else if (do_reset)
         {
+            update_progress_state ("reset", "STM32 wird zurückgesetzt.");
             http_send_FS ("<P><B>Resetting STM32, reconnecting in 20 seconds ...</B><BR>\r\n");
             end_box ();
             http_trailer ();
             http_flush ();
             delay (200);
             stm32_reset ();
+            update_progress_complete ("STM32 wurde zurückgesetzt.");
         }
         else
         {
@@ -5357,6 +5949,7 @@ http_update (void)
                 char path[MAX_UPDATE_HOST_LEN + MAX_UPDATE_PATH_LEN + MAX_UPDATE_FILENAME_LEN + 3];
     
                 sprintf (path, "/%s/%s", update_path, ESP_WORDCLOCK_BIN);
+                update_progress_begin ("esp", "starting", "ESP-Firmware-Update wird gestartet.");
     
                 http_send_FS ("<P><B>Updating ESP firmware '");
                 http_send (path);
@@ -5370,6 +5963,7 @@ http_update (void)
                 }
                 http_client.stop();
                 delay (200);
+                update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
     
                 t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
     
@@ -5377,10 +5971,12 @@ http_update (void)
                 {
                     case HTTP_UPDATE_FAILED:
                         Serial.println("HTTP update: failed");
+                        update_progress_fail (ESPhttpUpdate.getLastError (), ESPhttpUpdate.getLastErrorString ().c_str ());
                         break;
     
                     case HTTP_UPDATE_NO_UPDATES:
                         Serial.println("HTTP update: no updates");
+                        update_progress_complete ("Keine neue ESP-Firmware verfügbar.");
                         break;
     
                     case HTTP_UPDATE_OK:
@@ -5834,14 +6430,14 @@ http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len
 }
 
 static int
-http_get_settings()
+http_send_settings_xml (const char * header)
 {
     char          buff[255];
     int           i;
     uint_fast8_t  ui;
     TM *          tm;
 
-    http_send(FS("HTTP/1.0 200 OK\r\n\r\n"));
+    http_send(header ? header : FS("HTTP/1.0 200 OK\r\n\r\n"));
     http_send(FS("<settings>"));
 
     // num vars
@@ -5985,6 +6581,18 @@ http_get_settings()
 }
 
 static int
+http_get_settings()
+{
+    return http_send_settings_xml (FS("HTTP/1.0 200 OK\r\n\r\n"));
+}
+
+static int
+http_api_settings_xml ()
+{
+    return http_send_settings_xml (FS("HTTP/1.0 200 OK\r\nContent-Type: text/xml; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+}
+
+static int
 http_get_display_power ()
 {
     http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n"));
@@ -5999,6 +6607,40 @@ http_get_ambilight_power ()
 {
     http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n"));
     http_send(get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on\n" : "off\n");
+    http_flush();
+
+    return 0;
+}
+
+static int
+http_api_display_power ()
+{
+    http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send(get_numvar (DISPLAY_POWER_NUM_VAR) ? "on\n" : "off\n");
+    http_flush();
+
+    return 0;
+}
+
+static int
+http_api_ambilight_power ()
+{
+    http_send(FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send(get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on\n" : "off\n");
+    http_flush();
+
+    return 0;
+}
+
+static int
+http_api_power_status ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"display_power\":\""));
+    http_send(get_numvar (DISPLAY_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\",\"ambilight_power\":\""));
+    http_send(get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
     http_flush();
 
     return 0;
@@ -6726,6 +7368,143 @@ http_api_update_download_app_bundle ()
 }
 
 static int
+http_api_update_download_table ()
+{
+    STR_VAR *       sv;
+    char *          update_host;
+    char *          update_path;
+    char *          filename = http_get_param ("filename");
+    int             download_rtc = 0;
+
+    if (! http_table_download_filename_matches (filename))
+    {
+        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS("{\"ok\":false,\"error\":\"invalid_filename\"}"));
+        http_flush ();
+        return 0;
+    }
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        update_host = (char *) DEFAULT_UPDATE_HOST;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        update_path = (char *) DEFAULT_UPDATE_PATH;
+    }
+
+    LittleFS.begin ();
+    download_rtc = download_file (update_host, update_path, filename);
+    LittleFS.end ();
+
+    if (download_rtc == 1)
+    {
+        tables_init ();
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (download_rtc == 1 ? "true" : "false");
+
+    if (download_rtc != 1)
+    {
+        http_send (FS(",\"error\":\"download_failed\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static uint_fast8_t
+http_api_app_bundle_upload ()
+{
+    size_t          content_length = 0;
+    uint_fast8_t    ok = 0;
+    uint32_t        error_code = 0;
+    char *          uploaded_name = http_get_param ("filename");
+
+    if (! http_filename_matches (uploaded_name, APP_BUNDLE_FILENAME))
+    {
+        error_code = 5;
+    }
+    else if (! read_post_headers (&content_length) || content_length == 0)
+    {
+        error_code = 1;
+    }
+    else
+    {
+        LittleFS.begin ();
+
+        File f = LittleFS.open (APP_BUNDLE_TMP_FILE, "w+");
+
+        if (! f)
+        {
+            error_code = 2;
+        }
+        else
+        {
+            uint_fast8_t stored = read_request_body_to_file (f, content_length) ? 1 : 0;
+
+            f.close ();
+
+            if (! stored)
+            {
+                LittleFS.remove (APP_BUNDLE_TMP_FILE);
+                error_code = 3;
+            }
+            else
+            {
+                ok = install_app_bundle (APP_BUNDLE_TMP_FILE) == 1 ? 1 : 0;
+
+                if (! ok)
+                {
+                    error_code = 4;
+                }
+            }
+        }
+
+        LittleFS.end ();
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code).c_str ());
+        http_send (FS(",\"detail\":\""));
+
+        switch (error_code)
+        {
+            case 1: http_send (FS("invalid request")); break;
+            case 2: http_send (FS("open failed")); break;
+            case 3: http_send (FS("upload failed")); break;
+            case 4: http_send (FS("install failed")); break;
+            case 5: http_send (FS("invalid filename")); break;
+            default: http_send (FS("unknown error")); break;
+        }
+
+        http_send (FS("\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+static int
 http_api_maintenance_format_fs ()
 {
     LittleFS.begin ();
@@ -6742,11 +7521,13 @@ http_api_maintenance_format_fs ()
 static int
 http_api_maintenance_reset_stm32 ()
 {
+    update_progress_state ("reset", "STM32 wird zurückgesetzt.");
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();
     delay (200);
     stm32_reset ();
+    update_progress_complete ("STM32 wurde zurückgesetzt.");
 
     return 0;
 }
@@ -7067,6 +7848,7 @@ http_api_animation_profile_default ()
     {
         DISPLAY_ANIMATION * da = get_display_animation_var (idx);
         set_display_animation_deceleration (idx, da->default_deceleration);
+        set_display_animation_flags (idx, da->flags | ANIMATION_FLAG_FAVOURITE);
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -7967,22 +8749,14 @@ http_api_ambilight_timer_set ()
 static int
 http_api_overlay_icons ()
 {
+    static const char * const icon_candidates[] = { "wc24h-icon.txt", "wc12h-icon.txt", "uc-icon.txt" };
     const char *  fname = (const char *) 0;
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("["));
 
-    if (hardware_configuration != 0xFFFF)
-    {
-        switch (hardware_configuration & HW_WC_MASK)
-        {
-            case HW_WC_24H: fname = "wc24h-icon.txt";  break;
-            case HW_WC_12H: fname = "wc12h-icon.txt";  break;
-            case HW_UCLOCK: fname = "uc-icon.txt";     break;
-        }
-    }
-
     LittleFS.begin ();
+    fname = http_find_existing_filename (http_get_configured_icon_filename (), icon_candidates, sizeof (icon_candidates) / sizeof (icon_candidates[0]));
 
     if (fname)
     {
@@ -8020,7 +8794,7 @@ http_api_overlay_icons ()
                 }
 
                 http_send (FS("\""));
-                http_send (sanitize_xml_string(icon_name).c_str());
+                http_send (sanitize_json_string(icon_name).c_str());
                 http_send (FS("\""));
                 first = 0;
 
@@ -8291,29 +9065,172 @@ http_api_update_status ()
     sprintf (buf, "%d", flashsize);
     http_send (buf);
 
-    http_send (FS(",\"can_update\":"));
-    http_send (flashsize >= 4194304 ? "true" : "false");
-    http_send (FS(",\"local_update_supported\":"));
-    http_send (flashsize >= 1048576 ? "true" : "false");
-    http_send (FS(",\"assets_available\":"));
-    http_send (assets_available ? "true" : "false");
-    http_send (FS(",\"app_bundle_available\":"));
-    http_send (app_bundle_available ? "true" : "false");
-    http_send (FS(",\"esp_version\":\""));
-    http_send (sanitize_json_string (ESP_VERSION).c_str ());
-    http_send (FS("\",\"esp_available\":\""));
-    http_send (sanitize_json_string (new_esp_version).c_str ());
-    http_send (FS("\",\"app_available\":\""));
-    http_send (sanitize_json_string (new_app_version).c_str ());
-    http_send (FS("\",\"wc_version\":\""));
-    http_send (sanitize_json_string (get_strvar (VERSION_STR_VAR)->str).c_str ());
-    http_send (FS("\",\"wc_available\":\""));
-    http_send (sanitize_json_string (new_wc_version).c_str ());
-    http_send (FS("\",\"release_notes\":\""));
-    http_send (sanitize_json_string (release_notes).c_str ());
-    http_send (FS("\",\"stm32_default\":\""));
-    http_send (sanitize_json_string (stm32_default_filename).c_str ());
-    http_send (FS("\",\"stm32_files\":["));
+    http_json_send_bool_field (FS("can_update"), flashsize >= 4194304UL);
+    http_json_send_bool_field (FS("local_update_supported"), flashsize >= 1048576UL);
+    http_json_send_string_field (FS("local_update_message"), http_get_local_update_message (flashsize));
+    http_json_send_bool_field (FS("assets_available"), assets_available);
+    http_json_send_bool_field (FS("app_bundle_available"), app_bundle_available);
+    http_json_send_bool_field (FS("legacy_path_supported"), 1);
+    http_json_send_bool_field (FS("device_ready_api_supported"), 1);
+    http_json_send_bool_field (FS("reconnect_probe_api_supported"), 1);
+    http_json_send_bool_field (FS("remote_esp_update_api_supported"), 0);
+    http_json_send_bool_field (FS("settings_api_supported"), 1);
+    http_json_send_bool_field (FS("display_power_api_supported"), 1);
+    http_json_send_bool_field (FS("ambilight_power_api_supported"), 1);
+    http_json_send_bool_field (FS("power_status_api_supported"), 1);
+    http_json_send_bool_field (FS("update_download_assets_api_supported"), 1);
+    http_json_send_bool_field (FS("update_download_app_bundle_api_supported"), 1);
+    http_json_send_bool_field (FS("update_download_table_api_supported"), 1);
+    http_json_send_bool_field (FS("app_bundle_upload_api_supported"), 1);
+    http_json_send_bool_field (FS("fs_target_upload_api_supported"), 1);
+    http_json_send_bool_field (FS("local_stm32_upload_api_supported"), 1);
+    http_json_send_bool_field (FS("local_esp_update_api_supported"), 1);
+    http_json_send_bool_field (FS("remote_stm32_flash_api_supported"), 1);
+
+    http_json_send_string_field (FS("legacy_entry_url"), "/legacy");
+    http_json_send_string_field (FS("legacy_fallback_url"), "/");
+    http_json_send_string_field (FS("root_probe_url"), "/");
+    http_json_send_string_field (FS("device_ready_url"), "/api/device_ready");
+    http_json_send_string_field (FS("reconnect_probe_url"), "/api/reconnect_probe");
+    http_json_send_string_field (FS("remote_esp_update_url"), "/update?action=update&return_to_app=1");
+    http_json_send_string_field (FS("remote_stm32_update_base_url"), "/update?action=flash&stm32_filenames=");
+    http_json_send_string_field (FS("update_status_url"), "/api/update_status");
+    http_json_send_string_field (FS("settings_url"), "/api/settings_xml");
+    http_json_send_string_field (FS("settings_legacy_url"), "/get_settings");
+    http_json_send_string_field (FS("display_power_url"), "/api/display_power");
+    http_json_send_string_field (FS("display_power_legacy_url"), "/display_power");
+    http_json_send_string_field (FS("display_power_set_url"), "/api/display_power_set");
+    http_json_send_string_field (FS("display_test_url"), "/api/test_display");
+    http_json_send_string_field (FS("display_brightness_set_url"), "/api/display_brightness_set");
+    http_json_send_string_field (FS("display_it_is_set_url"), "/api/display_it_is_set");
+    http_json_send_string_field (FS("display_mode_set_url"), "/api/display_mode_set");
+    http_json_send_string_field (FS("display_use_rgbw_set_url"), "/api/display_use_rgbw_set");
+    http_json_send_string_field (FS("ticker_set_url"), "/api/ticker_set");
+    http_json_send_string_field (FS("date_ticker_format_set_url"), "/api/date_ticker_format_set");
+    http_json_send_string_field (FS("ticker_deceleration_set_url"), "/api/ticker_deceleration_set");
+    http_json_send_string_field (FS("ambilight_power_url"), "/api/ambilight_power");
+    http_json_send_string_field (FS("ambilight_power_legacy_url"), "/ambilight_power");
+    http_json_send_string_field (FS("ambilight_power_set_url"), "/api/ambilight_power_set");
+    http_json_send_string_field (FS("ambilight_online_set_url"), "/api/ambilight_online_set");
+    http_json_send_string_field (FS("power_status_url"), "/api/power_status");
+    http_json_send_string_field (FS("maintenance_reset_stm32_url"), "/api/maintenance_reset_stm32");
+    http_json_send_string_field (FS("maintenance_reset_eeprom_url"), "/api/maintenance_reset_eeprom");
+    http_json_send_string_field (FS("maintenance_format_fs_url"), "/api/maintenance_format_fs");
+    http_json_send_string_field (FS("auto_brightness_set_url"), "/api/auto_brightness_set");
+    http_json_send_string_field (FS("network_timeserver_set_url"), "/api/network_timeserver_set");
+    http_json_send_string_field (FS("network_client_set_url"), "/api/network_client_set");
+    http_json_send_string_field (FS("network_ap_set_url"), "/api/network_ap_set");
+    http_json_send_string_field (FS("network_timezone_set_url"), "/api/network_timezone_set");
+    http_json_send_string_field (FS("network_summertime_set_url"), "/api/network_summertime_set");
+    http_json_send_string_field (FS("update_host_set_url"), "/api/update_host_set");
+    http_json_send_string_field (FS("update_path_set_url"), "/api/update_path_set");
+    http_json_send_string_field (FS("datetime_set_url"), "/api/datetime_set");
+    http_json_send_string_field (FS("weather_appid_set_url"), "/api/weather_appid_set");
+    http_json_send_string_field (FS("weather_city_set_url"), "/api/weather_city_set");
+    http_json_send_string_field (FS("weather_coordinates_set_url"), "/api/weather_coordinates_set");
+    http_json_send_string_field (FS("weather_get_now_url"), "/api/weather_get_now");
+    http_json_send_string_field (FS("weather_get_forecast_url"), "/api/weather_get_forecast");
+    http_json_send_string_field (FS("learn_ir_url"), "/api/learn_ir");
+    http_json_send_string_field (FS("network_get_time_url"), "/api/network_get_time");
+    http_json_send_string_field (FS("network_wps_url"), "/api/network_wps");
+    http_json_send_string_field (FS("temperature_display_url"), "/api/temperature_display");
+    http_json_send_string_field (FS("temperature_rtc_correction_set_url"), "/api/temperature_rtc_correction_set");
+    http_json_send_string_field (FS("temperature_ds18xx_correction_set_url"), "/api/temperature_ds18xx_correction_set");
+    http_json_send_string_field (FS("ldr_min_set_url"), "/api/ldr_min_set");
+    http_json_send_string_field (FS("ldr_max_set_url"), "/api/ldr_max_set");
+    http_json_send_string_field (FS("ldr_min_value_set_url"), "/api/ldr_min_value_set");
+    http_json_send_string_field (FS("ldr_max_value_set_url"), "/api/ldr_max_value_set");
+    http_json_send_string_field (FS("animation_mode_set_url"), "/api/animation_mode_set");
+    http_json_send_string_field (FS("color_animation_mode_set_url"), "/api/color_animation_mode_set");
+    http_json_send_string_field (FS("sync_ambilight_set_url"), "/api/sync_ambilight_set");
+    http_json_send_string_field (FS("sync_markers_set_url"), "/api/sync_markers_set");
+    http_json_send_string_field (FS("fade_clock_seconds_set_url"), "/api/fade_clock_seconds_set");
+    http_json_send_string_field (FS("ambilight_markers_set_url"), "/api/ambilight_markers_set");
+    http_json_send_string_field (FS("ambilight_brightness_set_url"), "/api/ambilight_brightness_set");
+    http_json_send_string_field (FS("ambilight_mode_set_url"), "/api/ambilight_mode_set");
+    http_json_send_string_field (FS("ambilight_leds_set_url"), "/api/ambilight_leds_set");
+    http_json_send_string_field (FS("ambilight_offset_set_url"), "/api/ambilight_offset_set");
+    http_json_send_string_field (FS("display_color_set_url"), "/api/display_color_set");
+    http_json_send_string_field (FS("ambilight_color_set_url"), "/api/ambilight_color_set");
+    http_json_send_string_field (FS("marker_color_set_url"), "/api/marker_color_set");
+    http_json_send_string_field (FS("dfplayer_volume_set_url"), "/api/dfplayer_volume_set");
+    http_json_send_string_field (FS("dfplayer_mode_set_url"), "/api/dfplayer_mode_set");
+    http_json_send_string_field (FS("dfplayer_bell_flags_set_url"), "/api/dfplayer_bell_flags_set");
+    http_json_send_string_field (FS("dfplayer_speak_cycle_set_url"), "/api/dfplayer_speak_cycle_set");
+    http_json_send_string_field (FS("dfplayer_silence_start_set_url"), "/api/dfplayer_silence_start_set");
+    http_json_send_string_field (FS("dfplayer_silence_stop_set_url"), "/api/dfplayer_silence_stop_set");
+    http_json_send_string_field (FS("dfplayer_play_url"), "/api/dfplayer_play");
+    http_json_send_string_field (FS("dfplayer_alarm_set_url"), "/api/dfplayer_alarm_set");
+    http_json_send_string_field (FS("overlay_set_url"), "/api/overlay_set");
+    http_json_send_string_field (FS("overlay_display_url"), "/api/overlay_display");
+    http_json_send_string_field (FS("overlay_delete_url"), "/api/overlay_delete");
+    http_json_send_string_field (FS("timer_set_url"), "/api/timer_set");
+    http_json_send_string_field (FS("ambilight_timer_set_url"), "/api/ambilight_timer_set");
+    http_json_send_string_field (FS("update_download_assets_url"), "/api/update_download_assets");
+    http_json_send_string_field (FS("update_download_app_bundle_url"), "/api/update_download_app_bundle");
+    http_json_send_string_field (FS("update_download_table_base_url"), "/api/update_download_table?filename=");
+    http_json_send_string_field (FS("app_bundle_upload_url"), "/api/app_bundle_upload");
+    http_json_send_string_field (FS("fs_info_url"), "/api/fs_info");
+    http_json_send_string_field (FS("fs_list_url"), "/api/fs_list");
+    http_json_send_string_field (FS("eeprom_settings_url"), "/api/eeprom_settings");
+    http_json_send_string_field (FS("update_table_files_url"), "/api/update_table_files");
+    http_json_send_string_field (FS("fs_upload_icon_url"), "/api/fs_upload_icon");
+    http_json_send_string_field (FS("fs_upload_weather_url"), "/api/fs_upload_weather");
+    http_json_send_string_field (FS("fs_upload_tables_url"), "/api/fs_upload_tables");
+    http_json_send_string_field (FS("fs_upload_display_url"), "/api/fs_upload_display");
+    http_json_send_string_field (FS("fs_upload_txt_accept"), ".txt,text/plain");
+    http_json_send_string_field (FS("app_bundle_upload_accept"), ".txt,text/plain");
+    http_json_send_string_field (FS("local_esp_update_accept"), ".bin,application/octet-stream");
+    http_json_send_string_field (FS("local_stm32_upload_accept"), ".hex");
+    http_json_send_string_field (FS("fs_show_base_url"), "/api/fs_show?filename=");
+    http_json_send_string_field (FS("fs_remove_base_url"), "/api/fs_remove?filename=");
+    http_json_send_string_field (FS("local_stm32_upload_url"), "/api/local_stm32_upload");
+    http_json_send_string_field (FS("local_stm32_flash_url"), "/api/local_stm32_flash");
+    http_json_send_string_field (FS("local_esp_update_url"), "/api/local_esp_update");
+    http_json_send_string_field (FS("local_esp_restart_url"), "/api/local_esp_restart");
+    http_json_send_string_field (FS("stm32_log_url"), "/api/stm32_log");
+    http_json_send_string_field (FS("stm32_log_clear_url"), "/api/stm32_log_clear");
+    http_json_send_string_field (FS("update_progress_url"), "/api/update_progress");
+    http_json_send_string_field (FS("network_scan_url"), "/api/network_scan");
+    http_json_send_string_field (FS("overlay_icons_url"), "/api/overlay_icons");
+    http_json_send_string_field (FS("live_display_color_url"), "/api/live_display_color");
+    http_json_send_string_field (FS("eeprom_settings_set_url"), "/api/eeprom_settings_set");
+    http_json_send_string_field (FS("display_dim_level_set_url"), "/api/display_dim_level_set");
+    http_json_send_string_field (FS("ambilight_dim_level_set_url"), "/api/ambilight_dim_level_set");
+    http_json_send_string_field (FS("animation_profile_set_url"), "/api/animation_profile_set");
+    http_json_send_string_field (FS("animation_profile_default_url"), "/api/animation_profile_default");
+    http_json_send_string_field (FS("color_animation_profile_set_url"), "/api/color_animation_profile_set");
+    http_json_send_string_field (FS("color_animation_profile_default_url"), "/api/color_animation_profile_default");
+    http_json_send_string_field (FS("ambilight_mode_profile_set_url"), "/api/ambilight_mode_profile_set");
+    http_json_send_string_field (FS("ambilight_mode_profile_default_url"), "/api/ambilight_mode_profile_default");
+    http_json_send_string_field (FS("tft_flags_set_url"), "/api/tft_flags_set");
+    http_json_send_string_field (FS("fs_upload_icon_target"), http_get_fs_upload_filename (POST_ICON_FILE));
+    http_json_send_string_field (FS("fs_upload_weather_target"), http_get_fs_upload_filename (POST_ICON_WEATHER_FILE));
+    http_json_send_string_field (FS("fs_upload_tables_target"), http_get_fs_upload_filename (POST_TABLES_FILE));
+    http_json_send_string_field (FS("fs_upload_display_target"), http_get_fs_upload_filename (POST_DISPLAY_FILE));
+    http_json_send_string_field (FS("fs_upload_tables_prefix"), http_get_tables_family_prefix ());
+    http_json_send_string_field (FS("asset_prefix"), http_get_asset_prefix ());
+    http_json_send_bool_field (FS("layout_is_12h"), (hardware_configuration & HW_WC_MASK) == HW_WC_12H);
+    http_json_send_string_field (FS("hardware_label"), http_get_hardware_label ());
+    http_json_send_string_field (FS("processor_label"), http_get_processor_label ());
+    http_json_send_string_field (FS("board_label"), http_get_board_label ());
+    http_json_send_string_field (FS("frequency_label"), http_get_frequency_label ());
+    http_json_send_string_field (FS("oscillator_label"), http_get_oscillator_label ());
+    http_json_send_string_field (FS("display_label"), http_get_display_label ());
+    http_json_send_string_field (FS("display_led_mode"), http_get_display_led_mode ());
+    http_json_send_bool_field (FS("display_has_tft"), (hardware_configuration & HW_LED_MASK) == HW_LED_TFTLED_RGB_LED);
+    http_json_send_bool_field (FS("display_has_white_channel"), (hardware_configuration & HW_LED_MASK) == HW_LED_SK6812_RGBW_LED);
+    http_json_send_string_field (FS("default_layout_preview_file"), http_get_default_layout_preview_filename ());
+    http_json_send_uint_field (FS("default_layout_columns"), (unsigned long) http_get_default_layout_columns ());
+    http_json_send_string_field (FS("local_stm32_expected_filename"), stm32_default_filename);
+    http_json_send_string_field (FS("esp_version"), ESP_VERSION);
+    http_json_send_string_field (FS("esp_available"), new_esp_version);
+    http_json_send_string_field (FS("app_available"), new_app_version);
+    http_json_send_string_field (FS("wc_version"), get_strvar (VERSION_STR_VAR)->str);
+    http_json_send_string_field (FS("wc_available"), new_wc_version);
+    http_json_send_string_field (FS("release_notes"), release_notes);
+    http_json_send_string_field (FS("stm32_default"), stm32_default_filename);
+    http_send (FS(",\"stm32_files\":["));
 
     len = httpclient (update_host, update_path, WC_LIST_TXT);
 
@@ -8368,6 +9285,141 @@ http_api_update_status ()
 
     http_send (FS("]}"));
     http_flush ();
+
+    return 0;
+}
+
+static int
+http_api_update_progress ()
+{
+    char buf[16];
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"active\":"));
+    http_send (update_progress.active ? "true" : "false");
+    http_send (FS(",\"type\":\""));
+    http_send (sanitize_json_string (update_progress.type).c_str ());
+    http_send (FS("\",\"state\":\""));
+    http_send (sanitize_json_string (update_progress.state).c_str ());
+    http_send (FS("\",\"message\":\""));
+    http_send (sanitize_json_string (update_progress.message).c_str ());
+    http_send (FS("\",\"progress_current\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.progress_current);
+    http_send (buf);
+    http_send (FS(",\"progress_total\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.progress_total);
+    http_send (buf);
+    http_send (FS(",\"error_code\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.error_code);
+    http_send (buf);
+    http_send (FS(",\"started_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.started_at);
+    http_send (buf);
+    http_send (FS(",\"updated_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.updated_at);
+    http_send (buf);
+    http_send (FS(",\"finished_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.finished_at);
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+    return 0;
+}
+
+static int
+http_api_device_ready ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ready\":true}"));
+    http_flush ();
+    return 0;
+}
+
+static int
+http_api_reconnect_probe ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"ready\":true,\"display_power\":\""));
+    http_send(get_numvar (DISPLAY_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\",\"ambilight_power\":\""));
+    http_send(get_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR) ? "on" : "off");
+    http_send (FS("\"}"));
+    http_flush ();
+    return 0;
+}
+
+static int
+http_api_remote_esp_update ()
+{
+    STR_VAR *           sv;
+    char *              update_host;
+    char *              update_path;
+    char                path[MAX_UPDATE_HOST_LEN + MAX_UPDATE_PATH_LEN + MAX_UPDATE_FILENAME_LEN + 3];
+    uint32_t            flashsize = ESP.getFlashChipRealSize ();
+
+    if (flashsize < 4194304)
+    {
+        http_send (FS("HTTP/1.0 400 Bad Request\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS("{\"ok\":false,\"error\":1,\"message\":\"ESP-Flashgröße für OTA zu klein\"}"));
+        http_flush ();
+        return 0;
+    }
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        update_host = (char *) DEFAULT_UPDATE_HOST;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        update_path = (char *) DEFAULT_UPDATE_PATH;
+    }
+
+    sprintf (path, "/%s/%s", update_path, ESP_WORDCLOCK_BIN);
+    update_progress_begin ("esp", "starting", "ESP-Firmware-Update wird gestartet.");
+
+    http_header ("Update", "40", "/app/");
+    begin_box ("Update");
+    http_send_FS ("<P><B>Updating ESP firmware '");
+    http_send (path);
+    http_send_FS ("', reconnecting in 40 seconds ...</B></BR>\r\n");
+    end_box ();
+    http_trailer ();
+    http_flush ();
+
+    while (http_client.available())                               // firefox claims about connection reset, if we do not read all characters
+    {
+        http_client.read();
+    }
+
+    http_client.stop();
+    delay (200);
+    update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
+
+    t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
+
+    switch(ret)
+    {
+        case HTTP_UPDATE_FAILED:
+            Serial.println("HTTP update: failed");
+            update_progress_fail (ESPhttpUpdate.getLastError (), ESPhttpUpdate.getLastErrorString ().c_str ());
+            break;
+
+        case HTTP_UPDATE_NO_UPDATES:
+            Serial.println("HTTP update: no updates");
+            update_progress_complete ("Keine neue ESP-Firmware verfügbar.");
+            break;
+
+        case HTTP_UPDATE_OK:
+            Serial.println("HTTP update: ok");                    // will never be called, because we are rebooting
+            break;
+    }
 
     return 0;
 }
@@ -8474,6 +9526,8 @@ reset_button (void)
 static uint_fast8_t
 run_local_stm32_flash_response ()
 {
+    bool ok;
+
     http_header("Local Update", NULL, NULL);
     begin_box ("Local Update");
 
@@ -8483,11 +9537,22 @@ run_local_stm32_flash_response ()
     }
 
     LittleFS.begin ();
-    stm32_flash_from_local();
+    update_progress_begin ("stm32", "starting", "Lokales STM32-Update wird vorbereitet.");
+    ok = stm32_flash_from_local();
     LittleFS.remove ("stm32.hex");
     LittleFS.end ();
-    http_send_FS ("Done. <font color=red>Please Reset your STM32 now!</font></B><BR>\r\n");
-    reset_button ();
+
+    if (ok)
+    {
+        update_progress_complete ("STM32-Flash abgeschlossen. Warte auf Reset.");
+        http_send_FS ("Done. <font color=red>Please Reset your STM32 now!</font></B><BR>\r\n");
+        reset_button ();
+    }
+    else if (! update_progress.error_code)
+    {
+        update_progress_fail (1, "Lokaler STM32-Flash fehlgeschlagen.");
+    }
+
     end_box ();
     http_trailer ();
     http_flush ();
@@ -8500,8 +9565,18 @@ http_api_local_stm32_upload ()
     size_t      content_length = 0;
     uint32_t    flashsize = ESP.getFlashChipRealSize ();
     uint_fast8_t ok = 0;
+    uint32_t    error_code = 0;
+    char *      uploaded_name = http_get_param ("filename");
 
-    if (flashsize >= 1048576 && read_post_headers (&content_length) && content_length > 0)
+    if (flashsize < 1048576)
+    {
+        error_code = 1;
+    }
+    else if (! http_local_stm32_filename_matches (uploaded_name))
+    {
+        error_code = 2;
+    }
+    else if (read_post_headers (&content_length) && content_length > 0)
     {
         LittleFS.begin ();
 
@@ -8511,14 +9586,35 @@ http_api_local_stm32_upload ()
         {
             ok = read_request_body_to_file (f, content_length) ? 1 : 0;
             f.close ();
+
+            if (! ok)
+            {
+                LittleFS.remove ("stm32.hex");
+                error_code = 3;
+            }
+        }
+        else
+        {
+            error_code = 4;
         }
 
         LittleFS.end ();
+    }
+    else
+    {
+        error_code = 5;
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":"));
     http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code).c_str ());
+    }
+
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -8544,6 +9640,85 @@ http_api_local_stm32_flash ()
     return 0;
 }
 
+static int
+http_api_remote_stm32_flash ()
+{
+    STR_VAR *       sv;
+    char *          update_host;
+    char *          update_path;
+    char *          filename = http_get_param ("filename");
+    uint32_t        flashsize = ESP.getFlashChipRealSize ();
+    uint_fast8_t    ok = 0;
+    uint32_t        error_code = 0;
+
+    if (flashsize < 4194304)
+    {
+        error_code = 1;
+    }
+    else if (! http_remote_stm32_filename_matches (filename))
+    {
+        error_code = 2;
+    }
+    else
+    {
+        sv = get_strvar (UPDATE_HOST_VAR);
+        update_host = sv->str;
+
+        if (! update_host[0])
+        {
+            update_host = (char *) DEFAULT_UPDATE_HOST;
+        }
+
+        sv = get_strvar (UPDATE_PATH_VAR);
+        update_path = sv->str;
+
+        if (! update_path[0])
+        {
+            update_path = (char *) DEFAULT_UPDATE_PATH;
+        }
+
+        Serial.print ("Flash STM32: http://");
+        Serial.print (update_host);
+        Serial.print ("/");
+        Serial.print (update_path);
+        Serial.print ("/");
+        Serial.println (filename);
+
+        delay (200);
+        update_progress_begin ("stm32", "starting", "STM32-Update wird vorbereitet.");
+        ok = stm32_flash_from_server (update_host, update_path, filename) ? 1 : 0;
+        delay (200);
+        Serial.println ("End of flashmode\r\n");
+        Serial.flush ();
+
+        if (ok)
+        {
+            update_progress_complete ("STM32-Flash abgeschlossen. Warte auf Reset.");
+        }
+        else if (! update_progress.error_code)
+        {
+            update_progress_fail (1, "STM32-Flash fehlgeschlagen.");
+        }
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
+        http_send (FS(",\"message\":\""));
+        http_send (sanitize_json_string (update_progress.message).c_str ());
+        http_send (FS("\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+    return 0;
+}
+
 static uint_fast8_t
 http_api_local_esp_update ()
 {
@@ -8551,6 +9726,7 @@ http_api_local_esp_update ()
     uint32_t    max_sketch_space = (ESP.getFreeSketchSpace () - 0x1000) & 0xFFFFF000;
     uint_fast8_t ok = 0;
     uint16_t    error_code = 0;
+    char *      uploaded_name = http_get_param ("filename");
     size_t      bytes_written = 0;
     size_t      skipped = 0;
     size_t      first_chunk_len = 0;
@@ -8561,8 +9737,13 @@ http_api_local_esp_update ()
     size_t      remaining_before_end = 0;
     uint8_t     first_chunk[8];
 
-    if (read_post_headers (&content_length) && content_length > 0 && content_length < max_sketch_space)
+    if (! http_local_esp_filename_matches (uploaded_name))
     {
+        error_code = 1002;
+    }
+    else if (read_post_headers (&content_length) && content_length > 0 && content_length < max_sketch_space)
+    {
+        update_progress_begin ("esp", "starting", "Lokales ESP-Update wird vorbereitet.");
         Update.runAsync (true);
         skipped = skip_leading_body_newlines ();
 
@@ -8612,6 +9793,7 @@ http_api_local_esp_update ()
             {
                 end_ok = 1;
                 ok = 1;
+                update_progress_state ("reconnect_wait", "ESP-Firmware wurde geschrieben. Gerät startet neu.");
             }
             else
             {
@@ -8653,6 +9835,11 @@ http_api_local_esp_update ()
     http_send (FS("\""));
     http_send (FS("}"));
     http_flush ();
+
+    if (! ok)
+    {
+        update_progress_fail (error_code ? error_code : 1, "Lokales ESP-Update fehlgeschlagen.");
+    }
 
     return 0;
 }
@@ -8897,7 +10084,7 @@ http (const char * path, const char * const_param)
         }
     }
 
-    if (! strcmp (path, "/"))
+    if (! strcmp (path, "/") || ! strcmp (path, "/legacy") || ! strcmp (path, "/legacy/"))
     {
         rtc = http_main ();
     }
@@ -9110,6 +10297,38 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_update_status ();
     }
+    else if (! strcmp (path, "/api/device_ready"))
+    {
+        rtc = http_api_device_ready ();
+    }
+    else if (! strcmp (path, "/api/reconnect_probe"))
+    {
+        rtc = http_api_reconnect_probe ();
+    }
+    else if (! strcmp (path, "/api/settings_xml"))
+    {
+        rtc = http_api_settings_xml ();
+    }
+    else if (! strcmp (path, "/api/display_power"))
+    {
+        rtc = http_api_display_power ();
+    }
+    else if (! strcmp (path, "/api/ambilight_power"))
+    {
+        rtc = http_api_ambilight_power ();
+    }
+    else if (! strcmp (path, "/api/power_status"))
+    {
+        rtc = http_api_power_status ();
+    }
+    else if (! strcmp (path, "/api/remote_esp_update"))
+    {
+        rtc = http_api_remote_esp_update ();
+    }
+    else if (! strcmp (path, "/api/update_progress"))
+    {
+        rtc = http_api_update_progress ();
+    }
     else if (! strcmp (path, "/api/update_table_files"))
     {
         rtc = http_api_update_table_files ();
@@ -9121,6 +10340,18 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/update_download_app_bundle"))
     {
         rtc = http_api_update_download_app_bundle ();
+    }
+    else if (! strcmp (path, "/api/update_download_table"))
+    {
+        rtc = http_api_update_download_table ();
+    }
+    else if (! strcmp (path, "/api/remote_stm32_flash"))
+    {
+        rtc = http_api_remote_stm32_flash ();
+    }
+    else if (! strcmp (path, "/api/app_bundle_upload"))
+    {
+        rtc = http_api_app_bundle_upload ();
     }
     else if (! strcmp (path, "/api/maintenance_format_fs"))
     {
@@ -9338,6 +10569,22 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_fs_remove ();
     }
+    else if (! strcmp (path, "/api/fs_upload_icon"))
+    {
+        rtc = http_api_fs_upload (POST_ICON_FILE);
+    }
+    else if (! strcmp (path, "/api/fs_upload_weather"))
+    {
+        rtc = http_api_fs_upload (POST_ICON_WEATHER_FILE);
+    }
+    else if (! strcmp (path, "/api/fs_upload_tables"))
+    {
+        rtc = http_api_fs_upload (POST_TABLES_FILE);
+    }
+    else if (! strcmp (path, "/api/fs_upload_display"))
+    {
+        rtc = http_api_fs_upload (POST_DISPLAY_FILE);
+    }
     else if (! strcmp (path, "/api/local_stm32_flash"))
     {
         rtc = http_api_local_stm32_flash ();
@@ -9383,6 +10630,26 @@ http_post(const String& sPath)
     else if (sPath == "/fs-app-bundle")
     {
         http_fs (POST_APP_BUNDLE_FILE);
+    }
+    else if (sPath == "/api/app_bundle_upload")
+    {
+        http_api_app_bundle_upload ();
+    }
+    else if (sPath == "/api/fs_upload_icon")
+    {
+        http_api_fs_upload (POST_ICON_FILE);
+    }
+    else if (sPath == "/api/fs_upload_weather")
+    {
+        http_api_fs_upload (POST_ICON_WEATHER_FILE);
+    }
+    else if (sPath == "/api/fs_upload_tables")
+    {
+        http_api_fs_upload (POST_TABLES_FILE);
+    }
+    else if (sPath == "/api/fs_upload_display")
+    {
+        http_api_fs_upload (POST_DISPLAY_FILE);
     }
     else if (sPath == "/api/local_stm32_upload")
     {
@@ -9457,8 +10724,27 @@ http_server_loop (void)
     {
         start_position += sPoststart.length ();
         end_position_space = sRequest.indexOf (" ", start_position);
+        end_position_question = sRequest.indexOf ("?", start_position);
 
-        sPath  = sRequest.substring(start_position, end_position_space);
+        if (end_position_space > 0)
+        {
+            if (end_position_question > 0)
+            {
+                char param[256];
+
+                sPath  = sRequest.substring(start_position, end_position_question);
+                sParam = sRequest.substring(end_position_question + 1, end_position_space);
+
+                strncpy (param, sParam.c_str (), 255);
+                param[255] = '\0';
+                http_set_params (param);
+            }
+            else
+            {
+                sPath = sRequest.substring(start_position, end_position_space);
+                http_set_params ((char *) NULL);
+            }
+        }
         http_post (sPath);
     }
     else // GET

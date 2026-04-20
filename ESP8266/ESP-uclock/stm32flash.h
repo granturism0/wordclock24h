@@ -12,8 +12,8 @@
 #ifndef STM32FLASH_H
 #define STM32FLASH_H
 
-extern void stm32_flash_from_server (const char *, const char *, const char *);
-extern void stm32_flash_from_local (void);
+extern bool stm32_flash_from_server (const char *, const char *, const char *);
+extern bool stm32_flash_from_local (void);
 extern void stm32_reset (void);
 extern void stm32_flash_init (void);
 

@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.2.55";
+const APP_VERSION = "1.2.77";
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -296,6 +296,7 @@ let stm32ProgressTimer = 0;
 let stm32ProgressStage = 0;
 let stm32ProgressAdvanceTimer = 0;
 let stm32ProgressMonitorTimer = 0;
+let updateProgressPollTimer = 0;
 let stm32AutoResetStarted = false;
 let hasUnsavedEdits = false;
 let wordclockSizingFrame = 0;
@@ -316,104 +317,126 @@ const LAYOUT_PREVIEW_STORAGE_KEY = "wordclock-app-layout-preview";
 const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
 const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
 
-document.getElementById("reload-button").addEventListener("click", manualReloadApp);
-document.getElementById("display-toggle-button").addEventListener("click", toggleDisplayPower);
-document.getElementById("ambilight-toggle-button").addEventListener("click", toggleAmbilightPower);
-document.getElementById("brightness-slider").addEventListener("input", syncBrightnessLabel);
-document.getElementById("brightness-save-button").addEventListener("click", saveBrightness);
-document.getElementById("auto-brightness-button").addEventListener("click", toggleAutoBrightness);
-document.getElementById("display-mode-save-button").addEventListener("click", saveDisplayMode);
-document.getElementById("display-it-is-button").addEventListener("click", togglePermanentItIs);
-document.getElementById("ticker-save-button").addEventListener("click", saveTickerText);
-document.getElementById("date-format-save-button").addEventListener("click", saveDateTickerFormat);
-document.getElementById("ticker-deceleration-save-button").addEventListener("click", saveTickerDeceleration);
-document.getElementById("test-display-button").addEventListener("click", testDisplay);
-document.getElementById("weather-appid-save-button").addEventListener("click", saveWeatherAppId);
-document.getElementById("weather-city-save-button").addEventListener("click", saveWeatherCity);
-document.getElementById("weather-coordinates-save-button").addEventListener("click", saveWeatherCoordinates);
-document.getElementById("weather-map-button").addEventListener("click", openWeatherMapPicker);
-document.getElementById("weather-now-button").addEventListener("click", getWeatherNow);
-document.getElementById("weather-forecast-button").addEventListener("click", getWeatherForecast);
-document.getElementById("weather-map-close-button").addEventListener("click", closeWeatherMapPicker);
-document.getElementById("weather-map-search-button").addEventListener("click", searchWeatherLocation);
-document.getElementById("weather-current-location-button").addEventListener("click", useCurrentWeatherLocation);
-document.getElementById("weather-map-apply-button").addEventListener("click", applyWeatherMapSelection);
-document.getElementById("network-scan-button").addEventListener("click", loadData);
-document.getElementById("network-client-save-button").addEventListener("click", saveNetworkClient);
-document.getElementById("network-ap-save-button").addEventListener("click", saveNetworkAp);
-document.getElementById("network-timeserver-save-button").addEventListener("click", saveTimeServer);
-document.getElementById("network-timezone-save-button").addEventListener("click", saveTimezone);
-document.getElementById("network-summertime-button").addEventListener("click", toggleSummertime);
-document.getElementById("network-nettime-button").addEventListener("click", getNetTime);
-document.getElementById("network-wps-button").addEventListener("click", runWps);
-document.getElementById("update-host-save-button").addEventListener("click", saveUpdateHost);
-document.getElementById("update-path-save-button").addEventListener("click", saveUpdatePath);
-document.getElementById("update-assets-button").addEventListener("click", downloadUpdateAssets);
-document.getElementById("update-app-bundle-button").addEventListener("click", downloadUpdateAppBundle);
-document.getElementById("update-esp-button").addEventListener("click", triggerEspUpdate);
-document.getElementById("update-stm32-button").addEventListener("click", triggerStm32Update);
-document.getElementById("update-table-button").addEventListener("click", triggerTableUpdate);
-document.getElementById("settings-export-button").addEventListener("click", exportSettingsBackup);
-document.getElementById("settings-import-button").addEventListener("click", importSettingsBackup);
-document.getElementById("settings-import-file-input").addEventListener("change", handleSettingsImportFileChange);
-document.getElementById("maintenance-reset-stm32-button").addEventListener("click", resetStm32);
-document.getElementById("maintenance-reset-eeprom-button").addEventListener("click", resetEeprom);
-document.getElementById("files-format-fs-button").addEventListener("click", formatLittleFsFromFiles);
-document.getElementById("local-update-esp-form").addEventListener("submit", uploadLocalEspUpdate);
-document.getElementById("local-update-stm32-form").addEventListener("submit", uploadLocalStm32Update);
-document.getElementById("temperature-rtc-correction-save-button").addEventListener("click", saveRtcTemperatureCorrection);
-document.getElementById("temperature-ds18xx-correction-save-button").addEventListener("click", saveDs18xxTemperatureCorrection);
-document.getElementById("temperature-display-button").addEventListener("click", displayTemperatureNow);
-document.getElementById("ldr-min-button").addEventListener("click", setLdrMinValue);
-document.getElementById("ldr-max-button").addEventListener("click", setLdrMaxValue);
-document.getElementById("animation-mode-save-button").addEventListener("click", saveAnimationMode);
-document.getElementById("color-animation-mode-save-button").addEventListener("click", saveColorAnimationMode);
-document.getElementById("tft-save-button").addEventListener("click", saveTftFlags);
-document.getElementById("display-dim-save-button").addEventListener("click", () => saveDimCurve("disp"));
-document.getElementById("display-dim-preset-select").addEventListener("change", () => applyDimPreset("disp"));
-document.getElementById("display-dim-preset-apply-button").addEventListener("click", () => applyDimPresetAndSave("disp"));
-document.getElementById("ambilight-brightness-slider").addEventListener("input", syncAmbilightBrightnessLabel);
-document.getElementById("ambilight-brightness-save-button").addEventListener("click", saveAmbilightBrightness);
-document.getElementById("ambilight-mode-save-button").addEventListener("click", saveAmbilightMode);
-document.getElementById("ambilight-leds-save-button").addEventListener("click", saveAmbilightLeds);
-document.getElementById("ambilight-offset-save-button").addEventListener("click", saveAmbilightOffset);
-document.getElementById("ambilight-dim-save-button").addEventListener("click", () => saveDimCurve("ambi"));
-document.getElementById("ambilight-dim-preset-select").addEventListener("change", () => applyDimPreset("ambi"));
-document.getElementById("ambilight-dim-preset-apply-button").addEventListener("click", () => applyDimPresetAndSave("ambi"));
-document.getElementById("display-color-save-button").addEventListener("click", () => saveColor("display"));
-document.getElementById("ambilight-color-save-button").addEventListener("click", () => saveColor("ambilight"));
-document.getElementById("marker-color-save-button").addEventListener("click", () => saveColor("marker"));
-document.getElementById("sync-ambilight-button").addEventListener("click", () => toggleFlagButton("sync-ambilight-button", "/api/sync_ambilight_set"));
-document.getElementById("sync-markers-button").addEventListener("click", () => toggleFlagButton("sync-markers-button", "/api/sync_markers_set"));
-document.getElementById("fade-clock-seconds-button").addEventListener("click", () => toggleFlagButton("fade-clock-seconds-button", "/api/fade_clock_seconds_set"));
-document.getElementById("ambilight-markers-button").addEventListener("click", () => toggleFlagButton("ambilight-markers-button", "/api/ambilight_markers_set"));
-document.getElementById("timer-save-all-button").addEventListener("click", () => saveAllTimerRows(false));
-document.getElementById("ambilight-timer-save-all-button").addEventListener("click", () => saveAllTimerRows(true));
-["display", "ambilight", "marker"].forEach((prefix) => {
-  document.getElementById(prefix + "-color-rgb").addEventListener("input", () => updateLiveColorPreview(prefix));
-  document.getElementById(prefix + "-color-white").addEventListener("input", () => updateLiveColorPreview(prefix));
-});
-document.getElementById("dfplayer-volume-slider").addEventListener("input", syncDfplayerVolumeLabel);
-["display", "ambilight", "marker"].forEach((prefix) => {
-  document.getElementById(prefix + "-color-white").addEventListener("input", () => syncWhiteChannelLabel(prefix));
-});
-document.getElementById("dfplayer-volume-save-button").addEventListener("click", saveDfplayerVolume);
-document.getElementById("dfplayer-mode-save-button").addEventListener("click", saveDfplayerMode);
-document.getElementById("dfplayer-bell-save-button").addEventListener("click", saveDfplayerBellFlags);
-document.getElementById("dfplayer-speak-save-button").addEventListener("click", saveDfplayerSpeakCycle);
-document.getElementById("dfplayer-silence-start-save-button").addEventListener("click", saveDfplayerSilenceStart);
-document.getElementById("dfplayer-silence-stop-save-button").addEventListener("click", saveDfplayerSilenceStop);
-document.getElementById("dfplayer-play-button").addEventListener("click", playDfplayerTrack);
-document.getElementById("debug-apply-button").addEventListener("click", applyDebugOverrides);
-document.getElementById("debug-reset-button").addEventListener("click", resetDebugOverrides);
-document.getElementById("stm32-log-refresh-button").addEventListener("click", refreshStm32Log);
-document.getElementById("stm32-log-clear-button").addEventListener("click", clearStm32Log);
-document.getElementById("datetime-save-button").addEventListener("click", saveDateTime);
-document.getElementById("learn-ir-button").addEventListener("click", learnIrRemote);
+function bindElementEvent(id, eventName, handler) {
+  document.getElementById(id).addEventListener(eventName, handler);
+}
+
+function bindElementEvents(bindings) {
+  bindings.forEach(([id, eventName, handler]) => {
+    bindElementEvent(id, eventName, handler);
+  });
+}
+
+function bindPrefixEvents(prefixes, bindingsByPrefix) {
+  prefixes.forEach((prefix) => {
+    bindingsByPrefix(prefix).forEach(([id, eventName, handler]) => {
+      bindElementEvent(id, eventName, handler);
+    });
+  });
+}
+
+bindElementEvents([
+  ["reload-button", "click", manualReloadApp],
+  ["display-toggle-button", "click", toggleDisplayPower],
+  ["ambilight-toggle-button", "click", toggleAmbilightPower],
+  ["brightness-slider", "input", syncBrightnessLabel],
+  ["brightness-save-button", "click", saveBrightness],
+  ["auto-brightness-button", "click", toggleAutoBrightness],
+  ["display-mode-save-button", "click", saveDisplayMode],
+  ["display-it-is-button", "click", togglePermanentItIs],
+  ["ticker-save-button", "click", saveTickerText],
+  ["date-format-save-button", "click", saveDateTickerFormat],
+  ["ticker-deceleration-save-button", "click", saveTickerDeceleration],
+  ["test-display-button", "click", testDisplay],
+  ["weather-appid-save-button", "click", saveWeatherAppId],
+  ["weather-city-save-button", "click", saveWeatherCity],
+  ["weather-coordinates-save-button", "click", saveWeatherCoordinates],
+  ["weather-map-button", "click", openWeatherMapPicker],
+  ["weather-now-button", "click", getWeatherNow],
+  ["weather-forecast-button", "click", getWeatherForecast],
+  ["weather-map-close-button", "click", closeWeatherMapPicker],
+  ["weather-map-search-button", "click", searchWeatherLocation],
+  ["weather-current-location-button", "click", useCurrentWeatherLocation],
+  ["weather-map-apply-button", "click", applyWeatherMapSelection],
+  ["network-scan-button", "click", refreshNetworkScan],
+  ["network-client-save-button", "click", saveNetworkClient],
+  ["network-ap-save-button", "click", saveNetworkAp],
+  ["network-timeserver-save-button", "click", saveTimeServer],
+  ["network-timezone-save-button", "click", saveTimezone],
+  ["network-summertime-button", "click", toggleSummertime],
+  ["network-nettime-button", "click", getNetTime],
+  ["network-wps-button", "click", runWps],
+  ["update-host-save-button", "click", saveUpdateHost],
+  ["update-path-save-button", "click", saveUpdatePath],
+  ["update-assets-button", "click", downloadUpdateAssets],
+  ["update-app-bundle-button", "click", downloadUpdateAppBundle],
+  ["update-esp-button", "click", triggerEspUpdate],
+  ["update-stm32-button", "click", triggerStm32Update],
+  ["update-table-button", "click", triggerTableUpdate],
+  ["settings-export-button", "click", exportSettingsBackup],
+  ["settings-import-button", "click", importSettingsBackup],
+  ["settings-import-file-input", "change", handleSettingsImportFileChange],
+  ["maintenance-reset-stm32-button", "click", resetStm32],
+  ["maintenance-reset-eeprom-button", "click", resetEeprom],
+  ["files-format-fs-button", "click", formatLittleFsFromFiles],
+  ["local-update-esp-form", "submit", uploadLocalEspUpdate],
+  ["local-update-stm32-form", "submit", uploadLocalStm32Update],
+  ["temperature-rtc-correction-save-button", "click", saveRtcTemperatureCorrection],
+  ["temperature-ds18xx-correction-save-button", "click", saveDs18xxTemperatureCorrection],
+  ["temperature-display-button", "click", displayTemperatureNow],
+  ["ldr-min-button", "click", setLdrMinValue],
+  ["ldr-max-button", "click", setLdrMaxValue],
+  ["animation-mode-save-button", "click", saveAnimationMode],
+  ["color-animation-mode-save-button", "click", saveColorAnimationMode],
+  ["tft-save-button", "click", saveTftFlags],
+  ["display-dim-save-button", "click", () => saveDimCurve("disp")],
+  ["display-dim-preset-select", "change", () => applyDimPreset("disp")],
+  ["display-dim-preset-apply-button", "click", () => applyDimPresetAndSave("disp")],
+  ["ambilight-brightness-slider", "input", syncAmbilightBrightnessLabel],
+  ["ambilight-brightness-save-button", "click", saveAmbilightBrightness],
+  ["ambilight-mode-save-button", "click", saveAmbilightMode],
+  ["ambilight-leds-save-button", "click", saveAmbilightLeds],
+  ["ambilight-offset-save-button", "click", saveAmbilightOffset],
+  ["ambilight-dim-save-button", "click", () => saveDimCurve("ambi")],
+  ["ambilight-dim-preset-select", "change", () => applyDimPreset("ambi")],
+  ["ambilight-dim-preset-apply-button", "click", () => applyDimPresetAndSave("ambi")],
+  ["sync-ambilight-button", "click", () => toggleFlagButton("sync-ambilight-button", getSyncAmbilightSetUrl())],
+  ["sync-markers-button", "click", () => toggleFlagButton("sync-markers-button", getSyncMarkersSetUrl())],
+  ["fade-clock-seconds-button", "click", () => toggleFlagButton("fade-clock-seconds-button", getFadeClockSecondsSetUrl())],
+  ["ambilight-markers-button", "click", () => toggleFlagButton("ambilight-markers-button", getAmbilightMarkersSetUrl())],
+  ["timer-save-all-button", "click", () => saveAllTimerRows(false)],
+  ["ambilight-timer-save-all-button", "click", () => saveAllTimerRows(true)],
+  ["dfplayer-volume-slider", "input", syncDfplayerVolumeLabel],
+  ["dfplayer-volume-save-button", "click", saveDfplayerVolume],
+  ["dfplayer-mode-save-button", "click", saveDfplayerMode],
+  ["dfplayer-bell-save-button", "click", saveDfplayerBellFlags],
+  ["dfplayer-speak-save-button", "click", saveDfplayerSpeakCycle],
+  ["dfplayer-silence-start-save-button", "click", saveDfplayerSilenceStart],
+  ["dfplayer-silence-stop-save-button", "click", saveDfplayerSilenceStop],
+  ["dfplayer-play-button", "click", playDfplayerTrack],
+  ["debug-apply-button", "click", applyDebugOverrides],
+  ["debug-reset-button", "click", resetDebugOverrides],
+  ["stm32-log-refresh-button", "click", refreshStm32Log],
+  ["stm32-log-clear-button", "click", clearStm32Log],
+  ["datetime-save-button", "click", saveDateTime],
+  ["learn-ir-button", "click", learnIrRemote],
+  ["update-progress-frame", "load", handleProgressFrameLoad],
+  ["fs-upload-app-form", "submit", uploadAppBundleFile],
+  ["fs-upload-icon-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("icon"), "Datei wurde hochgeladen.")],
+  ["fs-upload-weather-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("weather"), "Datei wurde hochgeladen.")],
+  ["fs-upload-tables-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("tables"), "Layout-Tabelle wurde hochgeladen.")],
+  ["fs-upload-display-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("display"), "TFT-Display-Datei wurde hochgeladen.")]
+]);
+
+bindPrefixEvents(["display", "ambilight", "marker"], (prefix) => [
+  [prefix + "-color-save-button", "click", () => saveColor(prefix)],
+  [prefix + "-color-rgb", "input", () => updateLiveColorPreview(prefix)],
+  [prefix + "-color-white", "input", () => updateLiveColorPreview(prefix)],
+  [prefix + "-color-white", "input", () => syncWhiteChannelLabel(prefix)]
+]);
+
 document.getElementById("app-version").textContent = "App-Version " + APP_VERSION;
 document.getElementById("app-version-card").textContent = APP_VERSION;
-document.getElementById("legacy-action-frame").addEventListener("load", handleLegacyFrameLoad);
-document.getElementById("update-progress-frame").addEventListener("load", handleProgressFrameLoad);
 
 window.setTimeout(() => {
   try {
@@ -423,20 +446,19 @@ window.setTimeout(() => {
   } catch (_) {
   }
 }, 250);
-document.querySelectorAll(".upload-form").forEach((form) => {
-  form.addEventListener("submit", handleUploadSubmit);
-});
 document.querySelectorAll(".module-chip").forEach((button) => {
   button.addEventListener("click", () => setActiveModule(button.getAttribute("data-module-target") || "main"));
 });
 document.addEventListener("input", handleDirtyFormInteraction, true);
 document.addEventListener("change", handleDirtyFormInteraction, true);
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/app/sw.js").catch(() => {});
-  });
-}
+// Temporary /app stability mode:
+// - no service worker registration from the PWA
+// This stays in place until the ESP-side request handling under /app is hardened again.
+const APP_STABILITY_MODE = {
+  disableServiceWorkerRegistration: true,
+  disableStartupAutoRefresh: false
+};
 
 let statusToneResetTimer = 0;
 let buttonFeedbackTimers = new WeakMap();
@@ -446,11 +468,13 @@ let alignedAutoRefreshInterval = 0;
 loadDebugOverridesIntoUi();
 restoreActiveModule();
 loadData();
-startAlignedAutoRefresh();
+if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
+  startAlignedAutoRefresh();
+}
 window.addEventListener("resize", scheduleWordclockSizing);
 
 function startAlignedAutoRefresh() {
-  const intervalMs = 5000;
+  const intervalMs = 15000;
   const phaseOffsetMs = 1000;
 
   if (alignedAutoRefreshTimeout) {
@@ -601,14 +625,14 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
-  if (currentSettingsSnapshot) {
+  if (getCurrentSettingsSnapshot()) {
     if (target === "maintenance") {
       void loadData({ maintenancePriority: true });
-    } else if (target === "network" || target === "overlays") {
+    } else if (target === "network" || target === "overlays" || target === "update" || target === "system") {
       void loadData();
     }
   }
-  syncLiveDisplayColorPolling(currentSettingsSnapshot);
+  syncLiveDisplayColorPolling(getCurrentSettingsSnapshot());
   syncStm32LogPolling();
 }
 
@@ -624,9 +648,10 @@ function restoreActiveModule() {
 }
 
 function updateModuleAvailability(settings, debugOverrides) {
+  const moduleState = getModuleAvailabilityState(settings, debugOverrides);
   const visibility = {
-    ambilight: isAmbilightOnline(settings, debugOverrides),
-    dfplayer: isDfplayerOnline(settings, debugOverrides)
+    ambilight: moduleState.ambilightOnline,
+    dfplayer: moduleState.dfplayerOnline
   };
 
   Object.keys(visibility).forEach((moduleName) => {
@@ -669,16 +694,17 @@ async function loadData(options) {
     }
 
     const settings = resolveSettingsSnapshot(coreData.settingsText);
-    currentSettingsSnapshot = settings;
-    currentEepromSettings = currentEepromSettings || {};
-    currentNetworkInfo = currentNetworkInfo || {};
+    setCurrentSettingsSnapshot(settings);
+    setCurrentEepromSettings(getCurrentEepromSettings());
+    setCurrentNetworkInfo(getCurrentNetworkInfo());
     const debugOverrides = getDebugOverrides();
     applyPersistedAmbilightState(settings);
-    currentLayoutPreview = currentLayoutPreview || restoreStoredLayoutPreview() || getDefaultLayoutPreview(settings);
-    const ambilightOnline = isAmbilightOnline(settings, debugOverrides);
-    renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus || {});
+    setCurrentLayoutPreview(getCurrentLayoutPreview(settings));
+    const uiState = getUiFeatureState(settings, debugOverrides);
+    const ambilightOnline = uiState.moduleState.ambilightOnline;
+    renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, getNormalizedUpdateStatus());
     try {
-      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, getCurrentLayoutPreview(settings));
     } catch (error) {
       console.error("Wordclock preview failed", error);
     }
@@ -694,8 +720,8 @@ async function loadData(options) {
     updateDisplayFlagControls(settings);
     updateTextControls(settings);
     updateWeatherControls(settings);
-    updateNetworkControls(settings, currentNetworkInfo);
-    updateMaintenanceControls(settings, currentEepromSettings);
+    updateNetworkControls(settings, getCurrentNetworkInfo());
+    updateMaintenanceControls(settings, getCurrentEepromSettings());
     updateDateTimeControls(settings);
     updateTemperatureControls(settings);
     updateLdrControls(settings);
@@ -733,7 +759,7 @@ async function loadData(options) {
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
-    if (!currentSettingsSnapshot) {
+    if (!getCurrentSettingsSnapshot()) {
       announceStatus("Daten konnten nicht geladen werden", "error");
     } else {
       console.warn("Refresh incomplete, keeping previous snapshot", error);
@@ -744,10 +770,12 @@ async function loadData(options) {
 }
 
 async function loadCoreData() {
+  // Keep the base snapshot on the proven legacy endpoints for now.
+  // This is the stabilised boundary: core settings/power first, richer metadata second.
   const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
-    settleFetchText("/get_settings", "", 2500),
-    settleFetchText("/display_power", "off", 1800),
-    settleFetchText("/ambilight_power", "off", 1800)
+    settleFetchText(getStableCoreSettingsFetchUrl(), "", 2500),
+    settleFetchText(getStableCoreDisplayPowerFetchUrl(), "off", 1800),
+    settleFetchText(getStableCoreAmbilightPowerFetchUrl(), "off", 1800)
   ]);
 
   return {
@@ -764,7 +792,7 @@ function resolveSettingsSnapshot(settingsText) {
     Object.keys(parsedSettings.strvars).length ||
     Object.keys(parsedSettings.tmvars).length;
 
-  return hasParsedContent ? parsedSettings : (currentSettingsSnapshot || parsedSettings);
+  return hasParsedContent ? parsedSettings : (getCurrentSettingsSnapshot() || parsedSettings);
 }
 
 function isDisplayPowerOn(displayPowerText, settings) {
@@ -788,95 +816,112 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   const systemActive = activeModule === "system";
   const networkActive = activeModule === "network";
   const overlaysActive = activeModule === "overlays";
+  const updateActive = activeModule === "update";
+
+  // Secondary data is intentionally additive:
+  // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
   try {
-    const updateStatus = await settleFetchJson("/api/update_status", currentUpdateStatus || {}, 8000);
+    const updateStatus = await settleFetchJson(getStableUpdateStatusFetchUrl(), getNormalizedUpdateStatus(), 8000);
     if (requestId !== loadRequestSerial) {
       return;
     }
+    setCurrentUpdateStatus(updateStatus);
+    refreshUpdateUi(settings, coreData, debugOverrides);
+  } catch (error) {
+    console.warn("Update status load failed", error);
+  }
 
-    currentUpdateStatus = updateStatus || currentUpdateStatus || {};
-    renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, currentUpdateStatus);
-
-    const updateTableInfo = await settleFetchJson("/api/update_table_files", {}, 8000);
+  try {
+    const updateTableInfo = await settleFetchJson(getStableUpdateTableFilesFetchUrl(), getNormalizedUpdateTableInfo(), 8000);
     if (requestId !== loadRequestSerial) {
       return;
     }
+    setCurrentUpdateTableInfo(updateTableInfo);
+  } catch (error) {
+    console.warn("Update table info load failed", error);
+  }
 
-    currentUpdateTableInfo = updateTableInfo || currentUpdateTableInfo || {};
-    updateUpdateStatus(currentUpdateStatus, updateTableInfo, settings);
-    updateLocalUpdateControls(currentUpdateStatus);
+  try {
+    refreshUpdateUi(settings, coreData, debugOverrides);
+  } catch (error) {
+    console.warn("Update UI refresh failed", error);
+  }
 
+  if (activeModule === "main") {
     try {
-      const preview = await loadWordclockLayoutPreview(updateTableInfo, settings);
+      const preview = await loadWordclockLayoutPreview(getNormalizedUpdateTableInfo(), settings);
       if (requestId !== loadRequestSerial) {
         return;
       }
-      if (preview && preview.rows && preview.rows.length) {
-        currentLayoutPreview = preview;
-      }
-      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, currentLayoutPreview);
+      setCurrentLayoutPreview(preview);
+      renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, getCurrentLayoutPreview(settings));
     } catch (error) {
       console.error("Wordclock preview refresh failed", error);
     }
+  }
 
-    if (networkActive) {
-      currentNetworkInfo = await settleFetchJson("/api/network_scan", currentNetworkInfo || { networks: [] }, 2500);
+  if (networkActive) {
+    try {
+      setCurrentNetworkInfo(await settleFetchJson(getNetworkScanUrl(), getCurrentNetworkInfo() || { networks: [] }, 2500));
       if (requestId !== loadRequestSerial) {
         return;
       }
-      updateNetworkControls(settings, currentNetworkInfo || {});
+      refreshNetworkUi(settings);
+    } catch (error) {
+      console.warn("Network scan load failed", error);
     }
+  }
 
-    if (overlaysActive) {
-      overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 1800);
+  if (overlaysActive) {
+    try {
+      setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], 1800));
       if (requestId !== loadRequestSerial) {
         return;
       }
-      renderOverlayRows(settings);
+      refreshOverlayUi(settings);
+    } catch (error) {
+      console.warn("Overlay icons load failed", error);
     }
+  }
 
-    if (!maintenanceActive && !systemActive) {
-      return;
+  if (!maintenanceActive && !systemActive) {
+    return;
+  }
+
+  if (maintenanceActive) {
+    try {
+      const fsInfo = await settleFetchJson(getFsInfoUrl(), {}, 5000);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, 6000);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, 5000);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+
+      setCurrentFsFilesFromList(fsList);
+      setCurrentEepromSettings(eepromSettings);
+      refreshMaintenanceUi(settings, fsInfo);
+    } catch (error) {
+      console.warn("Maintenance data load failed", error);
     }
+  }
 
-    const requests = [];
-
-    if (maintenanceActive) {
-      requests.push(
-        settleFetchJson("/api/fs_info", {}, 5000),
-        settleFetchJson("/api/fs_list", { files: [] }, 6000),
-        settleFetchJson("/api/eeprom_settings", {}, 5000)
-      );
+  if (systemActive || maintenanceActive) {
+    try {
+      const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, 3000);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      updateStm32Log(stm32Log);
+    } catch (error) {
+      console.warn("STM32 log load failed", error);
     }
-
-    if (systemActive || maintenanceActive) {
-      requests.push(settleFetchJson("/api/stm32_log", { lines: [] }, 3000));
-    }
-
-    const responses = await Promise.all(requests);
-
-    if (requestId !== loadRequestSerial) {
-      return;
-    }
-
-    let cursor = 0;
-
-    if (maintenanceActive) {
-      const fsInfo = responses[cursor++];
-      const fsList = responses[cursor++];
-      const eepromSettings = responses[cursor++];
-
-      currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
-      currentEepromSettings = eepromSettings && eepromSettings.ok ? eepromSettings : currentEepromSettings;
-      updateMaintenanceControls(settings, currentEepromSettings);
-      renderFileSystem(fsInfo, currentFsFiles, settings);
-    }
-
-    if (systemActive || maintenanceActive) {
-      updateStm32Log(responses[cursor++]);
-    }
-  } catch (_) {
   }
 }
 
@@ -910,7 +955,7 @@ async function fetchStm32Log(silent) {
   stm32LogRefreshInFlight = true;
 
   try {
-    const response = await apiFetch("/api/stm32_log");
+    const response = await apiFetch(getStm32LogUrl());
     const data = await response.json();
     updateStm32Log(data);
     return data;
@@ -972,7 +1017,7 @@ async function clearStm32Log() {
   beginButtonFeedback(button, "leert...");
 
   try {
-    await apiFetch("/api/stm32_log_clear");
+    await apiFetch(getStm32LogClearUrl());
     updateStm32Log({ count: 0, lines: [] });
     announceStatus("STM32-Logbuch wurde geleert", "ok");
     finishButtonFeedback(button, "Logs leeren", "success", "geleert");
@@ -983,52 +1028,42 @@ async function clearStm32Log() {
 }
 
 async function toggleDisplayPower() {
-  const current = document.getElementById("display-power").textContent.trim() === "an" ? "on" : "off";
-  const next = current === "on" ? "off" : "on";
   const button = document.getElementById("display-toggle-button");
-
-  beginButtonFeedback(button, "schaltet...");
-
-  try {
-    await apiFetch("/api/display_power_set?value=" + next);
-    await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || "Display umschalten", "success", next === "on" ? "eingeschaltet" : "ausgeschaltet", true);
-  } catch (error) {
-    announceStatus("Display konnte nicht geschaltet werden", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Display umschalten", "error", "Fehler");
-  }
+  await runStateToggleButton(button, getDisplayPowerSetUrl(), {
+    currentValue: () => (document.getElementById("display-power").textContent.trim() === "an" ? "on" : "off"),
+    idleText: button.dataset.restoreText || "Display umschalten",
+    successText: (next) => (next === "on" ? "eingeschaltet" : "ausgeschaltet"),
+    errorText: "Display konnte nicht geschaltet werden"
+  });
 }
 
 async function toggleAmbilightPower() {
-  const current = document.getElementById("ambilight-power").textContent.trim() === "an" ? "on" : "off";
-  const next = current === "on" ? "off" : "on";
   const button = document.getElementById("ambilight-toggle-button");
-
-  beginButtonFeedback(button, "schaltet...");
-
-  try {
-    await apiFetch("/api/ambilight_power_set?value=" + next);
-    await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || "Ambilight umschalten", "success", next === "on" ? "eingeschaltet" : "ausgeschaltet", true);
-  } catch (error) {
-    announceStatus("Ambilight konnte nicht geschaltet werden", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Ambilight umschalten", "error", "Fehler");
-  }
+  await runStateToggleButton(button, getAmbilightPowerSetUrl(), {
+    currentValue: () => (document.getElementById("ambilight-power").textContent.trim() === "an" ? "on" : "off"),
+    idleText: button.dataset.restoreText || "Ambilight umschalten",
+    successText: (next) => (next === "on" ? "eingeschaltet" : "ausgeschaltet"),
+    errorText: "Ambilight konnte nicht geschaltet werden"
+  });
 }
 
 async function saveAmbilightOnlineState() {
   const select = document.getElementById("health-ambilight-select");
   const next = select.value === "on" ? "on" : "off";
+  const previous = next === "on" ? "off" : "on";
 
   select.disabled = true;
 
   try {
-    await apiFetch("/api/ambilight_online_set?value=" + next);
+    await apiFetch(getAmbilightOnlineSetUrl() + "?value=" + next);
     setPersistedAmbilightState(next);
-    await loadData();
+    try {
+      await loadData();
+    } catch (_) {
+    }
     announceStatus("Ambilight-Status gespeichert", "ok");
   } catch (error) {
-    select.value = next === "on" ? "off" : "on";
+    select.value = previous;
     announceStatus("Ambilight-Status konnte nicht gesetzt werden", "error");
   } finally {
     select.disabled = false;
@@ -1037,52 +1072,24 @@ async function saveAmbilightOnlineState() {
 
 async function saveBrightness() {
   const slider = document.getElementById("brightness-slider");
-  const button = document.getElementById("brightness-save-button");
   const value = slider.value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/display_brightness_set?value=" + value);
-    await loadData();
-    finishButtonFeedback(button, "Helligkeit speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Helligkeit konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Helligkeit speichern", "error", "Fehler");
-  }
+  await runValueSave("brightness-save-button", getDisplayBrightnessSetUrl(), value, "Helligkeit speichern", "Helligkeit konnte nicht gespeichert werden");
 }
 
 async function toggleAutoBrightness() {
   const button = document.getElementById("auto-brightness-button");
-  const current = button.dataset.state === "on" ? "on" : "off";
-  const next = current === "on" ? "off" : "on";
-
-  beginButtonFeedback(button, "schaltet...");
-
-  try {
-    await apiFetch("/api/auto_brightness_set?value=" + next);
-    await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || "Automatische Helligkeit", "success", next === "on" ? "aktiviert" : "deaktiviert", true);
-  } catch (error) {
-    announceStatus("Automatische Helligkeit konnte nicht geschaltet werden", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Automatische Helligkeit", "error", "Fehler");
-  }
+  await runStateToggleButton(button, getAutoBrightnessSetUrl(), {
+    idleText: button.dataset.restoreText || "Automatische Helligkeit",
+    errorText: "Automatische Helligkeit konnte nicht geschaltet werden"
+  });
 }
 
 async function togglePermanentItIs() {
   const button = document.getElementById("display-it-is-button");
-  const next = button.dataset.state === "on" ? "off" : "on";
-
-  beginButtonFeedback(button, "schaltet...");
-
-  try {
-    await apiFetch("/api/display_it_is_set?value=" + next);
-    await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || "„ES IST“ dauerhaft anzeigen", "success", next === "on" ? "aktiviert" : "deaktiviert", true);
-  } catch (error) {
-    announceStatus("„ES IST“ konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "„ES IST“ dauerhaft anzeigen", "error", "Fehler");
-  }
+  await runStateToggleButton(button, getDisplayItIsSetUrl(), {
+    idleText: button.dataset.restoreText || "„ES IST“ dauerhaft anzeigen",
+    errorText: "„ES IST“ konnte nicht gesetzt werden"
+  });
 }
 
 function parseSettings(xmlText) {
@@ -1220,18 +1227,19 @@ function parseSettings(xmlText) {
 }
 
 function renderOverview(settings, displayPower, ambilightPower, debugOverrides, updateStatus) {
-  const hw = decodeHardware(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0);
-  const ledCapabilities = getLedCapabilities(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
-  const ambilightOnline = isAmbilightOnline(settings, debugOverrides);
-  const dfplayerOnline = isDfplayerOnline(settings, debugOverrides);
+  const overviewMeta = getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverrides, updateStatus);
+  const hw = overviewMeta.hardware;
+  const ledCapabilities = overviewMeta.ledCapabilities;
+  const ambilightOnline = overviewMeta.ambilightOnline;
+  const dfplayerOnline = overviewMeta.dfplayerOnline;
   const displayMode = getDisplayModeName(settings.numvars[NUM.DISPLAY_MODE]);
   const brightness = settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0;
   const automatic = settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE] ? "an" : "aus";
 
-  setText("display-power", displayPower === "on" ? "an" : "aus");
-  setText("ambilight-power", ambilightOnline ? (ambilightPower === "on" ? "an" : "aus") : "offline");
-  setText("firmware-version", settings.strvars[STR.VERSION] || "-");
-  setText("esp-version", (updateStatus && updateStatus.esp_version) || settings.strvars[STR.ESP8266_VERSION] || "-");
+  setText("display-power", overviewMeta.displayPowerLabel);
+  setText("ambilight-power", overviewMeta.ambilightPowerLabel);
+  setText("firmware-version", overviewMeta.firmwareVersion);
+  setText("esp-version", overviewMeta.espVersion);
 
   renderList("system-list", [
     ["Board", hw.board],
@@ -1394,37 +1402,28 @@ function updateWeatherControls(settings) {
 }
 
 function updateNetworkControls(settings, networkInfo) {
+  const meta = getNetworkUiMeta(settings, networkInfo);
   const select = document.getElementById("network-ssid-select");
-  const networks = Array.isArray(networkInfo.networks) ? networkInfo.networks : [];
-  const currentSsid = networkInfo.ssid || "";
-  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
-  const summertimeButton = document.getElementById("network-summertime-button");
 
-  select.innerHTML = networks.length
-    ? networks.map((ssid) => '<option value="' + escapeHtml(ssid) + '"' + (ssid === currentSsid ? " selected" : "") + ">" + escapeHtml(ssid) + "</option>").join("")
+  select.innerHTML = meta.networks.length
+    ? meta.networks.map((ssid) => '<option value="' + escapeHtml(ssid) + '"' + (ssid === meta.currentSsid ? " selected" : "") + ">" + escapeHtml(ssid) + "</option>").join("")
     : '<option value="">Keine WLANs gefunden</option>';
 
-  document.getElementById("network-timeserver-input").value = settings.strvars[STR.TIMESERVER] || "";
-  document.getElementById("network-timezone-input").value = String(timezone.offset);
-  setActionToggleButton("network-summertime-button", "Sommerzeit-Berücksichtigung deaktivieren", "Sommerzeit berücksichtigen", timezone.summertime);
+  document.getElementById("network-timeserver-input").value = meta.timeserver;
+  document.getElementById("network-timezone-input").value = String(meta.timezoneOffset);
+  setActionToggleButton("network-summertime-button", "Sommerzeit-Berücksichtigung deaktivieren", "Sommerzeit berücksichtigen", meta.summertime);
 
   document.getElementById("network-status-note").textContent =
-    "SSID: " + (currentSsid || "-") +
-    " | IP: " + (networkInfo.ip || "-") +
-    " | Modus: " + (networkInfo.mode || "-");
+    "SSID: " + (meta.currentSsid || "-") +
+    " | IP: " + (meta.ip || "-") +
+    " | Modus: " + (meta.mode || "-");
 }
 
 function updateMaintenanceControls(settings, eepromSettings) {
-  document.getElementById("update-host-input").value = settings.strvars[STR.UPDATE_HOST] || "";
-  document.getElementById("update-path-input").value = settings.strvars[STR.UPDATE_PATH] || "";
-
-  const infoItems = [
-    ["WLAN-Client", eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "-"],
-    ["Zugangspunkt", eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "-"],
-    ["Bootmodus", eepromSettings && eepromSettings.boot_as_ap ? "Access Point" : "WLAN-Client"]
-  ];
-
-  renderList("backup-info-list", infoItems);
+  const meta = getMaintenanceUiMeta(settings, eepromSettings, null, null);
+  document.getElementById("update-host-input").value = meta.updateHost;
+  document.getElementById("update-path-input").value = meta.updatePath;
+  renderList("backup-info-list", meta.infoItems);
 }
 
 function setSettingsBackupNote(message, tone) {
@@ -1452,136 +1451,165 @@ function collectUsedOverlayIconNames(items) {
 }
 
 function buildAssetBackup(settings, updateTableInfo) {
-  const config = settings && settings.numvars ? Number(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
-  const wcType = config & HW.WC_MASK;
-  let assetPrefix = "";
-
-  if (wcType === HW.WC_24H) {
-    assetPrefix = "wc24h";
-  } else if (wcType === HW.WC_12H) {
-    assetPrefix = "wc12h";
-  } else if (wcType === HW.UCLOCK) {
-    assetPrefix = "uc";
-  }
-
+  const backupMeta = getBackupAssetMeta(settings, null, updateTableInfo);
   const overlayItems = buildOverlayBackup(settings);
 
   return {
-    layout_table: updateTableInfo && updateTableInfo.current_table ? String(updateTableInfo.current_table) : "",
+    layout_table: backupMeta.currentTable ? String(backupMeta.currentTable) : "",
     used_icons: collectUsedOverlayIconNames(overlayItems),
-    asset_prefix: assetPrefix
+    asset_prefix: backupMeta.assetPrefix
   };
 }
 
-function buildSettingsBackup(settings, eepromSettings, updateTableInfo) {
+function buildBackupSourceMeta(settings) {
+  return {
+    app_version: APP_VERSION,
+    firmware_version: settings.strvars[STR.VERSION] || "",
+    esp_version: getUpdateStatusString(null, "esp_version") || settings.strvars[STR.ESP8266_VERSION] || "",
+    eeprom_version: settings.strvars[STR.EEPROM_VERSION] || ""
+  };
+}
+
+function buildDisplayBackupSettings(settings, displayFlags) {
+  return {
+    power: !!settings.numvars[NUM.DISPLAY_POWER],
+    mode: Number(settings.numvars[NUM.DISPLAY_MODE] || 0),
+    use_rgbw: !!settings.numvars[NUM.DISPLAY_USE_RGBW],
+    brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
+    automatic_brightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
+    permanent_it_is: !!(displayFlags & 0x01),
+    ticker_text: settings.strvars[STR.TICKER_TEXT] || "",
+    date_ticker_format: settings.strvars[STR.DATE_TICKER_FORMAT] || "",
+    ticker_deceleration: Number(settings.numvars[NUM.TICKER_DECELERATION] || 0),
+    color: cloneColor(settings.dspcolors[0]),
+    dim_curve: buildDimCurveArray(settings.num8arrays[0])
+  };
+}
+
+function buildNetworkBackupSettings(settings, eepromSettings, timezone) {
+  return {
+    timeserver: settings.strvars[STR.TIMESERVER] || "",
+    timezone_offset: Number(timezone.offset || 0),
+    summertime: !!timezone.summertime,
+    wifi_ssid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
+    wifi_key: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
+    ap_ssid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
+    ap_key: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
+    boot_as_ap: !!(eepromSettings && eepromSettings.boot_as_ap)
+  };
+}
+
+function buildMaintenanceBackupSettings(settings) {
+  return {
+    update_host: settings.strvars[STR.UPDATE_HOST] || "",
+    update_path: settings.strvars[STR.UPDATE_PATH] || ""
+  };
+}
+
+function buildClimateBackupSettings(settings) {
+  return {
+    weather_appid: settings.strvars[STR.WEATHER_APPID] || "",
+    weather_city: settings.strvars[STR.WEATHER_CITY] || "",
+    weather_lon: settings.strvars[STR.WEATHER_LON] || "",
+    weather_lat: settings.strvars[STR.WEATHER_LAT] || "",
+    rtc_temp_correction: Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0),
+    ds18xx_temp_correction: Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0),
+    ldr_min: Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0),
+    ldr_max: Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0)
+  };
+}
+
+function buildAnimationBackupSettings(settings) {
+  return {
+    display_mode: Number(settings.numvars[NUM.ANIMATION_MODE] || 0),
+    color_mode: Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0),
+    display_profiles: (settings.dispanims || []).map((entry) => ({
+      idx: Number(entry.idx),
+      deceleration: Number(entry.deceleration || 0),
+      favourite: !!(Number(entry.flags || 0) & 0x02)
+    })),
+    color_profiles: (settings.coloranims || []).map((entry) => ({
+      idx: Number(entry.idx),
+      deceleration: Number(entry.deceleration || 0)
+    }))
+  };
+}
+
+function buildTftBackupSettings(tftFlags) {
+  return {
+    rgb: !!(tftFlags & 0x01),
+    hflip: !!(tftFlags & 0x02),
+    vflip: !!(tftFlags & 0x04)
+  };
+}
+
+function buildAmbilightBackupSettings(settings, displayFlags, ambilightModeFlags) {
+  return {
+    online: !!settings.numvars[NUM.AMBILIGHT_IS_UP],
+    power: !!settings.numvars[NUM.DISPLAY_AMBILIGHT_POWER],
+    mode: Number(settings.numvars[NUM.AMBILIGHT_MODE] || 0),
+    leds: Number(settings.numvars[NUM.AMBILIGHT_LEDS] || 0),
+    offset: Number(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0),
+    brightness: Number(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0),
+    color: cloneColor(settings.dspcolors[1]),
+    marker_color: cloneColor(settings.dspcolors[2]),
+    sync_ambilight: !!(displayFlags & 0x02),
+    sync_markers: !!(displayFlags & 0x04),
+    fade_clock_seconds: !!(displayFlags & 0x08),
+    seconds_markers: !!(ambilightModeFlags & 0x02),
+    dim_curve: buildDimCurveArray(settings.num8arrays[1]),
+    profiles: (settings.almodes || []).map((entry) => ({
+      idx: Number(entry.idx),
+      deceleration: Number(entry.deceleration || 0)
+    }))
+  };
+}
+
+function buildDfplayerBackupSettings(settings) {
+  return {
+    volume: Number(settings.numvars[NUM.DFPLAYER_VOLUME] || 0),
+    mode: Number(settings.numvars[NUM.DFPLAYER_MODE] || 0),
+    bell_flags: Number(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0),
+    speak_cycle: Number(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0),
+    silence_start: Number(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
+    silence_stop: Number(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0),
+    alarms: buildAlarmBackup(settings.alarmtimes || [])
+  };
+}
+
+function buildSettingsBackupSections(settings, eepromSettings) {
   const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
   const displayFlags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
   const tftFlags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
   const ambilightModeFlags = Number((settings.almodes || []).find((entry) => entry.idx === (settings.numvars[NUM.AMBILIGHT_MODE] || 0))?.flags || 0);
 
   return {
+    display: buildDisplayBackupSettings(settings, displayFlags),
+    network: buildNetworkBackupSettings(settings, eepromSettings, timezone),
+    maintenance: buildMaintenanceBackupSettings(settings),
+    climate: buildClimateBackupSettings(settings),
+    animations: buildAnimationBackupSettings(settings),
+    tft: buildTftBackupSettings(tftFlags),
+    ambilight: buildAmbilightBackupSettings(settings, displayFlags, ambilightModeFlags),
+    dfplayer: buildDfplayerBackupSettings(settings),
+    overlays: {
+      items: buildOverlayBackup(settings)
+    },
+    timers: {
+      display: buildTimerBackup(settings.nighttimes || []),
+      ambilight: buildTimerBackup(settings.ambinighttimes || [])
+    }
+  };
+}
+
+function buildSettingsBackup(settings, eepromSettings, updateTableInfo) {
+  return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exported_at: new Date().toISOString(),
-    source: {
-      app_version: APP_VERSION,
-      firmware_version: settings.strvars[STR.VERSION] || "",
-      esp_version: settings.strvars[STR.ESP8266_VERSION] || "",
-      eeprom_version: settings.strvars[STR.EEPROM_VERSION] || ""
-    },
+    source: buildBackupSourceMeta(settings),
     assets: buildAssetBackup(settings, updateTableInfo),
-    settings: {
-      display: {
-        power: !!settings.numvars[NUM.DISPLAY_POWER],
-        mode: Number(settings.numvars[NUM.DISPLAY_MODE] || 0),
-        use_rgbw: !!settings.numvars[NUM.DISPLAY_USE_RGBW],
-        brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
-        automatic_brightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
-        permanent_it_is: !!(displayFlags & 0x01),
-        ticker_text: settings.strvars[STR.TICKER_TEXT] || "",
-        date_ticker_format: settings.strvars[STR.DATE_TICKER_FORMAT] || "",
-        ticker_deceleration: Number(settings.numvars[NUM.TICKER_DECELERATION] || 0),
-        color: cloneColor(settings.dspcolors[0]),
-        dim_curve: buildDimCurveArray(settings.num8arrays[0])
-      },
-      network: {
-        timeserver: settings.strvars[STR.TIMESERVER] || "",
-        timezone_offset: Number(timezone.offset || 0),
-        summertime: !!timezone.summertime,
-        wifi_ssid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
-        wifi_key: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
-        ap_ssid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
-        ap_key: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
-        boot_as_ap: !!(eepromSettings && eepromSettings.boot_as_ap)
-      },
-      maintenance: {
-        update_host: settings.strvars[STR.UPDATE_HOST] || "",
-        update_path: settings.strvars[STR.UPDATE_PATH] || ""
-      },
-      climate: {
-        weather_appid: settings.strvars[STR.WEATHER_APPID] || "",
-        weather_city: settings.strvars[STR.WEATHER_CITY] || "",
-        weather_lon: settings.strvars[STR.WEATHER_LON] || "",
-        weather_lat: settings.strvars[STR.WEATHER_LAT] || "",
-        rtc_temp_correction: Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0),
-        ds18xx_temp_correction: Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0),
-        ldr_min: Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0),
-        ldr_max: Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0)
-      },
-      animations: {
-        display_mode: Number(settings.numvars[NUM.ANIMATION_MODE] || 0),
-        color_mode: Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0),
-        display_profiles: (settings.dispanims || []).map((entry) => ({
-          idx: Number(entry.idx),
-          deceleration: Number(entry.deceleration || 0),
-          favourite: !!(Number(entry.flags || 0) & 0x02)
-        })),
-        color_profiles: (settings.coloranims || []).map((entry) => ({
-          idx: Number(entry.idx),
-          deceleration: Number(entry.deceleration || 0)
-        }))
-      },
-      tft: {
-        rgb: !!(tftFlags & 0x01),
-        hflip: !!(tftFlags & 0x02),
-        vflip: !!(tftFlags & 0x04)
-      },
-      ambilight: {
-        online: !!settings.numvars[NUM.AMBILIGHT_IS_UP],
-        power: !!settings.numvars[NUM.DISPLAY_AMBILIGHT_POWER],
-        mode: Number(settings.numvars[NUM.AMBILIGHT_MODE] || 0),
-        leds: Number(settings.numvars[NUM.AMBILIGHT_LEDS] || 0),
-        offset: Number(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0),
-        brightness: Number(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0),
-        color: cloneColor(settings.dspcolors[1]),
-        marker_color: cloneColor(settings.dspcolors[2]),
-        sync_ambilight: !!(displayFlags & 0x02),
-        sync_markers: !!(displayFlags & 0x04),
-        fade_clock_seconds: !!(displayFlags & 0x08),
-        seconds_markers: !!(ambilightModeFlags & 0x02),
-        dim_curve: buildDimCurveArray(settings.num8arrays[1]),
-        profiles: (settings.almodes || []).map((entry) => ({
-          idx: Number(entry.idx),
-          deceleration: Number(entry.deceleration || 0)
-        }))
-      },
-      dfplayer: {
-        volume: Number(settings.numvars[NUM.DFPLAYER_VOLUME] || 0),
-        mode: Number(settings.numvars[NUM.DFPLAYER_MODE] || 0),
-        bell_flags: Number(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0),
-        speak_cycle: Number(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0),
-        silence_start: Number(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
-        silence_stop: Number(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0),
-        alarms: buildAlarmBackup(settings.alarmtimes || [])
-      },
-      overlays: {
-        items: buildOverlayBackup(settings)
-      },
-      timers: {
-        display: buildTimerBackup(settings.nighttimes || [], false),
-        ambilight: buildTimerBackup(settings.ambinighttimes || [], true)
-      }
-    }
+    settings: buildSettingsBackupSections(settings, eepromSettings)
   };
 }
 
@@ -1632,16 +1660,30 @@ function buildOverlayBackup(settings) {
     }));
 }
 
-function buildTimerBackup(items, withAction) {
+function buildTimerBackup(items) {
   return (items || []).slice().sort((a, b) => a.idx - b.idx).map((item) => ({
     idx: Number(item.idx),
     active: !!(Number(item.flags || 0) & 0x80),
-    switch_on: withAction ? !!(Number(item.flags || 0) & 0x40) : false,
+    switch_on: !!(Number(item.flags || 0) & 0x40),
     from: (Number(item.flags || 0) & 0x38) >> 3,
     to: Number(item.flags || 0) & 0x07,
     hour: Math.floor(Number(item.minutes || 0) / 60),
     minute: Number(item.minutes || 0) % 60
   }));
+}
+
+async function ensureBackupExportState() {
+  if (!getCurrentSettingsSnapshot()) {
+    await loadData();
+  }
+
+  if (!getCurrentEepromSettings().ok) {
+    setCurrentEepromSettings(await settleFetchJson(getEepromSettingsUrl(), {}, 5000));
+  }
+
+  if (!getUpdateTableCurrentFile(getCurrentUpdateTableInfo())) {
+    setCurrentUpdateTableInfo(await settleFetchJson(getUpdateTableFilesUrl(), {}, 5000));
+  }
 }
 
 async function exportSettingsBackup() {
@@ -1650,18 +1692,13 @@ async function exportSettingsBackup() {
   beginButtonFeedback(button, "exportiert...");
 
   try {
-    if (!currentSettingsSnapshot) {
-      await loadData();
-    }
+    await ensureBackupExportState();
 
-    if (!currentEepromSettings || !currentEepromSettings.ok) {
-      currentEepromSettings = await settleFetchJson("/api/eeprom_settings", {}, 5000);
-    }
-    if (!currentUpdateTableInfo || typeof currentUpdateTableInfo.current_table !== "string") {
-      currentUpdateTableInfo = await settleFetchJson("/api/update_table_files", {}, 5000);
-    }
-
-    const backup = buildSettingsBackup(currentSettingsSnapshot || parseSettings(""), currentEepromSettings || {}, currentUpdateTableInfo || {});
+    const backup = buildSettingsBackup(
+      getCurrentSettingsSnapshot() || parseSettings(""),
+      getCurrentEepromSettings(),
+      getCurrentUpdateTableInfo()
+    );
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
@@ -1727,54 +1764,37 @@ async function applySettingsBackup(backup) {
 
   settingsImportInProgress = true;
   try {
-    await importMaintenanceSettings(settings.maintenance);
-    await sleep(250);
-    await restoreBackupAssets(backup && backup.assets ? backup.assets : {}, settings);
-    await sleep(250);
-    await importDisplaySettings(settings.display);
-    await sleep(250);
-    await importClimateSettings(settings.climate);
-    await sleep(250);
-    await importAnimationSettings(settings.animations);
-    await sleep(250);
-    await importTftSettings(settings.tft);
-    await sleep(250);
-    await importAmbilightSettings(settings.ambilight);
-    await sleep(250);
-    await importDfplayerSettings(settings.dfplayer);
-    await sleep(250);
-    await importOverlaySettings(settings.overlays);
-    await sleep(500);
-    await importTimerSettings(settings.timers);
-    await sleep(800);
+    await runImportPhase(() => importMaintenanceSettings(settings.maintenance), { pauseMs: 250 });
+    await runImportPhase(() => restoreBackupAssets(backup && backup.assets ? backup.assets : {}, settings), { pauseMs: 250 });
+    await runImportPhase(() => importDisplaySettings(settings.display), { pauseMs: 250 });
+    await runImportPhase(() => importClimateSettings(settings.climate), { pauseMs: 250 });
+    await runImportPhase(() => importAnimationSettings(settings.animations), { pauseMs: 250 });
+    await runImportPhase(() => importTftSettings(settings.tft), { pauseMs: 250 });
+    await runImportPhase(() => importAmbilightSettings(settings.ambilight), { pauseMs: 250 });
+    await runImportPhase(() => importDfplayerSettings(settings.dfplayer), { pauseMs: 250 });
+    await runImportPhase(() => importOverlaySettings(settings.overlays), { pauseMs: 500 });
+    await runImportPhase(() => importTimerSettings(settings.timers), { pauseMs: 800 });
     setSettingsBackupNote("Prüfe importierte Einstellungen...");
-    await sleep(600);
-    await loadData();
+    await reloadImportedData(600);
     await retryImportedSectionsIfNeeded(settings);
-    await sleep(400);
-    await loadData();
-    await importNetworkSettings(settings.network);
-    await sleep(400);
-    await loadData();
+    await reloadImportedData(400);
+    await runImportPhase(() => importNetworkSettings(settings.network), { pauseMs: 400, reload: true });
     await retryImportedNetworkSettingsIfNeeded(settings.network);
     await sleep(400);
-    await importSensorCorrectionSettings(settings.climate);
-    await sleep(600);
-    await loadData();
-    if (sensorCorrectionsImportNeedsRetry(settings.climate, currentSettingsSnapshot)) {
-      setSettingsBackupNote("Übernehme Sensor-Korrekturen erneut...");
-      await importSensorCorrectionSettings(settings.climate);
-      await sleep(600);
-      await loadData();
+    await runImportPhase(() => importSensorCorrectionSettings(settings.climate), { pauseMs: 600, reload: true });
+    if (sensorCorrectionsImportNeedsRetry(settings.climate, getCurrentSettingsSnapshot())) {
+      await rerunImportStep("Übernehme Sensor-Korrekturen erneut...", () => importSensorCorrectionSettings(settings.climate), {
+        pauseMs: 600,
+        reload: true
+      });
     }
     await finalizeImportedCriticalPersistenceSettings(settings);
     await finalizeRtcCorrectionPersistence(settings.climate);
     setSettingsBackupNote("Warte, bis Einstellungen dauerhaft gespeichert sind...");
-    await sleep(5000);
-    await loadData();
+    await reloadImportedData(5000);
     setSettingsBackupNote("Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...");
     announceStatus("Import abgeschlossen. STM32 wird automatisch neu gestartet", "warn");
-    await apiFetch("/api/maintenance_reset_stm32");
+    await apiFetch(getMaintenanceResetStm32Url());
     await sleep(4500);
     await finalizeRtcCorrectionPersistence(settings.climate);
     setSettingsBackupNote("STM32 wurde neu gestartet. Lade Daten neu...");
@@ -1813,16 +1833,41 @@ function networkImportNeedsRetry(network, settings, eepromSettings) {
   return false;
 }
 
+async function runImportPhase(step, options) {
+  const opts = options || {};
+  await step();
+
+  if (opts.pauseMs > 0) {
+    await sleep(opts.pauseMs);
+  }
+
+  if (opts.reload) {
+    await loadData();
+  }
+}
+
+async function reloadImportedData(pauseMs) {
+  if (pauseMs > 0) {
+    await sleep(pauseMs);
+  }
+  await loadData();
+}
+
+async function rerunImportStep(note, step, options) {
+  setSettingsBackupNote(note);
+  await runImportPhase(step, options);
+}
+
 async function retryImportedNetworkSettingsIfNeeded(network) {
   if (!network) {
     return;
   }
 
-  if (networkImportNeedsRetry(network, currentSettingsSnapshot, currentEepromSettings)) {
-    setSettingsBackupNote("Übernehme Netzwerk- und Zeiteinstellungen erneut...");
-    await importNetworkSettings(network);
-    await sleep(400);
-    await loadData();
+  if (networkImportNeedsRetry(network, getCurrentSettingsSnapshot(), getCurrentEepromSettings())) {
+    await rerunImportStep("Übernehme Netzwerk- und Zeiteinstellungen erneut...", () => importNetworkSettings(network), {
+      pauseMs: 400,
+      reload: true
+    });
   }
 }
 
@@ -1832,15 +1877,13 @@ async function finalizeImportedNetworkTimeSettings(network) {
   }
 
   setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen abschließend...");
-  await importNetworkTimeSettings(network);
-  await sleep(1000);
-  await loadData();
+  await runImportPhase(() => importNetworkTimeSettings(network), { pauseMs: 1000, reload: true });
 
-  if (networkImportNeedsRetry(network, currentSettingsSnapshot, currentEepromSettings)) {
-    setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...");
-    await importNetworkTimeSettings(network);
-    await sleep(1500);
-    await loadData();
+  if (networkImportNeedsRetry(network, getCurrentSettingsSnapshot(), getCurrentEepromSettings())) {
+    await rerunImportStep("Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...", () => importNetworkTimeSettings(network), {
+      pauseMs: 1500,
+      reload: true
+    });
   }
 }
 
@@ -1851,8 +1894,7 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
 
   if (climate) {
     setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschließend...");
-    await importSensorCorrectionSettings(climate);
-    await sleep(1000);
+    await runImportPhase(() => importSensorCorrectionSettings(climate), { pauseMs: 1000 });
   }
 
   if (network) {
@@ -1861,38 +1903,36 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
 
   if (maintenance) {
     setSettingsBackupNote("Übernehme Update-Host und Update-Pfad abschließend...");
-    await importMaintenanceSettings(maintenance);
-    await sleep(1000);
-    await loadData();
+    await runImportPhase(() => importMaintenanceSettings(maintenance), { pauseMs: 1000, reload: true });
 
-    if (maintenanceImportNeedsRetry(maintenance, currentSettingsSnapshot)) {
-      setSettingsBackupNote("Übernehme Update-Host und Update-Pfad erneut...");
-      await importMaintenanceSettings(maintenance);
-      await sleep(1500);
-      await loadData();
+    if (maintenanceImportNeedsRetry(maintenance, getCurrentSettingsSnapshot())) {
+      await rerunImportStep("Übernehme Update-Host und Update-Pfad erneut...", () => importMaintenanceSettings(maintenance), {
+        pauseMs: 1500,
+        reload: true
+      });
     }
   }
 
   if (climate) {
     await loadData();
-    if (sensorCorrectionsImportNeedsRetry(climate, currentSettingsSnapshot)) {
-      setSettingsBackupNote("Übernehme Temperatur-Korrekturen erneut...");
-      await importSensorCorrectionSettings(climate);
-      await sleep(1200);
-      await loadData();
+    if (sensorCorrectionsImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
+      await rerunImportStep("Übernehme Temperatur-Korrekturen erneut...", () => importSensorCorrectionSettings(climate), {
+        pauseMs: 1200,
+        reload: true
+      });
     }
 
-    if (rtcCorrectionImportNeedsRetry(climate, currentSettingsSnapshot)) {
-      setSettingsBackupNote("Übernehme RTC-Korrektur abschließend...");
-      await importRtcCorrectionSetting(climate);
-      await sleep(1800);
-      await loadData();
+    if (rtcCorrectionImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
+      await rerunImportStep("Übernehme RTC-Korrektur abschließend...", () => importRtcCorrectionSetting(climate), {
+        pauseMs: 1800,
+        reload: true
+      });
 
-      if (rtcCorrectionImportNeedsRetry(climate, currentSettingsSnapshot)) {
-        setSettingsBackupNote("Übernehme RTC-Korrektur erneut...");
-        await importRtcCorrectionSetting(climate);
-        await sleep(2200);
-        await loadData();
+      if (rtcCorrectionImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
+        await rerunImportStep("Übernehme RTC-Korrektur erneut...", () => importRtcCorrectionSetting(climate), {
+          pauseMs: 2200,
+          reload: true
+        });
       }
     }
   }
@@ -2018,35 +2058,31 @@ function timersImportNeedsRetry(timers, settings) {
     return false;
   }
 
-  return !timerItemsEqual(timers.display || [], settings.nighttimes || [], false) ||
+  return !timerItemsEqual(timers.display || [], settings.nighttimes || [], true) ||
     !timerItemsEqual(timers.ambilight || [], settings.ambinighttimes || [], true);
 }
 
 async function retryImportedSectionsIfNeeded(settings) {
-  const snapshot = currentSettingsSnapshot;
+  const snapshot = getCurrentSettingsSnapshot();
 
   if (!snapshot) {
     return;
   }
 
   if (displayImportNeedsRetry(settings.display, snapshot)) {
-    setSettingsBackupNote("Übernehme Display-Einstellungen erneut...");
-    await importDisplaySettings(settings.display);
+    await rerunImportStep("Übernehme Display-Einstellungen erneut...", () => importDisplaySettings(settings.display));
   }
 
   if (climateImportNeedsRetry(settings.climate, snapshot)) {
-    setSettingsBackupNote("Übernehme Klima- und Wetter-Einstellungen erneut...");
-    await importClimateSettings(settings.climate);
+    await rerunImportStep("Übernehme Klima- und Wetter-Einstellungen erneut...", () => importClimateSettings(settings.climate));
   }
 
   if (overlaysImportNeedsRetry(settings.overlays, snapshot)) {
-    setSettingsBackupNote("Übernehme Overlays erneut...");
-    await importOverlaySettings(settings.overlays);
+    await rerunImportStep("Übernehme Overlays erneut...", () => importOverlaySettings(settings.overlays));
   }
 
   if (timersImportNeedsRetry(settings.timers, snapshot)) {
-    setSettingsBackupNote("Übernehme Timer erneut...");
-    await importTimerSettings(settings.timers);
+    await rerunImportStep("Übernehme Timer erneut...", () => importTimerSettings(settings.timers));
   }
 }
 
@@ -2060,26 +2096,30 @@ function hasFsFile(files, fileName) {
 }
 
 async function ensureFsFileList(forceRefresh) {
-  if (!forceRefresh && Array.isArray(currentFsFiles) && currentFsFiles.length) {
-    return currentFsFiles;
+  if (!forceRefresh && getCurrentFsFiles().length) {
+    return getCurrentFsFiles();
   }
 
-  const fsList = await settleFetchJson("/api/fs_list", { files: [] }, 6000);
-  currentFsFiles = Array.isArray(fsList.files) ? fsList.files : [];
-  return currentFsFiles;
+  const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, 6000);
+  return setCurrentFsFilesFromList(fsList);
 }
 
 async function ensureUpdateTableInfo(forceRefresh) {
-  if (!forceRefresh && currentUpdateTableInfo && typeof currentUpdateTableInfo.current_table === "string") {
-    return currentUpdateTableInfo;
+  if (!forceRefresh && getUpdateTableCurrentFile(getCurrentUpdateTableInfo())) {
+    return getCurrentUpdateTableInfo();
   }
 
-  currentUpdateTableInfo = await settleFetchJson("/api/update_table_files", {}, 6000);
-  return currentUpdateTableInfo || {};
+  setCurrentUpdateTableInfo(await settleFetchJson(getUpdateTableFilesUrl(), {}, 6000));
+  return getCurrentUpdateTableInfo();
 }
 
 function getLayoutTableFamilyPrefix(fileName) {
   const normalized = normalizeFsFileName(fileName);
+  const preferredPrefix = getResolvedAssetMeta(null, null, null).tablesFamilyPrefix;
+
+  if (preferredPrefix && normalized.indexOf(preferredPrefix) === 0) {
+    return preferredPrefix;
+  }
 
   if (normalized.indexOf("wc12h-tables-") === 0) {
     return "wc12h-tables-";
@@ -2090,26 +2130,50 @@ function getLayoutTableFamilyPrefix(fileName) {
   return "";
 }
 
-function getOverlayAssetFiles(settings, assets) {
-  const layoutTable = assets && assets.layout_table ? normalizeFsFileName(assets.layout_table) : "";
-  const prefixFromBackup = String(assets && assets.asset_prefix ? assets.asset_prefix : "").trim();
-  let prefix = "";
+function getAssetPrefixFromHardwareConfig(config) {
+  const wcType = Number(config || 0) & HW.WC_MASK;
 
-  if (layoutTable.indexOf("wc24h-") === 0 || prefixFromBackup === "wc24h") {
-    prefix = "wc24h";
-  } else if (layoutTable.indexOf("wc12h-") === 0 || prefixFromBackup === "wc12h") {
-    prefix = "wc12h";
-  } else if (layoutTable.indexOf("uc-") === 0 || prefixFromBackup === "uc") {
-    prefix = "uc";
-  } else if (settings && settings.numvars) {
-    const wcType = Number(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) & HW.WC_MASK;
-    if (wcType === HW.WC_24H) {
-      prefix = "wc24h";
-    } else if (wcType === HW.WC_12H) {
-      prefix = "wc12h";
-    } else if (wcType === HW.UCLOCK) {
-      prefix = "uc";
-    }
+  if (wcType === HW.WC_24H) {
+    return "wc24h";
+  }
+  if (wcType === HW.WC_12H) {
+    return "wc12h";
+  }
+  if (wcType === HW.UCLOCK) {
+    return "uc";
+  }
+
+  return "";
+}
+
+function getDisplayLedMask(config) {
+  return Number(config || 0) & HW.LED_MASK;
+}
+
+function isTftDisplayFromConfig(config) {
+  return getDisplayLedMask(config) === HW.LED_TFT_RGB;
+}
+
+function getResolvedLayoutColumns(fileName) {
+  return getResolvedLayoutMeta(null, null, null).columns
+    || (String(fileName || "").indexOf("wc24h-") === 0 ? 18 : 11);
+}
+
+function getKnownAssetPrefix(settings, backupAssets, layoutTable) {
+  return getResolvedAssetMeta(settings, backupAssets, { current_table: layoutTable || "" }).assetPrefix;
+}
+
+function getOverlayAssetFiles(settings, assets) {
+  const resolvedAssetMeta = getResolvedAssetMeta(settings, assets || null, null);
+  const configuredIconFile = resolvedAssetMeta.targets.icon;
+  const configuredWeatherFile = resolvedAssetMeta.targets.weather;
+  const prefix = resolvedAssetMeta.assetPrefix;
+
+  if (!prefix && configuredIconFile && configuredWeatherFile) {
+    return {
+      iconFile: configuredIconFile,
+      weatherFile: configuredWeatherFile
+    };
   }
 
   return prefix ? {
@@ -2122,8 +2186,7 @@ function getOverlayAssetFiles(settings, assets) {
 }
 
 async function triggerTableRestoreDownload(fileName) {
-  const response = await fetchWithTimeout("/fs?action=dwntable&tablefile=" + encodeURIComponent(fileName), { cache: "no-store" }, 20000);
-  await response.text().catch(() => "");
+  await apiFetch(getUpdateDownloadTableBaseUrl() + encodeURIComponent(fileName));
 }
 
 async function restoreBackupLayoutTable(assets) {
@@ -2136,7 +2199,7 @@ async function restoreBackupLayoutTable(assets) {
   let updateTableInfo = await ensureUpdateTableInfo(true);
   const familyPrefix = getLayoutTableFamilyPrefix(desiredTable);
 
-  if (hasFsFile(files, desiredTable) && normalizeFsFileName(updateTableInfo.current_table) === desiredTable) {
+  if (hasFsFile(files, desiredTable) && normalizeFsFileName(getUpdateTableCurrentFile(updateTableInfo)) === desiredTable) {
     return;
   }
 
@@ -2148,7 +2211,7 @@ async function restoreBackupLayoutTable(assets) {
       .filter((name) => name && name.indexOf(familyPrefix) === 0 && name !== desiredTable);
 
     for (const fileName of filesToRemove) {
-      await apiFetch("/api/fs_remove?filename=" + encodeURIComponent(fileName));
+      await apiFetch(getFsRemoveBaseUrl() + encodeURIComponent(fileName));
     }
   }
 
@@ -2156,9 +2219,9 @@ async function restoreBackupLayoutTable(assets) {
   await sleep(250);
   files = await ensureFsFileList(true);
   updateTableInfo = await ensureUpdateTableInfo(true);
-  currentLayoutPreview = null;
+  clearCurrentLayoutPreview();
 
-  if (!hasFsFile(files, desiredTable) || normalizeFsFileName(updateTableInfo.current_table) !== desiredTable) {
+  if (!hasFsFile(files, desiredTable) || normalizeFsFileName(getUpdateTableCurrentFile(updateTableInfo)) !== desiredTable) {
     throw new Error("layout-restore-failed");
   }
 }
@@ -2171,8 +2234,8 @@ async function restoreBackupOverlayAssets(assets, settings) {
   }
 
   let files = await ensureFsFileList(true);
-  overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 3000);
-  let icons = Array.isArray(overlayIconsCache) ? overlayIconsCache.slice() : [];
+  setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], 3000));
+  let icons = getOverlayIconsCache().slice();
   const filesOk = assetFiles.iconFile ? (hasFsFile(files, assetFiles.iconFile) && hasFsFile(files, assetFiles.weatherFile)) : true;
   const iconsOk = usedIcons.every((iconName) => icons.indexOf(iconName) >= 0);
 
@@ -2181,7 +2244,7 @@ async function restoreBackupOverlayAssets(assets, settings) {
   }
 
   setSettingsBackupNote("Stelle Icon- und Overlay-Dateien wieder her...");
-  const response = await apiFetch("/api/update_download_assets");
+  const response = await apiFetch(getUpdateDownloadAssetsUrl());
   const result = await response.json().catch(() => ({}));
   if (!result || !result.ok) {
     throw new Error("overlay-assets-download-failed");
@@ -2189,8 +2252,8 @@ async function restoreBackupOverlayAssets(assets, settings) {
 
   await sleep(250);
   files = await ensureFsFileList(true);
-  overlayIconsCache = await settleFetchJson("/api/overlay_icons", overlayIconsCache || [], 3000);
-  icons = Array.isArray(overlayIconsCache) ? overlayIconsCache.slice() : [];
+  setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], 3000));
+  icons = getOverlayIconsCache().slice();
 
   const restoredFilesOk = assetFiles.iconFile ? (hasFsFile(files, assetFiles.iconFile) && hasFsFile(files, assetFiles.weatherFile)) : true;
   const restoredIconsOk = usedIcons.every((iconName) => icons.indexOf(iconName) >= 0);
@@ -2203,7 +2266,33 @@ async function restoreBackupOverlayAssets(assets, settings) {
 async function restoreBackupAssets(assets, settings) {
   setSettingsBackupNote("Prüfe benötigte Dateien...");
   await restoreBackupLayoutTable(assets);
-  await restoreBackupOverlayAssets(assets, settings || currentSettingsSnapshot || {});
+  await restoreBackupOverlayAssets(assets, settings || getCurrentSettingsSnapshot() || {});
+}
+
+async function apiFetchQuery(endpoint, params) {
+  const queryString = buildQueryString(params);
+  return apiFetch(endpoint + (queryString ? "?" + queryString : ""));
+}
+
+async function apiFetchValue(endpoint, value) {
+  return apiFetchQuery(endpoint, { value });
+}
+
+async function apiFetchHourMinute(endpoint, value) {
+  const totalMinutes = Number(value || 0);
+  return apiFetchQuery(endpoint, {
+    hour: Math.floor(totalMinutes / 60),
+    minute: totalMinutes % 60
+  });
+}
+
+async function importIndexedEntries(endpoint, entries, count, fallbackFactory, buildParams) {
+  const entryMap = new Map((entries || []).map((entry) => [Number(entry.idx || 0), entry]));
+
+  for (let idx = 0; idx < count; idx += 1) {
+    const entry = entryMap.get(idx) || fallbackFactory(idx);
+    await apiFetchQuery(endpoint, buildParams(entry, idx));
+  }
 }
 
 async function importNetworkSettings(network) {
@@ -2222,7 +2311,7 @@ async function importNetworkSettings(network) {
     ap_key: network.ap_key || "",
     boot_as_ap: network.boot_as_ap ? "on" : "off"
   });
-  await apiFetch("/api/eeprom_settings_set?" + query.toString());
+  await apiFetch(getEepromSettingsSetUrl() + "?" + query.toString());
 }
 
 async function importNetworkTimeSettings(network) {
@@ -2230,11 +2319,11 @@ async function importNetworkTimeSettings(network) {
     return;
   }
 
-  await apiFetch("/api/network_timeserver_set?value=" + encodeURIComponent(network.timeserver || ""));
+  await apiFetchValue(getNetworkTimeserverSetUrl(), network.timeserver || "");
   await sleep(700);
-  await apiFetch("/api/network_timezone_set?value=" + encodeURIComponent(Number(network.timezone_offset || 0)));
+  await apiFetchValue(getNetworkTimezoneSetUrl(), Number(network.timezone_offset || 0));
   await sleep(300);
-  await apiFetch("/api/network_summertime_set?value=" + (network.summertime ? "on" : "off"));
+  await apiFetchValue(getNetworkSummertimeSetUrl(), network.summertime ? "on" : "off");
   await sleep(300);
 }
 
@@ -2245,18 +2334,18 @@ async function importDisplaySettings(display) {
 
   setSettingsBackupNote("Importiere Display-Einstellungen...");
 
-  await apiFetch("/api/display_power_set?value=" + (display.power ? "on" : "off"));
-  await apiFetch("/api/display_mode_set?value=" + encodeURIComponent(Number(display.mode || 0)));
-  await apiFetch("/api/display_use_rgbw_set?value=" + (display.use_rgbw ? "on" : "off"));
-  await apiFetch("/api/auto_brightness_set?value=" + (display.automatic_brightness ? "on" : "off"));
+  await apiFetchValue(getDisplayPowerSetUrl(), display.power ? "on" : "off");
+  await apiFetchValue(getDisplayModeSetUrl(), Number(display.mode || 0));
+  await apiFetchValue(getDisplayUseRgbwSetUrl(), display.use_rgbw ? "on" : "off");
+  await apiFetchValue(getAutoBrightnessSetUrl(), display.automatic_brightness ? "on" : "off");
   await sleep(150);
-  await apiFetch("/api/display_brightness_set?value=" + encodeURIComponent(Number(display.brightness || 0)));
-  await apiFetch("/api/display_it_is_set?value=" + (display.permanent_it_is ? "on" : "off"));
-  await apiFetch("/api/ticker_set?value=" + encodeURIComponent(display.ticker_text || ""));
-  await apiFetch("/api/date_ticker_format_set?value=" + encodeURIComponent(display.date_ticker_format || ""));
-  await apiFetch("/api/ticker_deceleration_set?value=" + encodeURIComponent(Number(display.ticker_deceleration || 0)));
-  await saveImportedColor("/api/display_color_set", display.color);
-  await saveImportedDimCurve("/api/display_dim_level_set", display.dim_curve);
+  await apiFetchValue(getDisplayBrightnessSetUrl(), Number(display.brightness || 0));
+  await apiFetchValue(getDisplayItIsSetUrl(), display.permanent_it_is ? "on" : "off");
+  await apiFetchValue(getTickerSetUrl(), display.ticker_text || "");
+  await apiFetchValue(getDateTickerFormatSetUrl(), display.date_ticker_format || "");
+  await apiFetchValue(getTickerDecelerationSetUrl(), Number(display.ticker_deceleration || 0));
+  await saveImportedColor(getDisplayColorSetUrl(), display.color);
+  await saveImportedDimCurve(getDisplayDimLevelSetUrl(), display.dim_curve);
 }
 
 async function importMaintenanceSettings(maintenance) {
@@ -2266,9 +2355,9 @@ async function importMaintenanceSettings(maintenance) {
 
   setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
 
-  await apiFetch("/api/update_host_set?value=" + encodeURIComponent(maintenance.update_host || ""));
+  await apiFetchValue(getUpdateHostSetUrl(), maintenance.update_host || "");
   await sleep(500);
-  await apiFetch("/api/update_path_set?value=" + encodeURIComponent(maintenance.update_path || ""));
+  await apiFetchValue(getUpdatePathSetUrl(), maintenance.update_path || "");
   await sleep(500);
 }
 
@@ -2279,11 +2368,14 @@ async function importClimateSettings(climate) {
 
   setSettingsBackupNote("Importiere Klima- und Wetter-Einstellungen...");
 
-  await apiFetch("/api/weather_appid_set?value=" + encodeURIComponent(climate.weather_appid || ""));
-  await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(climate.weather_city || ""));
-  await apiFetch("/api/weather_coordinates_set?lon=" + encodeURIComponent(climate.weather_lon || "") + "&lat=" + encodeURIComponent(climate.weather_lat || ""));
-  await apiFetch("/api/ldr_min_value_set?value=" + encodeURIComponent(Number(climate.ldr_min || 0)));
-  await apiFetch("/api/ldr_max_value_set?value=" + encodeURIComponent(Number(climate.ldr_max || 0)));
+  await apiFetchValue(getWeatherAppIdSetUrl(), climate.weather_appid || "");
+  await apiFetchValue(getWeatherCitySetUrl(), climate.weather_city || "");
+  await apiFetchQuery(getWeatherCoordinatesSetUrl(), {
+    lon: climate.weather_lon || "",
+    lat: climate.weather_lat || ""
+  });
+  await apiFetchValue(getLdrMinValueSetUrl(), Number(climate.ldr_min || 0));
+  await apiFetchValue(getLdrMaxValueSetUrl(), Number(climate.ldr_max || 0));
 }
 
 async function importSensorCorrectionSettings(climate) {
@@ -2292,9 +2384,9 @@ async function importSensorCorrectionSettings(climate) {
   }
 
   setSettingsBackupNote("Importiere Sensor-Korrekturen...");
-  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0))));
   await sleep(400);
-  await apiFetch("/api/temperature_ds18xx_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0)))));
+  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0))));
   await sleep(400);
 }
 
@@ -2303,7 +2395,7 @@ async function importRtcCorrectionSetting(climate) {
     return;
   }
 
-  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0))));
 }
 
 async function finalizeRtcCorrectionPersistence(climate) {
@@ -2313,7 +2405,7 @@ async function finalizeRtcCorrectionPersistence(climate) {
 
   const rtcCorrection = Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)));
   setSettingsBackupNote("Übernehme RTC-Korrektur als letzten Persistenzschritt...");
-  await apiFetch("/api/temperature_rtc_correction_set?value=" + encodeURIComponent(rtcCorrection));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), rtcCorrection);
   await sleep(1800);
   await loadData();
 }
@@ -2325,20 +2417,22 @@ async function importAnimationSettings(animations) {
 
   setSettingsBackupNote("Importiere Animationen...");
 
-  await apiFetch("/api/animation_mode_set?value=" + encodeURIComponent(Number(animations.display_mode || 0)));
-  await apiFetch("/api/color_animation_mode_set?value=" + encodeURIComponent(Number(animations.color_mode || 0)));
+  await apiFetchValue(getAnimationModeSetUrl(), Number(animations.display_mode || 0));
+  await apiFetchValue(getColorAnimationModeSetUrl(), Number(animations.color_mode || 0));
 
   for (const entry of (animations.display_profiles || [])) {
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0)) +
-      "&favourite=" + (entry.favourite ? "on" : "off");
-    await apiFetch("/api/animation_profile_set" + query);
+    await apiFetchQuery(getAnimationProfileSetUrl(), {
+      idx: Number(entry.idx || 0),
+      deceleration: Number(entry.deceleration || 0),
+      favourite: entry.favourite ? "on" : "off"
+    });
   }
 
   for (const entry of (animations.color_profiles || [])) {
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0));
-    await apiFetch("/api/color_animation_profile_set" + query);
+    await apiFetchQuery(getColorAnimationProfileSetUrl(), {
+      idx: Number(entry.idx || 0),
+      deceleration: Number(entry.deceleration || 0)
+    });
   }
 }
 
@@ -2349,10 +2443,11 @@ async function importTftSettings(tft) {
 
   setSettingsBackupNote("Importiere TFT-Einstellungen...");
 
-  const query = "?rgb=" + (tft.rgb ? "on" : "off") +
-    "&hflip=" + (tft.hflip ? "on" : "off") +
-    "&vflip=" + (tft.vflip ? "on" : "off");
-  await apiFetch("/api/tft_flags_set" + query);
+  await apiFetchQuery(getTftFlagsSetUrl(), {
+    rgb: tft.rgb ? "on" : "off",
+    hflip: tft.hflip ? "on" : "off",
+    vflip: tft.vflip ? "on" : "off"
+  });
 }
 
 async function importAmbilightSettings(ambilight) {
@@ -2363,25 +2458,26 @@ async function importAmbilightSettings(ambilight) {
   setSettingsBackupNote("Importiere Ambilight-Einstellungen...");
 
   const ambilightOnlineValue = ambilight.online ? "on" : "off";
-  await apiFetch("/api/ambilight_online_set?value=" + ambilightOnlineValue);
+  await apiFetchValue(getAmbilightOnlineSetUrl(), ambilightOnlineValue);
   setPersistedAmbilightState(ambilightOnlineValue);
-  await apiFetch("/api/ambilight_power_set?value=" + (ambilight.power ? "on" : "off"));
-  await apiFetch("/api/ambilight_mode_set?value=" + encodeURIComponent(Number(ambilight.mode || 0)));
-  await apiFetch("/api/ambilight_leds_set?value=" + encodeURIComponent(Number(ambilight.leds || 0)));
-  await apiFetch("/api/ambilight_offset_set?value=" + encodeURIComponent(Number(ambilight.offset || 0)));
-  await apiFetch("/api/ambilight_brightness_set?value=" + encodeURIComponent(Number(ambilight.brightness || 0)));
-  await saveImportedColor("/api/ambilight_color_set", ambilight.color);
-  await saveImportedColor("/api/marker_color_set", ambilight.marker_color);
-  await apiFetch("/api/sync_ambilight_set?value=" + (ambilight.sync_ambilight ? "on" : "off"));
-  await apiFetch("/api/sync_markers_set?value=" + (ambilight.sync_markers ? "on" : "off"));
-  await apiFetch("/api/fade_clock_seconds_set?value=" + (ambilight.fade_clock_seconds ? "on" : "off"));
-  await apiFetch("/api/ambilight_markers_set?value=" + (ambilight.seconds_markers ? "on" : "off"));
-  await saveImportedDimCurve("/api/ambilight_dim_level_set", ambilight.dim_curve);
+  await apiFetchValue(getAmbilightPowerSetUrl(), ambilight.power ? "on" : "off");
+  await apiFetchValue(getAmbilightModeSetUrl(), Number(ambilight.mode || 0));
+  await apiFetchValue(getAmbilightLedsSetUrl(), Number(ambilight.leds || 0));
+  await apiFetchValue(getAmbilightOffsetSetUrl(), Number(ambilight.offset || 0));
+  await apiFetchValue(getAmbilightBrightnessSetUrl(), Number(ambilight.brightness || 0));
+  await saveImportedColor(getAmbilightColorSetUrl(), ambilight.color);
+  await saveImportedColor(getMarkerColorSetUrl(), ambilight.marker_color);
+  await apiFetchValue(getSyncAmbilightSetUrl(), ambilight.sync_ambilight ? "on" : "off");
+  await apiFetchValue(getSyncMarkersSetUrl(), ambilight.sync_markers ? "on" : "off");
+  await apiFetchValue(getFadeClockSecondsSetUrl(), ambilight.fade_clock_seconds ? "on" : "off");
+  await apiFetchValue(getAmbilightMarkersSetUrl(), ambilight.seconds_markers ? "on" : "off");
+  await saveImportedDimCurve(getAmbilightDimLevelSetUrl(), ambilight.dim_curve);
 
   for (const entry of (ambilight.profiles || [])) {
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&deceleration=" + encodeURIComponent(Number(entry.deceleration || 0));
-    await apiFetch("/api/ambilight_mode_profile_set" + query);
+    await apiFetchQuery(getAmbilightModeProfileSetUrl(), {
+      idx: Number(entry.idx || 0),
+      deceleration: Number(entry.deceleration || 0)
+    });
   }
 }
 
@@ -2392,27 +2488,31 @@ async function importDfplayerSettings(dfplayer) {
 
   setSettingsBackupNote("Importiere DFPlayer-Einstellungen...");
 
-  await apiFetch("/api/dfplayer_volume_set?value=" + encodeURIComponent(Number(dfplayer.volume || 0)));
-  await apiFetch("/api/dfplayer_mode_set?value=" + encodeURIComponent(Number(dfplayer.mode || 0)));
-  await apiFetch("/api/dfplayer_bell_flags_set?m15=" + ((Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off") +
-    "&m30=" + ((Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off") +
-    "&m45=" + ((Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"));
-  await apiFetch("/api/dfplayer_speak_cycle_set?value=" + encodeURIComponent(Number(dfplayer.speak_cycle || 0)));
-  await apiFetch("/api/dfplayer_silence_start_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_start || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_start || 0) % 60));
-  await apiFetch("/api/dfplayer_silence_stop_set?hour=" + encodeURIComponent(Math.floor(Number(dfplayer.silence_stop || 0) / 60)) + "&minute=" + encodeURIComponent(Number(dfplayer.silence_stop || 0) % 60));
+  await apiFetchValue(getDfplayerVolumeSetUrl(), Number(dfplayer.volume || 0));
+  await apiFetchValue(getDfplayerModeSetUrl(), Number(dfplayer.mode || 0));
+  await apiFetchQuery(getDfplayerBellFlagsSetUrl(), {
+    m15: (Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off",
+    m30: (Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off",
+    m45: (Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"
+  });
+  await apiFetchValue(getDfplayerSpeakCycleSetUrl(), Number(dfplayer.speak_cycle || 0));
+  await apiFetchHourMinute(getDfplayerSilenceStartSetUrl(), Number(dfplayer.silence_start || 0));
+  await apiFetchHourMinute(getDfplayerSilenceStopSetUrl(), Number(dfplayer.silence_stop || 0));
 
-  const alarmMap = new Map((dfplayer.alarms || []).map((entry) => [Number(entry.idx || 0), entry]));
-
-  for (let idx = 0; idx < 8; idx += 1) {
-    const entry = alarmMap.get(idx) || { idx, active: false, from: 0, to: 0, hour: 0, minute: 0 };
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&active=" + (entry.active ? "on" : "off") +
-      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
-      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
-      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
-      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
-    await apiFetch("/api/dfplayer_alarm_set" + query);
-  }
+  await importIndexedEntries(
+    getDfplayerAlarmSetUrl(),
+    dfplayer.alarms || [],
+    8,
+    (idx) => ({ idx, active: false, from: 0, to: 0, hour: 0, minute: 0 }),
+    (entry) => ({
+      idx: Number(entry.idx || 0),
+      active: entry.active ? "on" : "off",
+      from: Number(entry.from || 0),
+      to: Number(entry.to || 0),
+      hour: Number(entry.hour || 0),
+      minute: Number(entry.minute || 0)
+    })
+  );
 }
 
 async function importOverlaySettings(overlays) {
@@ -2425,23 +2525,24 @@ async function importOverlaySettings(overlays) {
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
   for (let idx = 0; idx < 32; idx += 1) {
     try {
-      await apiFetch("/api/overlay_delete?idx=0");
+      await apiFetchQuery(getOverlayDeleteUrl(), { idx });
     } catch (_) {}
   }
 
   for (let idx = 0; idx < items.length; idx += 1) {
     const entry = items[idx] || {};
-    const query = "?idx=" + encodeURIComponent(idx) +
-      "&active=" + (entry.active ? "on" : "off") +
-      "&type=" + encodeURIComponent(Number(entry.type || 0)) +
-      "&value=" + encodeURIComponent(entry.value || "") +
-      "&interval=" + encodeURIComponent(Number(entry.interval || 0)) +
-      "&duration=" + encodeURIComponent(Number(entry.duration || 0)) +
-      "&date_code=" + encodeURIComponent(Number(entry.date_code || 0)) +
-      "&month=" + encodeURIComponent(Number(entry.month || 0)) +
-      "&day=" + encodeURIComponent(Number(entry.day || 0)) +
-      "&days=" + encodeURIComponent(Number(entry.days || 1));
-    await apiFetch("/api/overlay_set" + query);
+    await apiFetchQuery(getOverlaySetUrl(), {
+      idx,
+      active: entry.active ? "on" : "off",
+      type: Number(entry.type || 0),
+      value: entry.value || "",
+      interval: Number(entry.interval || 0),
+      duration: Number(entry.duration || 0),
+      date_code: Number(entry.date_code || 0),
+      month: Number(entry.month || 0),
+      day: Number(entry.day || 0),
+      days: Number(entry.days || 1)
+    });
   }
 }
 
@@ -2452,32 +2553,31 @@ async function importTimerSettings(timers) {
 
   setSettingsBackupNote("Importiere Timer...");
 
-  const displayMap = new Map((timers.display || []).map((entry) => [Number(entry.idx || 0), entry]));
-  const ambilightMap = new Map((timers.ambilight || []).map((entry) => [Number(entry.idx || 0), entry]));
+  const buildTimerParams = (entry) => ({
+    idx: Number(entry.idx || 0),
+    active: entry.active ? "on" : "off",
+    switch_on: entry.switch_on ? "on" : "off",
+    from: Number(entry.from || 0),
+    to: Number(entry.to || 0),
+    hour: Number(entry.hour || 0),
+    minute: Number(entry.minute || 0)
+  });
 
-  for (let idx = 0; idx < 8; idx += 1) {
-    const entry = displayMap.get(idx) || { idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 };
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&active=" + (entry.active ? "on" : "off") +
-      "&switch_on=" + (entry.switch_on ? "on" : "off") +
-      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
-      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
-      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
-      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
-    await apiFetch("/api/timer_set" + query);
-  }
+  await importIndexedEntries(
+    getTimerSetUrl(),
+    timers.display || [],
+    8,
+    (idx) => ({ idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 }),
+    buildTimerParams
+  );
 
-  for (let idx = 0; idx < 8; idx += 1) {
-    const entry = ambilightMap.get(idx) || { idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 };
-    const query = "?idx=" + encodeURIComponent(Number(entry.idx || 0)) +
-      "&active=" + (entry.active ? "on" : "off") +
-      "&switch_on=" + (entry.switch_on ? "on" : "off") +
-      "&from=" + encodeURIComponent(Number(entry.from || 0)) +
-      "&to=" + encodeURIComponent(Number(entry.to || 0)) +
-      "&hour=" + encodeURIComponent(Number(entry.hour || 0)) +
-      "&minute=" + encodeURIComponent(Number(entry.minute || 0));
-    await apiFetch("/api/ambilight_timer_set" + query);
-  }
+  await importIndexedEntries(
+    getAmbilightTimerSetUrl(),
+    timers.ambilight || [],
+    8,
+    (idx) => ({ idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 }),
+    buildTimerParams
+  );
 }
 
 async function saveImportedColor(endpoint, color) {
@@ -2485,11 +2585,12 @@ async function saveImportedColor(endpoint, color) {
     return;
   }
 
-  const query = "?red=" + encodeURIComponent(Number(color.red || 0)) +
-    "&green=" + encodeURIComponent(Number(color.green || 0)) +
-    "&blue=" + encodeURIComponent(Number(color.blue || 0)) +
-    "&white=" + encodeURIComponent(Number(color.white || 0));
-  await apiFetch(endpoint + query);
+  await apiFetchQuery(endpoint, {
+    red: Number(color.red || 0),
+    green: Number(color.green || 0),
+    blue: Number(color.blue || 0),
+    white: Number(color.white || 0)
+  });
 }
 
 async function saveImportedDimCurve(endpoint, values) {
@@ -2498,7 +2599,7 @@ async function saveImportedDimCurve(endpoint, values) {
   }
 
   for (let idx = 0; idx < values.length && idx <= 15; idx += 1) {
-    await apiFetch(endpoint + "?idx=" + encodeURIComponent(idx) + "&value=" + encodeURIComponent(Number(values[idx] || 0)));
+    await apiFetchQuery(endpoint, { idx, value: Number(values[idx] || 0) });
   }
 }
 
@@ -2561,25 +2662,17 @@ function updateTftControls(settings) {
 }
 
 function updateTftVisibility(settings, debugOverrides) {
-  const isVisible = hasTftDisplay(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
-  document.getElementById("tft-panel").classList.toggle("is-hidden", !isVisible);
+  document.getElementById("tft-panel").classList.toggle("is-hidden", !getFeatureUiMeta(settings, debugOverrides).hasTft);
 }
 
 function renderPreviewDebug(settings) {
-  const mode = Number(settings && settings.numvars ? (settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0);
-  const modeEntry = settings && Array.isArray(settings.coloranims)
-    ? settings.coloranims.find((entry) => Number(entry.idx) === mode)
-    : null;
-  const staticColor = settings && settings.dspcolors ? settings.dspcolors[0] : null;
-  const layoutFile = currentLayoutPreview && currentLayoutPreview.file
-    ? currentLayoutPreview.file
-    : "Fallback";
+  const previewMeta = getPreviewUiMeta(settings);
 
   renderList("preview-debug-list", [
-    ["Farbanimation", modeEntry ? localizeAnimationName(modeEntry.name || String(mode)) : String(mode)],
-    ["Gespeicherte Display-Farbe", formatRgbwColor(staticColor)],
+    ["Farbanimation", previewMeta.animationLabel],
+    ["Gespeicherte Display-Farbe", formatRgbwColor(previewMeta.staticColor)],
     ["Live-Farbe vom Gerät", formatRgbwColor(currentLiveDisplayColor)],
-    ["Vorschau-Layout", layoutFile]
+    ["Vorschau-Layout", previewMeta.layoutFile]
   ]);
 }
 
@@ -2609,13 +2702,14 @@ function updateAmbilightNumberControls(settings) {
 }
 
 function updateColorControls(settings, ambilightOnline, debugOverrides) {
-  const capabilities = getLedCapabilities(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0, debugOverrides);
-  const useRgbw = capabilities.whiteChannel && !!settings.numvars[NUM.DISPLAY_USE_RGBW];
-  const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
-  const persistedLiveColor = colorAnimationMode !== 0 ? restoreStoredLiveDisplayColor(colorAnimationMode) : null;
-  const displayColor = settings.dspcolors[0] || { red: 63, green: 45, blue: 18, white: 0 };
-  const ambilightColor = settings.dspcolors[1] || { red: 63, green: 45, blue: 18, white: 0 };
-  const markerColor = settings.dspcolors[2] || { red: 63, green: 45, blue: 18, white: 0 };
+  const colorMeta = getColorUiMeta(settings, ambilightOnline, debugOverrides);
+  const capabilities = colorMeta.capabilities;
+  const useRgbw = colorMeta.useRgbw;
+  const colorAnimationMode = colorMeta.colorAnimationMode;
+  const persistedLiveColor = colorMeta.persistedLiveColor;
+  const displayColor = colorMeta.displayColor;
+  const ambilightColor = colorMeta.ambilightColor;
+  const markerColor = colorMeta.markerColor;
 
   if (!currentLiveDisplayColor && persistedLiveColor) {
     currentLiveDisplayColor = persistedLiveColor;
@@ -2663,7 +2757,7 @@ function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAni
 }
 
 function updateDfplayerControls(settings, debugOverrides) {
-  const isUp = isDfplayerOnline(settings, debugOverrides);
+  const isUp = getFeatureUiMeta(settings, debugOverrides).moduleState.dfplayerOnline;
   const note = document.getElementById("dfplayer-note");
   const mode = settings.numvars[NUM.DFPLAYER_MODE] || 0;
 
@@ -2817,23 +2911,11 @@ function renderAmbilightModeProfiles(settings) {
 }
 
 function renderFileSystem(fsInfo, files, settings) {
-  const infoItems = [];
-
-  if (fsInfo.total !== undefined) {
-    infoItems.push(
-      ["Gesamt", formatBytes(fsInfo.total)],
-      ["Belegt", formatBytes(fsInfo.used)],
-      ["Blockgröße", formatBytes(fsInfo.block_size)],
-      ["Seitengröße", formatBytes(fsInfo.page_size)],
-      ["Max. offene Dateien", String(fsInfo.max_open_files)],
-      ["Max. Pfadlänge", String(fsInfo.max_path_length)]
-    );
-  }
-
-  renderList("fs-info-list", infoItems.length ? infoItems : [["LittleFS", "keine Daten"]]);
+  const meta = getMaintenanceUiMeta(settings, getCurrentEepromSettings(), fsInfo, files);
+  renderList("fs-info-list", meta.fsInfoItems);
 
   const root = document.getElementById("fs-file-list");
-  root.innerHTML = (files || []).length ? files.map((file) => (
+  root.innerHTML = meta.files.length ? meta.files.map((file) => (
     '<section class="file-row">' +
       '<div class="file-row-head">' +
         '<div class="file-name">' + escapeHtml(file.name || "-") + '</div>' +
@@ -2858,22 +2940,29 @@ function renderFileSystem(fsInfo, files, settings) {
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
-  if (value >= 1024 * 1024) {
-    return (value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1) + " MB";
+  if (value >= 1000 * 1000) {
+    return (value / (1000 * 1000)).toFixed(value >= 10 * 1000 * 1000 ? 0 : 1) + " MB";
   }
-  if (value >= 1024) {
-    return (value / 1024).toFixed(value >= 10 * 1024 ? 0 : 1) + " kB";
+  if (value >= 1000) {
+    return (value / 1000).toFixed(value >= 10 * 1000 ? 0 : 1) + " kB";
   }
   return String(value) + " Bytes";
 }
 
 function updateFsUploadTargets(settings) {
-  const targets = getFsUploadTargets(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0);
+  const uploadMeta = getFsUploadMeta(settings);
+  const targets = uploadMeta.targets;
 
+  updateUploadFormActions();
   updateUploadFormVisibility("fs-upload-icon-form", "fs-upload-icon-label", targets.icon);
   updateUploadFormVisibility("fs-upload-weather-form", "fs-upload-weather-label", targets.weather);
   updateUploadFormVisibility("fs-upload-tables-form", "fs-upload-tables-label", targets.tables);
   updateUploadFormVisibility("fs-upload-display-form", "fs-upload-display-label", targets.display);
+  setUploadFormSupported("fs-upload-app-form", uploadMeta.appBundleSupported, "PWA-Upload für App-Pakete wird von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-icon-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-weather-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-tables-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-display-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
 }
 
 function updateUploadFormVisibility(formId, labelId, fileName) {
@@ -2881,30 +2970,79 @@ function updateUploadFormVisibility(formId, labelId, fileName) {
   const label = document.getElementById(labelId);
   form.classList.toggle("is-hidden", !fileName);
   if (fileName) {
-    label.textContent = fileName;
+    if (formId === "fs-upload-display-form") {
+      label.textContent = "TFT-Sonderfall: " + fileName;
+    } else {
+      label.textContent = fileName;
+    }
   }
 }
 
-function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
-  const flashSize = updateStatus.flash_size || 0;
-  const statusItems = [
-    ["ESP-Flash", flashSize ? String(flashSize) + " Bytes" : "-"],
-    ["OTA-Update", updateStatus.can_update ? "möglich" : "nicht möglich"],
-    ["WordClock-Version", updateStatus.wc_version || (settings.strvars[STR.VERSION] || "-")],
-    ["WordClock verfügbar", updateStatus.wc_available || "-"],
-    ["ESP-Version", updateStatus.esp_version || (settings.strvars[STR.ESP8266_VERSION] || "-")],
-    ["ESP verfügbar", updateStatus.esp_available || "-"],
-    ["App-Version", APP_VERSION],
-    ["App verfügbar", updateStatus.app_available || "-"],
-    ["Standard STM32", updateStatus.stm32_default || "-"]
+function updateUploadFormActions() {
+  const actions = [
+    ["fs-upload-app-form", getAppBundleUploadUrl()],
+    ["fs-upload-icon-form", getFsUploadUrl("icon")],
+    ["fs-upload-weather-form", getFsUploadUrl("weather")],
+    ["fs-upload-tables-form", getFsUploadUrl("tables")],
+    ["fs-upload-display-form", getFsUploadUrl("display")]
   ];
 
-  renderList("update-status-list", statusItems);
+  actions.forEach(([formId, action]) => {
+    const form = document.getElementById(formId);
+
+    if (!form || !action) {
+      return;
+    }
+
+    form.setAttribute("action", action);
+  });
+
+  updateUploadInputAccepts();
+}
+
+function updateUploadInputAccepts() {
+  const acceptPairs = [
+    ["#fs-upload-app-form input[type=\"file\"]", getAppBundleUploadAccept()],
+    ["#fs-upload-icon-form input[type=\"file\"]", getFsUploadTxtAccept()],
+    ["#fs-upload-weather-form input[type=\"file\"]", getFsUploadTxtAccept()],
+    ["#fs-upload-tables-form input[type=\"file\"]", getFsUploadTxtAccept()],
+    ["#fs-upload-display-form input[type=\"file\"]", getFsUploadTxtAccept()],
+    ["#local-update-esp-file-input", getLocalEspUpdateAccept()],
+    ["#local-update-stm32-file-input", getLocalStm32UploadAccept()]
+  ];
+
+  acceptPairs.forEach(([selector, accept]) => {
+    const input = document.querySelector(selector);
+    if (input && accept) {
+      input.setAttribute("accept", accept);
+    }
+  });
+}
+
+function setUploadFormSupported(formId, supported, unsupportedMessage) {
+  const form = document.getElementById(formId);
+
+  if (!form) {
+    return;
+  }
+
+  form.dataset.unsupportedMessage = unsupportedMessage || "";
+  form.querySelectorAll("input, button").forEach((element) => {
+    element.disabled = !supported;
+  });
+}
+
+function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
+  const updateMeta = getUpdateModuleMeta(updateStatus, updateTableInfo, settings);
+  const summary = updateMeta.summary;
+  const serverFilesMeta = updateMeta.serverFiles;
+  const view = getUpdateUiViewMeta(updateMeta);
+
+  renderList("update-status-list", summary.items);
 
   const select = document.getElementById("update-stm32-select");
-  const files = Array.isArray(updateStatus.stm32_files) ? updateStatus.stm32_files : [];
-  select.innerHTML = files.length
-    ? files.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === updateStatus.stm32_default ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
+  select.innerHTML = view.stm32Files.length
+    ? view.stm32Files.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === view.stm32Default ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
     : '<option value="">keine STM32-Dateien gefunden</option>';
 
   const tableField = document.getElementById("update-table-field");
@@ -2913,40 +3051,108 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const assetsButton = document.getElementById("update-assets-button");
   const appBundleButton = document.getElementById("update-app-bundle-button");
   const serverFilesBlock = document.getElementById("update-server-files-block");
-  const tableFiles = Array.isArray(updateTableInfo.table_files) ? updateTableInfo.table_files : [];
-  const currentTable = updateTableInfo.current_table || "";
-  const tableAvailable = tableFiles.length > 0;
-  const assetsAvailable = !! updateStatus.assets_available;
-  const appBundleAvailable = !! updateStatus.app_bundle_available;
-  const anyServerFilesAvailable = tableAvailable || assetsAvailable || appBundleAvailable;
+  const tableFiles = serverFilesMeta.tableFiles;
+  const currentTable = serverFilesMeta.currentTable;
 
-  tableField.classList.toggle("is-hidden", !tableAvailable);
+  tableField.classList.toggle("is-hidden", !serverFilesMeta.tableAvailable);
   tableSelect.innerHTML = tableFiles.length
     ? tableFiles.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === currentTable ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
     : '<option value="">keine Layout-Tabellen gefunden</option>';
-  tableButton.classList.toggle("is-hidden", !tableAvailable);
-  assetsButton.classList.toggle("is-hidden", !assetsAvailable);
-  appBundleButton.classList.toggle("is-hidden", !appBundleAvailable);
-  serverFilesBlock.classList.toggle("is-hidden", !anyServerFilesAvailable);
+  tableButton.classList.toggle("is-hidden", !serverFilesMeta.tableActionSupported);
+  assetsButton.classList.toggle("is-hidden", !serverFilesMeta.assetsActionSupported);
+  appBundleButton.classList.toggle("is-hidden", !serverFilesMeta.appBundleActionSupported);
+  serverFilesBlock.classList.toggle("is-hidden", !serverFilesMeta.anyActionSupported);
 
-  document.getElementById("update-release-notes").innerHTML = updateStatus.release_notes || "<p>Keine Release Notes vom Server gelesen.</p>";
-  document.getElementById("update-esp-button").disabled = !updateStatus.can_update;
-  document.getElementById("update-stm32-button").disabled = !files.length;
-  tableButton.disabled = !tableAvailable;
-  assetsButton.disabled = !assetsAvailable;
-  appBundleButton.disabled = !appBundleAvailable;
+  document.getElementById("update-release-notes").innerHTML = view.releaseNotes || "<p>Keine Release Notes vom Server gelesen.</p>";
+  document.getElementById("update-esp-button").disabled = !view.canUpdate;
+  document.getElementById("update-stm32-button").disabled = !view.stm32Files.length;
+  tableButton.disabled = !serverFilesMeta.tableAvailable || !serverFilesMeta.tableActionSupported;
+  assetsButton.disabled = !serverFilesMeta.assetsAvailable;
+  appBundleButton.disabled = !serverFilesMeta.appBundleAvailable;
+
+  updateLegacyEntryLink(updateStatus);
+}
+
+function updateLegacyEntryLink(updateStatus) {
+  const link = document.getElementById("legacy-entry-link");
+
+  if (!link) {
+    return;
+  }
+
+  link.setAttribute("href", getLegacyEntryUrl(updateStatus));
 }
 
 function updateLocalUpdateControls(updateStatus) {
-  const supported = updateStatus.local_update_supported !== false;
+  const meta = getUpdateModuleMeta(updateStatus).localUpdate;
   const note = document.getElementById("local-update-note");
-  note.textContent = supported
-    ? "ESP- oder STM32-Datei auswählen und direkt lokal hochladen."
-    : "Lokales Update ist bei dieser ESP-Flashgröße nicht verfügbar.";
-  document.getElementById("local-update-esp-file-input").disabled = !supported;
-  document.getElementById("local-update-esp-submit-button").disabled = !supported;
-  document.getElementById("local-update-stm32-file-input").disabled = !supported;
-  document.getElementById("local-update-stm32-submit-button").disabled = !supported;
+  note.textContent = !meta.supported
+    ? (meta.message || "Lokales Update ist bei dieser ESP-Flashgröße nicht verfügbar.")
+    : (!meta.localEspSupported || !meta.localStm32Supported)
+      ? "Einige lokale PWA-Updatepfade werden von dieser Firmware noch nicht unterstützt."
+      : (meta.message || "ESP- oder STM32-Datei auswählen und direkt lokal hochladen.");
+  document.getElementById("local-update-esp-file-input").disabled = !meta.supported || !meta.localEspSupported;
+  document.getElementById("local-update-esp-submit-button").disabled = !meta.supported || !meta.localEspSupported;
+  document.getElementById("local-update-stm32-file-input").disabled = !meta.supported || !meta.localStm32Supported;
+  document.getElementById("local-update-stm32-submit-button").disabled = !meta.supported || !meta.localStm32Supported;
+}
+
+function refreshUpdateUi(settings, coreData, debugOverrides) {
+  const meta = getCurrentUpdateUiMeta();
+
+  updateUploadFormActions();
+  renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, meta.status);
+  updateUpdateStatus(meta.status, meta.tableInfo, settings);
+  updateLocalUpdateControls(meta.status);
+}
+
+function getNetworkUiMeta(settings, networkInfo) {
+  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
+  return {
+    networks: Array.isArray(networkInfo && networkInfo.networks) ? networkInfo.networks : [],
+    currentSsid: networkInfo && networkInfo.ssid ? networkInfo.ssid : "",
+    ip: networkInfo && networkInfo.ip ? networkInfo.ip : "",
+    mode: networkInfo && networkInfo.mode ? networkInfo.mode : "",
+    timeserver: settings.strvars[STR.TIMESERVER] || "",
+    timezoneOffset: timezone.offset,
+    summertime: timezone.summertime
+  };
+}
+
+function getMaintenanceUiMeta(settings, eepromSettings, fsInfo, files) {
+  const fsInfoItems = [];
+
+  if (fsInfo && fsInfo.total !== undefined) {
+    fsInfoItems.push(
+      ["Gesamt", formatBytes(fsInfo.total)],
+      ["Belegt", formatBytes(fsInfo.used)],
+      ["Blockgröße", formatBytes(fsInfo.block_size)],
+      ["Seitengröße", formatBytes(fsInfo.page_size)],
+      ["Max. offene Dateien", String(fsInfo.max_open_files)],
+      ["Max. Pfadlänge", String(fsInfo.max_path_length)]
+    );
+  }
+
+  return {
+    updateHost: settings.strvars[STR.UPDATE_HOST] || "",
+    updatePath: settings.strvars[STR.UPDATE_PATH] || "",
+    infoItems: [
+      ["WLAN-Client", eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "-"],
+      ["Zugangspunkt", eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "-"],
+      ["Bootmodus", eepromSettings && eepromSettings.boot_as_ap ? "Access Point" : "WLAN-Client"]
+    ],
+    fsInfoItems: fsInfoItems.length ? fsInfoItems : [["LittleFS", "keine Daten"]],
+    files: Array.isArray(files) ? files : []
+  };
+}
+
+function getUpdateUiViewMeta(updateMeta) {
+  return {
+    canUpdate: !!(updateMeta && updateMeta.summary && updateMeta.summary.canUpdate),
+    stm32Default: updateMeta && updateMeta.summary ? updateMeta.summary.stm32Default : "",
+    stm32Files: updateMeta && updateMeta.summary ? updateMeta.summary.stm32Files : [],
+    releaseNotes: updateMeta && updateMeta.summary ? updateMeta.summary.releaseNotes : ""
+  };
 }
 
 function renderDimCurves(settings) {
@@ -3040,8 +3246,18 @@ function applyDimPreset(prefix) {
 }
 
 async function applyDimPresetAndSave(prefix) {
+  const button = document.getElementById(prefix === "ambi" ? "ambilight-dim-preset-apply-button" : "display-dim-preset-apply-button");
+  const buttonText = "Preset anwenden und speichern";
+
+  beginButtonFeedback(button, "speichert...");
   applyDimPreset(prefix);
-  await saveDimCurve(prefix);
+
+  try {
+    await persistDimCurve(prefix, button, buttonText);
+  } catch (error) {
+    announceStatus("Preset konnte nicht angewendet werden", "error");
+    finishButtonFeedback(button, buttonText, "error", "Fehler");
+  }
 }
 
 function renderOverlayRows(settings) {
@@ -3135,7 +3351,9 @@ function renderOverlayRows(settings) {
   });
 
   root.querySelectorAll("[id^='ov-type-']").forEach((select) => {
-    select.addEventListener("change", () => updateOverlayRowVisibility(Number(select.id.split("-").pop())));
+    select.addEventListener("change", () => {
+      void handleOverlayTypeChange(Number(select.id.split("-").pop()));
+    });
   });
 
   root.querySelectorAll("[id^='ov-datecode-']").forEach((select) => {
@@ -3270,158 +3488,64 @@ function syncWhiteChannelLabel(prefix) {
 }
 
 async function saveDisplayMode() {
-  const button = document.getElementById("display-mode-save-button");
   const value = document.getElementById("display-mode-select").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/display_mode_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Display-Modus speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Display-Modus konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Display-Modus speichern", "error", "Fehler");
-  }
+  await runValueSave("display-mode-save-button", getDisplayModeSetUrl(), value, "Display-Modus speichern", "Display-Modus konnte nicht gespeichert werden");
 }
 
 async function saveTickerText() {
-  const button = document.getElementById("ticker-save-button");
   const value = document.getElementById("ticker-text-input").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ticker_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Ticker speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ticker konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Ticker speichern", "error", "Fehler");
-  }
+  await runValueSave("ticker-save-button", getTickerSetUrl(), value, "Ticker speichern", "Ticker konnte nicht gespeichert werden");
 }
 
 async function saveDateTickerFormat() {
-  const button = document.getElementById("date-format-save-button");
   const value = document.getElementById("date-format-input").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/date_ticker_format_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Datumsformat speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Datumsformat konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Datumsformat speichern", "error", "Fehler");
-  }
+  await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, "Datumsformat speichern", "Datumsformat konnte nicht gespeichert werden");
 }
 
 async function saveTickerDeceleration() {
-  const button = document.getElementById("ticker-deceleration-save-button");
   const input = document.getElementById("ticker-deceleration-input");
   const value = Math.max(0, Math.min(255, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ticker_deceleration_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Ticker-Verzögerung speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ticker-Verzögerung konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Ticker-Verzögerung speichern", "error", "Fehler");
-  }
+  await runValueSave("ticker-deceleration-save-button", getTickerDecelerationSetUrl(), value, "Ticker-Verzögerung speichern", "Ticker-Verzögerung konnte nicht gespeichert werden");
 }
 
 async function testDisplay() {
-  const button = document.getElementById("test-display-button");
-
-  beginButtonFeedback(button, "startet...");
-
-  try {
-    await apiFetch("/api/test_display");
-    announceStatus("Displaytest gestartet", "ok");
-    setTimeout(loadData, 1200);
-    finishButtonFeedback(button, "Displaytest starten", "success", "gestartet");
-  } catch (error) {
-    announceStatus("Displaytest konnte nicht gestartet werden", "error");
-    finishButtonFeedback(button, "Displaytest starten", "error", "Fehler");
-  }
+  await runTriggerAction("test-display-button", getDisplayTestUrl(), "Displaytest starten", "Displaytest konnte nicht gestartet werden", "Displaytest gestartet");
 }
 
 async function saveWeatherAppId() {
-  const button = document.getElementById("weather-appid-save-button");
   const value = document.getElementById("weather-appid-input").value || "";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/weather_appid_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "API-Schlüssel speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("API-Schlüssel konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "API-Schlüssel speichern", "error", "Fehler");
-  }
+  await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, "API-Schlüssel speichern", "API-Schlüssel konnte nicht gespeichert werden");
 }
 
 async function saveWeatherCity() {
-  const button = document.getElementById("weather-city-save-button");
   const value = document.getElementById("weather-city-input").value || "";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Ort speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ort konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Ort speichern", "error", "Fehler");
-  }
+  await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, "Ort speichern", "Ort konnte nicht gespeichert werden");
 }
 
 async function saveWeatherCoordinates() {
-  const button = document.getElementById("weather-coordinates-save-button");
   const lon = document.getElementById("weather-lon-input").value || "";
   const lat = document.getElementById("weather-lat-input").value || "";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?lon=" + encodeURIComponent(lon) + "&lat=" + encodeURIComponent(lat);
-    await apiFetch("/api/weather_coordinates_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Koordinaten speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Koordinaten konnten nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Koordinaten speichern", "error", "Fehler");
-  }
+  await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, "Koordinaten speichern", "Koordinaten konnten nicht gespeichert werden");
 }
 
 async function getWeatherNow() {
-  await runWeatherAction("weather-now-button", "/api/weather_get_now", "Wetter abrufen", "Wetter konnte nicht angefordert werden");
+  await runWeatherAction("weather-now-button", getWeatherNowUrl(), "Wetter abrufen", "Wetter konnte nicht angefordert werden");
 }
 
 async function getWeatherForecast() {
-  await runWeatherAction("weather-forecast-button", "/api/weather_get_forecast", "Wettervorhersage abrufen", "Wettervorhersage konnte nicht angefordert werden");
+  await runWeatherAction("weather-forecast-button", getWeatherForecastUrl(), "Wettervorhersage abrufen", "Wettervorhersage konnte nicht angefordert werden");
 }
 
 async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
-  const button = document.getElementById(buttonId);
-
-  beginButtonFeedback(button, "läuft...");
-
-  try {
-    await apiFetch(endpoint);
-    await loadData();
-    finishButtonFeedback(button, buttonText, "success", "angefragt");
-  } catch (error) {
-    announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
-  }
+  await runButtonRequestById(buttonId, {
+    busyText: "läuft...",
+    idleText: buttonText,
+    successText: "angefragt",
+    errorText,
+    reload: true,
+    request: () => apiFetch(endpoint)
+  });
 }
 
 function openWeatherMapPicker() {
@@ -3652,7 +3776,6 @@ async function reverseLookupWeatherLocation(lat, lon) {
 }
 
 async function applyWeatherMapSelection() {
-  const button = document.getElementById("weather-map-apply-button");
   const city = document.getElementById("weather-map-city-input").value || "";
   const lon = document.getElementById("weather-map-lon-input").value || "";
   const lat = document.getElementById("weather-map-lat-input").value || "";
@@ -3662,99 +3785,92 @@ async function applyWeatherMapSelection() {
   document.getElementById("weather-lat-input").value = lat;
   document.getElementById("weather-location-preview").textContent = "Aus Karte gewählt: " + (city || "-") + " | " + (lon || "-") + " / " + (lat || "-");
 
-  beginButtonFeedback(button, "übernimmt...");
+  await runButtonRequestById("weather-map-apply-button", {
+    busyText: "übernimmt...",
+    idleText: "In Wetter übernehmen",
+    successText: "übernommen",
+    errorText: "Wetter-Ort und Koordinaten konnten nicht übernommen werden",
+    successStatusText: "Wetter-Ort und Koordinaten wurden übernommen",
+    reload: true,
+    request: async () => {
+      await apiFetchValue(getWeatherCitySetUrl(), city);
+      await apiFetchQuery(getWeatherCoordinatesSetUrl(), { lon, lat });
+      closeWeatherMapPicker();
+    }
+  });
+}
+
+async function refreshNetworkScan() {
+  const button = document.getElementById("network-scan-button");
+
+  beginButtonFeedback(button, "lädt...");
 
   try {
-    await apiFetch("/api/weather_city_set?value=" + encodeURIComponent(city));
-    await apiFetch("/api/weather_coordinates_set?lon=" + encodeURIComponent(lon) + "&lat=" + encodeURIComponent(lat));
     await loadData();
-    closeWeatherMapPicker();
-    announceStatus("Wetter-Ort und Koordinaten wurden übernommen", "ok");
-    finishButtonFeedback(button, "In Wetter übernehmen", "success", "übernommen");
+    announceStatus("WLAN-Liste wurde aktualisiert", "ok");
+    finishButtonFeedback(button, "WLANs neu laden", "success", "geladen");
   } catch (error) {
-    announceStatus("Wetter-Ort und Koordinaten konnten nicht übernommen werden", "error");
-    finishButtonFeedback(button, "In Wetter übernehmen", "error", "Fehler");
+    announceStatus("WLAN-Liste konnte nicht aktualisiert werden", "error");
+    finishButtonFeedback(button, "WLANs neu laden", "error", "Fehler");
   }
 }
 
 async function saveNetworkClient() {
-  const button = document.getElementById("network-client-save-button");
   const ssid = document.getElementById("network-ssid-select").value || "";
   const key = document.getElementById("network-key-input").value || "";
-
-  beginButtonFeedback(button, "verbindet...");
-
-  try {
-    const query = "?ssid=" + encodeURIComponent(ssid) + "&key=" + encodeURIComponent(key);
-    await apiFetch("/api/network_client_set" + query);
-    announceStatus("WLAN-Client-Verbindung wurde angestoßen", "ok");
-    setTimeout(loadData, 1500);
-    finishButtonFeedback(button, "Als WLAN-Client verbinden", "success", "gestartet");
-  } catch (error) {
-    announceStatus("WLAN-Client konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, "Als WLAN-Client verbinden", "error", "Fehler");
-  }
+  await runQueryButtonRequestById("network-client-save-button", {
+    endpoint: getNetworkClientSetUrl(),
+    query: { ssid, key },
+    busyText: "verbindet...",
+    idleText: "Als WLAN-Client verbinden",
+    successText: "gestartet",
+    errorText: "WLAN-Client konnte nicht gesetzt werden",
+    successStatusText: "WLAN-Client-Verbindung wurde angestoßen",
+    reloadDelayMs: 1500
+  });
 }
 
 async function saveNetworkAp() {
-  const button = document.getElementById("network-ap-save-button");
   const ssid = document.getElementById("network-ap-ssid-input").value || "";
   const key = document.getElementById("network-ap-key-input").value || "";
-
-  beginButtonFeedback(button, "startet...");
-
-  try {
-    const query = "?ssid=" + encodeURIComponent(ssid) + "&key=" + encodeURIComponent(key);
-    await apiFetch("/api/network_ap_set" + query);
-    announceStatus("Start des Zugangspunkts wurde angestoßen", "ok");
-    setTimeout(loadData, 1500);
-    finishButtonFeedback(button, "Zugangspunkt starten", "success", "gestartet");
-  } catch (error) {
-    announceStatus("Zugangspunkt konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, "Zugangspunkt starten", "error", "Fehler");
-  }
+  await runQueryButtonRequestById("network-ap-save-button", {
+    endpoint: getNetworkApSetUrl(),
+    query: { ssid, key },
+    busyText: "startet...",
+    idleText: "Zugangspunkt starten",
+    successText: "gestartet",
+    errorText: "Zugangspunkt konnte nicht gesetzt werden",
+    successStatusText: "Start des Zugangspunkts wurde angestoßen",
+    reloadDelayMs: 1500
+  });
 }
 
 async function saveTimeServer() {
-  await runTextSave("network-timeserver-save-button", "/api/network_timeserver_set", document.getElementById("network-timeserver-input").value || "", "Zeitserver speichern", "Zeitserver konnte nicht gespeichert werden");
+  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", "Zeitserver speichern", "Zeitserver konnte nicht gespeichert werden");
 }
 
 async function saveTimezone() {
-  const button = document.getElementById("network-timezone-save-button");
   const input = document.getElementById("network-timezone-input");
   const value = Math.max(-12, Math.min(14, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/network_timezone_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Zeitzone speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Zeitzone konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Zeitzone speichern", "error", "Fehler");
-  }
+  await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, "Zeitzone speichern", "Zeitzone konnte nicht gespeichert werden", {
+    request: async () => {
+      await apiFetchValue(getNetworkTimezoneSetUrl(), value);
+      await apiFetch(getNetworkGetTimeUrl());
+    }
+  });
 }
 
 async function toggleSummertime() {
   const button = document.getElementById("network-summertime-button");
-  const next = button.dataset.state === "on" ? "off" : "on";
-
-  beginButtonFeedback(button, "schaltet...");
-
-  try {
-    await apiFetch("/api/network_summertime_set?value=" + next);
-    await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || "Sommerzeit berücksichtigen", "success", next === "on" ? "aktiviert" : "deaktiviert", true);
-  } catch (error) {
-    announceStatus("Sommerzeit konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Sommerzeit berücksichtigen", "error", "Fehler", true);
-  }
+  await runStateToggleButton(button, getNetworkSummertimeSetUrl(), {
+    idleText: button.dataset.restoreText || "Sommerzeit berücksichtigen",
+    errorText: "Sommerzeit konnte nicht gesetzt werden",
+    preserveCurrentText: true
+  });
 }
 
 async function saveDateTime() {
-  const button = document.getElementById("datetime-save-button");
   const year = clampNumber(document.getElementById("datetime-year-input").value, 2000, 2999, 2026);
   const month = clampNumber(document.getElementById("datetime-month-input").value, 1, 12, 1);
   const day = clampNumber(document.getElementById("datetime-day-input").value, 1, 31, 1);
@@ -3767,42 +3883,28 @@ async function saveDateTime() {
   document.getElementById("datetime-hour-input").value = String(hour);
   document.getElementById("datetime-minute-input").value = String(minute);
 
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?year=" + encodeURIComponent(year) +
-      "&month=" + encodeURIComponent(month) +
-      "&day=" + encodeURIComponent(day) +
-      "&hour=" + encodeURIComponent(hour) +
-      "&minute=" + encodeURIComponent(minute);
-    await apiFetch("/api/datetime_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Datum und Uhrzeit speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Datum und Uhrzeit konnten nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Datum und Uhrzeit speichern", "error", "Fehler");
-  }
+  await runQuerySave("datetime-save-button", getDateTimeSetUrl(), { year, month, day, hour, minute }, "Datum und Uhrzeit speichern", "Datum und Uhrzeit konnten nicht gespeichert werden");
 }
 
 async function learnIrRemote() {
-  await runSimpleAction("learn-ir-button", "/api/learn_ir", "IR-Fernbedienung lernen", "IR-Lernmodus konnte nicht gestartet werden", "IR-Lernmodus gestartet");
+  await runSimpleAction("learn-ir-button", getLearnIrUrl(), "IR-Fernbedienung lernen", "IR-Lernmodus konnte nicht gestartet werden", "IR-Lernmodus gestartet");
 }
 
 async function getNetTime() {
-  await runSimpleAction("network-nettime-button", "/api/network_get_time", "Netzzeit abrufen", "Netzzeit konnte nicht angefordert werden", "Netzzeit angefordert");
+  await runSimpleAction("network-nettime-button", getNetworkGetTimeUrl(), "Netzzeit abrufen", "Netzzeit konnte nicht angefordert werden", "Netzzeit angefordert");
 }
 
 async function runWps() {
-  await runSimpleAction("network-wps-button", "/api/network_wps", "WPS", "WPS konnte nicht gestartet werden", "WPS wurde gestartet");
+  await runSimpleAction("network-wps-button", getNetworkWpsUrl(), "WPS", "WPS konnte nicht gestartet werden", "WPS wurde gestartet");
 }
 
 async function saveUpdateHost() {
-  await runTextSave("update-host-save-button", "/api/update_host_set", document.getElementById("update-host-input").value || "", "Update-Host speichern", "Update-Host konnte nicht gespeichert werden");
+  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", "Update-Host speichern", "Update-Host konnte nicht gespeichert werden");
   await refreshUpdateServerAvailability();
 }
 
 async function saveUpdatePath() {
-  await runTextSave("update-path-save-button", "/api/update_path_set", document.getElementById("update-path-input").value || "", "Update-Pfad speichern", "Update-Pfad konnte nicht gespeichert werden");
+  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", "Update-Pfad speichern", "Update-Pfad konnte nicht gespeichert werden");
   await refreshUpdateServerAvailability();
 }
 
@@ -3818,38 +3920,65 @@ async function uploadLocalEspUpdate(event) {
     return;
   }
 
+  if (!isBinFileName(file.name)) {
+    document.getElementById("local-update-note").textContent = "Falsche ESP-Datei ausgewählt. Erwartet wird eine .bin-Datei.";
+    announceStatus("ESP-.bin-Datei erwartet", "error");
+    finishButtonFeedback(button, "ESP lokal aktualisieren", "error", "Fehler");
+    return;
+  }
+
   button.disabled = true;
   button.textContent = "lädt hoch...";
+  stopUpdateProgressPolling();
   announceStatus("ESP-Firmware wird lokal hochgeladen...", "warn");
   document.getElementById("local-update-note").textContent = "ESP-Firmware wird lokal hochgeladen...";
+  document.getElementById("update-progress-shell").classList.remove("is-hidden");
+  document.getElementById("update-progress-visual").classList.add("is-hidden");
+  document.getElementById("update-progress-frame").classList.add("is-hidden");
+  document.getElementById("update-progress-note").textContent = "Lokales ESP-Update wird vorbereitet.";
+  document.getElementById("updated-at").textContent = "Lokales ESP-Update wird vorbereitet.";
+  pendingProgressAction = "esp-local-update";
+  pendingProgressButtonId = "local-update-esp-submit-button";
+  button.dataset.restoreText = "ESP lokal aktualisieren";
+  rememberProgressReturnScrollPosition();
+  document.getElementById("update-progress-shell").scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
-    await uploadRawFile("/api/local_esp_update", file, (loaded, total) => {
-      const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-      button.textContent = "lädt hoch... " + percent + "%";
-      document.getElementById("local-update-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
-    });
+    await uploadRawFile(
+      buildUploadUrl(getLocalEspUpdateUrl(), file.name),
+      file,
+      (loaded, total) => {
+        const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+        button.textContent = "lädt hoch... " + percent + "%";
+        document.getElementById("local-update-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
+        document.getElementById("update-progress-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
+        document.getElementById("updated-at").textContent = document.getElementById("update-progress-note").textContent;
+      }
+    );
   } catch (error) {
+    stopUpdateProgressPolling();
     document.getElementById("local-update-note").textContent = "ESP-Firmware konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler");
     button.disabled = false;
     button.textContent = "ESP lokal aktualisieren";
+    finishProgressUi(0);
     return;
   }
 
   button.textContent = "läuft...";
   try {
-    await apiFetch("/api/local_esp_restart");
+    await apiFetch(getLocalEspRestartUrl());
   } catch (error) {
   }
-  document.getElementById("update-progress-shell").classList.remove("is-hidden");
-  document.getElementById("update-progress-visual").classList.add("is-hidden");
-  document.getElementById("update-progress-frame").classList.add("is-hidden");
   document.getElementById("update-progress-note").textContent = "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.";
   announceStatus("ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.", "warn");
-  pendingProgressAction = "esp-local-update";
-  pendingProgressButtonId = "local-update-esp-submit-button";
-  button.dataset.restoreText = "ESP lokal aktualisieren";
-  waitForDeviceReady(90000, 3000, "ESP wieder erreichbar. Seite wird neu geladen.", true);
+  waitForDeviceReady(90000, 3000, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
+    forcedReloadAfterMs: 90000,
+    reloadWatchdogDelayMs: 95000,
+    requireReconnectCycle: true,
+    requiredStableSuccesses: 2,
+    probes: buildDeviceReadyProbes(),
+    waitingMessage: "Lokales ESP-Update läuft. Warte auf Neustart und Reconnect..."
+  });
 }
 
 async function uploadLocalStm32Update(event) {
@@ -3861,6 +3990,14 @@ async function uploadLocalStm32Update(event) {
 
   if (!file) {
     document.getElementById("local-update-note").textContent = "Bitte zuerst eine STM32-Firmwaredatei auswählen.";
+    return;
+  }
+
+  if (!isMatchingLocalStm32File(file.name)) {
+    const expected = getExpectedLocalStm32Filename(getCurrentUpdateStatus()) || "passende STM32-.hex-Datei";
+    document.getElementById("local-update-note").textContent = "Falsche STM32-Datei ausgewählt. Erwartet wird " + expected + ".";
+    announceStatus("Passende STM32-Datei erwartet", "error");
+    finishButtonFeedback(button, "STM32 lokal aktualisieren", "error", "Fehler");
     return;
   }
 
@@ -3879,7 +4016,7 @@ async function uploadLocalStm32Update(event) {
   }
 }
 
-function uploadRawFile(url, file, onProgress) {
+function uploadRawFile(url, file, onProgress, onUploadComplete) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
@@ -3889,6 +4026,12 @@ function uploadRawFile(url, file, onProgress) {
     xhr.upload.addEventListener("progress", (event) => {
       if (onProgress) {
         onProgress(event.loaded, event.total || file.size);
+      }
+    });
+
+    xhr.upload.addEventListener("load", () => {
+      if (onUploadComplete) {
+        onUploadComplete();
       }
     });
 
@@ -3917,8 +4060,969 @@ function uploadRawFile(url, file, onProgress) {
   });
 }
 
+function buildUploadUrl(url, fileName) {
+  const absoluteUrl = new URL(url, window.location.origin);
+  absoluteUrl.searchParams.set("filename", fileName || "");
+  return absoluteUrl.pathname + absoluteUrl.search;
+}
+
+function setFsActionStatus(message) {
+  const node = document.getElementById("fs-action-status");
+  if (node) {
+    node.textContent = message;
+  }
+}
+
+async function runConfirmedButtonAction(buttonId, confirmMessage, options) {
+  if (confirmMessage && !window.confirm(confirmMessage)) {
+    return false;
+  }
+
+  await runButtonRequestById(buttonId, options);
+  return true;
+}
+
+function getUploadActionButtonText(button, fallback) {
+  return (button && button.dataset && button.dataset.restoreText) || fallback;
+}
+
+async function runManagedRawUpload(options) {
+  const {
+    button,
+    file,
+    uploadUrl,
+    startStatusText,
+    installStatusText,
+    successStatusText,
+    successAnnounceText,
+    idleText,
+    successText,
+    onProgressText,
+    onInstalled,
+    onSuccess
+  } = options || {};
+
+  if (!button.dataset.restoreText) {
+    button.dataset.restoreText = button.textContent;
+  }
+
+  beginButtonFeedback(button, "lädt hoch...");
+  setFsActionStatus(startStatusText);
+  if (successAnnounceText) {
+    announceStatus(startStatusText, "warn");
+  }
+
+  await uploadRawFile(
+    uploadUrl,
+    file,
+    (loaded, total) => {
+      const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+      button.textContent = "lädt hoch... " + percent + "%";
+      setFsActionStatus(onProgressText ? onProgressText(percent) : startStatusText);
+    },
+    () => {
+      button.classList.add("is-busy");
+      button.textContent = "wird installiert...";
+      setFsActionStatus(installStatusText);
+      if (typeof onInstalled === "function") {
+        onInstalled();
+      }
+    }
+  );
+
+  setFsActionStatus(successStatusText);
+  if (successAnnounceText) {
+    announceStatus(successAnnounceText, "ok");
+  }
+  finishButtonFeedback(button, idleText || getUploadActionButtonText(button, "Datei hochladen"), "success", successText || "hochgeladen");
+
+  if (typeof onSuccess === "function") {
+    await onSuccess();
+  }
+}
+
+function isMatchingFsUploadFile(url, fileName, targetName) {
+  if (!fileName || !targetName) {
+    return false;
+  }
+
+  const uploadPath = new URL(url, window.location.origin).pathname;
+  const tablesPath = new URL(getFsUploadUrl("tables"), window.location.origin).pathname;
+
+  if (uploadPath === tablesPath) {
+    const prefix = targetName.replace(/local\.txt$/i, "");
+    return fileName.startsWith(prefix) && fileName.toLowerCase().endsWith(".txt");
+  }
+
+  return fileName === targetName;
+}
+
+function isTxtFileName(fileName) {
+  const accept = getFsUploadTxtAccept();
+  return fileNameMatchesAccept(fileName, accept || ".txt,text/plain");
+}
+
+function isHexFileName(fileName) {
+  const accept = getLocalStm32UploadAccept();
+  return fileNameMatchesAccept(fileName, accept || ".hex,text/plain");
+}
+
+function isBinFileName(fileName) {
+  const accept = getLocalEspUpdateAccept();
+  return fileNameMatchesAccept(fileName, accept || ".bin,application/octet-stream");
+}
+
+function isMatchingLocalStm32File(fileName) {
+  const expected = getExpectedLocalStm32Filename(getCurrentUpdateStatus());
+
+  if (!isHexFileName(fileName)) {
+    return false;
+  }
+
+  if (!expected) {
+    return true;
+  }
+
+  return fileName === expected;
+}
+
+function fileNameMatchesAccept(fileName, accept) {
+  if (typeof fileName !== "string" || !fileName) {
+    return false;
+  }
+
+  const normalized = fileName.toLowerCase();
+  const tokens = String(accept || "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return true;
+  }
+
+  return tokens.some((token) => token.startsWith(".") && normalized.endsWith(token));
+}
+
+function buildDeviceReadyProbes() {
+  if (hasConfiguredUrl("reconnect_probe_url")) {
+    return [
+      {
+        url: getReconnectProbeUrl(),
+        mode: "json",
+        validate: (data) => !!(data && data.ok && data.ready)
+      }
+    ];
+  }
+
+  if (hasConfiguredUrl("device_ready_url")) {
+    return [
+      {
+        url: getDeviceReadyUrl(),
+        mode: "json",
+        validate: (data) => !!(data && data.ok && data.ready)
+      }
+    ];
+  }
+
+  return [
+    {
+      url: getSettingsUrl(),
+      mode: "text",
+      validate: (text) => typeof text === "string" && text.indexOf("<numvar") >= 0 && text.indexOf("<strvar") >= 0
+    }
+  ];
+}
+
+const URL_DEFAULTS = {
+  settings_url: "/api/settings_xml",
+  settings_legacy_url: "/get_settings",
+  display_power_url: "/api/display_power",
+  display_power_legacy_url: "/display_power",
+  update_status_url: "/api/update_status",
+  display_power_set_url: "/api/display_power_set",
+  display_test_url: "/api/test_display",
+  display_brightness_set_url: "/api/display_brightness_set",
+  display_it_is_set_url: "/api/display_it_is_set",
+  display_mode_set_url: "/api/display_mode_set",
+  display_use_rgbw_set_url: "/api/display_use_rgbw_set",
+  ticker_set_url: "/api/ticker_set",
+  date_ticker_format_set_url: "/api/date_ticker_format_set",
+  ticker_deceleration_set_url: "/api/ticker_deceleration_set",
+  ambilight_power_url: "/api/ambilight_power",
+  ambilight_power_legacy_url: "/ambilight_power",
+  ambilight_power_set_url: "/api/ambilight_power_set",
+  ambilight_online_set_url: "/api/ambilight_online_set",
+  power_status_url: "/api/power_status",
+  maintenance_reset_stm32_url: "/api/maintenance_reset_stm32",
+  maintenance_reset_eeprom_url: "/api/maintenance_reset_eeprom",
+  maintenance_format_fs_url: "/api/maintenance_format_fs",
+  auto_brightness_set_url: "/api/auto_brightness_set",
+  network_timeserver_set_url: "/api/network_timeserver_set",
+  network_client_set_url: "/api/network_client_set",
+  network_ap_set_url: "/api/network_ap_set",
+  network_timezone_set_url: "/api/network_timezone_set",
+  network_summertime_set_url: "/api/network_summertime_set",
+  update_host_set_url: "/api/update_host_set",
+  update_path_set_url: "/api/update_path_set",
+  datetime_set_url: "/api/datetime_set",
+  weather_appid_set_url: "/api/weather_appid_set",
+  weather_city_set_url: "/api/weather_city_set",
+  weather_coordinates_set_url: "/api/weather_coordinates_set",
+  weather_get_now_url: "/api/weather_get_now",
+  weather_get_forecast_url: "/api/weather_get_forecast",
+  learn_ir_url: "/api/learn_ir",
+  network_get_time_url: "/api/network_get_time",
+  network_wps_url: "/api/network_wps",
+  temperature_display_url: "/api/temperature_display",
+  temperature_rtc_correction_set_url: "/api/temperature_rtc_correction_set",
+  temperature_ds18xx_correction_set_url: "/api/temperature_ds18xx_correction_set",
+  ldr_min_set_url: "/api/ldr_min_set",
+  ldr_max_set_url: "/api/ldr_max_set",
+  ldr_min_value_set_url: "/api/ldr_min_value_set",
+  ldr_max_value_set_url: "/api/ldr_max_value_set",
+  animation_mode_set_url: "/api/animation_mode_set",
+  color_animation_mode_set_url: "/api/color_animation_mode_set",
+  sync_ambilight_set_url: "/api/sync_ambilight_set",
+  sync_markers_set_url: "/api/sync_markers_set",
+  fade_clock_seconds_set_url: "/api/fade_clock_seconds_set",
+  ambilight_markers_set_url: "/api/ambilight_markers_set",
+  ambilight_brightness_set_url: "/api/ambilight_brightness_set",
+  ambilight_mode_set_url: "/api/ambilight_mode_set",
+  ambilight_leds_set_url: "/api/ambilight_leds_set",
+  ambilight_offset_set_url: "/api/ambilight_offset_set",
+  display_color_set_url: "/api/display_color_set",
+  ambilight_color_set_url: "/api/ambilight_color_set",
+  marker_color_set_url: "/api/marker_color_set",
+  dfplayer_volume_set_url: "/api/dfplayer_volume_set",
+  dfplayer_mode_set_url: "/api/dfplayer_mode_set",
+  dfplayer_bell_flags_set_url: "/api/dfplayer_bell_flags_set",
+  dfplayer_speak_cycle_set_url: "/api/dfplayer_speak_cycle_set",
+  dfplayer_silence_start_set_url: "/api/dfplayer_silence_start_set",
+  dfplayer_silence_stop_set_url: "/api/dfplayer_silence_stop_set",
+  dfplayer_play_url: "/api/dfplayer_play",
+  dfplayer_alarm_set_url: "/api/dfplayer_alarm_set",
+  overlay_set_url: "/api/overlay_set",
+  overlay_display_url: "/api/overlay_display",
+  overlay_delete_url: "/api/overlay_delete",
+  timer_set_url: "/api/timer_set",
+  ambilight_timer_set_url: "/api/ambilight_timer_set",
+  device_ready_url: "/api/device_ready",
+  reconnect_probe_url: "/api/reconnect_probe",
+  remote_esp_update_url: "/update?action=update",
+  remote_stm32_update_base_url: "/update?action=flash&stm32_filenames=",
+  update_download_assets_url: "/api/update_download_assets",
+  update_download_app_bundle_url: "/api/update_download_app_bundle",
+  update_download_table_base_url: "/api/update_download_table?filename=",
+  app_bundle_upload_url: "/api/app_bundle_upload",
+  fs_info_url: "/api/fs_info",
+  fs_list_url: "/api/fs_list",
+  eeprom_settings_url: "/api/eeprom_settings",
+  update_table_files_url: "/api/update_table_files",
+  fs_show_base_url: "/api/fs_show?filename=",
+  fs_remove_base_url: "/api/fs_remove?filename=",
+  fs_upload_icon_url: "/api/fs_upload_icon",
+  fs_upload_weather_url: "/api/fs_upload_weather",
+  fs_upload_tables_url: "/api/fs_upload_tables",
+  fs_upload_display_url: "/api/fs_upload_display",
+  fs_upload_txt_accept: ".txt,text/plain",
+  app_bundle_upload_accept: ".txt,text/plain",
+  local_stm32_upload_url: "/api/local_stm32_upload",
+  local_stm32_upload_accept: ".hex,text/plain",
+  local_stm32_flash_url: "/api/local_stm32_flash",
+  local_esp_update_url: "/api/local_esp_update",
+  local_esp_update_accept: ".bin,application/octet-stream",
+  local_esp_restart_url: "/api/local_esp_restart",
+  stm32_log_url: "/api/stm32_log",
+  stm32_log_clear_url: "/api/stm32_log_clear",
+  update_progress_url: "/api/update_progress",
+  network_scan_url: "/api/network_scan",
+  overlay_icons_url: "/api/overlay_icons",
+  live_display_color_url: "/api/live_display_color",
+  eeprom_settings_set_url: "/api/eeprom_settings_set",
+  display_dim_level_set_url: "/api/display_dim_level_set",
+  ambilight_dim_level_set_url: "/api/ambilight_dim_level_set",
+  animation_profile_set_url: "/api/animation_profile_set",
+  animation_profile_default_url: "/api/animation_profile_default",
+  color_animation_profile_set_url: "/api/color_animation_profile_set",
+  color_animation_profile_default_url: "/api/color_animation_profile_default",
+  ambilight_mode_profile_set_url: "/api/ambilight_mode_profile_set",
+  ambilight_mode_profile_default_url: "/api/ambilight_mode_profile_default",
+  tft_flags_set_url: "/api/tft_flags_set",
+  legacy_fallback_url: "/",
+  root_probe_url: "/"
+};
+
+function getUrlDefault(key) {
+  return URL_DEFAULTS[key] || "";
+}
+
+function getConfiguredUrlOrDefault(key) {
+  return getPreferredUrl(key, getUrlDefault(key));
+}
+
+function getConfiguredUrlOrFallback(primaryKey, fallbackKey) {
+  return getPreferredUrl(primaryKey, getUrlDefault(fallbackKey));
+}
+
+function createConfiguredUrlGetter(key) {
+  return function () {
+    return getConfiguredUrlOrDefault(key);
+  };
+}
+
+function createFallbackUrlGetter(primaryKey, fallbackKey) {
+  return function () {
+    return getConfiguredUrlOrFallback(primaryKey, fallbackKey);
+  };
+}
+
+function createStaticUrlGetter(url) {
+  return function () {
+    return url;
+  };
+}
+
+const getSettingsUrl = createFallbackUrlGetter("settings_url", "settings_legacy_url");
+const getStableCoreSettingsFetchUrl = createStaticUrlGetter("/get_settings");
+const getDisplayPowerUrl = createFallbackUrlGetter("display_power_url", "display_power_legacy_url");
+const getStableCoreDisplayPowerFetchUrl = createStaticUrlGetter("/display_power");
+const getUpdateStatusUrl = createConfiguredUrlGetter("update_status_url");
+const getStableUpdateStatusFetchUrl = createStaticUrlGetter("/api/update_status");
+const getDisplayPowerSetUrl = createConfiguredUrlGetter("display_power_set_url");
+const getDisplayTestUrl = createConfiguredUrlGetter("display_test_url");
+const getDisplayBrightnessSetUrl = createConfiguredUrlGetter("display_brightness_set_url");
+const getDisplayItIsSetUrl = createConfiguredUrlGetter("display_it_is_set_url");
+const getDisplayModeSetUrl = createConfiguredUrlGetter("display_mode_set_url");
+const getDisplayUseRgbwSetUrl = createConfiguredUrlGetter("display_use_rgbw_set_url");
+const getTickerSetUrl = createConfiguredUrlGetter("ticker_set_url");
+const getDateTickerFormatSetUrl = createConfiguredUrlGetter("date_ticker_format_set_url");
+const getTickerDecelerationSetUrl = createConfiguredUrlGetter("ticker_deceleration_set_url");
+const getAmbilightPowerUrl = createFallbackUrlGetter("ambilight_power_url", "ambilight_power_legacy_url");
+const getStableCoreAmbilightPowerFetchUrl = createStaticUrlGetter("/ambilight_power");
+const getAmbilightPowerSetUrl = createConfiguredUrlGetter("ambilight_power_set_url");
+const getAmbilightOnlineSetUrl = createConfiguredUrlGetter("ambilight_online_set_url");
+const getPowerStatusUrl = createConfiguredUrlGetter("power_status_url");
+const getMaintenanceResetStm32Url = createConfiguredUrlGetter("maintenance_reset_stm32_url");
+const getMaintenanceResetEepromUrl = createConfiguredUrlGetter("maintenance_reset_eeprom_url");
+const getMaintenanceFormatFsUrl = createConfiguredUrlGetter("maintenance_format_fs_url");
+const getAutoBrightnessSetUrl = createConfiguredUrlGetter("auto_brightness_set_url");
+const getNetworkTimeserverSetUrl = createConfiguredUrlGetter("network_timeserver_set_url");
+const getNetworkClientSetUrl = createConfiguredUrlGetter("network_client_set_url");
+const getNetworkApSetUrl = createConfiguredUrlGetter("network_ap_set_url");
+const getNetworkTimezoneSetUrl = createConfiguredUrlGetter("network_timezone_set_url");
+const getNetworkSummertimeSetUrl = createConfiguredUrlGetter("network_summertime_set_url");
+const getUpdateHostSetUrl = createConfiguredUrlGetter("update_host_set_url");
+const getUpdatePathSetUrl = createConfiguredUrlGetter("update_path_set_url");
+const getDateTimeSetUrl = createConfiguredUrlGetter("datetime_set_url");
+const getWeatherAppIdSetUrl = createConfiguredUrlGetter("weather_appid_set_url");
+const getWeatherCitySetUrl = createConfiguredUrlGetter("weather_city_set_url");
+const getWeatherCoordinatesSetUrl = createConfiguredUrlGetter("weather_coordinates_set_url");
+const getWeatherNowUrl = createConfiguredUrlGetter("weather_get_now_url");
+const getWeatherForecastUrl = createConfiguredUrlGetter("weather_get_forecast_url");
+const getLearnIrUrl = createConfiguredUrlGetter("learn_ir_url");
+const getNetworkGetTimeUrl = createConfiguredUrlGetter("network_get_time_url");
+const getNetworkWpsUrl = createConfiguredUrlGetter("network_wps_url");
+const getTemperatureDisplayUrl = createConfiguredUrlGetter("temperature_display_url");
+const getTemperatureRtcCorrectionSetUrl = createConfiguredUrlGetter("temperature_rtc_correction_set_url");
+const getTemperatureDs18xxCorrectionSetUrl = createConfiguredUrlGetter("temperature_ds18xx_correction_set_url");
+const getLdrMinSetUrl = createConfiguredUrlGetter("ldr_min_set_url");
+const getLdrMaxSetUrl = createConfiguredUrlGetter("ldr_max_set_url");
+const getLdrMinValueSetUrl = createConfiguredUrlGetter("ldr_min_value_set_url");
+const getLdrMaxValueSetUrl = createConfiguredUrlGetter("ldr_max_value_set_url");
+const getAnimationModeSetUrl = createConfiguredUrlGetter("animation_mode_set_url");
+const getColorAnimationModeSetUrl = createConfiguredUrlGetter("color_animation_mode_set_url");
+const getSyncAmbilightSetUrl = createConfiguredUrlGetter("sync_ambilight_set_url");
+const getSyncMarkersSetUrl = createConfiguredUrlGetter("sync_markers_set_url");
+const getFadeClockSecondsSetUrl = createConfiguredUrlGetter("fade_clock_seconds_set_url");
+const getAmbilightMarkersSetUrl = createConfiguredUrlGetter("ambilight_markers_set_url");
+const getAmbilightBrightnessSetUrl = createConfiguredUrlGetter("ambilight_brightness_set_url");
+const getAmbilightModeSetUrl = createConfiguredUrlGetter("ambilight_mode_set_url");
+const getAmbilightLedsSetUrl = createConfiguredUrlGetter("ambilight_leds_set_url");
+const getAmbilightOffsetSetUrl = createConfiguredUrlGetter("ambilight_offset_set_url");
+const getDisplayColorSetUrl = createConfiguredUrlGetter("display_color_set_url");
+const getAmbilightColorSetUrl = createConfiguredUrlGetter("ambilight_color_set_url");
+const getMarkerColorSetUrl = createConfiguredUrlGetter("marker_color_set_url");
+const getDfplayerVolumeSetUrl = createConfiguredUrlGetter("dfplayer_volume_set_url");
+const getDfplayerModeSetUrl = createConfiguredUrlGetter("dfplayer_mode_set_url");
+const getDfplayerBellFlagsSetUrl = createConfiguredUrlGetter("dfplayer_bell_flags_set_url");
+const getDfplayerSpeakCycleSetUrl = createConfiguredUrlGetter("dfplayer_speak_cycle_set_url");
+const getDfplayerSilenceStartSetUrl = createConfiguredUrlGetter("dfplayer_silence_start_set_url");
+const getDfplayerSilenceStopSetUrl = createConfiguredUrlGetter("dfplayer_silence_stop_set_url");
+const getDfplayerPlayUrl = createConfiguredUrlGetter("dfplayer_play_url");
+const getDfplayerAlarmSetUrl = createConfiguredUrlGetter("dfplayer_alarm_set_url");
+const getOverlaySetUrl = createConfiguredUrlGetter("overlay_set_url");
+const getOverlayDisplayUrl = createConfiguredUrlGetter("overlay_display_url");
+const getOverlayDeleteUrl = createConfiguredUrlGetter("overlay_delete_url");
+const getTimerSetUrl = createConfiguredUrlGetter("timer_set_url");
+const getAmbilightTimerSetUrl = createConfiguredUrlGetter("ambilight_timer_set_url");
+const getDeviceReadyUrl = createConfiguredUrlGetter("device_ready_url");
+const getReconnectProbeUrl = createConfiguredUrlGetter("reconnect_probe_url");
+const getRemoteEspUpdateUrl = createConfiguredUrlGetter("remote_esp_update_url");
+const getRemoteStm32UpdateBaseUrl = createConfiguredUrlGetter("remote_stm32_update_base_url");
+const getUpdateDownloadAssetsUrl = createConfiguredUrlGetter("update_download_assets_url");
+const getUpdateDownloadAppBundleUrl = createConfiguredUrlGetter("update_download_app_bundle_url");
+const getUpdateDownloadTableBaseUrl = createConfiguredUrlGetter("update_download_table_base_url");
+const getAppBundleUploadUrl = createConfiguredUrlGetter("app_bundle_upload_url");
+const getFsInfoUrl = createConfiguredUrlGetter("fs_info_url");
+const getFsListUrl = createConfiguredUrlGetter("fs_list_url");
+const getEepromSettingsUrl = createConfiguredUrlGetter("eeprom_settings_url");
+const getUpdateTableFilesUrl = createConfiguredUrlGetter("update_table_files_url");
+const getStableUpdateTableFilesFetchUrl = createStaticUrlGetter("/api/update_table_files");
+const getFsShowBaseUrl = createConfiguredUrlGetter("fs_show_base_url");
+const getFsRemoveBaseUrl = createConfiguredUrlGetter("fs_remove_base_url");
+
+function getFsUploadUrl(kind) {
+  const map = {
+    icon: "fs_upload_icon_url",
+    weather: "fs_upload_weather_url",
+    tables: "fs_upload_tables_url",
+    display: "fs_upload_display_url"
+  };
+  const fallback = {
+    icon: getUrlDefault("fs_upload_icon_url"),
+    weather: getUrlDefault("fs_upload_weather_url"),
+    tables: getUrlDefault("fs_upload_tables_url"),
+    display: getUrlDefault("fs_upload_display_url")
+  };
+  return getPreferredUrl(map[kind], fallback[kind] || "");
+}
+
+const getFsUploadTxtAccept = createConfiguredUrlGetter("fs_upload_txt_accept");
+const getAppBundleUploadAccept = createConfiguredUrlGetter("app_bundle_upload_accept");
+const getLocalStm32UploadUrl = createConfiguredUrlGetter("local_stm32_upload_url");
+const getLocalStm32UploadAccept = createConfiguredUrlGetter("local_stm32_upload_accept");
+const getLocalStm32FlashUrl = createConfiguredUrlGetter("local_stm32_flash_url");
+const getLocalEspUpdateUrl = createConfiguredUrlGetter("local_esp_update_url");
+const getLocalEspUpdateAccept = createConfiguredUrlGetter("local_esp_update_accept");
+const getLocalEspRestartUrl = createConfiguredUrlGetter("local_esp_restart_url");
+const getStm32LogUrl = createConfiguredUrlGetter("stm32_log_url");
+const getStm32LogClearUrl = createConfiguredUrlGetter("stm32_log_clear_url");
+const getUpdateProgressUrl = createConfiguredUrlGetter("update_progress_url");
+const getNetworkScanUrl = createConfiguredUrlGetter("network_scan_url");
+const getOverlayIconsUrl = createConfiguredUrlGetter("overlay_icons_url");
+const getLiveDisplayColorUrl = createConfiguredUrlGetter("live_display_color_url");
+const getEepromSettingsSetUrl = createConfiguredUrlGetter("eeprom_settings_set_url");
+const getDisplayDimLevelSetUrl = createConfiguredUrlGetter("display_dim_level_set_url");
+const getAmbilightDimLevelSetUrl = createConfiguredUrlGetter("ambilight_dim_level_set_url");
+const getAnimationProfileSetUrl = createConfiguredUrlGetter("animation_profile_set_url");
+const getAnimationProfileDefaultUrl = createConfiguredUrlGetter("animation_profile_default_url");
+const getColorAnimationProfileSetUrl = createConfiguredUrlGetter("color_animation_profile_set_url");
+const getColorAnimationProfileDefaultUrl = createConfiguredUrlGetter("color_animation_profile_default_url");
+const getAmbilightModeProfileSetUrl = createConfiguredUrlGetter("ambilight_mode_profile_set_url");
+const getAmbilightModeProfileDefaultUrl = createConfiguredUrlGetter("ambilight_mode_profile_default_url");
+const getTftFlagsSetUrl = createConfiguredUrlGetter("tft_flags_set_url");
+
+function getLegacyEntryUrl(updateStatus) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return typeof status.legacy_entry_url === "string" && status.legacy_entry_url
+    ? status.legacy_entry_url
+    : getConfiguredUrlOrDefault("legacy_fallback_url");
+}
+
+function getNormalizedUpdateStatus(updateStatus) {
+  return updateStatus && typeof updateStatus === "object"
+    ? updateStatus
+    : getCurrentUpdateStatus();
+}
+
+function getNormalizedUpdateTableInfo(updateTableInfo) {
+  return updateTableInfo && typeof updateTableInfo === "object"
+    ? updateTableInfo
+    : getCurrentUpdateTableInfo();
+}
+
+function setCurrentUpdateStatus(updateStatus) {
+  currentUpdateStatus = getNormalizedUpdateStatus(updateStatus);
+  return currentUpdateStatus;
+}
+
+function getCurrentUpdateStatus() {
+  return currentUpdateStatus && typeof currentUpdateStatus === "object" ? currentUpdateStatus : {};
+}
+
+function setCurrentUpdateTableInfo(updateTableInfo) {
+  currentUpdateTableInfo = getNormalizedUpdateTableInfo(updateTableInfo);
+  return currentUpdateTableInfo;
+}
+
+function getCurrentUpdateTableInfo() {
+  return currentUpdateTableInfo && typeof currentUpdateTableInfo === "object" ? currentUpdateTableInfo : {};
+}
+
+function getCurrentUpdateUiMeta() {
+  return {
+    status: getCurrentUpdateStatus(),
+    tableInfo: getCurrentUpdateTableInfo()
+  };
+}
+
+function setCurrentNetworkInfo(networkInfo) {
+  currentNetworkInfo = networkInfo && typeof networkInfo === "object"
+    ? networkInfo
+    : getCurrentNetworkInfo();
+  return currentNetworkInfo;
+}
+
+function getCurrentNetworkInfo() {
+  return currentNetworkInfo && typeof currentNetworkInfo === "object" ? currentNetworkInfo : {};
+}
+
+function setOverlayIconsCache(icons) {
+  overlayIconsCache = Array.isArray(icons) ? icons : getOverlayIconsCache();
+  return overlayIconsCache;
+}
+
+function getOverlayIconsCache() {
+  return Array.isArray(overlayIconsCache) ? overlayIconsCache : [];
+}
+
+function setCurrentFsFilesFromList(fsList) {
+  currentFsFiles = Array.isArray(fsList && fsList.files) ? fsList.files : [];
+  return currentFsFiles;
+}
+
+function getCurrentFsFiles() {
+  return Array.isArray(currentFsFiles) ? currentFsFiles : [];
+}
+
+function setCurrentEepromSettings(eepromSettings) {
+  if (eepromSettings && eepromSettings.ok) {
+    currentEepromSettings = eepromSettings;
+  }
+  return getCurrentEepromSettings();
+}
+
+function getCurrentEepromSettings() {
+  return currentEepromSettings || {};
+}
+
+function setCurrentSettingsSnapshot(settings) {
+  currentSettingsSnapshot = settings && typeof settings === "object" ? settings : getCurrentSettingsSnapshot();
+  return getCurrentSettingsSnapshot();
+}
+
+function getCurrentSettingsSnapshot() {
+  return currentSettingsSnapshot;
+}
+
+function refreshNetworkUi(settings) {
+  updateNetworkControls(settings, getCurrentNetworkInfo());
+}
+
+function refreshOverlayUi(settings) {
+  renderOverlayRows(settings);
+}
+
+function refreshMaintenanceUi(settings, fsInfo) {
+  updateMaintenanceControls(settings, getCurrentEepromSettings());
+  renderFileSystem(fsInfo, getCurrentFsFiles(), settings);
+}
+
+function getCurrentLayoutPreview(settings) {
+  return currentLayoutPreview || restoreStoredLayoutPreview() || getDefaultLayoutPreview(settings);
+}
+
+function setCurrentLayoutPreview(preview) {
+  if (preview && Array.isArray(preview.rows) && preview.rows.length) {
+    currentLayoutPreview = preview;
+    storeLayoutPreview(preview);
+  }
+  return currentLayoutPreview;
+}
+
+function clearCurrentLayoutPreview() {
+  currentLayoutPreview = null;
+}
+
+function getCurrentLayoutPreviewFile() {
+  return currentLayoutPreview && currentLayoutPreview.file ? currentLayoutPreview.file : "";
+}
+
+function getCachedLayoutPreview(fileName) {
+  return fileName ? layoutPreviewCache[fileName] || null : null;
+}
+
+function setCachedLayoutPreview(fileName, preview) {
+  if (!fileName || !preview) {
+    return;
+  }
+  layoutPreviewCache[fileName] = preview;
+}
+
+function getPreviewUiMeta(settings) {
+  const mode = Number(settings && settings.numvars ? (settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0) : 0);
+  const modeEntry = settings && Array.isArray(settings.coloranims)
+    ? settings.coloranims.find((entry) => Number(entry.idx) === mode)
+    : null;
+
+  return {
+    layoutFile: getCurrentLayoutPreviewFile() || "Fallback",
+    staticColor: settings && settings.dspcolors ? settings.dspcolors[0] : null,
+    animationLabel: modeEntry ? localizeAnimationName(modeEntry.name || String(mode)) : String(mode)
+  };
+}
+
+function getLayoutPreviewMeta(settings, layoutPreview) {
+  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
+  const current = settings && settings.tmvars ? settings.tmvars[0] : {};
+  const minute = Number(current.minute || 0);
+  const displayPower = Number(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_POWER] || 0) : 0);
+  const is12hLayout = isTwelveHourLayout(layoutPreview, config);
+
+  return {
+    config,
+    minute,
+    displayPower,
+    is12hLayout,
+    activeCornerCount: is12hLayout && displayPower ? (minute % 5) : 0
+  };
+}
+
+function getPreferredUrl(key, fallback) {
+  const status = getNormalizedUpdateStatus();
+  const value = status[key];
+  return typeof value === "string" && value ? value : fallback;
+}
+
+function hasConfiguredUrl(key) {
+  const status = getNormalizedUpdateStatus();
+  return typeof status[key] === "string" && !!status[key];
+}
+
+function getStatusString(key) {
+  const status = getNormalizedUpdateStatus();
+  return typeof status[key] === "string" ? status[key] : "";
+}
+
+function getStatusBoolean(key) {
+  const status = getNormalizedUpdateStatus();
+  return typeof status[key] === "boolean" ? status[key] : null;
+}
+
+function getStatusNumber(key) {
+  const status = getNormalizedUpdateStatus();
+  return typeof status[key] === "number" && Number.isFinite(status[key]) ? status[key] : 0;
+}
+
+function getStatusMeta() {
+  const asset = {
+    assetPrefix: getStatusString("asset_prefix").trim(),
+    tablesFamilyPrefix: getStatusString("fs_upload_tables_prefix").trim(),
+    iconTarget: getStatusString("fs_upload_icon_target"),
+    weatherTarget: getStatusString("fs_upload_weather_target"),
+    tablesTarget: getStatusString("fs_upload_tables_target"),
+    displayTarget: getStatusString("fs_upload_display_target")
+  };
+  const layout = {
+    previewFile: getStatusString("default_layout_preview_file"),
+    columns: getStatusNumber("default_layout_columns"),
+    isTwelveHour: getStatusBoolean("layout_is_12h")
+  };
+  const labels = {
+    hardware: getStatusString("hardware_label"),
+    processor: getStatusString("processor_label"),
+    board: getStatusString("board_label"),
+    frequency: getStatusString("frequency_label"),
+    oscillator: getStatusString("oscillator_label"),
+    display: getStatusString("display_label")
+  };
+  const hardware = {
+    labels: Object.values(labels).some(Boolean) ? labels : null,
+    display: (() => {
+      const mode = getStatusString("display_led_mode");
+      const hasTft = getStatusBoolean("display_has_tft");
+      const hasWhiteChannel = getStatusBoolean("display_has_white_channel");
+      const label = getStatusString("display_label");
+
+      if (!mode && hasTft === null && hasWhiteChannel === null && !label) {
+        return null;
+      }
+
+      return {
+        mode,
+        hasTft: !!hasTft,
+        hasWhiteChannel: !!hasWhiteChannel,
+        label
+      };
+    })()
+  };
+
+  return { asset, layout, hardware };
+}
+
+function getResolvedStatusMeta(settings, backupAssets, updateTableInfo) {
+  const statusMeta = getStatusMeta();
+  const config = settings && settings.numvars ? Number(settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
+  const fallbackTargets = getFsUploadTargets(config);
+  const normalizedLayoutTable = normalizeFsFileName(
+    getUpdateTableCurrentFile(updateTableInfo)
+      || (backupAssets && backupAssets.layout_table)
+      || ""
+  );
+  const prefixFromBackup = String(backupAssets && backupAssets.asset_prefix ? backupAssets.asset_prefix : "").trim();
+  let assetPrefix = statusMeta.asset.assetPrefix || prefixFromBackup;
+
+  if (!assetPrefix) {
+    if (normalizedLayoutTable.indexOf("wc24h-") === 0) {
+      assetPrefix = "wc24h";
+    } else if (normalizedLayoutTable.indexOf("wc12h-") === 0) {
+      assetPrefix = "wc12h";
+    } else if (normalizedLayoutTable.indexOf("uc-") === 0) {
+      assetPrefix = "uc";
+    } else {
+      assetPrefix = getAssetPrefixFromHardwareConfig(config);
+    }
+  }
+
+  const targets = {
+    icon: statusMeta.asset.iconTarget || fallbackTargets.icon,
+    weather: statusMeta.asset.weatherTarget || fallbackTargets.weather,
+    tables: statusMeta.asset.tablesTarget || fallbackTargets.tables,
+    display: statusMeta.asset.displayTarget || fallbackTargets.display
+  };
+  const tablesFamilyPrefix = statusMeta.asset.tablesFamilyPrefix
+    || (targets.tables ? targets.tables.replace(/local\.txt$/i, "") : "");
+  const overlayAssetFiles = assetPrefix ? {
+    iconFile: assetPrefix + "-icon.txt",
+    weatherFile: assetPrefix + "-weather.txt"
+  } : {
+    iconFile: targets.icon || "",
+    weatherFile: targets.weather || ""
+  };
+  const currentTable = getUpdateTableCurrentFile(updateTableInfo);
+
+  return {
+    asset: {
+      assetPrefix,
+      tablesFamilyPrefix,
+      currentTable,
+      targets,
+      overlayAssetFiles
+    },
+    layout: {
+      previewFile: statusMeta.layout.previewFile,
+      columns: statusMeta.layout.columns,
+      isTwelveHour: statusMeta.layout.isTwelveHour
+    },
+    hardware: statusMeta.hardware
+  };
+}
+
+function getResolvedAssetMeta(settings, backupAssets, updateTableInfo) {
+  return getResolvedStatusMeta(settings, backupAssets, updateTableInfo).asset;
+}
+
+function getResolvedLayoutMeta(settings, backupAssets, updateTableInfo) {
+  return getResolvedStatusMeta(settings, backupAssets, updateTableInfo).layout;
+}
+
+function getResolvedHardwareMeta(settings, backupAssets, updateTableInfo) {
+  return getResolvedStatusMeta(settings, backupAssets, updateTableInfo).hardware;
+}
+
+function getFsUploadMeta(settings) {
+  const resolvedAssetMeta = getResolvedAssetMeta(settings, null, null);
+
+  return {
+    targets: resolvedAssetMeta.targets,
+    targetUploadsSupported: !!(
+      getFsUploadUrl("icon") ||
+      getFsUploadUrl("weather") ||
+      getFsUploadUrl("tables") ||
+      getFsUploadUrl("display")
+    ),
+    appBundleSupported: !!getAppBundleUploadUrl()
+  };
+}
+
+function getBackupAssetMeta(settings, backupAssets, updateTableInfo) {
+  const resolvedAssetMeta = getResolvedAssetMeta(settings, backupAssets || null, updateTableInfo);
+  return {
+    currentTable: resolvedAssetMeta.currentTable,
+    assetPrefix: resolvedAssetMeta.assetPrefix
+  };
+}
+
+function getUpdateStatusBoolean(updateStatus, key) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return typeof status[key] === "boolean" ? status[key] : null;
+}
+
+function getUpdateStatusNumber(updateStatus, key) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return typeof status[key] === "number" && Number.isFinite(status[key]) ? status[key] : 0;
+}
+
+function getUpdateStatusString(updateStatus, key) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return typeof status[key] === "string" ? status[key] : "";
+}
+
+function getUpdateStatusArray(updateStatus, key) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return Array.isArray(status[key]) ? status[key] : [];
+}
+
+function getUpdateTableInfoString(updateTableInfo, key) {
+  const info = getNormalizedUpdateTableInfo(updateTableInfo);
+  return typeof info[key] === "string" ? info[key] : "";
+}
+
+function getUpdateTableInfoArray(updateTableInfo, key) {
+  const info = getNormalizedUpdateTableInfo(updateTableInfo);
+  return Array.isArray(info[key]) ? info[key] : [];
+}
+
+function getUpdateTableCurrentFile(updateTableInfo) {
+  return getUpdateTableInfoString(updateTableInfo, "current_table");
+}
+
+function getUpdateTableFilesList(updateTableInfo) {
+  return getUpdateTableInfoArray(updateTableInfo, "table_files");
+}
+
+function canOtaUpdate(updateStatus) {
+  return getUpdateStatusBoolean(updateStatus, "can_update");
+}
+
+function isLocalUpdateSupported(updateStatus) {
+  const value = getUpdateStatusBoolean(updateStatus, "local_update_supported");
+  return value === null ? true : value;
+}
+
+function getLocalUpdateMessage(updateStatus) {
+  return getUpdateStatusString(updateStatus, "local_update_message");
+}
+
+function getUpdateFlashSize(updateStatus) {
+  return getUpdateStatusNumber(updateStatus, "flash_size");
+}
+
+function getUpdateAvailableVersion(updateStatus, key) {
+  return getUpdateStatusString(updateStatus, key);
+}
+
+function getUpdateReleaseNotes(updateStatus) {
+  return getUpdateAvailableVersion(updateStatus, "release_notes");
+}
+
+function getUpdateStm32Default(updateStatus) {
+  return getUpdateAvailableVersion(updateStatus, "stm32_default");
+}
+
+function getUpdateStm32Files(updateStatus) {
+  return getUpdateStatusArray(updateStatus, "stm32_files");
+}
+
+function areUpdateAssetsAvailable(updateStatus) {
+  return getUpdateStatusBoolean(updateStatus, "assets_available");
+}
+
+function isUpdateAppBundleAvailable(updateStatus) {
+  return getUpdateStatusBoolean(updateStatus, "app_bundle_available");
+}
+
+function getExpectedLocalStm32Filename(updateStatus) {
+  const explicit = getUpdateStatusString(updateStatus, "local_stm32_expected_filename");
+  const fallback = getUpdateStm32Default(updateStatus);
+  return explicit || fallback || "";
+}
+
+function getLocalUpdateControlMeta(updateStatus) {
+  return {
+    supported: isLocalUpdateSupported(updateStatus),
+    message: getLocalUpdateMessage(updateStatus),
+    localEspSupported: !!getLocalEspUpdateUrl(),
+    localStm32Supported: !!getLocalStm32UploadUrl()
+  };
+}
+
+function getUpdateModuleMeta(updateStatus, updateTableInfo, settings) {
+  return {
+    summary: getUpdateSummaryMeta(updateStatus, settings || parseSettings("")),
+    serverFiles: getUpdateServerFilesMeta(updateStatus, updateTableInfo),
+    localUpdate: getLocalUpdateControlMeta(updateStatus)
+  };
+}
+
+function getUpdateSummaryMeta(updateStatus, settings) {
+  const canUpdate = canOtaUpdate(updateStatus);
+  const stm32Default = getUpdateStm32Default(updateStatus);
+  const stm32Files = getUpdateStm32Files(updateStatus);
+  const releaseNotes = getUpdateReleaseNotes(updateStatus);
+
+  return {
+    canUpdate,
+    stm32Default,
+    stm32Files,
+    releaseNotes,
+    items: [
+      ["ESP-Flash", getUpdateFlashSize(updateStatus) ? String(getUpdateFlashSize(updateStatus)) + " Bytes" : "-"],
+      ["OTA-Update", canUpdate ? "möglich" : "nicht möglich"],
+      ["WordClock-Version", getUpdateAvailableVersion(updateStatus, "wc_version") || (settings.strvars[STR.VERSION] || "-")],
+      ["WordClock verfügbar", getUpdateAvailableVersion(updateStatus, "wc_available") || "-"],
+      ["ESP-Version", getUpdateAvailableVersion(updateStatus, "esp_version") || (settings.strvars[STR.ESP8266_VERSION] || "-")],
+      ["ESP verfügbar", getUpdateAvailableVersion(updateStatus, "esp_available") || "-"],
+      ["App-Version", APP_VERSION],
+      ["App verfügbar", getUpdateAvailableVersion(updateStatus, "app_available") || "-"],
+      ["Standard STM32", stm32Default || "-"]
+    ]
+  };
+}
+
+function getUpdateServerFilesMeta(updateStatus, updateTableInfo) {
+  const tableFiles = getUpdateTableFilesList(updateTableInfo);
+  const currentTable = getUpdateTableCurrentFile(updateTableInfo);
+  const tableActionSupported = !!getUpdateDownloadTableBaseUrl();
+  const assetsActionSupported = !!getUpdateDownloadAssetsUrl();
+  const appBundleActionSupported = !!getUpdateDownloadAppBundleUrl();
+
+  return {
+    tableFiles,
+    currentTable,
+    tableAvailable: tableFiles.length > 0,
+    assetsAvailable: areUpdateAssetsAvailable(updateStatus),
+    appBundleAvailable: isUpdateAppBundleAvailable(updateStatus),
+    tableActionSupported,
+    assetsActionSupported,
+    appBundleActionSupported,
+    anyActionSupported: tableActionSupported || assetsActionSupported || appBundleActionSupported
+  };
+}
+
+function getDefaultReconnectProbes() {
+  if (getReconnectProbeUrl()) {
+    return [
+      { url: getReconnectProbeUrl(), mode: "json", validate: (data) => !!(data && data.ok && data.ready) }
+    ];
+  }
+
+  return [
+    { url: getDisplayPowerUrl(), mode: "response" },
+    { url: getSettingsUrl(), mode: "response" },
+    { url: getPreferredUrl("root_probe_url", "/"), mode: "response" }
+  ];
+}
+
+function isTablesUploadUrl(url) {
+  return normalizeUrlPath(url) === normalizeUrlPath(getFsUploadUrl("tables"));
+}
+
 async function downloadUpdateAssets() {
-  await runSimpleAction("update-assets-button", "/api/update_download_assets", "Icon-Dateien laden", "Icon-Dateien konnten nicht geladen werden", "Icon-Dateien geladen");
+  await runConfirmedButtonAction(
+    "update-assets-button",
+    "Icon-Dateien jetzt wirklich vom Server laden?",
+    {
+      busyText: "läuft...",
+      idleText: "Icon-Dateien laden",
+      successText: "fertig",
+      errorText: "Icon-Dateien konnten nicht geladen werden",
+      successStatusText: "Icon-Dateien geladen",
+      reloadDelayMs: 1200,
+      request: () => apiFetch(getUpdateDownloadAssetsUrl())
+    }
+  );
 }
 
 async function downloadUpdateAppBundle() {
@@ -3928,16 +5032,134 @@ async function downloadUpdateAppBundle() {
 
   const button = document.getElementById("update-app-bundle-button");
 
-  beginButtonFeedback(button, "läuft...");
+  beginButtonFeedback(button, "lädt...");
+  document.getElementById("updated-at").textContent = "App-Paket wird vom Server geladen...";
+  announceStatus("App-Paket wird vom Server geladen...", "warn");
 
   try {
-    await apiFetch("/api/update_download_app_bundle");
-    announceStatus("App-Paket geladen. Seite wird neu geladen.", "ok");
+    await apiFetch(getUpdateDownloadAppBundleUrl());
+
+    button.classList.add("is-busy");
+    button.textContent = "installiert...";
+    document.getElementById("updated-at").textContent = "App-Paket wurde geladen und wird installiert...";
+    announceStatus("App-Paket wird installiert...", "warn");
+    await sleep(250);
+
+    button.classList.add("is-busy");
+    button.textContent = "lädt neu...";
+    document.getElementById("updated-at").textContent = "App-Paket installiert. Seite wird neu geladen...";
+    announceStatus("App-Paket installiert. Seite wird neu geladen.", "ok");
     finishButtonFeedback(button, "App-Paket laden", "success", "geladen");
-    setTimeout(() => window.location.reload(), 1200);
+    setTimeout(() => window.location.reload(), 900);
   } catch (error) {
     announceStatus("App-Paket konnte nicht geladen werden", "error");
     finishButtonFeedback(button, "App-Paket laden", "error", "Fehler");
+  }
+}
+
+async function uploadAppBundleFile(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const fileInput = form.querySelector('input[type="file"]');
+  const button = form.querySelector('button[type="submit"]');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+
+  if (!file) {
+    document.getElementById("fs-action-status").textContent = "Bitte zuerst eine App-Bundle-Datei auswählen.";
+    return;
+  }
+
+  if (file.name !== "app-bundle.txt") {
+    document.getElementById("fs-action-status").textContent = "Bitte die Datei app-bundle.txt auswählen.";
+    announceStatus("Falsche App-Bundle-Datei ausgewählt", "error");
+    finishButtonFeedback(button, button.dataset.restoreText || "App installieren", "error", "Fehler");
+    return;
+  }
+
+  if (!isTxtFileName(file.name)) {
+    document.getElementById("fs-action-status").textContent = "App-Paket muss eine .txt-Datei sein.";
+    announceStatus("Ungültige Dateiendung", "error");
+    finishButtonFeedback(button, button.dataset.restoreText || "App installieren", "error", "Fehler");
+    return;
+  }
+
+  try {
+    await runManagedRawUpload({
+      button,
+      file,
+      uploadUrl: buildUploadUrl(getAppBundleUploadUrl(), file.name),
+      startStatusText: "App-Paket wird hochgeladen: " + file.name,
+      installStatusText: "App-Paket wurde hochgeladen und wird jetzt installiert...",
+      successStatusText: "App-Paket wurde erfolgreich installiert. Seite wird neu geladen.",
+      successAnnounceText: "App-Paket wurde erfolgreich installiert.",
+      idleText: "App installieren",
+      successText: "installiert",
+      onProgressText: (percent) => "App-Paket wird hochgeladen: " + percent + "%",
+      onInstalled: () => announceStatus("App-Paket wird installiert...", "warn"),
+      onSuccess: async () => {
+        window.setTimeout(() => window.location.reload(), 1200);
+      }
+    });
+  } catch (error) {
+    setFsActionStatus("App-Paket konnte nicht installiert werden: " + (error.message || "unbekannter Fehler"));
+    announceStatus("App-Paket konnte nicht installiert werden", "error");
+    finishButtonFeedback(button, getUploadActionButtonText(button, "App installieren"), "error", "Fehler");
+  }
+}
+
+async function uploadFsTargetFile(event, url, successMessage) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const label = form.querySelector(".label");
+  const fileInput = form.querySelector('input[type="file"]');
+  const button = form.querySelector('button[type="submit"]');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+  const targetName = label ? label.textContent : "Datei";
+
+  if (!file) {
+    document.getElementById("fs-action-status").textContent = "Bitte zuerst eine Datei für " + targetName + " auswählen.";
+    return;
+  }
+
+  if (!isMatchingFsUploadFile(url, file.name, targetName)) {
+    document.getElementById("fs-action-status").textContent =
+      isTablesUploadUrl(url)
+        ? "Falsche Datei ausgewählt. Erwartet wird ein passendes Tabellenmuster wie " + targetName.replace("local.txt", "*.txt") + "."
+        : "Falsche Datei ausgewählt. Erwartet wird " + targetName + ".";
+    announceStatus(targetName + " erwartet", "error");
+    finishButtonFeedback(button, button.dataset.restoreText || "Datei hochladen", "error", "Fehler");
+    return;
+  }
+
+  if (!isTxtFileName(file.name)) {
+    document.getElementById("fs-action-status").textContent = targetName + " muss eine .txt-Datei sein.";
+    announceStatus("Ungültige Dateiendung", "error");
+    finishButtonFeedback(button, button.dataset.restoreText || "Datei hochladen", "error", "Fehler");
+    return;
+  }
+
+  try {
+    await runManagedRawUpload({
+      button,
+      file,
+      uploadUrl: buildUploadUrl(url, file.name),
+      startStatusText: targetName + " wird hochgeladen: " + file.name,
+      installStatusText: targetName + " wurde hochgeladen und wird jetzt gespeichert...",
+      successStatusText: successMessage,
+      successAnnounceText: successMessage,
+      idleText: "Datei hochladen",
+      successText: "hochgeladen",
+      onProgressText: (percent) => targetName + " wird hochgeladen: " + percent + "%",
+      onSuccess: async () => {
+        await loadData();
+      }
+    });
+  } catch (error) {
+    setFsActionStatus(targetName + " konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler"));
+    announceStatus(targetName + " konnte nicht hochgeladen werden", "error");
+    finishButtonFeedback(button, getUploadActionButtonText(button, "Datei hochladen"), "error", "Fehler");
   }
 }
 
@@ -3946,11 +5168,13 @@ function triggerEspUpdate() {
     return;
   }
 
-  startProgressAction("/update?action=update", "ESP-Update wird gestartet...", "esp-update", "update-esp-button", "ESP-Firmware aktualisieren");
+  startProgressAction(getRemoteEspUpdateUrl(), "ESP-Update wird gestartet...", "esp-update", "update-esp-button", "ESP-Firmware aktualisieren");
   waitForDeviceReady(120000, 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
     forcedReloadAfterMs: 90000,
     reloadWatchdogDelayMs: 95000,
     requireReconnectCycle: true,
+    requiredStableSuccesses: 2,
+    probes: buildDeviceReadyProbes(),
     waitingMessage: "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
   });
 }
@@ -3967,7 +5191,7 @@ function triggerStm32Update() {
     return;
   }
 
-  startStm32StreamingAction("/update?action=flash&stm32_filenames=" + encodeURIComponent(fileName), "STM32-Flash wurde gestartet.", "update-stm32-button", "STM32 flashen");
+  startStm32StreamingAction(getRemoteStm32UpdateBaseUrl() + encodeURIComponent(fileName), "STM32-Flash wurde gestartet.", "update-stm32-button", "STM32 flashen");
 }
 
 function triggerTableUpdate() {
@@ -3982,31 +5206,81 @@ function triggerTableUpdate() {
     return;
   }
 
-  startProgressAction("/fs?action=dwntable&tablefile=" + encodeURIComponent(fileName), "Layout-Tabelle wird geladen.", "layout-table", "update-table-button", "Layout-Tabelle laden");
+  const button = document.getElementById("update-table-button");
+  beginButtonFeedback(button, "lädt...");
+  document.getElementById("updated-at").textContent = "Layout-Tabelle wird geladen...";
+  announceStatus("Layout-Tabelle wird geladen...", "warn");
+
+  apiFetch(getUpdateDownloadTableBaseUrl() + encodeURIComponent(fileName))
+    .then(async () => {
+      announceStatus("Layout-Tabelle wurde geladen.", "ok");
+      finishButtonFeedback(button, "Layout-Tabelle laden", "success", "geladen");
+      await loadData();
+    })
+    .catch(() => {
+      announceStatus("Layout-Tabelle konnte nicht geladen werden", "error");
+      finishButtonFeedback(button, "Layout-Tabelle laden", "error", "Fehler");
+    });
 }
 
 async function resetStm32() {
-  if (!window.confirm("STM32 jetzt wirklich resetten?")) {
-    return;
+  await runConfirmedButtonAction(
+    "maintenance-reset-stm32-button",
+    "STM32 jetzt wirklich resetten?",
+    {
+      busyText: "läuft...",
+      idleText: "STM32 zurücksetzen",
+      successText: "fertig",
+      errorText: "STM32 konnte nicht zurückgesetzt werden",
+      successStatusText: "STM32-Reset wurde ausgelöst. Warte auf Abschluss...",
+      request: async () => {
+        await apiFetch(getMaintenanceResetStm32Url());
+        await sleep(4000);
+        announceStatus("STM32 wurde zurückgesetzt", "ok");
+        await loadData();
+      }
+    }
+  );
+}
+
+async function waitForStm32ResetAndReload(timeoutMs, initialDelayMs) {
+  const deadline = Date.now() + (timeoutMs || 30000);
+  let reconnectObserved = false;
+  let stableSuccessCount = 0;
+
+  await sleep(initialDelayMs || 0);
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetchWithTimeout(getSettingsUrl() + "?_ts=" + Date.now(), { cache: "no-store" }, 1500);
+      const text = response.ok ? await response.text() : "";
+      const ready = text.indexOf("<numvar") >= 0 && text.indexOf("<strvar") >= 0;
+
+      if (ready) {
+        if (reconnectObserved) {
+          stableSuccessCount += 1;
+          if (stableSuccessCount >= 2) {
+            announceStatus("STM32 wieder bereit. App wird neu geladen...", "ok");
+            await sleep(300);
+            await reloadAppPage();
+            return;
+          }
+        }
+      } else {
+        reconnectObserved = true;
+        stableSuccessCount = 0;
+      }
+    } catch (error) {
+      reconnectObserved = true;
+      stableSuccessCount = 0;
+    }
+
+    await sleep(1500);
   }
 
-  const maintenanceButton = document.getElementById("maintenance-reset-stm32-button");
-
-  maintenanceButton.disabled = true;
-  maintenanceButton.textContent = "läuft...";
-
-  try {
-    await apiFetch("/api/maintenance_reset_stm32");
-    announceStatus("STM32-Reset wurde ausgelöst. Warte auf Abschluss...", "warn");
-    await sleep(4000);
-    announceStatus("STM32 wurde zurückgesetzt", "ok");
-    await loadData();
-  } catch (error) {
-    announceStatus("STM32 konnte nicht zurückgesetzt werden", "error");
-  } finally {
-    maintenanceButton.disabled = false;
-    maintenanceButton.textContent = "STM32 zurücksetzen";
-  }
+  announceStatus("STM32-Reconnect nicht sicher erkannt. App wird vorsorglich neu geladen...", "warn");
+  await sleep(300);
+  await reloadAppPage();
 }
 
 async function resetEeprom() {
@@ -4014,24 +5288,62 @@ async function resetEeprom() {
     return;
   }
 
-  await runSimpleAction("maintenance-reset-eeprom-button", "/api/maintenance_reset_eeprom", "EEPROM zurücksetzen", "EEPROM konnte nicht zurückgesetzt werden", "EEPROM-Reset wurde ausgelöst");
+  if (!window.confirm("Wirklich alle EEPROM-Werte auf Werkseinstellungen zurücksetzen?")) {
+    return;
+  }
+
+  const maintenanceButton = document.getElementById("maintenance-reset-eeprom-button");
+
+  beginButtonFeedback(maintenanceButton, "setzt zurück...");
+  announceStatus("EEPROM-Reset wird ausgelöst...", "warn");
+
+  try {
+    await apiFetch(getMaintenanceResetEepromUrl());
+    announceStatus("EEPROM-Reset ausgelöst. STM32 wird neu gestartet...", "warn");
+    maintenanceButton.textContent = "wartet...";
+    await sleep(250);
+    await apiFetch(getMaintenanceResetStm32Url());
+    announceStatus("Warte auf STM32-Neustart. Danach wird die App neu geladen...", "warn");
+    await waitForStm32ResetAndReload(30000, 1500);
+  } catch (error) {
+    announceStatus("EEPROM konnte nicht zurückgesetzt werden", "error");
+    finishButtonFeedback(maintenanceButton, "EEPROM zurücksetzen", "error", "Fehler");
+  }
 }
 
 async function formatLittleFs() {
-  if (!window.confirm("LittleFS wirklich formatieren?")) {
-    return;
-  }
-
-  await runSimpleAction("maintenance-format-fs-button", "/api/maintenance_format_fs", "LittleFS formatieren", "LittleFS konnte nicht formatiert werden", "LittleFS wurde formatiert");
+  await runConfirmedButtonAction(
+    "maintenance-format-fs-button",
+    "LittleFS wirklich formatieren?",
+    {
+      busyText: "läuft...",
+      idleText: "LittleFS formatieren",
+      successText: "fertig",
+      errorText: "LittleFS konnte nicht formatiert werden",
+      successStatusText: "LittleFS wurde formatiert",
+      reloadDelayMs: 1200,
+      request: () => apiFetch(getMaintenanceFormatFsUrl())
+    }
+  );
 }
 
 async function formatLittleFsFromFiles() {
-  if (!window.confirm("LittleFS wirklich formatieren?")) {
-    return;
+  const didRun = await runConfirmedButtonAction(
+    "files-format-fs-button",
+    "LittleFS wirklich formatieren?",
+    {
+      busyText: "läuft...",
+      idleText: "LittleFS formatieren",
+      successText: "fertig",
+      errorText: "LittleFS konnte nicht formatiert werden",
+      successStatusText: "LittleFS wurde formatiert",
+      reloadDelayMs: 1200,
+      request: () => apiFetch(getMaintenanceFormatFsUrl())
+    }
+  );
+  if (didRun) {
+    setFsActionStatus("LittleFS wurde formatiert.");
   }
-
-  await runSimpleAction("files-format-fs-button", "/api/maintenance_format_fs", "LittleFS formatieren", "LittleFS konnte nicht formatiert werden", "LittleFS wurde formatiert");
-  document.getElementById("fs-action-status").textContent = "LittleFS wurde formatiert.";
 }
 
 async function showFsFile(fileName) {
@@ -4040,10 +5352,10 @@ async function showFsFile(fileName) {
   }
 
   try {
-    const response = await apiFetch("/api/fs_show?filename=" + encodeURIComponent(fileName));
+    const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
     const text = await response.text();
     document.getElementById("fs-preview-content").textContent = text || "(leer)";
-    document.getElementById("fs-action-status").textContent = "Datei „" + fileName + "“ wird angezeigt.";
+    setFsActionStatus("Datei „" + fileName + "“ wird angezeigt.");
     announceStatus(fileName + " geladen", "ok");
   } catch (error) {
     announceStatus("Datei konnte nicht geladen werden", "error");
@@ -4060,80 +5372,19 @@ async function deleteFsFile(fileName) {
   }
 
   try {
-    await apiFetch("/api/fs_remove?filename=" + encodeURIComponent(fileName));
+    await apiFetch(getFsRemoveBaseUrl() + encodeURIComponent(fileName));
     document.getElementById("fs-preview-content").textContent = "Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.";
-    document.getElementById("fs-action-status").textContent = "Datei „" + fileName + "“ wurde gelöscht.";
+    setFsActionStatus("Datei „" + fileName + "“ wurde gelöscht.");
     await loadData();
   } catch (error) {
     announceStatus("Datei konnte nicht gelöscht werden", "error");
   }
 }
 
-function handleUploadSubmit(event) {
-  const form = event.currentTarget;
-  const button = form.querySelector('button[type="submit"]');
-  const label = form.querySelector(".label");
-  const fileInput = form.querySelector('input[type="file"]');
-
-  if (button) {
-    if (!button.dataset.restoreText) {
-      button.dataset.restoreText = button.textContent;
-    }
-    button.disabled = true;
-    button.textContent = "läuft...";
-  }
-
-  const targetName = label ? label.textContent : "Datei";
-  const fileName = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0].name : "";
-  document.getElementById("fs-action-status").textContent =
-    "Upload gestartet: " + targetName + (fileName ? " <- " + fileName : "");
-  announceStatus("Upload wurde gestartet...", "warn");
-}
-
-function handleLegacyFrameLoad() {
-  document.querySelectorAll(".upload-form button[type='submit']").forEach((button) => {
-    button.disabled = false;
-    button.textContent = button.dataset.restoreText || "Hochladen";
-  });
-  resetProgressButton();
-  try {
-    const frame = document.getElementById("legacy-action-frame");
-    const body = frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body;
-    const text = body ? (body.textContent || "") : "";
-    const compact = text.replace(/\s+/g, " ").trim();
-
-    if (compact) {
-      if (compact.indexOf("WordClock App bundle installed successfully") >= 0) {
-        document.getElementById("fs-action-status").textContent = "App-Paket wurde erfolgreich installiert.";
-      } else if (compact.indexOf("Failed to upload file") >= 0 || compact.indexOf("Wrong http header") >= 0) {
-        document.getElementById("fs-action-status").textContent = "Upload fehlgeschlagen: " + compact;
-      } else {
-        document.getElementById("fs-action-status").textContent = compact;
-      }
-    }
-  } catch (error) {
-  }
-  announceStatus("Legacy-Aktion beantwortet", "ok");
-  setTimeout(loadData, 1500);
-}
-
 function handleProgressFrameLoad() {
-  const frame = document.getElementById("update-progress-frame");
   const note = document.getElementById("update-progress-note");
 
   try {
-    const body = frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body;
-    const text = body ? (body.textContent || "") : "";
-
-    if (pendingProgressAction === "layout-table") {
-      note.textContent = "Layout-Tabelle wurde geladen.";
-      resetProgressButton();
-      finishProgressUi(1800);
-      scheduleProgressReturnScroll(1900);
-      setTimeout(loadData, 1500);
-      return;
-    }
-
     if (pendingProgressAction === "esp-update") {
       note.textContent = "ESP aktualisiert. Es wird gewartet, bis das Gerät wieder bereit ist.";
     }
@@ -4147,12 +5398,11 @@ function startProgressAction(url, message, actionType, buttonId, buttonText) {
   pendingProgressButtonId = buttonId || "";
   const progressShell = document.getElementById("update-progress-shell");
   const progressFrame = document.getElementById("update-progress-frame");
-  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "layout-table" || actionType === "esp-update";
-  const hideFrame = actionType === "layout-table";
+  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "esp-update";
 
   progressShell.classList.remove("is-hidden");
   progressFrame.classList.toggle("progress-frame-hidden", keepFrameActiveInBackground);
-  progressFrame.classList.toggle("is-hidden", hideFrame);
+  progressFrame.classList.remove("is-hidden");
   document.getElementById("update-progress-visual").classList.toggle("is-hidden", actionType !== "stm32-flash");
   document.getElementById("update-progress-note").textContent = message;
   document.getElementById("updated-at").textContent = message;
@@ -4202,13 +5452,18 @@ function submitProgressFrameRequest(url, targetFrameName) {
 
   document.body.appendChild(form);
   form.submit();
-  document.body.removeChild(form);
+  window.setTimeout(() => {
+    if (form.parentNode) {
+      form.parentNode.removeChild(form);
+    }
+  }, 1500);
 }
 
 function startStm32StreamingAction(url, message, buttonId, buttonText) {
   pendingProgressAction = "stm32-flash";
   pendingProgressButtonId = buttonId || "";
   stm32AutoResetStarted = false;
+  stopUpdateProgressPolling();
   const progressShell = document.getElementById("update-progress-shell");
   const progressFrame = document.getElementById("update-progress-frame");
 
@@ -4233,6 +5488,7 @@ function startStm32StreamingAction(url, message, buttonId, buttonText) {
   progressFrame.src = "about:blank";
   window.setTimeout(() => {
     submitProgressFrameRequest(url, "update-progress-frame");
+    startUpdateProgressPolling();
     monitorStm32ProgressFrame();
   }, 0);
 }
@@ -4242,11 +5498,10 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
     pendingProgressAction = "stm32-flash";
     pendingProgressButtonId = buttonId || "";
     stm32AutoResetStarted = false;
+    stopUpdateProgressPolling();
     const progressShell = document.getElementById("update-progress-shell");
     const progressFrame = document.getElementById("update-progress-frame");
     const button = document.getElementById(buttonId);
-    const formData = new FormData();
-    formData.append("fileField", file, file.name);
 
     progressShell.classList.remove("is-hidden");
     progressFrame.classList.add("is-hidden");
@@ -4264,66 +5519,86 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
     rememberProgressReturnScrollPosition();
     progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/flash_stm32_local", true);
-
-    xhr.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+    uploadRawFile(
+      buildUploadUrl(getLocalStm32UploadUrl(), file.name),
+      file,
+      (loaded, total) => {
+        const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
         document.getElementById("local-update-note").textContent = "STM32-Firmware wird hochgeladen: " + percent + "%";
+        document.getElementById("update-progress-note").textContent = "STM32-Firmware wird hochgeladen: " + percent + "%";
+      },
+      () => {
+        document.getElementById("local-update-note").textContent = "STM32-Firmware wurde hochgeladen. Flash startet...";
+        document.getElementById("update-progress-note").textContent = "STM32-Firmware wurde hochgeladen. Flash startet...";
       }
-    });
+    ).then(() => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", getLocalStm32FlashUrl(), true);
+      startUpdateProgressPolling();
 
-    xhr.onprogress = () => {
-      const text = xhr.responseText || "";
-      syncStm32ProgressFromText(text);
+      xhr.onprogress = () => {
+        const text = xhr.responseText || "";
+        syncStm32ProgressFromText(text);
 
-      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-        stm32AutoResetStarted = true;
-        setStm32ProgressStage(5);
-        document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-        autoResetStm32AfterFlash();
-      }
-    };
+        if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
+          stm32AutoResetStarted = true;
+          setStm32ProgressStage(5);
+          document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+          autoResetStm32AfterFlash();
+        }
+      };
 
-    xhr.onload = () => {
-      const text = xhr.responseText || "";
-      syncStm32ProgressFromText(text);
+      xhr.onload = () => {
+        const text = xhr.responseText || "";
+        syncStm32ProgressFromText(text);
 
-      if (xhr.status < 200 || xhr.status >= 300) {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
+          document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
+          stopStm32Progress();
+          resetProgressButton();
+          finishProgressUi(0);
+          clearProgressReturnScrollPosition();
+          reject(new Error("stm32 local failed"));
+          return;
+        }
+
+        if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
+          stm32AutoResetStarted = true;
+          setStm32ProgressStage(5);
+          document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+          autoResetStm32AfterFlash();
+        }
+
+        resolve();
+      };
+
+      xhr.onerror = () => {
         document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
+        document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
         stopStm32Progress();
         resetProgressButton();
+        finishProgressUi(0);
         clearProgressReturnScrollPosition();
         reject(new Error("stm32 local failed"));
-        return;
-      }
+      };
 
-      if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-        stm32AutoResetStarted = true;
-        setStm32ProgressStage(5);
-        document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-        autoResetStm32AfterFlash();
-      }
-
-      resolve();
-    };
-
-    xhr.onerror = () => {
-      document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
+      xhr.send();
+    }).catch(() => {
+      document.getElementById("update-progress-note").textContent = "Lokaler STM32-Upload ist fehlgeschlagen.";
+      document.getElementById("local-update-note").textContent = "Lokaler STM32-Upload ist fehlgeschlagen.";
       stopStm32Progress();
       resetProgressButton();
+      finishProgressUi(0);
       clearProgressReturnScrollPosition();
-      reject(new Error("stm32 local failed"));
-    };
-
-    xhr.send(formData);
+      reject(new Error("stm32 local upload failed"));
+    });
   });
 }
 
 async function autoResetStm32AfterFlash() {
   try {
-    await fetch("/api/maintenance_reset_stm32", { cache: "no-store" });
+    await fetch(getMaintenanceResetStm32Url(), { cache: "no-store" });
     setStm32ProgressStage(6);
     document.getElementById("updated-at").textContent = "STM32 wurde nach dem Flash automatisch zurückgesetzt. Warte auf Abschluss...";
     document.getElementById("update-progress-note").textContent = "STM32 wird automatisch zurückgesetzt. Daten werden danach neu geladen.";
@@ -4343,6 +5618,7 @@ async function autoResetStm32AfterFlash() {
   } catch (error) {
     document.getElementById("update-progress-note").textContent = "STM32-Flash fertig, automatischer Reset ist fehlgeschlagen.";
     stopStm32Progress();
+    stopUpdateProgressPolling();
     resetProgressButton();
   }
 }
@@ -4352,10 +5628,96 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
   const config = options || {};
   const forcedReloadAt = Date.now() + Math.min(timeoutMs, config.forcedReloadAfterMs || 25000);
   const note = document.getElementById("update-progress-note");
-  const probeUrls = ["/display_power", "/api/status", "/get_settings", "/"];
+  const probes = Array.isArray(config.probes) && config.probes.length ? config.probes : getDefaultReconnectProbes();
   const waitingMessage = config.waitingMessage || "Warte auf Neustart des ESP...";
   const requireReconnectCycle = !!config.requireReconnectCycle;
+  const requiredStableSuccesses = Math.max(1, Number(config.requiredStableSuccesses || (requireReconnectCycle ? 2 : 1)));
+  const requireProgressClearForType = config.requireProgressClearForType || "";
+  const progressClearImpliesReconnect = !!requireProgressClearForType;
   let reconnectCycleObserved = !requireReconnectCycle;
+  let stableSuccessCount = 0;
+
+  async function isProgressTypeStillActive() {
+    if (!requireProgressClearForType) {
+      return false;
+    }
+
+    try {
+      const response = await fetchWithTimeout(getUpdateProgressUrl() + "?_ts=" + Date.now(), {
+        cache: "no-store"
+      }, 1200);
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const progress = await response.json();
+      return !!(progress &&
+        progress.ok &&
+        progress.type === requireProgressClearForType &&
+        (progress.active || (progress.state && progress.state !== "done" && progress.state !== "error")));
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async function handleSuccessfulProbe() {
+    const progressStillActive = await isProgressTypeStillActive();
+
+    if (progressStillActive) {
+      stableSuccessCount = 0;
+      return false;
+    }
+
+    if (!reconnectCycleObserved && !progressClearImpliesReconnect) {
+      stableSuccessCount = 0;
+      return false;
+    }
+
+    stableSuccessCount += 1;
+
+    if (stableSuccessCount < requiredStableSuccesses) {
+      note.textContent = waitingMessage;
+      return false;
+    }
+
+    clearEspReloadWatchdog();
+    note.textContent = readyMessage;
+    document.getElementById("updated-at").textContent = readyMessage;
+    resetProgressButton();
+    finishProgressUi(900);
+
+    if (reloadPage) {
+      setTimeout(reloadAppPage, 1200);
+    } else {
+      scheduleProgressReturnScroll(1000);
+      setTimeout(loadData, 1200);
+    }
+    return true;
+  }
+
+  async function probeViaFetch(probe) {
+    const separator = probe.url.indexOf("?") >= 0 ? "&" : "?";
+    const response = await fetchWithTimeout(probe.url + separator + "_ts=" + Date.now(), {
+      cache: "no-store"
+    }, probe.timeoutMs || 1800);
+
+    if (!response.ok) {
+      return false;
+    }
+
+    if (probe.mode === "json") {
+      const data = await response.json();
+      return probe.validate ? !!probe.validate(data) : true;
+    }
+
+    if (probe.mode === "text") {
+      const text = await response.text();
+      return probe.validate ? !!probe.validate(text) : !!text;
+    }
+
+    return probe.validate ? !!probe.validate(response) : true;
+  }
 
   if (reloadPage) {
     scheduleEspReloadWatchdog(Math.min(timeoutMs, config.reloadWatchdogDelayMs || 30000));
@@ -4366,60 +5728,38 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
   await sleep(initialDelayMs || 0);
 
   while (Date.now() < deadline) {
-    for (const probeUrl of probeUrls) {
+    for (const probe of probes) {
       try {
-        const separator = probeUrl.indexOf("?") >= 0 ? "&" : "?";
-        const response = await fetchWithTimeout(probeUrl + separator + "_ts=" + Date.now(), {
-          cache: "no-store"
-        }, 1800);
-
-        if (response.ok) {
-          if (!reconnectCycleObserved) {
-            continue;
+        if (await probeViaFetch(probe)) {
+          if (await handleSuccessfulProbe()) {
+            return;
           }
-          clearEspReloadWatchdog();
-          note.textContent = readyMessage;
-          document.getElementById("updated-at").textContent = readyMessage;
-          resetProgressButton();
-          finishProgressUi(900);
-
-          if (reloadPage) {
-            setTimeout(reloadAppPage, 1200);
-          } else {
-            scheduleProgressReturnScroll(1000);
-            setTimeout(loadData, 1200);
-          }
-          return;
         }
       } catch (error) {
         reconnectCycleObserved = true;
+        stableSuccessCount = 0;
       }
     }
 
-    for (const probeUrl of probeUrls) {
-      try {
-        const separator = probeUrl.indexOf("?") >= 0 ? "&" : "?";
-        const frameLoaded = await probeDeviceReadyViaFrame(probeUrl + separator + "_ts=" + Date.now(), 1800);
-        if (frameLoaded) {
-          if (!reconnectCycleObserved) {
-            continue;
-          }
-          clearEspReloadWatchdog();
-          note.textContent = readyMessage;
-          document.getElementById("updated-at").textContent = readyMessage;
-          resetProgressButton();
-          finishProgressUi(900);
+    for (const probe of probes) {
+      if (probe.mode && probe.mode !== "response") {
+        continue;
+      }
 
-          if (reloadPage) {
-            setTimeout(reloadAppPage, 1200);
-          } else {
-            scheduleProgressReturnScroll(1000);
-            setTimeout(loadData, 1200);
+      try {
+        const separator = probe.url.indexOf("?") >= 0 ? "&" : "?";
+        const frameLoaded = await probeDeviceReadyViaFrame(probe.url + separator + "_ts=" + Date.now(), probe.timeoutMs || 1800);
+        if (frameLoaded) {
+          if (await handleSuccessfulProbe()) {
+            return;
           }
-          return;
+        } else if (requireReconnectCycle) {
+          reconnectCycleObserved = true;
+          stableSuccessCount = 0;
         }
       } catch (error) {
         reconnectCycleObserved = true;
+        stableSuccessCount = 0;
       }
     }
 
@@ -4553,6 +5893,109 @@ function settleFetchJson(url, fallbackValue, timeoutMs) {
   );
 }
 
+function stopUpdateProgressPolling() {
+  if (!updateProgressPollTimer) {
+    return;
+  }
+
+  window.clearInterval(updateProgressPollTimer);
+  updateProgressPollTimer = 0;
+}
+
+function syncStm32ProgressFromStatus(progress) {
+  const note = document.getElementById("update-progress-note");
+  const message = progress && progress.message ? progress.message : "";
+
+  if (!progress || progress.type !== "stm32") {
+    return;
+  }
+
+  if (progress.state === "bootloader" && stm32ProgressStage < 2) {
+    setStm32ProgressStage(2);
+  } else if (progress.state === "verify" && stm32ProgressStage < 3) {
+    setStm32ProgressStage(3);
+  } else if (progress.state === "erase" && stm32ProgressStage < 4) {
+    setStm32ProgressStage(4);
+  } else if ((progress.state === "write" || progress.state === "reset_wait" || progress.state === "done") && stm32ProgressStage < 5) {
+    setStm32ProgressStage(5);
+  } else if (progress.state === "reset" && stm32ProgressStage < 6) {
+    setStm32ProgressStage(6);
+  }
+
+  if (message) {
+    if ((progress.state === "write" || progress.state === "reset_wait") && Number(progress.progress_current || 0) > 0) {
+      note.textContent = message + " Seiten: " + String(progress.progress_current);
+    } else {
+      note.textContent = message;
+    }
+  }
+}
+
+function applyUpdateProgressStatus(progress) {
+  const note = document.getElementById("update-progress-note");
+
+  if (!progress || !progress.ok) {
+    return;
+  }
+
+  if (pendingProgressAction === "esp-update" && progress.type === "esp" && progress.message) {
+    note.textContent = progress.message;
+    document.getElementById("updated-at").textContent = progress.message;
+    return;
+  }
+
+  if (pendingProgressAction !== "stm32-flash" || progress.type !== "stm32") {
+    return;
+  }
+
+  syncStm32ProgressFromStatus(progress);
+  if (progress.message) {
+    document.getElementById("updated-at").textContent = progress.message;
+  }
+
+  if (progress.state === "error") {
+    stopUpdateProgressPolling();
+    stopStm32Progress();
+    note.textContent = progress.message || "STM32-Flash ist fehlgeschlagen.";
+    resetProgressButton();
+    clearProgressReturnScrollPosition();
+    return;
+  }
+
+  if (progress.state === "done" && !stm32AutoResetStarted) {
+    stm32AutoResetStarted = true;
+    setStm32ProgressStage(5);
+    note.textContent = progress.message || "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+    autoResetStm32AfterFlash();
+  }
+}
+
+function startUpdateProgressPolling(initialDelayMs) {
+  stopUpdateProgressPolling();
+
+  const poll = async () => {
+    const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, 900);
+    applyUpdateProgressStatus(progress);
+  };
+
+  const start = () => {
+    void poll();
+    updateProgressPollTimer = window.setInterval(() => {
+      void poll();
+    }, 500);
+  };
+
+  if (initialDelayMs && initialDelayMs > 0) {
+    updateProgressPollTimer = window.setTimeout(() => {
+      updateProgressPollTimer = 0;
+      start();
+    }, initialDelayMs);
+    return;
+  }
+
+  start();
+}
+
 function probeDeviceReadyViaFrame(url, timeoutMs) {
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
@@ -4676,6 +6119,7 @@ function resetProgressButton() {
 
 function finishProgressUi(delayMs) {
   window.setTimeout(() => {
+    stopUpdateProgressPolling();
     document.getElementById("update-progress-shell").classList.add("is-hidden");
     document.getElementById("update-progress-frame").src = "about:blank";
     document.getElementById("update-progress-frame").classList.remove("progress-frame-hidden");
@@ -4834,140 +6278,108 @@ function hasStm32FlashFinished(text) {
   }
 
   return normalized.indexOf("Please Reset your STM32 now") >= 0 ||
-    normalized.indexOf("Check successful") >= 0 ||
     normalized.indexOf("Done.") >= 0;
 }
 
 async function saveRtcTemperatureCorrection() {
-  await saveTemperatureCorrection("temperature-rtc-correction-input", "temperature-rtc-correction-save-button", "/api/temperature_rtc_correction_set", "RTC-Korrektur speichern", "RTC-Korrektur konnte nicht gespeichert werden");
+  await saveTemperatureCorrection("temperature-rtc-correction-input", "temperature-rtc-correction-save-button", getTemperatureRtcCorrectionSetUrl(), "RTC-Korrektur speichern", "RTC-Korrektur konnte nicht gespeichert werden");
 }
 
 async function saveDs18xxTemperatureCorrection() {
-  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", "/api/temperature_ds18xx_correction_set", "DS18xx-Korrektur speichern", "DS18xx-Korrektur konnte nicht gespeichert werden");
+  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", getTemperatureDs18xxCorrectionSetUrl(), "DS18xx-Korrektur speichern", "DS18xx-Korrektur konnte nicht gespeichert werden");
 }
 
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
-  const button = document.getElementById(buttonId);
   const input = document.getElementById(inputId);
   const value = Math.max(0, Math.min(10, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch(endpoint + "?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, buttonText, "success", "gespeichert");
-  } catch (error) {
-    announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
-  }
+  await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
 async function displayTemperatureNow() {
-  await runSimpleAction("temperature-display-button", "/api/temperature_display", "Temperatur anzeigen", "Temperatur konnte nicht angezeigt werden", "Temperaturanzeige ausgelöst");
+  await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), "Temperatur anzeigen", "Temperatur konnte nicht angezeigt werden", "Temperaturanzeige ausgelöst");
 }
 
 async function setLdrMinValue() {
-  await runSimpleAction("ldr-min-button", "/api/ldr_min_set", "Aktuellen Wert als Minimum setzen", "LDR-Minimum konnte nicht gesetzt werden", "LDR-Minimum gespeichert");
+  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), "Aktuellen Wert als Minimum setzen", "LDR-Minimum konnte nicht gesetzt werden", "LDR-Minimum gespeichert");
 }
 
 async function setLdrMaxValue() {
-  await runSimpleAction("ldr-max-button", "/api/ldr_max_set", "Aktuellen Wert als Maximum setzen", "LDR-Maximum konnte nicht gesetzt werden", "LDR-Maximum gespeichert");
+  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), "Aktuellen Wert als Maximum setzen", "LDR-Maximum konnte nicht gesetzt werden", "LDR-Maximum gespeichert");
 }
 
 async function saveAnimationMode() {
-  await runSelectSave("animation-mode-select", "animation-mode-save-button", "/api/animation_mode_set", "Anzeigeanimation speichern", "Anzeigeanimation konnte nicht gespeichert werden");
+  await runSelectSave("animation-mode-select", "animation-mode-save-button", getAnimationModeSetUrl(), "Anzeigeanimation speichern", "Anzeigeanimation konnte nicht gespeichert werden");
 }
 
 async function saveColorAnimationMode() {
-  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", "/api/color_animation_mode_set", "Farbanimation speichern", "Farbanimation konnte nicht gespeichert werden");
+  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", getColorAnimationModeSetUrl(), "Farbanimation speichern", "Farbanimation konnte nicht gespeichert werden");
 }
 
 async function runSelectSave(selectId, buttonId, endpoint, buttonText, errorText) {
-  const button = document.getElementById(buttonId);
   const value = document.getElementById(selectId).value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch(endpoint + "?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, buttonText, "success", "gespeichert");
-  } catch (error) {
-    announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
-  }
+  await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
 async function saveAnimationProfile(idx) {
-  const button = document.querySelector('[data-an-save="' + idx + '"]');
   const deceleration = document.getElementById("an-dec-" + idx).value;
   const favourite = document.getElementById("an-fav-" + idx).checked ? "on" : "off";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?idx=" + idx + "&deceleration=" + encodeURIComponent(deceleration) + "&favourite=" + favourite;
-    await apiFetch("/api/animation_profile_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Profil speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Animationsprofil konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Profil speichern", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-an-save="%idx%"]', idx, {
+    endpoint: getAnimationProfileSetUrl(),
+    query: { idx, deceleration, favourite },
+    busyText: "speichert...",
+    idleText: "Profil speichern",
+    successText: "gespeichert",
+    errorText: "Animationsprofil konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function resetAnimationProfileDefault(idx) {
-  const button = document.querySelector('[data-an-default="' + idx + '"]');
-
-  beginButtonFeedback(button, "setzt...");
-
-  try {
-    await apiFetch("/api/animation_profile_default?idx=" + idx);
-    await loadData();
-    finishButtonFeedback(button, "Standard", "success", "gesetzt");
-  } catch (error) {
-    announceStatus("Standardwert konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, "Standard", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-an-default="%idx%"]', idx, {
+    endpoint: getAnimationProfileDefaultUrl(),
+    query: { idx },
+    busyText: "setzt...",
+    idleText: "Standard",
+    successText: "gesetzt",
+    errorText: "Standardwert konnte nicht gesetzt werden",
+    reload: true
+  });
 }
 
 async function saveColorAnimationProfile(idx) {
-  const button = document.querySelector('[data-can-save="' + idx + '"]');
   const deceleration = document.getElementById("can-dec-" + idx).value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/color_animation_profile_set?idx=" + idx + "&deceleration=" + encodeURIComponent(deceleration));
-    await loadData();
-    finishButtonFeedback(button, "Profil speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Farbanimationsprofil konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Profil speichern", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-can-save="%idx%"]', idx, {
+    endpoint: getColorAnimationProfileSetUrl(),
+    query: { idx, deceleration },
+    busyText: "speichert...",
+    idleText: "Profil speichern",
+    successText: "gespeichert",
+    errorText: "Farbanimationsprofil konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function resetColorAnimationProfileDefault(idx) {
-  const button = document.querySelector('[data-can-default="' + idx + '"]');
-
-  beginButtonFeedback(button, "setzt...");
-
-  try {
-    await apiFetch("/api/color_animation_profile_default?idx=" + idx);
-    await loadData();
-    finishButtonFeedback(button, "Standard", "success", "gesetzt");
-  } catch (error) {
-    announceStatus("Standardwert konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, "Standard", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-can-default="%idx%"]', idx, {
+    endpoint: getColorAnimationProfileDefaultUrl(),
+    query: { idx },
+    busyText: "setzt...",
+    idleText: "Standard",
+    successText: "gesetzt",
+    errorText: "Standardwert konnte nicht gesetzt werden",
+    reload: true
+  });
 }
 
 async function saveDimCurve(prefix) {
   const button = document.getElementById(prefix === "ambi" ? "ambilight-dim-save-button" : "display-dim-save-button");
-  const endpoint = prefix === "ambi" ? "/api/ambilight_dim_level_set" : "/api/display_dim_level_set";
   const buttonText = prefix === "ambi" ? "Ambilight-Dimmkurve speichern" : "Display-Dimmkurve speichern";
+  await persistDimCurve(prefix, button, buttonText);
+}
+
+async function persistDimCurve(prefix, button, buttonText) {
+  const endpoint = prefix === "ambi" ? getAmbilightDimLevelSetUrl() : getDisplayDimLevelSetUrl();
 
   beginButtonFeedback(button, "speichert...");
 
@@ -4988,37 +6400,22 @@ async function saveDimCurve(prefix) {
 }
 
 async function saveTftFlags() {
-  const button = document.getElementById("tft-save-button");
   const rgb = document.getElementById("tft-rgb-checkbox").checked ? "on" : "off";
   const hflip = document.getElementById("tft-hflip-checkbox").checked ? "on" : "off";
   const vflip = document.getElementById("tft-vflip-checkbox").checked ? "on" : "off";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?rgb=" + rgb + "&hflip=" + hflip + "&vflip=" + vflip;
-    await apiFetch("/api/tft_flags_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "TFT-Optionen speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("TFT-Optionen konnten nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "TFT-Optionen speichern", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("tft-save-button"), {
+    endpoint: getTftFlagsSetUrl(),
+    query: { rgb, hflip, vflip },
+    busyText: "speichert...",
+    idleText: "TFT-Optionen speichern",
+    successText: "gespeichert",
+    errorText: "TFT-Optionen konnten nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function runTextSave(buttonId, endpoint, value, buttonText, errorText) {
-  const button = document.getElementById(buttonId);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch(endpoint + "?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, buttonText, "success", "gespeichert");
-  } catch (error) {
-    announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
-  }
+  await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
 async function refreshUpdateServerAvailability() {
@@ -5033,296 +6430,360 @@ async function refreshUpdateServerAvailability() {
 }
 
 async function runSimpleAction(buttonId, endpoint, buttonText, errorText, successText) {
-  const button = document.getElementById(buttonId);
+  await runTriggerAction(buttonId, endpoint, buttonText, errorText, successText, {
+    busyText: "läuft...",
+    successText: "fertig"
+  });
+}
 
-  beginButtonFeedback(button, "läuft...");
+async function runButtonRequestById(buttonId, options) {
+  return runButtonRequest(document.getElementById(buttonId), options);
+}
+
+async function runQueryButtonRequestById(buttonId, options) {
+  return runQueryButtonRequest(document.getElementById(buttonId), options);
+}
+
+function buildQueryString(params) {
+  return Object.entries(params || {})
+    .map(([key, value]) => key + "=" + encodeURIComponent(value))
+    .join("&");
+}
+
+function parseTimeInput(value) {
+  const parts = String(value || "00:00").split(":");
+  return {
+    hour: Number(parts[0] || 0),
+    minute: Number(parts[1] || 0)
+  };
+}
+
+async function runQueryButtonRequest(button, options) {
+  const {
+    endpoint,
+    query = {},
+    request,
+    ...requestOptions
+  } = options || {};
+
+  return runButtonRequest(button, {
+    ...requestOptions,
+    request: request || (() => {
+      const queryString = buildQueryString(query);
+      return apiFetch(endpoint + (queryString ? "?" + queryString : ""));
+    })
+  });
+}
+
+async function runIndexedButtonRequest(selector, idx, options) {
+  return runButtonRequest(document.querySelector(selector.replace("%idx%", String(idx))), options);
+}
+
+async function runIndexedQueryButtonRequest(selector, idx, options) {
+  return runQueryButtonRequest(document.querySelector(selector.replace("%idx%", String(idx))), options);
+}
+
+async function runValueSave(buttonId, endpoint, value, buttonText, errorText, options) {
+  return runQueryButtonRequestById(buttonId, {
+    endpoint,
+    query: { value },
+    busyText: "speichert...",
+    idleText: buttonText,
+    successText: "gespeichert",
+    errorText,
+    reload: true,
+    ...(options || {})
+  });
+}
+
+async function runQuerySave(buttonId, endpoint, query, buttonText, errorText, options) {
+  return runQueryButtonRequestById(buttonId, {
+    endpoint,
+    query,
+    busyText: "speichert...",
+    idleText: buttonText,
+    successText: "gespeichert",
+    errorText,
+    reload: true,
+    ...(options || {})
+  });
+}
+
+async function runTriggerAction(buttonId, endpoint, buttonText, errorText, successStatusText, options) {
+  return runButtonRequestById(buttonId, {
+    busyText: (options && options.busyText) || "startet...",
+    idleText: buttonText,
+    successText: (options && options.successText) || "gestartet",
+    errorText,
+    successStatusText: successStatusText || "",
+    reloadDelayMs: (options && options.reloadDelayMs) || 1200,
+    preserveCurrentText: !!(options && options.preserveCurrentText),
+    request: (options && options.request) || (() => apiFetch(endpoint))
+  });
+}
+
+async function runStateToggleButton(button, endpoint, options) {
+  const current = options && options.currentValue ? options.currentValue() : (button.dataset.state === "on" ? "on" : "off");
+  const next = current === "on" ? "off" : "on";
+  const idleText = options && options.idleText ? options.idleText : (button.dataset.restoreText || button.textContent);
+  const successText = options && options.successText ? options.successText(next) : (next === "on" ? "aktiviert" : "deaktiviert");
+
+  await runQueryButtonRequest(button, {
+    endpoint,
+    query: { value: next },
+    busyText: "schaltet...",
+    idleText,
+    successText,
+    errorText: options && options.errorText ? options.errorText : "Schalter konnte nicht gesetzt werden",
+    reload: true,
+    preserveCurrentText: options && options.preserveCurrentText !== undefined ? options.preserveCurrentText : true
+  });
+}
+
+async function runButtonRequest(button, options) {
+  const {
+    busyText = "läuft...",
+    idleText = button && (button.dataset.restoreText || button.textContent) ? (button.dataset.restoreText || button.textContent) : "",
+    successText = "fertig",
+    errorText = "Aktion konnte nicht ausgeführt werden",
+    successStatusText = "",
+    reload = false,
+    reloadDelayMs = 0,
+    preserveCurrentText = false,
+    request
+  } = options || {};
+
+  beginButtonFeedback(button, busyText);
 
   try {
-    await apiFetch(endpoint);
-    announceStatus(successText, "ok");
-    setTimeout(loadData, 1200);
-    finishButtonFeedback(button, buttonText, "success", "fertig");
+    await request();
+    if (reload) {
+      await loadData();
+    } else if (reloadDelayMs > 0) {
+      setTimeout(loadData, reloadDelayMs);
+    }
+    if (successStatusText) {
+      announceStatus(successStatusText, "ok");
+    }
+    finishButtonFeedback(button, idleText, "success", successText, preserveCurrentText);
   } catch (error) {
     announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
+    finishButtonFeedback(button, idleText, "error", "Fehler", preserveCurrentText);
   }
 }
 
 async function saveAmbilightModeProfile(idx) {
-  const button = document.querySelector('[data-alm-save="' + idx + '"]');
   const deceleration = Math.max(0, Math.min(15, Number(document.getElementById("alm-dec-" + idx).value || 0)));
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ambilight_mode_profile_set?idx=" + idx + "&deceleration=" + encodeURIComponent(deceleration));
-    await loadData();
-    finishButtonFeedback(button, "Profil speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ambilight-Profil konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Profil speichern", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-alm-save="%idx%"]', idx, {
+    endpoint: getAmbilightModeProfileSetUrl(),
+    query: { idx, deceleration },
+    busyText: "speichert...",
+    idleText: "Profil speichern",
+    successText: "gespeichert",
+    errorText: "Ambilight-Profil konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function resetAmbilightModeProfile(idx) {
-  const button = document.querySelector('[data-alm-default="' + idx + '"]');
-
-  beginButtonFeedback(button, "setzt...");
-
-  try {
-    await apiFetch("/api/ambilight_mode_profile_default?idx=" + idx);
-    await loadData();
-    finishButtonFeedback(button, "Standard", "success", "gesetzt");
-  } catch (error) {
-    announceStatus("Ambilight-Standardwert konnte nicht gesetzt werden", "error");
-    finishButtonFeedback(button, "Standard", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-alm-default="%idx%"]', idx, {
+    endpoint: getAmbilightModeProfileDefaultUrl(),
+    query: { idx },
+    busyText: "setzt...",
+    idleText: "Standard",
+    successText: "gesetzt",
+    errorText: "Ambilight-Standardwert konnte nicht gesetzt werden",
+    reload: true
+  });
 }
 
 async function saveAmbilightBrightness() {
-  const slider = document.getElementById("ambilight-brightness-slider");
-  const button = document.getElementById("ambilight-brightness-save-button");
-  const value = slider.value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ambilight_brightness_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Ambilight-Helligkeit speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ambilight-Helligkeit konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Ambilight-Helligkeit speichern", "error", "Fehler");
-  }
+  const value = document.getElementById("ambilight-brightness-slider").value;
+  await runButtonRequestById("ambilight-brightness-save-button", {
+    busyText: "speichert...",
+    idleText: "Ambilight-Helligkeit speichern",
+    successText: "gespeichert",
+    errorText: "Ambilight-Helligkeit konnte nicht gespeichert werden",
+    reload: true,
+    request: () => apiFetch(getAmbilightBrightnessSetUrl() + "?value=" + encodeURIComponent(value))
+  });
 }
 
 async function saveAmbilightMode() {
-  const button = document.getElementById("ambilight-mode-save-button");
   const value = document.getElementById("ambilight-mode-select").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ambilight_mode_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Ambilight-Modus speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ambilight-Modus konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Ambilight-Modus speichern", "error", "Fehler");
-  }
+  await runButtonRequestById("ambilight-mode-save-button", {
+    busyText: "speichert...",
+    idleText: "Ambilight-Modus speichern",
+    successText: "gespeichert",
+    errorText: "Ambilight-Modus konnte nicht gespeichert werden",
+    reload: true,
+    request: () => apiFetch(getAmbilightModeSetUrl() + "?value=" + encodeURIComponent(value))
+  });
 }
 
 async function saveAmbilightLeds() {
-  const button = document.getElementById("ambilight-leds-save-button");
   const input = document.getElementById("ambilight-leds-input");
   const value = Math.max(0, Math.min(999, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ambilight_leds_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "LED-Anzahl speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("LED-Anzahl konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "LED-Anzahl speichern", "error", "Fehler");
-  }
+  await runButtonRequestById("ambilight-leds-save-button", {
+    busyText: "speichert...",
+    idleText: "LED-Anzahl speichern",
+    successText: "gespeichert",
+    errorText: "LED-Anzahl konnte nicht gespeichert werden",
+    reload: true,
+    request: () => apiFetch(getAmbilightLedsSetUrl() + "?value=" + encodeURIComponent(value))
+  });
 }
 
 async function saveAmbilightOffset() {
-  const button = document.getElementById("ambilight-offset-save-button");
   const input = document.getElementById("ambilight-offset-input");
   const value = Math.max(0, Math.min(999, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/ambilight_offset_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Offset speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Ambilight-Offset konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Offset speichern", "error", "Fehler");
-  }
+  await runButtonRequestById("ambilight-offset-save-button", {
+    busyText: "speichert...",
+    idleText: "Offset speichern",
+    successText: "gespeichert",
+    errorText: "Ambilight-Offset konnte nicht gespeichert werden",
+    reload: true,
+    request: () => apiFetch(getAmbilightOffsetSetUrl() + "?value=" + encodeURIComponent(value))
+  });
 }
 
 async function saveColor(prefix) {
-  const button = document.getElementById(prefix + "-color-save-button");
   const rgbHex = document.getElementById(prefix + "-color-rgb").value;
   const white = Number(document.getElementById(prefix + "-color-white").value || 0);
   const rgb = hexToRgb63(rgbHex);
   const endpoint = {
-    display: "/api/display_color_set",
-    ambilight: "/api/ambilight_color_set",
-    marker: "/api/marker_color_set"
+    display: getDisplayColorSetUrl(),
+    ambilight: getAmbilightColorSetUrl(),
+    marker: getMarkerColorSetUrl()
   }[prefix];
 
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?red=" + rgb.red + "&green=" + rgb.green + "&blue=" + rgb.blue + "&white=" + white;
-    await apiFetch(endpoint + query);
-    await loadData();
-    finishButtonFeedback(button, {
-      display: "Display Farbe speichern",
-      ambilight: "Ambilight Farbe speichern",
-      marker: "Marker Farbe speichern"
-    }[prefix], "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Farbe konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, {
-      display: "Display Farbe speichern",
-      ambilight: "Ambilight Farbe speichern",
-      marker: "Marker Farbe speichern"
-    }[prefix], "error", "Fehler");
-  }
+  const idleText = {
+    display: "Display Farbe speichern",
+    ambilight: "Ambilight Farbe speichern",
+    marker: "Marker Farbe speichern"
+  }[prefix];
+  await runQueryButtonRequest(document.getElementById(prefix + "-color-save-button"), {
+    endpoint,
+    query: { red: rgb.red, green: rgb.green, blue: rgb.blue, white },
+    busyText: "speichert...",
+    idleText,
+    successText: "gespeichert",
+    errorText: "Farbe konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveDfplayerVolume() {
-  const button = document.getElementById("dfplayer-volume-save-button");
   const value = document.getElementById("dfplayer-volume-slider").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/dfplayer_volume_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Lautstärke speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("DFPlayer-Lautstärke konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Lautstärke speichern", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("dfplayer-volume-save-button"), {
+    endpoint: getDfplayerVolumeSetUrl(),
+    query: { value },
+    busyText: "speichert...",
+    idleText: "Lautstärke speichern",
+    successText: "gespeichert",
+    errorText: "DFPlayer-Lautstärke konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveDfplayerMode() {
-  const button = document.getElementById("dfplayer-mode-save-button");
   const value = document.getElementById("dfplayer-mode-select").value;
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/dfplayer_mode_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Modus speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("DFPlayer-Modus konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Modus speichern", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("dfplayer-mode-save-button"), {
+    endpoint: getDfplayerModeSetUrl(),
+    query: { value },
+    busyText: "speichert...",
+    idleText: "Modus speichern",
+    successText: "gespeichert",
+    errorText: "DFPlayer-Modus konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveDfplayerBellFlags() {
-  const button = document.getElementById("dfplayer-bell-save-button");
   const m15 = document.getElementById("dfplayer-bell-15").checked ? "on" : "off";
   const m30 = document.getElementById("dfplayer-bell-30").checked ? "on" : "off";
   const m45 = document.getElementById("dfplayer-bell-45").checked ? "on" : "off";
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?m15=" + m15 + "&m30=" + m30 + "&m45=" + m45;
-    await apiFetch("/api/dfplayer_bell_flags_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Glockenzeiten speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Glockenzeiten konnten nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Glockenzeiten speichern", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("dfplayer-bell-save-button"), {
+    endpoint: getDfplayerBellFlagsSetUrl(),
+    query: { m15, m30, m45 },
+    busyText: "speichert...",
+    idleText: "Glockenzeiten speichern",
+    successText: "gespeichert",
+    errorText: "Glockenzeiten konnten nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveDfplayerSpeakCycle() {
-  const button = document.getElementById("dfplayer-speak-save-button");
   const input = document.getElementById("dfplayer-speak-cycle-input");
   const value = Math.max(0, Math.min(255, Number(input.value || 0)));
   input.value = String(value);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch("/api/dfplayer_speak_cycle_set?value=" + encodeURIComponent(value));
-    await loadData();
-    finishButtonFeedback(button, "Sprachzyklus speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Sprachzyklus konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Sprachzyklus speichern", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("dfplayer-speak-save-button"), {
+    endpoint: getDfplayerSpeakCycleSetUrl(),
+    query: { value },
+    busyText: "speichert...",
+    idleText: "Sprachzyklus speichern",
+    successText: "gespeichert",
+    errorText: "Sprachzyklus konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveDfplayerSilenceStart() {
-  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", "/api/dfplayer_silence_start_set", "Ruhezeit Beginn speichern", "Ruhezeit Beginn konnte nicht gespeichert werden");
+  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", getDfplayerSilenceStartSetUrl(), "Ruhezeit Beginn speichern", "Ruhezeit Beginn konnte nicht gespeichert werden");
 }
 
 async function saveDfplayerSilenceStop() {
-  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", "/api/dfplayer_silence_stop_set", "Ruhezeit Ende speichern", "Ruhezeit Ende konnte nicht gespeichert werden");
+  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", getDfplayerSilenceStopSetUrl(), "Ruhezeit Ende speichern", "Ruhezeit Ende konnte nicht gespeichert werden");
 }
 
 async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, errorText) {
-  const button = document.getElementById(buttonId);
-  const value = document.getElementById(inputId).value || "00:00";
-  const parts = value.split(":");
-  const hour = Number(parts[0] || 0);
-  const minute = Number(parts[1] || 0);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    await apiFetch(endpoint + "?hour=" + encodeURIComponent(hour) + "&minute=" + encodeURIComponent(minute));
-    await loadData();
-    finishButtonFeedback(button, buttonText, "success", "gespeichert");
-  } catch (error) {
-    announceStatus(errorText, "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
-  }
+  const { hour, minute } = parseTimeInput(document.getElementById(inputId).value || "00:00");
+  await runQueryButtonRequest(document.getElementById(buttonId), {
+    endpoint,
+    query: { hour, minute },
+    busyText: "speichert...",
+    idleText: buttonText,
+    successText: "gespeichert",
+    errorText,
+    reload: true
+  });
 }
 
 async function playDfplayerTrack() {
-  const button = document.getElementById("dfplayer-play-button");
   const folder = Math.max(0, Math.min(255, Number(document.getElementById("dfplayer-folder-input").value || 0)));
   const track = Math.max(0, Math.min(255, Number(document.getElementById("dfplayer-track-input").value || 0)));
-
-  beginButtonFeedback(button, "spielt...");
-
-  try {
-    await apiFetch("/api/dfplayer_play?folder=" + encodeURIComponent(folder) + "&track=" + encodeURIComponent(track));
-    announceStatus("DFPlayer-Titel gestartet", "ok");
-    finishButtonFeedback(button, "Titel abspielen", "success", "gestartet");
-  } catch (error) {
-    announceStatus("DFPlayer-Titel konnte nicht gestartet werden", "error");
-    finishButtonFeedback(button, "Titel abspielen", "error", "Fehler");
-  }
+  await runQueryButtonRequest(document.getElementById("dfplayer-play-button"), {
+    endpoint: getDfplayerPlayUrl(),
+    query: { folder, track },
+    busyText: "spielt...",
+    idleText: "Titel abspielen",
+    successText: "gestartet",
+    errorText: "DFPlayer-Titel konnte nicht gestartet werden",
+    successStatusText: "DFPlayer-Titel gestartet"
+  });
 }
 
 async function saveDfplayerAlarm(idx) {
-  const button = document.querySelector('[data-alarm-save="' + idx + '"]');
   const active = document.getElementById("df-alarm-active-" + idx).checked ? "on" : "off";
   const from = document.getElementById("df-alarm-from-" + idx).value;
   const to = document.getElementById("df-alarm-to-" + idx).value;
-  const time = document.getElementById("df-alarm-time-" + idx).value || "00:00";
-  const parts = time.split(":");
-  const hour = Number(parts[0] || 0);
-  const minute = Number(parts[1] || 0);
-
-  beginButtonFeedback(button, "speichert...");
-
-  try {
-    const query = "?idx=" + idx +
-      "&active=" + active +
-      "&from=" + encodeURIComponent(from) +
-      "&to=" + encodeURIComponent(to) +
-      "&hour=" + encodeURIComponent(hour) +
-      "&minute=" + encodeURIComponent(minute);
-    await apiFetch("/api/dfplayer_alarm_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Titel " + String(idx + 1).padStart(3, "0") + " speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("DFPlayer-Titel konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Titel " + String(idx + 1).padStart(3, "0") + " speichern", "error", "Fehler");
-  }
+  const { hour, minute } = parseTimeInput(document.getElementById("df-alarm-time-" + idx).value || "00:00");
+  const idleText = "Titel " + String(idx + 1).padStart(3, "0") + " speichern";
+  await runIndexedQueryButtonRequest('[data-alarm-save="%idx%"]', idx, {
+    endpoint: getDfplayerAlarmSetUrl(),
+    query: { idx, active, from, to, hour, minute },
+    busyText: "speichert...",
+    idleText,
+    successText: "gespeichert",
+    errorText: "DFPlayer-Titel konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function saveOverlay(idx) {
-  const button = document.querySelector('[data-overlay-save="' + idx + '"]');
   const active = document.getElementById("ov-active-" + idx).checked ? "on" : "off";
   const type = document.getElementById("ov-type-" + idx).value;
   const typeNumber = Number(type);
@@ -5337,125 +6798,85 @@ async function saveOverlay(idx) {
   const month = document.getElementById("ov-month-" + idx).value;
   const day = document.getElementById("ov-day-" + idx).value;
   const days = document.getElementById("ov-days-" + idx).value;
-
-  button.disabled = true;
-  button.textContent = "speichert...";
-
-  try {
-    const query =
-      "?idx=" + idx +
-      "&active=" + active +
-      "&type=" + encodeURIComponent(type) +
-      "&value=" + encodeURIComponent(value) +
-      "&interval=" + encodeURIComponent(interval) +
-      "&duration=" + encodeURIComponent(duration) +
-      "&date_code=" + encodeURIComponent(dateCode) +
-      "&month=" + encodeURIComponent(month) +
-      "&day=" + encodeURIComponent(day) +
-      "&days=" + encodeURIComponent(days);
-    await apiFetch("/api/overlay_set" + query);
-    await loadData();
-    finishButtonFeedback(button, "Overlay speichern", "success", "gespeichert");
-  } catch (error) {
-    announceStatus("Overlay konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, "Overlay speichern", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-overlay-save="%idx%"]', idx, {
+    endpoint: getOverlaySetUrl(),
+    query: {
+      idx,
+      active,
+      type,
+      value,
+      interval,
+      duration,
+      date_code: dateCode,
+      month,
+      day,
+      days
+    },
+    busyText: "speichert...",
+    idleText: "Overlay speichern",
+    successText: "gespeichert",
+    errorText: "Overlay konnte nicht gespeichert werden",
+    reload: true
+  });
 }
 
 async function displayOverlay(idx) {
-  const button = document.querySelector('[data-overlay-display="' + idx + '"]');
-
-  beginButtonFeedback(button, "zeigt...");
-  try {
-    await apiFetch("/api/overlay_display?idx=" + encodeURIComponent(idx));
-    announceStatus("Overlay " + idx + " wird angezeigt", "ok");
-    finishButtonFeedback(button, "Anzeigen", "success", "gestartet");
-  } catch (error) {
-    announceStatus("Overlay konnte nicht angezeigt werden", "error");
-    finishButtonFeedback(button, "Anzeigen", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-overlay-display="%idx%"]', idx, {
+    endpoint: getOverlayDisplayUrl(),
+    query: { idx },
+    busyText: "zeigt...",
+    idleText: "Anzeigen",
+    successText: "gestartet",
+    errorText: "Overlay konnte nicht angezeigt werden",
+    successStatusText: "Overlay " + idx + " wird angezeigt"
+  });
 }
 
 async function deleteOverlay(idx) {
-  const button = document.querySelector('[data-overlay-delete="' + idx + '"]');
-
-  beginButtonFeedback(button, "löscht...");
-  try {
-    await apiFetch("/api/overlay_delete?idx=" + encodeURIComponent(idx));
-    await loadData();
-    announceStatus("Overlay wurde gelöscht", "ok");
-    finishButtonFeedback(button, "Löschen", "success", "gelöscht");
-  } catch (error) {
-    announceStatus("Overlay konnte nicht gelöscht werden", "error");
-    finishButtonFeedback(button, "Löschen", "error", "Fehler");
-  }
+  await runIndexedQueryButtonRequest('[data-overlay-delete="%idx%"]', idx, {
+    endpoint: getOverlayDeleteUrl(),
+    query: { idx },
+    busyText: "löscht...",
+    idleText: "Löschen",
+    successText: "gelöscht",
+    errorText: "Overlay konnte nicht gelöscht werden",
+    successStatusText: "Overlay wurde gelöscht",
+    reload: true
+  });
 }
 
 async function saveTimerRow(idx, isAmbilight, options) {
   const opts = options || {};
   const prefix = isAmbilight ? "at" : "t";
-  const button = document.querySelector('[data-' + prefix + '-save="' + idx + '"]');
   const active = document.getElementById(prefix + "-active-" + idx).checked ? "on" : "off";
   const switchOn = document.getElementById(prefix + "-action-" + idx).value || "off";
   const from = document.getElementById(prefix + "-from-" + idx).value;
   const to = document.getElementById(prefix + "-to-" + idx).value;
-  const time = document.getElementById(prefix + "-time-" + idx).value || "00:00";
-  const parts = time.split(":");
-  const hour = Number(parts[0] || 0);
-  const minute = Number(parts[1] || 0);
-  const endpoint = isAmbilight ? "/api/ambilight_timer_set" : "/api/timer_set";
-
-  if (button) {
-    beginButtonFeedback(button, "speichert...");
-  }
-
-  try {
-    const query =
-      "?idx=" + idx +
-      "&active=" + active +
-      "&switch_on=" + switchOn +
-      "&from=" + encodeURIComponent(from) +
-      "&to=" + encodeURIComponent(to) +
-      "&hour=" + encodeURIComponent(hour) +
-      "&minute=" + encodeURIComponent(minute);
-    await apiFetch(endpoint + query);
-    if (opts.reload !== false) {
-      await loadData();
-    }
-    if (button) {
-      finishButtonFeedback(button, "Speichern", "success", "gespeichert");
-    }
-  } catch (error) {
-    announceStatus("Timer konnte nicht gespeichert werden", "error");
-    if (button) {
-      finishButtonFeedback(button, "Speichern", "error", "Fehler");
-    }
-  }
+  const { hour, minute } = parseTimeInput(document.getElementById(prefix + "-time-" + idx).value || "00:00");
+  const endpoint = isAmbilight ? getAmbilightTimerSetUrl() : getTimerSetUrl();
+  await runIndexedQueryButtonRequest('[data-' + prefix + '-save="%idx%"]', idx, {
+    endpoint,
+    query: { idx, active, switch_on: switchOn, from, to, hour, minute },
+    busyText: "speichert...",
+    idleText: "Speichern",
+    successText: "gespeichert",
+    errorText: "Timer konnte nicht gespeichert werden",
+    reload: opts.reload !== false
+  });
 }
 
 async function clearTimerRow(idx, isAmbilight) {
   const prefix = isAmbilight ? "at" : "t";
-  const button = document.querySelector('[data-' + prefix + '-clear="' + idx + '"]');
-  const endpoint = isAmbilight ? "/api/ambilight_timer_set" : "/api/timer_set";
-
-  beginButtonFeedback(button, "leert...");
-
-  try {
-    const query =
-      "?idx=" + idx +
-      "&active=off" +
-      "&switch_on=off" +
-      "&from=0" +
-      "&to=0" +
-      "&hour=0" +
-      "&minute=0";
-    await apiFetch(endpoint + query);
-    await loadData();
-    finishButtonFeedback(button, "Slot leeren", "success", "geleert");
-  } catch (error) {
-    announceStatus("Timer konnte nicht geleert werden", "error");
-    finishButtonFeedback(button, "Slot leeren", "error", "Fehler");
-  }
+  const endpoint = isAmbilight ? getAmbilightTimerSetUrl() : getTimerSetUrl();
+  await runIndexedQueryButtonRequest('[data-' + prefix + '-clear="%idx%"]', idx, {
+    endpoint,
+    query: { idx, active: "off", switch_on: "off", from: 0, to: 0, hour: 0, minute: 0 },
+    busyText: "leert...",
+    idleText: "Slot leeren",
+    successText: "geleert",
+    errorText: "Timer konnte nicht geleert werden",
+    reload: true
+  });
 }
 
 async function saveAllTimerRows(isAmbilight) {
@@ -5691,32 +7112,32 @@ function findWord(word, rows) {
 }
 
 async function loadWordclockLayoutPreview(updateTableInfo, settings) {
-  const currentTable = updateTableInfo && updateTableInfo.current_table ? updateTableInfo.current_table : "";
+  const currentTable = getUpdateTableCurrentFile(updateTableInfo);
   const fallbackPreview = getDefaultLayoutPreview(settings);
 
   if (!currentTable) {
-    return currentLayoutPreview || restoreStoredLayoutPreview() || fallbackPreview;
+    return getCurrentLayoutPreview(settings) || fallbackPreview;
   }
 
-  if (layoutPreviewCache[currentTable]) {
-    return layoutPreviewCache[currentTable];
+  const cachedPreview = getCachedLayoutPreview(currentTable);
+  if (cachedPreview) {
+    return cachedPreview;
   }
 
   try {
-    const response = await fetchWithTimeout("/api/fs_show?filename=" + encodeURIComponent(currentTable), { cache: "no-store" }, 8000);
+    const response = await fetchWithTimeout(getFsShowBaseUrl() + encodeURIComponent(currentTable), { cache: "no-store" }, 8000);
     const text = await response.text();
     if (!text || !text.trim()) {
-      return currentLayoutPreview || restoreStoredLayoutPreview() || null;
+      return getCurrentLayoutPreview(settings) || null;
     }
     const table = parseLayoutTable(text);
     const rows = resolveLayoutRows(currentTable, table);
     const preview = { file: currentTable, table, rows: rows.length ? rows : fallbackPreview.rows };
 
-    layoutPreviewCache[currentTable] = preview;
-    storeLayoutPreview(preview);
+    setCachedLayoutPreview(currentTable, preview);
     return preview;
   } catch (error) {
-    return currentLayoutPreview || restoreStoredLayoutPreview() || null;
+    return getCurrentLayoutPreview(settings) || null;
   }
 }
 
@@ -5908,9 +7329,13 @@ function findLayoutPreviewSource(fileName, table) {
 }
 
 function getDefaultLayoutPreview(settings) {
-  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
-  const wcType = config & HW.WC_MASK;
-  const fileName = wcType === HW.WC_24H ? "wc24h-tables-de.txt" : "wc12h-tables-de.txt";
+  const resolvedAssetMeta = getResolvedAssetMeta(settings, null, null);
+  const resolvedLayoutMeta = getResolvedLayoutMeta(settings, null, null);
+  const assetPrefix = resolvedAssetMeta.assetPrefix;
+  const layoutMeta = resolvedLayoutMeta;
+  const fileName = layoutMeta.previewFile
+    || (assetPrefix === "wc24h" ? "wc24h-tables-de.txt" : (assetPrefix === "uc" ? "" : "wc12h-tables-de.txt"))
+    || "wc12h-tables-de.txt";
   const source = LAYOUT_PREVIEW_SOURCES.find((item) => item.file === fileName);
 
   if (!source) {
@@ -5921,7 +7346,7 @@ function getDefaultLayoutPreview(settings) {
     };
   }
 
-  const columns = fileName.indexOf("wc24h-") === 0 ? 18 : 11;
+  const columns = getResolvedLayoutColumns(fileName);
   const rows = [];
 
   for (let offset = 0; offset < source.display.length; offset += columns) {
@@ -6048,21 +7473,21 @@ function renderWordclockCorners(settings, layoutPreview) {
     return;
   }
 
-  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
-  const current = settings && settings.tmvars ? settings.tmvars[0] : {};
-  const minute = Number(current.minute || 0);
-  const displayPower = Number(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_POWER] || 0) : 0);
-  const is12hLayout = isTwelveHourLayout(layoutPreview, config);
-  const activeCount = is12hLayout && displayPower ? (minute % 5) : 0;
+  const previewMeta = getLayoutPreviewMeta(settings, layoutPreview);
 
-  corners.classList.toggle("is-hidden", !is12hLayout);
+  corners.classList.toggle("is-hidden", !previewMeta.is12hLayout);
 
   corners.querySelectorAll(".wordclock-corner").forEach((corner, index) => {
-    corner.classList.toggle("is-active", index < activeCount);
+    corner.classList.toggle("is-active", index < previewMeta.activeCornerCount);
   });
 }
 
 function isTwelveHourLayout(layoutPreview, config) {
+  const backendValue = getResolvedLayoutMeta(null, null, null).isTwelveHour;
+  if (backendValue !== null) {
+    return backendValue;
+  }
+
   if (layoutPreview && typeof layoutPreview.file === "string" && layoutPreview.file.indexOf("wc12h-") === 0) {
     return true;
   }
@@ -6071,6 +7496,18 @@ function isTwelveHourLayout(layoutPreview, config) {
 }
 
 function decodeHardware(config) {
+  const backendLabels = getResolvedHardwareMeta(null, null, null).labels;
+  if (backendLabels) {
+    return {
+      hardware: backendLabels.hardware || "unbekannt",
+      processor: backendLabels.processor || "unbekannt",
+      board: backendLabels.board || "unbekannt",
+      frequency: backendLabels.frequency || "unbekannt",
+      oscillator: backendLabels.oscillator || "unbekannt",
+      display: backendLabels.display || "unbekannt"
+    };
+  }
+
   const wc = config & HW.WC_MASK;
   const stm32 = config & HW.STM32_MASK;
   const led = config & HW.LED_MASK;
@@ -6131,6 +7568,67 @@ function isAmbilightOnline(settings, debugOverrides) {
   return !!settings.numvars[NUM.AMBILIGHT_IS_UP];
 }
 
+function isDfplayerOnline(settings, debugOverrides) {
+  return debugOverrides.dfplayer === "on" ? true : !!settings.numvars[NUM.DFPLAYER_IS_UP];
+}
+
+function getModuleAvailabilityState(settings, debugOverrides) {
+  return {
+    ambilightOnline: isAmbilightOnline(settings, debugOverrides),
+    dfplayerOnline: isDfplayerOnline(settings, debugOverrides)
+  };
+}
+
+function getUiFeatureState(settings, debugOverrides) {
+  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
+  const moduleState = getModuleAvailabilityState(settings, debugOverrides);
+  const ledCapabilities = getLedCapabilities(config, debugOverrides);
+  const hasTft = hasTftDisplay(config, debugOverrides);
+  const useRgbw = isRgbwUiActive(settings, ledCapabilities);
+
+  return {
+    config,
+    moduleState,
+    ledCapabilities,
+    hasTft,
+    useRgbw
+  };
+}
+
+function getFeatureUiMeta(settings, debugOverrides) {
+  return getUiFeatureState(settings, debugOverrides);
+}
+
+function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverrides, updateStatus) {
+  const featureMeta = getFeatureUiMeta(settings, debugOverrides);
+  return {
+    hardware: decodeHardware(featureMeta.config || 0),
+    ledCapabilities: featureMeta.ledCapabilities,
+    ambilightOnline: featureMeta.moduleState.ambilightOnline,
+    dfplayerOnline: featureMeta.moduleState.dfplayerOnline,
+    displayPowerLabel: displayPower === "on" ? "an" : "aus",
+    ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? "an" : "aus") : "offline",
+    firmwareVersion: settings.strvars[STR.VERSION] || "-",
+    espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || settings.strvars[STR.ESP8266_VERSION] || "-"
+  };
+}
+
+function getColorUiMeta(settings, ambilightOnline, debugOverrides) {
+  const featureMeta = getFeatureUiMeta(settings, debugOverrides);
+  const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+
+  return {
+    capabilities: featureMeta.ledCapabilities,
+    useRgbw: featureMeta.useRgbw,
+    colorAnimationMode,
+    persistedLiveColor: colorAnimationMode !== 0 ? restoreStoredLiveDisplayColor(colorAnimationMode) : null,
+    displayColor: settings.dspcolors[0] || { red: 63, green: 45, blue: 18, white: 0 },
+    ambilightColor: settings.dspcolors[1] || { red: 63, green: 45, blue: 18, white: 0 },
+    markerColor: settings.dspcolors[2] || { red: 63, green: 45, blue: 18, white: 0 },
+    ambilightOnline
+  };
+}
+
 function getPersistedAmbilightState() {
   try {
     const value = localStorage.getItem(AMBILIGHT_STORAGE_KEY);
@@ -6172,13 +7670,9 @@ async function syncPersistedAmbilightState(state) {
   const desired = state === "on" ? "on" : "off";
 
   try {
-    await apiFetch("/api/ambilight_online_set?value=" + desired);
+    await apiFetch(getAmbilightOnlineSetUrl() + "?value=" + desired);
   } catch (error) {
   }
-}
-
-function isDfplayerOnline(settings, debugOverrides) {
-  return debugOverrides.dfplayer === "on" ? true : !!settings.numvars[NUM.DFPLAYER_IS_UP];
 }
 
 function hasTftDisplay(config, debugOverrides) {
@@ -6186,7 +7680,12 @@ function hasTftDisplay(config, debugOverrides) {
     return true;
   }
 
-  return (config & HW.LED_MASK) === HW.LED_TFT_RGB;
+  const displayInfo = getResolvedHardwareMeta(null, null, null).display;
+  if (displayInfo) {
+    return displayInfo.hasTft;
+  }
+
+  return isTftDisplayFromConfig(config);
 }
 
 function getLedCapabilities(config, debugOverrides) {
@@ -6207,10 +7706,49 @@ function getLedCapabilities(config, debugOverrides) {
       mode: "rgb",
       label: "RGB (Debug Override)",
       note: "Debug Override aktiv. Farb-LED UI wird als RGB angezeigt."
-    };
+      };
   }
 
-  const led = config & HW.LED_MASK;
+  const displayInfo = getResolvedHardwareMeta(null, null, null).display;
+  if (displayInfo && displayInfo.mode) {
+    const mode = displayInfo.mode;
+    const hasTft = displayInfo.hasTft;
+    const whiteChannel = displayInfo.hasWhiteChannel;
+
+    if (mode === "rgbw") {
+      return {
+        hasColor: true,
+        whiteChannel: true,
+        mode: "rgbw",
+        label: displayInfo.label || "RGBW",
+        note: "RGBW-Hardware erkannt. RGB- und Weißkanal sind verfügbar."
+      };
+    }
+
+    if (mode === "rgb" || mode === "tft") {
+      return {
+        hasColor: true,
+        whiteChannel,
+        mode: whiteChannel ? "rgbw" : "rgb",
+        label: displayInfo.label || (hasTft ? "TFT RGB" : "RGB"),
+        note: hasTft
+          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weißkanal bleibt ausgeblendet."
+          : "RGB-Hardware erkannt. Der White-Channel ist daher ausgeblendet."
+      };
+    }
+
+    if (mode === "none") {
+      return {
+        hasColor: false,
+        whiteChannel: false,
+        mode: "none",
+        label: displayInfo.label || "keine Farb-LEDs erkannt",
+        note: "Keine unterstützte Farb-LED-Hardware erkannt. Farbsteuerung ist deshalb ausgeblendet."
+      };
+    }
+  }
+
+  const led = getDisplayLedMask(config);
 
   switch (led) {
     case HW.LED_SK6812_RGBW:
@@ -6246,9 +7784,13 @@ function getLedCapabilities(config, debugOverrides) {
   }
 }
 
+function isRgbwUiActive(settings, capabilities) {
+  return !!(capabilities && capabilities.whiteChannel && settings && settings.numvars && settings.numvars[NUM.DISPLAY_USE_RGBW]);
+}
+
 function getFsUploadTargets(config) {
-  const wc = config & HW.WC_MASK;
-  const led = config & HW.LED_MASK;
+  const assetPrefix = getAssetPrefixFromHardwareConfig(config);
+  const hasTft = isTftDisplayFromConfig(config);
   const targets = {
     icon: "",
     weather: "",
@@ -6256,20 +7798,20 @@ function getFsUploadTargets(config) {
     display: ""
   };
 
-  switch (wc) {
-    case 0:
+  switch (assetPrefix) {
+    case "wc24h":
       targets.icon = "wc24h-icon.txt";
       targets.weather = "wc24h-weather.txt";
       targets.tables = "wc24h-tables-local.txt";
-      targets.display = led === HW.LED_TFT_RGB ? "wc24h-display-local.txt" : "";
+      targets.display = hasTft ? "wc24h-display-local.txt" : "";
       break;
-    case 8:
+    case "wc12h":
       targets.icon = "wc12h-icon.txt";
       targets.weather = "wc12h-weather.txt";
       targets.tables = "wc12h-tables-local.txt";
-      targets.display = led === HW.LED_TFT_RGB ? "wc12h-display-local.txt" : "";
+      targets.display = hasTft ? "wc12h-display-local.txt" : "";
       break;
-    case 16:
+    case "uc":
       targets.icon = "uc-icon.txt";
       targets.weather = "uc-weather.txt";
       targets.tables = "";
@@ -6596,11 +8138,12 @@ function storeLiveDisplayColor(mode, color) {
 }
 
 async function refreshLiveDisplayColor() {
-  if (!shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+  const settings = getCurrentSettingsSnapshot();
+  if (!shouldUseLiveDisplayColor(settings)) {
     return;
   }
 
-  const response = await settleFetchJson("/api/live_display_color", null, 3000);
+  const response = await settleFetchJson(getLiveDisplayColorUrl(), null, 3000);
 
   if (!response || response.ok !== true) {
     return;
@@ -6612,22 +8155,22 @@ async function refreshLiveDisplayColor() {
     blue: Number(response.blue || 0),
     white: Number(response.white || 0)
   };
-  storeLiveDisplayColor(currentSettingsSnapshot && currentSettingsSnapshot.numvars
-    ? Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0)
+  storeLiveDisplayColor(settings && settings.numvars
+    ? Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0)
     : 0,
   currentLiveDisplayColor);
 
-  if (currentSettingsSnapshot) {
-    renderPreviewDebug(currentSettingsSnapshot);
+  if (settings) {
+    renderPreviewDebug(settings);
   }
 
-  if (!currentSettingsSnapshot || !shouldUseLiveDisplayColor(currentSettingsSnapshot)) {
+  if (!settings || !shouldUseLiveDisplayColor(settings)) {
     return;
   }
 
-  const capabilities = getLedCapabilities(currentSettingsSnapshot.numvars[NUM.HARDWARE_CONFIGURATION] || 0, loadDebugOverrides());
-  const useRgbw = capabilities.whiteChannel && !!currentSettingsSnapshot.numvars[NUM.DISPLAY_USE_RGBW];
-  const colorAnimationMode = Number(currentSettingsSnapshot.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+  const colorMeta = getColorUiMeta(settings, !!(settings.numvars && settings.numvars[NUM.AMBILIGHT_IS_UP]), loadDebugOverrides());
+  const useRgbw = colorMeta.useRgbw;
+  const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
 
   applyWordclockTheme(currentLiveDisplayColor, useRgbw, colorAnimationMode);
 }
@@ -6741,7 +8284,11 @@ function buildDayOptions(selected) {
 }
 
 function buildIconOptions(selected) {
-  const icons = overlayIconsCache.length ? overlayIconsCache : [selected || ""];
+  const cachedIcons = getOverlayIconsCache();
+  const icons = cachedIcons.length ? cachedIcons : (selected ? [selected] : []);
+  if (!icons.length) {
+    return '<option value="">Keine Icons gefunden</option>';
+  }
   return icons.map((iconName) => (
     '<option value="' + escapeHtml(iconName) + '"' + (iconName === selected ? " selected" : "") + ">" + escapeHtml(iconName) + "</option>"
   )).join("");
@@ -6777,6 +8324,45 @@ function updateOverlayRowVisibility(idx) {
   toggleHidden("ov-month-wrap-" + idx, useDateCode);
   toggleHidden("ov-day-wrap-" + idx, useDateCode);
   toggleHidden("ov-days-wrap-" + idx, !useDateCode && !hasDateStart);
+}
+
+async function ensureOverlayIconsLoaded(forceRefresh) {
+  const cachedIcons = getOverlayIconsCache();
+  if (!forceRefresh && cachedIcons.length) {
+    return cachedIcons;
+  }
+
+  return setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), cachedIcons || [], 3000));
+}
+
+function refreshOverlayIconSelect(idx) {
+  const select = document.getElementById("ov-icon-" + idx);
+
+  if (!select) {
+    return;
+  }
+
+  const selected = select.value || "";
+  select.innerHTML = buildIconOptions(selected);
+  if (selected) {
+    select.value = selected;
+  }
+}
+
+async function handleOverlayTypeChange(idx) {
+  updateOverlayRowVisibility(idx);
+
+  const type = Number(document.getElementById("ov-type-" + idx).value || 0);
+  if (type !== 1) {
+    return;
+  }
+
+  try {
+    await ensureOverlayIconsLoaded(false);
+    refreshOverlayIconSelect(idx);
+  } catch (error) {
+    announceStatus("Icon-Liste konnte nicht geladen werden", "error");
+  }
 }
 
 function toggleHidden(id, hidden) {

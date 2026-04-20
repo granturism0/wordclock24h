@@ -73,6 +73,7 @@
 #define STM32_LOG_LINE_LEN  120
 
 static void           icon_info (const char * fname, const char * name);
+static const char *   resolve_icon_asset_filename (const char * fname);
 
 static char              stm32_log_lines[STM32_LOG_LINES][STM32_LOG_LINE_LEN + 1];
 static uint16_t          stm32_log_next_idx = 0;
@@ -198,6 +199,42 @@ static uint_fast16_t  colors_pos;
 static uint_fast16_t  anim_on_pos;
 static uint_fast16_t  anim_off_pos;
 
+static const char *
+resolve_icon_asset_filename (const char * fname)
+{
+    static const char * const icon_candidates[] = { "wc24h-icon.txt", "wc12h-icon.txt", "uc-icon.txt" };
+    static const char * const weather_candidates[] = { "wc24h-weather.txt", "wc12h-weather.txt", "uc-weather.txt" };
+    const char * const * candidates = (const char * const *) 0;
+    size_t candidate_count = 0;
+    size_t idx;
+
+    if (fname && LittleFS.exists (fname))
+    {
+        return fname;
+    }
+
+    if (fname && strstr (fname, "-weather.txt"))
+    {
+        candidates = weather_candidates;
+        candidate_count = sizeof (weather_candidates) / sizeof (weather_candidates[0]);
+    }
+    else if (fname && strstr (fname, "-icon.txt"))
+    {
+        candidates = icon_candidates;
+        candidate_count = sizeof (icon_candidates) / sizeof (icon_candidates[0]);
+    }
+
+    for (idx = 0; idx < candidate_count; idx++)
+    {
+        if (LittleFS.exists (candidates[idx]))
+        {
+            return candidates[idx];
+        }
+    }
+
+    return fname;
+}
+
 static void
 icon_info (const char * fname, const char * name)
 {
@@ -214,6 +251,7 @@ icon_info (const char * fname, const char * name)
     icon_found = 0;
 
     LittleFS.begin ();
+    fname = resolve_icon_asset_filename (fname);
 
     fp = LittleFS.open (fname, "r");
 

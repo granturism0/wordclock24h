@@ -20,9 +20,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="WordClock">
   <title>WordClock</title>
+  <!-- Manifest / Apple app icons are intentionally paused while /app request stability is being hardened. -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-  <link rel="manifest" href="/app/manifest.webmanifest">
-  <link rel="apple-touch-icon" href="/app/icons/icon-192.svg">
   <link rel="stylesheet" href="/app/styles.css">
 </head>
 <body>
@@ -38,7 +37,7 @@
         </p>
       </div>
       <div class="hero-actions">
-        <a class="button primary" href="/">Legacy-Seite</a>
+        <a id="legacy-entry-link" class="button primary" href="/">Legacy-Seite</a>
         <button id="reload-button" class="button" type="button">Neu laden</button>
       </div>
     </header>
@@ -388,11 +387,15 @@
 
         <section class="panel panel-span-2">
           <div class="panel-head"><div><p class="eyebrow">Animationen</p><h2>Aktuelle Auswahl</h2><p class="hint">Grundmodus für Anzeige und Farben direkt wählen und speichern.</p></div></div>
-          <div class="control-stack">
-            <label class="field"><span class="label">Anzeigeanimation</span><select id="animation-mode-select"></select></label>
-            <button id="animation-mode-save-button" class="button primary" type="button">Anzeigeanimation speichern</button>
-            <label class="field"><span class="label">Farbanimation</span><select id="color-animation-mode-select"></select></label>
-            <button id="color-animation-mode-save-button" class="button primary" type="button">Farbanimation speichern</button>
+          <div class="animation-current-grid">
+            <div class="animation-current-row">
+              <label class="field"><span class="label">Anzeigeanimation</span><select id="animation-mode-select"></select></label>
+              <button id="animation-mode-save-button" class="button primary" type="button">Anzeigeanimation speichern</button>
+            </div>
+            <div class="animation-current-row">
+              <label class="field"><span class="label">Farbanimation</span><select id="color-animation-mode-select"></select></label>
+              <button id="color-animation-mode-save-button" class="button primary" type="button">Farbanimation speichern</button>
+            </div>
           </div>
         </section>
 
@@ -652,24 +655,24 @@
             <div class="field"><span class="label">Aktionen und Uploads</span><pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre></div>
             <div class="control-stack">
               <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
-              <form id="fs-upload-app-form" class="upload-form" method="post" action="/fs-app-bundle" enctype="multipart/form-data" target="legacy-action-frame">
-                <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" required></label>
+              <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
+                <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                 <button class="button primary" type="submit">App installieren</button>
               </form>
-              <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="/fs-icon" enctype="multipart/form-data" target="legacy-action-frame">
-                <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" required></label>
+              <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                 <button class="button" type="submit">Datei hochladen</button>
               </form>
-              <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="/fs-icon-weather" enctype="multipart/form-data" target="legacy-action-frame">
-                <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" required></label>
+              <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                 <button class="button" type="submit">Datei hochladen</button>
               </form>
-              <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="/fs-tables" enctype="multipart/form-data" target="legacy-action-frame">
-                <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" required></label>
+              <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                 <button class="button" type="submit">Datei hochladen</button>
               </form>
-              <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="/fs-display" enctype="multipart/form-data" target="legacy-action-frame">
-                <label class="field"><span id="fs-upload-display-label" class="label">Display-Datei</span><input name="fileField" type="file" required></label>
+              <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                <label class="field"><span id="fs-upload-display-label" class="label">TFT-Display-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                 <button class="button" type="submit">Datei hochladen</button>
               </form>
             </div>
@@ -685,7 +688,7 @@
               <button id="local-update-esp-submit-button" class="button primary" type="submit">ESP lokal aktualisieren</button>
             </form>
             <form id="local-update-stm32-form" class="local-update-form">
-              <label class="field"><span class="label">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex,.txt" required></label>
+              <label class="field"><span class="label">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex" required></label>
               <button id="local-update-stm32-submit-button" class="button primary" type="submit">STM32 lokal aktualisieren</button>
             </form>
           </div>
@@ -717,8 +720,6 @@
       </section>
     </main>
   </div>
-
-  <iframe id="legacy-action-frame" name="legacy-action-frame" class="is-hidden" title="Legacy Action Frame"></iframe>
 
   <div id="weather-map-modal" class="modal-shell is-hidden" aria-hidden="true">
     <div class="modal-card">

@@ -33,5 +33,11 @@ extern void             stm32_log_append (const char *);
 extern void             stm32_log_clear (void);
 extern uint16_t         stm32_log_get_count (void);
 extern const char *     stm32_log_get_line (uint16_t);
+extern void             update_progress_begin (const char *, const char *, const char *);
+extern void             update_progress_state (const char *, const char *);
+extern void             update_progress_set_progress (uint32_t, uint32_t);
+extern void             update_progress_complete (const char *);
+extern void             update_progress_fail (uint32_t, const char *);
+extern void             update_progress_clear (void);
 
 #endif

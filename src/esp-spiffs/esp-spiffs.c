@@ -248,7 +248,6 @@ esp_diffs_read_icon (DISPLAY_ICON * dip)
             {
                 dip->animation_off[anim_off_idx++] = 0;
             }
-
             rtc = 2;                                                                // indicate end of transmission
         }
         else

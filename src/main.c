@@ -1327,6 +1327,12 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
 {
     uint_fast8_t    display_clock_flag;
 
+    log_printf ("set_display_power: new=%d sync_ambi=%d old_display=%d old_ambi=%d\r\n",
+                new_power_is_on,
+                do_sync_ambilight,
+                display.display_power_is_on,
+                display.ambilight_power_is_on);
+
     display.display_power_is_on = new_power_is_on;
 
     if (do_sync_ambilight)
@@ -1358,6 +1364,12 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
     {
         dcf77_enabled = TRUE;
     }
+
+    log_printf ("set_display_power: flags=0x%02x display=%d ambi=%d dcf77=%d\r\n",
+                display_clock_flag,
+                display.display_power_is_on,
+                display.ambilight_power_is_on,
+                dcf77_enabled);
 
     return display_clock_flag;
 }
@@ -1608,7 +1620,7 @@ schedule_esp8266_numeric_variable (char * parameters)
             if (display.display_power_is_on != val)
             {
                 display_clock_flag = set_display_power (val, TRUE);
-                debug_log_printf ("cmd: set power_is_on = %d\r\n", val);
+                debug_log_printf ("cmd: set power_is_on = %d, display_clock_flag=0x%02x\r\n", val, display_clock_flag);
             }
             break;
         }
@@ -3378,6 +3390,13 @@ main (void)
                 }
 #endif
             }
+
+            log_printf ("show_time: display_clock_flag=0x%02x power=%d ambi=%d hour=%02d minute=%02d\r\n",
+                        display_clock_flag,
+                        display.display_power_is_on,
+                        display.ambilight_power_is_on,
+                        gmain.hour,
+                        gmain.minute);
         }
 
         if (half_minute_flag)
@@ -3708,9 +3727,17 @@ main (void)
             }
             else
             {
+                log_printf ("main: call display_clock time flags=0x%02x power=%d ambi=%d\r\n",
+                            display_clock_flag,
+                            display.display_power_is_on,
+                            display.ambilight_power_is_on);
                 display_clock (gmain.hour, gmain.minute, display_clock_flag);           // show new time
             }
 #else
+            log_printf ("main: call display_clock time flags=0x%02x power=%d ambi=%d\r\n",
+                        display_clock_flag,
+                        display.display_power_is_on,
+                        display.ambilight_power_is_on);
             display_clock (gmain.hour, gmain.minute, display_clock_flag);               // show new time
 #endif
             display_clock_flag = DISPLAY_CLOCK_FLAG_NONE;
@@ -3746,7 +3773,7 @@ main (void)
             case REMOTE_IR_CMD_POWER:
             {
                 display_clock_flag = set_display_power (! display.display_power_is_on, TRUE);
-                debug_log_message ("IRMP: POWER key");
+                debug_log_printf ("IRMP: POWER key, display_clock_flag=0x%02x\r\n", display_clock_flag);
                 break;
             }
 

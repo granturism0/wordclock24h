@@ -675,10 +675,13 @@ stm32_flash_image (bool do_flash)
     if (do_flash)
     {
         http_send_FS ("Flashing STM32...<br/>");
+        update_progress_state ("write", "STM32-Firmware wird geschrieben und verifiziert.");
+        update_progress_set_progress (0, 0);
     }
     else
     {
         http_send_FS ("Checking HEX file...<br/>");
+        update_progress_state ("verify", "Firmwaredatei wird geprüft.");
     }
 
     http_flush ();
@@ -813,6 +816,7 @@ stm32_flash_image (bool do_flash)
                                     }
 
                                     pages_written++;
+                                    update_progress_set_progress (pages_written, 0);
                                     http_send_FS (".");
 
                                     if (pages_written % 80 == 0)
@@ -933,6 +937,7 @@ stm32_flash_image (bool do_flash)
                             }
 
                             pages_written++;
+                            update_progress_set_progress (pages_written, 0);
                             http_send_FS (".");
 
                             if (pages_written % 80 == 0)
@@ -1047,10 +1052,12 @@ stm32_flash_image (bool do_flash)
             if (rtc == 0)
             {
                 http_send_FS ("Flash successful<BR>\r\n");
+                update_progress_state ("reset_wait", "STM32-Flash abgeschlossen. Warte auf Reset.");
             }
             else
             {
                 http_send_FS ("Flash failed<BR>\r\n");
+                update_progress_fail (1, "STM32-Flash fehlgeschlagen.");
             }
         }
         else
@@ -1064,18 +1071,21 @@ stm32_flash_image (bool do_flash)
             if (rtc == 0)
             {
                 http_send_FS ("<BR>Check successful<BR>\r\n");
+                update_progress_state ("verify", "Firmwaredatei erfolgreich geprüft.");
                 sprintf (logbuf, "<BR>File size: %d<BR>\r\n", bytes_read + 2 * line);
                 http_send (logbuf);
             }
             else
             {
                 http_send_FS ("Check failed<BR>\r\n");
+                update_progress_fail (1, "Prüfung der STM32-Firmwaredatei fehlgeschlagen.");
             }
         }
     }
     else
     {
         http_send_FS ("error: cannot open file<br/>");
+        update_progress_fail (1, "STM32-Firmwaredatei konnte nicht geöffnet werden.");
         rtc = -1;
     }
 
@@ -1102,6 +1112,7 @@ stm32_bootloader (int do_unprotect)
     for (i = 0; i < N_RETRIES; i++)
     {
         http_send_FS ("Trying to enter bootloader mode...<br>\r\n");
+        update_progress_state ("bootloader", "STM32-Bootloader wird angesprochen.");
         http_flush ();
         Serial.write (STM32_BEGIN);
         ch = stm32_serial_poll (1000, 1);
@@ -1114,6 +1125,7 @@ stm32_bootloader (int do_unprotect)
 
     if (i == N_RETRIES)
     {
+        update_progress_fail (1, "STM32-Bootloader konnte nicht erreicht werden.");
         return -1;
     }
 
@@ -1155,6 +1167,7 @@ stm32_bootloader (int do_unprotect)
             http_flush ();
 
             http_send_FS ("Trying to enter bootloader mode again...");
+            update_progress_state ("bootloader", "STM32-Bootloader wird erneut angesprochen.");
             http_flush ();
 
             for (i = 0; i < N_RETRIES; i++)
@@ -1196,18 +1209,21 @@ stm32_bootloader (int do_unprotect)
         if (bootloader_info[STM32_INFO_ERASE_CMD_IDX] == STM32_CMD_ERASE)
         {
             http_send_FS ("Erasing flash (standard method)... ");
+            update_progress_state ("erase", "STM32-Flash wird gelöscht.");
             http_flush ();
             rtc = stm32_erase (0, 0);
         }
         else if (bootloader_info[STM32_INFO_ERASE_CMD_IDX] == STM32_CMD_EXT_ERASE)
         {
             http_send_FS ("Erasing flash (extended method)... ");
+            update_progress_state ("erase", "STM32-Flash wird gelöscht.");
             http_flush ();
             rtc = stm32_ext_erase (0, 0);
         }
         else
         {
             http_send_FS ("Unknown erase method<br>");
+            update_progress_fail (1, "Unbekannte STM32-Löschmethode.");
             http_flush ();
             rtc = -1;
         }
@@ -1256,6 +1272,7 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
     http_send_FS ("Downloading ");
     http_send (filename);
     http_send_FS ("... ");
+    update_progress_state ("download", "STM32-Firmware wird heruntergeladen.");
     http_flush();
 
     len = httpclient (host, path, filename);
@@ -1285,6 +1302,7 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
         if (len > 0)                                                                // data remaining?
         {
             http_send_FS ("http read error<br/>");
+            update_progress_fail (1, "STM32-Firmware konnte nicht vollständig geladen werden.");
         }
         else
         {
@@ -1297,6 +1315,7 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
     else
     {
         http_send_FS ("<font color='red'>host connection failed.</font><BR>");
+        update_progress_fail (1, "Update-Server für STM32-Firmware nicht erreichbar.");
         rtc = false;
     }
     return rtc;
@@ -1332,14 +1351,16 @@ stm32_activate_bootloader (void)
  * cmd = 0xFF: run some tests
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-void
+bool
 stm32_flash_from_local (void)
 {
+    bool ok = false;
+
     stm32_activate_bootloader ();
 
     http_send_FS ("Start Bootloader<BR>\r\n");
     http_flush ();
-    stm32_bootloader (1);
+    ok = stm32_bootloader (1) >= 0;
     http_send_FS ("End Bootloader<BR>\r\n");
     http_flush ();
     digitalWrite(STM32_BOOT0_PIN1, LOW);                    // deactivate BOOT0 GPIO4
@@ -1347,6 +1368,7 @@ stm32_flash_from_local (void)
 
     Serial.end ();                                          // end old serial
     Serial.begin (115200, SERIAL_8N1);                      // switch to 8 bit no parity
+    return ok;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -1354,18 +1376,21 @@ stm32_flash_from_local (void)
  * cmd = 0xFF: run some tests
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-void
+bool
 stm32_flash_from_server (const char * host, const char * path, const char * filename)
 {
+    bool ok = false;
+
     LittleFS.begin();
 
     if (stm32_flash_download_image(host, path, filename))
     {
-        stm32_flash_from_local ();
+        ok = stm32_flash_from_local ();
     }
 
     LittleFS.remove("stm32.hex");
     LittleFS.end();
+    return ok;
 }
 
 void
