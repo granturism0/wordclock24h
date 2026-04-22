@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.10";
+const APP_VERSION = "1.4.11";
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
@@ -647,12 +647,19 @@ function handleDirtyFormInteraction(event) {
   if (!target || !(target instanceof HTMLElement)) {
     return;
   }
-  if (!target.closest(".module-section, #weather-map-modal")) {
+  if (!event.isTrusted) {
     return;
   }
   if (target.matches('button, iframe, [type="hidden"]')) {
     return;
   }
+  const activeSection = target.closest(".module-section.is-active");
+  const visibleModal = target.closest("#weather-map-modal:not(.is-hidden)");
+
+  if (!activeSection && !visibleModal) {
+    return;
+  }
+
   hasUnsavedEdits = true;
 }
 

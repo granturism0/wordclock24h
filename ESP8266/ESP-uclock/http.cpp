@@ -165,6 +165,7 @@ static int              http_api_device_ready ();
 static int              http_api_reconnect_probe ();
 static void             http_json_send_remote_update_support_fields ();
 static void             http_json_send_remote_update_url_fields ();
+static char *           http_get_param (const char * name);
 static int              http_api_settings_xml ();
 static int              http_api_display_power ();
 static int              http_api_ambilight_power ();
@@ -176,6 +177,7 @@ static uint_fast8_t     http_local_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_remote_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_table_download_filename_matches (const char * actual);
 static void             http_remove_table_family_files (const char * keep_filename);
+static void             http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
 static int              http_api_live_display_color ();
 static const char *     http_get_configured_icon_filename (void);
 static const char *     http_get_configured_weather_filename (void);
@@ -994,6 +996,7 @@ http_app_installation_complete (void)
 
 static bool         download_file (const char * host, const char * path, const char * filename);
 static int          install_app_bundle (const char * bundle_filename);
+static bool         http_remote_app_bundle_available (char * version_buf, size_t version_buf_len);
 
 static int
 http_try_auto_install_app_bundle (void)
@@ -1033,6 +1036,49 @@ http_try_auto_install_app_bundle (void)
 }
 
 static bool
+http_remote_app_bundle_available (char * version_buf, size_t version_buf_len)
+{
+    STR_VAR *   sv;
+    char *      update_host;
+    char *      update_path;
+    bool        app_bundle_available = false;
+
+    if (version_buf && version_buf_len)
+    {
+        version_buf[0] = '\0';
+    }
+
+    sv = get_strvar (UPDATE_HOST_VAR);
+    update_host = sv->str;
+
+    if (! update_host[0])
+    {
+        update_host = (char *) DEFAULT_UPDATE_HOST;
+    }
+
+    sv = get_strvar (UPDATE_PATH_VAR);
+    update_path = sv->str;
+
+    if (! update_path[0])
+    {
+        update_path = (char *) DEFAULT_UPDATE_PATH;
+    }
+
+    if (version_buf && version_buf_len)
+    {
+        http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, version_buf, version_buf_len);
+    }
+
+    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
+    {
+        app_bundle_available = true;
+        httpclient_stop ();
+    }
+
+    return app_bundle_available;
+}
+
+static bool
 app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
 {
     size_t idx = 0;
@@ -1062,10 +1108,13 @@ static uint_fast8_t
 http_app (const char * path)
 {
     char            filename[128];
+    char            remote_app_version[16];
     const char *    content_type;
+    const char *    action;
     uint_fast8_t    is_pwa_index = 0;
     uint_fast8_t    sent = 0;
     bool            app_complete;
+    bool            remote_app_available = false;
 
     if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
     {
@@ -1093,6 +1142,42 @@ http_app (const char * path)
 
     content_type = http_content_type (filename);
     app_complete = http_app_installation_complete ();
+    action = http_get_param ("action");
+
+    if (is_pwa_index && ! app_complete)
+    {
+        remote_app_available = http_remote_app_bundle_available (remote_app_version, sizeof (remote_app_version));
+
+        if (remote_app_available && action && ! strcmp (action, "install"))
+        {
+            if (http_try_auto_install_app_bundle ())
+            {
+                http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+                http_send (FS(
+                    "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+                    "<meta http-equiv='refresh' content='3;url=/app/'>"
+                    "<title>WordClock App wird installiert</title>"
+                    "<style>"
+                    "body{font-family:Arial,sans-serif;background:#0b1422;color:#eef4ff;padding:24px;line-height:1.5;}"
+                    ".card{max-width:680px;margin:0 auto;background:#132033;border:1px solid rgba(255,255,255,.08);"
+                    "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
+                    "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}a{display:inline-block;margin:8px 12px 0 0;"
+                    "padding:12px 16px;border-radius:999px;text-decoration:none;background:#2d5275;color:#fff;"
+                    "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
+                    "</style></head><body><div class='card'>"
+                    "<h1>WordClock App wird installiert</h1>"
+                    "<p>Das App-Paket wurde vom Update-Server geladen und in das LittleFS installiert.</p>"
+                    "<p><strong>Weiter so:</strong> Die Seite wechselt gleich automatisch nach <code>/app</code>.</p>"
+                    "<a href='/app/'>Zur App</a>"
+                    "<a href='/legacy'>Zur Legacy-Seite</a>"
+                    "</div></body></html>"
+                ));
+                http_flush ();
+                return 0;
+            }
+        }
+    }
 
     if (! is_pwa_index || app_complete)
     {
@@ -1119,16 +1204,41 @@ http_app (const char * path)
                 "border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);}"
                 "h1{margin:0 0 12px;font-size:28px;}p{color:#c5d3ea;}a{display:inline-block;margin:8px 12px 0 0;"
                 "padding:12px 16px;border-radius:999px;text-decoration:none;background:#2d5275;color:#fff;"
-                "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
+                "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}code{color:#fff;}"
                 "</style></head><body><div class='card'>"
-                "<h1>WordClock App ist noch nicht installiert</h1>"
-                "<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"
-                "<p><strong>Weiter so:</strong> App-Paket manuell über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"
-                "<a href='/fs'>Zu Dateien / App-Paket</a>"
-                "<a href='/update'>Zu Update</a>"
-                "<a href='/'>Zur Legacy-Seite</a>"
-                "</div></body></html>"
             ));
+
+            if (remote_app_available)
+            {
+                http_send (FS("<h1>WordClock App ist lokal nicht installiert</h1>"));
+                http_send (FS("<p>Auf diesem Gerät fehlen noch die App-Dateien im LittleFS, aber auf dem konfigurierten Update-Server ist ein App-Paket verfügbar.</p>"));
+                http_send (FS("<p><strong>Server-App verfügbar:</strong> "));
+                if (remote_app_version[0])
+                {
+                    http_send (remote_app_version);
+                }
+                else
+                {
+                    http_send (FS("ja"));
+                }
+                http_send (FS("</p>"));
+                http_send (FS("<p><strong>Weiter so:</strong> App direkt von hier installieren oder alternativ über Legacy/Dateien arbeiten.</p>"));
+                http_send (FS("<a href='/app/?action=install'>App jetzt installieren</a>"));
+                http_send (FS("<a href='/fs'>Zu Dateien / App-Paket</a>"));
+                http_send (FS("<a href='/update'>Zu Update</a>"));
+                http_send (FS("<a href='/legacy'>Zur Legacy-Seite</a>"));
+            }
+            else
+            {
+                http_send (FS("<h1>WordClock App ist noch nicht installiert</h1>"));
+                http_send (FS("<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"));
+                http_send (FS("<p><strong>Weiter so:</strong> App-Paket manuell über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"));
+                http_send (FS("<a href='/fs'>Zu Dateien / App-Paket</a>"));
+                http_send (FS("<a href='/update'>Zu Update</a>"));
+                http_send (FS("<a href='/legacy'>Zur Legacy-Seite</a>"));
+            }
+
+            http_send (FS("</div></body></html>"));
         }
         else
         {
