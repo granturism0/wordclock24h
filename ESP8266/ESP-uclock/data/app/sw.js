@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const CACHE_NAME = "wordclock-app-v2";
+const CACHE_NAME = "wordclock-app-v4";
 const ASSETS = [
   "/app/",
   "/app/index.html",
@@ -31,12 +31,63 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
-  );
+  const requestUrl = new URL(event.request.url);
+
+  if (requestUrl.origin !== self.location.origin || !requestUrl.pathname.startsWith("/app/")) {
+    return;
+  }
+
+  if (requestUrl.pathname === "/app/" || requestUrl.pathname === "/app/index.html" || event.request.mode === "navigate") {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  event.respondWith(staleWhileRevalidate(event.request));
 });
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    const response = await fetch(request);
+
+    if (response && response.ok) {
+      cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (_) {
+    const cached = await cache.match(request);
+    if (cached) {
+      return cached;
+    }
+    throw _;
+  }
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const networkPromise = fetch(request)
+    .then((response) => {
+      if (response && response.ok) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => cached);
+
+  return cached || networkPromise;
+}

@@ -20,7 +20,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="WordClock">
   <title>WordClock</title>
-  <!-- Manifest / Apple app icons are intentionally paused while /app request stability is being hardened. -->
+  <link rel="manifest" href="/app/manifest.webmanifest">
+  <link rel="icon" href="/app/icons/icon-192.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/app/icons/icon-192.svg">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="/app/styles.css">
 </head>
@@ -37,7 +39,7 @@
         </p>
       </div>
       <div class="hero-actions">
-        <a id="legacy-entry-link" class="button primary" href="/">Legacy-Seite</a>
+        <a id="legacy-entry-link" class="button primary" href="/legacy">Legacy-Seite</a>
         <button id="reload-button" class="button" type="button">Neu laden</button>
       </div>
     </header>

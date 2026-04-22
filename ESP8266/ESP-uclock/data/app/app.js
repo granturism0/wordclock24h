@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.3.64";
+const APP_VERSION = "1.3.78";
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
@@ -332,6 +332,12 @@ let stm32LogTimer = 0;
 let stm32LogRefreshInFlight = false;
 let settingsImportInProgress = false;
 let progressReturnScrollY = null;
+let appServiceWorkerRegistration = null;
+let appServiceWorkerUpdateApplied = false;
+let initialLoadRetryTimer = 0;
+let initialLoadAttemptCount = 0;
+
+const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
@@ -510,11 +516,8 @@ bindDelegatedEvent(document, "change", "#health-ambilight-select", () => {
 document.addEventListener("input", handleDirtyFormInteraction, true);
 document.addEventListener("change", handleDirtyFormInteraction, true);
 
-// Temporary /app stability mode:
-// - no service worker registration from the PWA
-// This stays in place until the ESP-side request handling under /app is hardened again.
 const APP_STABILITY_MODE = {
-  disableServiceWorkerRegistration: true,
+  disableServiceWorkerRegistration: false,
   disableStartupAutoRefresh: false
 };
 
@@ -530,7 +533,77 @@ loadData();
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
 }
+if (!APP_STABILITY_MODE.disableServiceWorkerRegistration) {
+  scheduleServiceWorkerRegistration();
+}
 window.addEventListener("resize", scheduleWordclockSizing);
+
+function scheduleServiceWorkerRegistration() {
+  const register = () => {
+    void registerAppServiceWorker();
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(register, { timeout: 2500 });
+    return;
+  }
+
+  window.setTimeout(register, 1200);
+}
+
+async function registerAppServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" });
+    appServiceWorkerRegistration = registration;
+    bindServiceWorkerLifecycle(registration);
+  } catch (_) {
+  }
+}
+
+function bindServiceWorkerLifecycle(registration) {
+  if (!registration) {
+    return;
+  }
+
+  if (registration.waiting) {
+    triggerWaitingServiceWorker(registration.waiting);
+  }
+
+  registration.addEventListener("updatefound", () => {
+    const worker = registration.installing;
+
+    if (!worker) {
+      return;
+    }
+
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "installed" && navigator.serviceWorker.controller) {
+        triggerWaitingServiceWorker(worker);
+      }
+    });
+  });
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (appServiceWorkerUpdateApplied) {
+      return;
+    }
+
+    appServiceWorkerUpdateApplied = true;
+    window.setTimeout(() => reloadAppPage(), 150);
+  });
+}
+
+function triggerWaitingServiceWorker(worker) {
+  if (!worker || !worker.postMessage) {
+    return;
+  }
+
+  worker.postMessage({ type: "SKIP_WAITING" });
+}
 
 function startAlignedAutoRefresh() {
   const intervalMs = 15000;
@@ -753,6 +826,12 @@ async function loadData(options) {
   }
   const requestId = ++loadRequestSerial;
   activeLoadCount += 1;
+  const hadSnapshotBeforeLoad = !!getCurrentSettingsSnapshot();
+
+  if (!hadSnapshotBeforeLoad && !opts.auto) {
+    announceStatus("Wartet auf Daten...", "warn");
+  }
+
   try {
     const coreData = await loadCoreData();
     if (requestId !== loadRequestSerial) {
@@ -760,6 +839,12 @@ async function loadData(options) {
     }
 
     const settings = resolveSettingsSnapshot(coreData.settingsText);
+    if (!hasSettingsSnapshotContent(settings) && !hadSnapshotBeforeLoad) {
+      throw new Error("initial-data-pending");
+    }
+
+    clearInitialLoadRetry();
+    initialLoadAttemptCount = 0;
     setCurrentSettingsSnapshot(settings);
     setCurrentEepromSettings(getCurrentEepromSettings());
     setCurrentNetworkInfo(getCurrentNetworkInfo());
@@ -827,6 +912,9 @@ async function loadData(options) {
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
     if (!getCurrentSettingsSnapshot()) {
+      if (handleInitialLoadPending(error, opts)) {
+        return;
+      }
       announceStatus("Daten konnten nicht geladen werden", "error");
     } else {
       console.warn("Refresh incomplete, keeping previous snapshot", error);
@@ -836,13 +924,52 @@ async function loadData(options) {
   }
 }
 
+function hasSettingsSnapshotContent(settings) {
+  if (!settings || typeof settings !== "object") {
+    return false;
+  }
+
+  return !!(
+    Object.keys(settings.numvars || {}).length ||
+    Object.keys(settings.strvars || {}).length ||
+    Object.keys(settings.tmvars || {}).length
+  );
+}
+
+function clearInitialLoadRetry() {
+  if (!initialLoadRetryTimer) {
+    return;
+  }
+
+  window.clearTimeout(initialLoadRetryTimer);
+  initialLoadRetryTimer = 0;
+}
+
+function handleInitialLoadPending(error, options) {
+  const opts = options || {};
+  const isPendingInitialData = !!(error && error.message === "initial-data-pending");
+  const retryIndex = initialLoadAttemptCount;
+
+  if (!isPendingInitialData || retryIndex >= INITIAL_LOAD_RETRY_DELAYS_MS.length) {
+    return false;
+  }
+
+  initialLoadAttemptCount += 1;
+  announceStatus("Wartet auf Daten...", "warn");
+  clearInitialLoadRetry();
+  initialLoadRetryTimer = window.setTimeout(() => {
+    initialLoadRetryTimer = 0;
+    void loadData({ ...opts, initialRetry: true });
+  }, INITIAL_LOAD_RETRY_DELAYS_MS[retryIndex]);
+  return true;
+}
+
 async function loadCoreData() {
-  // Keep the base snapshot on the proven legacy endpoints for now.
-  // This is the stabilised boundary: core settings/power first, richer metadata second.
+  // Base snapshot first, richer metadata afterwards.
   const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
-    settleFetchText(getStableCoreSettingsFetchUrl(), "", CONNECTION_STABILITY.coreSettingsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
-    settleFetchText(getStableCoreDisplayPowerFetchUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
-    settleFetchText(getStableCoreAmbilightPowerFetchUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts)
+    settleFetchText(getSettingsUrl(), "", CONNECTION_STABILITY.coreSettingsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
+    settleFetchText(getDisplayPowerUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
+    settleFetchText(getAmbilightPowerUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts)
   ]);
 
   return {
@@ -889,7 +1016,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
   try {
-    const updateStatus = await settleFetchJson(getStableUpdateStatusFetchUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+    const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
     if (requestId !== loadRequestSerial) {
       return;
     }
@@ -900,7 +1027,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   }
 
   try {
-    const updateTableInfo = await settleFetchJson(getStableUpdateTableFilesFetchUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+    const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
     if (requestId !== loadRequestSerial) {
       return;
     }
@@ -3691,17 +3818,6 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   assetsButton.disabled = !serverFilesMeta.assetsAvailable;
   appBundleButton.disabled = !serverFilesMeta.appBundleAvailable;
 
-  updateLegacyEntryLink(updateStatus);
-}
-
-function updateLegacyEntryLink(updateStatus) {
-  const link = document.getElementById("legacy-entry-link");
-
-  if (!link) {
-    return;
-  }
-
-  link.setAttribute("href", getLegacyEntryUrl(updateStatus));
 }
 
 function updateLocalUpdateControls(updateStatus) {
@@ -4364,7 +4480,22 @@ async function saveTickerDeceleration() {
 }
 
 async function testDisplay() {
-  await runTriggerAction("test-display-button", getDisplayTestUrl(), "Displaytest starten", "Displaytest konnte nicht gestartet werden", "Displaytest gestartet");
+  const button = document.getElementById("test-display-button");
+  const restoreText = "Displaytest starten";
+  const maxRunTimeMs = 45000;
+
+  beginButtonFeedback(button, "läuft...");
+
+  try {
+    await apiFetch(getDisplayTestUrl());
+    announceStatus("Displaytest läuft", "ok");
+    window.setTimeout(() => {
+      finishButtonFeedback(button, restoreText);
+    }, maxRunTimeMs);
+  } catch (error) {
+    announceStatus("Displaytest konnte nicht gestartet werden", "error");
+    finishButtonFeedback(button, restoreText, "error", "Fehler");
+  }
 }
 
 async function saveWeatherAppId() {
@@ -5077,9 +5208,7 @@ function buildDeviceReadyProbes() {
 
 const URL_DEFAULTS = {
   settings_url: "/api/settings_xml",
-  settings_legacy_url: "/get_settings",
   display_power_url: "/api/display_power",
-  display_power_legacy_url: "/display_power",
   update_status_url: "/api/update_status",
   display_power_set_url: "/api/display_power_set",
   display_test_url: "/api/test_display",
@@ -5091,7 +5220,6 @@ const URL_DEFAULTS = {
   date_ticker_format_set_url: "/api/date_ticker_format_set",
   ticker_deceleration_set_url: "/api/ticker_deceleration_set",
   ambilight_power_url: "/api/ambilight_power",
-  ambilight_power_legacy_url: "/ambilight_power",
   ambilight_power_set_url: "/api/ambilight_power_set",
   ambilight_online_set_url: "/api/ambilight_online_set",
   power_status_url: "/api/power_status",
@@ -5151,7 +5279,6 @@ const URL_DEFAULTS = {
   device_ready_url: "/api/device_ready",
   reconnect_probe_url: "/api/reconnect_probe",
   remote_esp_update_url: "/update?action=update",
-  remote_stm32_update_base_url: "/update?action=flash&stm32_filenames=",
   remote_stm32_flash_url: "/api/remote_stm32_flash",
   update_download_assets_url: "/api/update_download_assets",
   update_download_app_bundle_url: "/api/update_download_app_bundle",
@@ -5190,9 +5317,7 @@ const URL_DEFAULTS = {
   color_animation_profile_default_url: "/api/color_animation_profile_default",
   ambilight_mode_profile_set_url: "/api/ambilight_mode_profile_set",
   ambilight_mode_profile_default_url: "/api/ambilight_mode_profile_default",
-  tft_flags_set_url: "/api/tft_flags_set",
-  legacy_fallback_url: "/",
-  root_probe_url: "/"
+  tft_flags_set_url: "/api/tft_flags_set"
 };
 
 function getUrlDefault(key) {
@@ -5203,34 +5328,15 @@ function getConfiguredUrlOrDefault(key) {
   return getPreferredUrl(key, getUrlDefault(key));
 }
 
-function getConfiguredUrlOrFallback(primaryKey, fallbackKey) {
-  return getPreferredUrl(primaryKey, getUrlDefault(fallbackKey));
-}
-
 function createConfiguredUrlGetter(key) {
   return function () {
     return getConfiguredUrlOrDefault(key);
   };
 }
 
-function createFallbackUrlGetter(primaryKey, fallbackKey) {
-  return function () {
-    return getConfiguredUrlOrFallback(primaryKey, fallbackKey);
-  };
-}
-
-function createStaticUrlGetter(url) {
-  return function () {
-    return url;
-  };
-}
-
-const getSettingsUrl = createFallbackUrlGetter("settings_url", "settings_legacy_url");
-const getStableCoreSettingsFetchUrl = createStaticUrlGetter("/get_settings");
-const getDisplayPowerUrl = createFallbackUrlGetter("display_power_url", "display_power_legacy_url");
-const getStableCoreDisplayPowerFetchUrl = createStaticUrlGetter("/display_power");
+const getSettingsUrl = createConfiguredUrlGetter("settings_url");
+const getDisplayPowerUrl = createConfiguredUrlGetter("display_power_url");
 const getUpdateStatusUrl = createConfiguredUrlGetter("update_status_url");
-const getStableUpdateStatusFetchUrl = createStaticUrlGetter("/api/update_status");
 const getDisplayPowerSetUrl = createConfiguredUrlGetter("display_power_set_url");
 const getDisplayTestUrl = createConfiguredUrlGetter("display_test_url");
 const getDisplayBrightnessSetUrl = createConfiguredUrlGetter("display_brightness_set_url");
@@ -5240,8 +5346,7 @@ const getDisplayUseRgbwSetUrl = createConfiguredUrlGetter("display_use_rgbw_set_
 const getTickerSetUrl = createConfiguredUrlGetter("ticker_set_url");
 const getDateTickerFormatSetUrl = createConfiguredUrlGetter("date_ticker_format_set_url");
 const getTickerDecelerationSetUrl = createConfiguredUrlGetter("ticker_deceleration_set_url");
-const getAmbilightPowerUrl = createFallbackUrlGetter("ambilight_power_url", "ambilight_power_legacy_url");
-const getStableCoreAmbilightPowerFetchUrl = createStaticUrlGetter("/ambilight_power");
+const getAmbilightPowerUrl = createConfiguredUrlGetter("ambilight_power_url");
 const getAmbilightPowerSetUrl = createConfiguredUrlGetter("ambilight_power_set_url");
 const getAmbilightOnlineSetUrl = createConfiguredUrlGetter("ambilight_online_set_url");
 const getPowerStatusUrl = createConfiguredUrlGetter("power_status_url");
@@ -5301,7 +5406,6 @@ const getAmbilightTimerSetUrl = createConfiguredUrlGetter("ambilight_timer_set_u
 const getDeviceReadyUrl = createConfiguredUrlGetter("device_ready_url");
 const getReconnectProbeUrl = createConfiguredUrlGetter("reconnect_probe_url");
 const getRemoteEspUpdateUrl = createConfiguredUrlGetter("remote_esp_update_url");
-const getRemoteStm32UpdateBaseUrl = createConfiguredUrlGetter("remote_stm32_update_base_url");
 const getRemoteStm32FlashUrl = createConfiguredUrlGetter("remote_stm32_flash_url");
 const getUpdateDownloadAssetsUrl = createConfiguredUrlGetter("update_download_assets_url");
 const getUpdateDownloadAppBundleUrl = createConfiguredUrlGetter("update_download_app_bundle_url");
@@ -5311,7 +5415,6 @@ const getFsInfoUrl = createConfiguredUrlGetter("fs_info_url");
 const getFsListUrl = createConfiguredUrlGetter("fs_list_url");
 const getEepromSettingsUrl = createConfiguredUrlGetter("eeprom_settings_url");
 const getUpdateTableFilesUrl = createConfiguredUrlGetter("update_table_files_url");
-const getStableUpdateTableFilesFetchUrl = createStaticUrlGetter("/api/update_table_files");
 const getFsShowBaseUrl = createConfiguredUrlGetter("fs_show_base_url");
 const getFsRemoveBaseUrl = createConfiguredUrlGetter("fs_remove_base_url");
 
@@ -5355,13 +5458,6 @@ const getColorAnimationProfileDefaultUrl = createConfiguredUrlGetter("color_anim
 const getAmbilightModeProfileSetUrl = createConfiguredUrlGetter("ambilight_mode_profile_set_url");
 const getAmbilightModeProfileDefaultUrl = createConfiguredUrlGetter("ambilight_mode_profile_default_url");
 const getTftFlagsSetUrl = createConfiguredUrlGetter("tft_flags_set_url");
-
-function getLegacyEntryUrl(updateStatus) {
-  const status = getNormalizedUpdateStatus(updateStatus);
-  return typeof status.legacy_entry_url === "string" && status.legacy_entry_url
-    ? status.legacy_entry_url
-    : getConfiguredUrlOrDefault("legacy_fallback_url");
-}
 
 function getNormalizedUpdateStatus(updateStatus) {
   return updateStatus && typeof updateStatus === "object"
@@ -5804,8 +5900,7 @@ function getLocalUpdateControlMeta(updateStatus) {
 function getRemoteUpdateUrlMeta() {
   return {
     espUrl: getRemoteEspUpdateUrl(),
-    stm32ApiUrl: getRemoteStm32FlashUrl(),
-    stm32LegacyBaseUrl: getRemoteStm32UpdateBaseUrl()
+    stm32ApiUrl: getRemoteStm32FlashUrl()
   };
 }
 
@@ -5829,7 +5924,6 @@ function getRemoteUpdateControlMeta(updateStatus) {
     stm32: {
       apiSupported: supportMeta.stm32ApiSupported,
       url: supportMeta.urls.stm32ApiUrl || getUrlDefault("remote_stm32_flash_url"),
-      legacyBaseUrl: supportMeta.urls.stm32LegacyBaseUrl || getUrlDefault("remote_stm32_update_base_url"),
       canStart: !!(supportMeta.urls.stm32ApiUrl || getUrlDefault("remote_stm32_flash_url"))
     }
   };
@@ -5914,8 +6008,7 @@ function getDefaultReconnectProbes() {
 
   return [
     { url: getDisplayPowerUrl(), mode: "response" },
-    { url: getSettingsUrl(), mode: "response" },
-    { url: getPreferredUrl("root_probe_url", "/"), mode: "response" }
+    { url: getSettingsUrl(), mode: "response" }
   ];
 }
 
@@ -6902,6 +6995,14 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
 async function reloadAppPage() {
   clearEspReloadWatchdog();
   try {
+    if (appServiceWorkerRegistration) {
+      await appServiceWorkerRegistration.update().catch(() => {});
+
+      if (appServiceWorkerRegistration.waiting) {
+        triggerWaitingServiceWorker(appServiceWorkerRegistration.waiting);
+      }
+    }
+
     if ("caches" in window) {
       const cacheKeys = await caches.keys();
       await Promise.all(

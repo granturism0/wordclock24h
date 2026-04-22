@@ -9138,7 +9138,6 @@ http_api_update_status ()
     http_json_send_string_field (FS("local_update_message"), http_get_local_update_message (flashsize));
     http_json_send_bool_field (FS("assets_available"), assets_available);
     http_json_send_bool_field (FS("app_bundle_available"), app_bundle_available);
-    http_json_send_bool_field (FS("legacy_path_supported"), 1);
     http_json_send_bool_field (FS("device_ready_api_supported"), 1);
     http_json_send_bool_field (FS("reconnect_probe_api_supported"), 1);
     http_json_send_bool_field (FS("settings_api_supported"), 1);
@@ -9154,17 +9153,12 @@ http_api_update_status ()
     http_json_send_bool_field (FS("local_esp_update_api_supported"), 1);
     http_json_send_remote_update_support_fields ();
 
-    http_json_send_string_field (FS("legacy_entry_url"), "/legacy");
-    http_json_send_string_field (FS("legacy_fallback_url"), "/");
-    http_json_send_string_field (FS("root_probe_url"), "/");
     http_json_send_string_field (FS("device_ready_url"), "/api/device_ready");
     http_json_send_string_field (FS("reconnect_probe_url"), "/api/reconnect_probe");
     http_json_send_remote_update_url_fields ();
     http_json_send_string_field (FS("update_status_url"), "/api/update_status");
     http_json_send_string_field (FS("settings_url"), "/api/settings_xml");
-    http_json_send_string_field (FS("settings_legacy_url"), "/get_settings");
     http_json_send_string_field (FS("display_power_url"), "/api/display_power");
-    http_json_send_string_field (FS("display_power_legacy_url"), "/display_power");
     http_json_send_string_field (FS("display_power_set_url"), "/api/display_power_set");
     http_json_send_string_field (FS("display_test_url"), "/api/test_display");
     http_json_send_string_field (FS("display_brightness_set_url"), "/api/display_brightness_set");
@@ -9175,7 +9169,6 @@ http_api_update_status ()
     http_json_send_string_field (FS("date_ticker_format_set_url"), "/api/date_ticker_format_set");
     http_json_send_string_field (FS("ticker_deceleration_set_url"), "/api/ticker_deceleration_set");
     http_json_send_string_field (FS("ambilight_power_url"), "/api/ambilight_power");
-    http_json_send_string_field (FS("ambilight_power_legacy_url"), "/ambilight_power");
     http_json_send_string_field (FS("ambilight_power_set_url"), "/api/ambilight_power_set");
     http_json_send_string_field (FS("ambilight_online_set_url"), "/api/ambilight_online_set");
     http_json_send_string_field (FS("power_status_url"), "/api/power_status");
@@ -9412,7 +9405,6 @@ static void
 http_json_send_remote_update_url_fields ()
 {
     http_json_send_string_field (FS("remote_esp_update_url"), "/api/remote_esp_update");
-    http_json_send_string_field (FS("remote_stm32_update_base_url"), "/update?action=flash&stm32_filenames=");
     http_json_send_string_field (FS("remote_stm32_flash_url"), "/api/remote_stm32_flash");
 }
 
