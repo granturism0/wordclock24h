@@ -163,6 +163,8 @@ static int              http_api_remote_stm32_flash ();
 static int              http_api_remote_esp_update ();
 static int              http_api_device_ready ();
 static int              http_api_reconnect_probe ();
+static void             http_json_send_remote_update_support_fields ();
+static void             http_json_send_remote_update_url_fields ();
 static int              http_api_settings_xml ();
 static int              http_api_display_power ();
 static int              http_api_ambilight_power ();
@@ -179,6 +181,9 @@ static const char *     http_get_configured_icon_filename (void);
 static const char *     http_get_configured_weather_filename (void);
 static const char *     http_find_existing_filename (const char * preferred, const char * const * candidates, size_t candidate_count);
 static String           sanitize_json_string (const String& str);
+static void             update_progress_stream_emit (const char * event_name);
+static void             update_progress_stream_start (void);
+static void             update_progress_stream_finish (void);
 
 typedef struct
 {
@@ -195,6 +200,7 @@ typedef struct
 } UPDATE_PROGRESS;
 
 static UPDATE_PROGRESS   update_progress;
+static uint_fast8_t     update_progress_stream_active;
 
 static void
 update_progress_copy (char * dst, size_t dst_size, const char * src)
@@ -206,6 +212,60 @@ update_progress_copy (char * dst, size_t dst_size, const char * src)
 
     strncpy (dst, src ? src : "", dst_size - 1);
     dst[dst_size - 1] = '\0';
+}
+
+static void
+update_progress_stream_emit (const char * event_name)
+{
+    char buf[16];
+
+    if (! update_progress_stream_active)
+    {
+        return;
+    }
+
+    http_send (FS("{\"ok\":true,\"event\":\""));
+    http_send (sanitize_json_string (event_name ? event_name : "progress").c_str ());
+    http_send (FS("\",\"active\":"));
+    http_send (update_progress.active ? "true" : "false");
+    http_send (FS(",\"type\":\""));
+    http_send (sanitize_json_string (update_progress.type).c_str ());
+    http_send (FS("\",\"state\":\""));
+    http_send (sanitize_json_string (update_progress.state).c_str ());
+    http_send (FS("\",\"message\":\""));
+    http_send (sanitize_json_string (update_progress.message).c_str ());
+    http_send (FS("\",\"progress_current\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.progress_current);
+    http_send (buf);
+    http_send (FS(",\"progress_total\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.progress_total);
+    http_send (buf);
+    http_send (FS(",\"error_code\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.error_code);
+    http_send (buf);
+    http_send (FS(",\"started_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.started_at);
+    http_send (buf);
+    http_send (FS(",\"updated_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.updated_at);
+    http_send (buf);
+    http_send (FS(",\"finished_at\":"));
+    sprintf (buf, "%u", (unsigned) update_progress.finished_at);
+    http_send (buf);
+    http_send (FS("}\n"));
+    http_flush ();
+}
+
+static void
+update_progress_stream_start (void)
+{
+    update_progress_stream_active = 1;
+}
+
+static void
+update_progress_stream_finish (void)
+{
+    update_progress_stream_active = 0;
 }
 
 static uint_fast8_t
@@ -652,6 +712,7 @@ update_progress_begin (const char * type, const char * state, const char * messa
     update_progress_copy (update_progress.type, sizeof (update_progress.type), type);
     update_progress_copy (update_progress.state, sizeof (update_progress.state), state ? state : "starting");
     update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
+    update_progress_stream_emit ("begin");
 }
 
 void
@@ -668,6 +729,8 @@ update_progress_state (const char * state, const char * message)
     {
         update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
     }
+
+    update_progress_stream_emit ("state");
 }
 
 void
@@ -676,6 +739,7 @@ update_progress_set_progress (uint32_t current, uint32_t total)
     update_progress.progress_current = current;
     update_progress.progress_total = total;
     update_progress.updated_at = millis ();
+    update_progress_stream_emit ("progress");
 }
 
 void
@@ -690,6 +754,8 @@ update_progress_complete (const char * message)
     {
         update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
     }
+
+    update_progress_stream_emit ("complete");
 }
 
 void
@@ -705,6 +771,8 @@ update_progress_fail (uint32_t error_code, const char * message)
     {
         update_progress_copy (update_progress.message, sizeof (update_progress.message), message);
     }
+
+    update_progress_stream_emit ("error");
 }
 
 void
@@ -9073,7 +9141,6 @@ http_api_update_status ()
     http_json_send_bool_field (FS("legacy_path_supported"), 1);
     http_json_send_bool_field (FS("device_ready_api_supported"), 1);
     http_json_send_bool_field (FS("reconnect_probe_api_supported"), 1);
-    http_json_send_bool_field (FS("remote_esp_update_api_supported"), 0);
     http_json_send_bool_field (FS("settings_api_supported"), 1);
     http_json_send_bool_field (FS("display_power_api_supported"), 1);
     http_json_send_bool_field (FS("ambilight_power_api_supported"), 1);
@@ -9085,15 +9152,14 @@ http_api_update_status ()
     http_json_send_bool_field (FS("fs_target_upload_api_supported"), 1);
     http_json_send_bool_field (FS("local_stm32_upload_api_supported"), 1);
     http_json_send_bool_field (FS("local_esp_update_api_supported"), 1);
-    http_json_send_bool_field (FS("remote_stm32_flash_api_supported"), 1);
+    http_json_send_remote_update_support_fields ();
 
     http_json_send_string_field (FS("legacy_entry_url"), "/legacy");
     http_json_send_string_field (FS("legacy_fallback_url"), "/");
     http_json_send_string_field (FS("root_probe_url"), "/");
     http_json_send_string_field (FS("device_ready_url"), "/api/device_ready");
     http_json_send_string_field (FS("reconnect_probe_url"), "/api/reconnect_probe");
-    http_json_send_string_field (FS("remote_esp_update_url"), "/update?action=update&return_to_app=1");
-    http_json_send_string_field (FS("remote_stm32_update_base_url"), "/update?action=flash&stm32_filenames=");
+    http_json_send_remote_update_url_fields ();
     http_json_send_string_field (FS("update_status_url"), "/api/update_status");
     http_json_send_string_field (FS("settings_url"), "/api/settings_xml");
     http_json_send_string_field (FS("settings_legacy_url"), "/get_settings");
@@ -9333,6 +9399,21 @@ http_api_device_ready ()
     http_send (FS("{\"ok\":true,\"ready\":true}"));
     http_flush ();
     return 0;
+}
+
+static void
+http_json_send_remote_update_support_fields ()
+{
+    http_json_send_bool_field (FS("remote_esp_update_api_supported"), 1);
+    http_json_send_bool_field (FS("remote_stm32_flash_api_supported"), 1);
+}
+
+static void
+http_json_send_remote_update_url_fields ()
+{
+    http_json_send_string_field (FS("remote_esp_update_url"), "/api/remote_esp_update");
+    http_json_send_string_field (FS("remote_stm32_update_base_url"), "/update?action=flash&stm32_filenames=");
+    http_json_send_string_field (FS("remote_stm32_flash_url"), "/api/remote_stm32_flash");
 }
 
 static int
@@ -9641,15 +9722,74 @@ http_api_local_stm32_flash ()
 }
 
 static int
+http_api_remote_stm32_flash_send_result (uint_fast8_t ok, uint32_t error_code, uint_fast8_t stream_mode)
+{
+    if (stream_mode)
+    {
+        http_send (FS("{\"ok\":true,\"event\":\"result\",\"result_ok\":"));
+        http_send (ok ? "true" : "false");
+
+        if (! ok)
+        {
+            http_send (FS(",\"error\":"));
+            http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
+            http_send (FS(",\"message\":\""));
+            http_send (sanitize_json_string (update_progress.message).c_str ());
+            http_send (FS("\""));
+        }
+
+        http_send (FS("}\n"));
+        http_flush ();
+        update_progress_stream_finish ();
+        return 0;
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
+        http_send (FS(",\"message\":\""));
+        http_send (sanitize_json_string (update_progress.message).c_str ());
+        http_send (FS("\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+    return 0;
+}
+
+static int
 http_api_remote_stm32_flash ()
 {
     STR_VAR *       sv;
     char *          update_host;
     char *          update_path;
     char *          filename = http_get_param ("filename");
+    char *          stream_param = http_get_param ("stream");
     uint32_t        flashsize = ESP.getFlashChipRealSize ();
     uint_fast8_t    ok = 0;
     uint32_t        error_code = 0;
+    uint_fast8_t    stream_mode = 0;
+
+    if (stream_param &&
+        (*stream_param == '1' ||
+         *stream_param == 'y' ||
+         *stream_param == 'Y' ||
+         ! strcmp (stream_param, "true")))
+    {
+        stream_mode = 1;
+    }
+
+    if (stream_mode)
+    {
+        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/x-ndjson\r\nCache-Control: no-cache\r\n\r\n"));
+        http_flush ();
+        update_progress_stream_start ();
+    }
 
     if (flashsize < 4194304)
     {
@@ -9701,22 +9841,7 @@ http_api_remote_stm32_flash ()
         }
     }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":"));
-    http_send (ok ? "true" : "false");
-
-    if (! ok)
-    {
-        http_send (FS(",\"error\":"));
-        http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
-        http_send (FS(",\"message\":\""));
-        http_send (sanitize_json_string (update_progress.message).c_str ());
-        http_send (FS("\""));
-    }
-
-    http_send (FS("}"));
-    http_flush ();
-    return 0;
+    return http_api_remote_stm32_flash_send_result (ok, error_code, stream_mode);
 }
 
 static uint_fast8_t

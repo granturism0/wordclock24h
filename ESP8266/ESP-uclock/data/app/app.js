@@ -9,7 +9,26 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.2.79";
+const APP_VERSION = "1.3.64";
+const CONNECTION_STABILITY = {
+  fastReadAttempts: 1,
+  slowReadAttempts: 2,
+  retryDelayMs: 220,
+  apiWriteTimeoutMs: 6500,
+  coreSettingsTimeoutMs: 3200,
+  corePowerTimeoutMs: 2200,
+  updateStatusTimeoutMs: 4500,
+  updateTableInfoTimeoutMs: 4500,
+  networkScanTimeoutMs: 3800,
+  overlayIconsTimeoutMs: 2200,
+  fsInfoTimeoutMs: 5500,
+  fsListTimeoutMs: 6500,
+  eepromSettingsTimeoutMs: 5500,
+  stm32LogTimeoutMs: 3800,
+  progressPollTimeoutMs: 1800,
+  progressPollIntervalMs: 900,
+  frameProbeTimeoutMs: 2500
+};
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -78,7 +97,9 @@ const NUM = {
   DFPLAYER_BELL_FLAGS: 38,
   DFPLAYER_SPEAK_CYCLE: 39,
   DISPLAY_OVERLAY: 45,
-  OVERLAY_N_OVERLAYS: 46
+  OVERLAY_N_OVERLAYS: 46,
+  UPTIME_SECONDS_LO: 47,
+  UPTIME_SECONDS_HI: 48
 };
 
 const STR = {
@@ -295,9 +316,11 @@ let pendingProgressButtonId = "";
 let stm32ProgressTimer = 0;
 let stm32ProgressStage = 0;
 let stm32ProgressAdvanceTimer = 0;
-let stm32ProgressMonitorTimer = 0;
 let updateProgressPollTimer = 0;
 let stm32AutoResetStarted = false;
+let stm32RemoteStreamOffset = 0;
+let stm32RemoteRequestInFlight = false;
+let stm32RemoteResultOkSeen = false;
 let hasUnsavedEdits = false;
 let wordclockSizingFrame = 0;
 let wordclockSizingTimeout = 0;
@@ -501,6 +524,7 @@ let alignedAutoRefreshTimeout = 0;
 let alignedAutoRefreshInterval = 0;
 
 loadDebugOverridesIntoUi();
+clearReloadQueryMarker();
 restoreActiveModule();
 loadData();
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
@@ -579,10 +603,17 @@ function announceStatus(message, tone) {
 }
 
 async function apiFetch(url, options) {
-  const response = await fetch(url, {
+  const requestOptions = { ...(options || {}) };
+  const timeoutMs = Number(requestOptions.timeoutMs || CONNECTION_STABILITY.apiWriteTimeoutMs);
+  const attempts = Number(requestOptions.attempts || 1);
+
+  delete requestOptions.timeoutMs;
+  delete requestOptions.attempts;
+
+  const response = await fetchWithRetry(url, {
     cache: "no-store",
-    ...(options || {})
-  });
+    ...requestOptions
+  }, timeoutMs, attempts);
 
   if (!response.ok) {
     throw new Error("http-" + response.status);
@@ -683,7 +714,7 @@ function restoreActiveModule() {
 }
 
 function updateModuleAvailability(settings, debugOverrides) {
-  const moduleState = getModuleAvailabilityState(settings, debugOverrides);
+  const moduleState = getFeatureUiMeta(settings, debugOverrides).moduleState;
   const visibility = {
     ambilight: moduleState.ambilightOnline,
     dfplayer: moduleState.dfplayerOnline
@@ -751,22 +782,23 @@ async function loadData(options) {
       settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0,
       settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE] ? "on" : "off"
     );
+    const settingsControlMeta = getSettingsControlUiMeta(settings, getCurrentNetworkInfo(), getCurrentEepromSettings());
     updateDisplayModeControl(settings);
     updateDisplayFlagControls(settings);
     updateTextControls(settings);
-    updateWeatherControls(settings);
-    updateNetworkControls(settings, getCurrentNetworkInfo());
-    updateMaintenanceControls(settings, getCurrentEepromSettings());
-    updateDateTimeControls(settings);
-    updateTemperatureControls(settings);
-    updateLdrControls(settings);
+    updateWeatherControlsFromMeta(settingsControlMeta.weather);
+    updateNetworkControlsFromMeta(settingsControlMeta.network);
+    updateMaintenanceControlsFromMeta(settingsControlMeta.maintenance);
+    updateDateTimeControlsFromMeta(settingsControlMeta.dateTime);
+    updateTemperatureControlsFromMeta(settingsControlMeta.temperature);
+    updateLdrControlsFromMeta(settingsControlMeta.ldr);
     try {
-      updateAnimationControls(settings);
+      updateAnimationControlsFromMeta(settingsControlMeta.animation);
     } catch (error) {
       console.error("Animation controls failed", error);
     }
     updateTftVisibility(settings, debugOverrides);
-    updateTftControls(settings);
+    updateTftControlsFromMeta(settingsControlMeta.tft);
     updateAmbilightBrightnessControl(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0);
     updateAmbilightModeControl(settings);
     updateAmbilightNumberControls(settings);
@@ -808,9 +840,9 @@ async function loadCoreData() {
   // Keep the base snapshot on the proven legacy endpoints for now.
   // This is the stabilised boundary: core settings/power first, richer metadata second.
   const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
-    settleFetchText(getStableCoreSettingsFetchUrl(), "", 2500),
-    settleFetchText(getStableCoreDisplayPowerFetchUrl(), "off", 1800),
-    settleFetchText(getStableCoreAmbilightPowerFetchUrl(), "off", 1800)
+    settleFetchText(getStableCoreSettingsFetchUrl(), "", CONNECTION_STABILITY.coreSettingsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
+    settleFetchText(getStableCoreDisplayPowerFetchUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
+    settleFetchText(getStableCoreAmbilightPowerFetchUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts)
   ]);
 
   return {
@@ -857,7 +889,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
   try {
-    const updateStatus = await settleFetchJson(getStableUpdateStatusFetchUrl(), getNormalizedUpdateStatus(), 8000);
+    const updateStatus = await settleFetchJson(getStableUpdateStatusFetchUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
     if (requestId !== loadRequestSerial) {
       return;
     }
@@ -868,7 +900,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   }
 
   try {
-    const updateTableInfo = await settleFetchJson(getStableUpdateTableFilesFetchUrl(), getNormalizedUpdateTableInfo(), 8000);
+    const updateTableInfo = await settleFetchJson(getStableUpdateTableFilesFetchUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
     if (requestId !== loadRequestSerial) {
       return;
     }
@@ -898,7 +930,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (networkActive) {
     try {
-      setCurrentNetworkInfo(await settleFetchJson(getNetworkScanUrl(), getCurrentNetworkInfo() || { networks: [] }, 2500));
+      setCurrentNetworkInfo(await settleFetchJson(getNetworkScanUrl(), getCurrentNetworkInfo() || { networks: [] }, CONNECTION_STABILITY.networkScanTimeoutMs, CONNECTION_STABILITY.slowReadAttempts));
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -910,7 +942,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (overlaysActive) {
     try {
-      setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], 1800));
+      setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], CONNECTION_STABILITY.overlayIconsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts));
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -926,15 +958,15 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (maintenanceActive) {
     try {
-      const fsInfo = await settleFetchJson(getFsInfoUrl(), {}, 5000);
+      const fsInfo = await settleFetchJson(getFsInfoUrl(), {}, CONNECTION_STABILITY.fsInfoTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
       if (requestId !== loadRequestSerial) {
         return;
       }
-      const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, 6000);
+      const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, CONNECTION_STABILITY.fsListTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
       if (requestId !== loadRequestSerial) {
         return;
       }
-      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, 5000);
+      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -949,7 +981,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (systemActive || maintenanceActive) {
     try {
-      const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, 3000);
+      const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, CONNECTION_STABILITY.stm32LogTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -1264,17 +1296,15 @@ function parseSettings(xmlText) {
 function renderOverview(settings, displayPower, ambilightPower, debugOverrides, updateStatus) {
   const overviewMeta = getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverrides, updateStatus);
   const hw = overviewMeta.hardware;
-  const ledCapabilities = overviewMeta.ledCapabilities;
   const ambilightOnline = overviewMeta.ambilightOnline;
   const dfplayerOnline = overviewMeta.dfplayerOnline;
-  const displayMode = getDisplayModeName(settings.numvars[NUM.DISPLAY_MODE]);
-  const brightness = settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0;
-  const automatic = settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE] ? "an" : "aus";
+  const configItems = overviewMeta.configItems.slice();
 
   setText("display-power", overviewMeta.displayPowerLabel);
   setText("ambilight-power", overviewMeta.ambilightPowerLabel);
   setText("firmware-version", overviewMeta.firmwareVersion);
   setText("esp-version", overviewMeta.espVersion);
+  setText("last-start-overview", overviewMeta.lastStartLabel);
 
   renderList("system-list", [
     ["Board", hw.board],
@@ -1286,54 +1316,6 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   ]);
 
   renderHealthList(settings, ambilightOnline, dfplayerOnline);
-
-  const configItems = [
-    ["Display-Modus", displayMode],
-    ["Helligkeit", String(brightness)],
-    ["Automatische Helligkeit", automatic],
-    ["LED-Fähigkeiten", ledCapabilities.label],
-    ["Zeitserver", settings.strvars[STR.TIMESERVER] || "-"],
-    ["Ticker-Verzögerung", String(settings.numvars[NUM.TICKER_DECELERATION] || 0)]
-  ];
-
-  if (settings.strvars[STR.RESET_CAUSE]) {
-    configItems.unshift(["Letzter STM32-Neustart", settings.strvars[STR.RESET_CAUSE]]);
-  }
-
-  const weatherLocation = settings.strvars[STR.WEATHER_CITY]
-    ? settings.strvars[STR.WEATHER_CITY]
-    : ((settings.strvars[STR.WEATHER_LON] || settings.strvars[STR.WEATHER_LAT])
-      ? (settings.strvars[STR.WEATHER_LON] || "-") + " / " + (settings.strvars[STR.WEATHER_LAT] || "-")
-      : "");
-
-  if (weatherLocation) {
-    configItems.splice(configItems.length - 1, 0, ["Wetter-Ort", weatherLocation]);
-  }
-
-  if (settings.strvars[STR.TICKER_TEXT]) {
-    configItems.splice(configItems.length - 1, 0, ["Ticker", settings.strvars[STR.TICKER_TEXT]]);
-  }
-
-  if (settings.strvars[STR.DATE_TICKER_FORMAT]) {
-    configItems.splice(configItems.length - 1, 0, ["Datumsformat", settings.strvars[STR.DATE_TICKER_FORMAT]]);
-  }
-
-  if (ambilightOnline) {
-    configItems.splice(4, 0,
-      ["Ambilight-Modus", getAmbilightModeName(settings)],
-      ["Ambilight-Helligkeit", String(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0)],
-      ["Ambilight LEDs", String(settings.numvars[NUM.AMBILIGHT_LEDS] || 0)],
-      ["Ambilight Offset", String(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0)]
-    );
-  }
-
-  if (dfplayerOnline) {
-    configItems.push(
-      ["DFPlayer-Modus", getDfplayerModeName(settings.numvars[NUM.DFPLAYER_MODE] || 0)],
-      ["DFPlayer-Lautstärke", String(settings.numvars[NUM.DFPLAYER_VOLUME] || 0)],
-      ["Sprechintervall", String(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0)]
-    );
-  }
 
   renderList("config-list", configItems);
   renderPreviewDebug(settings);
@@ -1379,9 +1361,8 @@ function updateAmbilightAvailability(state) {
 }
 
 function updateDisplayFlagControls(settings) {
-  const flags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
-  const active = !!(flags & 0x01);
-  setActionToggleButton("display-it-is-button", "„ES IST“ deaktivieren", "„ES IST“ dauerhaft anzeigen", active);
+  const meta = getDisplayFormUiMeta(settings).display;
+  setActionToggleButton("display-it-is-button", "„ES IST“ deaktivieren", "„ES IST“ dauerhaft anzeigen", meta.itIsActive);
 }
 
 function updateBrightnessControl(value, autoState) {
@@ -1396,48 +1377,38 @@ function updateBrightnessControl(value, autoState) {
 }
 
 function updateDisplayModeControl(settings) {
+  const meta = getDisplayFormUiMeta(settings).display;
   const select = document.getElementById("display-mode-select");
-  const currentMode = settings.numvars[NUM.DISPLAY_MODE] || 0;
-  const options = settings.dispmodes.length ? settings.dispmodes : [
-    { idx: 0, name: "Normal" },
-    { idx: 1, name: "Sekunden" },
-    { idx: 2, name: "Datum" },
-    { idx: 3, name: "Temperatur" },
-    { idx: 4, name: "Ticker" }
-  ];
-
-  select.innerHTML = options.map((mode) => (
+  select.innerHTML = meta.displayModes.map((mode) => (
     '<option value="' + mode.idx + '">' + escapeHtml(localizeDisplayModeName(mode.name || String(mode.idx))) + "</option>"
   )).join("");
-  select.value = String(currentMode);
+  select.value = String(meta.currentDisplayMode);
 }
 
 function updateTextControls(settings) {
-  document.getElementById("ticker-text-input").value = settings.strvars[STR.TICKER_TEXT] || "";
-  document.getElementById("date-format-input").value = settings.strvars[STR.DATE_TICKER_FORMAT] || "";
-  document.getElementById("ticker-deceleration-input").value = String(settings.numvars[NUM.TICKER_DECELERATION] || 0);
+  const meta = getDisplayFormUiMeta(settings).display;
+  document.getElementById("ticker-text-input").value = meta.tickerText;
+  document.getElementById("date-format-input").value = meta.dateFormat;
+  document.getElementById("ticker-deceleration-input").value = String(meta.tickerDeceleration);
 }
 
 function updateWeatherControls(settings) {
-  document.getElementById("weather-appid-input").value = settings.strvars[STR.WEATHER_APPID] || "";
-  document.getElementById("weather-city-input").value = settings.strvars[STR.WEATHER_CITY] || "";
-  document.getElementById("weather-lon-input").value = settings.strvars[STR.WEATHER_LON] || "";
-  document.getElementById("weather-lat-input").value = settings.strvars[STR.WEATHER_LAT] || "";
+  updateWeatherControlsFromMeta(getSettingsControlUiMeta(settings).weather);
+}
 
-  const parts = [];
-  if (settings.strvars[STR.WEATHER_CITY]) {
-    parts.push(settings.strvars[STR.WEATHER_CITY]);
-  }
-  if (settings.strvars[STR.WEATHER_LON] || settings.strvars[STR.WEATHER_LAT]) {
-    parts.push((settings.strvars[STR.WEATHER_LON] || "-") + " / " + (settings.strvars[STR.WEATHER_LAT] || "-"));
-  }
-  document.getElementById("weather-location-preview").textContent = parts.length
-    ? "Aktuell: " + parts.join(" | ")
-    : "Karte und Suche stehen für die Standortwahl bereit.";
+function updateWeatherControlsFromMeta(meta) {
+  document.getElementById("weather-appid-input").value = meta.appId;
+  document.getElementById("weather-city-input").value = meta.city;
+  document.getElementById("weather-lon-input").value = meta.lon;
+  document.getElementById("weather-lat-input").value = meta.lat;
+  document.getElementById("weather-location-preview").textContent = meta.locationPreview;
 }
 
 function updateNetworkControls(settings, networkInfo) {
-  const meta = getNetworkUiMeta(settings, networkInfo);
+  updateNetworkControlsFromMeta(getSettingsControlUiMeta(settings, networkInfo).network);
+}
+
+function updateNetworkControlsFromMeta(meta) {
   const select = document.getElementById("network-ssid-select");
 
   select.innerHTML = meta.networks.length
@@ -1455,7 +1426,10 @@ function updateNetworkControls(settings, networkInfo) {
 }
 
 function updateMaintenanceControls(settings, eepromSettings) {
-  const meta = getMaintenanceUiMeta(settings, eepromSettings, null, null);
+  updateMaintenanceControlsFromMeta(getSettingsControlUiMeta(settings, null, eepromSettings).maintenance);
+}
+
+function updateMaintenanceControlsFromMeta(meta) {
   document.getElementById("update-host-input").value = meta.updateHost;
   document.getElementById("update-path-input").value = meta.updatePath;
   renderList("backup-info-list", meta.infoItems);
@@ -1485,9 +1459,20 @@ function collectUsedOverlayIconNames(items) {
   )).sort();
 }
 
-function buildAssetBackup(settings, updateTableInfo) {
-  const backupMeta = getBackupAssetMeta(settings, null, updateTableInfo);
-  const overlayItems = buildOverlayBackup(settings);
+function buildBackupHeaderState(settings, updateTableInfo) {
+  const safeSettings = settings || parseSettings("");
+  return {
+    settings: safeSettings,
+    updateTableInfo: updateTableInfo || getCurrentUpdateTableInfo()
+  };
+}
+
+function buildAssetBackup(headerState, updateTableInfo) {
+  const state = headerState && headerState.settings
+    ? headerState
+    : buildBackupHeaderState(headerState, updateTableInfo);
+  const backupMeta = getBackupAssetMeta(state.settings, null, state.updateTableInfo);
+  const overlayItems = buildOverlayBackup(state.settings);
 
   return {
     layout_table: backupMeta.currentTable ? String(backupMeta.currentTable) : "",
@@ -1496,74 +1481,83 @@ function buildAssetBackup(settings, updateTableInfo) {
   };
 }
 
-function buildBackupSourceMeta(settings) {
+function buildBackupSourceMeta(headerState) {
+  const state = headerState && headerState.settings
+    ? headerState
+    : buildBackupHeaderState(headerState);
+  const displayMeta = getDisplayBackupMeta(state.settings);
   return {
     app_version: APP_VERSION,
-    firmware_version: settings.strvars[STR.VERSION] || "",
-    esp_version: getUpdateStatusString(null, "esp_version") || settings.strvars[STR.ESP8266_VERSION] || "",
-    eeprom_version: settings.strvars[STR.EEPROM_VERSION] || ""
+    firmware_version: displayMeta.firmwareVersion,
+    esp_version: displayMeta.espVersion,
+    eeprom_version: displayMeta.eepromVersion
   };
 }
 
-function buildDisplayBackupSettings(settings, displayFlags) {
+function buildDisplayBackupSettings(settings) {
+  const meta = getDisplayBackupMeta(settings);
   return {
-    power: !!settings.numvars[NUM.DISPLAY_POWER],
-    mode: Number(settings.numvars[NUM.DISPLAY_MODE] || 0),
-    use_rgbw: !!settings.numvars[NUM.DISPLAY_USE_RGBW],
-    brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
-    automatic_brightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
-    permanent_it_is: !!(displayFlags & 0x01),
-    ticker_text: settings.strvars[STR.TICKER_TEXT] || "",
-    date_ticker_format: settings.strvars[STR.DATE_TICKER_FORMAT] || "",
-    ticker_deceleration: Number(settings.numvars[NUM.TICKER_DECELERATION] || 0),
+    power: meta.power,
+    mode: meta.mode,
+    use_rgbw: meta.useRgbw,
+    brightness: meta.brightness,
+    automatic_brightness: meta.automaticBrightness,
+    permanent_it_is: meta.permanentItIs,
+    ticker_text: meta.tickerText,
+    date_ticker_format: meta.dateTickerFormat,
+    ticker_deceleration: meta.tickerDeceleration,
     color: cloneColor(settings.dspcolors[0]),
-    dim_curve: buildDimCurveArray(settings.num8arrays[0])
+    dim_curve: meta.dimCurve
   };
 }
 
-function buildNetworkBackupSettings(settings, eepromSettings, timezone) {
+function buildNetworkBackupSettings(settings, eepromSettings) {
+  const meta = getNetworkBackupMeta(settings, eepromSettings);
   return {
-    timeserver: settings.strvars[STR.TIMESERVER] || "",
-    timezone_offset: Number(timezone.offset || 0),
-    summertime: !!timezone.summertime,
-    wifi_ssid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
-    wifi_key: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
-    ap_ssid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
-    ap_key: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
-    boot_as_ap: !!(eepromSettings && eepromSettings.boot_as_ap)
+    timeserver: meta.timeserver,
+    timezone_offset: meta.timezoneOffset,
+    summertime: meta.summertime,
+    wifi_ssid: meta.wifiSsid,
+    wifi_key: meta.wifiKey,
+    ap_ssid: meta.apSsid,
+    ap_key: meta.apKey,
+    boot_as_ap: meta.bootAsAp
   };
 }
 
 function buildMaintenanceBackupSettings(settings) {
+  const meta = getMaintenanceBackupMeta(settings);
   return {
-    update_host: settings.strvars[STR.UPDATE_HOST] || "",
-    update_path: settings.strvars[STR.UPDATE_PATH] || ""
+    update_host: meta.updateHost,
+    update_path: meta.updatePath
   };
 }
 
 function buildClimateBackupSettings(settings) {
+  const meta = getClimateBackupMeta(settings);
   return {
-    weather_appid: settings.strvars[STR.WEATHER_APPID] || "",
-    weather_city: settings.strvars[STR.WEATHER_CITY] || "",
-    weather_lon: settings.strvars[STR.WEATHER_LON] || "",
-    weather_lat: settings.strvars[STR.WEATHER_LAT] || "",
-    rtc_temp_correction: Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0),
-    ds18xx_temp_correction: Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0),
-    ldr_min: Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0),
-    ldr_max: Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0)
+    weather_appid: meta.weatherAppId,
+    weather_city: meta.weatherCity,
+    weather_lon: meta.weatherLon,
+    weather_lat: meta.weatherLat,
+    rtc_temp_correction: meta.rtcTempCorrection,
+    ds18xx_temp_correction: meta.ds18xxTempCorrection,
+    ldr_min: meta.ldrMin,
+    ldr_max: meta.ldrMax
   };
 }
 
 function buildAnimationBackupSettings(settings) {
+  const meta = getAnimationBackupMeta(settings);
   return {
-    display_mode: Number(settings.numvars[NUM.ANIMATION_MODE] || 0),
-    color_mode: Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0),
-    display_profiles: (settings.dispanims || []).map((entry) => ({
+    display_mode: meta.displayMode,
+    color_mode: meta.colorMode,
+    display_profiles: meta.displayProfiles.map((entry) => ({
       idx: Number(entry.idx),
       deceleration: Number(entry.deceleration || 0),
       favourite: !!(Number(entry.flags || 0) & 0x02)
     })),
-    color_profiles: (settings.coloranims || []).map((entry) => ({
+    color_profiles: meta.colorProfiles.map((entry) => ({
       idx: Number(entry.idx),
       deceleration: Number(entry.deceleration || 0)
     }))
@@ -1578,22 +1572,23 @@ function buildTftBackupSettings(tftFlags) {
   };
 }
 
-function buildAmbilightBackupSettings(settings, displayFlags, ambilightModeFlags) {
+function buildAmbilightBackupSettings(settings) {
+  const meta = getAmbilightBackupMeta(settings);
   return {
-    online: !!settings.numvars[NUM.AMBILIGHT_IS_UP],
-    power: !!settings.numvars[NUM.DISPLAY_AMBILIGHT_POWER],
-    mode: Number(settings.numvars[NUM.AMBILIGHT_MODE] || 0),
-    leds: Number(settings.numvars[NUM.AMBILIGHT_LEDS] || 0),
-    offset: Number(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0),
-    brightness: Number(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0),
+    online: meta.online,
+    power: meta.power,
+    mode: meta.mode,
+    leds: meta.leds,
+    offset: meta.offset,
+    brightness: meta.brightness,
     color: cloneColor(settings.dspcolors[1]),
     marker_color: cloneColor(settings.dspcolors[2]),
-    sync_ambilight: !!(displayFlags & 0x02),
-    sync_markers: !!(displayFlags & 0x04),
-    fade_clock_seconds: !!(displayFlags & 0x08),
-    seconds_markers: !!(ambilightModeFlags & 0x02),
-    dim_curve: buildDimCurveArray(settings.num8arrays[1]),
-    profiles: (settings.almodes || []).map((entry) => ({
+    sync_ambilight: meta.syncAmbilight,
+    sync_markers: meta.syncMarkers,
+    fade_clock_seconds: meta.fadeClockSeconds,
+    seconds_markers: meta.secondsMarkers,
+    dim_curve: meta.dimCurve,
+    profiles: meta.profiles.map((entry) => ({
       idx: Number(entry.idx),
       deceleration: Number(entry.deceleration || 0)
     }))
@@ -1601,51 +1596,214 @@ function buildAmbilightBackupSettings(settings, displayFlags, ambilightModeFlags
 }
 
 function buildDfplayerBackupSettings(settings) {
+  const meta = getDfplayerBackupMeta(settings);
   return {
-    volume: Number(settings.numvars[NUM.DFPLAYER_VOLUME] || 0),
-    mode: Number(settings.numvars[NUM.DFPLAYER_MODE] || 0),
-    bell_flags: Number(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0),
-    speak_cycle: Number(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0),
-    silence_start: Number(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
-    silence_stop: Number(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0),
-    alarms: buildAlarmBackup(settings.alarmtimes || [])
+    volume: meta.volume,
+    mode: meta.mode,
+    bell_flags: meta.bellFlags,
+    speak_cycle: meta.speakCycle,
+    silence_start: meta.silenceStart,
+    silence_stop: meta.silenceStop,
+    alarms: buildAlarmBackup(meta.alarms)
   };
 }
 
-function buildSettingsBackupSections(settings, eepromSettings) {
-  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
-  const displayFlags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
-  const tftFlags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
-  const ambilightModeFlags = Number((settings.almodes || []).find((entry) => entry.idx === (settings.numvars[NUM.AMBILIGHT_MODE] || 0))?.flags || 0);
+function buildBackupSectionState(settings, eepromSettings) {
+  const safeSettings = settings || parseSettings("");
+  return {
+    settings: safeSettings,
+    eepromSettings: eepromSettings || getCurrentEepromSettings(),
+    tftFlags: safeSettings.numvars[NUM.SSD1963_FLAGS] || 0
+  };
+}
+
+function buildCoreBackupSections(sectionState) {
+  const state = sectionState && sectionState.settings
+    ? sectionState
+    : buildBackupSectionState(sectionState);
 
   return {
-    display: buildDisplayBackupSettings(settings, displayFlags),
-    network: buildNetworkBackupSettings(settings, eepromSettings, timezone),
-    maintenance: buildMaintenanceBackupSettings(settings),
-    climate: buildClimateBackupSettings(settings),
-    animations: buildAnimationBackupSettings(settings),
-    tft: buildTftBackupSettings(tftFlags),
-    ambilight: buildAmbilightBackupSettings(settings, displayFlags, ambilightModeFlags),
-    dfplayer: buildDfplayerBackupSettings(settings),
+    display: buildDisplayBackupSettings(state.settings),
+    network: buildNetworkBackupSettings(state.settings, state.eepromSettings),
+    maintenance: buildMaintenanceBackupSettings(state.settings),
+    climate: buildClimateBackupSettings(state.settings)
+  };
+}
+
+function buildGroupedBackupSections(sectionState, eepromSettings) {
+  const state = sectionState && sectionState.settings
+    ? sectionState
+    : buildBackupSectionState(sectionState, eepromSettings);
+
+  return {
+    state,
+    core: buildCoreBackupSections(state),
+    advanced: buildAdvancedBackupSections(state),
+    asset: buildAssetRelatedBackupSections(state)
+  };
+}
+
+function buildSettingsBackupSections(sectionState, eepromSettings) {
+  const sections = buildGroupedBackupSections(sectionState, eepromSettings);
+
+  return {
+    display: sections.core.display,
+    network: sections.core.network,
+    maintenance: sections.core.maintenance,
+    climate: sections.core.climate,
+    animations: sections.advanced.animations,
+    tft: sections.advanced.tft,
+    ambilight: sections.advanced.ambilight,
+    dfplayer: sections.advanced.dfplayer,
+    overlays: sections.asset.overlays,
+    timers: sections.asset.timers
+  };
+}
+
+function buildAdvancedBackupSections(sectionState) {
+  const state = sectionState && sectionState.settings
+    ? sectionState
+    : buildBackupSectionState(sectionState);
+  return {
+    animations: buildAnimationBackupSettings(state.settings),
+    tft: buildTftBackupSettings(state.tftFlags),
+    ambilight: buildAmbilightBackupSettings(state.settings),
+    dfplayer: buildDfplayerBackupSettings(state.settings)
+  };
+}
+
+function buildAssetRelatedBackupSections(sectionState) {
+  const state = sectionState && sectionState.settings
+    ? sectionState
+    : buildBackupSectionState(sectionState);
+  const collections = buildCollectionBackupSections(state.settings);
+  return {
     overlays: {
-      items: buildOverlayBackup(settings)
+      items: collections.overlays
     },
-    timers: {
-      display: buildTimerBackup(settings.nighttimes || []),
-      ambilight: buildTimerBackup(settings.ambinighttimes || [])
-    }
+    timers: collections.timers
+  };
+}
+
+function buildBackupHeaderSections(headerState, updateTableInfo) {
+  const state = headerState && headerState.settings
+    ? headerState
+    : buildBackupHeaderState(headerState, updateTableInfo);
+  return {
+    source: buildBackupSourceMeta(state),
+    assets: buildAssetBackup(state)
+  };
+}
+
+function buildComparableBackupSections(settings, eepromSettings) {
+  const sections = buildGroupedBackupSections(settings, eepromSettings);
+
+  return buildComparableSectionPayload(sections);
+}
+
+function buildComparableSectionPayload(sectionGroups) {
+  return {
+    display: sectionGroups.core.display,
+    network: sectionGroups.core.network,
+    maintenance: sectionGroups.core.maintenance,
+    climate: sectionGroups.core.climate,
+    overlays: sectionGroups.asset.overlays,
+    timers: sectionGroups.asset.timers
+  };
+}
+
+function buildAllBackupSections(settings, eepromSettings, updateTableInfo) {
+  const sectionGroups = buildGroupedBackupSections(settings, eepromSettings);
+  const headerState = buildBackupHeaderState(sectionGroups.state.settings, updateTableInfo);
+  return {
+    header: buildBackupHeaderSections(headerState),
+    settings: buildSettingsBackupSections(sectionGroups.state),
+    comparable: buildComparableSectionPayload(sectionGroups)
   };
 }
 
 function buildSettingsBackup(settings, eepromSettings, updateTableInfo) {
+  const sections = buildAllBackupSections(settings, eepromSettings, updateTableInfo);
+
   return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exported_at: new Date().toISOString(),
-    source: buildBackupSourceMeta(settings),
-    assets: buildAssetBackup(settings, updateTableInfo),
-    settings: buildSettingsBackupSections(settings, eepromSettings)
+    source: sections.header.source,
+    assets: sections.header.assets,
+    settings: sections.settings
   };
+}
+
+function buildBackupRuntimeState(state) {
+  return {
+    settings: state && state.settings ? state.settings : (getCurrentSettingsSnapshot() || parseSettings("")),
+    eepromSettings: state && state.eepromSettings ? state.eepromSettings : getCurrentEepromSettings(),
+    updateTableInfo: state && state.updateTableInfo ? state.updateTableInfo : getCurrentUpdateTableInfo()
+  };
+}
+
+function getCurrentBackupRuntimeState() {
+  return buildBackupRuntimeState();
+}
+
+function getBackupExportState() {
+  return getCurrentBackupRuntimeState();
+}
+
+function buildBackupDocumentState(exportState) {
+  return buildBackupRuntimeState(exportState);
+}
+
+function buildBackupExportDocument(exportState) {
+  const documentState = buildBackupDocumentState(exportState);
+  return buildSettingsBackup(
+    documentState.settings,
+    documentState.eepromSettings,
+    documentState.updateTableInfo
+  );
+}
+
+async function parseSettingsBackupFile(file) {
+  const backup = JSON.parse(await file.text());
+
+  if (backup.format !== BACKUP_FORMAT) {
+    throw new Error("invalid-backup-format");
+  }
+
+  if (Number(backup.version || 0) !== BACKUP_VERSION) {
+    throw new Error("unsupported-backup-version");
+  }
+
+  return backup;
+}
+
+function buildImportedBackupState(backup) {
+  const importedBackup = backup || {};
+  const settings = importedBackup.settings || {};
+
+  return {
+    backup: importedBackup,
+    settings,
+    executionState: getImportExecutionState(importedBackup, settings)
+  };
+}
+
+async function loadImportedBackupState(file) {
+  return buildImportedBackupState(await parseSettingsBackupFile(file));
+}
+
+function getSettingsBackupImportErrorMessage(error) {
+  return error && error.message === "invalid-backup-format"
+    ? "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei."
+    : error && error.message === "unsupported-backup-version"
+      ? "Inkompatible Backup-Version – Datei mit einer neueren App erstellt."
+      : "Einstellungen konnten nicht importiert werden.";
+}
+
+async function prepareBackupExportDocument() {
+  await ensureBackupExportState();
+  return buildBackupExportDocument(getBackupExportState());
 }
 
 function cloneColor(color) {
@@ -1676,10 +1834,32 @@ function buildAlarmBackup(items) {
   }));
 }
 
-function buildOverlayBackup(settings) {
-  const count = Number(settings.numvars[NUM.OVERLAY_N_OVERLAYS] || 0);
-  return (settings.overlays || [])
-    .filter((item) => Number(item.idx) < count)
+function buildCollectionBackupState(settings) {
+  const safeSettings = settings || {};
+  return {
+    settings: safeSettings,
+    overlayCount: Number((((safeSettings || {}).numvars || [])[NUM.OVERLAY_N_OVERLAYS] || 0))
+  };
+}
+
+function buildCollectionBackupSections(collectionState) {
+  const state = collectionState && collectionState.settings
+    ? collectionState
+    : buildCollectionBackupState(collectionState);
+
+  return {
+    overlays: buildOverlayBackup(state),
+    timers: {
+      display: buildTimerBackup(state.settings.nighttimes || []),
+      ambilight: buildTimerBackup(state.settings.ambinighttimes || [])
+    }
+  };
+}
+
+function normalizeOverlayBackupItems(items, count) {
+  return (items || [])
+    .filter((item) => count === undefined || Number(item.idx) < count)
+    .slice()
     .sort((a, b) => a.idx - b.idx)
     .map((item) => ({
       idx: Number(item.idx),
@@ -1695,7 +1875,14 @@ function buildOverlayBackup(settings) {
     }));
 }
 
-function buildTimerBackup(items) {
+function buildOverlayBackup(collectionState) {
+  const state = collectionState && collectionState.settings
+    ? collectionState
+    : buildCollectionBackupState(collectionState);
+  return normalizeOverlayBackupItems(state.settings.overlays || [], state.overlayCount);
+}
+
+function normalizeTimerBackupItems(items) {
   return (items || []).slice().sort((a, b) => a.idx - b.idx).map((item) => ({
     idx: Number(item.idx),
     active: !!(Number(item.flags || 0) & 0x80),
@@ -1705,6 +1892,153 @@ function buildTimerBackup(items) {
     hour: Math.floor(Number(item.minutes || 0) / 60),
     minute: Number(item.minutes || 0) % 60
   }));
+}
+
+function buildTimerBackup(items) {
+  return normalizeTimerBackupItems(items);
+}
+
+function normalizedOverlayItemsEqual(expectedItems, actualItems) {
+  if (expectedItems.length !== actualItems.length) {
+    return false;
+  }
+
+  return expectedItems.every((entry, index) => {
+    const current = actualItems[index] || {};
+    return !!entry.active === !!current.active &&
+      Number(entry.type || 0) === Number(current.type || 0) &&
+      String(entry.value || "") === String(current.value || "") &&
+      Number(entry.interval || 0) === Number(current.interval || 0) &&
+      Number(entry.duration || 0) === Number(current.duration || 0) &&
+      Number(entry.date_code || 0) === Number(current.date_code || 0) &&
+      Number(entry.month || 0) === Number(current.month || 0) &&
+      Number(entry.day || 0) === Number(current.day || 0) &&
+      Number(entry.days || 0) === Number(current.days || 0);
+  });
+}
+
+function normalizedTimerItemsEqual(expectedItems, actualItems) {
+  if (expectedItems.length !== actualItems.length) {
+    return false;
+  }
+
+  return expectedItems.every((entry, index) => {
+    const current = actualItems[index] || {};
+    return Number(entry.idx || 0) === Number(current.idx || 0) &&
+      !!entry.active === !!current.active &&
+      !!entry.switch_on === !!current.switch_on &&
+      Number(entry.from || 0) === Number(current.from || 0) &&
+      Number(entry.to || 0) === Number(current.to || 0) &&
+      Number(entry.hour || 0) === Number(current.hour || 0) &&
+      Number(entry.minute || 0) === Number(current.minute || 0);
+  });
+}
+
+function getDisplayBackupMeta(settings) {
+  const coreMeta = getCoreBackupUiMeta(settings, getCurrentEepromSettings(), getCurrentNetworkInfo());
+  const flags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
+
+  return {
+    firmwareVersion: settings.strvars[STR.VERSION] || "",
+    espVersion: getUpdateStatusString(null, "esp_version") || settings.strvars[STR.ESP8266_VERSION] || "",
+    eepromVersion: settings.strvars[STR.EEPROM_VERSION] || "",
+    power: !!settings.numvars[NUM.DISPLAY_POWER],
+    mode: Number(coreMeta.display.currentDisplayMode || 0),
+    useRgbw: !!settings.numvars[NUM.DISPLAY_USE_RGBW],
+    brightness: Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0),
+    automaticBrightness: !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE],
+    permanentItIs: !!(flags & 0x01),
+    tickerText: coreMeta.display.tickerText,
+    dateTickerFormat: coreMeta.display.dateFormat,
+    tickerDeceleration: Number(coreMeta.display.tickerDeceleration || 0),
+    dimCurve: buildDimCurveArray(getDimCurveUiMeta(settings).displayValues)
+  };
+}
+
+function getNetworkBackupMeta(settings, eepromSettings) {
+  const coreMeta = getCoreBackupUiMeta(settings, eepromSettings, getCurrentNetworkInfo());
+
+  return {
+    timeserver: coreMeta.network.timeserver,
+    timezoneOffset: Number(coreMeta.network.timezoneOffset || 0),
+    summertime: !!coreMeta.network.summertime,
+    wifiSsid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
+    wifiKey: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
+    apSsid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
+    apKey: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
+    bootAsAp: !!(eepromSettings && eepromSettings.boot_as_ap)
+  };
+}
+
+function getMaintenanceBackupMeta(settings) {
+  const coreMeta = getCoreBackupUiMeta(settings, getCurrentEepromSettings(), getCurrentNetworkInfo());
+
+  return {
+    updateHost: coreMeta.maintenance.updateHost,
+    updatePath: coreMeta.maintenance.updatePath
+  };
+}
+
+function getClimateBackupMeta(settings) {
+  const coreMeta = getCoreBackupUiMeta(settings, getCurrentEepromSettings(), getCurrentNetworkInfo());
+
+  return {
+    weatherAppId: coreMeta.weather.appId,
+    weatherCity: coreMeta.weather.city,
+    weatherLon: coreMeta.weather.lon,
+    weatherLat: coreMeta.weather.lat,
+    rtcTempCorrection: Number(coreMeta.temperature.rtcCorrection || 0),
+    ds18xxTempCorrection: Number(coreMeta.temperature.ds18xxCorrection || 0),
+    ldrMin: Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0),
+    ldrMax: Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0)
+  };
+}
+
+function getAnimationBackupMeta(settings) {
+  const coreMeta = getCoreBackupUiMeta(settings, getCurrentEepromSettings(), getCurrentNetworkInfo());
+
+  return {
+    displayMode: Number(coreMeta.animation.displayAnimationMode || 0),
+    colorMode: Number(coreMeta.animation.colorAnimationMode || 0),
+    displayProfiles: coreMeta.animation.displayAnimations || [],
+    colorProfiles: coreMeta.animation.colorAnimations || []
+  };
+}
+
+function getAmbilightBackupMeta(settings) {
+  const ambilightMeta = getAmbilightUiMeta(settings);
+  const flagMeta = getFlagUiMeta(settings, true);
+  const dimMeta = getDimCurveUiMeta(settings);
+  const currentMode = (settings.almodes || []).find((entry) => entry.idx === ambilightMeta.currentMode) || null;
+
+  return {
+    online: !!settings.numvars[NUM.AMBILIGHT_IS_UP],
+    power: !!settings.numvars[NUM.DISPLAY_AMBILIGHT_POWER],
+    mode: Number(ambilightMeta.currentMode || 0),
+    leds: Number(ambilightMeta.leds || 0),
+    offset: Number(ambilightMeta.offset || 0),
+    brightness: Number(settings.numvars[NUM.AMBILIGHT_BRIGHTNESS] || 0),
+    syncAmbilight: flagMeta.syncAmbilight,
+    syncMarkers: flagMeta.syncMarkers,
+    fadeClockSeconds: flagMeta.fadeClockSeconds,
+    secondsMarkers: !!(((currentMode && currentMode.flags) || 0) & 0x02),
+    dimCurve: buildDimCurveArray(dimMeta.ambilightValues),
+    profiles: getAmbilightProfileUiMeta(settings).items || []
+  };
+}
+
+function getDfplayerBackupMeta(settings) {
+  const controlMeta = getDfplayerControlUiMeta(settings, { dfplayer: "on" });
+
+  return {
+    volume: Number(controlMeta.volume || 0),
+    mode: Number(controlMeta.mode || 0),
+    bellFlags: Number(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0),
+    speakCycle: Number(controlMeta.speakCycle || 0),
+    silenceStart: Number(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
+    silenceStop: Number(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0),
+    alarms: getDfplayerUiMeta(settings).alarms
+  };
 }
 
 async function ensureBackupExportState() {
@@ -1727,13 +2061,7 @@ async function exportSettingsBackup() {
   beginButtonFeedback(button, "exportiert...");
 
   try {
-    await ensureBackupExportState();
-
-    const backup = buildSettingsBackup(
-      getCurrentSettingsSnapshot() || parseSettings(""),
-      getCurrentEepromSettings(),
-      getCurrentUpdateTableInfo()
-    );
+    const backup = await prepareBackupExportDocument();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
@@ -1764,15 +2092,7 @@ async function importSettingsBackup() {
   beginButtonFeedback(button, "importiert...");
 
   try {
-    const backup = JSON.parse(await file.text());
-
-    if (backup.format !== BACKUP_FORMAT) {
-      throw new Error("invalid-backup-format");
-    }
-
-    if (Number(backup.version || 0) !== BACKUP_VERSION) {
-      throw new Error("unsupported-backup-version");
-    }
+    const importedState = await loadImportedBackupState(file);
 
     if (!window.confirm("Einstellungen aus „" + file.name + "“ jetzt importieren?")) {
       finishButtonFeedback(button, "Einstellungen importieren");
@@ -1781,62 +2101,22 @@ async function importSettingsBackup() {
 
     setSettingsBackupNote("Starte Wiederherstellung der Sicherung...");
     hasUnsavedEdits = false;
-    await applySettingsBackup(backup);
+    await applySettingsBackup(importedState);
     finishButtonFeedback(button, "Einstellungen importieren", "success", "importiert");
   } catch (error) {
-    const message = error && error.message === "invalid-backup-format"
-      ? "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei."
-      : error && error.message === "unsupported-backup-version"
-        ? "Inkompatible Backup-Version – Datei mit einer neueren App erstellt."
-        : "Einstellungen konnten nicht importiert werden.";
-    setSettingsBackupNote(message, "error");
+    setSettingsBackupNote(getSettingsBackupImportErrorMessage(error), "error");
     finishButtonFeedback(button, "Einstellungen importieren", "error", "Fehler");
   }
 }
 
 async function applySettingsBackup(backup) {
-  const settings = backup && backup.settings ? backup.settings : {};
+  const importedState = backup && backup.executionState
+    ? backup
+    : buildImportedBackupState(backup);
 
   settingsImportInProgress = true;
   try {
-    await runImportPhase(() => importMaintenanceSettings(settings.maintenance), { pauseMs: 250 });
-    await runImportPhase(() => restoreBackupAssets(backup && backup.assets ? backup.assets : {}, settings), { pauseMs: 250 });
-    await runImportPhase(() => importDisplaySettings(settings.display), { pauseMs: 250 });
-    await runImportPhase(() => importClimateSettings(settings.climate), { pauseMs: 250 });
-    await runImportPhase(() => importAnimationSettings(settings.animations), { pauseMs: 250 });
-    await runImportPhase(() => importTftSettings(settings.tft), { pauseMs: 250 });
-    await runImportPhase(() => importAmbilightSettings(settings.ambilight), { pauseMs: 250 });
-    await runImportPhase(() => importDfplayerSettings(settings.dfplayer), { pauseMs: 250 });
-    await runImportPhase(() => importOverlaySettings(settings.overlays), { pauseMs: 500 });
-    await runImportPhase(() => importTimerSettings(settings.timers), { pauseMs: 800 });
-    setSettingsBackupNote("Prüfe importierte Einstellungen...");
-    await reloadImportedData(600);
-    await retryImportedSectionsIfNeeded(settings);
-    await reloadImportedData(400);
-    await runImportPhase(() => importNetworkSettings(settings.network), { pauseMs: 400, reload: true });
-    await retryImportedNetworkSettingsIfNeeded(settings.network);
-    await sleep(400);
-    await runImportPhase(() => importSensorCorrectionSettings(settings.climate), { pauseMs: 600, reload: true });
-    if (sensorCorrectionsImportNeedsRetry(settings.climate, getCurrentSettingsSnapshot())) {
-      await rerunImportStep("Übernehme Sensor-Korrekturen erneut...", () => importSensorCorrectionSettings(settings.climate), {
-        pauseMs: 600,
-        reload: true
-      });
-    }
-    await finalizeImportedCriticalPersistenceSettings(settings);
-    await finalizeRtcCorrectionPersistence(settings.climate);
-    setSettingsBackupNote("Warte, bis Einstellungen dauerhaft gespeichert sind...");
-    await reloadImportedData(5000);
-    setSettingsBackupNote("Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...");
-    announceStatus("Import abgeschlossen. STM32 wird automatisch neu gestartet", "warn");
-    await apiFetch(getMaintenanceResetStm32Url());
-    await sleep(4500);
-    await finalizeRtcCorrectionPersistence(settings.climate);
-    setSettingsBackupNote("STM32 wurde neu gestartet. Lade Daten neu...");
-    await loadData();
-    setSettingsBackupNote("Import abgeschlossen. App wird neu geladen...", "success");
-    announceStatus("Import abgeschlossen. App wird neu geladen", "ok");
-    setTimeout(reloadAppPage, 1200);
+    await runImportWorkflow(importedState.executionState);
   } finally {
     settingsImportInProgress = false;
   }
@@ -1847,25 +2127,12 @@ function networkImportNeedsRetry(network, settings, eepromSettings) {
     return false;
   }
 
-  const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
+  const current = getImportComparisonMeta(settings, eepromSettings).network;
 
-  if (String(network.timeserver || "") !== String(settings.strvars[STR.TIMESERVER] || "")) {
-    return true;
-  }
-
-  if (Number(network.timezone_offset || 0) !== Number(timezone.offset || 0)) {
-    return true;
-  }
-
-  if (!!network.summertime !== !!timezone.summertime) {
-    return true;
-  }
-
-  if (eepromSettings && eepromSettings.ok && !!network.boot_as_ap !== !!eepromSettings.boot_as_ap) {
-    return true;
-  }
-
-  return false;
+  return String(network.timeserver || "") !== String(current.timeserver || "") ||
+    Number(network.timezone_offset || 0) !== Number(current.timezone_offset || 0) ||
+    !!network.summertime !== !!current.summertime ||
+    (!!(eepromSettings && eepromSettings.ok) && !!network.boot_as_ap !== !!current.boot_as_ap);
 }
 
 async function runImportPhase(step, options) {
@@ -1881,6 +2148,59 @@ async function runImportPhase(step, options) {
   }
 }
 
+async function runTimedImportPhase(step, pauseMs) {
+  await runImportPhase(step, { pauseMs });
+}
+
+async function runReloadingImportPhase(step, pauseMs) {
+  await runImportPhase(step, { pauseMs, reload: true });
+}
+
+async function runImportStageList(stages) {
+  for (const stage of (stages || [])) {
+    if (!stage || stage.when === false) {
+      continue;
+    }
+
+    if (stage.note) {
+      setSettingsBackupNote(stage.note);
+    }
+
+    if (stage.reloadOnly) {
+      await reloadImportedData(stage.pauseMs || 0);
+      continue;
+    }
+
+    if (typeof stage.run !== "function") {
+      if (stage.pauseMs > 0) {
+        await sleep(stage.pauseMs);
+      }
+      continue;
+    }
+
+    if (stage.reload) {
+      await runReloadingImportPhase(stage.run, stage.pauseMs || 0);
+    } else {
+      await runTimedImportPhase(stage.run, stage.pauseMs || 0);
+    }
+  }
+}
+
+async function runConditionalImportRetryStages(stages) {
+  for (const stage of (stages || [])) {
+    if (!stage) {
+      continue;
+    }
+
+    await runConditionalImportRetry(
+      !!stage.shouldRetry,
+      stage.note,
+      stage.run,
+      stage.options
+    );
+  }
+}
+
 async function reloadImportedData(pauseMs) {
   if (pauseMs > 0) {
     await sleep(pauseMs);
@@ -1893,17 +2213,303 @@ async function rerunImportStep(note, step, options) {
   await runImportPhase(step, options);
 }
 
+async function runConditionalImportRetry(shouldRetry, note, step, options) {
+  if (!shouldRetry) {
+    return;
+  }
+
+  await rerunImportStep(note, step, options);
+}
+
+function buildImportExecutionState(baseState) {
+  return {
+    backup: baseState && baseState.backup ? baseState.backup : {},
+    settings: baseState && baseState.settings ? baseState.settings : {},
+    assets: baseState && baseState.assets ? baseState.assets : {},
+    climate: baseState && baseState.climate ? baseState.climate : null,
+    network: baseState && baseState.network ? baseState.network : null,
+    maintenance: baseState && baseState.maintenance ? baseState.maintenance : null
+  };
+}
+
+function buildImportRuntimeState(baseState) {
+  const state = baseState || {};
+  return {
+    execution: buildImportExecutionState(state),
+    retry: buildImportRetryExecutionState(state.settings, state.snapshot, state.eepromSettings)
+  };
+}
+
+function getImportExecutionState(backup, settings) {
+  const importSettings = settings || {};
+  return buildImportRuntimeState({
+    backup: backup || {},
+    settings: importSettings,
+    assets: (backup && backup.assets) || {},
+    climate: importSettings.climate || null,
+    network: importSettings.network || null,
+    maintenance: importSettings.maintenance || null
+  }).execution;
+}
+
+function buildImportWorkflowPlan(executionState) {
+  return {
+    primary: buildPrimaryImportStages(executionState),
+    postPrimary: buildPostPrimaryImportStages(executionState),
+    restart: buildImportRestartPlan(executionState)
+  };
+}
+
+async function runImportWorkflow(executionState) {
+  const plan = buildImportWorkflowPlan(executionState);
+  await runImportStageList(plan.primary);
+  await runImportStageList(plan.postPrimary);
+  await finalizeImportRestartAndReload(plan.restart);
+}
+
+function buildPostPrimaryImportStages(executionState) {
+  const settings = executionState && executionState.settings ? executionState.settings : {};
+  const network = executionState && executionState.network ? executionState.network : null;
+  const climate = executionState && executionState.climate ? executionState.climate : null;
+
+  return [
+    {
+      note: "Prüfe importierte Einstellungen...",
+      reloadOnly: true,
+      pauseMs: 600
+    },
+    {
+      note: "Prüfe Display, Klima, Overlays und Timer...",
+      run: () => retryImportedSectionsIfNeeded(settings)
+    },
+    {
+      note: "Lade aktualisierte Gerätedaten neu...",
+      reloadOnly: true,
+      pauseMs: 400
+    },
+    {
+      when: !!network,
+      note: "Übernehme Netzwerk-Einstellungen abschließend...",
+      run: () => importNetworkSettings(network),
+      reload: true,
+      pauseMs: 400
+    },
+    {
+      when: !!network,
+      note: "Prüfe Netzwerk-Einstellungen erneut...",
+      run: () => retryImportedNetworkSettingsIfNeeded(network)
+    },
+    {
+      note: "Warte auf die Übernahme der Netzwerkeinstellungen...",
+      pauseMs: 400
+    },
+    {
+      when: !!climate,
+      note: "Übernehme Sensor-Korrekturen abschließend...",
+      run: () => importSensorCorrectionSettings(climate),
+      reload: true,
+      pauseMs: 600
+    },
+    {
+      when: !!climate,
+      note: "Prüfe Sensor-Korrekturen erneut...",
+      run: () => rerunSensorCorrectionImportIfNeeded(climate)
+    },
+    {
+      note: "Schreibe kritische Einstellungen dauerhaft...",
+      run: () => finalizeImportedCriticalPersistenceSettings(settings)
+    },
+    {
+      when: !!climate,
+      note: "Schreibe Temperatur-Korrekturen endgültig...",
+      run: () => finalizeTemperatureCorrectionPersistence(climate)
+    },
+    {
+      note: "Warte, bis Einstellungen dauerhaft gespeichert sind...",
+      reloadOnly: true,
+      pauseMs: 5000
+    }
+  ];
+}
+
+async function runPostPrimaryImportStages(settings) {
+  await runImportStageList(buildPostPrimaryImportStages(getImportExecutionState(null, settings)));
+}
+
+async function rerunSensorCorrectionImportIfNeeded(climate) {
+  if (!climate || !sensorCorrectionsImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
+    return;
+  }
+
+  await rerunImportStep(
+    "Übernehme Sensor-Korrekturen erneut...",
+    () => importSensorCorrectionSettings(climate),
+    { pauseMs: 600, reload: true }
+  );
+}
+
+function buildImportRestartPlan(executionState) {
+  return {
+    climate: executionState && executionState.climate ? executionState.climate : null
+  };
+}
+
+async function finalizeImportRestartAndReload(restartPlan) {
+  const climate = restartPlan && restartPlan.climate ? restartPlan.climate : null;
+
+  setSettingsBackupNote("Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...");
+  announceStatus("Import abgeschlossen. STM32 wird automatisch neu gestartet", "warn");
+  await apiFetch(getMaintenanceResetStm32Url());
+  await sleep(4500);
+  try {
+    if (climate) {
+      await finalizeTemperatureCorrectionPersistence(climate);
+    }
+    setSettingsBackupNote("STM32 wurde neu gestartet. Lade Daten neu...");
+    await loadData();
+    setSettingsBackupNote("Import abgeschlossen. App wird neu geladen...", "success");
+    announceStatus("Import abgeschlossen. App wird neu geladen", "ok");
+  } catch (error) {
+    setSettingsBackupNote("Import abgeschlossen. Uhr startet neu, App wird aktualisiert...", "success");
+    announceStatus("Import abgeschlossen. Verbindung wird nach dem Neustart erneut aufgebaut", "ok");
+  }
+  setTimeout(reloadAppPage, 1200);
+}
+
+function buildPrimaryImportStages(executionState) {
+  const settings = executionState && executionState.settings ? executionState.settings : {};
+  const assets = executionState && executionState.assets ? executionState.assets : {};
+  return [
+    { note: "Übernehme Wartungs-Einstellungen...", run: () => importMaintenanceSettings(settings.maintenance), pauseMs: 250 },
+    { note: "Stelle Dateien und Assets wieder her...", run: () => restoreBackupAssets(assets, settings), pauseMs: 250 },
+    { note: "Übernehme Display-Einstellungen...", run: () => importDisplaySettings(settings.display), pauseMs: 250 },
+    { note: "Übernehme Klima- und Wetter-Einstellungen...", run: () => importClimateSettings(settings.climate), pauseMs: 250 },
+    { note: "Übernehme Animations-Einstellungen...", run: () => importAnimationSettings(settings.animations), pauseMs: 250 },
+    { note: "Übernehme TFT-Einstellungen...", run: () => importTftSettings(settings.tft), pauseMs: 250 },
+    { note: "Übernehme Ambilight-Einstellungen...", run: () => importAmbilightSettings(settings.ambilight), pauseMs: 250 },
+    { note: "Übernehme DFPlayer-Einstellungen...", run: () => importDfplayerSettings(settings.dfplayer), pauseMs: 250 },
+    { note: "Übernehme Overlays...", run: () => importOverlaySettings(settings.overlays), pauseMs: 500 },
+    { note: "Übernehme Timer...", run: () => importTimerSettings(settings.timers), pauseMs: 800 }
+  ];
+}
+
+function buildImportRetryExecutionState(settings, snapshot, eepromSettings) {
+  const currentSnapshot = snapshot || getCurrentSettingsSnapshot();
+  const currentEepromSettings = eepromSettings || getCurrentEepromSettings();
+
+  return {
+    settings: settings || {},
+    snapshot: currentSnapshot,
+    eepromSettings: currentEepromSettings
+  };
+}
+
+function buildSectionRetryStages(retryState) {
+  const settings = retryState && retryState.settings ? retryState.settings : {};
+  const snapshot = retryState && retryState.snapshot ? retryState.snapshot : null;
+
+  return [
+    {
+      shouldRetry: displayImportNeedsRetry(settings.display, snapshot),
+      note: "Übernehme Display-Einstellungen erneut...",
+      run: () => importDisplaySettings(settings.display)
+    },
+    {
+      shouldRetry: climateImportNeedsRetry(settings.climate, snapshot),
+      note: "Übernehme Klima- und Wetter-Einstellungen erneut...",
+      run: () => importClimateSettings(settings.climate)
+    },
+    {
+      shouldRetry: overlaysImportNeedsRetry(settings.overlays, snapshot),
+      note: "Übernehme Overlays erneut...",
+      run: () => importOverlaySettings(settings.overlays)
+    },
+    {
+      shouldRetry: timersImportNeedsRetry(settings.timers, snapshot),
+      note: "Übernehme Timer erneut...",
+      run: () => importTimerSettings(settings.timers)
+    }
+  ];
+}
+
+function buildClimateFinalizationRetryStages(retryState) {
+  const climate = retryState && retryState.settings ? retryState.settings.climate : null;
+  const snapshot = retryState && retryState.snapshot ? retryState.snapshot : null;
+
+  return [
+    {
+      shouldRetry: sensorCorrectionsImportNeedsRetry(climate, snapshot),
+      note: "Übernehme Temperatur-Korrekturen erneut...",
+      run: () => importSensorCorrectionSettings(climate),
+      options: { pauseMs: 1200, reload: true }
+    },
+    {
+      shouldRetry: rtcCorrectionImportNeedsRetry(climate, snapshot),
+      note: "Übernehme RTC-Korrektur abschließend...",
+      run: () => importRtcCorrectionSetting(climate),
+      options: { pauseMs: 1800, reload: true }
+    },
+    {
+      shouldRetry: rtcCorrectionImportNeedsRetry(climate, snapshot),
+      note: "Übernehme RTC-Korrektur erneut...",
+      run: () => importRtcCorrectionSetting(climate),
+      options: { pauseMs: 2200, reload: true }
+    }
+  ];
+}
+
+function buildNetworkRetryStages(retryState) {
+  const network = retryState && retryState.settings ? retryState.settings.network : null;
+  const snapshot = retryState && retryState.snapshot ? retryState.snapshot : null;
+  const eepromSettings = retryState && retryState.eepromSettings ? retryState.eepromSettings : getCurrentEepromSettings();
+
+  return [
+    {
+      shouldRetry: networkImportNeedsRetry(network, snapshot, eepromSettings),
+      note: "Übernehme Netzwerk- und Zeiteinstellungen erneut...",
+      run: () => importNetworkSettings(network),
+      options: { pauseMs: 400, reload: true }
+    }
+  ];
+}
+
+function buildNetworkTimeRetryStages(retryState) {
+  const network = retryState && retryState.settings ? retryState.settings.network : null;
+  const snapshot = retryState && retryState.snapshot ? retryState.snapshot : null;
+  const eepromSettings = retryState && retryState.eepromSettings ? retryState.eepromSettings : getCurrentEepromSettings();
+
+  return [
+    {
+      shouldRetry: networkImportNeedsRetry(network, snapshot, eepromSettings),
+      note: "Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...",
+      run: () => importNetworkTimeSettings(network),
+      options: { pauseMs: 1500, reload: true }
+    }
+  ];
+}
+
+function buildMaintenanceRetryStages(retryState) {
+  const maintenance = retryState && retryState.settings ? retryState.settings.maintenance : null;
+  const snapshot = retryState && retryState.snapshot ? retryState.snapshot : null;
+
+  return [
+    {
+      shouldRetry: maintenanceImportNeedsRetry(maintenance, snapshot),
+      note: "Übernehme Update-Host und Update-Pfad erneut...",
+      run: () => importMaintenanceSettings(maintenance),
+      options: { pauseMs: 1500, reload: true }
+    }
+  ];
+}
+
 async function retryImportedNetworkSettingsIfNeeded(network) {
   if (!network) {
     return;
   }
 
-  if (networkImportNeedsRetry(network, getCurrentSettingsSnapshot(), getCurrentEepromSettings())) {
-    await rerunImportStep("Übernehme Netzwerk- und Zeiteinstellungen erneut...", () => importNetworkSettings(network), {
-      pauseMs: 400,
-      reload: true
-    });
-  }
+  await runConditionalImportRetryStages(
+    buildNetworkRetryStages(buildImportRetryExecutionState({ network }))
+  );
 }
 
 async function finalizeImportedNetworkTimeSettings(network) {
@@ -1912,14 +2518,11 @@ async function finalizeImportedNetworkTimeSettings(network) {
   }
 
   setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen abschließend...");
-  await runImportPhase(() => importNetworkTimeSettings(network), { pauseMs: 1000, reload: true });
+  await runReloadingImportPhase(() => importNetworkTimeSettings(network), 1000);
 
-  if (networkImportNeedsRetry(network, getCurrentSettingsSnapshot(), getCurrentEepromSettings())) {
-    await rerunImportStep("Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...", () => importNetworkTimeSettings(network), {
-      pauseMs: 1500,
-      reload: true
-    });
-  }
+  await runConditionalImportRetryStages(
+    buildNetworkTimeRetryStages(buildImportRetryExecutionState({ network }))
+  );
 }
 
 async function finalizeImportedCriticalPersistenceSettings(settings) {
@@ -1929,7 +2532,7 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
 
   if (climate) {
     setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschließend...");
-    await runImportPhase(() => importSensorCorrectionSettings(climate), { pauseMs: 1000 });
+    await runTimedImportPhase(() => importSensorCorrectionSettings(climate), 1000);
   }
 
   if (network) {
@@ -1938,81 +2541,57 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
 
   if (maintenance) {
     setSettingsBackupNote("Übernehme Update-Host und Update-Pfad abschließend...");
-    await runImportPhase(() => importMaintenanceSettings(maintenance), { pauseMs: 1000, reload: true });
+    await runReloadingImportPhase(() => importMaintenanceSettings(maintenance), 1000);
 
-    if (maintenanceImportNeedsRetry(maintenance, getCurrentSettingsSnapshot())) {
-      await rerunImportStep("Übernehme Update-Host und Update-Pfad erneut...", () => importMaintenanceSettings(maintenance), {
-        pauseMs: 1500,
-        reload: true
-      });
-    }
+    await runConditionalImportRetryStages(
+      buildMaintenanceRetryStages(buildImportRetryExecutionState({ maintenance }))
+    );
   }
 
   if (climate) {
     await loadData();
-    if (sensorCorrectionsImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
-      await rerunImportStep("Übernehme Temperatur-Korrekturen erneut...", () => importSensorCorrectionSettings(climate), {
-        pauseMs: 1200,
-        reload: true
-      });
-    }
-
-    if (rtcCorrectionImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
-      await rerunImportStep("Übernehme RTC-Korrektur abschließend...", () => importRtcCorrectionSetting(climate), {
-        pauseMs: 1800,
-        reload: true
-      });
-
-      if (rtcCorrectionImportNeedsRetry(climate, getCurrentSettingsSnapshot())) {
-        await rerunImportStep("Übernehme RTC-Korrektur erneut...", () => importRtcCorrectionSetting(climate), {
-          pauseMs: 2200,
-          reload: true
-        });
-      }
-    }
+    await runConditionalImportRetryStages(
+      buildClimateFinalizationRetryStages(buildImportRetryExecutionState({ climate }))
+    );
   }
 }
 
 function overlayItemsEqual(expectedItems, actualSettings) {
-  const expected = Array.isArray(expectedItems) ? expectedItems.slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0)) : [];
-  const actual = buildOverlayBackup(actualSettings || {}).slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0));
-
-  if (expected.length !== actual.length) {
-    return false;
-  }
-
-  return expected.every((entry, index) => {
-    const current = actual[index] || {};
-    return !!entry.active === !!current.active &&
-      Number(entry.type || 0) === Number(current.type || 0) &&
-      String(entry.value || "") === String(current.value || "") &&
-      Number(entry.interval || 0) === Number(current.interval || 0) &&
-      Number(entry.duration || 0) === Number(current.duration || 0) &&
-      Number(entry.date_code || 0) === Number(current.date_code || 0) &&
-      Number(entry.month || 0) === Number(current.month || 0) &&
-      Number(entry.day || 0) === Number(current.day || 0) &&
-      Number(entry.days || 0) === Number(current.days || 0);
-  });
+  const state = buildCollectionBackupState(actualSettings);
+  return overlayBackupItemsEqual(
+    normalizeOverlayBackupItems(expectedItems || [], state.overlayCount),
+    buildOverlayBackup(state)
+  );
 }
 
-function timerItemsEqual(expectedItems, actualItems, withAction) {
-  const expected = Array.isArray(expectedItems) ? expectedItems.slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0)) : [];
-  const actual = buildTimerBackup(actualItems || [], withAction).slice().sort((a, b) => Number(a.idx || 0) - Number(b.idx || 0));
+function overlayBackupItemsEqual(expectedItems, actualItems) {
+  const expected = normalizeOverlayBackupItems(expectedItems || []);
+  const actual = normalizeOverlayBackupItems(actualItems || []);
 
-  if (expected.length !== actual.length) {
-    return false;
-  }
+  return normalizedOverlayItemsEqual(expected, actual);
+}
 
-  return expected.every((entry, index) => {
-    const current = actual[index] || {};
-    return Number(entry.idx || 0) === Number(current.idx || 0) &&
-      !!entry.active === !!current.active &&
-      (!withAction || !!entry.switch_on === !!current.switch_on) &&
-      Number(entry.from || 0) === Number(current.from || 0) &&
-      Number(entry.to || 0) === Number(current.to || 0) &&
-      Number(entry.hour || 0) === Number(current.hour || 0) &&
-      Number(entry.minute || 0) === Number(current.minute || 0);
-  });
+function timerItemsEqual(expectedItems, actualItems) {
+  const expected = normalizeTimerBackupItems(expectedItems || []);
+  const actual = normalizeTimerBackupItems(actualItems || []);
+
+  return normalizedTimerItemsEqual(expected, actual);
+}
+
+function getImportRetryCurrentSections(settings, eepromSettings) {
+  return getImportRetryState(settings, eepromSettings).current;
+}
+
+function importFieldMismatch(expected, current, keys) {
+  return (keys || []).some((key) => String((expected || {})[key] || "") !== String((current || {})[key] || ""));
+}
+
+function importNumericFieldMismatch(expected, current, keys) {
+  return (keys || []).some((key) => Number((expected || {})[key] || 0) !== Number((current || {})[key] || 0));
+}
+
+function importBooleanFieldMismatch(expected, current, keys) {
+  return (keys || []).some((key) => !!((expected || {})[key]) !== !!((current || {})[key]));
 }
 
 function displayImportNeedsRetry(display, settings) {
@@ -2020,26 +2599,11 @@ function displayImportNeedsRetry(display, settings) {
     return false;
   }
 
-  const flags = Number(settings.numvars[NUM.DISPLAY_FLAGS] || 0);
-  if (!!display.permanent_it_is !== !!(flags & 0x01)) {
-    return true;
-  }
-  if (Number(display.mode || 0) !== Number(settings.numvars[NUM.DISPLAY_MODE] || 0)) {
-    return true;
-  }
-  if (Number(display.brightness || 0) !== Number(settings.numvars[NUM.DISPLAY_BRIGHTNESS] || 0)) {
-    return true;
-  }
-  if (!!display.automatic_brightness !== !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE]) {
-    return true;
-  }
-  if (String(display.ticker_text || "") !== String(settings.strvars[STR.TICKER_TEXT] || "")) {
-    return true;
-  }
-  if (String(display.date_ticker_format || "") !== String(settings.strvars[STR.DATE_TICKER_FORMAT] || "")) {
-    return true;
-  }
-  return false;
+  const current = getImportRetryCurrentSections(settings).display;
+
+  return importBooleanFieldMismatch(display, current, ["power", "use_rgbw", "automatic_brightness", "permanent_it_is"]) ||
+    importNumericFieldMismatch(display, current, ["mode", "brightness", "ticker_deceleration"]) ||
+    importFieldMismatch(display, current, ["ticker_text", "date_ticker_format"]);
 }
 
 function climateImportNeedsRetry(climate, settings) {
@@ -2047,11 +2611,10 @@ function climateImportNeedsRetry(climate, settings) {
     return false;
   }
 
-  return String(climate.weather_city || "") !== String(settings.strvars[STR.WEATHER_CITY] || "") ||
-    String(climate.weather_lon || "") !== String(settings.strvars[STR.WEATHER_LON] || "") ||
-    String(climate.weather_lat || "") !== String(settings.strvars[STR.WEATHER_LAT] || "") ||
-    Number(climate.ldr_min || 0) !== Number(settings.numvars[NUM.LDR_MIN_VALUE] || 0) ||
-    Number(climate.ldr_max || 0) !== Number(settings.numvars[NUM.LDR_MAX_VALUE] || 0);
+  const current = getImportRetryCurrentSections(settings).climate;
+
+  return importFieldMismatch(climate, current, ["weather_city", "weather_lon", "weather_lat"]) ||
+    importNumericFieldMismatch(climate, current, ["ldr_min", "ldr_max"]);
 }
 
 function sensorCorrectionsImportNeedsRetry(climate, settings) {
@@ -2059,8 +2622,9 @@ function sensorCorrectionsImportNeedsRetry(climate, settings) {
     return false;
   }
 
-  return Number(climate.rtc_temp_correction || 0) !== Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0) ||
-    Number(climate.ds18xx_temp_correction || 0) !== Number(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0);
+  const current = getImportRetryCurrentSections(settings).climate;
+
+  return importNumericFieldMismatch(climate, current, ["rtc_temp_correction", "ds18xx_temp_correction"]);
 }
 
 function rtcCorrectionImportNeedsRetry(climate, settings) {
@@ -2068,7 +2632,9 @@ function rtcCorrectionImportNeedsRetry(climate, settings) {
     return false;
   }
 
-  return Number(climate.rtc_temp_correction || 0) !== Number(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0);
+  const current = getImportRetryCurrentSections(settings).climate;
+
+  return importNumericFieldMismatch(climate, current, ["rtc_temp_correction"]);
 }
 
 function maintenanceImportNeedsRetry(maintenance, settings) {
@@ -2076,8 +2642,37 @@ function maintenanceImportNeedsRetry(maintenance, settings) {
     return false;
   }
 
-  return String(maintenance.update_host || "") !== String(settings.strvars[STR.UPDATE_HOST] || "") ||
-    String(maintenance.update_path || "") !== String(settings.strvars[STR.UPDATE_PATH] || "");
+  const current = getImportRetryCurrentSections(settings).maintenance;
+
+  return importFieldMismatch(maintenance, current, ["update_host", "update_path"]);
+}
+
+function buildImportSectionState(settings, eepromSettings) {
+  const currentEepromSettings = eepromSettings || getCurrentEepromSettings();
+  const groups = buildGroupedBackupSections(settings, currentEepromSettings);
+
+  return {
+    settings: groups.state.settings,
+    eepromSettings: currentEepromSettings,
+    comparable: buildComparableSectionPayload(groups)
+  };
+}
+
+function buildImportComparisonState(settings, eepromSettings) {
+  const sectionState = buildImportSectionState(settings, eepromSettings);
+
+  return {
+    current: sectionState.comparable,
+    eepromSettings: sectionState.eepromSettings
+  };
+}
+
+function getImportComparisonMeta(settings, eepromSettings) {
+  return buildImportComparisonState(settings, eepromSettings).current;
+}
+
+function getImportRetryState(settings, eepromSettings) {
+  return buildImportComparisonState(settings, eepromSettings);
 }
 
 function overlaysImportNeedsRetry(overlays, settings) {
@@ -2085,7 +2680,8 @@ function overlaysImportNeedsRetry(overlays, settings) {
     return false;
   }
 
-  return !overlayItemsEqual(overlays.items || [], settings);
+  const current = getImportRetryCurrentSections(settings);
+  return !overlayBackupItemsEqual(overlays.items || [], current.overlays.items || []);
 }
 
 function timersImportNeedsRetry(timers, settings) {
@@ -2093,32 +2689,20 @@ function timersImportNeedsRetry(timers, settings) {
     return false;
   }
 
-  return !timerItemsEqual(timers.display || [], settings.nighttimes || [], true) ||
-    !timerItemsEqual(timers.ambilight || [], settings.ambinighttimes || [], true);
+  const current = getImportRetryCurrentSections(settings);
+
+  return !timerItemsEqual(timers.display || [], current.timers.display || []) ||
+    !timerItemsEqual(timers.ambilight || [], current.timers.ambilight || []);
 }
 
 async function retryImportedSectionsIfNeeded(settings) {
-  const snapshot = getCurrentSettingsSnapshot();
+  const retryState = buildImportRetryExecutionState(settings);
 
-  if (!snapshot) {
+  if (!retryState.snapshot) {
     return;
   }
 
-  if (displayImportNeedsRetry(settings.display, snapshot)) {
-    await rerunImportStep("Übernehme Display-Einstellungen erneut...", () => importDisplaySettings(settings.display));
-  }
-
-  if (climateImportNeedsRetry(settings.climate, snapshot)) {
-    await rerunImportStep("Übernehme Klima- und Wetter-Einstellungen erneut...", () => importClimateSettings(settings.climate));
-  }
-
-  if (overlaysImportNeedsRetry(settings.overlays, snapshot)) {
-    await rerunImportStep("Übernehme Overlays erneut...", () => importOverlaySettings(settings.overlays));
-  }
-
-  if (timersImportNeedsRetry(settings.timers, snapshot)) {
-    await rerunImportStep("Übernehme Timer erneut...", () => importTimerSettings(settings.timers));
-  }
+  await runConditionalImportRetryStages(buildSectionRetryStages(retryState));
 }
 
 function normalizeFsFileName(name) {
@@ -2433,14 +3017,17 @@ async function importRtcCorrectionSetting(climate) {
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0))));
 }
 
-async function finalizeRtcCorrectionPersistence(climate) {
+async function finalizeTemperatureCorrectionPersistence(climate) {
   if (!climate) {
     return;
   }
 
   const rtcCorrection = Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)));
-  setSettingsBackupNote("Übernehme RTC-Korrektur als letzten Persistenzschritt...");
+  const ds18xxCorrection = Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0)));
+  setSettingsBackupNote("Übernehme Sensor-Korrekturen als letzten Persistenzschritt...");
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), rtcCorrection);
+  await sleep(500);
+  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), ds18xxCorrection);
   await sleep(1800);
   await loadData();
 }
@@ -2639,61 +3226,65 @@ async function saveImportedDimCurve(endpoint, values) {
 }
 
 function updateDateTimeControls(settings) {
-  const current = settings.tmvars[0] || {};
-  document.getElementById("datetime-year-input").value = current.year ? String(current.year) : "";
-  document.getElementById("datetime-month-input").value = current.month ? String(current.month) : "";
-  document.getElementById("datetime-day-input").value = current.day ? String(current.day) : "";
-  document.getElementById("datetime-hour-input").value = current.hour !== undefined ? String(current.hour) : "";
-  document.getElementById("datetime-minute-input").value = current.minute !== undefined ? String(current.minute) : "";
-  document.getElementById("datetime-preview").textContent = formatDateTimePreview(current);
+  updateDateTimeControlsFromMeta(getSettingsControlUiMeta(settings).dateTime);
+}
+
+function updateDateTimeControlsFromMeta(meta) {
+  document.getElementById("datetime-year-input").value = meta.year;
+  document.getElementById("datetime-month-input").value = meta.month;
+  document.getElementById("datetime-day-input").value = meta.day;
+  document.getElementById("datetime-hour-input").value = meta.hour;
+  document.getElementById("datetime-minute-input").value = meta.minute;
+  document.getElementById("datetime-preview").textContent = meta.preview;
 }
 
 function updateTemperatureControls(settings) {
-  renderList("temperature-list", [
-    ["DS18xx", formatHalfDegreeValue(settings.numvars[NUM.DS18XX_IS_UP] ? settings.numvars[NUM.DS18XX_TEMP_INDEX] : null)],
-    ["DS18xx online", onOff(settings.numvars[NUM.DS18XX_IS_UP])],
-    ["RTC", formatHalfDegreeValue(settings.numvars[NUM.RTC_IS_UP] ? settings.numvars[NUM.RTC_TEMP_INDEX] : null)],
-    ["RTC online", onOff(settings.numvars[NUM.RTC_IS_UP])]
-  ]);
+  updateTemperatureControlsFromMeta(getSettingsControlUiMeta(settings).temperature);
+}
 
-  document.getElementById("temperature-ds18xx-correction-input").value = String(settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0);
-  document.getElementById("temperature-rtc-correction-input").value = String(settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0);
+function updateTemperatureControlsFromMeta(meta) {
+  renderList("temperature-list", meta.items);
+  document.getElementById("temperature-ds18xx-correction-input").value = String(meta.ds18xxCorrection);
+  document.getElementById("temperature-rtc-correction-input").value = String(meta.rtcCorrection);
 }
 
 function updateLdrControls(settings) {
-  const autoBrightness = !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE];
+  updateLdrControlsFromMeta(getSettingsControlUiMeta(settings).ldr);
+}
 
-  renderList("ldr-list", [
-    ["Automatische Helligkeit", autoBrightness ? "ein" : "aus"],
-    ["Aktueller LDR-Wert", String(settings.numvars[NUM.LDR_RAW_VALUE] || 0)],
-    ["Minimum", String(settings.numvars[NUM.LDR_MIN_VALUE] || 0)],
-    ["Maximum", String(settings.numvars[NUM.LDR_MAX_VALUE] || 0)]
-  ]);
-
-  document.getElementById("ldr-min-button").disabled = !autoBrightness;
-  document.getElementById("ldr-max-button").disabled = !autoBrightness;
+function updateLdrControlsFromMeta(meta) {
+  renderList("ldr-list", meta.items);
+  document.getElementById("ldr-min-button").disabled = !meta.canStoreBounds;
+  document.getElementById("ldr-max-button").disabled = !meta.canStoreBounds;
 }
 
 function updateAnimationControls(settings) {
+  updateAnimationControlsFromMeta(getSettingsControlUiMeta(settings).animation);
+}
+
+function updateAnimationControlsFromMeta(meta) {
   const animationSelect = document.getElementById("animation-mode-select");
   const colorAnimationSelect = document.getElementById("color-animation-mode-select");
 
-  animationSelect.innerHTML = (settings.dispanims || []).map((entry) => (
+  animationSelect.innerHTML = meta.displayAnimations.map((entry) => (
     '<option value="' + entry.idx + '">' + escapeHtml(localizeAnimationName(entry.name || String(entry.idx))) + "</option>"
   )).join("");
-  animationSelect.value = String(settings.numvars[NUM.ANIMATION_MODE] || 0);
+  animationSelect.value = String(meta.displayAnimationMode);
 
-  colorAnimationSelect.innerHTML = (settings.coloranims || []).map((entry) => (
+  colorAnimationSelect.innerHTML = meta.colorAnimations.map((entry) => (
     '<option value="' + entry.idx + '">' + escapeHtml(localizeAnimationName(entry.name || String(entry.idx))) + "</option>"
   )).join("");
-  colorAnimationSelect.value = String(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
+  colorAnimationSelect.value = String(meta.colorAnimationMode);
 }
 
 function updateTftControls(settings) {
-  const flags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
-  document.getElementById("tft-rgb-checkbox").checked = !!(flags & 0x01);
-  document.getElementById("tft-hflip-checkbox").checked = !!(flags & 0x02);
-  document.getElementById("tft-vflip-checkbox").checked = !!(flags & 0x04);
+  updateTftControlsFromMeta(getSettingsControlUiMeta(settings).tft);
+}
+
+function updateTftControlsFromMeta(meta) {
+  document.getElementById("tft-rgb-checkbox").checked = meta.rgb;
+  document.getElementById("tft-hflip-checkbox").checked = meta.hflip;
+  document.getElementById("tft-vflip-checkbox").checked = meta.vflip;
 }
 
 function updateTftVisibility(settings, debugOverrides) {
@@ -2718,22 +3309,24 @@ function updateAmbilightBrightnessControl(value) {
 }
 
 function updateAmbilightModeControl(settings) {
-  const select = document.getElementById("ambilight-mode-select");
-  const currentMode = settings.numvars[NUM.AMBILIGHT_MODE] || 0;
-  const options = settings.almodes.length ? settings.almodes : [
-    { idx: 0, name: "Uhr" },
-    { idx: 1, name: "Regenbogen" }
-  ];
+  updateAmbilightModeControlFromMeta(getAmbilightUiMeta(settings));
+}
 
-  select.innerHTML = options.map((mode) => (
+function updateAmbilightModeControlFromMeta(meta) {
+  const select = document.getElementById("ambilight-mode-select");
+  select.innerHTML = meta.modes.map((mode) => (
     '<option value="' + mode.idx + '">' + escapeHtml(localizeAmbilightModeName(mode.name || String(mode.idx))) + "</option>"
   )).join("");
-  select.value = String(currentMode);
+  select.value = String(meta.currentMode);
 }
 
 function updateAmbilightNumberControls(settings) {
-  document.getElementById("ambilight-leds-input").value = String(settings.numvars[NUM.AMBILIGHT_LEDS] || 0);
-  document.getElementById("ambilight-offset-input").value = String(settings.numvars[NUM.AMBILIGHT_OFFSET] || 0);
+  updateAmbilightNumberControlsFromMeta(getAmbilightUiMeta(settings));
+}
+
+function updateAmbilightNumberControlsFromMeta(meta) {
+  document.getElementById("ambilight-leds-input").value = String(meta.leds);
+  document.getElementById("ambilight-offset-input").value = String(meta.offset);
 }
 
 function updateColorControls(settings, ambilightOnline, debugOverrides) {
@@ -2792,9 +3385,12 @@ function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAni
 }
 
 function updateDfplayerControls(settings, debugOverrides) {
-  const isUp = getFeatureUiMeta(settings, debugOverrides).moduleState.dfplayerOnline;
+  updateDfplayerControlsFromMeta(getDfplayerControlUiMeta(settings, debugOverrides));
+}
+
+function updateDfplayerControlsFromMeta(meta) {
+  const isUp = meta.online;
   const note = document.getElementById("dfplayer-note");
-  const mode = settings.numvars[NUM.DFPLAYER_MODE] || 0;
 
   document.getElementById("dfplayer-panel").classList.toggle("is-hidden", !isUp);
   note.textContent = isUp ? "DFPlayer ist online." : "DFPlayer ist offline und wird ausgeblendet.";
@@ -2803,22 +3399,25 @@ function updateDfplayerControls(settings, debugOverrides) {
     return;
   }
 
-  document.getElementById("dfplayer-volume-slider").value = settings.numvars[NUM.DFPLAYER_VOLUME] || 0;
+  document.getElementById("dfplayer-volume-slider").value = meta.volume;
   syncDfplayerVolumeLabel();
-  document.getElementById("dfplayer-mode-select").value = String(mode);
-  document.getElementById("dfplayer-bell-15").checked = !!(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] & 0x01);
-  document.getElementById("dfplayer-bell-30").checked = !!(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] & 0x02);
-  document.getElementById("dfplayer-bell-45").checked = !!(settings.numvars[NUM.DFPLAYER_BELL_FLAGS] & 0x04);
-  document.getElementById("dfplayer-speak-cycle-input").value = String(settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0);
-  document.getElementById("dfplayer-silence-start-input").value = minutesToTimeValue(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0);
-  document.getElementById("dfplayer-silence-stop-input").value = minutesToTimeValue(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0);
-  document.getElementById("dfplayer-bell-section").classList.toggle("is-hidden", mode !== 1);
-  document.getElementById("dfplayer-speak-section").classList.toggle("is-hidden", mode !== 2);
+  document.getElementById("dfplayer-mode-select").value = String(meta.mode);
+  document.getElementById("dfplayer-bell-15").checked = meta.bell15;
+  document.getElementById("dfplayer-bell-30").checked = meta.bell30;
+  document.getElementById("dfplayer-bell-45").checked = meta.bell45;
+  document.getElementById("dfplayer-speak-cycle-input").value = String(meta.speakCycle);
+  document.getElementById("dfplayer-silence-start-input").value = meta.silenceStart;
+  document.getElementById("dfplayer-silence-stop-input").value = meta.silenceStop;
+  document.getElementById("dfplayer-bell-section").classList.toggle("is-hidden", meta.mode !== 1);
+  document.getElementById("dfplayer-speak-section").classList.toggle("is-hidden", meta.mode !== 2);
 }
 
 function renderDfplayerAlarmRows(settings) {
+  renderDfplayerAlarmRowsFromMeta(getDfplayerUiMeta(settings).alarms);
+}
+
+function renderDfplayerAlarmRowsFromMeta(alarms) {
   const root = document.getElementById("dfplayer-alarm-list");
-  const alarms = (settings.alarmtimes || []).slice().sort((a, b) => a.idx - b.idx);
 
   root.innerHTML = alarms.map((alarm) => {
     const time = minutesToTimeValue(alarm.minutes || 0);
@@ -2852,8 +3451,11 @@ function renderDfplayerAlarmRows(settings) {
 }
 
 function renderAnimationProfiles(settings) {
+  renderAnimationProfilesFromMeta(getAnimationProfileUiMeta(settings).items);
+}
+
+function renderAnimationProfilesFromMeta(items) {
   const root = document.getElementById("animation-profile-list");
-  const items = (settings.dispanims || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx);
 
   root.innerHTML = items.map((item) => (
     '<section class="profile-card">' +
@@ -2876,8 +3478,11 @@ function renderAnimationProfiles(settings) {
 }
 
 function renderColorAnimationProfiles(settings) {
+  renderColorAnimationProfilesFromMeta(getColorAnimationProfileUiMeta(settings).items);
+}
+
+function renderColorAnimationProfilesFromMeta(items) {
   const root = document.getElementById("color-animation-profile-list");
-  const items = (settings.coloranims || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx);
 
   root.innerHTML = items.map((item) => (
     '<section class="profile-card">' +
@@ -2907,8 +3512,11 @@ function syncProfileRangeValue(prefix, idx) {
 }
 
 function renderAmbilightModeProfiles(settings) {
+  renderAmbilightModeProfilesFromMeta(getAmbilightProfileUiMeta(settings).items);
+}
+
+function renderAmbilightModeProfilesFromMeta(items) {
   const root = document.getElementById("ambilight-profile-list");
-  const items = (settings.almodes || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx);
 
   root.innerHTML = items.length ? items.map((item) => (
     '<section class="alarm-card">' +
@@ -3132,6 +3740,47 @@ function getNetworkUiMeta(settings, networkInfo) {
   };
 }
 
+function getDisplayUiMeta(settings) {
+  return {
+    itIsActive: !!((settings.numvars[NUM.DISPLAY_FLAGS] || 0) & 0x01),
+    currentDisplayMode: settings.numvars[NUM.DISPLAY_MODE] || 0,
+    displayModes: settings.dispmodes.length ? settings.dispmodes : [
+      { idx: 0, name: "Normal" },
+      { idx: 1, name: "Sekunden" },
+      { idx: 2, name: "Datum" },
+      { idx: 3, name: "Temperatur" },
+      { idx: 4, name: "Ticker" }
+    ],
+    tickerText: settings.strvars[STR.TICKER_TEXT] || "",
+    dateFormat: settings.strvars[STR.DATE_TICKER_FORMAT] || "",
+    tickerDeceleration: settings.numvars[NUM.TICKER_DECELERATION] || 0
+  };
+}
+
+function getWeatherUiMeta(settings) {
+  const city = settings.strvars[STR.WEATHER_CITY] || "";
+  const lon = settings.strvars[STR.WEATHER_LON] || "";
+  const lat = settings.strvars[STR.WEATHER_LAT] || "";
+  const parts = [];
+
+  if (city) {
+    parts.push(city);
+  }
+  if (lon || lat) {
+    parts.push((lon || "-") + " / " + (lat || "-"));
+  }
+
+  return {
+    appId: settings.strvars[STR.WEATHER_APPID] || "",
+    city,
+    lon,
+    lat,
+    locationPreview: parts.length
+      ? "Aktuell: " + parts.join(" | ")
+      : "Karte und Suche stehen für die Standortwahl bereit."
+  };
+}
+
 function getMaintenanceUiMeta(settings, eepromSettings, fsInfo, files) {
   const fsInfoItems = [];
 
@@ -3159,6 +3808,230 @@ function getMaintenanceUiMeta(settings, eepromSettings, fsInfo, files) {
   };
 }
 
+function getEnvironmentUiMeta(settings) {
+  return {
+    weather: getWeatherUiMeta(settings),
+    dateTime: getDateTimeUiMeta(settings),
+    temperature: getTemperatureUiMeta(settings),
+    ldr: getLdrUiMeta(settings)
+  };
+}
+
+function getDisplayFormUiMeta(settings) {
+  return {
+    display: getDisplayUiMeta(settings),
+    animation: getAnimationUiMeta(settings),
+    tft: getTftUiMeta(settings)
+  };
+}
+
+function getSettingsControlUiMeta(settings, networkInfo, eepromSettings) {
+  const environmentMeta = getEnvironmentUiMeta(settings);
+  const displayFormMeta = getDisplayFormUiMeta(settings);
+
+  return {
+    weather: environmentMeta.weather,
+    network: getNetworkUiMeta(settings, networkInfo),
+    maintenance: getMaintenanceUiMeta(settings, eepromSettings, null, null),
+    dateTime: environmentMeta.dateTime,
+    temperature: environmentMeta.temperature,
+    ldr: environmentMeta.ldr,
+    animation: displayFormMeta.animation,
+    tft: displayFormMeta.tft
+  };
+}
+
+function getCoreBackupUiMeta(settings, eepromSettings, networkInfo) {
+  const settingsControlMeta = getSettingsControlUiMeta(settings, networkInfo, eepromSettings);
+  const displayFormMeta = getDisplayFormUiMeta(settings);
+
+  return {
+    display: displayFormMeta.display,
+    weather: settingsControlMeta.weather,
+    network: settingsControlMeta.network,
+    maintenance: settingsControlMeta.maintenance,
+    temperature: settingsControlMeta.temperature,
+    ldr: settingsControlMeta.ldr,
+    animation: displayFormMeta.animation
+  };
+}
+
+function getAdvancedSettingsUiMeta(settings, ambilightOnline, debugOverrides) {
+  return {
+    ambilight: getAmbilightUiMeta(settings),
+    dfplayer: getDfplayerUiMeta(settings),
+    animationProfiles: getAnimationProfileUiMeta(settings),
+    colorAnimationProfiles: getColorAnimationProfileUiMeta(settings),
+    ambilightProfiles: getAmbilightProfileUiMeta(settings),
+    dimCurves: getDimCurveUiMeta(settings),
+    dfplayerControl: getDfplayerControlUiMeta(settings, debugOverrides),
+    overlays: getOverlayUiMeta(settings),
+    timers: getTimerUiMeta(settings, false),
+    ambilightTimers: getTimerUiMeta(settings, true),
+    flags: getFlagUiMeta(settings, ambilightOnline)
+  };
+}
+
+function getDateTimeUiMeta(settings) {
+  const current = settings.tmvars[0] || {};
+
+  return {
+    year: current.year ? String(current.year) : "",
+    month: current.month ? String(current.month) : "",
+    day: current.day ? String(current.day) : "",
+    hour: current.hour !== undefined ? String(current.hour) : "",
+    minute: current.minute !== undefined ? String(current.minute) : "",
+    preview: formatDateTimePreview(current)
+  };
+}
+
+function getTemperatureUiMeta(settings) {
+  return {
+    items: [
+      ["DS18xx", formatHalfDegreeValue(settings.numvars[NUM.DS18XX_IS_UP] ? settings.numvars[NUM.DS18XX_TEMP_INDEX] : null)],
+      ["DS18xx online", onOff(settings.numvars[NUM.DS18XX_IS_UP])],
+      ["RTC", formatHalfDegreeValue(settings.numvars[NUM.RTC_IS_UP] ? settings.numvars[NUM.RTC_TEMP_INDEX] : null)],
+      ["RTC online", onOff(settings.numvars[NUM.RTC_IS_UP])]
+    ],
+    ds18xxCorrection: settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0,
+    rtcCorrection: settings.numvars[NUM.RTC_TEMP_CORRECTION] || 0
+  };
+}
+
+function getLdrUiMeta(settings) {
+  const autoBrightness = !!settings.numvars[NUM.DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE];
+
+  return {
+    canStoreBounds: autoBrightness,
+    items: [
+      ["Automatische Helligkeit", autoBrightness ? "ein" : "aus"],
+      ["Aktueller LDR-Wert", String(settings.numvars[NUM.LDR_RAW_VALUE] || 0)],
+      ["Minimum", String(settings.numvars[NUM.LDR_MIN_VALUE] || 0)],
+      ["Maximum", String(settings.numvars[NUM.LDR_MAX_VALUE] || 0)]
+    ]
+  };
+}
+
+function getAnimationUiMeta(settings) {
+  return {
+    displayAnimations: settings.dispanims || [],
+    displayAnimationMode: settings.numvars[NUM.ANIMATION_MODE] || 0,
+    colorAnimations: settings.coloranims || [],
+    colorAnimationMode: settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0
+  };
+}
+
+function getTftUiMeta(settings) {
+  const flags = settings.numvars[NUM.SSD1963_FLAGS] || 0;
+
+  return {
+    rgb: !!(flags & 0x01),
+    hflip: !!(flags & 0x02),
+    vflip: !!(flags & 0x04)
+  };
+}
+
+function getAmbilightUiMeta(settings) {
+  return {
+    currentMode: settings.numvars[NUM.AMBILIGHT_MODE] || 0,
+    modes: settings.almodes.length ? settings.almodes : [
+      { idx: 0, name: "Uhr" },
+      { idx: 1, name: "Regenbogen" }
+    ],
+    leds: settings.numvars[NUM.AMBILIGHT_LEDS] || 0,
+    offset: settings.numvars[NUM.AMBILIGHT_OFFSET] || 0
+  };
+}
+
+function getDfplayerUiMeta(settings) {
+  return {
+    alarms: (settings.alarmtimes || []).slice().sort((a, b) => a.idx - b.idx)
+  };
+}
+
+function getAnimationProfileUiMeta(settings) {
+  return {
+    items: (settings.dispanims || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx)
+  };
+}
+
+function getColorAnimationProfileUiMeta(settings) {
+  return {
+    items: (settings.coloranims || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx)
+  };
+}
+
+function getAmbilightProfileUiMeta(settings) {
+  return {
+    items: (settings.almodes || []).filter((entry) => entry.flags & 0x01).sort((a, b) => a.idx - b.idx)
+  };
+}
+
+function getDimCurveUiMeta(settings) {
+  return {
+    displayValues: settings.num8arrays[0] || {},
+    ambilightValues: settings.num8arrays[1] || {}
+  };
+}
+
+function getDfplayerControlUiMeta(settings, debugOverrides) {
+  const bellFlags = settings.numvars[NUM.DFPLAYER_BELL_FLAGS] || 0;
+  const mode = settings.numvars[NUM.DFPLAYER_MODE] || 0;
+
+  return {
+    online: getFeatureUiMeta(settings, debugOverrides).moduleState.dfplayerOnline,
+    volume: settings.numvars[NUM.DFPLAYER_VOLUME] || 0,
+    mode,
+    bell15: !!(bellFlags & 0x01),
+    bell30: !!(bellFlags & 0x02),
+    bell45: !!(bellFlags & 0x04),
+    speakCycle: settings.numvars[NUM.DFPLAYER_SPEAK_CYCLE] || 0,
+    silenceStart: minutesToTimeValue(settings.numvars[NUM.DFPLAYER_SILENCE_START] || 0),
+    silenceStop: minutesToTimeValue(settings.numvars[NUM.DFPLAYER_SILENCE_STOP] || 0)
+  };
+}
+
+function getOverlayUiMeta(settings) {
+  const count = settings.numvars[NUM.OVERLAY_N_OVERLAYS] || 0;
+  const items = (settings.overlays || []).filter((overlay) => overlay.idx < count).slice();
+
+  if (count < 32) {
+    items.push({
+      idx: count,
+      type: 0,
+      interval: 5,
+      duration: 5,
+      date_code: 0,
+      date_start: 0,
+      days: 1,
+      flags: 0,
+      text: "",
+      isNew: true
+    });
+  }
+
+  return { items };
+}
+
+function getTimerUiMeta(settings, isAmbilight) {
+  return {
+    items: (isAmbilight ? settings.ambinighttimes : settings.nighttimes || []).slice().sort((a, b) => a.idx - b.idx)
+  };
+}
+
+function getFlagUiMeta(settings, ambilightOnline) {
+  const flags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
+  const clockMode = (settings.almodes || []).find((entry) => entry.idx === 0) || null;
+  const markersEnabled = !!(((clockMode && clockMode.flags) || 0) & 0x02);
+
+  return {
+    syncAmbilight: ambilightOnline && !!(flags & 0x02),
+    syncMarkers: ambilightOnline && !!(flags & 0x04),
+    fadeClockSeconds: ambilightOnline && !!(flags & 0x08),
+    ambilightMarkers: ambilightOnline && markersEnabled
+  };
+}
+
 function getUpdateUiViewMeta(updateMeta) {
   return {
     canUpdate: !!(updateMeta && updateMeta.summary && updateMeta.summary.canUpdate),
@@ -3169,10 +4042,14 @@ function getUpdateUiViewMeta(updateMeta) {
 }
 
 function renderDimCurves(settings) {
+  renderDimCurvesFromMeta(getDimCurveUiMeta(settings));
+}
+
+function renderDimCurvesFromMeta(meta) {
   populateDimPresetSelect("display-dim-preset-select");
   populateDimPresetSelect("ambilight-dim-preset-select");
-  renderDimCurveList("display-dim-list", settings.num8arrays[0] || {}, "disp");
-  renderDimCurveList("ambilight-dim-list", settings.num8arrays[1] || {}, "ambi");
+  renderDimCurveList("display-dim-list", meta.displayValues, "disp");
+  renderDimCurveList("ambilight-dim-list", meta.ambilightValues, "ambi");
   syncDimPresetSelection("disp");
   syncDimPresetSelection("ambi");
 }
@@ -3272,25 +4149,11 @@ async function applyDimPresetAndSave(prefix) {
 }
 
 function renderOverlayRows(settings) {
-  const root = document.getElementById("overlay-list");
-  const count = settings.numvars[NUM.OVERLAY_N_OVERLAYS] || 0;
-  const activeOverlays = (settings.overlays || []).filter((overlay) => overlay.idx < count);
-  const items = activeOverlays.slice();
+  renderOverlayRowsFromMeta(getOverlayUiMeta(settings).items);
+}
 
-  if (count < 32) {
-    items.push({
-      idx: count,
-      type: 0,
-      interval: 5,
-      duration: 5,
-      date_code: 0,
-      date_start: 0,
-      days: 1,
-      flags: 0,
-      text: "",
-      isNew: true
-    });
-  }
+function renderOverlayRowsFromMeta(items) {
+  const root = document.getElementById("overlay-list");
 
   root.innerHTML = items.map((overlay) => {
     const type = overlay.type || 0;
@@ -3360,8 +4223,11 @@ function renderOverlayRows(settings) {
 }
 
 function renderTimerRows(settings, isAmbilight) {
+  renderTimerRowsFromMeta(getTimerUiMeta(settings, isAmbilight).items, isAmbilight);
+}
+
+function renderTimerRowsFromMeta(items, isAmbilight) {
   const root = document.getElementById(isAmbilight ? "ambilight-timer-list" : "timer-list");
-  const items = (isAmbilight ? settings.ambinighttimes : settings.nighttimes || []).slice().sort((a, b) => a.idx - b.idx);
 
   root.innerHTML = items.map((item) => {
     const idx = item.idx;
@@ -3412,17 +4278,15 @@ function setColorControl(prefix, color, useRgbw, syncTheme) {
 }
 
 function updateFlagControls(settings, ambilightOnline) {
-  const flags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
-  const ambilightModes = settings.almodes || [];
-  const clockMode = ambilightModes.find((entry) => entry.idx === 0);
-  const clockModeData = clockMode ? clockMode : null;
+  updateFlagControlsFromMeta(getFlagUiMeta(settings, ambilightOnline));
+}
 
-  setActionToggleButton("sync-ambilight-button", "Ambilight-Synchronisierung deaktivieren", "Ambilight synchronisieren", ambilightOnline && !!(flags & 0x02));
-  setActionToggleButton("sync-markers-button", "Marker-Synchronisierung deaktivieren", "Marker synchronisieren", ambilightOnline && !!(flags & 0x04));
-  setActionToggleButton("fade-clock-seconds-button", "Weiches Ausblenden deaktivieren", "Sekunden weich ausblenden", ambilightOnline && !!(flags & 0x08));
+function updateFlagControlsFromMeta(meta) {
 
-  const markersEnabled = !!(((clockModeData && clockModeData.flags) || 0) & 0x02);
-  setActionToggleButton("ambilight-markers-button", "5-Sekunden-Marker deaktivieren", "5-Sekunden-Marker aktivieren", ambilightOnline && markersEnabled);
+  setActionToggleButton("sync-ambilight-button", "Ambilight-Synchronisierung deaktivieren", "Ambilight synchronisieren", meta.syncAmbilight);
+  setActionToggleButton("sync-markers-button", "Marker-Synchronisierung deaktivieren", "Marker synchronisieren", meta.syncMarkers);
+  setActionToggleButton("fade-clock-seconds-button", "Weiches Ausblenden deaktivieren", "Sekunden weich ausblenden", meta.fadeClockSeconds);
+  setActionToggleButton("ambilight-markers-button", "5-Sekunden-Marker deaktivieren", "5-Sekunden-Marker aktivieren", meta.ambilightMarkers);
 }
 
 function setActionToggleButton(id, onText, offText, enabled) {
@@ -3922,16 +4786,10 @@ async function uploadLocalEspUpdate(event) {
   stopUpdateProgressPolling();
   announceStatus("ESP-Firmware wird lokal hochgeladen...", "warn");
   document.getElementById("local-update-note").textContent = "ESP-Firmware wird lokal hochgeladen...";
-  document.getElementById("update-progress-shell").classList.remove("is-hidden");
-  document.getElementById("update-progress-visual").classList.add("is-hidden");
-  document.getElementById("update-progress-frame").classList.add("is-hidden");
-  document.getElementById("update-progress-note").textContent = "Lokales ESP-Update wird vorbereitet.";
-  document.getElementById("updated-at").textContent = "Lokales ESP-Update wird vorbereitet.";
   pendingProgressAction = "esp-local-update";
   pendingProgressButtonId = "local-update-esp-submit-button";
   button.dataset.restoreText = "ESP lokal aktualisieren";
-  rememberProgressReturnScrollPosition();
-  document.getElementById("update-progress-shell").scrollIntoView({ behavior: "smooth", block: "start" });
+  showRemoteUpdateProgressShell("esp-local-update", "Lokales ESP-Update wird vorbereitet.", pendingProgressButtonId);
 
   try {
     await uploadRawFile(
@@ -3961,14 +4819,7 @@ async function uploadLocalEspUpdate(event) {
   }
   document.getElementById("update-progress-note").textContent = "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.";
   announceStatus("ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.", "warn");
-  waitForDeviceReady(90000, 3000, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
-    forcedReloadAfterMs: 90000,
-    reloadWatchdogDelayMs: 95000,
-    requireReconnectCycle: true,
-    requiredStableSuccesses: 2,
-    probes: buildDeviceReadyProbes(),
-    waitingMessage: "Lokales ESP-Update läuft. Warte auf Neustart und Reconnect..."
-  });
+  startEspUpdateReconnectWatch(true);
 }
 
 async function uploadLocalStm32Update(event) {
@@ -4301,6 +5152,7 @@ const URL_DEFAULTS = {
   reconnect_probe_url: "/api/reconnect_probe",
   remote_esp_update_url: "/update?action=update",
   remote_stm32_update_base_url: "/update?action=flash&stm32_filenames=",
+  remote_stm32_flash_url: "/api/remote_stm32_flash",
   update_download_assets_url: "/api/update_download_assets",
   update_download_app_bundle_url: "/api/update_download_app_bundle",
   update_download_table_base_url: "/api/update_download_table?filename=",
@@ -4450,6 +5302,7 @@ const getDeviceReadyUrl = createConfiguredUrlGetter("device_ready_url");
 const getReconnectProbeUrl = createConfiguredUrlGetter("reconnect_probe_url");
 const getRemoteEspUpdateUrl = createConfiguredUrlGetter("remote_esp_update_url");
 const getRemoteStm32UpdateBaseUrl = createConfiguredUrlGetter("remote_stm32_update_base_url");
+const getRemoteStm32FlashUrl = createConfiguredUrlGetter("remote_stm32_flash_url");
 const getUpdateDownloadAssetsUrl = createConfiguredUrlGetter("update_download_assets_url");
 const getUpdateDownloadAppBundleUrl = createConfiguredUrlGetter("update_download_app_bundle_url");
 const getUpdateDownloadTableBaseUrl = createConfiguredUrlGetter("update_download_table_base_url");
@@ -4650,6 +5503,26 @@ function getPreviewUiMeta(settings) {
     layoutFile: getCurrentLayoutPreviewFile() || "Fallback",
     staticColor: settings && settings.dspcolors ? settings.dspcolors[0] : null,
     animationLabel: modeEntry ? localizeAnimationName(modeEntry.name || String(mode)) : String(mode)
+  };
+}
+
+function getWordclockRenderMeta(active, settings, layoutPreview) {
+  const preview = layoutPreview || {};
+  const rows = Array.isArray(preview.rows) && preview.rows.length ? preview.rows : fallbackWordclockRows;
+  const current = settings && settings.tmvars ? settings.tmvars[0] : {};
+
+  return {
+    preview,
+    rows,
+    renderSignature: [
+      active ? "1" : "0",
+      preview.file || "",
+      rows.join("|"),
+      String(current.hour || 0),
+      String(current.minute || 0),
+      String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_FLAGS] || 0) : 0),
+      String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_MODE] || 0) : 0)
+    ].join("::")
   };
 }
 
@@ -4928,34 +5801,85 @@ function getLocalUpdateControlMeta(updateStatus) {
   };
 }
 
+function getRemoteUpdateUrlMeta() {
+  return {
+    espUrl: getRemoteEspUpdateUrl(),
+    stm32ApiUrl: getRemoteStm32FlashUrl(),
+    stm32LegacyBaseUrl: getRemoteStm32UpdateBaseUrl()
+  };
+}
+
+function getRemoteUpdateSupportMeta(updateStatus) {
+  return {
+    espApiSupported: !!getUpdateStatusBoolean(updateStatus, "remote_esp_update_api_supported"),
+    stm32ApiSupported: !!getUpdateStatusBoolean(updateStatus, "remote_stm32_flash_api_supported"),
+    urls: getRemoteUpdateUrlMeta()
+  };
+}
+
+function getRemoteUpdateControlMeta(updateStatus) {
+  const supportMeta = getRemoteUpdateSupportMeta(updateStatus);
+
+  return {
+    esp: {
+      apiSupported: supportMeta.espApiSupported,
+      url: supportMeta.urls.espUrl || getUrlDefault("remote_esp_update_url"),
+      canStart: !!(supportMeta.urls.espUrl || getUrlDefault("remote_esp_update_url"))
+    },
+    stm32: {
+      apiSupported: supportMeta.stm32ApiSupported,
+      url: supportMeta.urls.stm32ApiUrl || getUrlDefault("remote_stm32_flash_url"),
+      legacyBaseUrl: supportMeta.urls.stm32LegacyBaseUrl || getUrlDefault("remote_stm32_update_base_url"),
+      canStart: !!(supportMeta.urls.stm32ApiUrl || getUrlDefault("remote_stm32_flash_url"))
+    }
+  };
+}
+
 function getUpdateModuleMeta(updateStatus, updateTableInfo, settings) {
   return {
     summary: getUpdateSummaryMeta(updateStatus, settings || parseSettings("")),
     serverFiles: getUpdateServerFilesMeta(updateStatus, updateTableInfo),
-    localUpdate: getLocalUpdateControlMeta(updateStatus)
+    localUpdate: getLocalUpdateControlMeta(updateStatus),
+    remoteUpdate: getRemoteUpdateControlMeta(updateStatus)
+  };
+}
+
+function getUpdateVersionUiMeta(updateStatus, settings) {
+  const displayMeta = getDisplayBackupMeta(settings || parseSettings(""));
+  const canUpdate = canOtaUpdate(updateStatus);
+
+  return {
+    flashSize: getUpdateFlashSize(updateStatus),
+    canUpdate,
+    wcVersion: getUpdateAvailableVersion(updateStatus, "wc_version") || displayMeta.firmwareVersion || "-",
+    wcAvailable: getUpdateAvailableVersion(updateStatus, "wc_available") || "-",
+    espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || displayMeta.espVersion || "-",
+    espAvailable: getUpdateAvailableVersion(updateStatus, "esp_available") || "-",
+    appVersion: APP_VERSION,
+    appAvailable: getUpdateAvailableVersion(updateStatus, "app_available") || "-"
   };
 }
 
 function getUpdateSummaryMeta(updateStatus, settings) {
-  const canUpdate = canOtaUpdate(updateStatus);
+  const versionMeta = getUpdateVersionUiMeta(updateStatus, settings);
   const stm32Default = getUpdateStm32Default(updateStatus);
   const stm32Files = getUpdateStm32Files(updateStatus);
   const releaseNotes = getUpdateReleaseNotes(updateStatus);
 
   return {
-    canUpdate,
+    canUpdate: versionMeta.canUpdate,
     stm32Default,
     stm32Files,
     releaseNotes,
     items: [
-      ["ESP-Flash", getUpdateFlashSize(updateStatus) ? String(getUpdateFlashSize(updateStatus)) + " Bytes" : "-"],
-      ["OTA-Update", canUpdate ? "möglich" : "nicht möglich"],
-      ["WordClock-Version", getUpdateAvailableVersion(updateStatus, "wc_version") || (settings.strvars[STR.VERSION] || "-")],
-      ["WordClock verfügbar", getUpdateAvailableVersion(updateStatus, "wc_available") || "-"],
-      ["ESP-Version", getUpdateAvailableVersion(updateStatus, "esp_version") || (settings.strvars[STR.ESP8266_VERSION] || "-")],
-      ["ESP verfügbar", getUpdateAvailableVersion(updateStatus, "esp_available") || "-"],
-      ["App-Version", APP_VERSION],
-      ["App verfügbar", getUpdateAvailableVersion(updateStatus, "app_available") || "-"],
+      ["ESP-Flash", versionMeta.flashSize ? String(versionMeta.flashSize) + " Bytes" : "-"],
+      ["OTA-Update", versionMeta.canUpdate ? "möglich" : "nicht möglich"],
+      ["WordClock-Version", versionMeta.wcVersion],
+      ["WordClock verfügbar", versionMeta.wcAvailable],
+      ["ESP-Version", versionMeta.espVersion],
+      ["ESP verfügbar", versionMeta.espAvailable],
+      ["App-Version", versionMeta.appVersion],
+      ["App verfügbar", versionMeta.appAvailable],
       ["Standard STM32", stm32Default || "-"]
     ]
   };
@@ -5022,28 +5946,36 @@ async function downloadUpdateAppBundle() {
 
   const button = document.getElementById("update-app-bundle-button");
 
+  setProgressActionContext("app-bundle-install", "update-app-bundle-button", "App-Paket laden");
+  showRemoteUpdateProgressShell("app-bundle-install", "App-Paket wird vom Server geladen...", "update-app-bundle-button");
   beginButtonFeedback(button, "lädt...");
-  document.getElementById("updated-at").textContent = "App-Paket wird vom Server geladen...";
   announceStatus("App-Paket wird vom Server geladen...", "warn");
 
   try {
-    await apiFetch(getUpdateDownloadAppBundleUrl());
+    await apiFetch(getUpdateDownloadAppBundleUrl(), {
+      timeoutMs: 45000,
+      attempts: 1
+    });
 
     button.classList.add("is-busy");
     button.textContent = "installiert...";
+    document.getElementById("update-progress-note").textContent = "App-Paket wurde geladen und wird installiert...";
     document.getElementById("updated-at").textContent = "App-Paket wurde geladen und wird installiert...";
     announceStatus("App-Paket wird installiert...", "warn");
     await sleep(250);
 
     button.classList.add("is-busy");
     button.textContent = "lädt neu...";
-    document.getElementById("updated-at").textContent = "App-Paket installiert. Seite wird neu geladen...";
+    document.getElementById("update-progress-note").textContent = "App-Paket installiert. App wird neu geladen...";
+    document.getElementById("updated-at").textContent = "App-Paket installiert. App wird neu geladen...";
     announceStatus("App-Paket installiert. Seite wird neu geladen.", "ok");
-    finishButtonFeedback(button, "App-Paket laden", "success", "geladen");
-    setTimeout(() => window.location.reload(), 900);
+    setTimeout(reloadAppPage, 900);
   } catch (error) {
+    document.getElementById("update-progress-note").textContent = "App-Paket konnte nicht geladen oder installiert werden.";
     announceStatus("App-Paket konnte nicht geladen werden", "error");
     finishButtonFeedback(button, "App-Paket laden", "error", "Fehler");
+    resetProgressButton();
+    finishProgressUi(1200);
   }
 }
 
@@ -5154,22 +6086,31 @@ async function uploadFsTargetFile(event, url, successMessage) {
 }
 
 function triggerEspUpdate() {
-  if (!window.confirm("ESP-Firmware jetzt vom Update-Server aktualisieren? Das Gerät startet dabei neu.")) {
+  const remoteUpdate = getRemoteUpdateActionMeta("esp");
+
+  if (!window.confirm(remoteUpdate.confirmText)) {
     return;
   }
 
-  startProgressAction(getRemoteEspUpdateUrl(), "ESP-Update wird gestartet...", "esp-update", "update-esp-button", "ESP-Firmware aktualisieren");
-  waitForDeviceReady(120000, 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
+  startRemoteUpdateAction(remoteUpdate);
+  startEspUpdateReconnectWatch(false);
+}
+
+function startEspUpdateReconnectWatch(isLocalUpdate) {
+  waitForDeviceReady(isLocalUpdate ? 90000 : 120000, isLocalUpdate ? 3000 : 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
     forcedReloadAfterMs: 90000,
     reloadWatchdogDelayMs: 95000,
     requireReconnectCycle: true,
     requiredStableSuccesses: 2,
     probes: buildDeviceReadyProbes(),
-    waitingMessage: "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
+    waitingMessage: isLocalUpdate
+      ? "Lokales ESP-Update läuft. Warte auf Neustart und Reconnect..."
+      : "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
   });
 }
 
 function triggerStm32Update() {
+  const remoteUpdate = getRemoteUpdateActionMeta("stm32");
   const fileName = document.getElementById("update-stm32-select").value || "";
 
   if (!fileName) {
@@ -5177,11 +6118,39 @@ function triggerStm32Update() {
     return;
   }
 
-  if (!window.confirm("STM32 jetzt mit „" + fileName + "“ flashen?")) {
+  if (!window.confirm(remoteUpdate.confirmText(fileName))) {
     return;
   }
 
-  startStm32StreamingAction(getRemoteStm32UpdateBaseUrl() + encodeURIComponent(fileName), "STM32-Flash wurde gestartet.", "update-stm32-button", "STM32 flashen");
+  startRemoteUpdateAction(remoteUpdate, fileName);
+}
+
+function getRemoteUpdateActionMeta(kind) {
+  const remoteUpdateMeta = getRemoteUpdateControlMeta(getCurrentUpdateStatus());
+
+  if (kind === "esp") {
+    return {
+      kind: "esp",
+      actionType: "esp-update",
+      buttonId: "update-esp-button",
+      buttonText: "ESP-Firmware aktualisieren",
+      confirmText: "ESP-Firmware jetzt vom Update-Server aktualisieren? Das Gerät startet dabei neu.",
+      startMessage: "ESP-Update wird gestartet...",
+      useProgressFormSubmit: true,
+      keepFrameActiveInBackground: true,
+      buildUrl: () => remoteUpdateMeta.esp.url
+    };
+  }
+
+  return {
+    kind: "stm32",
+    actionType: "stm32-flash",
+      buttonId: "update-stm32-button",
+      buttonText: "STM32 flashen",
+      confirmText: (fileName) => "STM32 jetzt mit „" + fileName + "“ flashen?",
+      startMessage: "STM32-Flash wurde gestartet.",
+      buildUrl: (fileName) => remoteUpdateMeta.stm32.url + "?filename=" + encodeURIComponent(fileName) + "&stream=1"
+    };
 }
 
 function triggerTableUpdate() {
@@ -5377,59 +6346,132 @@ function handleProgressFrameLoad() {
   try {
     if (pendingProgressAction === "esp-update") {
       note.textContent = "ESP aktualisiert. Es wird gewartet, bis das Gerät wieder bereit ist.";
+      return;
+    }
+
+    if (pendingProgressAction === "stm32-flash" && !stm32AutoResetStarted) {
+      const text = readUpdateProgressFrameText();
+      const normalized = (text || "").replace(/\s+/g, " ").trim();
+
+      if (normalized.indexOf("Flash failed") >= 0 || normalized.indexOf("Check failed") >= 0 || normalized.indexOf("verify failed") >= 0) {
+        failStm32Update("STM32-Flash ist fehlgeschlagen.");
+        return;
+      }
+
+      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
     }
   } catch (error) {
     note.textContent = "Update-Antwort empfangen.";
   }
 }
 
-function startProgressAction(url, message, actionType, buttonId, buttonText) {
+function setProgressActionContext(actionType, buttonId, buttonText) {
   pendingProgressAction = actionType || "";
   pendingProgressButtonId = buttonId || "";
-  const progressShell = document.getElementById("update-progress-shell");
-  const progressFrame = document.getElementById("update-progress-frame");
-  const keepFrameActiveInBackground = actionType === "stm32-flash" || actionType === "esp-update";
 
-  progressShell.classList.remove("is-hidden");
-  progressFrame.classList.toggle("progress-frame-hidden", keepFrameActiveInBackground);
-  progressFrame.classList.remove("is-hidden");
-  document.getElementById("update-progress-visual").classList.toggle("is-hidden", actionType !== "stm32-flash");
-  document.getElementById("update-progress-note").textContent = message;
-  document.getElementById("updated-at").textContent = message;
-  setBusyButton(buttonId, "läuft...");
   if (buttonId) {
     const button = document.getElementById(buttonId);
     if (button) {
       button.dataset.restoreText = buttonText || button.textContent;
     }
   }
-  if (actionType === "stm32-flash") {
+}
+
+function getProgressShellMeta(actionType, buttonId, message) {
+  const isEspLikeAction = actionType === "esp-update" || actionType === "esp-local-update";
+  return {
+    actionType: actionType || "",
+    buttonId: buttonId || "",
+    message: message || "",
+    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install",
+    showVisualProgress: actionType === "stm32-flash"
+  };
+}
+
+function buildRemoteUpdateRequestState(meta, payload) {
+  const url = meta.buildUrl(payload);
+  const progress = getProgressShellMeta(meta.actionType, meta.buttonId, meta.startMessage);
+
+  return {
+    ...meta,
+    url,
+    payload,
+    progress
+  };
+}
+
+function showRemoteUpdateProgressShell(actionType, message, buttonId) {
+  const progressMeta = getProgressShellMeta(actionType, buttonId, message);
+  const progressShell = document.getElementById("update-progress-shell");
+  const progressFrame = document.getElementById("update-progress-frame");
+
+  progressShell.classList.remove("is-hidden");
+  progressFrame.classList.toggle("progress-frame-hidden", progressMeta.keepFrameActiveInBackground);
+  progressFrame.classList.remove("is-hidden");
+  document.getElementById("update-progress-visual").classList.toggle("is-hidden", !progressMeta.showVisualProgress);
+  document.getElementById("update-progress-note").textContent = progressMeta.message;
+  document.getElementById("updated-at").textContent = progressMeta.message;
+  setBusyButton(progressMeta.buttonId, "läuft...");
+  if (progressMeta.showVisualProgress) {
     beginStm32Progress();
   } else {
     stopStm32Progress();
   }
-  progressFrame.src = "about:blank";
   rememberProgressReturnScrollPosition();
   progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function startProgressAction(url, message, actionType, buttonId, buttonText) {
+  const progressMeta = getProgressShellMeta(actionType, buttonId, message);
+  setProgressActionContext(actionType, buttonId, buttonText);
+  showRemoteUpdateProgressShell(progressMeta.actionType, progressMeta.message, progressMeta.buttonId);
   window.setTimeout(() => {
-    if (actionType === "esp-update") {
+    if (progressMeta.actionType === "esp-update") {
       submitProgressFrameRequest(url, "update-progress-frame");
       return;
     }
 
+    const progressFrame = document.getElementById("update-progress-frame");
     const separator = url.indexOf("?") >= 0 ? "&" : "?";
     progressFrame.src = url + separator + "_ts=" + Date.now();
   }, 0);
 }
 
-function submitProgressFrameRequest(url, targetFrameName) {
-  const absoluteUrl = new URL(url, window.location.origin);
-  const form = document.createElement("form");
+function startRemoteUpdateAction(meta, payload) {
+  const requestState = buildRemoteUpdateRequestState(meta, payload);
 
+  if (requestState.kind === "stm32") {
+    startStm32RemoteStreamingRequest(requestState);
+    return;
+  }
+
+  startProgressAction(requestState.url, requestState.progress.message, requestState.actionType, requestState.buttonId, requestState.buttonText);
+}
+
+function getProgressRequestForm(targetFrameName) {
+  const formId = "progress-request-form-" + targetFrameName;
+  let form = document.getElementById(formId);
+
+  if (form) {
+    return form;
+  }
+
+  form = document.createElement("form");
+  form.id = formId;
   form.method = "GET";
-  form.action = absoluteUrl.pathname;
   form.target = targetFrameName;
   form.style.display = "none";
+  document.body.appendChild(form);
+
+  return form;
+}
+
+function submitProgressFrameRequest(url, targetFrameName) {
+  const absoluteUrl = new URL(url, window.location.origin);
+  const form = getProgressRequestForm(targetFrameName);
+
+  form.action = absoluteUrl.pathname;
+  form.innerHTML = "";
 
   absoluteUrl.searchParams.set("_ts", String(Date.now()));
   absoluteUrl.searchParams.forEach((value, key) => {
@@ -5440,47 +6482,118 @@ function submitProgressFrameRequest(url, targetFrameName) {
     form.appendChild(input);
   });
 
-  document.body.appendChild(form);
   form.submit();
-  window.setTimeout(() => {
-    if (form.parentNode) {
-      form.parentNode.removeChild(form);
-    }
-  }, 1500);
 }
 
-function startStm32StreamingAction(url, message, buttonId, buttonText) {
-  pendingProgressAction = "stm32-flash";
-  pendingProgressButtonId = buttonId || "";
+function startStm32RemoteStreamingRequest(requestState) {
+  setProgressActionContext(requestState.actionType, requestState.buttonId, requestState.buttonText);
   stm32AutoResetStarted = false;
+  stm32RemoteStreamOffset = 0;
+  stm32RemoteRequestInFlight = true;
+  stm32RemoteResultOkSeen = false;
   stopUpdateProgressPolling();
-  const progressShell = document.getElementById("update-progress-shell");
-  const progressFrame = document.getElementById("update-progress-frame");
+  showRemoteUpdateProgressShell(requestState.progress.actionType, requestState.progress.message, requestState.progress.buttonId);
 
-  progressShell.classList.remove("is-hidden");
-  progressFrame.classList.remove("is-hidden");
-  progressFrame.classList.add("progress-frame-hidden");
-  document.getElementById("update-progress-visual").classList.remove("is-hidden");
-  document.getElementById("update-progress-note").textContent = message;
-  document.getElementById("updated-at").textContent = message;
-  setBusyButton(buttonId, "läuft...");
+  const xhr = new XMLHttpRequest();
+  xhr.open("GET", requestState.url, true);
+  startUpdateProgressPolling(200);
 
-  if (buttonId) {
-    const button = document.getElementById(buttonId);
-    if (button) {
-      button.dataset.restoreText = buttonText || button.textContent;
+  xhr.onprogress = () => {
+    consumeStm32RemoteProgressStream(xhr.responseText || "");
+  };
+
+  xhr.onload = async () => {
+    consumeStm32RemoteProgressStream(xhr.responseText || "");
+    stm32RemoteRequestInFlight = false;
+
+    if (xhr.status < 200 || xhr.status >= 300) {
+      failStm32Update("Remote STM32-Flash konnte nicht gestartet werden.");
+      return;
     }
+
+    if (stm32RemoteResultOkSeen && !stm32AutoResetStarted) {
+      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+      return;
+    }
+
+    if (!stm32AutoResetStarted) {
+      const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, 1000);
+      applyUpdateProgressStatus(progress);
+    }
+
+    if (!stm32AutoResetStarted) {
+      failStm32Update("STM32-Flash-Ende konnte nicht sicher erkannt werden.");
+      return;
+    }
+  };
+
+  xhr.onerror = () => {
+    stm32RemoteRequestInFlight = false;
+    failStm32Update("Remote STM32-Flash konnte nicht gestartet werden.");
+  };
+
+  xhr.send();
+}
+
+function consumeStm32RemoteProgressStream(text) {
+  const pending = text.slice(stm32RemoteStreamOffset);
+  const lastNewline = pending.lastIndexOf("\n");
+
+  if (lastNewline < 0) {
+    return;
   }
 
-  beginStm32Progress();
-  rememberProgressReturnScrollPosition();
-  progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
-  progressFrame.src = "about:blank";
-  window.setTimeout(() => {
-    submitProgressFrameRequest(url, "update-progress-frame");
-    startUpdateProgressPolling();
-    monitorStm32ProgressFrame();
-  }, 0);
+  const chunk = pending.slice(0, lastNewline);
+  stm32RemoteStreamOffset += lastNewline + 1;
+
+  chunk.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    try {
+      applyStm32RemoteProgressEvent(JSON.parse(trimmed));
+    } catch (_) {
+    }
+  });
+}
+
+function applyStm32RemoteProgressEvent(event) {
+  if (!event || event.ok !== true) {
+    return;
+  }
+
+  if (event.state && event.type === "stm32") {
+    applyUpdateProgressStatus({
+      ok: true,
+      active: event.active,
+      type: event.type,
+      state: event.state,
+      message: event.message,
+      progress_current: event.progress_current,
+      progress_total: event.progress_total,
+      error_code: event.error_code,
+      started_at: event.started_at,
+      updated_at: event.updated_at,
+      finished_at: event.finished_at
+    });
+  }
+
+  if (event.event === "result" && event.result_ok === false) {
+    stm32RemoteRequestInFlight = false;
+    failStm32Update(event.message || "STM32-Flash ist fehlgeschlagen.");
+    return;
+  }
+
+  if (event.event === "result" && event.result_ok === true) {
+    stm32RemoteResultOkSeen = true;
+
+    if (!stm32AutoResetStarted && !stm32RemoteRequestInFlight) {
+      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+    }
+  }
 }
 
 function startStm32StreamingUpload(file, buttonId, buttonText) {
@@ -5531,10 +6644,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         syncStm32ProgressFromText(text);
 
         if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-          stm32AutoResetStarted = true;
-          setStm32ProgressStage(5);
-          document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-          autoResetStm32AfterFlash();
+          beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
         }
       };
 
@@ -5543,47 +6653,52 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         syncStm32ProgressFromText(text);
 
         if (xhr.status < 200 || xhr.status >= 300) {
-          document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
           document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
-          stopStm32Progress();
-          resetProgressButton();
-          finishProgressUi(0);
-          clearProgressReturnScrollPosition();
+          failStm32Update("Lokaler STM32-Flash konnte nicht gestartet werden.");
           reject(new Error("stm32 local failed"));
           return;
         }
 
         if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-          stm32AutoResetStarted = true;
-          setStm32ProgressStage(5);
-          document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-          autoResetStm32AfterFlash();
+          beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
         }
 
         resolve();
       };
 
       xhr.onerror = () => {
-        document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
         document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
-        stopStm32Progress();
-        resetProgressButton();
-        finishProgressUi(0);
-        clearProgressReturnScrollPosition();
+        failStm32Update("Lokaler STM32-Flash konnte nicht gestartet werden.");
         reject(new Error("stm32 local failed"));
       };
 
       xhr.send();
     }).catch(() => {
-      document.getElementById("update-progress-note").textContent = "Lokaler STM32-Upload ist fehlgeschlagen.";
       document.getElementById("local-update-note").textContent = "Lokaler STM32-Upload ist fehlgeschlagen.";
-      stopStm32Progress();
-      resetProgressButton();
-      finishProgressUi(0);
-      clearProgressReturnScrollPosition();
+      failStm32Update("Lokaler STM32-Upload ist fehlgeschlagen.");
       reject(new Error("stm32 local upload failed"));
     });
   });
+}
+
+function failStm32Update(message) {
+  document.getElementById("update-progress-note").textContent = message;
+  stopStm32Progress();
+  stopUpdateProgressPolling();
+  resetProgressButton();
+  finishProgressUi(0);
+  clearProgressReturnScrollPosition();
+}
+
+function beginStm32AutoReset(message) {
+  if (stm32AutoResetStarted) {
+    return;
+  }
+
+  stm32AutoResetStarted = true;
+  setStm32ProgressStage(5);
+  document.getElementById("update-progress-note").textContent = message;
+  autoResetStm32AfterFlash();
 }
 
 async function autoResetStm32AfterFlash() {
@@ -5738,7 +6853,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
 
       try {
         const separator = probe.url.indexOf("?") >= 0 ? "&" : "?";
-        const frameLoaded = await probeDeviceReadyViaFrame(probe.url + separator + "_ts=" + Date.now(), probe.timeoutMs || 1800);
+        const frameLoaded = await probeDeviceReadyViaFrame(probe.url + separator + "_ts=" + Date.now(), probe.timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
         if (frameLoaded) {
           if (await handleSuccessfulProbe()) {
             return;
@@ -5809,6 +6924,21 @@ async function reloadAppPage() {
   window.location.replace(url.toString());
 }
 
+function clearReloadQueryMarker() {
+  try {
+    const url = new URL(window.location.href);
+
+    if (!url.searchParams.has("_reload")) {
+      return;
+    }
+
+    url.searchParams.delete("_reload");
+    const nextPath = url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + url.hash;
+    window.history.replaceState({}, document.title, nextPath);
+  } catch (_) {
+  }
+}
+
 function manualReloadApp() {
   if (hasUnsavedEdits && !window.confirm("Es gibt ungespeicherte Änderungen. App trotzdem neu laden?")) {
     return;
@@ -5846,7 +6976,7 @@ function clearEspReloadWatchdog() {
 
 async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs || 1500);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
 
   try {
     return await fetch(url, {
@@ -5862,25 +6992,63 @@ function settleWithTimeout(promise, fallbackValue, timeoutMs) {
   return Promise.race([
     Promise.resolve(promise).catch(() => fallbackValue),
     new Promise((resolve) => {
-      window.setTimeout(() => resolve(fallbackValue), timeoutMs || 1500);
+      window.setTimeout(() => resolve(fallbackValue), timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
     })
   ]);
 }
 
-function settleFetchText(url, fallbackValue, timeoutMs) {
+function settleFetchText(url, fallbackValue, timeoutMs, attempts) {
   return settleWithTimeout(
-    fetch(url, { cache: "no-store" }).then((response) => response.ok ? response.text() : fallbackValue),
+    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts)
+      .then((response) => response.ok ? response.text() : fallbackValue),
     fallbackValue,
     timeoutMs
   );
 }
 
-function settleFetchJson(url, fallbackValue, timeoutMs) {
+function settleFetchJson(url, fallbackValue, timeoutMs, attempts) {
   return settleWithTimeout(
-    fetch(url, { cache: "no-store" }).then((response) => response.ok ? response.json() : fallbackValue),
+    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts)
+      .then((response) => response.ok ? response.json() : fallbackValue),
     fallbackValue,
     timeoutMs
   );
+}
+
+function isRetryableFetchError(error) {
+  if (!error) {
+    return false;
+  }
+
+  if (error.name === "AbortError" || error.message === "Failed to fetch") {
+    return true;
+  }
+
+  return /^http-5\d\d$/.test(String(error.message || ""));
+}
+
+async function fetchWithRetry(url, options, timeoutMs, attempts) {
+  const maxAttempts = Math.max(1, Number(attempts || 1));
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, options, timeoutMs);
+      if (!response.ok && response.status >= 500 && attempt < maxAttempts) {
+        await sleep(CONNECTION_STABILITY.retryDelayMs * attempt);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts || !isRetryableFetchError(error)) {
+        throw error;
+      }
+      await sleep(CONNECTION_STABILITY.retryDelayMs * attempt);
+    }
+  }
+
+  throw lastError || new Error("fetch-failed");
 }
 
 function stopUpdateProgressPolling() {
@@ -5913,8 +7081,10 @@ function syncStm32ProgressFromStatus(progress) {
   }
 
   if (message) {
-    if ((progress.state === "write" || progress.state === "reset_wait") && Number(progress.progress_current || 0) > 0) {
-      note.textContent = message + " Seiten: " + String(progress.progress_current);
+    if ((progress.state === "write" || progress.state === "reset_wait") &&
+        Number(progress.progress_total || 0) > 0 &&
+        Number(progress.progress_current || 0) > 0) {
+      note.textContent = message + " Seiten: " + String(progress.progress_current) + "/" + String(progress.progress_total);
     } else {
       note.textContent = message;
     }
@@ -5952,7 +7122,12 @@ function applyUpdateProgressStatus(progress) {
     return;
   }
 
-  if (progress.state === "done" && !stm32AutoResetStarted) {
+  if ((progress.state === "reset_wait" || progress.state === "done") && !stm32AutoResetStarted) {
+    if (stm32RemoteRequestInFlight && progress.state === "reset_wait") {
+      note.textContent = progress.message || "STM32-Flash abgeschlossen. Abschluss wird bestätigt...";
+      return;
+    }
+
     stm32AutoResetStarted = true;
     setStm32ProgressStage(5);
     note.textContent = progress.message || "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
@@ -5964,7 +7139,7 @@ function startUpdateProgressPolling(initialDelayMs) {
   stopUpdateProgressPolling();
 
   const poll = async () => {
-    const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, 900);
+    const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, CONNECTION_STABILITY.progressPollTimeoutMs);
     applyUpdateProgressStatus(progress);
   };
 
@@ -5972,7 +7147,7 @@ function startUpdateProgressPolling(initialDelayMs) {
     void poll();
     updateProgressPollTimer = window.setInterval(() => {
       void poll();
-    }, 500);
+    }, CONNECTION_STABILITY.progressPollIntervalMs);
   };
 
   if (initialDelayMs && initialDelayMs > 0) {
@@ -6005,7 +7180,7 @@ function probeDeviceReadyViaFrame(url, timeoutMs) {
 
     const timer = window.setTimeout(() => {
       finish(false);
-    }, timeoutMs || 1500);
+    }, timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
 
     bindDomEvent(frame, "load", () => {
       window.clearTimeout(timer);
@@ -6144,10 +7319,6 @@ function stopStm32Progress() {
     window.clearTimeout(stm32ProgressAdvanceTimer);
     stm32ProgressAdvanceTimer = 0;
   }
-  if (stm32ProgressMonitorTimer) {
-    window.clearInterval(stm32ProgressMonitorTimer);
-    stm32ProgressMonitorTimer = 0;
-  }
   if (stm32ProgressTimer) {
     window.clearInterval(stm32ProgressTimer);
     stm32ProgressTimer = 0;
@@ -6162,38 +7333,6 @@ function readUpdateProgressFrameText() {
   } catch (error) {
     return "";
   }
-}
-
-function monitorStm32ProgressFrame() {
-  if (stm32ProgressMonitorTimer) {
-    window.clearInterval(stm32ProgressMonitorTimer);
-  }
-
-  stm32ProgressMonitorTimer = window.setInterval(() => {
-    const text = readUpdateProgressFrameText();
-    const normalized = (text || "").replace(/\s+/g, " ").trim();
-
-    if (!normalized) {
-      return;
-    }
-
-    syncStm32ProgressFromText(text);
-
-    if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-      stm32AutoResetStarted = true;
-      setStm32ProgressStage(5);
-      document.getElementById("update-progress-note").textContent = "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
-      autoResetStm32AfterFlash();
-      return;
-    }
-
-    if (normalized.indexOf("Flash failed") >= 0 || normalized.indexOf("Check failed") >= 0 || normalized.indexOf("verify failed") >= 0) {
-      document.getElementById("update-progress-note").textContent = "STM32-Flash ist fehlgeschlagen.";
-      stopStm32Progress();
-      resetProgressButton();
-      clearProgressReturnScrollPosition();
-    }
-  }, 250);
 }
 
 function setStm32ProgressStage(stage) {
@@ -6917,56 +8056,46 @@ function renderList(id, items) {
 }
 
 function renderHealthList(settings, ambilightOnline, dfplayerOnline) {
+  const meta = getHealthUiMeta(settings, ambilightOnline, dfplayerOnline);
   const root = document.getElementById("health-list");
   root.innerHTML = [
-    '<div class="info-item"><span class="label">RTC</span><strong>' + escapeHtml(onOff(settings.numvars[NUM.RTC_IS_UP])) + "</strong></div>",
-    '<div class="info-item"><span class="label">EEPROM</span><strong>' + escapeHtml(onOff(settings.numvars[NUM.EEPROM_IS_UP])) + "</strong></div>",
-    '<div class="info-item"><span class="label">EEPROM Version</span><strong>' + escapeHtml(settings.strvars[STR.EEPROM_VERSION] || "-") + "</strong></div>",
+    '<div class="info-item"><span class="label">RTC</span><strong>' + escapeHtml(meta.rtcOnline) + "</strong></div>",
+    '<div class="info-item"><span class="label">EEPROM</span><strong>' + escapeHtml(meta.eepromOnline) + "</strong></div>",
+    '<div class="info-item"><span class="label">EEPROM Version</span><strong>' + escapeHtml(meta.eepromVersion) + "</strong></div>",
     '<div class="info-item"><span class="label">Ambilight</span><select id="health-ambilight-select" class="inline-select"><option value="on">Online</option><option value="off">Offline</option></select></div>',
-    '<div class="info-item"><span class="label">DFPlayer</span><strong>' + escapeHtml(onOff(dfplayerOnline ? 1 : 0)) + "</strong></div>",
-    '<div class="info-item"><span class="label">DFPlayer Version</span><strong>' + escapeHtml(toHex4(settings.numvars[NUM.DFPLAYER_VERSION] || 0)) + "</strong></div>"
+    '<div class="info-item"><span class="label">DFPlayer</span><strong>' + escapeHtml(meta.dfplayerOnline) + "</strong></div>",
+    '<div class="info-item"><span class="label">DFPlayer Version</span><strong>' + escapeHtml(meta.dfplayerVersion) + "</strong></div>"
   ].join("");
 
   const select = document.getElementById("health-ambilight-select");
   if (select) {
-    select.value = ambilightOnline ? "on" : "off";
+    select.value = meta.ambilightValue;
   }
 }
 
 function renderWordclock(active, settings, layoutPreview) {
+  const meta = getWordclockRenderMeta(active, settings, layoutPreview);
   const root = document.getElementById("wordclock-grid");
-  const preview = layoutPreview || {};
-  const rows = Array.isArray(preview.rows) && preview.rows.length ? preview.rows : fallbackWordclockRows;
-  const current = settings && settings.tmvars ? settings.tmvars[0] : {};
-  const renderSignature = [
-    active ? "1" : "0",
-    preview.file || "",
-    rows.join("|"),
-    String(current.hour || 0),
-    String(current.minute || 0),
-    String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_FLAGS] || 0) : 0),
-    String(settings && settings.numvars ? (settings.numvars[NUM.DISPLAY_MODE] || 0) : 0)
-  ].join("::");
 
-  if (renderSignature === lastWordclockRenderSignature) {
+  if (meta.renderSignature === lastWordclockRenderSignature) {
     scheduleWordclockSizing();
     return;
   }
 
-  lastWordclockRenderSignature = renderSignature;
+  lastWordclockRenderSignature = meta.renderSignature;
   ensureWordclockResizeObserver();
   root.innerHTML = "";
-  const columnCount = Math.max(...rows.map((row) => row.length), 1);
-  const activeSet = buildActiveWordSet(settings, preview, rows);
+  const columnCount = Math.max(...meta.rows.map((row) => row.length), 1);
+  const activeSet = buildActiveWordSet(settings, meta.preview, meta.rows);
 
   root.style.gridTemplateColumns = "repeat(" + columnCount + ", minmax(0, 1fr))";
   root.style.gridTemplateRows = "";
-  root.dataset.rows = String(rows.length);
+  root.dataset.rows = String(meta.rows.length);
   root.dataset.columns = String(columnCount);
   root.classList.toggle("is-wide-layout", columnCount > 12);
   root.classList.toggle("is-dense-layout", columnCount > 16);
 
-  rows.forEach((row, rowIndex) => {
+  meta.rows.forEach((row, rowIndex) => {
     row.split("").forEach((char, colIndex) => {
       const cell = document.createElement("span");
       cell.textContent = char === "*" || char === "#" ? " " : char;
@@ -6977,7 +8106,7 @@ function renderWordclock(active, settings, layoutPreview) {
     });
   });
 
-  renderWordclockCorners(settings, preview);
+  renderWordclockCorners(settings, meta.preview);
   scheduleWordclockSizing();
 }
 
@@ -7561,26 +8690,36 @@ function isDfplayerOnline(settings, debugOverrides) {
   return debugOverrides.dfplayer === "on" ? true : !!settings.numvars[NUM.DFPLAYER_IS_UP];
 }
 
-function getModuleAvailabilityState(settings, debugOverrides) {
+function getModuleStateUiMeta(settings, debugOverrides) {
   return {
     ambilightOnline: isAmbilightOnline(settings, debugOverrides),
     dfplayerOnline: isDfplayerOnline(settings, debugOverrides)
   };
 }
 
-function getUiFeatureState(settings, debugOverrides) {
-  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
-  const moduleState = getModuleAvailabilityState(settings, debugOverrides);
+function getDisplayFeatureUiMeta(config, settings, debugOverrides) {
   const ledCapabilities = getLedCapabilities(config, debugOverrides);
   const hasTft = hasTftDisplay(config, debugOverrides);
   const useRgbw = isRgbwUiActive(settings, ledCapabilities);
 
   return {
-    config,
-    moduleState,
     ledCapabilities,
     hasTft,
     useRgbw
+  };
+}
+
+function getUiFeatureState(settings, debugOverrides) {
+  const config = settings && settings.numvars ? (settings.numvars[NUM.HARDWARE_CONFIGURATION] || 0) : 0;
+  const moduleState = getModuleStateUiMeta(settings, debugOverrides);
+  const displayFeatureMeta = getDisplayFeatureUiMeta(config, settings, debugOverrides);
+
+  return {
+    config,
+    moduleState,
+    ledCapabilities: displayFeatureMeta.ledCapabilities,
+    hasTft: displayFeatureMeta.hasTft,
+    useRgbw: displayFeatureMeta.useRgbw
   };
 }
 
@@ -7588,8 +8727,28 @@ function getFeatureUiMeta(settings, debugOverrides) {
   return getUiFeatureState(settings, debugOverrides);
 }
 
+function getHealthUiMeta(settings, ambilightOnline, dfplayerOnline) {
+  const displayMeta = getDisplayBackupMeta(settings);
+
+  return {
+    rtcOnline: onOff(settings.numvars[NUM.RTC_IS_UP]),
+    eepromOnline: onOff(settings.numvars[NUM.EEPROM_IS_UP]),
+    eepromVersion: displayMeta.eepromVersion || "-",
+    ambilightValue: ambilightOnline ? "on" : "off",
+    dfplayerOnline: onOff(dfplayerOnline ? 1 : 0),
+    dfplayerVersion: toHex4(settings.numvars[NUM.DFPLAYER_VERSION] || 0)
+  };
+}
+
 function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverrides, updateStatus) {
   const featureMeta = getFeatureUiMeta(settings, debugOverrides);
+  const displayMeta = getDisplayBackupMeta(settings);
+  const networkMeta = getNetworkBackupMeta(settings, getCurrentEepromSettings());
+  const climateMeta = getClimateBackupMeta(settings);
+  const ambilightMeta = getAmbilightBackupMeta(settings);
+  const dfplayerMeta = getDfplayerBackupMeta(settings);
+  const configItems = buildOverviewConfigItems(settings, featureMeta, displayMeta, networkMeta, climateMeta, ambilightMeta, dfplayerMeta);
+
   return {
     hardware: decodeHardware(featureMeta.config || 0),
     ledCapabilities: featureMeta.ledCapabilities,
@@ -7597,9 +8756,66 @@ function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverride
     dfplayerOnline: featureMeta.moduleState.dfplayerOnline,
     displayPowerLabel: displayPower === "on" ? "an" : "aus",
     ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? "an" : "aus") : "offline",
-    firmwareVersion: settings.strvars[STR.VERSION] || "-",
-    espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || settings.strvars[STR.ESP8266_VERSION] || "-"
+    firmwareVersion: displayMeta.firmwareVersion || "-",
+    espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || displayMeta.espVersion || "-",
+    lastStartLabel: formatLastStartFromSettings(settings),
+    configItems
   };
+}
+
+function buildOverviewConfigItems(settings, featureMeta, displayMeta, networkMeta, climateMeta, ambilightMeta, dfplayerMeta) {
+  const configItems = [
+    ["Display-Modus", getDisplayModeName(displayMeta.mode)],
+    ["Helligkeit", String(displayMeta.brightness)],
+    ["Automatische Helligkeit", displayMeta.automaticBrightness ? "an" : "aus"],
+    ["LED-Fähigkeiten", featureMeta.ledCapabilities.label],
+    ["Zeitserver", networkMeta.timeserver || "-"],
+    ["Ticker-Verzögerung", String(displayMeta.tickerDeceleration || 0)]
+  ];
+
+  if (settings.strvars[STR.RESET_CAUSE]) {
+    configItems.unshift(["Letzter STM32-Neustart", settings.strvars[STR.RESET_CAUSE]]);
+  }
+
+  const lastStartLabel = formatLastStartFromSettings(settings);
+  configItems.unshift(["Letzter Start", lastStartLabel]);
+
+  const weatherLocation = climateMeta.weatherCity
+    ? climateMeta.weatherCity
+    : ((climateMeta.weatherLon || climateMeta.weatherLat)
+      ? (climateMeta.weatherLon || "-") + " / " + (climateMeta.weatherLat || "-")
+      : "");
+
+  if (weatherLocation) {
+    configItems.splice(configItems.length - 1, 0, ["Wetter-Ort", weatherLocation]);
+  }
+
+  if (displayMeta.tickerText) {
+    configItems.splice(configItems.length - 1, 0, ["Ticker", displayMeta.tickerText]);
+  }
+
+  if (displayMeta.dateTickerFormat) {
+    configItems.splice(configItems.length - 1, 0, ["Datumsformat", displayMeta.dateTickerFormat]);
+  }
+
+  if (featureMeta.moduleState.ambilightOnline) {
+    configItems.splice(4, 0,
+      ["Ambilight-Modus", getAmbilightModeName(settings)],
+      ["Ambilight-Helligkeit", String(ambilightMeta.brightness || 0)],
+      ["Ambilight LEDs", String(ambilightMeta.leds || 0)],
+      ["Ambilight Offset", String(ambilightMeta.offset || 0)]
+    );
+  }
+
+  if (featureMeta.moduleState.dfplayerOnline) {
+    configItems.push(
+      ["DFPlayer-Modus", getDfplayerModeName(dfplayerMeta.mode || 0)],
+      ["DFPlayer-Lautstärke", String(dfplayerMeta.volume || 0)],
+      ["Sprechintervall", String(dfplayerMeta.speakCycle || 0)]
+    );
+  }
+
+  return configItems;
 }
 
 function getColorUiMeta(settings, ambilightOnline, debugOverrides) {
@@ -8380,6 +9596,51 @@ function formatDateTimePreview(current) {
   return weekday + ", " +
     pad2(current.day) + "." + pad2(current.month) + "." + current.year +
     " " + pad2(current.hour || 0) + ":" + pad2(current.minute || 0);
+}
+
+function getUptimeSeconds(settings) {
+  if (!settings || !settings.numvars) {
+    return 0;
+  }
+
+  const low = Number(settings.numvars[NUM.UPTIME_SECONDS_LO] || 0) & 0xFFFF;
+  const high = Number(settings.numvars[NUM.UPTIME_SECONDS_HI] || 0) & 0xFFFF;
+
+  return (high * 65536) + low;
+}
+
+function formatLastStartFromSettings(settings) {
+  const current = settings && settings.tmvars ? (settings.tmvars[0] || null) : null;
+  const uptimeSeconds = getUptimeSeconds(settings);
+
+  if (!current || !current.year || !current.month || !current.day) {
+    return "nicht verfügbar";
+  }
+
+  if (uptimeSeconds <= 0) {
+    return "nicht verfügbar";
+  }
+
+  const currentDate = new Date(
+    current.year,
+    Math.max(0, Number(current.month || 1) - 1),
+    current.day,
+    current.hour || 0,
+    current.minute || 0,
+    current.second || 0
+  );
+
+  if (Number.isNaN(currentDate.getTime())) {
+    return "nicht verfügbar";
+  }
+
+  const startDate = new Date(currentDate.getTime() - (uptimeSeconds * 1000));
+
+  return pad2(startDate.getDate()) + "." +
+    pad2(startDate.getMonth() + 1) + "." +
+    startDate.getFullYear() + " " +
+    pad2(startDate.getHours()) + ":" +
+    pad2(startDate.getMinutes());
 }
 
 function setText(id, text) {

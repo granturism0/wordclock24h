@@ -182,6 +182,15 @@ var_send_tm_variable (TM_VARIABLE var, TM * tm)
     }
 }
 
+static void
+var_send_uptime (void)
+{
+    uint32_t current_uptime = uptime;
+
+    var_send_num_variable (UPTIME_SECONDS_LO_NUM_VAR, current_uptime & 0xFFFF);
+    var_send_num_variable (UPTIME_SECONDS_HI_NUM_VAR, (current_uptime >> 16) & 0xFFFF);
+}
+
 /*--------------------------------------------------------------------------------------------------------------------------------------
  * send a dsp color variable to ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
@@ -716,6 +725,7 @@ void
 var_send_tm (void)
 {
     var_send_tm_variable (CURRENT_TM_VAR, &(gmain.tm));
+    var_send_uptime ();
 }
 
 void

@@ -4238,8 +4238,8 @@ display_set_automatic_brightness (uint_fast8_t new_automatic_brightness, uint_fa
 
     if (! display.automatic_brightness)
     {
-        display_set_display_brightness (MAX_BRIGHTNESS, do_sync, TRUE);
-        display_set_ambilight_brightness (MAX_BRIGHTNESS, do_sync, TRUE);
+        display_save_brightness ();
+        display_save_ambilight_brightness ();
     }
 
     display_save_automatic_brightness ();

@@ -85,6 +85,8 @@ typedef enum
     DFPLAYER_PLAY_FOLDER_TRACK_NUM_VAR,
     DISPLAY_OVERLAY_NUM_VAR,
     OVERLAY_N_OVERLAYS_NUM_VAR,
+    UPTIME_SECONDS_LO_NUM_VAR,
+    UPTIME_SECONDS_HI_NUM_VAR,
     MAX_NUM_VARIABLES                                                       // must be the last member
 } NUM_VARIABLE;
 
