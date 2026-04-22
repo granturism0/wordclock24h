@@ -45,19 +45,22 @@
     </header>
 
     <main class="layout">
-      <nav class="module-nav" aria-label="Bereiche">
-        <button class="module-chip is-active" type="button" data-module-target="main">Hauptseite</button>
-        <button class="module-chip" type="button" data-module-target="system">System</button>
-        <button class="module-chip" type="button" data-module-target="network">Netzwerk</button>
-        <button class="module-chip" type="button" data-module-target="climate">Klima</button>
-        <button class="module-chip" type="button" data-module-target="display">Display</button>
-        <button class="module-chip" type="button" data-module-target="animations">Animationen</button>
-        <button class="module-chip" type="button" data-module-target="overlays">Overlays</button>
-        <button class="module-chip" type="button" data-module-target="ambilight">Ambilight</button>
-        <button class="module-chip" type="button" data-module-target="timers">Timer</button>
-        <button class="module-chip" type="button" data-module-target="dfplayer">DFPlayer</button>
-        <button class="module-chip" type="button" data-module-target="maintenance">Wartung</button>
-      </nav>
+      <div class="module-nav-shell">
+        <nav class="module-nav" aria-label="Bereiche">
+          <button class="module-chip is-active" type="button" data-module-target="main">Hauptseite</button>
+          <button class="module-chip" type="button" data-module-target="system">System</button>
+          <button class="module-chip" type="button" data-module-target="network">Netzwerk</button>
+          <button class="module-chip" type="button" data-module-target="climate">Umwelt</button>
+          <button class="module-chip" type="button" data-module-target="display">Display</button>
+          <button class="module-chip" type="button" data-module-target="animations">Animationen</button>
+          <button class="module-chip" type="button" data-module-target="overlays">Overlays</button>
+          <button class="module-chip" type="button" data-module-target="ambilight">Ambilight</button>
+          <button class="module-chip" type="button" data-module-target="timers">Timer</button>
+          <button class="module-chip" type="button" data-module-target="dfplayer">DFPlayer</button>
+          <button class="module-chip" type="button" data-module-target="maintenance">Wartung</button>
+        </nav>
+        <p class="module-nav-hint">Wische seitlich, um weitere Bereiche zu sehen.</p>
+      </div>
 
       <section class="module-section is-active" data-module="main">
         <div class="module-banner">
@@ -97,11 +100,30 @@
           </div>
         </section>
 
+      </section>
+
+      <section class="module-section" data-module="system">
+        <div class="module-banner">
+          <p class="eyebrow">Bereich</p>
+          <h2>System</h2>
+          <p class="hint">Hardwaredaten, Gerätezeit, erkannte Subsysteme und Debug-Ansichten für die Oberfläche.</p>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head"><div><p class="eyebrow">System</p><h2>Hardware</h2></div></div>
+          <div id="system-list" class="info-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><p class="eyebrow">Subsysteme</p><h2>Verfügbarkeit</h2></div></div>
+          <div id="health-list" class="info-list"></div>
+        </section>
+
         <section class="panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Zeit</p>
-              <h2>Datum und Uhrzeit</h2>
+              <h2>Datum, Uhrzeit und IR</h2>
               <p id="datetime-preview" class="hint">Gerätezeit wird geladen...</p>
             </div>
           </div>
@@ -128,24 +150,6 @@
               <button id="learn-ir-button" class="button" type="button">IR-Fernbedienung lernen</button>
             </div>
           </div>
-        </section>
-      </section>
-
-      <section class="module-section" data-module="system">
-        <div class="module-banner">
-          <p class="eyebrow">Bereich</p>
-          <h2>System</h2>
-          <p class="hint">Hardwaredaten, erkannte Subsysteme und Debug-Ansichten für die Oberfläche.</p>
-        </div>
-
-        <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">System</p><h2>Hardware</h2></div></div>
-          <div id="system-list" class="info-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Subsysteme</p><h2>Verfügbarkeit</h2></div></div>
-          <div id="health-list" class="info-list"></div>
         </section>
 
         <section class="panel">
@@ -202,14 +206,14 @@
         <div class="module-banner">
           <p class="eyebrow">Bereich</p>
           <h2>Netzwerk</h2>
-          <p class="hint">WLAN, Access Point, Zeitserver und Netzaktionen für die Verbindung nach außen.</p>
+          <p class="hint">WLAN-Client, eigener Access Point und Zeitdienste klar getrennt für Verbindung und Inbetriebnahme.</p>
         </div>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Netzwerk</p>
-              <h2>WLAN</h2>
+              <p class="eyebrow">Client</p>
+              <h2>Mit WLAN verbinden</h2>
               <p id="network-status-note" class="hint">Netzwerkstatus wird geladen...</p>
             </div>
           </div>
@@ -220,6 +224,18 @@
               <button id="network-scan-button" class="button" type="button">WLANs neu laden</button>
               <button id="network-client-save-button" class="button primary" type="button">Als WLAN-Client verbinden</button>
             </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Access Point</p>
+              <h2>Eigenes WLAN bereitstellen</h2>
+              <p class="hint">Hilfreich für Erstinbetriebnahme oder wenn kein vorhandenes WLAN genutzt werden soll.</p>
+            </div>
+          </div>
+          <div class="control-stack">
             <label class="field"><span class="label">AP SSID</span><input id="network-ap-ssid-input" type="text" maxlength="32" placeholder="WordClock Zugangspunkt"></label>
             <label class="field"><span class="label">AP-Passwort</span><input id="network-ap-key-input" type="password" maxlength="32" placeholder="Mindestens 10 Zeichen"></label>
             <button id="network-ap-save-button" class="button primary" type="button">Zugangspunkt starten</button>
@@ -252,8 +268,8 @@
       <section class="module-section" data-module="climate">
         <div class="module-banner">
           <p class="eyebrow">Bereich</p>
-          <h2>Klima</h2>
-          <p class="hint">Wetter, Temperaturwerte und der Helligkeitssensor in einem gemeinsamen Klimabereich.</p>
+          <h2>Umwelt</h2>
+          <p class="hint">Wetter, Temperatursensoren und Helligkeitssensor als gemeinsamer Umweltbereich.</p>
         </div>
 
         <section class="panel">
@@ -261,19 +277,30 @@
           <div class="control-stack">
             <label class="field"><span class="label">API-Schlüssel</span><input id="weather-appid-input" type="text" maxlength="32" placeholder="OpenWeather APPID"></label>
             <button id="weather-appid-save-button" class="button primary" type="button">API-Schlüssel speichern</button>
-            <label class="field"><span class="label">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
-            <button id="weather-city-save-button" class="button primary" type="button">Ort speichern</button>
-            <div class="time-grid">
-              <label class="field"><span class="label">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
-              <label class="field"><span class="label">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
-              <button id="weather-coordinates-save-button" class="button primary" type="button">Koordinaten speichern</button>
+            <div class="split-card-grid">
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Standort wählen</span></div></div>
+                <label class="field"><span class="label">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
+                <button id="weather-city-save-button" class="button primary" type="button">Ort speichern</button>
+                <div class="time-grid">
+                  <label class="field"><span class="label">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
+                  <label class="field"><span class="label">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
+                  <button id="weather-coordinates-save-button" class="button primary" type="button">Koordinaten speichern</button>
+                </div>
+                <div class="profile-actions">
+                  <button id="weather-map-button" class="button" type="button">Ort auf Karte wählen</button>
+                </div>
+                <p id="weather-location-preview" class="hint">Karte und Suche stehen für die Standortwahl bereit.</p>
+              </section>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Wetter laden</span></div></div>
+                <p class="hint">Nutze den gewählten Standort und rufe aktuelle Werte oder die Vorhersage ab.</p>
+                <div class="hero-actions">
+                  <button id="weather-now-button" class="button primary" type="button">Wetter abrufen</button>
+                  <button id="weather-forecast-button" class="button" type="button">Wettervorhersage abrufen</button>
+                </div>
+              </section>
             </div>
-            <div class="hero-actions">
-              <button id="weather-map-button" class="button" type="button">Ort auf Karte wählen</button>
-              <button id="weather-now-button" class="button" type="button">Wetter abrufen</button>
-              <button id="weather-forecast-button" class="button" type="button">Wettervorhersage abrufen</button>
-            </div>
-            <p id="weather-location-preview" class="hint">Karte und Suche stehen für die Standortwahl bereit.</p>
           </div>
         </section>
 
@@ -343,10 +370,16 @@
             <label class="field"><span class="label">Ticker-Text</span><input id="ticker-text-input" type="text" maxlength="32" placeholder="WordClock bereit"></label>
             <button id="ticker-save-button" class="button primary" type="button">Ticker speichern</button>
             <label class="field"><span class="label">Datumsformat im Ticker</span><input id="date-format-input" type="text" maxlength="5" placeholder="%d.%m"></label>
-            <button id="date-format-save-button" class="button primary" type="button">Datumsformat speichern</button>
-            <label class="field"><span class="label">Ticker-Verzögerung</span><input id="ticker-deceleration-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
-            <button id="ticker-deceleration-save-button" class="button primary" type="button">Ticker-Verzögerung speichern</button>
-            <button id="test-display-button" class="button" type="button">Displaytest starten</button>
+              <button id="date-format-save-button" class="button primary" type="button">Datumsformat speichern</button>
+              <label class="field"><span class="label">Ticker-Verzögerung</span><input id="ticker-deceleration-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+              <button id="ticker-deceleration-save-button" class="button primary" type="button">Ticker-Verzögerung speichern</button>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Diagnose</span></div></div>
+                <p class="hint">Temporärer LED- und Farbtest für die reine Funktionsprüfung des Displays.</p>
+                <div class="profile-actions">
+                  <button id="test-display-button" class="button" type="button">Displaytest starten</button>
+                </div>
+              </section>
           </div>
         </section>
 
@@ -370,7 +403,7 @@
           </div>
         </section>
 
-        <section id="tft-panel" class="panel">
+        <section id="tft-panel" class="panel panel-display-tft">
           <div class="panel-head"><div><p class="eyebrow">TFT</p><h2>Panel-Optionen</h2></div></div>
           <div class="control-stack">
             <label><input id="tft-rgb-checkbox" type="checkbox"> RGB-Reihenfolge</label>
@@ -403,12 +436,12 @@
         </section>
 
         <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Anzeigeanimationen</p><h2>Profile</h2><p class="hint">Verzögerung und Favoriten direkt pro Profil anpassen.</p></div></div>
+          <div class="panel-head"><div><p class="eyebrow">Anzeigeanimationen</p><h2>Profile</h2><p class="hint">Verzögerung und Favoriten pro Profil anpassen.</p></div></div>
           <div id="animation-profile-list" class="profile-grid"></div>
         </section>
 
         <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Farbanimationen</p><h2>Profile</h2><p class="hint">Eigene Verzögerung pro Farbanimation festlegen.</p></div></div>
+          <div class="panel-head"><div><p class="eyebrow">Farbanimationen</p><h2>Profile</h2><p class="hint">Verzögerung pro Profil anpassen.</p></div></div>
           <div id="color-animation-profile-list" class="profile-grid"></div>
         </section>
       </section>
@@ -517,7 +550,7 @@
           <p class="hint">Zeitpläne für Display und Ambilight in einem gemeinsamen Modul.</p>
         </div>
 
-        <section id="timers-panel" class="panel">
+        <section id="timers-panel" class="panel panel-timers-display">
           <div class="panel-head"><div><p class="eyebrow">Timer</p><h2>Zeiten</h2></div></div>
           <div id="timer-list" class="timer-grid"></div>
           <div class="hero-actions">
@@ -525,7 +558,7 @@
           </div>
         </section>
 
-        <section id="ambilight-timers-panel" class="panel">
+        <section id="ambilight-timers-panel" class="panel panel-timers-ambilight">
           <div class="panel-head"><div><p class="eyebrow">Ambilight-Timer</p><h2>Zeiten für Ambilight</h2></div></div>
           <div id="ambilight-timer-list" class="timer-grid"></div>
           <div class="hero-actions">
@@ -563,20 +596,20 @@
                 <label class="chip-toggle"><input id="dfplayer-bell-30" type="checkbox"> xx:30</label>
                 <label class="chip-toggle"><input id="dfplayer-bell-45" type="checkbox"> xx:45</label>
               </div>
-              <button id="dfplayer-bell-save-button" class="button primary" type="button">Glockenzeiten speichern</button>
+              <button id="dfplayer-bell-save-button" class="button" type="button">Glockenzeiten speichern</button>
             </div>
             <div id="dfplayer-speak-section" class="form-section">
               <p class="section-label">Sprache</p>
               <label class="field"><span class="label">Sprachzyklus</span><input id="dfplayer-speak-cycle-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
-              <button id="dfplayer-speak-save-button" class="button primary" type="button">Sprachzyklus speichern</button>
+              <button id="dfplayer-speak-save-button" class="button" type="button">Sprachzyklus speichern</button>
             </div>
             <div class="timer-fields-grid">
               <label class="field"><span class="label">Ruhezeit Beginn</span><input id="dfplayer-silence-start-input" type="time"></label>
               <label class="field"><span class="label">Ruhezeit Ende</span><input id="dfplayer-silence-stop-input" type="time"></label>
             </div>
             <div class="profile-actions">
-              <button id="dfplayer-silence-start-save-button" class="button primary" type="button">Ruhezeit Beginn speichern</button>
-              <button id="dfplayer-silence-stop-save-button" class="button primary" type="button">Ruhezeit Ende speichern</button>
+              <button id="dfplayer-silence-start-save-button" class="button" type="button">Ruhezeit Beginn speichern</button>
+              <button id="dfplayer-silence-stop-save-button" class="button" type="button">Ruhezeit Ende speichern</button>
             </div>
             <div class="timer-fields-grid">
               <label class="field"><span class="label">Test-Ordner</span><input id="dfplayer-folder-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
@@ -600,22 +633,47 @@
           <p class="hint">Firmware, LittleFS, lokale Uploads und die Wartungsaktionen für das Gerät.</p>
         </div>
 
-        <section class="panel">
+        <section class="panel panel-maintenance-service">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Update</p>
-              <h2>Firmware und Server</h2>
-              <p class="hint">Versionen, Server-Dateien und Update-Aktionen analog zur Legacy-Seite.</p>
+              <h2>Quelle und Versionen</h2>
+              <p class="hint">Update-Quelle, erkannte Versionen und verfügbare Server-Dateien im Überblick.</p>
             </div>
           </div>
           <div class="control-stack">
-            <label class="field"><span class="label">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
-            <button id="update-host-save-button" class="button primary" type="button">Update-Host speichern</button>
-            <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
-            <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
-            <div id="update-status-list" class="info-list"></div>
-            <label class="field"><span class="label">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="">wird geladen...</option></select></label>
-            <label id="update-table-field" class="field"><span class="label">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="">wird geladen...</option></select></label>
+            <div class="split-card-grid">
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Server</span></div></div>
+                <label class="field"><span class="label">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
+                <button id="update-host-save-button" class="button primary" type="button">Update-Host speichern</button>
+                <div class="panel-head compact"><div><span class="label">Server-Auswahl</span></div></div>
+                <label class="field"><span class="label">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="">wird geladen...</option></select></label>
+                <label id="update-table-field" class="field"><span class="label">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="">wird geladen...</option></select></label>
+                <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
+                <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
+              </section>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Versionen</span></div></div>
+                <div id="update-status-list" class="info-list"></div>
+              </section>
+            </div>
+            <section class="profile-card">
+              <div class="panel-head compact"><div><span class="label">Release Notes</span></div></div>
+              <div id="update-release-notes" class="html-block">werden geladen...</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Remote</p>
+              <h2>Firmware auslösen</h2>
+              <p class="hint">Aktive Aktionen vom Update-Server. Fortschritt und Ergebnis werden darunter angezeigt.</p>
+            </div>
+          </div>
+          <div class="control-stack">
             <div class="hero-actions">
               <button id="update-esp-button" class="button primary" type="button">ESP-Firmware aktualisieren</button>
               <button id="update-stm32-button" class="button" type="button">STM32 flashen</button>
@@ -628,7 +686,6 @@
                 <button id="update-app-bundle-button" class="button primary" type="button">App-Paket laden</button>
               </div>
             </div>
-            <div class="field"><span class="label">Release Notes</span><div id="update-release-notes" class="html-block">werden geladen...</div></div>
             <div id="update-progress-shell" class="control-stack is-hidden">
               <div class="panel-head compact"><div><span class="label">Update-Fortschritt</span></div></div>
               <div id="update-progress-visual" class="control-stack is-hidden">
@@ -638,51 +695,73 @@
               <p id="update-progress-note" class="hint">Wartet auf Aktion...</p>
               <iframe id="update-progress-frame" name="update-progress-frame" class="progress-frame" title="Update Fortschritt"></iframe>
             </div>
-            <div class="hero-actions">
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Wartung</p>
+              <h2>Service-Aktionen</h2>
+              <p class="hint">Nur für gezielte Servicefälle. Diese Aktionen lösen keinen normalen Update- oder Backup-Workflow aus.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div class="hero-actions danger-actions">
               <button id="maintenance-reset-stm32-button" class="button" type="button">STM32 zurücksetzen</button>
               <button id="maintenance-reset-eeprom-button" class="button" type="button">EEPROM zurücksetzen</button>
             </div>
           </div>
         </section>
 
-        <section id="files-panel" class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Dateien</p><h2>LittleFS</h2><p class="hint">Dateien anzeigen, löschen und die bekannten Legacy-Ziele direkt hochladen.</p></div></div>
+        <section id="files-panel" class="panel panel-maintenance-files">
+          <div class="panel-head"><div><p class="eyebrow">Dateien</p><h2>LittleFS</h2><p class="hint">Dateien anzeigen, löschen und die bekannten Upload-Ziele direkt beschicken.</p></div></div>
           <div class="control-stack">
             <div id="fs-info-list" class="info-list"></div>
             <div class="hero-actions"><button id="files-format-fs-button" class="button" type="button">LittleFS formatieren</button></div>
-            <section class="profile-card">
-              <div class="panel-head compact"><div><span class="label">Dateiliste</span></div></div>
-              <div id="fs-file-list" class="file-list"></div>
-            </section>
-            <div class="field"><span class="label">Dateivorschau</span><pre id="fs-preview-content" class="code-block">Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.</pre></div>
-            <div class="field"><span class="label">Aktionen und Uploads</span><pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre></div>
-            <div class="control-stack">
-              <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
-              <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button primary" type="submit">App installieren</button>
-              </form>
-              <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-display-label" class="label">TFT-Display-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
+            <div class="fs-workspace-grid">
+              <section class="profile-card fs-files-card">
+                <div class="panel-head compact"><div><span class="label">Dateiliste</span></div></div>
+                <div id="fs-file-list" class="file-list"></div>
+              </section>
+              <section class="profile-card fs-preview-card">
+                <div class="panel-head compact"><div><span class="label">Dateivorschau</span></div></div>
+                <pre id="fs-preview-content" class="code-block">Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.</pre>
+              </section>
+              <section class="profile-card fs-status-card">
+                <div class="panel-head compact"><div><span class="label">Aktionen und Uploads</span></div></div>
+                <pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre>
+              </section>
+              <section class="profile-card fs-upload-card">
+                <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
+                <div class="control-stack">
+                  <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button primary" type="submit">App installieren</button>
+                  </form>
+                  <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-display-label" class="label">TFT-Display-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                </div>
+              </section>
             </div>
           </div>
         </section>
 
-        <section id="local-update-panel" class="panel">
+        <section id="local-update-panel" class="panel panel-maintenance-local">
           <div class="panel-head"><div><p class="eyebrow">Lokales Update</p><h2>ESP- und STM32-Dateien hochladen</h2><p class="hint">Lokale Firmware-Dateien können direkt hochgeladen werden, ohne den Update-Server zu verwenden.</p></div></div>
           <div class="control-stack">
             <p id="local-update-note" class="hint">Lokal-Update wird vorbereitet...</p>
@@ -697,7 +776,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel panel-maintenance-backup">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Sicherung</p>

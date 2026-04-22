@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.3.78";
+const APP_VERSION = "1.4.10";
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
@@ -328,6 +328,7 @@ let wordclockResizeObserver = null;
 let liveDisplayColorTimer = 0;
 let currentLiveDisplayColor = null;
 let lastLiveDisplayColorMode = 0;
+let overlayEditorState = null;
 let stm32LogTimer = 0;
 let stm32LogRefreshInFlight = false;
 let settingsImportInProgress = false;
@@ -336,8 +337,12 @@ let appServiceWorkerRegistration = null;
 let appServiceWorkerUpdateApplied = false;
 let initialLoadRetryTimer = 0;
 let initialLoadAttemptCount = 0;
+let reloadBootstrapPending = hasReloadQueryMarker();
+let reloadBootstrapTimers = [];
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
+const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
+const RELOAD_BOOTSTRAP_LOAD_DELAYS_MS = [250, 900, 1800, 3200];
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
@@ -525,18 +530,24 @@ let statusToneResetTimer = 0;
 let buttonFeedbackTimers = new WeakMap();
 let alignedAutoRefreshTimeout = 0;
 let alignedAutoRefreshInterval = 0;
+let moduleNavHintSyncFrame = 0;
 
 loadDebugOverridesIntoUi();
 clearReloadQueryMarker();
 restoreActiveModule();
+scheduleModuleNavHintSync();
 loadData();
+scheduleReloadBootstrapLoads();
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
 }
 if (!APP_STABILITY_MODE.disableServiceWorkerRegistration) {
   scheduleServiceWorkerRegistration();
 }
-window.addEventListener("resize", scheduleWordclockSizing);
+window.addEventListener("resize", () => {
+  scheduleWordclockSizing();
+  scheduleModuleNavHintSync();
+});
 
 function scheduleServiceWorkerRegistration() {
   const register = () => {
@@ -764,6 +775,7 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
+  scheduleModuleNavHintSync();
   if (getCurrentSettingsSnapshot()) {
     if (target === "maintenance") {
       void loadData({ maintenancePriority: true });
@@ -810,6 +822,55 @@ function updateModuleAvailability(settings, debugOverrides) {
   if (activeSection && activeSection.classList.contains("is-hidden")) {
     setActiveModule("main");
   }
+
+  scheduleModuleNavHintSync();
+}
+
+function scheduleModuleNavHintSync() {
+  if (moduleNavHintSyncFrame) {
+    window.cancelAnimationFrame(moduleNavHintSyncFrame);
+  }
+
+  moduleNavHintSyncFrame = window.requestAnimationFrame(() => {
+    moduleNavHintSyncFrame = 0;
+    syncModuleNavHint();
+  });
+}
+
+function syncModuleNavHint() {
+  const shell = document.querySelector(".module-nav-shell");
+  const nav = shell ? shell.querySelector(".module-nav") : null;
+
+  if (!shell || !nav) {
+    return;
+  }
+
+  shell.classList.add("is-measuring");
+  const chips = Array.from(nav.querySelectorAll(".module-chip"));
+  const navStyles = window.getComputedStyle(nav);
+  const gap = parseFloat(navStyles.columnGap || navStyles.gap || "0") || 0;
+  const totalGapWidth = chips.length > 1 ? gap * (chips.length - 1) : 0;
+  const totalChipWidth = chips.reduce((sum, chip) => {
+    const chipStyles = window.getComputedStyle(chip);
+    const paddingLeft = parseFloat(chipStyles.paddingLeft || "0") || 0;
+    const paddingRight = parseFloat(chipStyles.paddingRight || "0") || 0;
+    const borderLeft = parseFloat(chipStyles.borderLeftWidth || "0") || 0;
+    const borderRight = parseFloat(chipStyles.borderRightWidth || "0") || 0;
+    return sum + chip.scrollWidth + paddingLeft + paddingRight + borderLeft + borderRight;
+  }, 0);
+  shell.classList.remove("is-measuring");
+  const requiredWidth = totalChipWidth + totalGapWidth;
+  const currentlyOverflowing = shell.classList.contains("has-overflow");
+  const enterOverflowThreshold = nav.clientWidth + 12;
+  const leaveOverflowThreshold = nav.clientWidth - 20;
+  const hasOverflow = currentlyOverflowing
+    ? requiredWidth > leaveOverflowThreshold
+    : requiredWidth > enterOverflowThreshold;
+
+  shell.classList.toggle("has-overflow", hasOverflow);
+  if (!hasOverflow && nav.scrollLeft) {
+    nav.scrollLeft = 0;
+  }
 }
 
 async function loadData(options) {
@@ -845,6 +906,8 @@ async function loadData(options) {
 
     clearInitialLoadRetry();
     initialLoadAttemptCount = 0;
+    reloadBootstrapPending = false;
+    clearReloadBootstrapLoads();
     setCurrentSettingsSnapshot(settings);
     setCurrentEepromSettings(getCurrentEepromSettings());
     setCurrentNetworkInfo(getCurrentNetworkInfo());
@@ -903,10 +966,12 @@ async function loadData(options) {
     renderAmbilightModeProfiles(settings);
     renderDimCurves(settings);
     renderDfplayerAlarmRows(settings);
+    overlayEditorState = captureOverlayEditorState();
     renderOverlayRows(settings);
+    const overlayDraftRestored = restoreOverlayEditorState(overlayEditorState);
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
-    hasUnsavedEdits = false;
+    hasUnsavedEdits = overlayDraftRestored;
     announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
@@ -945,12 +1010,46 @@ function clearInitialLoadRetry() {
   initialLoadRetryTimer = 0;
 }
 
+function clearReloadBootstrapLoads() {
+  if (!reloadBootstrapTimers.length) {
+    return;
+  }
+
+  reloadBootstrapTimers.forEach((timerId) => window.clearTimeout(timerId));
+  reloadBootstrapTimers = [];
+}
+
+function scheduleReloadBootstrapLoads() {
+  clearReloadBootstrapLoads();
+
+  if (!reloadBootstrapPending) {
+    return;
+  }
+
+  reloadBootstrapTimers = RELOAD_BOOTSTRAP_LOAD_DELAYS_MS.map((delayMs) => window.setTimeout(() => {
+    if (!reloadBootstrapPending || getCurrentSettingsSnapshot()) {
+      return;
+    }
+
+    void loadData({ reloadBootstrap: true });
+  }, delayMs));
+}
+
+function hasReloadQueryMarker() {
+  try {
+    return new URL(window.location.href).searchParams.has("_reload");
+  } catch (_) {
+    return false;
+  }
+}
+
 function handleInitialLoadPending(error, options) {
   const opts = options || {};
   const isPendingInitialData = !!(error && error.message === "initial-data-pending");
   const retryIndex = initialLoadAttemptCount;
+  const retryDelays = reloadBootstrapPending ? RELOAD_BOOTSTRAP_RETRY_DELAYS_MS : INITIAL_LOAD_RETRY_DELAYS_MS;
 
-  if (!isPendingInitialData || retryIndex >= INITIAL_LOAD_RETRY_DELAYS_MS.length) {
+  if (!isPendingInitialData || retryIndex >= retryDelays.length) {
     return false;
   }
 
@@ -960,7 +1059,7 @@ function handleInitialLoadPending(error, options) {
   initialLoadRetryTimer = window.setTimeout(() => {
     initialLoadRetryTimer = 0;
     void loadData({ ...opts, initialRetry: true });
-  }, INITIAL_LOAD_RETRY_DELAYS_MS[retryIndex]);
+  }, retryDelays[retryIndex]);
   return true;
 }
 
@@ -4287,7 +4386,7 @@ function renderOverlayRowsFromMeta(items) {
     const overlayTypeName = OVERLAY_TYPE_NAMES[type] || "Keins";
 
     return (
-      '<section class="overlay-card">' +
+      '<section class="overlay-card" data-overlay-idx="' + idx + '"' + (overlay.isNew ? ' data-overlay-new="1"' : '') + '>' +
         '<div class="card-headline">' +
           '<div><span class="label">' + escapeHtml(title) + '</span><p class="card-subline">' + escapeHtml(overlayTypeName) + '</p></div>' +
           (overlay.isNew ? '<span class="state-pill">Neu</span>' : '') +
@@ -4321,7 +4420,9 @@ function renderOverlayRowsFromMeta(items) {
           '</div>' +
           '<div class="profile-actions overlay-actions">' +
             '<button class="button primary" type="button" data-overlay-save="' + idx + '">' + (overlay.isNew ? "Overlay anlegen" : "Overlay speichern") + "</button>" +
-            (overlay.isNew ? "" : '<button class="button" type="button" data-overlay-display="' + idx + '">Anzeigen</button><button class="button" type="button" data-overlay-delete="' + idx + '">Löschen</button>') +
+            (overlay.isNew
+              ? '<button class="button is-hidden" type="button" data-overlay-cancel="' + idx + '">Abbrechen</button>'
+              : '<button class="button" type="button" data-overlay-display="' + idx + '">Anzeigen</button><button class="button" type="button" data-overlay-delete="' + idx + '">Löschen</button>') +
           '</div>' +
         "</div>" +
       "</section>"
@@ -4329,13 +4430,22 @@ function renderOverlayRowsFromMeta(items) {
   }).join("");
 
   bindDataAction(root, "data-overlay-save", saveOverlay);
+  bindDataAction(root, "data-overlay-cancel", cancelOverlayEdit);
   bindDataAction(root, "data-overlay-display", displayOverlay);
   bindDataAction(root, "data-overlay-delete", deleteOverlay);
   bindIndexedSuffixAction(root, "[id^='ov-type-']", "change", (idx) => {
     void handleOverlayTypeChange(idx);
   });
+  bindIndexedSuffixAction(root, "input[id^='ov-'], select[id^='ov-']", "input", (idx) => updateOverlayDraftActions(idx));
+  bindIndexedSuffixAction(root, "input[id^='ov-'], select[id^='ov-']", "change", (idx) => updateOverlayDraftActions(idx));
   bindIndexedSuffixAction(root, "[id^='ov-datecode-']", "change", (idx) => updateOverlayRowVisibility(idx));
   bindIndexedSuffixAction(root, "[id^='ov-month-'], [id^='ov-day-']", "input", (idx) => updateOverlayRowVisibility(idx));
+  items.forEach((overlay) => {
+    if (overlay.isNew) {
+      captureOverlayDraftBaseline(overlay.idx);
+      updateOverlayDraftActions(overlay.idx);
+    }
+  });
 }
 
 function renderTimerRows(settings, isAmbilight) {
@@ -5545,12 +5655,84 @@ function getCurrentSettingsSnapshot() {
   return currentSettingsSnapshot;
 }
 
+function captureOverlayEditorState() {
+  const cards = Array.from(document.querySelectorAll("#overlay-list .overlay-card"));
+
+  if (!cards.length) {
+    return null;
+  }
+
+  const items = cards.map((card) => {
+    const idx = Number(card.getAttribute("data-overlay-idx"));
+    return {
+      idx,
+      isNew: card.getAttribute("data-overlay-new") === "1",
+      state: serializeOverlayDraftState(idx)
+    };
+  });
+
+  return {
+    items,
+    hasDraftChanges: items.some((entry) => isOverlayDraftDirty(entry.idx))
+  };
+}
+
+function restoreOverlayEditorState(savedState) {
+  if (!savedState || !Array.isArray(savedState.items)) {
+    return false;
+  }
+
+  savedState.items.forEach((entry) => {
+    let state;
+    try {
+      state = JSON.parse(entry.state || "{}");
+    } catch (_) {
+      state = null;
+    }
+
+    if (!state || !getOverlayDraftCard(entry.idx)) {
+      return;
+    }
+
+    const setValue = (prefix, value) => {
+      const element = document.getElementById(prefix + entry.idx);
+      if (element) {
+        element.value = value;
+      }
+    };
+
+    const activeElement = document.getElementById("ov-active-" + entry.idx);
+    if (activeElement) {
+      activeElement.checked = !!state.active;
+    }
+    setValue("ov-type-", state.type);
+    setValue("ov-icon-", state.icon);
+    setValue("ov-value-", state.value);
+    setValue("ov-folder-", state.folder);
+    setValue("ov-track-", state.track);
+    setValue("ov-interval-", state.interval);
+    setValue("ov-duration-", state.duration);
+    setValue("ov-datecode-", state.dateCode);
+    setValue("ov-month-", state.month);
+    setValue("ov-day-", state.day);
+    setValue("ov-days-", state.days);
+    updateOverlayRowVisibility(entry.idx);
+    updateOverlayDraftActions(entry.idx);
+  });
+
+  return !!savedState.hasDraftChanges;
+}
+
 function refreshNetworkUi(settings) {
   updateNetworkControls(settings, getCurrentNetworkInfo());
 }
 
 function refreshOverlayUi(settings) {
+  overlayEditorState = captureOverlayEditorState();
   renderOverlayRows(settings);
+  if (restoreOverlayEditorState(overlayEditorState)) {
+    hasUnsavedEdits = true;
+  }
 }
 
 function refreshMaintenanceUi(settings, fsInfo) {
@@ -5966,7 +6148,7 @@ function getUpdateSummaryMeta(updateStatus, settings) {
     stm32Files,
     releaseNotes,
     items: [
-      ["ESP-Flash", versionMeta.flashSize ? String(versionMeta.flashSize) + " Bytes" : "-"],
+      ["ESP-Flash", versionMeta.flashSize ? formatBytes(versionMeta.flashSize) : "-"],
       ["OTA-Update", versionMeta.canUpdate ? "möglich" : "nicht möglich"],
       ["WordClock-Version", versionMeta.wcVersion],
       ["WordClock verfügbar", versionMeta.wcAvailable],
@@ -8050,6 +8232,62 @@ async function saveOverlay(idx) {
   });
 }
 
+function isOverlayDraftRow(idx) {
+  const card = document.querySelector('.overlay-card[data-overlay-idx="' + idx + '"]');
+  return !!(card && card.getAttribute("data-overlay-new") === "1");
+}
+
+function getOverlayDraftCard(idx) {
+  return document.querySelector('.overlay-card[data-overlay-idx="' + idx + '"]');
+}
+
+function serializeOverlayDraftState(idx) {
+  return JSON.stringify({
+    active: !!document.getElementById("ov-active-" + idx)?.checked,
+    type: String(document.getElementById("ov-type-" + idx)?.value || ""),
+    icon: String(document.getElementById("ov-icon-" + idx)?.value || ""),
+    value: String(document.getElementById("ov-value-" + idx)?.value || ""),
+    folder: String(document.getElementById("ov-folder-" + idx)?.value || ""),
+    track: String(document.getElementById("ov-track-" + idx)?.value || ""),
+    interval: String(document.getElementById("ov-interval-" + idx)?.value || ""),
+    duration: String(document.getElementById("ov-duration-" + idx)?.value || ""),
+    dateCode: String(document.getElementById("ov-datecode-" + idx)?.value || ""),
+    month: String(document.getElementById("ov-month-" + idx)?.value || ""),
+    day: String(document.getElementById("ov-day-" + idx)?.value || ""),
+    days: String(document.getElementById("ov-days-" + idx)?.value || "")
+  });
+}
+
+function captureOverlayDraftBaseline(idx) {
+  const card = getOverlayDraftCard(idx);
+
+  if (!card || card.getAttribute("data-overlay-new") !== "1") {
+    return;
+  }
+
+  card.dataset.overlayBaseline = serializeOverlayDraftState(idx);
+}
+
+function isOverlayDraftDirty(idx) {
+  const card = getOverlayDraftCard(idx);
+
+  if (!card || card.getAttribute("data-overlay-new") !== "1") {
+    return false;
+  }
+
+  return serializeOverlayDraftState(idx) !== String(card.dataset.overlayBaseline || "");
+}
+
+function updateOverlayDraftActions(idx) {
+  const cancelButton = document.querySelector('[data-overlay-cancel="' + idx + '"]');
+
+  if (!cancelButton) {
+    return;
+  }
+
+  cancelButton.classList.toggle("is-hidden", !isOverlayDraftDirty(idx));
+}
+
 async function displayOverlay(idx) {
   await runIndexedQueryButtonRequest('[data-overlay-display="%idx%"]', idx, {
     endpoint: getOverlayDisplayUrl(),
@@ -8073,6 +8311,28 @@ async function deleteOverlay(idx) {
     successStatusText: "Overlay wurde gelöscht",
     reload: true
   });
+}
+
+function cancelOverlayEdit(idx) {
+  const settings = getCurrentSettingsSnapshot();
+  const button = document.querySelector('[data-overlay-cancel="' + idx + '"]');
+
+  if (!settings) {
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.classList.remove("is-hidden");
+    button.classList.add("is-success");
+    button.textContent = "Verworfen";
+  }
+
+  window.setTimeout(() => {
+    hasUnsavedEdits = false;
+    renderOverlayRows(settings);
+    announceStatus("Neues Overlay verworfen", "info");
+  }, 140);
 }
 
 async function saveTimerRow(idx, isAmbilight, options) {

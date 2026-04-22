@@ -11,6 +11,13 @@ Die moderne WordClock-PWA für den ESP8266 ist hier dokumentiert:
 - [README-PWA.md](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/README-PWA.md)
 - [APP-BUNDLE.md](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/APP-BUNDLE.md)
 
+Aktueller Betriebsstand:
+
+- Legacy bleibt unter `/` und `/legacy`
+- die moderne Oberfläche läuft unter `/app`
+- der große Migrations- und Entkopplungsblock ist abgeschlossen
+- neue Änderungen sollen jetzt bewusst klein und gezielt bleiben
+
 ## Changelog
 
 - [CHANGELOG.md](/Users/daniel/Documents/GitHub/wordclock24h/CHANGELOG.md)

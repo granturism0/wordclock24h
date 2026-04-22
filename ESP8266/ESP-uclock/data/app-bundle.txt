@@ -11,7 +11,7 @@ FILE app/app.js
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.3.78";
+const APP_VERSION = "1.4.10";
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
@@ -330,6 +330,7 @@ let wordclockResizeObserver = null;
 let liveDisplayColorTimer = 0;
 let currentLiveDisplayColor = null;
 let lastLiveDisplayColorMode = 0;
+let overlayEditorState = null;
 let stm32LogTimer = 0;
 let stm32LogRefreshInFlight = false;
 let settingsImportInProgress = false;
@@ -338,8 +339,12 @@ let appServiceWorkerRegistration = null;
 let appServiceWorkerUpdateApplied = false;
 let initialLoadRetryTimer = 0;
 let initialLoadAttemptCount = 0;
+let reloadBootstrapPending = hasReloadQueryMarker();
+let reloadBootstrapTimers = [];
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
+const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
+const RELOAD_BOOTSTRAP_LOAD_DELAYS_MS = [250, 900, 1800, 3200];
 
 const DEBUG_STORAGE_KEY = "wordclock-app-debug-overrides";
 const MODULE_STORAGE_KEY = "wordclock-app-active-module";
@@ -527,18 +532,24 @@ let statusToneResetTimer = 0;
 let buttonFeedbackTimers = new WeakMap();
 let alignedAutoRefreshTimeout = 0;
 let alignedAutoRefreshInterval = 0;
+let moduleNavHintSyncFrame = 0;
 
 loadDebugOverridesIntoUi();
 clearReloadQueryMarker();
 restoreActiveModule();
+scheduleModuleNavHintSync();
 loadData();
+scheduleReloadBootstrapLoads();
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
 }
 if (!APP_STABILITY_MODE.disableServiceWorkerRegistration) {
   scheduleServiceWorkerRegistration();
 }
-window.addEventListener("resize", scheduleWordclockSizing);
+window.addEventListener("resize", () => {
+  scheduleWordclockSizing();
+  scheduleModuleNavHintSync();
+});
 
 function scheduleServiceWorkerRegistration() {
   const register = () => {
@@ -766,6 +777,7 @@ function setActiveModule(moduleName) {
   if (target === "main") {
     scheduleWordclockSizing();
   }
+  scheduleModuleNavHintSync();
   if (getCurrentSettingsSnapshot()) {
     if (target === "maintenance") {
       void loadData({ maintenancePriority: true });
@@ -812,6 +824,55 @@ function updateModuleAvailability(settings, debugOverrides) {
   if (activeSection && activeSection.classList.contains("is-hidden")) {
     setActiveModule("main");
   }
+
+  scheduleModuleNavHintSync();
+}
+
+function scheduleModuleNavHintSync() {
+  if (moduleNavHintSyncFrame) {
+    window.cancelAnimationFrame(moduleNavHintSyncFrame);
+  }
+
+  moduleNavHintSyncFrame = window.requestAnimationFrame(() => {
+    moduleNavHintSyncFrame = 0;
+    syncModuleNavHint();
+  });
+}
+
+function syncModuleNavHint() {
+  const shell = document.querySelector(".module-nav-shell");
+  const nav = shell ? shell.querySelector(".module-nav") : null;
+
+  if (!shell || !nav) {
+    return;
+  }
+
+  shell.classList.add("is-measuring");
+  const chips = Array.from(nav.querySelectorAll(".module-chip"));
+  const navStyles = window.getComputedStyle(nav);
+  const gap = parseFloat(navStyles.columnGap || navStyles.gap || "0") || 0;
+  const totalGapWidth = chips.length > 1 ? gap * (chips.length - 1) : 0;
+  const totalChipWidth = chips.reduce((sum, chip) => {
+    const chipStyles = window.getComputedStyle(chip);
+    const paddingLeft = parseFloat(chipStyles.paddingLeft || "0") || 0;
+    const paddingRight = parseFloat(chipStyles.paddingRight || "0") || 0;
+    const borderLeft = parseFloat(chipStyles.borderLeftWidth || "0") || 0;
+    const borderRight = parseFloat(chipStyles.borderRightWidth || "0") || 0;
+    return sum + chip.scrollWidth + paddingLeft + paddingRight + borderLeft + borderRight;
+  }, 0);
+  shell.classList.remove("is-measuring");
+  const requiredWidth = totalChipWidth + totalGapWidth;
+  const currentlyOverflowing = shell.classList.contains("has-overflow");
+  const enterOverflowThreshold = nav.clientWidth + 12;
+  const leaveOverflowThreshold = nav.clientWidth - 20;
+  const hasOverflow = currentlyOverflowing
+    ? requiredWidth > leaveOverflowThreshold
+    : requiredWidth > enterOverflowThreshold;
+
+  shell.classList.toggle("has-overflow", hasOverflow);
+  if (!hasOverflow && nav.scrollLeft) {
+    nav.scrollLeft = 0;
+  }
 }
 
 async function loadData(options) {
@@ -847,6 +908,8 @@ async function loadData(options) {
 
     clearInitialLoadRetry();
     initialLoadAttemptCount = 0;
+    reloadBootstrapPending = false;
+    clearReloadBootstrapLoads();
     setCurrentSettingsSnapshot(settings);
     setCurrentEepromSettings(getCurrentEepromSettings());
     setCurrentNetworkInfo(getCurrentNetworkInfo());
@@ -905,10 +968,12 @@ async function loadData(options) {
     renderAmbilightModeProfiles(settings);
     renderDimCurves(settings);
     renderDfplayerAlarmRows(settings);
+    overlayEditorState = captureOverlayEditorState();
     renderOverlayRows(settings);
+    const overlayDraftRestored = restoreOverlayEditorState(overlayEditorState);
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
-    hasUnsavedEdits = false;
+    hasUnsavedEdits = overlayDraftRestored;
     announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
@@ -947,12 +1012,46 @@ function clearInitialLoadRetry() {
   initialLoadRetryTimer = 0;
 }
 
+function clearReloadBootstrapLoads() {
+  if (!reloadBootstrapTimers.length) {
+    return;
+  }
+
+  reloadBootstrapTimers.forEach((timerId) => window.clearTimeout(timerId));
+  reloadBootstrapTimers = [];
+}
+
+function scheduleReloadBootstrapLoads() {
+  clearReloadBootstrapLoads();
+
+  if (!reloadBootstrapPending) {
+    return;
+  }
+
+  reloadBootstrapTimers = RELOAD_BOOTSTRAP_LOAD_DELAYS_MS.map((delayMs) => window.setTimeout(() => {
+    if (!reloadBootstrapPending || getCurrentSettingsSnapshot()) {
+      return;
+    }
+
+    void loadData({ reloadBootstrap: true });
+  }, delayMs));
+}
+
+function hasReloadQueryMarker() {
+  try {
+    return new URL(window.location.href).searchParams.has("_reload");
+  } catch (_) {
+    return false;
+  }
+}
+
 function handleInitialLoadPending(error, options) {
   const opts = options || {};
   const isPendingInitialData = !!(error && error.message === "initial-data-pending");
   const retryIndex = initialLoadAttemptCount;
+  const retryDelays = reloadBootstrapPending ? RELOAD_BOOTSTRAP_RETRY_DELAYS_MS : INITIAL_LOAD_RETRY_DELAYS_MS;
 
-  if (!isPendingInitialData || retryIndex >= INITIAL_LOAD_RETRY_DELAYS_MS.length) {
+  if (!isPendingInitialData || retryIndex >= retryDelays.length) {
     return false;
   }
 
@@ -962,7 +1061,7 @@ function handleInitialLoadPending(error, options) {
   initialLoadRetryTimer = window.setTimeout(() => {
     initialLoadRetryTimer = 0;
     void loadData({ ...opts, initialRetry: true });
-  }, INITIAL_LOAD_RETRY_DELAYS_MS[retryIndex]);
+  }, retryDelays[retryIndex]);
   return true;
 }
 
@@ -4289,7 +4388,7 @@ function renderOverlayRowsFromMeta(items) {
     const overlayTypeName = OVERLAY_TYPE_NAMES[type] || "Keins";
 
     return (
-      '<section class="overlay-card">' +
+      '<section class="overlay-card" data-overlay-idx="' + idx + '"' + (overlay.isNew ? ' data-overlay-new="1"' : '') + '>' +
         '<div class="card-headline">' +
           '<div><span class="label">' + escapeHtml(title) + '</span><p class="card-subline">' + escapeHtml(overlayTypeName) + '</p></div>' +
           (overlay.isNew ? '<span class="state-pill">Neu</span>' : '') +
@@ -4323,7 +4422,9 @@ function renderOverlayRowsFromMeta(items) {
           '</div>' +
           '<div class="profile-actions overlay-actions">' +
             '<button class="button primary" type="button" data-overlay-save="' + idx + '">' + (overlay.isNew ? "Overlay anlegen" : "Overlay speichern") + "</button>" +
-            (overlay.isNew ? "" : '<button class="button" type="button" data-overlay-display="' + idx + '">Anzeigen</button><button class="button" type="button" data-overlay-delete="' + idx + '">Löschen</button>') +
+            (overlay.isNew
+              ? '<button class="button is-hidden" type="button" data-overlay-cancel="' + idx + '">Abbrechen</button>'
+              : '<button class="button" type="button" data-overlay-display="' + idx + '">Anzeigen</button><button class="button" type="button" data-overlay-delete="' + idx + '">Löschen</button>') +
           '</div>' +
         "</div>" +
       "</section>"
@@ -4331,13 +4432,22 @@ function renderOverlayRowsFromMeta(items) {
   }).join("");
 
   bindDataAction(root, "data-overlay-save", saveOverlay);
+  bindDataAction(root, "data-overlay-cancel", cancelOverlayEdit);
   bindDataAction(root, "data-overlay-display", displayOverlay);
   bindDataAction(root, "data-overlay-delete", deleteOverlay);
   bindIndexedSuffixAction(root, "[id^='ov-type-']", "change", (idx) => {
     void handleOverlayTypeChange(idx);
   });
+  bindIndexedSuffixAction(root, "input[id^='ov-'], select[id^='ov-']", "input", (idx) => updateOverlayDraftActions(idx));
+  bindIndexedSuffixAction(root, "input[id^='ov-'], select[id^='ov-']", "change", (idx) => updateOverlayDraftActions(idx));
   bindIndexedSuffixAction(root, "[id^='ov-datecode-']", "change", (idx) => updateOverlayRowVisibility(idx));
   bindIndexedSuffixAction(root, "[id^='ov-month-'], [id^='ov-day-']", "input", (idx) => updateOverlayRowVisibility(idx));
+  items.forEach((overlay) => {
+    if (overlay.isNew) {
+      captureOverlayDraftBaseline(overlay.idx);
+      updateOverlayDraftActions(overlay.idx);
+    }
+  });
 }
 
 function renderTimerRows(settings, isAmbilight) {
@@ -5547,12 +5657,84 @@ function getCurrentSettingsSnapshot() {
   return currentSettingsSnapshot;
 }
 
+function captureOverlayEditorState() {
+  const cards = Array.from(document.querySelectorAll("#overlay-list .overlay-card"));
+
+  if (!cards.length) {
+    return null;
+  }
+
+  const items = cards.map((card) => {
+    const idx = Number(card.getAttribute("data-overlay-idx"));
+    return {
+      idx,
+      isNew: card.getAttribute("data-overlay-new") === "1",
+      state: serializeOverlayDraftState(idx)
+    };
+  });
+
+  return {
+    items,
+    hasDraftChanges: items.some((entry) => isOverlayDraftDirty(entry.idx))
+  };
+}
+
+function restoreOverlayEditorState(savedState) {
+  if (!savedState || !Array.isArray(savedState.items)) {
+    return false;
+  }
+
+  savedState.items.forEach((entry) => {
+    let state;
+    try {
+      state = JSON.parse(entry.state || "{}");
+    } catch (_) {
+      state = null;
+    }
+
+    if (!state || !getOverlayDraftCard(entry.idx)) {
+      return;
+    }
+
+    const setValue = (prefix, value) => {
+      const element = document.getElementById(prefix + entry.idx);
+      if (element) {
+        element.value = value;
+      }
+    };
+
+    const activeElement = document.getElementById("ov-active-" + entry.idx);
+    if (activeElement) {
+      activeElement.checked = !!state.active;
+    }
+    setValue("ov-type-", state.type);
+    setValue("ov-icon-", state.icon);
+    setValue("ov-value-", state.value);
+    setValue("ov-folder-", state.folder);
+    setValue("ov-track-", state.track);
+    setValue("ov-interval-", state.interval);
+    setValue("ov-duration-", state.duration);
+    setValue("ov-datecode-", state.dateCode);
+    setValue("ov-month-", state.month);
+    setValue("ov-day-", state.day);
+    setValue("ov-days-", state.days);
+    updateOverlayRowVisibility(entry.idx);
+    updateOverlayDraftActions(entry.idx);
+  });
+
+  return !!savedState.hasDraftChanges;
+}
+
 function refreshNetworkUi(settings) {
   updateNetworkControls(settings, getCurrentNetworkInfo());
 }
 
 function refreshOverlayUi(settings) {
+  overlayEditorState = captureOverlayEditorState();
   renderOverlayRows(settings);
+  if (restoreOverlayEditorState(overlayEditorState)) {
+    hasUnsavedEdits = true;
+  }
 }
 
 function refreshMaintenanceUi(settings, fsInfo) {
@@ -5968,7 +6150,7 @@ function getUpdateSummaryMeta(updateStatus, settings) {
     stm32Files,
     releaseNotes,
     items: [
-      ["ESP-Flash", versionMeta.flashSize ? String(versionMeta.flashSize) + " Bytes" : "-"],
+      ["ESP-Flash", versionMeta.flashSize ? formatBytes(versionMeta.flashSize) : "-"],
       ["OTA-Update", versionMeta.canUpdate ? "möglich" : "nicht möglich"],
       ["WordClock-Version", versionMeta.wcVersion],
       ["WordClock verfügbar", versionMeta.wcAvailable],
@@ -8052,6 +8234,62 @@ async function saveOverlay(idx) {
   });
 }
 
+function isOverlayDraftRow(idx) {
+  const card = document.querySelector('.overlay-card[data-overlay-idx="' + idx + '"]');
+  return !!(card && card.getAttribute("data-overlay-new") === "1");
+}
+
+function getOverlayDraftCard(idx) {
+  return document.querySelector('.overlay-card[data-overlay-idx="' + idx + '"]');
+}
+
+function serializeOverlayDraftState(idx) {
+  return JSON.stringify({
+    active: !!document.getElementById("ov-active-" + idx)?.checked,
+    type: String(document.getElementById("ov-type-" + idx)?.value || ""),
+    icon: String(document.getElementById("ov-icon-" + idx)?.value || ""),
+    value: String(document.getElementById("ov-value-" + idx)?.value || ""),
+    folder: String(document.getElementById("ov-folder-" + idx)?.value || ""),
+    track: String(document.getElementById("ov-track-" + idx)?.value || ""),
+    interval: String(document.getElementById("ov-interval-" + idx)?.value || ""),
+    duration: String(document.getElementById("ov-duration-" + idx)?.value || ""),
+    dateCode: String(document.getElementById("ov-datecode-" + idx)?.value || ""),
+    month: String(document.getElementById("ov-month-" + idx)?.value || ""),
+    day: String(document.getElementById("ov-day-" + idx)?.value || ""),
+    days: String(document.getElementById("ov-days-" + idx)?.value || "")
+  });
+}
+
+function captureOverlayDraftBaseline(idx) {
+  const card = getOverlayDraftCard(idx);
+
+  if (!card || card.getAttribute("data-overlay-new") !== "1") {
+    return;
+  }
+
+  card.dataset.overlayBaseline = serializeOverlayDraftState(idx);
+}
+
+function isOverlayDraftDirty(idx) {
+  const card = getOverlayDraftCard(idx);
+
+  if (!card || card.getAttribute("data-overlay-new") !== "1") {
+    return false;
+  }
+
+  return serializeOverlayDraftState(idx) !== String(card.dataset.overlayBaseline || "");
+}
+
+function updateOverlayDraftActions(idx) {
+  const cancelButton = document.querySelector('[data-overlay-cancel="' + idx + '"]');
+
+  if (!cancelButton) {
+    return;
+  }
+
+  cancelButton.classList.toggle("is-hidden", !isOverlayDraftDirty(idx));
+}
+
 async function displayOverlay(idx) {
   await runIndexedQueryButtonRequest('[data-overlay-display="%idx%"]', idx, {
     endpoint: getOverlayDisplayUrl(),
@@ -8075,6 +8313,28 @@ async function deleteOverlay(idx) {
     successStatusText: "Overlay wurde gelöscht",
     reload: true
   });
+}
+
+function cancelOverlayEdit(idx) {
+  const settings = getCurrentSettingsSnapshot();
+  const button = document.querySelector('[data-overlay-cancel="' + idx + '"]');
+
+  if (!settings) {
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.classList.remove("is-hidden");
+    button.classList.add("is-success");
+    button.textContent = "Verworfen";
+  }
+
+  window.setTimeout(() => {
+    hasUnsavedEdits = false;
+    renderOverlayRows(settings);
+    announceStatus("Neues Overlay verworfen", "info");
+  }, 140);
 }
 
 async function saveTimerRow(idx, isAmbilight, options) {
@@ -9862,19 +10122,22 @@ FILE app/index.html
     </header>
 
     <main class="layout">
-      <nav class="module-nav" aria-label="Bereiche">
-        <button class="module-chip is-active" type="button" data-module-target="main">Hauptseite</button>
-        <button class="module-chip" type="button" data-module-target="system">System</button>
-        <button class="module-chip" type="button" data-module-target="network">Netzwerk</button>
-        <button class="module-chip" type="button" data-module-target="climate">Klima</button>
-        <button class="module-chip" type="button" data-module-target="display">Display</button>
-        <button class="module-chip" type="button" data-module-target="animations">Animationen</button>
-        <button class="module-chip" type="button" data-module-target="overlays">Overlays</button>
-        <button class="module-chip" type="button" data-module-target="ambilight">Ambilight</button>
-        <button class="module-chip" type="button" data-module-target="timers">Timer</button>
-        <button class="module-chip" type="button" data-module-target="dfplayer">DFPlayer</button>
-        <button class="module-chip" type="button" data-module-target="maintenance">Wartung</button>
-      </nav>
+      <div class="module-nav-shell">
+        <nav class="module-nav" aria-label="Bereiche">
+          <button class="module-chip is-active" type="button" data-module-target="main">Hauptseite</button>
+          <button class="module-chip" type="button" data-module-target="system">System</button>
+          <button class="module-chip" type="button" data-module-target="network">Netzwerk</button>
+          <button class="module-chip" type="button" data-module-target="climate">Umwelt</button>
+          <button class="module-chip" type="button" data-module-target="display">Display</button>
+          <button class="module-chip" type="button" data-module-target="animations">Animationen</button>
+          <button class="module-chip" type="button" data-module-target="overlays">Overlays</button>
+          <button class="module-chip" type="button" data-module-target="ambilight">Ambilight</button>
+          <button class="module-chip" type="button" data-module-target="timers">Timer</button>
+          <button class="module-chip" type="button" data-module-target="dfplayer">DFPlayer</button>
+          <button class="module-chip" type="button" data-module-target="maintenance">Wartung</button>
+        </nav>
+        <p class="module-nav-hint">Wische seitlich, um weitere Bereiche zu sehen.</p>
+      </div>
 
       <section class="module-section is-active" data-module="main">
         <div class="module-banner">
@@ -9914,11 +10177,30 @@ FILE app/index.html
           </div>
         </section>
 
+      </section>
+
+      <section class="module-section" data-module="system">
+        <div class="module-banner">
+          <p class="eyebrow">Bereich</p>
+          <h2>System</h2>
+          <p class="hint">Hardwaredaten, Gerätezeit, erkannte Subsysteme und Debug-Ansichten für die Oberfläche.</p>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head"><div><p class="eyebrow">System</p><h2>Hardware</h2></div></div>
+          <div id="system-list" class="info-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><p class="eyebrow">Subsysteme</p><h2>Verfügbarkeit</h2></div></div>
+          <div id="health-list" class="info-list"></div>
+        </section>
+
         <section class="panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Zeit</p>
-              <h2>Datum und Uhrzeit</h2>
+              <h2>Datum, Uhrzeit und IR</h2>
               <p id="datetime-preview" class="hint">Gerätezeit wird geladen...</p>
             </div>
           </div>
@@ -9945,24 +10227,6 @@ FILE app/index.html
               <button id="learn-ir-button" class="button" type="button">IR-Fernbedienung lernen</button>
             </div>
           </div>
-        </section>
-      </section>
-
-      <section class="module-section" data-module="system">
-        <div class="module-banner">
-          <p class="eyebrow">Bereich</p>
-          <h2>System</h2>
-          <p class="hint">Hardwaredaten, erkannte Subsysteme und Debug-Ansichten für die Oberfläche.</p>
-        </div>
-
-        <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">System</p><h2>Hardware</h2></div></div>
-          <div id="system-list" class="info-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Subsysteme</p><h2>Verfügbarkeit</h2></div></div>
-          <div id="health-list" class="info-list"></div>
         </section>
 
         <section class="panel">
@@ -10019,14 +10283,14 @@ FILE app/index.html
         <div class="module-banner">
           <p class="eyebrow">Bereich</p>
           <h2>Netzwerk</h2>
-          <p class="hint">WLAN, Access Point, Zeitserver und Netzaktionen für die Verbindung nach außen.</p>
+          <p class="hint">WLAN-Client, eigener Access Point und Zeitdienste klar getrennt für Verbindung und Inbetriebnahme.</p>
         </div>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Netzwerk</p>
-              <h2>WLAN</h2>
+              <p class="eyebrow">Client</p>
+              <h2>Mit WLAN verbinden</h2>
               <p id="network-status-note" class="hint">Netzwerkstatus wird geladen...</p>
             </div>
           </div>
@@ -10037,6 +10301,18 @@ FILE app/index.html
               <button id="network-scan-button" class="button" type="button">WLANs neu laden</button>
               <button id="network-client-save-button" class="button primary" type="button">Als WLAN-Client verbinden</button>
             </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Access Point</p>
+              <h2>Eigenes WLAN bereitstellen</h2>
+              <p class="hint">Hilfreich für Erstinbetriebnahme oder wenn kein vorhandenes WLAN genutzt werden soll.</p>
+            </div>
+          </div>
+          <div class="control-stack">
             <label class="field"><span class="label">AP SSID</span><input id="network-ap-ssid-input" type="text" maxlength="32" placeholder="WordClock Zugangspunkt"></label>
             <label class="field"><span class="label">AP-Passwort</span><input id="network-ap-key-input" type="password" maxlength="32" placeholder="Mindestens 10 Zeichen"></label>
             <button id="network-ap-save-button" class="button primary" type="button">Zugangspunkt starten</button>
@@ -10069,8 +10345,8 @@ FILE app/index.html
       <section class="module-section" data-module="climate">
         <div class="module-banner">
           <p class="eyebrow">Bereich</p>
-          <h2>Klima</h2>
-          <p class="hint">Wetter, Temperaturwerte und der Helligkeitssensor in einem gemeinsamen Klimabereich.</p>
+          <h2>Umwelt</h2>
+          <p class="hint">Wetter, Temperatursensoren und Helligkeitssensor als gemeinsamer Umweltbereich.</p>
         </div>
 
         <section class="panel">
@@ -10078,19 +10354,30 @@ FILE app/index.html
           <div class="control-stack">
             <label class="field"><span class="label">API-Schlüssel</span><input id="weather-appid-input" type="text" maxlength="32" placeholder="OpenWeather APPID"></label>
             <button id="weather-appid-save-button" class="button primary" type="button">API-Schlüssel speichern</button>
-            <label class="field"><span class="label">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
-            <button id="weather-city-save-button" class="button primary" type="button">Ort speichern</button>
-            <div class="time-grid">
-              <label class="field"><span class="label">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
-              <label class="field"><span class="label">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
-              <button id="weather-coordinates-save-button" class="button primary" type="button">Koordinaten speichern</button>
+            <div class="split-card-grid">
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Standort wählen</span></div></div>
+                <label class="field"><span class="label">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
+                <button id="weather-city-save-button" class="button primary" type="button">Ort speichern</button>
+                <div class="time-grid">
+                  <label class="field"><span class="label">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
+                  <label class="field"><span class="label">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
+                  <button id="weather-coordinates-save-button" class="button primary" type="button">Koordinaten speichern</button>
+                </div>
+                <div class="profile-actions">
+                  <button id="weather-map-button" class="button" type="button">Ort auf Karte wählen</button>
+                </div>
+                <p id="weather-location-preview" class="hint">Karte und Suche stehen für die Standortwahl bereit.</p>
+              </section>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Wetter laden</span></div></div>
+                <p class="hint">Nutze den gewählten Standort und rufe aktuelle Werte oder die Vorhersage ab.</p>
+                <div class="hero-actions">
+                  <button id="weather-now-button" class="button primary" type="button">Wetter abrufen</button>
+                  <button id="weather-forecast-button" class="button" type="button">Wettervorhersage abrufen</button>
+                </div>
+              </section>
             </div>
-            <div class="hero-actions">
-              <button id="weather-map-button" class="button" type="button">Ort auf Karte wählen</button>
-              <button id="weather-now-button" class="button" type="button">Wetter abrufen</button>
-              <button id="weather-forecast-button" class="button" type="button">Wettervorhersage abrufen</button>
-            </div>
-            <p id="weather-location-preview" class="hint">Karte und Suche stehen für die Standortwahl bereit.</p>
           </div>
         </section>
 
@@ -10160,10 +10447,16 @@ FILE app/index.html
             <label class="field"><span class="label">Ticker-Text</span><input id="ticker-text-input" type="text" maxlength="32" placeholder="WordClock bereit"></label>
             <button id="ticker-save-button" class="button primary" type="button">Ticker speichern</button>
             <label class="field"><span class="label">Datumsformat im Ticker</span><input id="date-format-input" type="text" maxlength="5" placeholder="%d.%m"></label>
-            <button id="date-format-save-button" class="button primary" type="button">Datumsformat speichern</button>
-            <label class="field"><span class="label">Ticker-Verzögerung</span><input id="ticker-deceleration-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
-            <button id="ticker-deceleration-save-button" class="button primary" type="button">Ticker-Verzögerung speichern</button>
-            <button id="test-display-button" class="button" type="button">Displaytest starten</button>
+              <button id="date-format-save-button" class="button primary" type="button">Datumsformat speichern</button>
+              <label class="field"><span class="label">Ticker-Verzögerung</span><input id="ticker-deceleration-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
+              <button id="ticker-deceleration-save-button" class="button primary" type="button">Ticker-Verzögerung speichern</button>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Diagnose</span></div></div>
+                <p class="hint">Temporärer LED- und Farbtest für die reine Funktionsprüfung des Displays.</p>
+                <div class="profile-actions">
+                  <button id="test-display-button" class="button" type="button">Displaytest starten</button>
+                </div>
+              </section>
           </div>
         </section>
 
@@ -10187,7 +10480,7 @@ FILE app/index.html
           </div>
         </section>
 
-        <section id="tft-panel" class="panel">
+        <section id="tft-panel" class="panel panel-display-tft">
           <div class="panel-head"><div><p class="eyebrow">TFT</p><h2>Panel-Optionen</h2></div></div>
           <div class="control-stack">
             <label><input id="tft-rgb-checkbox" type="checkbox"> RGB-Reihenfolge</label>
@@ -10220,12 +10513,12 @@ FILE app/index.html
         </section>
 
         <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Anzeigeanimationen</p><h2>Profile</h2><p class="hint">Verzögerung und Favoriten direkt pro Profil anpassen.</p></div></div>
+          <div class="panel-head"><div><p class="eyebrow">Anzeigeanimationen</p><h2>Profile</h2><p class="hint">Verzögerung und Favoriten pro Profil anpassen.</p></div></div>
           <div id="animation-profile-list" class="profile-grid"></div>
         </section>
 
         <section class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Farbanimationen</p><h2>Profile</h2><p class="hint">Eigene Verzögerung pro Farbanimation festlegen.</p></div></div>
+          <div class="panel-head"><div><p class="eyebrow">Farbanimationen</p><h2>Profile</h2><p class="hint">Verzögerung pro Profil anpassen.</p></div></div>
           <div id="color-animation-profile-list" class="profile-grid"></div>
         </section>
       </section>
@@ -10334,7 +10627,7 @@ FILE app/index.html
           <p class="hint">Zeitpläne für Display und Ambilight in einem gemeinsamen Modul.</p>
         </div>
 
-        <section id="timers-panel" class="panel">
+        <section id="timers-panel" class="panel panel-timers-display">
           <div class="panel-head"><div><p class="eyebrow">Timer</p><h2>Zeiten</h2></div></div>
           <div id="timer-list" class="timer-grid"></div>
           <div class="hero-actions">
@@ -10342,7 +10635,7 @@ FILE app/index.html
           </div>
         </section>
 
-        <section id="ambilight-timers-panel" class="panel">
+        <section id="ambilight-timers-panel" class="panel panel-timers-ambilight">
           <div class="panel-head"><div><p class="eyebrow">Ambilight-Timer</p><h2>Zeiten für Ambilight</h2></div></div>
           <div id="ambilight-timer-list" class="timer-grid"></div>
           <div class="hero-actions">
@@ -10380,20 +10673,20 @@ FILE app/index.html
                 <label class="chip-toggle"><input id="dfplayer-bell-30" type="checkbox"> xx:30</label>
                 <label class="chip-toggle"><input id="dfplayer-bell-45" type="checkbox"> xx:45</label>
               </div>
-              <button id="dfplayer-bell-save-button" class="button primary" type="button">Glockenzeiten speichern</button>
+              <button id="dfplayer-bell-save-button" class="button" type="button">Glockenzeiten speichern</button>
             </div>
             <div id="dfplayer-speak-section" class="form-section">
               <p class="section-label">Sprache</p>
               <label class="field"><span class="label">Sprachzyklus</span><input id="dfplayer-speak-cycle-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
-              <button id="dfplayer-speak-save-button" class="button primary" type="button">Sprachzyklus speichern</button>
+              <button id="dfplayer-speak-save-button" class="button" type="button">Sprachzyklus speichern</button>
             </div>
             <div class="timer-fields-grid">
               <label class="field"><span class="label">Ruhezeit Beginn</span><input id="dfplayer-silence-start-input" type="time"></label>
               <label class="field"><span class="label">Ruhezeit Ende</span><input id="dfplayer-silence-stop-input" type="time"></label>
             </div>
             <div class="profile-actions">
-              <button id="dfplayer-silence-start-save-button" class="button primary" type="button">Ruhezeit Beginn speichern</button>
-              <button id="dfplayer-silence-stop-save-button" class="button primary" type="button">Ruhezeit Ende speichern</button>
+              <button id="dfplayer-silence-start-save-button" class="button" type="button">Ruhezeit Beginn speichern</button>
+              <button id="dfplayer-silence-stop-save-button" class="button" type="button">Ruhezeit Ende speichern</button>
             </div>
             <div class="timer-fields-grid">
               <label class="field"><span class="label">Test-Ordner</span><input id="dfplayer-folder-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
@@ -10417,22 +10710,47 @@ FILE app/index.html
           <p class="hint">Firmware, LittleFS, lokale Uploads und die Wartungsaktionen für das Gerät.</p>
         </div>
 
-        <section class="panel">
+        <section class="panel panel-maintenance-service">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Update</p>
-              <h2>Firmware und Server</h2>
-              <p class="hint">Versionen, Server-Dateien und Update-Aktionen analog zur Legacy-Seite.</p>
+              <h2>Quelle und Versionen</h2>
+              <p class="hint">Update-Quelle, erkannte Versionen und verfügbare Server-Dateien im Überblick.</p>
             </div>
           </div>
           <div class="control-stack">
-            <label class="field"><span class="label">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
-            <button id="update-host-save-button" class="button primary" type="button">Update-Host speichern</button>
-            <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
-            <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
-            <div id="update-status-list" class="info-list"></div>
-            <label class="field"><span class="label">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="">wird geladen...</option></select></label>
-            <label id="update-table-field" class="field"><span class="label">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="">wird geladen...</option></select></label>
+            <div class="split-card-grid">
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Server</span></div></div>
+                <label class="field"><span class="label">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
+                <button id="update-host-save-button" class="button primary" type="button">Update-Host speichern</button>
+                <div class="panel-head compact"><div><span class="label">Server-Auswahl</span></div></div>
+                <label class="field"><span class="label">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="">wird geladen...</option></select></label>
+                <label id="update-table-field" class="field"><span class="label">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="">wird geladen...</option></select></label>
+                <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
+                <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
+              </section>
+              <section class="profile-card">
+                <div class="panel-head compact"><div><span class="label">Versionen</span></div></div>
+                <div id="update-status-list" class="info-list"></div>
+              </section>
+            </div>
+            <section class="profile-card">
+              <div class="panel-head compact"><div><span class="label">Release Notes</span></div></div>
+              <div id="update-release-notes" class="html-block">werden geladen...</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Remote</p>
+              <h2>Firmware auslösen</h2>
+              <p class="hint">Aktive Aktionen vom Update-Server. Fortschritt und Ergebnis werden darunter angezeigt.</p>
+            </div>
+          </div>
+          <div class="control-stack">
             <div class="hero-actions">
               <button id="update-esp-button" class="button primary" type="button">ESP-Firmware aktualisieren</button>
               <button id="update-stm32-button" class="button" type="button">STM32 flashen</button>
@@ -10445,7 +10763,6 @@ FILE app/index.html
                 <button id="update-app-bundle-button" class="button primary" type="button">App-Paket laden</button>
               </div>
             </div>
-            <div class="field"><span class="label">Release Notes</span><div id="update-release-notes" class="html-block">werden geladen...</div></div>
             <div id="update-progress-shell" class="control-stack is-hidden">
               <div class="panel-head compact"><div><span class="label">Update-Fortschritt</span></div></div>
               <div id="update-progress-visual" class="control-stack is-hidden">
@@ -10455,51 +10772,73 @@ FILE app/index.html
               <p id="update-progress-note" class="hint">Wartet auf Aktion...</p>
               <iframe id="update-progress-frame" name="update-progress-frame" class="progress-frame" title="Update Fortschritt"></iframe>
             </div>
-            <div class="hero-actions">
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Wartung</p>
+              <h2>Service-Aktionen</h2>
+              <p class="hint">Nur für gezielte Servicefälle. Diese Aktionen lösen keinen normalen Update- oder Backup-Workflow aus.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div class="hero-actions danger-actions">
               <button id="maintenance-reset-stm32-button" class="button" type="button">STM32 zurücksetzen</button>
               <button id="maintenance-reset-eeprom-button" class="button" type="button">EEPROM zurücksetzen</button>
             </div>
           </div>
         </section>
 
-        <section id="files-panel" class="panel">
-          <div class="panel-head"><div><p class="eyebrow">Dateien</p><h2>LittleFS</h2><p class="hint">Dateien anzeigen, löschen und die bekannten Legacy-Ziele direkt hochladen.</p></div></div>
+        <section id="files-panel" class="panel panel-maintenance-files">
+          <div class="panel-head"><div><p class="eyebrow">Dateien</p><h2>LittleFS</h2><p class="hint">Dateien anzeigen, löschen und die bekannten Upload-Ziele direkt beschicken.</p></div></div>
           <div class="control-stack">
             <div id="fs-info-list" class="info-list"></div>
             <div class="hero-actions"><button id="files-format-fs-button" class="button" type="button">LittleFS formatieren</button></div>
-            <section class="profile-card">
-              <div class="panel-head compact"><div><span class="label">Dateiliste</span></div></div>
-              <div id="fs-file-list" class="file-list"></div>
-            </section>
-            <div class="field"><span class="label">Dateivorschau</span><pre id="fs-preview-content" class="code-block">Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.</pre></div>
-            <div class="field"><span class="label">Aktionen und Uploads</span><pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre></div>
-            <div class="control-stack">
-              <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
-              <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button primary" type="submit">App installieren</button>
-              </form>
-              <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
-              <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
-                <label class="field"><span id="fs-upload-display-label" class="label">TFT-Display-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                <button class="button" type="submit">Datei hochladen</button>
-              </form>
+            <div class="fs-workspace-grid">
+              <section class="profile-card fs-files-card">
+                <div class="panel-head compact"><div><span class="label">Dateiliste</span></div></div>
+                <div id="fs-file-list" class="file-list"></div>
+              </section>
+              <section class="profile-card fs-preview-card">
+                <div class="panel-head compact"><div><span class="label">Dateivorschau</span></div></div>
+                <pre id="fs-preview-content" class="code-block">Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.</pre>
+              </section>
+              <section class="profile-card fs-status-card">
+                <div class="panel-head compact"><div><span class="label">Aktionen und Uploads</span></div></div>
+                <pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre>
+              </section>
+              <section class="profile-card fs-upload-card">
+                <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
+                <div class="control-stack">
+                  <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button primary" type="submit">App installieren</button>
+                  </form>
+                  <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-weather-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-weather-label" class="label">Wetter-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-tables-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-tables-label" class="label">Layout-Tabelle</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                  <form id="fs-upload-display-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
+                    <label class="field"><span id="fs-upload-display-label" class="label">TFT-Display-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
+                    <button class="button" type="submit">Datei hochladen</button>
+                  </form>
+                </div>
+              </section>
             </div>
           </div>
         </section>
 
-        <section id="local-update-panel" class="panel">
+        <section id="local-update-panel" class="panel panel-maintenance-local">
           <div class="panel-head"><div><p class="eyebrow">Lokales Update</p><h2>ESP- und STM32-Dateien hochladen</h2><p class="hint">Lokale Firmware-Dateien können direkt hochgeladen werden, ohne den Update-Server zu verwenden.</p></div></div>
           <div class="control-stack">
             <p id="local-update-note" class="hint">Lokal-Update wird vorbereitet...</p>
@@ -10514,7 +10853,7 @@ FILE app/index.html
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel panel-maintenance-backup">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Sicherung</p>
@@ -10817,19 +11156,49 @@ h2 {
   gap: 10px;
 }
 
+.module-nav-shell {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  position: sticky;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 24;
+  padding: 6px 0 8px;
+  background: transparent;
+  backdrop-filter: none;
+}
+
 .module-nav {
   display: flex;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
   padding: 2px;
-  position: sticky;
-  top: max(8px, env(safe-area-inset-top));
-  z-index: 20;
   margin-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(143, 211, 255, 0.28) transparent;
 }
 
 .module-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.module-nav::-webkit-scrollbar-thumb {
+  background: rgba(143, 211, 255, 0.28);
+  border-radius: 999px;
+}
+
+.module-nav-hint {
   display: none;
+  margin: 0 4px 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.module-nav-shell.has-overflow .module-nav-hint {
+  display: block;
 }
 
 .module-chip {
@@ -10844,8 +11213,10 @@ h2 {
 
 .module-chip.is-active {
   color: var(--text);
+  font-weight: 700;
   border-color: rgba(143, 211, 255, 0.34);
   background: linear-gradient(180deg, rgba(143, 211, 255, 0.18), rgba(78, 180, 255, 0.14));
+  box-shadow: 0 0 0 1px rgba(143, 211, 255, 0.12);
 }
 
 .module-section {
@@ -11096,6 +11467,11 @@ h2 {
   gap: 12px;
 }
 
+.split-card-grid {
+  display: grid;
+  gap: 12px;
+}
+
 .animation-current-grid {
   display: grid;
   gap: 14px;
@@ -11242,6 +11618,11 @@ h2 {
   margin-top: 8px;
 }
 
+.danger-actions .button {
+  border-color: rgba(255, 120, 120, 0.24);
+  background: linear-gradient(180deg, rgba(255, 140, 140, 0.12), rgba(214, 84, 84, 0.1));
+}
+
 .dim-grid {
   display: grid;
   gap: 12px;
@@ -11365,6 +11746,11 @@ h2 {
   gap: 10px;
 }
 
+.fs-workspace-grid {
+  display: grid;
+  gap: 12px;
+}
+
 .file-row {
   display: grid;
   gap: 12px;
@@ -11431,6 +11817,11 @@ h2 {
   word-break: break-word;
   max-height: 260px;
   overflow: auto;
+}
+
+.fs-preview-card .code-block,
+.fs-status-card .code-block {
+  min-height: 12rem;
 }
 
 .html-block {
@@ -11540,8 +11931,77 @@ h2 {
 }
 
 @media (min-width: 900px) {
+  .module-nav-shell.is-measuring .module-nav {
+    overflow-x: visible;
+  }
+
+  .module-nav-shell.is-measuring .module-chip {
+    flex: 0 0 auto;
+  }
+
+  .module-nav {
+    flex-wrap: nowrap;
+    overflow-x: visible;
+    scrollbar-width: none;
+  }
+
+  .module-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .module-nav-shell:not(.has-overflow) .module-nav {
+    justify-content: stretch;
+  }
+
+  .module-nav-shell:not(.has-overflow) .module-chip {
+    flex: 1 1 0;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .module-chip {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.96rem;
+  }
+
+  .module-nav-shell.has-overflow .module-nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .module-nav-shell.has-overflow .module-chip {
+    flex: 0 0 auto;
+  }
+
+  .module-nav-shell.has-overflow .module-nav::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+
+  .split-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .fs-workspace-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-areas:
+      "files preview"
+      "files status"
+      "files uploads";
+    align-items: start;
+  }
+
+  .fs-files-card { grid-area: files; }
+  .fs-preview-card { grid-area: preview; }
+  .fs-status-card { grid-area: status; }
+  .fs-upload-card { grid-area: uploads; }
+
   .module-section[data-module="animations"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
   .animation-current-row {
@@ -11630,6 +12090,7 @@ h2 {
   }
 
   .module-nav,
+  .module-nav-shell,
   .module-section {
     grid-column: 1 / -1;
   }
@@ -11666,15 +12127,75 @@ h2 {
   }
 
   .module-section[data-module="system"],
-  .module-section[data-module="network"],
   .module-section[data-module="climate"],
-  .module-section[data-module="display"],
   .module-section[data-module="ambilight"],
-  .module-section[data-module="timers"],
   .module-section[data-module="maintenance"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
+
+  .module-section[data-module="network"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "banner banner"
+      "client access"
+      "time time";
+    align-items: start;
+  }
+
+  .module-section[data-module="display"] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      "banner banner"
+      "summary controls"
+      "dim controls"
+      "tft tft";
+    align-items: start;
+  }
+
+  .module-section[data-module="timers"] {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "banner"
+      "display"
+      "ambilight";
+    align-items: start;
+  }
+
+  .module-section[data-module="maintenance"] {
+    grid-template-areas:
+      "banner banner"
+      "source remote"
+      "local backup"
+      "service backup"
+      "files files";
+  }
+
+  .module-section[data-module="display"] .module-banner,
+  .module-section[data-module="network"] .module-banner,
+  .module-section[data-module="timers"] .module-banner,
+  .module-section[data-module="maintenance"] .module-banner {
+    grid-area: banner;
+  }
+
+  .module-section[data-module="network"] .panel:nth-of-type(1) { grid-area: client; }
+  .module-section[data-module="network"] .panel:nth-of-type(2) { grid-area: access; }
+  .module-section[data-module="network"] .panel:nth-of-type(3) { grid-area: time; }
+
+  .panel-display-summary { grid-area: summary; }
+  .panel-display-controls { grid-area: controls; }
+  .panel-display-dim { grid-area: dim; }
+  .panel-display-tft { grid-area: tft; }
+
+  .panel-timers-display { grid-area: display; }
+  .panel-timers-ambilight { grid-area: ambilight; }
+
+  .panel-maintenance-source { grid-area: source; }
+  .panel-maintenance-remote { grid-area: remote; }
+  .panel-maintenance-service { grid-area: service; }
+  .panel-maintenance-files { grid-area: files; }
+  .panel-maintenance-local { grid-area: local; }
+  .panel-maintenance-backup { grid-area: backup; }
 
 }
 
@@ -11692,7 +12213,14 @@ h2 {
     grid-template-columns: 1.2fr 0.8fr 0.8fr;
   }
 
+  .module-chip {
+    min-height: 42px;
+    padding: 0 15px;
+    font-size: 0.98rem;
+  }
+
   .module-nav,
+  .module-nav-shell,
   .module-section {
     grid-column: 1 / -1;
   }
@@ -11708,6 +12236,24 @@ h2 {
 
   .module-section[data-module="main"] .panel.spotlight {
     grid-row: 2 / span 2;
+  }
+
+  .module-section[data-module="display"] {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+
+  .module-section[data-module="maintenance"] {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    grid-template-areas:
+      "banner banner"
+      "source remote"
+      "local remote"
+      "service backup"
+      "files files";
+  }
+
+  .module-section[data-module="network"] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 }
 
@@ -11740,6 +12286,13 @@ h2 {
   .datetime-date-grid,
   .datetime-time-grid {
     grid-template-columns: 1fr;
+  }
+
+}
+
+@media (min-width: 901px) {
+  .module-nav-shell.has-overflow .module-nav-hint {
+    display: none;
   }
 }
 END_FILE

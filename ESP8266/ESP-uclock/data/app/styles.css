@@ -188,19 +188,49 @@ h2 {
   gap: 10px;
 }
 
+.module-nav-shell {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  position: sticky;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 24;
+  padding: 6px 0 8px;
+  background: transparent;
+  backdrop-filter: none;
+}
+
 .module-nav {
   display: flex;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
   padding: 2px;
-  position: sticky;
-  top: max(8px, env(safe-area-inset-top));
-  z-index: 20;
   margin-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(143, 211, 255, 0.28) transparent;
 }
 
 .module-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.module-nav::-webkit-scrollbar-thumb {
+  background: rgba(143, 211, 255, 0.28);
+  border-radius: 999px;
+}
+
+.module-nav-hint {
   display: none;
+  margin: 0 4px 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.module-nav-shell.has-overflow .module-nav-hint {
+  display: block;
 }
 
 .module-chip {
@@ -215,8 +245,10 @@ h2 {
 
 .module-chip.is-active {
   color: var(--text);
+  font-weight: 700;
   border-color: rgba(143, 211, 255, 0.34);
   background: linear-gradient(180deg, rgba(143, 211, 255, 0.18), rgba(78, 180, 255, 0.14));
+  box-shadow: 0 0 0 1px rgba(143, 211, 255, 0.12);
 }
 
 .module-section {
@@ -467,6 +499,11 @@ h2 {
   gap: 12px;
 }
 
+.split-card-grid {
+  display: grid;
+  gap: 12px;
+}
+
 .animation-current-grid {
   display: grid;
   gap: 14px;
@@ -613,6 +650,11 @@ h2 {
   margin-top: 8px;
 }
 
+.danger-actions .button {
+  border-color: rgba(255, 120, 120, 0.24);
+  background: linear-gradient(180deg, rgba(255, 140, 140, 0.12), rgba(214, 84, 84, 0.1));
+}
+
 .dim-grid {
   display: grid;
   gap: 12px;
@@ -736,6 +778,11 @@ h2 {
   gap: 10px;
 }
 
+.fs-workspace-grid {
+  display: grid;
+  gap: 12px;
+}
+
 .file-row {
   display: grid;
   gap: 12px;
@@ -802,6 +849,11 @@ h2 {
   word-break: break-word;
   max-height: 260px;
   overflow: auto;
+}
+
+.fs-preview-card .code-block,
+.fs-status-card .code-block {
+  min-height: 12rem;
 }
 
 .html-block {
@@ -911,8 +963,77 @@ h2 {
 }
 
 @media (min-width: 900px) {
+  .module-nav-shell.is-measuring .module-nav {
+    overflow-x: visible;
+  }
+
+  .module-nav-shell.is-measuring .module-chip {
+    flex: 0 0 auto;
+  }
+
+  .module-nav {
+    flex-wrap: nowrap;
+    overflow-x: visible;
+    scrollbar-width: none;
+  }
+
+  .module-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .module-nav-shell:not(.has-overflow) .module-nav {
+    justify-content: stretch;
+  }
+
+  .module-nav-shell:not(.has-overflow) .module-chip {
+    flex: 1 1 0;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .module-chip {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.96rem;
+  }
+
+  .module-nav-shell.has-overflow .module-nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .module-nav-shell.has-overflow .module-chip {
+    flex: 0 0 auto;
+  }
+
+  .module-nav-shell.has-overflow .module-nav::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+
+  .split-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .fs-workspace-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-areas:
+      "files preview"
+      "files status"
+      "files uploads";
+    align-items: start;
+  }
+
+  .fs-files-card { grid-area: files; }
+  .fs-preview-card { grid-area: preview; }
+  .fs-status-card { grid-area: status; }
+  .fs-upload-card { grid-area: uploads; }
+
   .module-section[data-module="animations"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
   .animation-current-row {
@@ -1001,6 +1122,7 @@ h2 {
   }
 
   .module-nav,
+  .module-nav-shell,
   .module-section {
     grid-column: 1 / -1;
   }
@@ -1037,15 +1159,75 @@ h2 {
   }
 
   .module-section[data-module="system"],
-  .module-section[data-module="network"],
   .module-section[data-module="climate"],
-  .module-section[data-module="display"],
   .module-section[data-module="ambilight"],
-  .module-section[data-module="timers"],
   .module-section[data-module="maintenance"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
+
+  .module-section[data-module="network"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "banner banner"
+      "client access"
+      "time time";
+    align-items: start;
+  }
+
+  .module-section[data-module="display"] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      "banner banner"
+      "summary controls"
+      "dim controls"
+      "tft tft";
+    align-items: start;
+  }
+
+  .module-section[data-module="timers"] {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "banner"
+      "display"
+      "ambilight";
+    align-items: start;
+  }
+
+  .module-section[data-module="maintenance"] {
+    grid-template-areas:
+      "banner banner"
+      "source remote"
+      "local backup"
+      "service backup"
+      "files files";
+  }
+
+  .module-section[data-module="display"] .module-banner,
+  .module-section[data-module="network"] .module-banner,
+  .module-section[data-module="timers"] .module-banner,
+  .module-section[data-module="maintenance"] .module-banner {
+    grid-area: banner;
+  }
+
+  .module-section[data-module="network"] .panel:nth-of-type(1) { grid-area: client; }
+  .module-section[data-module="network"] .panel:nth-of-type(2) { grid-area: access; }
+  .module-section[data-module="network"] .panel:nth-of-type(3) { grid-area: time; }
+
+  .panel-display-summary { grid-area: summary; }
+  .panel-display-controls { grid-area: controls; }
+  .panel-display-dim { grid-area: dim; }
+  .panel-display-tft { grid-area: tft; }
+
+  .panel-timers-display { grid-area: display; }
+  .panel-timers-ambilight { grid-area: ambilight; }
+
+  .panel-maintenance-source { grid-area: source; }
+  .panel-maintenance-remote { grid-area: remote; }
+  .panel-maintenance-service { grid-area: service; }
+  .panel-maintenance-files { grid-area: files; }
+  .panel-maintenance-local { grid-area: local; }
+  .panel-maintenance-backup { grid-area: backup; }
 
 }
 
@@ -1063,7 +1245,14 @@ h2 {
     grid-template-columns: 1.2fr 0.8fr 0.8fr;
   }
 
+  .module-chip {
+    min-height: 42px;
+    padding: 0 15px;
+    font-size: 0.98rem;
+  }
+
   .module-nav,
+  .module-nav-shell,
   .module-section {
     grid-column: 1 / -1;
   }
@@ -1079,6 +1268,24 @@ h2 {
 
   .module-section[data-module="main"] .panel.spotlight {
     grid-row: 2 / span 2;
+  }
+
+  .module-section[data-module="display"] {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+
+  .module-section[data-module="maintenance"] {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    grid-template-areas:
+      "banner banner"
+      "source remote"
+      "local remote"
+      "service backup"
+      "files files";
+  }
+
+  .module-section[data-module="network"] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 }
 
@@ -1111,5 +1318,12 @@ h2 {
   .datetime-date-grid,
   .datetime-time-grid {
     grid-template-columns: 1fr;
+  }
+
+}
+
+@media (min-width: 901px) {
+  .module-nav-shell.has-overflow .module-nav-hint {
+    display: none;
   }
 }

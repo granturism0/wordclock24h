@@ -9,6 +9,13 @@ Die moderne WordClock-Oberfläche läuft parallel zur Legacy-Seite unter:
 Die Legacy-Seite bleibt weiterhin erreichbar unter:
 
 - `/`
+- `/legacy`
+
+Damit gilt aktuell bewusst:
+
+- `root` bleibt Legacy/Fallback
+- `/app` ist die moderne PWA
+- `/legacy` ist die feste direkte Legacy-URL
 
 ## Relevante Dateien
 
@@ -45,31 +52,38 @@ Erzeugt:
 2. danach das aktuelle `app-bundle.txt` installieren
 3. `/app` prüfen
 
+## Architekturstand
+
+Der aktuelle Stand ist bewusst aufgeteilt:
+
+- `Import/Export` ist konsolidiert
+- `Remote-Update` ist entkoppelt
+- `/app` läuft wieder als echte PWA mit Manifest und Service Worker
+- Legacy bleibt als robuster Fallback unter `/` und `/legacy`
+
+Die PWA ist damit produktiv nutzbar, ohne die Legacy-Seite hart zu ersetzen.
+
 ## Wichtige Hinweise
 
 - Die PWA-Dateien werden flach im LittleFS abgelegt, z. B. `app-index.html`, `app-app.js`, `app-styles.css`
 - Das Routing von `/app/...` auf diese Dateien übernimmt die Firmware in [http.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/http.cpp)
 - Wenn unter `/app` noch keine App installiert ist, liefert die Firmware eine Hinweisseite
 - Die PWA-Quelldateien unter `data/app` tragen einheitliche Dateikopf-Kommentare
-- Die aktuelle PWA-Version des zuletzt gebauten Arbeitsstands ist `1.2.55`
+- Für die App-Update-Prüfung muss auf dem Update-Server zusätzlich `app-version.txt` liegen
 - Relevante `STM32`-Reset-Ursachen werden im Überblick angezeigt, wenn sie beim aktuellen Boot erkannt wurden
-- Die Update-Übersicht zeigt neben `App-Version` jetzt auch `App verfügbar`
-- Für `App verfügbar` muss auf dem Update-Server eine `app-version.txt` liegen
+- Die Hauptseite zeigt `Letzter Start`, sofern die passende Laufzeitinformation vom Gerät geliefert wird
+- `Neu laden` und Start nach Reload versuchen den ersten Snapshot aggressiver nachzuladen, statt sichtbar auf den normalen Auto-Refresh-Takt zu warten
+- Die Modulnavigation passt sich responsiv an:
+  - mobil mit horizontalem Scrollen
+  - auf breiten Displays mit voller Breite, solange kein echter Überlauf besteht
 
-## Aktueller Stand
+## Einfrierpunkt
 
-Der aktuell verifizierte gemeinsame Stand ist:
+Der Umbau wurde bis zu einem stabilen PWA-/Legacy-Zielstand durchgezogen. Ab jetzt gilt:
 
-- `build/releases/wordclock-release-2026-04-15-0022.zip`
-- `build/releases/wordclock-release-2026-04-15-0127.zip`
-
-Wichtig daran:
-
-- `STM32`-Faults führen nicht mehr zu dauerhaftem Hängen, sondern zu einem kontrollierten Reset
-- der `STM32`-Watchdog startet das Board nach echten Hängern automatisch neu
-- relevante Reset-Ursachen werden ohne serielles Kabel in der PWA sichtbar
-- die Watchdog-Initialisierung erfolgt nun erst kurz vor dem Hauptloop und blockiert den Boot nicht mehr
-- die PWA kann jetzt auch eine verfügbare Server-App-Version anzeigen
+- keine großen Strukturumbauten mehr “aus Prinzip”
+- nur noch gezielte Bugfixes oder UX-Nachzüge nach echtem Praxisfund
+- der aktuelle Stand ist als bewusster Freeze-Kandidat zu verstehen
 
 ## Ergänzende Doku
 

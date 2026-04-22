@@ -12,6 +12,7 @@ Quellen:
 Die PWA ersetzt die Legacy-Seite nicht hart, sondern läuft parallel:
 
 - Legacy: `http://<esp-ip>/`
+- Legacy direkt: `http://<esp-ip>/legacy`
 - PWA: `http://<esp-ip>/app`
 
 Die Firmware liefert `/app` aus LittleFS aus. Die eigentlichen App-Dateien liegen dort bewusst mit flachen Dateinamen, damit der ESP8266 sie robuster verarbeiten kann.
@@ -75,6 +76,7 @@ Es gibt zwei Wege.
 ## Wichtige ESP-Pfade
 
 - `/` Legacy-Oberfläche
+- `/legacy` direkte Legacy-Oberfläche
 - `/fs` LittleFS, Uploads, Bundle-Install
 - `/app` neue PWA
 - `/update` Legacy-Updatebereich
@@ -136,22 +138,14 @@ ESP-Verhalten geändert:
 - Nach Firmware-Änderungen muss die Firmware neu auf den ESP.
 - Wenn die App nicht aktuell wirkt, PWA/Browser einmal neu laden.
 - Die PWA liest echte Gerätedaten über die API-Endpunkte des ESP und nutzt keine separate Backend-Struktur.
+- `app-version.txt` wird für die verfügbare Server-App-Version benötigt.
+- `Neu laden` in der PWA triggert einen schnelleren Bootstrap-Load und wartet nicht nur auf den normalen Auto-Refresh.
 
-## Aktueller Arbeitsstand
+## Aktueller Zielstand
 
-Der aktuell verifizierte gemeinsame Release-Stand ist:
+Der aktuelle Zielstand der Migration ist:
 
-- `build/releases/wordclock-release-2026-04-15-0127.zip`
-
-PWA-Stand dazu:
-
-- Version `1.2.55`
-
-Wichtige Punkte dieses Stands:
-
-- relevante `STM32`-Reset-Ursachen werden in der PWA sichtbar, ohne dass ein serielles Kabel nötig ist
-- der Überblick blendet `Letzter STM32-Neustart` nur ein, wenn beim aktuellen Boot wirklich ein relevanter Reset erkannt wurde
-- `STM32`-Faults und echte Hänger führen jetzt zu einem kontrollierten Neustart statt zu dauerhaftem Stillstand
-- die Watchdog-Initialisierung wurde nach hinten verlegt und gegen ein Boot-Hängen abgesichert
-- die Update-Übersicht zeigt lokale und verfügbare App-Version getrennt an
-- die Server-Prüfung der App-Version basiert auf `app-version.txt`
+- Legacy bleibt bewusst unter `/` und `/legacy`
+- `/app` ist die produktive PWA
+- Remote-Update, Import/Export und der PWA-Unterbau wurden entkoppelt und konsolidiert
+- der weitere Betrieb soll primär über gezielte Bugfixes erfolgen, nicht mehr über breite Architekturumbauten
