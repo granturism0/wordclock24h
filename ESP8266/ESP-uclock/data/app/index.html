@@ -308,9 +308,9 @@
           <div class="panel-head"><div><p class="eyebrow">Temperatur</p><h2>Sensoren und Korrektur</h2></div></div>
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
-            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-ds18xx-correction-save-button" class="button primary" type="button">DS18xx-Korrektur speichern</button>
-            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="0" max="10" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-rtc-correction-save-button" class="button primary" type="button">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button">Temperatur anzeigen</button>
           </div>
@@ -647,11 +647,11 @@
                 <div class="panel-head compact"><div><span class="label">Server</span></div></div>
                 <label class="field"><span class="label">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
                 <button id="update-host-save-button" class="button primary" type="button">Update-Host speichern</button>
+                <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
+                <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
                 <div class="panel-head compact"><div><span class="label">Server-Auswahl</span></div></div>
                 <label class="field"><span class="label">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="">wird geladen...</option></select></label>
                 <label id="update-table-field" class="field"><span class="label">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="">wird geladen...</option></select></label>
-                <label class="field"><span class="label">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
-                <button id="update-path-save-button" class="button primary" type="button">Update-Pfad speichern</button>
               </section>
               <section class="profile-card">
                 <div class="panel-head compact"><div><span class="label">Versionen</span></div></div>
@@ -683,7 +683,7 @@
               <div class="hero-actions compact-actions">
                 <button id="update-table-button" class="button" type="button">Layout-Tabelle laden</button>
                 <button id="update-assets-button" class="button" type="button">Icon-Dateien laden</button>
-                <button id="update-app-bundle-button" class="button primary" type="button">App-Paket laden</button>
+                <button id="update-app-bundle-button" class="button primary" type="button">App-Dateien laden</button>
               </div>
             </div>
             <div id="update-progress-shell" class="control-stack is-hidden">

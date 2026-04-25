@@ -548,6 +548,14 @@ window.addEventListener("resize", () => {
   scheduleWordclockSizing();
   scheduleModuleNavHintSync();
 });
+window.addEventListener("pageshow", () => {
+  void loadData({ pageShow: true });
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    void loadData({ visibilityRefresh: true });
+  }
+});
 
 function scheduleServiceWorkerRegistration() {
   const register = () => {
@@ -1410,6 +1418,15 @@ function parseSettings(xmlText) {
 
   xml.querySelectorAll("numvar").forEach((node) => {
     numvars[Number(node.getAttribute("idx"))] = Number(node.getAttribute("value"));
+  });
+
+  [NUM.RTC_TEMP_CORRECTION, NUM.DS18XX_TEMP_CORRECTION].forEach((idx) => {
+    const rawValue = Number(numvars[idx]);
+    if (!Number.isFinite(rawValue)) {
+      return;
+    }
+
+    numvars[idx] = rawValue > 127 ? rawValue - 256 : rawValue;
   });
 
   xml.querySelectorAll("strvar").forEach((node) => {
@@ -3236,9 +3253,9 @@ async function importSensorCorrectionSettings(climate) {
   }
 
   setSettingsBackupNote("Importiere Sensor-Korrekturen...");
-  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0))));
   await sleep(400);
-  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0))));
+  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.ds18xx_temp_correction || 0))));
   await sleep(400);
 }
 
@@ -3247,7 +3264,7 @@ async function importRtcCorrectionSetting(climate) {
     return;
   }
 
-  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0))));
 }
 
 async function finalizeTemperatureCorrectionPersistence(climate) {
@@ -3255,8 +3272,8 @@ async function finalizeTemperatureCorrectionPersistence(climate) {
     return;
   }
 
-  const rtcCorrection = Math.max(0, Math.min(10, Number(climate.rtc_temp_correction || 0)));
-  const ds18xxCorrection = Math.max(0, Math.min(10, Number(climate.ds18xx_temp_correction || 0)));
+  const rtcCorrection = Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0)));
+  const ds18xxCorrection = Math.max(-20, Math.min(20, Number(climate.ds18xx_temp_correction || 0)));
   setSettingsBackupNote("Übernehme Sensor-Korrekturen als letzten Persistenzschritt...");
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), rtcCorrection);
   await sleep(500);
@@ -3812,7 +3829,7 @@ function updateFsUploadTargets(settings) {
   updateUploadFormVisibility("fs-upload-weather-form", "fs-upload-weather-label", targets.weather);
   updateUploadFormVisibility("fs-upload-tables-form", "fs-upload-tables-label", targets.tables);
   updateUploadFormVisibility("fs-upload-display-form", "fs-upload-display-label", targets.display);
-  setUploadFormSupported("fs-upload-app-form", uploadMeta.appBundleSupported, "PWA-Upload für App-Pakete wird von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-app-form", uploadMeta.appBundleSupported, "Direct PWA uploads for app packages are not supported by this firmware.");
   setUploadFormSupported("fs-upload-icon-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
   setUploadFormSupported("fs-upload-weather-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
   setUploadFormSupported("fs-upload-tables-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
@@ -6068,7 +6085,10 @@ function areUpdateAssetsAvailable(updateStatus) {
 }
 
 function isUpdateAppBundleAvailable(updateStatus) {
-  return getUpdateStatusBoolean(updateStatus, "app_bundle_available");
+  return !!(
+    getUpdateAvailableVersion(updateStatus, "app_available") ||
+    getUpdateAvailableVersion(updateStatus, "app_version")
+  );
 }
 
 function getExpectedLocalStm32Filename(updateStatus) {
@@ -6173,7 +6193,7 @@ function getUpdateServerFilesMeta(updateStatus, updateTableInfo) {
   const currentTable = getUpdateTableCurrentFile(updateTableInfo);
   const tableActionSupported = !!getUpdateDownloadTableBaseUrl();
   const assetsActionSupported = !!getUpdateDownloadAssetsUrl();
-  const appBundleActionSupported = !!getUpdateDownloadAppBundleUrl();
+  const appBundleActionSupported = true;
 
   return {
     tableFiles,
@@ -6222,40 +6242,41 @@ async function downloadUpdateAssets() {
 }
 
 async function downloadUpdateAppBundle() {
-  if (!window.confirm("App-Paket jetzt wirklich vom Server laden und installieren?")) {
+  if (!window.confirm("App files should now be downloaded from the server and installed directly?")) {
     return;
   }
 
   const button = document.getElementById("update-app-bundle-button");
 
-  setProgressActionContext("app-bundle-install", "update-app-bundle-button", "App-Paket laden");
-  showRemoteUpdateProgressShell("app-bundle-install", "App-Paket wird vom Server geladen...", "update-app-bundle-button");
+  setProgressActionContext("app-file-install", "update-app-bundle-button", "App-Dateien laden");
+  showRemoteUpdateProgressShell("app-file-install", "App-Dateien werden vom Server geladen...", "update-app-bundle-button");
   beginButtonFeedback(button, "lädt...");
-  announceStatus("App-Paket wird vom Server geladen...", "warn");
+  announceStatus("App-Dateien werden vom Server geladen...", "warn");
 
   try {
-    await apiFetch(getUpdateDownloadAppBundleUrl(), {
-      timeoutMs: 45000,
-      attempts: 1
-    });
+    const response = await fetchWithTimeout("/app/?action=install", { cache: "no-store" }, 45000);
+
+    if (!response.ok) {
+      throw new Error("http-" + response.status);
+    }
 
     button.classList.add("is-busy");
     button.textContent = "installiert...";
-    document.getElementById("update-progress-note").textContent = "App-Paket wurde geladen und wird installiert...";
-    document.getElementById("updated-at").textContent = "App-Paket wurde geladen und wird installiert...";
-    announceStatus("App-Paket wird installiert...", "warn");
+    document.getElementById("update-progress-note").textContent = "App-Dateien wurden geladen und werden installiert...";
+    document.getElementById("updated-at").textContent = "App-Dateien wurden geladen und werden installiert...";
+    announceStatus("App-Dateien werden installiert...", "warn");
     await sleep(250);
 
     button.classList.add("is-busy");
     button.textContent = "lädt neu...";
-    document.getElementById("update-progress-note").textContent = "App-Paket installiert. App wird neu geladen...";
-    document.getElementById("updated-at").textContent = "App-Paket installiert. App wird neu geladen...";
-    announceStatus("App-Paket installiert. Seite wird neu geladen.", "ok");
+    document.getElementById("update-progress-note").textContent = "App-Dateien installiert. App wird neu geladen...";
+    document.getElementById("updated-at").textContent = "App-Dateien installiert. App wird neu geladen...";
+    announceStatus("App-Dateien installiert. Seite wird neu geladen.", "ok");
     setTimeout(reloadAppPage, 900);
   } catch (error) {
-    document.getElementById("update-progress-note").textContent = "App-Paket konnte nicht geladen oder installiert werden.";
-    announceStatus("App-Paket konnte nicht geladen werden", "error");
-    finishButtonFeedback(button, "App-Paket laden", "error", "Fehler");
+    document.getElementById("update-progress-note").textContent = "App-Dateien konnten nicht geladen oder installiert werden.";
+    announceStatus("App-Dateien konnten nicht geladen werden", "error");
+    finishButtonFeedback(button, "App-Dateien laden", "error", "Fehler");
     resetProgressButton();
     finishProgressUi(1200);
   }
@@ -6665,7 +6686,7 @@ function getProgressShellMeta(actionType, buttonId, message) {
     actionType: actionType || "",
     buttonId: buttonId || "",
     message: message || "",
-    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install",
+    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install" || actionType === "app-file-install",
     showVisualProgress: actionType === "stm32-flash"
   };
 }
@@ -7710,7 +7731,7 @@ async function saveDs18xxTemperatureCorrection() {
 
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
   const input = document.getElementById(inputId);
-  const value = Math.max(0, Math.min(10, Number(input.value || 0)));
+  const value = Math.max(-20, Math.min(20, Number(input.value || 0)));
   input.value = String(value);
   await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }

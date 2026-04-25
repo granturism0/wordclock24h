@@ -45,7 +45,7 @@ static uint_fast16_t        hardware_configuration = 0xFFFF;
 #define DEFAULT_UPDATE_PATH                         "update"
 
 #define ESP_WORDCLOCK_TXT                           "ESP-WordClock.txt"             // avaliable version of ESP8266 firmware
-#define APP_VERSION_TXT                             "app-version.txt"               // available version of app bundle
+#define APP_VERSION_TXT                             "app-version.txt"               // available version of app files
 #define ESP_WORDCLOCK_BIN                           "ESP-WordClock-4M.bin"          // name of ES8266 firmware bin file
 
 #define RELEASENOTE_HTML                            "releasenote.html"              // release notes
@@ -81,7 +81,7 @@ static int                                          bgcolor_cnt;
 #define MAX_TIME_LEN                                5
 #define MAX_BRIGHTNESS_LEN                          2
 #define MAX_COLOR_VALUE_LEN                         2
-#define MAX_TEMP_CORR_LEN                           2
+#define MAX_TEMP_CORR_LEN                           3
 #define MAX_MINUTE_INTERVAL_LEN                     2
 #define MAX_TICKER_DECELERATION_LEN                 3
 #define MAX_RAINBOW_DECELERATION_LEN                3
@@ -151,9 +151,6 @@ static int      http_response_len = 0;
  */
 #define PWA_PREFIX                                  "/app"
 #define PWA_INDEX_FILE                              "app-index.html"
-#define APP_BUNDLE_FILENAME                         "app-bundle.txt"
-#define APP_BUNDLE_TMP_FILE                         "app-bundle.tmp"
-
 static void             http_json_ok ();
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
@@ -171,13 +168,27 @@ static int              http_api_display_power ();
 static int              http_api_ambilight_power ();
 static int              http_api_power_status ();
 static int              http_api_update_progress ();
-static uint_fast8_t     http_api_app_bundle_upload ();
 static uint_fast8_t     http_filename_matches (const char * actual, const char * expected);
 static uint_fast8_t     http_local_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_remote_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_table_download_filename_matches (const char * actual);
 static void             http_remove_table_family_files (const char * keep_filename);
 static void             http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
+static bool             app_asset_filename (const char * asset_path, char * filename, size_t maxlen);
+static int8_t           http_decode_temp_correction (unsigned int value);
+static unsigned int     http_encode_temp_correction (int temp_corr);
+static int              http_clamp_temp_correction (int temp_corr);
+
+static const char * const APP_INSTALL_ASSETS[] =
+{
+    "app/index.html",
+    "app/styles.css",
+    "app/icons/icon-192.svg",
+    "app/icons/icon-512.svg",
+    "app/manifest.webmanifest",
+    "app/app.js",
+    "app/sw.js"
+};
 static int              http_api_live_display_color ();
 static const char *     http_get_configured_icon_filename (void);
 static const char *     http_get_configured_weather_filename (void);
@@ -995,17 +1006,69 @@ http_app_installation_complete (void)
 }
 
 static bool         download_file (const char * host, const char * path, const char * filename);
-static int          install_app_bundle (const char * bundle_filename);
-static bool         http_remote_app_bundle_available (char * version_buf, size_t version_buf_len);
+static bool         http_remote_app_files_available (char * version_buf, size_t version_buf_len);
+
+static bool
+download_file_as_flattened_app_asset (const char * host, const char * path, const char * remote_filename)
+{
+    unsigned char   buf[1024];
+    char            local_filename[128];
+    int             len;
+    bool            rtc = false;
+
+    if (! app_asset_filename (remote_filename, local_filename, sizeof (local_filename)))
+    {
+        return false;
+    }
+
+    len = httpclient (host, path, remote_filename);
+
+    if (len > 0)
+    {
+        int  ch;
+        int  idx = 0;
+        File f = LittleFS.open (local_filename, "w");
+
+        if (! f)
+        {
+            httpclient_stop ();
+            return false;
+        }
+
+        while (len > 0)
+        {
+            ch = httpclient_read (&len);
+            buf[idx++] = ch;
+
+            if (idx == (int) sizeof (buf))
+            {
+                f.write (buf, idx);
+                idx = 0;
+            }
+        }
+
+        if (idx > 0)
+        {
+            f.write (buf, idx);
+        }
+
+        f.close ();
+        httpclient_stop ();
+        rtc = true;
+    }
+
+    return rtc;
+}
 
 static int
-http_try_auto_install_app_bundle (void)
+http_try_auto_install_app_files (void)
 {
-    int         download_rtc = 0;
-    int         app_bundle_rtc = 0;
     STR_VAR *   sv;
     char *      update_host;
     char *      update_path;
+    size_t      idx;
+    size_t      asset_count = sizeof (APP_INSTALL_ASSETS) / sizeof (APP_INSTALL_ASSETS[0]);
+    int         rtc = 1;
 
     sv = get_strvar (UPDATE_HOST_VAR);
     update_host = sv->str;
@@ -1024,24 +1087,72 @@ http_try_auto_install_app_bundle (void)
     }
 
     LittleFS.begin ();
-    download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
-    LittleFS.end ();
+    Serial.print (FS("(APPDL app-install-begin count="));
+    Serial.print (asset_count);
+    Serial.println (FS(")"));
 
-    if (download_rtc == 1)
+    for (idx = 0; idx < asset_count; idx++)
     {
-        app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
+        char local_filename[128];
+
+        if (! app_asset_filename (APP_INSTALL_ASSETS[idx], local_filename, sizeof (local_filename)))
+        {
+            Serial.print (FS("(APPDL app-install-fail step="));
+            Serial.print (idx + 1);
+            Serial.print (FS("/"));
+            Serial.print (asset_count);
+            Serial.print (FS(" remote="));
+            Serial.print (APP_INSTALL_ASSETS[idx]);
+            Serial.println (FS(" reason=filename)"));
+            rtc = 0;
+            break;
+        }
+
+        Serial.print (FS("(APPDL app-install-step "));
+        Serial.print (idx + 1);
+        Serial.print (FS("/"));
+        Serial.print (asset_count);
+        Serial.print (FS(" remote="));
+        Serial.print (APP_INSTALL_ASSETS[idx]);
+        Serial.print (FS(" local="));
+        Serial.print (local_filename);
+        Serial.println (FS(")"));
+
+        if (! download_file_as_flattened_app_asset (update_host, update_path, APP_INSTALL_ASSETS[idx]))
+        {
+            Serial.print (FS("(APPDL app-install-fail step="));
+            Serial.print (idx + 1);
+            Serial.print (FS("/"));
+            Serial.print (asset_count);
+            Serial.print (FS(" remote="));
+            Serial.print (APP_INSTALL_ASSETS[idx]);
+            Serial.print (FS(" local="));
+            Serial.print (local_filename);
+            Serial.println (FS(" reason=download)"));
+            rtc = 0;
+            break;
+        }
     }
 
-    return (download_rtc == 1 && app_bundle_rtc == 1) ? 1 : 0;
+    LittleFS.end ();
+
+    if (rtc)
+    {
+        Serial.print (FS("(APPDL app-install-complete count="));
+        Serial.print (asset_count);
+        Serial.println (FS(")"));
+    }
+
+    return rtc;
 }
 
 static bool
-http_remote_app_bundle_available (char * version_buf, size_t version_buf_len)
+http_remote_app_files_available (char * version_buf, size_t version_buf_len)
 {
     STR_VAR *   sv;
     char *      update_host;
     char *      update_path;
-    bool        app_bundle_available = false;
+    bool        app_files_available = false;
 
     if (version_buf && version_buf_len)
     {
@@ -1069,13 +1180,13 @@ http_remote_app_bundle_available (char * version_buf, size_t version_buf_len)
         http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, version_buf, version_buf_len);
     }
 
-    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
+    if (httpclient (update_host, update_path, APP_INSTALL_ASSETS[0]) > 0)
     {
-        app_bundle_available = true;
+        app_files_available = true;
         httpclient_stop ();
     }
 
-    return app_bundle_available;
+    return app_files_available;
 }
 
 static bool
@@ -1102,6 +1213,33 @@ app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
 
     filename[idx] = '\0';
     return idx > 0;
+}
+
+static int8_t
+http_decode_temp_correction (unsigned int value)
+{
+    return (int8_t) (value & 0xFF);
+}
+
+static unsigned int
+http_encode_temp_correction (int temp_corr)
+{
+    return (uint8_t) ((int8_t) temp_corr);
+}
+
+static int
+http_clamp_temp_correction (int temp_corr)
+{
+    if (temp_corr < -20)
+    {
+        temp_corr = -20;
+    }
+    else if (temp_corr > 20)
+    {
+        temp_corr = 20;
+    }
+
+    return temp_corr;
 }
 
 static uint_fast8_t
@@ -1144,13 +1282,13 @@ http_app (const char * path)
     app_complete = http_app_installation_complete ();
     action = http_get_param ("action");
 
-    if (is_pwa_index && ! app_complete)
+    if (is_pwa_index && action && ! strcmp (action, "install"))
     {
-        remote_app_available = http_remote_app_bundle_available (remote_app_version, sizeof (remote_app_version));
+        remote_app_available = http_remote_app_files_available (remote_app_version, sizeof (remote_app_version));
 
-        if (remote_app_available && action && ! strcmp (action, "install"))
+        if (remote_app_available)
         {
-            if (http_try_auto_install_app_bundle ())
+            if (http_try_auto_install_app_files ())
             {
                 http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
                 http_send (FS(
@@ -1167,7 +1305,7 @@ http_app (const char * path)
                     "border:1px solid rgba(255,255,255,.15);}strong{color:#fff;}"
                     "</style></head><body><div class='card'>"
                     "<h1>WordClock App wird installiert</h1>"
-                    "<p>Das App-Paket wurde vom Update-Server geladen und in das LittleFS installiert.</p>"
+                    "<p>Die WordClock PWA-Dateien wurden einzeln vom Update-Server geladen und im LittleFS gespeichert.</p>"
                     "<p><strong>Weiter so:</strong> Die Seite wechselt gleich automatisch nach <code>/app</code>.</p>"
                     "<a href='/app/'>Zur App</a>"
                     "<a href='/legacy'>Zur Legacy-Seite</a>"
@@ -1176,7 +1314,22 @@ http_app (const char * path)
                 http_flush ();
                 return 0;
             }
+
+            http_send (FS("HTTP/1.0 500 Internal Server Error\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+            http_send (FS("WordClock app file installation failed.\r\n"));
+            http_flush ();
+            return 0;
         }
+
+        http_send (FS("HTTP/1.0 404 Not Found\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS("WordClock app files are not available on the configured update server.\r\n"));
+        http_flush ();
+        return 0;
+    }
+
+    if (is_pwa_index && ! app_complete)
+    {
+        remote_app_available = http_remote_app_files_available (remote_app_version, sizeof (remote_app_version));
     }
 
     if (! is_pwa_index || app_complete)
@@ -1211,7 +1364,7 @@ http_app (const char * path)
             if (remote_app_available)
             {
                 http_send (FS("<h1>WordClock App ist lokal nicht installiert</h1>"));
-                http_send (FS("<p>Auf diesem Gerät fehlen noch die App-Dateien im LittleFS, aber auf dem konfigurierten Update-Server ist ein App-Paket verfügbar.</p>"));
+                http_send (FS("<p>Auf diesem Gerät fehlen noch die App-Dateien im LittleFS, aber auf dem konfigurierten Update-Server ist eine WordClock PWA-Version verfügbar.</p>"));
                 http_send (FS("<p><strong>Server-App verfügbar:</strong> "));
                 if (remote_app_version[0])
                 {
@@ -1222,9 +1375,9 @@ http_app (const char * path)
                     http_send (FS("ja"));
                 }
                 http_send (FS("</p>"));
-                http_send (FS("<p><strong>Weiter so:</strong> App direkt von hier installieren oder alternativ über Legacy/Dateien arbeiten.</p>"));
+                http_send (FS("<p><strong>Weiter so:</strong> Die Erstinstallation wird direkt hier ueber die Zwischenmaske gestartet.</p>"));
                 http_send (FS("<a href='/app/?action=install'>App jetzt installieren</a>"));
-                http_send (FS("<a href='/fs'>Zu Dateien / App-Paket</a>"));
+                http_send (FS("<a href='/fs'>Zu Dateien</a>"));
                 http_send (FS("<a href='/update'>Zu Update</a>"));
                 http_send (FS("<a href='/legacy'>Zur Legacy-Seite</a>"));
             }
@@ -1232,8 +1385,8 @@ http_app (const char * path)
             {
                 http_send (FS("<h1>WordClock App ist noch nicht installiert</h1>"));
                 http_send (FS("<p>Auf diesem Gerät wurden noch keine vollständigen App-Dateien in das LittleFS geladen.</p>"));
-                http_send (FS("<p><strong>Weiter so:</strong> App-Paket manuell über die Legacy-Seite installieren oder Update-Host/-Pfad prüfen.</p>"));
-                http_send (FS("<a href='/fs'>Zu Dateien / App-Paket</a>"));
+                http_send (FS("<p><strong>Weiter so:</strong> Update-Host/-Pfad pruefen und die Erstinstallation danach wieder hier ueber <code>/app</code> anstossen.</p>"));
+                http_send (FS("<a href='/fs'>Zu Dateien</a>"));
                 http_send (FS("<a href='/update'>Zu Update</a>"));
                 http_send (FS("<a href='/legacy'>Zur Legacy-Seite</a>"));
             }
@@ -2777,8 +2930,8 @@ http_temperature (void)
     const char *    message                                     = (const char *) 0;
     uint_fast8_t    rtc                                         = 0;
     char            rtc_temp[16];
-    uint_fast8_t    rtc_temperature_correction;
-    uint_fast8_t    temperature_correction;
+    int8_t          rtc_temperature_correction;
+    int8_t          temperature_correction;
     char            ds18xx_temp[16];
     uint_fast8_t    temp_index;
     uint_fast8_t    rtc_is_up;
@@ -2789,53 +2942,47 @@ http_temperature (void)
     {
         if (! strcmp (action, "savetcorrrtc"))
         {
-            temp_index                  = get_numvar (RTC_TEMP_INDEX_NUM_VAR);
-            uint_fast8_t old_correction = get_numvar (RTC_TEMP_CORRECTION_NUM_VAR);
-            int temp_corr               = atoi (http_get_param ("tcorrrtc"));
-
-            if (temp_corr < 0)
-            {
-                temp_corr = -temp_corr;
-            }
+            int temp_index              = (int) get_numvar (RTC_TEMP_INDEX_NUM_VAR);
+            int old_correction          = (int) http_decode_temp_correction (get_numvar (RTC_TEMP_CORRECTION_NUM_VAR));
+            int temp_corr               = http_clamp_temp_correction (atoi (http_get_param ("tcorrrtc")));
 
             rtc_temperature_correction = temp_corr;
 
-            if (old_correction > rtc_temperature_correction)                // correct immediately here
+            temp_index -= (rtc_temperature_correction - old_correction);
+
+            if (temp_index < 0)
             {
-                temp_index += (old_correction - rtc_temperature_correction);
+                temp_index = 0;
             }
-            else
+            else if (temp_index > 255)
             {
-                temp_index -= (rtc_temperature_correction - old_correction);
+                temp_index = 255;
             }
 
             set_numvar (RTC_TEMP_INDEX_NUM_VAR, temp_index);
-            set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, rtc_temperature_correction);
+            set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (rtc_temperature_correction));
         }
         else if (! strcmp (action, "savetcorrds18xx"))
         {
-            temp_index                  = get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
-            uint_fast8_t old_correction = get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR);
-            int temp_corr               = atoi (http_get_param ("tcorrds18xx"));
-
-            if (temp_corr < 0)
-            {
-                temp_corr = -temp_corr;
-            }
+            int temp_index              = (int) get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
+            int old_correction          = (int) http_decode_temp_correction (get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR));
+            int temp_corr               = http_clamp_temp_correction (atoi (http_get_param ("tcorrds18xx")));
 
             temperature_correction = temp_corr;
 
-            if (old_correction > temperature_correction)                // correct immediately here
+            temp_index -= (temperature_correction - old_correction);
+
+            if (temp_index < 0)
             {
-                temp_index += (old_correction - temperature_correction);
+                temp_index = 0;
             }
-            else
+            else if (temp_index > 255)
             {
-                temp_index -= (temperature_correction - old_correction);
+                temp_index = 255;
             }
 
             set_numvar (DS18XX_TEMP_INDEX_NUM_VAR, temp_index);
-            set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, temperature_correction);
+            set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temperature_correction));
         }
         else if (! strcmp (action, "displaytemperature"))
         {
@@ -2882,8 +3029,8 @@ http_temperature (void)
         strcpy (ds18xx_temp, "offline");
     }
 
-    rtc_temperature_correction = get_numvar (RTC_TEMP_CORRECTION_NUM_VAR);
-    temperature_correction = get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR);
+    rtc_temperature_correction = http_decode_temp_correction (get_numvar (RTC_TEMP_CORRECTION_NUM_VAR));
+    temperature_correction = http_decode_temp_correction (get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR));
 
     http_header ("Temperature", (const char *) NULL, (const char *) NULL);
     begin_box ("Temperature");
@@ -5148,101 +5295,6 @@ fs_read_line (File& fp, String& line)
     return line.length () > 0;
 }
 
-static int
-install_app_bundle (const char * bundle_filename)
-{
-    int     rtc = 0;
-    String  line;
-
-    LittleFS.begin ();
-
-    File bundle = LittleFS.open (bundle_filename, "r");
-
-    if (bundle)
-    {
-        File out = (File) 0;
-
-        if (LittleFS.exists ("app"))
-        {
-            LittleFS.remove ("app");
-        }
-
-        if (fs_read_line (bundle, line) && line == "WCAPPBUNDLE 1")
-        {
-            rtc = 1;
-
-            while (fs_read_line (bundle, line))
-            {
-                if (line == "END_BUNDLE")
-                {
-                    break;
-                }
-                else if (line.startsWith ("FILE "))
-                {
-                    String fname = line.substring (5);
-                    char   flat_fname[128];
-
-                    if (out)
-                    {
-                        out.close ();
-                    }
-
-                    if (! fname.startsWith ("app/"))
-                    {
-                        rtc = 0;
-                        break;
-                    }
-
-                    if (! app_asset_filename (fname.c_str(), flat_fname, sizeof (flat_fname)))
-                    {
-                        rtc = 0;
-                        break;
-                    }
-
-                    out = LittleFS.open (flat_fname, "w+");
-
-                    if (! out)
-                    {
-                        rtc = 0;
-                        break;
-                    }
-                }
-                else if (line == "END_FILE")
-                {
-                    if (out)
-                    {
-                        out.close ();
-                    }
-                }
-                else
-                {
-                    if (! out)
-                    {
-                        rtc = 0;
-                        break;
-                    }
-
-                    out.write ((const uint8_t *) line.c_str (), line.length ());
-                    out.write ('\n');
-                }
-
-                yield ();
-            }
-
-            if (out)
-            {
-                out.close ();
-            }
-        }
-
-        bundle.close ();
-        LittleFS.remove (bundle_filename);
-    }
-
-    LittleFS.end ();
-    return rtc;
-}
-
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * LittleFS page
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -5255,7 +5307,6 @@ install_app_bundle (const char * bundle_filename)
 #define POST_ICON_WEATHER_FILE    2
 #define POST_TABLES_FILE          3
 #define POST_DISPLAY_FILE         4
-#define POST_APP_BUNDLE_FILE      5
 
 static uint_fast8_t
 http_fs (int post = POST_ICON_NONE)
@@ -5270,15 +5321,12 @@ http_fs (int post = POST_ICON_NONE)
     const char *    fname_weather   = (const char *) 0;
     const char *    fname_tables    = (const char *) 0;
     const char *    fname_display   = (const char *) 0;
-    const char *    fname_app_bundle = APP_BUNDLE_TMP_FILE;
     const char *    show_fname      = (const char *) 0;
     const char *    tables_filter   = (const char *) 0;
     char *          update_host;
     char *          update_path;
     FSInfo          fsinfo;
     int             download_rtc = 2;
-    int             app_bundle_rtc = -1;
-    int             app_bundle_available = 0;
     STR_VAR *       sv;
     int             len;
     uint_fast8_t    rtc = 0;
@@ -5329,12 +5377,6 @@ http_fs (int post = POST_ICON_NONE)
         update_path = (char *) DEFAULT_UPDATE_PATH;
     }
 
-    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
-    {
-        app_bundle_available = 1;
-        httpclient_stop ();
-    }
-
     if (post != POST_ICON_NONE)
     {
         File f = (File) 0;
@@ -5369,11 +5411,6 @@ http_fs (int post = POST_ICON_NONE)
                 f = LittleFS.open(fname_display, "w+");
             }
         }
-        else if (post == POST_APP_BUNDLE_FILE)
-        {
-            f = LittleFS.open (fname_app_bundle, "w+");
-        }
-
         if (f)
         {
             // find the line with content type and boundary string
@@ -5427,11 +5464,6 @@ http_fs (int post = POST_ICON_NONE)
             }
 
             f.close();
-
-            if (post == POST_APP_BUNDLE_FILE)
-            {
-                app_bundle_rtc = install_app_bundle (fname_app_bundle);
-            }
         }
         else
         {
@@ -5490,17 +5522,6 @@ http_fs (int post = POST_ICON_NONE)
 
             LittleFS.end ();
         }
-        else if (! strcmp (action, "dwnappbundle"))
-        {
-            LittleFS.begin ();
-            download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
-            LittleFS.end ();
-
-            if (download_rtc == 1)
-            {
-                app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
-            }
-        }
         else if (! strcmp (action, "remove"))
         {
             char * fname = http_get_param ("filename");
@@ -5530,15 +5551,6 @@ http_fs (int post = POST_ICON_NONE)
     else if (download_rtc == 1)
     {
         http_send_FS ("download successful<BR>");
-    }
-
-    if (app_bundle_rtc == 0)
-    {
-        http_send_FS ("WordClock App bundle installation failed<BR>");
-    }
-    else if (app_bundle_rtc == 1)
-    {
-        http_send_FS ("WordClock App bundle installed successfully<BR>");
     }
 
     sv = get_strvar (UPDATE_HOST_VAR);
@@ -5768,27 +5780,8 @@ http_fs (int post = POST_ICON_NONE)
 
     http_send_FS ("</table><P>\r\n");
 
-    http_send_FS ("<B>WordClock App bundle (/app)</B><BR>\r\n");
-    http_send_FS ("Use app-bundle.txt for a single OTA upload, or download it directly from the configured update server above. Installed files appear as app-index.html, app-app.js, app-styles.css, app-manifest.webmanifest, app-sw.js and app-icons-*.svg in LittleFS.<P>\r\n");
-
-    if (app_bundle_available)
-    {
-        http_send_FS (
-                      "<form method=\"GET\" action=\"/fs\" style=\"display:inline\">"
-                      "<button type=\"submit\" name=\"action\" value=\"dwnappbundle\">Download WordClock App bundle</button>"
-                      "</form>"
-                      "<P>\r\n");
-    }
-
-    http_send_FS ("<table style=\"width:auto\">");
-    http_send_FS ("<tr><td>app-bundle.txt</td><td>"
-            "<form method='post' action='fs-app-bundle' name='submit' enctype='multipart/form-data' style=\"display:inline\">"
-            "<label class='custom-file-upload'><input type='file' name='fileField'>Bundle...</label>&nbsp;"
-            "<input type='submit' class='button' name='submit' value='Install App'>"
-            "</form></td></tr>"
-            );
-
-    http_send_FS ("</table>");
+    http_send_FS ("<B>WordClock PWA (/app)</B><BR>\r\n");
+    http_send_FS ("Initial installation of the New App happens via the handoff screen at <a href=\"/app/\">/app</a>. Later app updates are triggered from inside the WordClock PWA itself. The Files page no longer exposes a separate install or download button for that flow.<P>\r\n");
 
     if (show_fname)
     {
@@ -7505,47 +7498,6 @@ http_api_update_download_assets ()
 }
 
 static int
-http_api_update_download_app_bundle ()
-{
-    int download_rtc = 2;
-    int app_bundle_rtc = -1;
-    STR_VAR * sv;
-    char * update_host;
-    char * update_path;
-
-    sv = get_strvar (UPDATE_HOST_VAR);
-    update_host = sv->str;
-    sv = get_strvar (UPDATE_PATH_VAR);
-    update_path = sv->str;
-
-    LittleFS.begin ();
-    download_rtc = download_file (update_host, update_path, APP_BUNDLE_FILENAME);
-    LittleFS.end ();
-
-    if (download_rtc == 1)
-    {
-        app_bundle_rtc = install_app_bundle (APP_BUNDLE_FILENAME);
-    }
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    if (download_rtc != 1)
-    {
-        http_send (FS("{\"ok\":false,\"error\":\"download_failed\"}"));
-    }
-    else if (app_bundle_rtc != 1)
-    {
-        http_send (FS("{\"ok\":false,\"error\":\"install_failed\"}"));
-    }
-    else
-    {
-        http_send (FS("{\"ok\":true}"));
-    }
-    http_flush ();
-
-    return 0;
-}
-
-static int
 http_api_update_download_table ()
 {
     STR_VAR *       sv;
@@ -7594,86 +7546,6 @@ http_api_update_download_table ()
     if (download_rtc != 1)
     {
         http_send (FS(",\"error\":\"download_failed\""));
-    }
-
-    http_send (FS("}"));
-    http_flush ();
-
-    return 0;
-}
-
-static uint_fast8_t
-http_api_app_bundle_upload ()
-{
-    size_t          content_length = 0;
-    uint_fast8_t    ok = 0;
-    uint32_t        error_code = 0;
-    char *          uploaded_name = http_get_param ("filename");
-
-    if (! http_filename_matches (uploaded_name, APP_BUNDLE_FILENAME))
-    {
-        error_code = 5;
-    }
-    else if (! read_post_headers (&content_length) || content_length == 0)
-    {
-        error_code = 1;
-    }
-    else
-    {
-        LittleFS.begin ();
-
-        File f = LittleFS.open (APP_BUNDLE_TMP_FILE, "w+");
-
-        if (! f)
-        {
-            error_code = 2;
-        }
-        else
-        {
-            uint_fast8_t stored = read_request_body_to_file (f, content_length) ? 1 : 0;
-
-            f.close ();
-
-            if (! stored)
-            {
-                LittleFS.remove (APP_BUNDLE_TMP_FILE);
-                error_code = 3;
-            }
-            else
-            {
-                ok = install_app_bundle (APP_BUNDLE_TMP_FILE) == 1 ? 1 : 0;
-
-                if (! ok)
-                {
-                    error_code = 4;
-                }
-            }
-        }
-
-        LittleFS.end ();
-    }
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":"));
-    http_send (ok ? "true" : "false");
-
-    if (! ok)
-    {
-        http_send (FS(",\"error\":"));
-        http_send (String (error_code).c_str ());
-        http_send (FS(",\"detail\":\""));
-
-        switch (error_code)
-        {
-            case 1: http_send (FS("invalid request")); break;
-            case 2: http_send (FS("open failed")); break;
-            case 3: http_send (FS("upload failed")); break;
-            case 4: http_send (FS("install failed")); break;
-            case 5: http_send (FS("invalid filename")); break;
-            default: http_send (FS("unknown error")); break;
-        }
-
-        http_send (FS("\""));
     }
 
     http_send (FS("}"));
@@ -7821,26 +7693,23 @@ http_api_temperature_display ()
 static int
 http_api_temperature_rtc_correction_set ()
 {
-    uint_fast8_t temp_index = get_numvar (RTC_TEMP_INDEX_NUM_VAR);
-    uint_fast8_t old_correction = get_numvar (RTC_TEMP_CORRECTION_NUM_VAR);
-    int temp_corr = atoi (http_get_param ("value"));
+    int temp_index = (int) get_numvar (RTC_TEMP_INDEX_NUM_VAR);
+    int old_correction = (int) http_decode_temp_correction (get_numvar (RTC_TEMP_CORRECTION_NUM_VAR));
+    int temp_corr = http_clamp_temp_correction (atoi (http_get_param ("value")));
 
-    if (temp_corr < 0)
-    {
-        temp_corr = -temp_corr;
-    }
+    temp_index -= (temp_corr - old_correction);
 
-    if (old_correction > temp_corr)
+    if (temp_index < 0)
     {
-        temp_index += (old_correction - temp_corr);
+        temp_index = 0;
     }
-    else
+    else if (temp_index > 255)
     {
-        temp_index -= (temp_corr - old_correction);
+        temp_index = 255;
     }
 
     numvars[RTC_TEMP_INDEX_NUM_VAR] = temp_index;
-    set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, temp_corr);
+    set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temp_corr));
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
@@ -7852,26 +7721,23 @@ http_api_temperature_rtc_correction_set ()
 static int
 http_api_temperature_ds18xx_correction_set ()
 {
-    uint_fast8_t temp_index = get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
-    uint_fast8_t old_correction = get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR);
-    int temp_corr = atoi (http_get_param ("value"));
+    int temp_index = (int) get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
+    int old_correction = (int) http_decode_temp_correction (get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR));
+    int temp_corr = http_clamp_temp_correction (atoi (http_get_param ("value")));
 
-    if (temp_corr < 0)
-    {
-        temp_corr = -temp_corr;
-    }
+    temp_index -= (temp_corr - old_correction);
 
-    if (old_correction > temp_corr)
+    if (temp_index < 0)
     {
-        temp_index += (old_correction - temp_corr);
+        temp_index = 0;
     }
-    else
+    else if (temp_index > 255)
     {
-        temp_index -= (temp_corr - old_correction);
+        temp_index = 255;
     }
 
     numvars[DS18XX_TEMP_INDEX_NUM_VAR] = temp_index;
-    set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, temp_corr);
+    set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temp_corr));
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
@@ -9164,7 +9030,6 @@ http_api_update_status ()
     const char * filter = (const char *) NULL;
     String release_notes;
     uint_fast8_t assets_available = 0;
-    uint_fast8_t app_bundle_available = 0;
     const char * fname_icon = (const char *) 0;
     const char * fname_weather = (const char *) 0;
     int len;
@@ -9230,12 +9095,6 @@ http_api_update_status ()
         }
     }
 
-    if (httpclient (update_host, update_path, APP_BUNDLE_FILENAME) > 0)
-    {
-        app_bundle_available = 1;
-        httpclient_stop ();
-    }
-
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"flash_size\":"));
 
@@ -9247,7 +9106,7 @@ http_api_update_status ()
     http_json_send_bool_field (FS("local_update_supported"), flashsize >= 1048576UL);
     http_json_send_string_field (FS("local_update_message"), http_get_local_update_message (flashsize));
     http_json_send_bool_field (FS("assets_available"), assets_available);
-    http_json_send_bool_field (FS("app_bundle_available"), app_bundle_available);
+    http_json_send_bool_field (FS("app_bundle_available"), 0);
     http_json_send_bool_field (FS("device_ready_api_supported"), 1);
     http_json_send_bool_field (FS("reconnect_probe_api_supported"), 1);
     http_json_send_bool_field (FS("settings_api_supported"), 1);
@@ -9255,9 +9114,9 @@ http_api_update_status ()
     http_json_send_bool_field (FS("ambilight_power_api_supported"), 1);
     http_json_send_bool_field (FS("power_status_api_supported"), 1);
     http_json_send_bool_field (FS("update_download_assets_api_supported"), 1);
-    http_json_send_bool_field (FS("update_download_app_bundle_api_supported"), 1);
+    http_json_send_bool_field (FS("update_download_app_bundle_api_supported"), 0);
     http_json_send_bool_field (FS("update_download_table_api_supported"), 1);
-    http_json_send_bool_field (FS("app_bundle_upload_api_supported"), 1);
+    http_json_send_bool_field (FS("app_bundle_upload_api_supported"), 0);
     http_json_send_bool_field (FS("fs_target_upload_api_supported"), 1);
     http_json_send_bool_field (FS("local_stm32_upload_api_supported"), 1);
     http_json_send_bool_field (FS("local_esp_update_api_supported"), 1);
@@ -9336,9 +9195,9 @@ http_api_update_status ()
     http_json_send_string_field (FS("timer_set_url"), "/api/timer_set");
     http_json_send_string_field (FS("ambilight_timer_set_url"), "/api/ambilight_timer_set");
     http_json_send_string_field (FS("update_download_assets_url"), "/api/update_download_assets");
-    http_json_send_string_field (FS("update_download_app_bundle_url"), "/api/update_download_app_bundle");
+    http_json_send_string_field (FS("update_download_app_bundle_url"), "");
     http_json_send_string_field (FS("update_download_table_base_url"), "/api/update_download_table?filename=");
-    http_json_send_string_field (FS("app_bundle_upload_url"), "/api/app_bundle_upload");
+    http_json_send_string_field (FS("app_bundle_upload_url"), "");
     http_json_send_string_field (FS("fs_info_url"), "/api/fs_info");
     http_json_send_string_field (FS("fs_list_url"), "/api/fs_list");
     http_json_send_string_field (FS("eeprom_settings_url"), "/api/eeprom_settings");
@@ -9348,7 +9207,7 @@ http_api_update_status ()
     http_json_send_string_field (FS("fs_upload_tables_url"), "/api/fs_upload_tables");
     http_json_send_string_field (FS("fs_upload_display_url"), "/api/fs_upload_display");
     http_json_send_string_field (FS("fs_upload_txt_accept"), ".txt,text/plain");
-    http_json_send_string_field (FS("app_bundle_upload_accept"), ".txt,text/plain");
+    http_json_send_string_field (FS("app_bundle_upload_accept"), "");
     http_json_send_string_field (FS("local_esp_update_accept"), ".bin,application/octet-stream");
     http_json_send_string_field (FS("local_stm32_upload_accept"), ".hex");
     http_json_send_string_field (FS("fs_show_base_url"), "/api/fs_show?filename=");
@@ -10564,10 +10423,6 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_update_download_assets ();
     }
-    else if (! strcmp (path, "/api/update_download_app_bundle"))
-    {
-        rtc = http_api_update_download_app_bundle ();
-    }
     else if (! strcmp (path, "/api/update_download_table"))
     {
         rtc = http_api_update_download_table ();
@@ -10575,10 +10430,6 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/remote_stm32_flash"))
     {
         rtc = http_api_remote_stm32_flash ();
-    }
-    else if (! strcmp (path, "/api/app_bundle_upload"))
-    {
-        rtc = http_api_app_bundle_upload ();
     }
     else if (! strcmp (path, "/api/maintenance_format_fs"))
     {
@@ -10854,14 +10705,6 @@ http_post(const String& sPath)
     {
         http_fs (POST_DISPLAY_FILE);
     }
-    else if (sPath == "/fs-app-bundle")
-    {
-        http_fs (POST_APP_BUNDLE_FILE);
-    }
-    else if (sPath == "/api/app_bundle_upload")
-    {
-        http_api_app_bundle_upload ();
-    }
     else if (sPath == "/api/fs_upload_icon")
     {
         http_api_fs_upload (POST_ICON_FILE);
@@ -10912,7 +10755,7 @@ http_server_loop (void)
         return;
     }
 
-    Serial.println("- new client");
+    Serial.println ("- new client");
     Serial.flush ();
 
     unsigned long ultimeout = millis() + 250;
@@ -10943,6 +10786,10 @@ http_server_loop (void)
         http_client.stop();
         return;
     }
+
+    Serial.print ("- request: ");
+    Serial.println (sRequest);
+    Serial.flush ();
 
     // POST
     start_position = sRequest.indexOf(sPoststart);
