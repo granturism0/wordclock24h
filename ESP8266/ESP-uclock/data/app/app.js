@@ -445,7 +445,7 @@ bindElementEvents([
   ["update-host-save-button", "click", saveUpdateHost],
   ["update-path-save-button", "click", saveUpdatePath],
   ["update-assets-button", "click", downloadUpdateAssets],
-  ["update-app-bundle-button", "click", downloadUpdateAppBundle],
+  ["update-app-files-button", "click", downloadUpdateAppFiles],
   ["local-app-folder-choose-button", "click", openLocalAppFolderPicker],
   ["local-app-folder-input", "change", handleLocalAppFolderSelection],
   ["local-app-install-button", "click", installLocalAppFiles],
@@ -2359,6 +2359,10 @@ async function importSettingsBackup() {
   } catch (error) {
     setSettingsBackupNote(getSettingsBackupImportErrorMessage(error), "error");
     finishButtonFeedback(button, "Einstellungen importieren", "error", "Fehler");
+  } finally {
+    if (input) {
+      input.value = "";
+    }
   }
 }
 
@@ -3920,7 +3924,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const tableSelect = document.getElementById("update-table-select");
   const tableButton = document.getElementById("update-table-button");
   const assetsButton = document.getElementById("update-assets-button");
-  const appBundleButton = document.getElementById("update-app-bundle-button");
+  const appFilesButton = document.getElementById("update-app-files-button");
   const serverFilesBlock = document.getElementById("update-server-files-block");
   const tableFiles = serverFilesMeta.tableFiles;
   const currentTable = serverFilesMeta.currentTable;
@@ -3931,7 +3935,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
     : '<option value="">keine Layout-Tabellen gefunden</option>';
   tableButton.classList.toggle("is-hidden", !serverFilesMeta.tableActionSupported);
   assetsButton.classList.toggle("is-hidden", !serverFilesMeta.assetsActionSupported);
-  appBundleButton.classList.toggle("is-hidden", !serverFilesMeta.appBundleActionSupported);
+  appFilesButton.classList.toggle("is-hidden", !serverFilesMeta.appFilesActionSupported);
   serverFilesBlock.classList.toggle("is-hidden", !serverFilesMeta.anyActionSupported);
 
   document.getElementById("update-release-notes").innerHTML = view.releaseNotes || "<p>Keine Release Notes vom Server gelesen.</p>";
@@ -3939,7 +3943,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   document.getElementById("update-stm32-button").disabled = !view.stm32Files.length;
   tableButton.disabled = !serverFilesMeta.tableAvailable || !serverFilesMeta.tableActionSupported;
   assetsButton.disabled = !serverFilesMeta.assetsAvailable;
-  appBundleButton.disabled = !serverFilesMeta.appBundleAvailable;
+  appFilesButton.disabled = !serverFilesMeta.appFilesAvailable;
 
 }
 
@@ -5342,7 +5346,7 @@ function applyLocalAppFileEntries(fileEntries) {
   setFsActionStatus(
     selectedFiles.size
       ? "Lokaler App-Ordner geprueft: " + String(selectedFiles.size) + "/7 Pflichtdateien erkannt."
-      : "Lokaler App-Ordner wurde gewaehlt, aber der Browser hat keine passenden app/...-Dateien geliefert."
+      : "Lokaler App-Ordner wurde gewaehlt, aber der Browser hat keine passenden App-Dateien unter app/... geliefert."
   );
 }
 
@@ -5363,7 +5367,7 @@ function renderLocalAppSelectionStatus() {
 
   if (note) {
     if (!foundCount) {
-      note.textContent = "Noch kein App-Ordner gewählt. Bitte einen Ordner wählen, der die bekannten Dateien unter app/... enthält.";
+      note.textContent = "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die bekannten App-Dateien unter app/... enthält.";
     } else if (!missingAssets.length) {
       note.textContent = "App-Ordner vollständig erkannt. 7/7 Dateien sind bereit und koennen direkt installiert werden.";
     } else {
@@ -5807,7 +5811,6 @@ const getReconnectProbeUrl = createConfiguredUrlGetter("reconnect_probe_url");
 const getRemoteEspUpdateUrl = createConfiguredUrlGetter("remote_esp_update_url");
 const getRemoteStm32FlashUrl = createConfiguredUrlGetter("remote_stm32_flash_url");
 const getUpdateDownloadAssetsUrl = createConfiguredUrlGetter("update_download_assets_url");
-const getUpdateDownloadAppBundleUrl = createConfiguredUrlGetter("update_download_app_bundle_url");
 const getUpdateDownloadTableBaseUrl = createConfiguredUrlGetter("update_download_table_base_url");
 const getAppFileUploadUrl = createConfiguredUrlGetter("app_file_upload_url");
 const getFsInfoUrl = createConfiguredUrlGetter("fs_info_url");
@@ -6347,7 +6350,7 @@ function areUpdateAssetsAvailable(updateStatus) {
   return getUpdateStatusBoolean(updateStatus, "assets_available");
 }
 
-function isUpdateAppBundleAvailable(updateStatus) {
+function isUpdateAppFilesAvailable(updateStatus) {
   return !!(
     getUpdateAvailableVersion(updateStatus, "app_available") ||
     getUpdateAvailableVersion(updateStatus, "app_version")
@@ -6456,18 +6459,18 @@ function getUpdateServerFilesMeta(updateStatus, updateTableInfo) {
   const currentTable = getUpdateTableCurrentFile(updateTableInfo);
   const tableActionSupported = !!getUpdateDownloadTableBaseUrl();
   const assetsActionSupported = !!getUpdateDownloadAssetsUrl();
-  const appBundleActionSupported = true;
+  const appFilesActionSupported = true;
 
   return {
     tableFiles,
     currentTable,
     tableAvailable: tableFiles.length > 0,
     assetsAvailable: areUpdateAssetsAvailable(updateStatus),
-    appBundleAvailable: isUpdateAppBundleAvailable(updateStatus),
+    appFilesAvailable: isUpdateAppFilesAvailable(updateStatus),
     tableActionSupported,
     assetsActionSupported,
-    appBundleActionSupported,
-    anyActionSupported: tableActionSupported || assetsActionSupported || appBundleActionSupported
+    appFilesActionSupported,
+    anyActionSupported: tableActionSupported || assetsActionSupported || appFilesActionSupported
   };
 }
 
@@ -6504,15 +6507,15 @@ async function downloadUpdateAssets() {
   );
 }
 
-async function downloadUpdateAppBundle() {
-  if (!window.confirm("App files should now be downloaded from the server and installed directly?")) {
+async function downloadUpdateAppFiles() {
+  if (!window.confirm("App-Dateien jetzt direkt vom Server laden und installieren?")) {
     return;
   }
 
-  const button = document.getElementById("update-app-bundle-button");
+  const button = document.getElementById("update-app-files-button");
 
-  setProgressActionContext("app-file-install", "update-app-bundle-button", "App-Dateien laden");
-  showRemoteUpdateProgressShell("app-file-install", "App-Dateien werden vom Server geladen...", "update-app-bundle-button");
+  setProgressActionContext("app-file-install", "update-app-files-button", "App-Dateien laden");
+  showRemoteUpdateProgressShell("app-file-install", "App-Dateien werden vom Server geladen...", "update-app-files-button");
   beginButtonFeedback(button, "lädt...");
   announceStatus("App-Dateien werden vom Server geladen...", "warn");
 
@@ -6898,7 +6901,7 @@ function getProgressShellMeta(actionType, buttonId, message) {
     actionType: actionType || "",
     buttonId: buttonId || "",
     message: message || "",
-    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install" || actionType === "app-file-install" || actionType === "app-local-install",
+    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-file-install" || actionType === "app-local-install",
     showVisualProgress: actionType === "stm32-flash"
   };
 }
@@ -7470,6 +7473,7 @@ function manualReloadApp() {
   const button = document.getElementById("reload-button");
   beginButtonFeedback(button, "lädt neu...");
   announceStatus("App wird neu geladen...", "warn");
+  clearProgressReturnScrollPosition();
   window.setTimeout(reloadAppPage, 180);
 }
 

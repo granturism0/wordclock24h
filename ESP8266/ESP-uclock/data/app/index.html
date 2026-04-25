@@ -630,7 +630,7 @@
         <div class="module-banner">
           <p class="eyebrow">Bereich</p>
           <h2>Wartung</h2>
-          <p class="hint">Firmware, LittleFS, lokale Uploads und die Wartungsaktionen für das Gerät.</p>
+          <p class="hint">Update-Quelle, LittleFS, lokale Dateien und Service-Aktionen für das Gerät.</p>
         </div>
 
         <section class="panel panel-maintenance-service">
@@ -669,8 +669,8 @@
           <div class="panel-head">
             <div>
               <p class="eyebrow">Remote</p>
-              <h2>Firmware auslösen</h2>
-              <p class="hint">Aktive Aktionen vom Update-Server. Fortschritt und Ergebnis werden darunter angezeigt.</p>
+              <h2>Vom Server laden und installieren</h2>
+              <p class="hint">Verfügbare Dateien direkt vom Update-Server laden. Fortschritt und Ergebnis werden darunter angezeigt.</p>
             </div>
           </div>
           <div class="control-stack">
@@ -683,7 +683,7 @@
               <div class="hero-actions compact-actions">
                 <button id="update-table-button" class="button" type="button">Layout-Tabelle laden</button>
                 <button id="update-assets-button" class="button" type="button">Icon-Dateien laden</button>
-                <button id="update-app-bundle-button" class="button primary" type="button">App-Dateien laden</button>
+                <button id="update-app-files-button" class="button primary" type="button">App-Dateien laden</button>
               </div>
             </div>
             <div id="update-progress-shell" class="control-stack is-hidden">
@@ -729,11 +729,11 @@
                 <pre id="fs-preview-content" class="code-block">Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.</pre>
               </section>
               <section class="profile-card fs-status-card">
-                <div class="panel-head compact"><div><span class="label">Aktionen und Uploads</span></div></div>
+                <div class="panel-head compact"><div><span class="label">Aktionen und Status</span></div></div>
                 <pre id="fs-action-status" class="code-block">Noch keine Datei-Aktion ausgeführt.</pre>
               </section>
               <section class="profile-card fs-upload-card">
-                <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
+                <div class="panel-head compact"><div><span class="label">Lokale Dateien hochladen</span></div></div>
                 <div class="control-stack">
                   <div id="local-app-files-block" class="control-stack">
                     <div class="panel-head compact"><div><span class="label">Lokale App-Dateien</span></div></div>
@@ -742,7 +742,7 @@
                       <button id="local-app-install-button" class="button primary" type="button" disabled>App-Dateien direkt installieren</button>
                     </div>
                     <input id="local-app-folder-input" type="file" webkitdirectory directory multiple class="is-hidden">
-                    <p id="local-app-folder-note" class="hint">Noch kein App-Ordner gewählt. Bitte einen Ordner wählen, der die bekannten Dateien unter <code>app/...</code> enthält.</p>
+                    <p id="local-app-folder-note" class="hint">Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die bekannten Dateien unter <code>app/...</code> enthält.</p>
                     <div id="local-app-files-list" class="info-list"></div>
                   </div>
                   <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
@@ -768,7 +768,7 @@
         </section>
 
         <section id="local-update-panel" class="panel panel-maintenance-local">
-          <div class="panel-head"><div><p class="eyebrow">Lokales Update</p><h2>ESP- und STM32-Dateien hochladen</h2><p class="hint">Lokale Firmware-Dateien können direkt hochgeladen werden, ohne den Update-Server zu verwenden.</p></div></div>
+          <div class="panel-head"><div><p class="eyebrow">Lokales Update</p><h2>ESP- und STM32-Firmware hochladen</h2><p class="hint">Lokale Firmware-Dateien direkt hochladen, ohne den Update-Server zu verwenden.</p></div></div>
           <div class="control-stack">
             <p id="local-update-note" class="hint">Lokal-Update wird vorbereitet...</p>
             <form id="local-update-esp-form" class="local-update-form">
