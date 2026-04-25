@@ -175,6 +175,8 @@ static uint_fast8_t     http_table_download_filename_matches (const char * actua
 static void             http_remove_table_family_files (const char * keep_filename);
 static void             http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
 static bool             app_asset_filename (const char * asset_path, char * filename, size_t maxlen);
+static const char *     http_find_app_install_asset (const char * asset_path);
+static uint_fast8_t     http_api_app_file_upload ();
 static int8_t           http_decode_temp_correction (unsigned int value);
 static unsigned int     http_encode_temp_correction (int temp_corr);
 static int              http_clamp_temp_correction (int temp_corr);
@@ -1213,6 +1215,27 @@ app_asset_filename (const char * asset_path, char * filename, size_t maxlen)
 
     filename[idx] = '\0';
     return idx > 0;
+}
+
+static const char *
+http_find_app_install_asset (const char * asset_path)
+{
+    size_t asset_count = sizeof (APP_INSTALL_ASSETS) / sizeof (APP_INSTALL_ASSETS[0]);
+
+    if (! asset_path || ! *asset_path)
+    {
+        return (const char *) 0;
+    }
+
+    for (size_t idx = 0; idx < asset_count; idx++)
+    {
+        if (! strcmp (asset_path, APP_INSTALL_ASSETS[idx]))
+        {
+            return APP_INSTALL_ASSETS[idx];
+        }
+    }
+
+    return (const char *) 0;
 }
 
 static int8_t
@@ -5959,6 +5982,150 @@ http_api_fs_upload (uint_fast8_t post)
     return 0;
 }
 
+static uint_fast8_t
+http_api_app_file_upload ()
+{
+    const char *    asset_path = http_get_param ("filename");
+    const char *    validated_asset = http_find_app_install_asset (asset_path);
+    size_t          content_length = 0;
+    uint_fast8_t    ok = 0;
+    uint32_t        error_code = 0;
+    char            local_filename[64];
+    unsigned long   step = 0;
+    unsigned long   total = 0;
+    const char *    step_param = http_get_param ("step");
+    const char *    total_param = http_get_param ("total");
+
+    local_filename[0] = '\0';
+
+    if (step_param && *step_param)
+    {
+        step = strtoul (step_param, (char **) 0, 10);
+    }
+
+    if (total_param && *total_param)
+    {
+        total = strtoul (total_param, (char **) 0, 10);
+    }
+
+    if (! validated_asset)
+    {
+        error_code = 1;
+    }
+    else if (! app_asset_filename (validated_asset, local_filename, sizeof (local_filename)))
+    {
+        error_code = 2;
+    }
+    else if (! read_post_headers (&content_length) || content_length == 0)
+    {
+        error_code = 3;
+    }
+    else
+    {
+        if (step == 1 && total > 0)
+        {
+            Serial.print (F("APPDL local-install-begin count="));
+            Serial.println (total);
+        }
+
+        Serial.print (F("APPDL local-install-step "));
+        if (step > 0 && total > 0)
+        {
+            Serial.print (step);
+            Serial.print ('/');
+            Serial.print (total);
+            Serial.print (' ');
+        }
+        Serial.print (F("remote="));
+        Serial.print (validated_asset);
+        Serial.print (F(" local="));
+        Serial.println (local_filename);
+
+        LittleFS.begin ();
+
+        File f = LittleFS.open (local_filename, "w+");
+
+        if (! f)
+        {
+            error_code = 4;
+        }
+        else
+        {
+            ok = read_request_body_to_file (f, content_length) ? 1 : 0;
+            f.close ();
+
+            if (! ok)
+            {
+                LittleFS.remove (local_filename);
+                error_code = 5;
+            }
+        }
+
+        LittleFS.end ();
+
+        if (ok && total > 0 && step >= total)
+        {
+            Serial.print (F("APPDL local-install-complete count="));
+            Serial.println (total);
+        }
+    }
+
+    if (! ok)
+    {
+        Serial.print (F("APPDL local-install-fail "));
+        if (step > 0 && total > 0)
+        {
+            Serial.print (F("step="));
+            Serial.print (step);
+            Serial.print ('/');
+            Serial.print (total);
+            Serial.print (' ');
+        }
+        if (validated_asset)
+        {
+            Serial.print (F("remote="));
+            Serial.print (validated_asset);
+            Serial.print (' ');
+        }
+        if (local_filename[0])
+        {
+            Serial.print (F("local="));
+            Serial.print (local_filename);
+            Serial.print (' ');
+        }
+        Serial.print (F("error="));
+        Serial.println (error_code);
+    }
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":"));
+    http_send (ok ? "true" : "false");
+
+    if (! ok)
+    {
+        http_send (FS(",\"error\":"));
+        http_send (String (error_code).c_str ());
+        http_send (FS(",\"detail\":\""));
+
+        switch (error_code)
+        {
+            case 1: http_send (FS("invalid filename")); break;
+            case 2: http_send (FS("invalid target")); break;
+            case 3: http_send (FS("invalid request")); break;
+            case 4: http_send (FS("open failed")); break;
+            case 5: http_send (FS("upload failed")); break;
+            default: http_send (FS("unknown error")); break;
+        }
+
+        http_send (FS("\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * HTTP update
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -9116,6 +9283,7 @@ http_api_update_status ()
     http_json_send_bool_field (FS("update_download_assets_api_supported"), 1);
     http_json_send_bool_field (FS("update_download_app_bundle_api_supported"), 0);
     http_json_send_bool_field (FS("update_download_table_api_supported"), 1);
+    http_json_send_bool_field (FS("app_file_upload_api_supported"), 1);
     http_json_send_bool_field (FS("app_bundle_upload_api_supported"), 0);
     http_json_send_bool_field (FS("fs_target_upload_api_supported"), 1);
     http_json_send_bool_field (FS("local_stm32_upload_api_supported"), 1);
@@ -9197,6 +9365,7 @@ http_api_update_status ()
     http_json_send_string_field (FS("update_download_assets_url"), "/api/update_download_assets");
     http_json_send_string_field (FS("update_download_app_bundle_url"), "");
     http_json_send_string_field (FS("update_download_table_base_url"), "/api/update_download_table?filename=");
+    http_json_send_string_field (FS("app_file_upload_url"), "/api/app_file_upload");
     http_json_send_string_field (FS("app_bundle_upload_url"), "");
     http_json_send_string_field (FS("fs_info_url"), "/api/fs_info");
     http_json_send_string_field (FS("fs_list_url"), "/api/fs_list");
@@ -10663,6 +10832,10 @@ http (const char * path, const char * const_param)
     {
         rtc = http_api_fs_upload (POST_DISPLAY_FILE);
     }
+    else if (! strcmp (path, "/api/app_file_upload"))
+    {
+        rtc = http_api_app_file_upload ();
+    }
     else if (! strcmp (path, "/api/local_stm32_flash"))
     {
         rtc = http_api_local_stm32_flash ();
@@ -10720,6 +10893,10 @@ http_post(const String& sPath)
     else if (sPath == "/api/fs_upload_display")
     {
         http_api_fs_upload (POST_DISPLAY_FILE);
+    }
+    else if (sPath == "/api/app_file_upload")
+    {
+        http_api_app_file_upload ();
     }
     else if (sPath == "/api/local_stm32_upload")
     {

@@ -474,14 +474,23 @@ h2 {
 }
 
 .info-item {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   gap: 14px;
   align-items: center;
+  min-width: 0;
+}
+
+.info-item .label {
+  min-width: 0;
 }
 
 .info-item strong {
   text-align: right;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .info-item .inline-select {
@@ -497,6 +506,17 @@ h2 {
 .control-stack {
   display: grid;
   gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .info-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .info-item strong {
+    text-align: left;
+  }
 }
 
 .split-card-grid {
@@ -536,6 +556,12 @@ h2 {
 .field {
   display: grid;
   gap: 8px;
+  min-width: 0;
+}
+
+.field .label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .field input,
@@ -564,6 +590,16 @@ h2 {
 .time-grid {
   display: grid;
   gap: 12px;
+}
+
+.weather-coordinate-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.weather-coordinate-grid > * {
+  min-width: 0;
 }
 
 .datetime-grid {
@@ -964,6 +1000,7 @@ h2 {
 
 @media (min-width: 900px) {
   .module-nav-shell.is-measuring .module-nav {
+    justify-content: flex-start;
     overflow-x: visible;
   }
 
@@ -1134,6 +1171,16 @@ h2 {
   .time-grid {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
+  }
+
+  .weather-coordinate-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .weather-coordinate-grid > .button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .datetime-grid {

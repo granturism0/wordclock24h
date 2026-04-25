@@ -282,7 +282,7 @@
                 <div class="panel-head compact"><div><span class="label">Standort wählen</span></div></div>
                 <label class="field"><span class="label">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
                 <button id="weather-city-save-button" class="button primary" type="button">Ort speichern</button>
-                <div class="time-grid">
+                <div class="weather-coordinate-grid">
                   <label class="field"><span class="label">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
                   <label class="field"><span class="label">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
                   <button id="weather-coordinates-save-button" class="button primary" type="button">Koordinaten speichern</button>
@@ -308,9 +308,9 @@
           <div class="panel-head"><div><p class="eyebrow">Temperatur</p><h2>Sensoren und Korrektur</h2></div></div>
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
-            <label class="field"><span class="label">DS18xx-Korrektur (0,5 °C Schritte)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">DS18xx-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-ds18xx-correction-save-button" class="button primary" type="button">DS18xx-Korrektur speichern</button>
-            <label class="field"><span class="label">RTC-Korrektur (0,5 °C Schritte)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label">RTC-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-rtc-correction-save-button" class="button primary" type="button">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button">Temperatur anzeigen</button>
           </div>
@@ -735,10 +735,16 @@
               <section class="profile-card fs-upload-card">
                 <div class="panel-head compact"><div><span class="label">Dateien hochladen</span></div></div>
                 <div class="control-stack">
-                  <form id="fs-upload-app-form" class="upload-form" method="post" action="" enctype="multipart/form-data">
-                    <label class="field"><span class="label">App-Paket `app-bundle.txt`</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
-                    <button class="button primary" type="submit">App installieren</button>
-                  </form>
+                  <div id="local-app-files-block" class="control-stack">
+                    <div class="panel-head compact"><div><span class="label">Lokale App-Dateien</span></div></div>
+                    <div class="hero-actions compact-actions">
+                      <button id="local-app-folder-choose-button" class="button" type="button">Lokalen App-Ordner wählen</button>
+                      <button id="local-app-install-button" class="button primary" type="button" disabled>App-Dateien direkt installieren</button>
+                    </div>
+                    <input id="local-app-folder-input" type="file" webkitdirectory directory multiple class="is-hidden">
+                    <p id="local-app-folder-note" class="hint">Noch kein App-Ordner gewählt. Bitte einen Ordner wählen, der die bekannten Dateien unter <code>app/...</code> enthält.</p>
+                    <div id="local-app-files-list" class="info-list"></div>
+                  </div>
                   <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">
                     <label class="field"><span id="fs-upload-icon-label" class="label">Icon-Datei</span><input name="fileField" type="file" accept=".txt,text/plain" required></label>
                     <button class="button" type="submit">Datei hochladen</button>

@@ -10,6 +10,15 @@
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 const APP_VERSION = "1.4.11";
+const LOCAL_APP_REQUIRED_ASSETS = [
+  "app/index.html",
+  "app/styles.css",
+  "app/app.js",
+  "app/sw.js",
+  "app/manifest.webmanifest",
+  "app/icons/icon-192.svg",
+  "app/icons/icon-512.svg"
+];
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
@@ -328,6 +337,7 @@ let wordclockResizeObserver = null;
 let liveDisplayColorTimer = 0;
 let currentLiveDisplayColor = null;
 let lastLiveDisplayColorMode = 0;
+let localAppSelectedFiles = new Map();
 let overlayEditorState = null;
 let stm32LogTimer = 0;
 let stm32LogRefreshInFlight = false;
@@ -436,6 +446,9 @@ bindElementEvents([
   ["update-path-save-button", "click", saveUpdatePath],
   ["update-assets-button", "click", downloadUpdateAssets],
   ["update-app-bundle-button", "click", downloadUpdateAppBundle],
+  ["local-app-folder-choose-button", "click", openLocalAppFolderPicker],
+  ["local-app-folder-input", "change", handleLocalAppFolderSelection],
+  ["local-app-install-button", "click", installLocalAppFiles],
   ["update-esp-button", "click", triggerEspUpdate],
   ["update-stm32-button", "click", triggerStm32Update],
   ["update-table-button", "click", triggerTableUpdate],
@@ -487,7 +500,6 @@ bindElementEvents([
   ["datetime-save-button", "click", saveDateTime],
   ["learn-ir-button", "click", learnIrRemote],
   ["update-progress-frame", "load", handleProgressFrameLoad],
-  ["fs-upload-app-form", "submit", uploadAppBundleFile],
   ["fs-upload-icon-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("icon"), "Datei wurde hochgeladen.")],
   ["fs-upload-weather-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("weather"), "Datei wurde hochgeladen.")],
   ["fs-upload-tables-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("tables"), "Layout-Tabelle wurde hochgeladen.")],
@@ -503,6 +515,7 @@ bindPrefixEvents(["display", "ambilight", "marker"], (prefix) => [
 
 document.getElementById("app-version").textContent = "App-Version " + APP_VERSION;
 document.getElementById("app-version-card").textContent = APP_VERSION;
+renderLocalAppSelectionStatus();
 
 window.setTimeout(() => {
   try {
@@ -861,23 +874,13 @@ function syncModuleNavHint() {
   }
 
   shell.classList.add("is-measuring");
-  const chips = Array.from(nav.querySelectorAll(".module-chip"));
-  const navStyles = window.getComputedStyle(nav);
-  const gap = parseFloat(navStyles.columnGap || navStyles.gap || "0") || 0;
-  const totalGapWidth = chips.length > 1 ? gap * (chips.length - 1) : 0;
-  const totalChipWidth = chips.reduce((sum, chip) => {
-    const chipStyles = window.getComputedStyle(chip);
-    const paddingLeft = parseFloat(chipStyles.paddingLeft || "0") || 0;
-    const paddingRight = parseFloat(chipStyles.paddingRight || "0") || 0;
-    const borderLeft = parseFloat(chipStyles.borderLeftWidth || "0") || 0;
-    const borderRight = parseFloat(chipStyles.borderRightWidth || "0") || 0;
-    return sum + chip.scrollWidth + paddingLeft + paddingRight + borderLeft + borderRight;
-  }, 0);
+  const chips = Array.from(nav.querySelectorAll(".module-chip")).filter((chip) => chip.offsetParent !== null);
+  const requiredWidth = chips.length ? Math.ceil(nav.scrollWidth) : 0;
+  const availableWidth = Math.floor(nav.clientWidth);
   shell.classList.remove("is-measuring");
-  const requiredWidth = totalChipWidth + totalGapWidth;
   const currentlyOverflowing = shell.classList.contains("has-overflow");
-  const enterOverflowThreshold = nav.clientWidth + 12;
-  const leaveOverflowThreshold = nav.clientWidth - 20;
+  const enterOverflowThreshold = availableWidth + 24;
+  const leaveOverflowThreshold = availableWidth - 24;
   const hasOverflow = currentlyOverflowing
     ? requiredWidth > leaveOverflowThreshold
     : requiredWidth > enterOverflowThreshold;
@@ -3829,7 +3832,6 @@ function updateFsUploadTargets(settings) {
   updateUploadFormVisibility("fs-upload-weather-form", "fs-upload-weather-label", targets.weather);
   updateUploadFormVisibility("fs-upload-tables-form", "fs-upload-tables-label", targets.tables);
   updateUploadFormVisibility("fs-upload-display-form", "fs-upload-display-label", targets.display);
-  setUploadFormSupported("fs-upload-app-form", uploadMeta.appBundleSupported, "Direct PWA uploads for app packages are not supported by this firmware.");
   setUploadFormSupported("fs-upload-icon-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
   setUploadFormSupported("fs-upload-weather-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
   setUploadFormSupported("fs-upload-tables-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
@@ -3851,7 +3853,6 @@ function updateUploadFormVisibility(formId, labelId, fileName) {
 
 function updateUploadFormActions() {
   const actions = [
-    ["fs-upload-app-form", getAppBundleUploadUrl()],
     ["fs-upload-icon-form", getFsUploadUrl("icon")],
     ["fs-upload-weather-form", getFsUploadUrl("weather")],
     ["fs-upload-tables-form", getFsUploadUrl("tables")],
@@ -3873,7 +3874,6 @@ function updateUploadFormActions() {
 
 function updateUploadInputAccepts() {
   const acceptPairs = [
-    ["#fs-upload-app-form input[type=\"file\"]", getAppBundleUploadAccept()],
     ["#fs-upload-icon-form input[type=\"file\"]", getFsUploadTxtAccept()],
     ["#fs-upload-weather-form input[type=\"file\"]", getFsUploadTxtAccept()],
     ["#fs-upload-tables-form input[type=\"file\"]", getFsUploadTxtAccept()],
@@ -5166,9 +5166,17 @@ function uploadRawFile(url, file, onProgress, onUploadComplete) {
   });
 }
 
-function buildUploadUrl(url, fileName) {
+function buildUploadUrl(url, fileName, extraParams) {
   const absoluteUrl = new URL(url, window.location.origin);
   absoluteUrl.searchParams.set("filename", fileName || "");
+  if (extraParams && typeof extraParams === "object") {
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        return;
+      }
+      absoluteUrl.searchParams.set(key, String(value));
+    });
+  }
   return absoluteUrl.pathname + absoluteUrl.search;
 }
 
@@ -5176,6 +5184,264 @@ function setFsActionStatus(message) {
   const node = document.getElementById("fs-action-status");
   if (node) {
     node.textContent = message;
+  }
+}
+
+function openLocalAppFolderPicker() {
+  const input = document.getElementById("local-app-folder-input");
+  if (window.showDirectoryPicker) {
+    void openLocalAppDirectoryPicker();
+    return;
+  }
+
+  if (input) {
+    input.value = "";
+    input.click();
+  }
+}
+
+async function collectLocalAppFilesFromDirectoryHandle(handle, prefix) {
+  const files = [];
+  const currentPrefix = prefix ? prefix + "/" : "";
+
+  for await (const entry of handle.values()) {
+    if (entry.kind === "file") {
+      files.push({
+        relativePath: currentPrefix + entry.name,
+        file: await entry.getFile()
+      });
+      continue;
+    }
+
+    if (entry.kind === "directory") {
+      const nested = await collectLocalAppFilesFromDirectoryHandle(entry, currentPrefix + entry.name);
+      files.push(...nested);
+    }
+  }
+
+  return files;
+}
+
+async function openLocalAppDirectoryPicker() {
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "read" });
+    const fileEntries = await collectLocalAppFilesFromDirectoryHandle(handle, "");
+    applyLocalAppFileEntries(fileEntries);
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return;
+    }
+
+    announceStatus("Der App-Ordner konnte nicht gelesen werden", "error");
+    setFsActionStatus("Der lokale App-Ordner konnte ueber den Browser nicht geoeffnet werden.");
+  }
+}
+
+function normalizeLocalAppAssetPath(relativePath) {
+  const normalized = String(relativePath || "").replace(/\\/g, "/");
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (LOCAL_APP_REQUIRED_ASSETS.includes(normalized)) {
+    return normalized;
+  }
+
+  const marker = "/app/";
+  const markerIndex = normalized.lastIndexOf(marker);
+
+  if (markerIndex >= 0) {
+    const candidate = normalized.slice(markerIndex + 1);
+    if (LOCAL_APP_REQUIRED_ASSETS.includes(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function readLocalAppFileEntry(entry) {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readLocalAppDirectoryEntries(reader) {
+  return new Promise((resolve, reject) => {
+    const collected = [];
+
+    function readBatch() {
+      reader.readEntries((entries) => {
+        if (!entries || !entries.length) {
+          resolve(collected);
+          return;
+        }
+
+        collected.push(...entries);
+        readBatch();
+      }, reject);
+    }
+
+    readBatch();
+  });
+}
+
+async function collectLocalAppFilesFromEntry(entry) {
+  if (!entry) {
+    return [];
+  }
+
+  if (entry.isFile) {
+    const file = await readLocalAppFileEntry(entry);
+    return [{ relativePath: entry.fullPath || file.webkitRelativePath || file.name || "", file }];
+  }
+
+  if (!entry.isDirectory) {
+    return [];
+  }
+
+  const reader = entry.createReader();
+  const children = await readLocalAppDirectoryEntries(reader);
+  const nested = await Promise.all(children.map((child) => collectLocalAppFilesFromEntry(child)));
+  return nested.flat();
+}
+
+async function collectLocalAppSelectedFiles(input) {
+  const directFiles = Array.from((input && input.files) || []);
+
+  if (directFiles.length) {
+    return directFiles.map((file) => ({
+      relativePath: file.webkitRelativePath || file.name || "",
+      file
+    }));
+  }
+
+  const entryList = Array.from((input && input.webkitEntries) || []);
+
+  if (!entryList.length) {
+    return [];
+  }
+
+  const nested = await Promise.all(entryList.map((entry) => collectLocalAppFilesFromEntry(entry)));
+  return nested.flat();
+}
+
+function applyLocalAppFileEntries(fileEntries) {
+  const selectedFiles = new Map();
+
+  fileEntries.forEach(({ relativePath, file }) => {
+    const normalizedAssetPath = normalizeLocalAppAssetPath(relativePath);
+    if (normalizedAssetPath && !selectedFiles.has(normalizedAssetPath)) {
+      selectedFiles.set(normalizedAssetPath, file);
+    }
+  });
+
+  localAppSelectedFiles = selectedFiles;
+  renderLocalAppSelectionStatus();
+  setFsActionStatus(
+    selectedFiles.size
+      ? "Lokaler App-Ordner geprueft: " + String(selectedFiles.size) + "/7 Pflichtdateien erkannt."
+      : "Lokaler App-Ordner wurde gewaehlt, aber der Browser hat keine passenden app/...-Dateien geliefert."
+  );
+}
+
+function renderLocalAppSelectionStatus() {
+  const listRoot = document.getElementById("local-app-files-list");
+  const note = document.getElementById("local-app-folder-note");
+  const installButton = document.getElementById("local-app-install-button");
+  const foundCount = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => localAppSelectedFiles.has(assetPath)).length;
+  const missingAssets = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => !localAppSelectedFiles.has(assetPath));
+  const infoItems = LOCAL_APP_REQUIRED_ASSETS.map((assetPath) => [
+    assetPath,
+    localAppSelectedFiles.has(assetPath) ? "gefunden" : "fehlt"
+  ]);
+
+  if (listRoot) {
+    renderList("local-app-files-list", infoItems);
+  }
+
+  if (note) {
+    if (!foundCount) {
+      note.textContent = "Noch kein App-Ordner gewählt. Bitte einen Ordner wählen, der die bekannten Dateien unter app/... enthält.";
+    } else if (!missingAssets.length) {
+      note.textContent = "App-Ordner vollständig erkannt. 7/7 Dateien sind bereit und koennen direkt installiert werden.";
+    } else {
+      note.textContent = "App-Ordner geprueft. " + String(foundCount) + "/7 Dateien gefunden. Es fehlen: " + missingAssets.join(", ");
+    }
+  }
+
+  if (installButton) {
+    installButton.disabled = missingAssets.length > 0;
+  }
+}
+
+async function handleLocalAppFolderSelection(event) {
+  const input = event.currentTarget;
+  const fileEntries = await collectLocalAppSelectedFiles(input);
+  applyLocalAppFileEntries(fileEntries);
+}
+
+async function installLocalAppFiles() {
+  const button = document.getElementById("local-app-install-button");
+  const uploadUrl = getAppFileUploadUrl();
+  const missingAssets = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => !localAppSelectedFiles.has(assetPath));
+
+  if (missingAssets.length) {
+    announceStatus("Der App-Ordner ist noch nicht vollständig.", "error");
+    renderLocalAppSelectionStatus();
+    setFsActionStatus("Lokale App-Dateien koennen noch nicht installiert werden. Es fehlen Pflichtdateien.");
+    return;
+  }
+
+  if (!uploadUrl) {
+    announceStatus("Diese Firmware unterstützt noch keinen lokalen App-Datei-Upload.", "error");
+    return;
+  }
+
+  if (!window.confirm("Die lokalen App-Dateien jetzt direkt auf das Gerät schreiben?")) {
+    return;
+  }
+
+  setProgressActionContext("app-local-install", "local-app-install-button", "Lokale App-Dateien installieren");
+  showRemoteUpdateProgressShell("app-local-install", "Lokale App-Dateien werden direkt installiert...", "local-app-install-button");
+  beginButtonFeedback(button, "installiert...");
+  announceStatus("Lokale App-Dateien werden installiert...", "warn");
+  setFsActionStatus("Lokale App-Dateien werden direkt in das LittleFS geschrieben...");
+
+  try {
+    for (let index = 0; index < LOCAL_APP_REQUIRED_ASSETS.length; index += 1) {
+      const assetPath = LOCAL_APP_REQUIRED_ASSETS[index];
+      const file = localAppSelectedFiles.get(assetPath);
+      const progressMessage = "Lokale App-Dateien: " + String(index + 1) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " " + assetPath;
+
+      document.getElementById("update-progress-note").textContent = progressMessage;
+      document.getElementById("updated-at").textContent = progressMessage;
+      setFsActionStatus(progressMessage);
+
+      await uploadRawFile(
+        buildUploadUrl(uploadUrl, assetPath, { step: index + 1, total: LOCAL_APP_REQUIRED_ASSETS.length }),
+        file,
+        () => {
+        }
+      );
+    }
+
+    document.getElementById("update-progress-note").textContent = "Lokale App-Dateien installiert. App wird neu geladen...";
+    document.getElementById("updated-at").textContent = "Lokale App-Dateien installiert. App wird neu geladen...";
+    announceStatus("Lokale App-Dateien installiert. Seite wird neu geladen.", "ok");
+    setFsActionStatus("Lokale App-Dateien wurden erfolgreich installiert.");
+    finishButtonFeedback(button, "Lokale App-Dateien installieren", "success", "installiert");
+    window.setTimeout(reloadAppPage, 900);
+  } catch (error) {
+    const message = "Lokale App-Dateien konnten nicht installiert werden: " + (error.message || "unbekannter Fehler");
+    document.getElementById("update-progress-note").textContent = message;
+    document.getElementById("updated-at").textContent = message;
+    announceStatus("Lokale App-Dateien konnten nicht installiert werden", "error");
+    setFsActionStatus(message);
+    finishButtonFeedback(button, "Lokale App-Dateien installieren", "error", "Fehler");
+    resetProgressButton();
+    finishProgressUi(1200);
   }
 }
 
@@ -5417,7 +5683,7 @@ const URL_DEFAULTS = {
   update_download_assets_url: "/api/update_download_assets",
   update_download_app_bundle_url: "/api/update_download_app_bundle",
   update_download_table_base_url: "/api/update_download_table?filename=",
-  app_bundle_upload_url: "/api/app_bundle_upload",
+  app_file_upload_url: "/api/app_file_upload",
   fs_info_url: "/api/fs_info",
   fs_list_url: "/api/fs_list",
   eeprom_settings_url: "/api/eeprom_settings",
@@ -5429,7 +5695,6 @@ const URL_DEFAULTS = {
   fs_upload_tables_url: "/api/fs_upload_tables",
   fs_upload_display_url: "/api/fs_upload_display",
   fs_upload_txt_accept: ".txt,text/plain",
-  app_bundle_upload_accept: ".txt,text/plain",
   local_stm32_upload_url: "/api/local_stm32_upload",
   local_stm32_upload_accept: ".hex,text/plain",
   local_stm32_flash_url: "/api/local_stm32_flash",
@@ -5544,7 +5809,7 @@ const getRemoteStm32FlashUrl = createConfiguredUrlGetter("remote_stm32_flash_url
 const getUpdateDownloadAssetsUrl = createConfiguredUrlGetter("update_download_assets_url");
 const getUpdateDownloadAppBundleUrl = createConfiguredUrlGetter("update_download_app_bundle_url");
 const getUpdateDownloadTableBaseUrl = createConfiguredUrlGetter("update_download_table_base_url");
-const getAppBundleUploadUrl = createConfiguredUrlGetter("app_bundle_upload_url");
+const getAppFileUploadUrl = createConfiguredUrlGetter("app_file_upload_url");
 const getFsInfoUrl = createConfiguredUrlGetter("fs_info_url");
 const getFsListUrl = createConfiguredUrlGetter("fs_list_url");
 const getEepromSettingsUrl = createConfiguredUrlGetter("eeprom_settings_url");
@@ -5569,7 +5834,6 @@ function getFsUploadUrl(kind) {
 }
 
 const getFsUploadTxtAccept = createConfiguredUrlGetter("fs_upload_txt_accept");
-const getAppBundleUploadAccept = createConfiguredUrlGetter("app_bundle_upload_accept");
 const getLocalStm32UploadUrl = createConfiguredUrlGetter("local_stm32_upload_url");
 const getLocalStm32UploadAccept = createConfiguredUrlGetter("local_stm32_upload_accept");
 const getLocalStm32FlashUrl = createConfiguredUrlGetter("local_stm32_flash_url");
@@ -5996,8 +6260,7 @@ function getFsUploadMeta(settings) {
       getFsUploadUrl("weather") ||
       getFsUploadUrl("tables") ||
       getFsUploadUrl("display")
-    ),
-    appBundleSupported: !!getAppBundleUploadUrl()
+    )
   };
 }
 
@@ -6279,57 +6542,6 @@ async function downloadUpdateAppBundle() {
     finishButtonFeedback(button, "App-Dateien laden", "error", "Fehler");
     resetProgressButton();
     finishProgressUi(1200);
-  }
-}
-
-async function uploadAppBundleFile(event) {
-  event.preventDefault();
-
-  const form = event.currentTarget;
-  const fileInput = form.querySelector('input[type="file"]');
-  const button = form.querySelector('button[type="submit"]');
-  const file = fileInput && fileInput.files && fileInput.files[0];
-
-  if (!file) {
-    document.getElementById("fs-action-status").textContent = "Bitte zuerst eine App-Bundle-Datei auswählen.";
-    return;
-  }
-
-  if (file.name !== "app-bundle.txt") {
-    document.getElementById("fs-action-status").textContent = "Bitte die Datei app-bundle.txt auswählen.";
-    announceStatus("Falsche App-Bundle-Datei ausgewählt", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "App installieren", "error", "Fehler");
-    return;
-  }
-
-  if (!isTxtFileName(file.name)) {
-    document.getElementById("fs-action-status").textContent = "App-Paket muss eine .txt-Datei sein.";
-    announceStatus("Ungültige Dateiendung", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "App installieren", "error", "Fehler");
-    return;
-  }
-
-  try {
-    await runManagedRawUpload({
-      button,
-      file,
-      uploadUrl: buildUploadUrl(getAppBundleUploadUrl(), file.name),
-      startStatusText: "App-Paket wird hochgeladen: " + file.name,
-      installStatusText: "App-Paket wurde hochgeladen und wird jetzt installiert...",
-      successStatusText: "App-Paket wurde erfolgreich installiert. Seite wird neu geladen.",
-      successAnnounceText: "App-Paket wurde erfolgreich installiert.",
-      idleText: "App installieren",
-      successText: "installiert",
-      onProgressText: (percent) => "App-Paket wird hochgeladen: " + percent + "%",
-      onInstalled: () => announceStatus("App-Paket wird installiert...", "warn"),
-      onSuccess: async () => {
-        window.setTimeout(() => window.location.reload(), 1200);
-      }
-    });
-  } catch (error) {
-    setFsActionStatus("App-Paket konnte nicht installiert werden: " + (error.message || "unbekannter Fehler"));
-    announceStatus("App-Paket konnte nicht installiert werden", "error");
-    finishButtonFeedback(button, getUploadActionButtonText(button, "App installieren"), "error", "Fehler");
   }
 }
 
@@ -6686,7 +6898,7 @@ function getProgressShellMeta(actionType, buttonId, message) {
     actionType: actionType || "",
     buttonId: buttonId || "",
     message: message || "",
-    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install" || actionType === "app-file-install",
+    keepFrameActiveInBackground: actionType === "stm32-flash" || isEspLikeAction || actionType === "app-bundle-install" || actionType === "app-file-install" || actionType === "app-local-install",
     showVisualProgress: actionType === "stm32-flash"
   };
 }
@@ -6721,7 +6933,7 @@ function showRemoteUpdateProgressShell(actionType, message, buttonId) {
     stopStm32Progress();
   }
   rememberProgressReturnScrollPosition();
-  progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollElementBelowStickyNav(progressShell);
 }
 
 function startProgressAction(url, message, actionType, buttonId, buttonText) {
@@ -6923,7 +7135,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
 
     beginStm32Progress();
     rememberProgressReturnScrollPosition();
-    progressShell.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollElementBelowStickyNav(progressShell);
 
     uploadRawFile(
       buildUploadUrl(getLocalStm32UploadUrl(), file.name),
@@ -7512,8 +7724,21 @@ function scrollUpdateProgressIntoView() {
   const shell = document.getElementById("update-progress-shell");
 
   if (shell && !shell.classList.contains("is-hidden")) {
-    shell.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollElementBelowStickyNav(shell);
   }
+}
+
+function scrollElementBelowStickyNav(element) {
+  if (!element) {
+    return;
+  }
+
+  const navShell = document.querySelector(".module-nav-shell");
+  const stickyHeight = navShell ? Math.ceil(navShell.getBoundingClientRect().height) : 0;
+  const extraGap = 12;
+  const targetTop = Math.max(0, window.scrollY + element.getBoundingClientRect().top - stickyHeight - extraGap);
+
+  window.scrollTo({ top: targetTop, behavior: "smooth" });
 }
 
 function rememberProgressReturnScrollPosition() {
