@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.11";
+const APP_VERSION = "1.4.14";
 const LOCAL_APP_REQUIRED_ASSETS = [
   "app/index.html",
   "app/styles.css",
@@ -349,6 +349,8 @@ let initialLoadRetryTimer = 0;
 let initialLoadAttemptCount = 0;
 let reloadBootstrapPending = hasReloadQueryMarker();
 let reloadBootstrapTimers = [];
+let startupLoadIssued = false;
+let startupLoadIssuedAt = 0;
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
 const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
@@ -362,10 +364,20 @@ const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
 const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
 
 function bindElementEvent(id, eventName, handler) {
-  document.getElementById(id).addEventListener(eventName, handler);
+  const element = document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  element.addEventListener(eventName, handler);
 }
 
 function bindDomEvent(target, eventName, handler, options) {
+  if (!target || !target.addEventListener) {
+    return;
+  }
+
   target.addEventListener(eventName, handler, options);
 }
 
@@ -513,8 +525,15 @@ bindPrefixEvents(["display", "ambilight", "marker"], (prefix) => [
   [prefix + "-color-white", "input", () => syncWhiteChannelLabel(prefix)]
 ]);
 
-document.getElementById("app-version").textContent = "App-Version " + APP_VERSION;
-document.getElementById("app-version-card").textContent = APP_VERSION;
+const appVersionLabel = document.getElementById("app-version");
+const appVersionCard = document.getElementById("app-version-card");
+
+if (appVersionLabel) {
+  appVersionLabel.textContent = "App-Version " + APP_VERSION;
+}
+if (appVersionCard) {
+  appVersionCard.textContent = APP_VERSION;
+}
 renderLocalAppSelectionStatus();
 
 window.setTimeout(() => {
@@ -549,8 +568,11 @@ loadDebugOverridesIntoUi();
 clearReloadQueryMarker();
 restoreActiveModule();
 scheduleModuleNavHintSync();
-loadData();
-scheduleReloadBootstrapLoads();
+window.setTimeout(() => {
+  startupLoadIssued = true;
+  startupLoadIssuedAt = Date.now();
+  void loadData(buildLoadOptionsForModule(getActiveModuleName(), { startup: true }));
+}, 0);
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
 }
@@ -562,11 +584,17 @@ window.addEventListener("resize", () => {
   scheduleModuleNavHintSync();
 });
 window.addEventListener("pageshow", () => {
-  void loadData({ pageShow: true });
+  if (shouldDelayStartupRefresh()) {
+    return;
+  }
+  void refreshVisibleModuleData({ pageShow: true });
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    void loadData({ visibilityRefresh: true });
+    if (shouldDelayStartupRefresh()) {
+      return;
+    }
+    void refreshVisibleModuleData({ visibilityRefresh: true });
   }
 });
 
@@ -656,9 +684,13 @@ function startAlignedAutoRefresh() {
 
   alignedAutoRefreshTimeout = window.setTimeout(() => {
     alignedAutoRefreshTimeout = 0;
-    void loadData({ auto: true });
+    if (shouldAutoRefreshCurrentModule()) {
+      void refreshVisibleModuleData({ auto: true });
+    }
     alignedAutoRefreshInterval = window.setInterval(() => {
-      void loadData({ auto: true });
+      if (shouldAutoRefreshCurrentModule()) {
+        void refreshVisibleModuleData({ auto: true });
+      }
     }, intervalMs);
   }, delayToNextTick);
 }
@@ -805,14 +837,33 @@ function setActiveModule(moduleName) {
   }
   scheduleModuleNavHintSync();
   if (getCurrentSettingsSnapshot()) {
-    if (target === "maintenance") {
-      void loadData({ maintenancePriority: true });
-    } else if (target === "network" || target === "overlays" || target === "update" || target === "system") {
-      void loadData();
-    }
+    void refreshVisibleModuleData({ moduleChange: true, moduleName: target });
   }
   syncLiveDisplayColorPolling(getCurrentSettingsSnapshot());
   syncStm32LogPolling();
+}
+
+function buildLoadOptionsForModule(moduleName, extraOptions) {
+  const target = moduleName || "main";
+  const opts = { ...(extraOptions || {}), moduleName: target };
+
+  if (target === "maintenance") {
+    opts.maintenancePriority = true;
+  }
+
+  return opts;
+}
+
+function refreshVisibleModuleData(extraOptions) {
+  return loadData(buildLoadOptionsForModule(getActiveModuleName(), extraOptions));
+}
+
+function shouldAutoRefreshCurrentModule() {
+  return true;
+}
+
+function shouldDelayStartupRefresh() {
+  return !getCurrentSettingsSnapshot() && startupLoadIssued && (Date.now() - startupLoadIssuedAt) < 5000;
 }
 
 function restoreActiveModule() {
@@ -1073,6 +1124,9 @@ function handleInitialLoadPending(error, options) {
 
   initialLoadAttemptCount += 1;
   announceStatus("Wartet auf Daten...", "warn");
+  if (reloadBootstrapPending) {
+    scheduleReloadBootstrapLoads();
+  }
   clearInitialLoadRetry();
   initialLoadRetryTimer = window.setTimeout(() => {
     initialLoadRetryTimer = 0;
@@ -1122,44 +1176,48 @@ function isDisplayPowerOn(displayPowerText, settings) {
 
 async function loadSecondaryData(requestId, settings, coreData, debugOverrides, options) {
   const opts = options || {};
-  const activeModule = getActiveModuleName();
-  const maintenanceActive = activeModule === "maintenance" || !!opts.maintenancePriority;
-  const systemActive = activeModule === "system";
-  const networkActive = activeModule === "network";
-  const overlaysActive = activeModule === "overlays";
-  const updateActive = activeModule === "update";
+  const activeModule = opts.moduleName || getActiveModuleName();
+  const moduleProfile = getModuleDataProfile(activeModule, opts);
+  const maintenanceActive = moduleProfile.maintenance;
+  const systemActive = moduleProfile.system;
+  const networkActive = moduleProfile.network;
+  const overlaysActive = moduleProfile.overlays;
+  const updateActive = moduleProfile.update;
+  const mainActive = moduleProfile.main;
 
   // Secondary data is intentionally additive:
   // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
-  try {
-    const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
-    if (requestId !== loadRequestSerial) {
-      return;
+  if (mainActive || maintenanceActive || updateActive) {
+    try {
+      const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      setCurrentUpdateStatus(updateStatus);
+      refreshUpdateUi(settings, coreData, debugOverrides);
+    } catch (error) {
+      console.warn("Update status load failed", error);
     }
-    setCurrentUpdateStatus(updateStatus);
-    refreshUpdateUi(settings, coreData, debugOverrides);
-  } catch (error) {
-    console.warn("Update status load failed", error);
-  }
 
-  try {
-    const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
-    if (requestId !== loadRequestSerial) {
-      return;
+    try {
+      const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      setCurrentUpdateTableInfo(updateTableInfo);
+    } catch (error) {
+      console.warn("Update table info load failed", error);
     }
-    setCurrentUpdateTableInfo(updateTableInfo);
-  } catch (error) {
-    console.warn("Update table info load failed", error);
+
+    try {
+      refreshUpdateUi(settings, coreData, debugOverrides);
+    } catch (error) {
+      console.warn("Update UI refresh failed", error);
+    }
   }
 
-  try {
-    refreshUpdateUi(settings, coreData, debugOverrides);
-  } catch (error) {
-    console.warn("Update UI refresh failed", error);
-  }
-
-  if (activeModule === "main") {
+  if (mainActive) {
     try {
       const preview = await loadWordclockLayoutPreview(getNormalizedUpdateTableInfo(), settings);
       if (requestId !== loadRequestSerial) {
@@ -1223,7 +1281,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
     }
   }
 
-  if (systemActive || maintenanceActive) {
+  if (maintenanceActive) {
     try {
       const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, CONNECTION_STABILITY.stm32LogTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
       if (requestId !== loadRequestSerial) {
@@ -1234,6 +1292,20 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
       console.warn("STM32 log load failed", error);
     }
   }
+}
+
+function getModuleDataProfile(moduleName, options) {
+  const opts = options || {};
+  const activeModule = moduleName || "main";
+
+  return {
+    main: activeModule === "main",
+    system: activeModule === "system",
+    network: activeModule === "network",
+    overlays: activeModule === "overlays",
+    update: activeModule === "update",
+    maintenance: activeModule === "maintenance" || !!opts.maintenancePriority
+  };
 }
 
 function getActiveModuleName() {
@@ -9743,10 +9815,19 @@ function saveDebugOverrides(overrides) {
 
 function loadDebugOverridesIntoUi() {
   const overrides = getDebugOverrides();
-  document.getElementById("debug-ambilight-select").value = overrides.ambilight;
-  document.getElementById("debug-dfplayer-select").value = overrides.dfplayer;
-  document.getElementById("debug-color-select").value = overrides.color;
-  document.getElementById("debug-tft-select").value = overrides.tft;
+  const ambilight = document.getElementById("debug-ambilight-select");
+  const dfplayer = document.getElementById("debug-dfplayer-select");
+  const color = document.getElementById("debug-color-select");
+  const tft = document.getElementById("debug-tft-select");
+
+  if (!ambilight || !dfplayer || !color || !tft) {
+    return;
+  }
+
+  ambilight.value = overrides.ambilight;
+  dfplayer.value = overrides.dfplayer;
+  color.value = overrides.color;
+  tft.value = overrides.tft;
 }
 
 async function applyDebugOverrides() {
