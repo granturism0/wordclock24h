@@ -9,12 +9,13 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.14";
+const APP_VERSION = "1.4.25";
 const LOCAL_APP_REQUIRED_ASSETS = [
   "app/index.html",
   "app/styles.css",
   "app/app.js",
   "app/sw.js",
+  "app/layout-previews.json",
   "app/manifest.webmanifest",
   "app/icons/icon-192.svg",
   "app/icons/icon-512.svg"
@@ -159,110 +160,39 @@ const fallbackWordclockRows = [
   "ZEHNEUNKUHR"
 ];
 
-const LAYOUT_PREVIEW_SOURCES = [
-  {
-    file: "wc12h-tables-ch1.txt",
-    aliases: ["ch1", "schweizerdeutsch1", "schweizerdeutsch-1", "swiss1", "swiss-1"],
-    signature: "ff020a0b17000000000082000384000803010006010803020006020803030002030305040003040304040803050005050504060006060605070005070504080004080704090006090803010000534348",
-    display: "ESKISCHAFÜFVIERTUBFZÄÄZWÄNZGSIVORABOHAUBIEPMEISZWÖISDRÜVIERIFÜFIQTSÄCHSISIBNIACHTINÜNIELZÄNIERBEUFIZWÖUFIAMUHR"
-  },
-  {
-    file: "wc12h-tables-ch2.txt",
-    aliases: ["ch2", "schweizerdeutsch2", "schweizerdeutsch-2", "swiss2", "swiss-2"],
-    signature: "ff020a0b17000000000082000384010004010506000803020006020803030002030305040003040304040803050005050605060006060605070005070604080004080704090006090803010000534348",
-    display: "ESKESCHAZÄÄFÖIFCVIERTUZWÄNZGSIVORABOHAUBIEGEEISZWÖISDRÜVIERITFÖIFISÄCHSISEBNIACHTIENÜNILZÄNIERBELFIZWÖLFINAUHR"
-  },
-  {
-    file: "wc12h-tables-ch3.txt",
-    aliases: ["ch3", "schweizerdeutsch3", "schweizerdeutsch-3", "swiss3", "swiss-3"],
-    signature: "0a0b170000000000820003840008030100070108030200060208030300020303050400020403030408030500050505040600050606050700050705040800050807040900060908030000010000534348",
-    display: "ÄSKISCHAFÜFVIERTELFZÄÄZWENZGSIVORABOHALBIEPMISEZWÜISDRÜVIERIFÜFIQTSÄXSICSIBNIACHTINÜNIELZÄÄNIRBELFIZWÖLFIAMUHR"
-  },
-  {
-    file: "wc12h-tables-ch4.txt",
-    aliases: ["ch4", "schweizerdeutsch4", "schweizerdeutsch-4", "swiss4", "swiss-4"],
-    signature: "0a0b170000000000020003040008030100040104070202070301020307040400050407040500040504030508030600050606050700040707040800030803040807040900050908030000010000534348",
-    display: "ESUISCHKZÄÄFÜNFVIERTELWSZWANZIGUHNABHFLNVOORHALBIHZDREIVIERAISPELFSÄGGSTSIIBENÜÜNHUEACHTZÄÄZWAIFÜNFZWÖLFPEXUUR"
-  },
-  {
-    file: "wc12h-tables-ch5.txt",
-    aliases: ["ch5", "schweizerdeutsch5", "schweizerdeutsch-5", "swiss5", "swiss-5"],
-    signature: "0a0b170000000000820003840100030104070008030200060208030300020303050400030403040408030500050506040600060805060700050706040800040607040900060908030000010000534348",
-    display: "ESKISCHAZÄÄFÜFIVIERTELZWANZGSIVORABOHAUBIEGEEISZWÖISDRÜVIERITFÜFIMSECHSIWELFIACHTIENÜNILZÄNIESIEBNIZWÖLFINAUHR"
-  },
-  {
-    file: "wc12h-tables-ch6.txt",
-    aliases: ["ch6", "schweizerdeutsch6", "schweizerdeutsch-6", "swiss6", "swiss-6"],
-    signature: "0a0b170000000000820003840100040104070202070300050306020308030400050407030500040504070600060606050700040705050800040804040808030900060906050908030000010000534348",
-    display: "ÄSUISCHKMEWFÜFIVIERTELWSZWENZIGUHZÄHNILABVORHALBIKFDRIMELFISEGSCHISIEBNIZÄHNIZWEIHACHTIUNINIFÜFIEISZWELFIVIERI"
-  },
-  {
-    file: "wc12h-tables-ch7.txt",
-    aliases: ["ch7", "schweizerdeutsch7", "schweizerdeutsch-7", "swiss7", "swiss-7"],
-    signature: "0a0b170000000000820003840100040104070008030200060208030300020303050400030403040408030500050507040600060606050700050706040800040807040900060908030000010000534348",
-    display: "ESKESCHAZÄÄFÜÜFVIERTELZWÄNZGSIVORABOHALBIEGEEISZWOISDRÜVIERITXFÜFISÄCHSISIBNIACHTIENÜNILZÄNIERBELFIZWÖLFINAUHR"
-  },
-  {
-    file: "wc12h-tables-de.txt",
-    signature: "ff020a0b1c00000000008200038300070401000401040702000402040402040702000b030204030603040004040505050004050203050204050506060104060704070003070304070704080104080504",
-    display: "ESKISTLFÜNFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZWÖLFPZWEINSIEBENKDREIRHFÜNFELFNEUNVIERWACHTZEHNRSBSECHSFMUHR"
-  },
-  {
-    file: "wc12h-tables-de2.txt",
-    signature: "ff020a0b1c00000000008200038300070401000401040702000402040402040702000b030003030704040004040503040704050003050004050704060004060704070005070704080006080605090004",
-    display: "ESKISTAFÜNFZEHNZWANZIGDREIVIERTELVORFUNKNACHHALBAELFÜNFEINSXÄMZWEIDREIPMJVIERSECHSNLACHTSIEBENZWÖLFZEHNEUNKUHR"
-  },
-  {
-    file: "wc12h-tables-en1.txt",
-    signature: "ff020a0b19000000000082000382000742000922010207020006020604030004030503030902040004040704050003050303050605060004060404060803070005070506080005080506090003090506",
-    display: "ITLISASAMPMACQUARTERDCTWENTYFIVEXHALFSTENFTOPASTERUNINEONESIXTHREEFOURFIVETWOEIGHTELEVENSEVENTWELVETENSEOCLOCK"
-  },
-  {
-    file: "wc12h-tables-en2.txt",
-    signature: "ff020a0b18000000000082000382010407020106020704000604010003030002030204040704060703080403050005030704040004040403070605060106070005050506080103090401090605010000",
-    display: "ITKISGHALFETENYQUARTERDTWENTYFIVETOPASTEFOURFIVETWONINETHREETWELVEBELEVENONESSEVENWEIGHTITENSIXTIESTINEOICLOCK"
-  },
-  {
-    file: "wc12h-tables-es.txt",
-    signature: "ff020a0b1900000000008200018300058200058300080301000301040402000602060503000403050504000404040505020405070406000406050106060507010607070408000b080605090005090506",
-    display: "ESONELASUNADOSITRESOAMCUATROCINCOSEISASIETENOCHONUEVEPMLADIEZSONCEDOCELYMENOSOVEINTEDIEZVEINTICINCOMEDIACUARTO"
-  },
-  {
-    file: "wc12h-tables-fr.txt",
-    signature: "ff020a0b1c00000000008200038300070401000601060502000402040302070403000403040303070404000404020304050605000405050505050606000506060206080307000207030508000508000a",
-    display: "ILNESTODEUXQUATRETROISNEUFUNESEPTHUITSIXCINQMIDIXMINUITONZERHEURESMOINSOLEDIXETRQUARTPMDVINGT-CINQUETSDEMIEPAM"
-  },
-  {
-    file: "wc12h-tables-it.txt",
-    signature: "ff020a0b1b00000000008400058201008101028101030301070302000302030402070403000503050604000604060505000705080306000606070407000107020207050608000508000b080506090005",
-    display: "SONORLEBOREERLUNASDUEZTREOTTONOVEDIECIUNDICIDODICISETTEQUATTROCSEICINQUEAMENOEKUNLQUARTOVENTICINQUEDIECILMEZZA"
-  },
-  {
-    file: "wc12h-tables-se.txt",
-    signature: "ff020a0b19000000000087000882010003010401010603010a01020005020601030005030601040004040704050003050803060003060704070003070803080003080304080803090003090304090704",
-    display: "KLOCKANTÄRKFEMYISTIONIKVARTQIENZOTJUGOLIVIPMÖVERKAMHALVETTUSVLXTVATREMYKYFYRAFEMSFLORSEXSJUÄTTAINIOTIOELVATOLV"
-  },
-  {
-    file: "wc24h-tables-de.txt",
-    signature: "ff0210124c000000000082000383000707000e03000e04000f02010004010203010204010205010704010705010b04010b06020003020204020604020a04020e04030004030404030905030e04040003",
-    display: "ES#IST#VIERTELEINSDREINERSECHSIEBEN#ELFÜNFNEUNVIERACHTNULLZWEI#ZWÖLFZEHNUND#ZWANZIGVIERZIGDREISSIGFÜNFZIGUHRMINUTEN#VORUNDNACHEINDREIVIERTELHALBSIEBENEUNULLZWEINEFÜNFSECHSNACHTVIERDREINSUND#ELF#ZEHNZWANZIGGRADREISSIGVIERZIGZWÖLFÜNFZIGMINUTENUHR#FRÜHVORABENDSMITTERNACHTSMORGENSWARMMITTAGS"
-  },
-  {
-    file: "wc24h-tables-de2.txt",
-    signature: "ff020f0f2d000000000082000383000704000c03010004010504010a04020104020804020805030004030006030904040004040604040c03050105050903060007060803060c03070003070004070504",
-    display: "ESBISTMNULLWEINZWEILDREIJVIERKNFÜNFQHGSECHSVWSIEBENWCFACHTGKNEUNTDZEHNRPELFVZWÖLFMDFUNDKGSZWANZIGTUHRNUNDEINEYZWEIXDREIPVIERDFÜNFWSECHSGRSIEBENHACHTLOBNEUNAZEHNDELFSZHTZWÖLFKMUNDBEZWANZIGVDREIßIGIVIERZIGCFNULLFFÜNFZIGTMINUTEN"
-  },
-  {
-    file: "wc24h-tables-pl.txt",
-    signature: "ff02121229000000030a08030505000507020607030005000c06020006020d04010009010909040809040008070004080e040a00051004030908040f0c061000040d0c051100060f00050a0a08090008",
-    display: "JEST*TRZECIASZOSTADZIEWIATADZIESIATASIODMACZWARTAOSMA*PIATADRUGAPIERWSZADWUNASTAJEDENASTA**PIECDZIESIAT********DWADZIESCIA***ZEROCZTERDZIESCI***TRZYDZIESCI**ZERODZIESIECTRZYNASCIEJEDENASCIEDZIEWIEC*****SZESNASCIE******DZIEWIETNASCIE*CZTERNASCIE*SZESC******PIETNASCIE**OSIEMNASCIE*CZTERYPIECDWANASCIE*****SIEDEMNASCIE*PM*AM"
-  },
-  {
-    file: "wc24h-tables-pl2.txt",
-    signature: "ff02141431000000000084080008030005030d07020107070f05030606010006011004090009010609060009040b0804000908090a050b09060a0900050b05000a07010d02090a0010040b00040d1004",
-    display: "JEST*SIEDEMNASTAZEROSIODMADZIESIATA*OSMA*CZWARTA*DWUDZIESTA*DRUGA*SZOSTA*TRZECIATRZYNASTA**DWUNASTA*OSIEMNASTA*PIETNASTAJEDENASTA*SZESNASTA**DZIEWIETNASTA*PIATAPIERWSZA*CZTERNASTA*DZIEWIATA*SZESNASCIETRZYDZIESCI*DZIESIECZERO***DWADZIESCIA**PIETNASCIEJEDENASCIE***CZTERDZIESCI*ZERO*PIECDZIESIAT**JEDENOSIEMNASCIEPIECSZESC*CZTERY***TRZYNASCIESIEDEMNASCIEDZIEWIECCZTERNASCIEDWANASCIE***DZIEWIETNASCIE*C*"
-  }
-];
+const DEFAULT_LAYOUT_PREVIEW_ROWS = {
+  "wc12h-tables-de.txt": [
+    "ESKISTLFÜNF",
+    "ZEHNZWANZIG",
+    "DREIVIERTEL",
+    "TGNACHVORJM",
+    "HALBQZWÖLFP",
+    "ZWEINSIEBEN",
+    "KDREIRHFÜNF",
+    "ELFNEUNVIER",
+    "WACHTZEHNRS",
+    "BSECHSFMUHR"
+  ],
+  "wc24h-tables-de.txt": [
+    "ES#IST#VIERTELEINS",
+    "DREINERSECHSIEBEN#",
+    "ELFÜNFNEUNVIERACHT",
+    "NULLZWEI#ZWÖLFZEHN",
+    "UND#ZWANZIGVIERZIG",
+    "DREISSIGFÜNFZIGUHR",
+    "MINUTEN#VORUNDNACH",
+    "EINDREIVIERTELHALB",
+    "SIEBENEUNULLZWEINE",
+    "FÜNFSECHSNACHTVIER",
+    "DREINSUND#ELF#ZEHN",
+    "ZWANZIGGRADREISSIG",
+    "VIERZIGZWÖLFÜNFZIG",
+    "MINUTENUHR#FRÜHVOR",
+    "ABENDSMITTERNACHTS",
+    "MORGENSWARMMITTAGS"
+  ]
+};
+const LAYOUT_PREVIEW_ROWS_URL = "/app/layout-previews.json";
 
 const OVERLAY_TYPE_NAMES = [
   "Keins",
@@ -316,6 +246,9 @@ let currentUpdateStatus = {};
 let currentUpdateTableInfo = {};
 let currentNetworkInfo = {};
 const layoutPreviewCache = {};
+let layoutPreviewRowsMap = null;
+let layoutPreviewRowsMapPromise = null;
+let leafletAssetsPromise = null;
 let activeLoadCount = 0;
 let loadRequestSerial = 0;
 let lastWordclockRenderSignature = "";
@@ -349,8 +282,10 @@ let initialLoadRetryTimer = 0;
 let initialLoadAttemptCount = 0;
 let reloadBootstrapPending = hasReloadQueryMarker();
 let reloadBootstrapTimers = [];
+let startupLoadScheduled = true;
 let startupLoadIssued = false;
 let startupLoadIssuedAt = 0;
+let lastSuccessfulLoadAt = 0;
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
 const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
@@ -362,6 +297,8 @@ const AMBILIGHT_STORAGE_KEY = "wordclock-app-ambilight-online";
 const LAYOUT_PREVIEW_STORAGE_KEY = "wordclock-app-layout-preview";
 const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
 const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
+const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+const LEAFLET_JS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 
 function bindElementEvent(id, eventName, handler) {
   const element = document.getElementById(id);
@@ -569,9 +506,14 @@ clearReloadQueryMarker();
 restoreActiveModule();
 scheduleModuleNavHintSync();
 window.setTimeout(() => {
+  startupLoadScheduled = false;
+  if (activeLoadCount > 0 || getCurrentSettingsSnapshot()) {
+    return;
+  }
   startupLoadIssued = true;
   startupLoadIssuedAt = Date.now();
-  void loadData(buildLoadOptionsForModule(getActiveModuleName(), { startup: true }));
+  const startupModule = getActiveModuleName();
+  void loadData(buildLoadOptionsForModule(startupModule, { startup: true }));
 }, 0);
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
@@ -584,14 +526,14 @@ window.addEventListener("resize", () => {
   scheduleModuleNavHintSync();
 });
 window.addEventListener("pageshow", () => {
-  if (shouldDelayStartupRefresh()) {
+  if (shouldDelayStartupRefresh() || shouldSkipLifecycleRefresh()) {
     return;
   }
   void refreshVisibleModuleData({ pageShow: true });
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    if (shouldDelayStartupRefresh()) {
+    if (shouldDelayStartupRefresh() || shouldSkipLifecycleRefresh()) {
       return;
     }
     void refreshVisibleModuleData({ visibilityRefresh: true });
@@ -863,7 +805,11 @@ function shouldAutoRefreshCurrentModule() {
 }
 
 function shouldDelayStartupRefresh() {
-  return !getCurrentSettingsSnapshot() && startupLoadIssued && (Date.now() - startupLoadIssuedAt) < 5000;
+  return startupLoadScheduled || (!getCurrentSettingsSnapshot() && startupLoadIssued && (Date.now() - startupLoadIssuedAt) < 5000);
+}
+
+function shouldSkipLifecycleRefresh() {
+  return !!(activeLoadCount > 0 || (lastSuccessfulLoadAt && (Date.now() - lastSuccessfulLoadAt) < 3000));
 }
 
 function restoreActiveModule() {
@@ -1041,6 +987,7 @@ async function loadData(options) {
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
     hasUnsavedEdits = overlayDraftRestored;
+    lastSuccessfulLoadAt = Date.now();
     announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
@@ -4743,11 +4690,84 @@ async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
   });
 }
 
-function openWeatherMapPicker() {
+function ensureLeafletStylesheet() {
+  let link = document.querySelector('link[data-leaflet-styles="1"]');
+
+  if (link) {
+    return Promise.resolve();
+  }
+
+  link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = LEAFLET_CSS_URL;
+  link.crossOrigin = "";
+  link.setAttribute("data-leaflet-styles", "1");
+
+  return new Promise((resolve, reject) => {
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error("leaflet-css"));
+    document.head.appendChild(link);
+  });
+}
+
+function ensureLeafletScript() {
+  if (window.L) {
+    return Promise.resolve(window.L);
+  }
+
+  const existing = document.querySelector('script[data-leaflet-script="1"]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", () => resolve(window.L), { once: true });
+      existing.addEventListener("error", () => reject(new Error("leaflet-js")), { once: true });
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = LEAFLET_JS_URL;
+    script.crossOrigin = "";
+    script.defer = true;
+    script.setAttribute("data-leaflet-script", "1");
+    script.onload = () => resolve(window.L);
+    script.onerror = () => reject(new Error("leaflet-js"));
+    document.body.appendChild(script);
+  });
+}
+
+function ensureLeafletAssets() {
+  if (window.L) {
+    return Promise.resolve(window.L);
+  }
+
+  if (leafletAssetsPromise) {
+    return leafletAssetsPromise;
+  }
+
+  leafletAssetsPromise = Promise.all([
+    ensureLeafletStylesheet(),
+    ensureLeafletScript()
+  ]).then(([, leaflet]) => leaflet)
+    .finally(() => {
+      leafletAssetsPromise = null;
+    });
+
+  return leafletAssetsPromise;
+}
+
+async function openWeatherMapPicker() {
   const modal = document.getElementById("weather-map-modal");
+  const status = document.getElementById("weather-map-status");
   modal.classList.remove("is-hidden");
   modal.setAttribute("aria-hidden", "false");
-  initializeWeatherMap();
+  status.textContent = "Kartendienst wird geladen...";
+
+  try {
+    await ensureLeafletAssets();
+    initializeWeatherMap();
+  } catch (_) {
+    status.textContent = "Kartendienst konnte nicht geladen werden.";
+  }
 }
 
 function closeWeatherMapPicker() {
@@ -5417,7 +5437,7 @@ function applyLocalAppFileEntries(fileEntries) {
   renderLocalAppSelectionStatus();
   setFsActionStatus(
     selectedFiles.size
-      ? "Lokaler App-Ordner geprueft: " + String(selectedFiles.size) + "/7 Pflichtdateien erkannt."
+      ? "Lokaler App-Ordner geprueft: " + String(selectedFiles.size) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Pflichtdateien erkannt."
       : "Lokaler App-Ordner wurde gewaehlt, aber der Browser hat keine passenden App-Dateien unter app/... geliefert."
   );
 }
@@ -5441,9 +5461,9 @@ function renderLocalAppSelectionStatus() {
     if (!foundCount) {
       note.textContent = "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die bekannten App-Dateien unter app/... enthält.";
     } else if (!missingAssets.length) {
-      note.textContent = "App-Ordner vollständig erkannt. 7/7 Dateien sind bereit und koennen direkt installiert werden.";
+      note.textContent = "App-Ordner vollständig erkannt. " + String(LOCAL_APP_REQUIRED_ASSETS.length) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Dateien sind bereit und koennen direkt installiert werden.";
     } else {
-      note.textContent = "App-Ordner geprueft. " + String(foundCount) + "/7 Dateien gefunden. Es fehlen: " + missingAssets.join(", ");
+      note.textContent = "App-Ordner geprueft. " + String(foundCount) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Dateien gefunden. Es fehlen: " + missingAssets.join(", ");
     }
   }
 
@@ -6132,6 +6152,55 @@ function setCachedLayoutPreview(fileName, preview) {
     return;
   }
   layoutPreviewCache[fileName] = preview;
+}
+
+function getDefaultLayoutPreviewFile(settings) {
+  const resolvedAssetMeta = getResolvedAssetMeta(settings, null, null);
+  const resolvedLayoutMeta = getResolvedLayoutMeta(settings, null, null);
+  const assetPrefix = resolvedAssetMeta.assetPrefix;
+
+  return resolvedLayoutMeta.previewFile
+    || (assetPrefix === "wc24h" ? "wc24h-tables-de.txt" : (assetPrefix === "uc" ? "" : "wc12h-tables-de.txt"))
+    || "wc12h-tables-de.txt";
+}
+
+async function loadLayoutPreviewRowsMap() {
+  if (layoutPreviewRowsMap) {
+    return layoutPreviewRowsMap;
+  }
+  if (layoutPreviewRowsMapPromise) {
+    return layoutPreviewRowsMapPromise;
+  }
+
+  layoutPreviewRowsMapPromise = fetchWithTimeout(LAYOUT_PREVIEW_ROWS_URL, { cache: "no-store" }, 3500)
+    .then((response) => response.ok ? response.json() : {})
+    .then((payload) => {
+      layoutPreviewRowsMap = payload && typeof payload === "object" ? payload : {};
+      return layoutPreviewRowsMap;
+    })
+    .catch(() => {
+      layoutPreviewRowsMap = {};
+      return layoutPreviewRowsMap;
+    })
+    .finally(() => {
+      layoutPreviewRowsMapPromise = null;
+    });
+
+  return layoutPreviewRowsMapPromise;
+}
+
+async function getLayoutPreviewRows(fileName) {
+  const normalizedFileName = normalizeLayoutFileName(fileName);
+  if (!normalizedFileName) {
+    return [];
+  }
+
+  if (Array.isArray(DEFAULT_LAYOUT_PREVIEW_ROWS[normalizedFileName])) {
+    return DEFAULT_LAYOUT_PREVIEW_ROWS[normalizedFileName].slice();
+  }
+
+  const rowsMap = await loadLayoutPreviewRowsMap();
+  return Array.isArray(rowsMap[normalizedFileName]) ? rowsMap[normalizedFileName].slice() : [];
 }
 
 function getPreviewUiMeta(settings) {
@@ -8920,7 +8989,7 @@ function findWord(word, rows) {
 }
 
 async function loadWordclockLayoutPreview(updateTableInfo, settings) {
-  const currentTable = getUpdateTableCurrentFile(updateTableInfo);
+  const currentTable = normalizeLayoutFileName(getUpdateTableCurrentFile(updateTableInfo));
   const fallbackPreview = getDefaultLayoutPreview(settings);
 
   if (!currentTable) {
@@ -8939,7 +9008,7 @@ async function loadWordclockLayoutPreview(updateTableInfo, settings) {
       return getCurrentLayoutPreview(settings) || null;
     }
     const table = parseLayoutTable(text);
-    const rows = resolveLayoutRows(currentTable, table);
+    const rows = await getLayoutPreviewRows(currentTable);
     const preview = { file: currentTable, table, rows: rows.length ? rows : fallbackPreview.rows };
 
     setCachedLayoutPreview(currentTable, preview);
@@ -9101,23 +9170,6 @@ function parseLayoutTable(text) {
   return { normalizedHex, rows, columns, illumination, modes, hours, minutes, hourCount, minuteCount };
 }
 
-function resolveLayoutRows(currentTable, table) {
-  const source = findLayoutPreviewSource(currentTable, table);
-  const display = source ? source.display : "";
-
-  if (!display || !table || !table.rows || !table.columns) {
-    return [];
-  }
-
-  const rows = [];
-
-  for (let row = 0; row < table.rows; row += 1) {
-    rows.push(display.slice(row * table.columns, (row + 1) * table.columns));
-  }
-
-  return rows;
-}
-
 function normalizeLayoutFileName(fileName) {
   return String(fileName || "")
     .split("/")
@@ -9126,40 +9178,11 @@ function normalizeLayoutFileName(fileName) {
     .toLowerCase();
 }
 
-function findLayoutPreviewSource(fileName, table) {
-  const normalizedFileName = normalizeLayoutFileName(fileName);
-  const normalizedHex = table && table.normalizedHex ? table.normalizedHex : "";
-
-  return LAYOUT_PREVIEW_SOURCES.find((item) => normalizeLayoutFileName(item.file) === normalizedFileName)
-    || LAYOUT_PREVIEW_SOURCES.find((item) => Array.isArray(item.aliases) && item.aliases.includes(normalizedFileName.replace(/\.txt$/, "")))
-    || LAYOUT_PREVIEW_SOURCES.find((item) => normalizedHex && item.signature && normalizedHex.startsWith(item.signature))
-    || null;
-}
-
 function getDefaultLayoutPreview(settings) {
-  const resolvedAssetMeta = getResolvedAssetMeta(settings, null, null);
-  const resolvedLayoutMeta = getResolvedLayoutMeta(settings, null, null);
-  const assetPrefix = resolvedAssetMeta.assetPrefix;
-  const layoutMeta = resolvedLayoutMeta;
-  const fileName = layoutMeta.previewFile
-    || (assetPrefix === "wc24h" ? "wc24h-tables-de.txt" : (assetPrefix === "uc" ? "" : "wc12h-tables-de.txt"))
-    || "wc12h-tables-de.txt";
-  const source = LAYOUT_PREVIEW_SOURCES.find((item) => item.file === fileName);
-
-  if (!source) {
-    return {
-      file: fileName,
-      table: null,
-      rows: fallbackWordclockRows
-    };
-  }
-
-  const columns = getResolvedLayoutColumns(fileName);
-  const rows = [];
-
-  for (let offset = 0; offset < source.display.length; offset += columns) {
-    rows.push(source.display.slice(offset, offset + columns));
-  }
+  const fileName = getDefaultLayoutPreviewFile(settings);
+  const rows = Array.isArray(DEFAULT_LAYOUT_PREVIEW_ROWS[fileName])
+    ? DEFAULT_LAYOUT_PREVIEW_ROWS[fileName].slice()
+    : fallbackWordclockRows.slice();
 
   return {
     file: fileName,

@@ -9,12 +9,13 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const CACHE_NAME = "wordclock-app-v7";
+const CACHE_NAME = "wordclock-app-v17";
 const ASSETS = [
   "/app/",
   "/app/index.html",
   "/app/styles.css",
   "/app/app.js",
+  "/app/layout-previews.json",
   "/app/manifest.webmanifest",
   "/app/icons/icon-192.svg",
   "/app/icons/icon-512.svg"

@@ -180,11 +180,15 @@ static uint_fast8_t     http_api_app_file_upload ();
 static int8_t           http_decode_temp_correction (unsigned int value);
 static unsigned int     http_encode_temp_correction (int temp_corr);
 static int              http_clamp_temp_correction (int temp_corr);
+static void             http_clear_request_user_agent (void);
+static void             http_capture_request_user_agent (const String& line);
+static const char *     http_get_request_browser_label (void);
 
 static const char * const APP_INSTALL_ASSETS[] =
 {
     "app/index.html",
     "app/styles.css",
+    "app/layout-previews.json",
     "app/icons/icon-192.svg",
     "app/icons/icon-512.svg",
     "app/manifest.webmanifest",
@@ -216,6 +220,66 @@ typedef struct
 
 static UPDATE_PROGRESS   update_progress;
 static uint_fast8_t     update_progress_stream_active;
+static char             http_request_user_agent[96];
+
+static void
+http_clear_request_user_agent (void)
+{
+    http_request_user_agent[0] = '\0';
+}
+
+static void
+http_capture_request_user_agent (const String& line)
+{
+    String ua;
+
+    if (! line.startsWith ("User-Agent:"))
+    {
+        return;
+    }
+
+    ua = line.substring (11);
+    ua.trim ();
+
+    if (ua.length () == 0)
+    {
+        http_clear_request_user_agent ();
+        return;
+    }
+
+    if (ua.indexOf ("FxiOS/") >= 0 || ua.indexOf ("Firefox/") >= 0)
+    {
+        strncpy (http_request_user_agent, "Firefox", sizeof (http_request_user_agent) - 1);
+    }
+    else if (ua.indexOf ("EdgiOS/") >= 0 || ua.indexOf ("EdgA/") >= 0 || ua.indexOf ("Edg/") >= 0)
+    {
+        strncpy (http_request_user_agent, "Edge", sizeof (http_request_user_agent) - 1);
+    }
+    else if (ua.indexOf ("OPiOS/") >= 0 || ua.indexOf ("OPR/") >= 0)
+    {
+        strncpy (http_request_user_agent, "Opera", sizeof (http_request_user_agent) - 1);
+    }
+    else if (ua.indexOf ("CriOS/") >= 0 || ua.indexOf ("Chrome/") >= 0)
+    {
+        strncpy (http_request_user_agent, "Chrome", sizeof (http_request_user_agent) - 1);
+    }
+    else if (ua.indexOf ("Safari/") >= 0)
+    {
+        strncpy (http_request_user_agent, "Safari", sizeof (http_request_user_agent) - 1);
+    }
+    else
+    {
+        strncpy (http_request_user_agent, ua.c_str (), sizeof (http_request_user_agent) - 1);
+    }
+
+    http_request_user_agent[sizeof (http_request_user_agent) - 1] = '\0';
+}
+
+static const char *
+http_get_request_browser_label (void)
+{
+    return http_request_user_agent[0] ? http_request_user_agent : (const char *) 0;
+}
 
 static void
 update_progress_copy (char * dst, size_t dst_size, const char * src)
@@ -984,6 +1048,7 @@ http_app_installation_complete (void)
         "app-index.html",
         "app-app.js",
         "app-styles.css",
+        "app-layout-previews.json",
         "app-manifest.webmanifest",
         "app-sw.js",
         "app-icons-icon-192.svg",
@@ -1009,6 +1074,7 @@ http_app_installation_complete (void)
 
 static bool         download_file (const char * host, const char * path, const char * filename);
 static bool         http_remote_app_files_available (char * version_buf, size_t version_buf_len);
+static bool         download_file_as_flattened_app_asset (const char * host, const char * path, const char * remote_filename);
 
 static bool
 download_file_as_flattened_app_asset (const char * host, const char * path, const char * remote_filename)
@@ -5160,6 +5226,7 @@ read_post_headers (size_t * content_length)
     String line;
 
     *content_length = 0;
+    http_clear_request_user_agent ();
 
     while (read_line (line))
     {
@@ -5174,6 +5241,10 @@ read_post_headers (size_t * content_length)
         else if (line.startsWith ("Content-Length:"))
         {
             *content_length = (size_t) strtoul (line.substring (15).c_str (), NULL, 10);
+        }
+        else if (line.startsWith ("User-Agent:"))
+        {
+            http_capture_request_user_agent (line);
         }
     }
 
@@ -6011,10 +6082,6 @@ http_api_app_file_upload ()
     if (! validated_asset)
     {
         error_code = 1;
-    }
-    else if (! app_asset_filename (validated_asset, local_filename, sizeof (local_filename)))
-    {
-        error_code = 2;
     }
     else if (! read_post_headers (&content_length) || content_length == 0)
     {
@@ -10924,6 +10991,8 @@ http_server_loop (void)
     int     start_position;
     int     end_position_space;
     int     end_position_question;
+    String  sRemoteIp;
+    String  sHeaderLine;
 
     http_client = http_server.accept();                                     // check if a client has connected
 
@@ -10932,7 +11001,16 @@ http_server_loop (void)
         return;
     }
 
-    Serial.println ("- new client");
+    sRemoteIp = http_client.remoteIP().toString();
+    http_clear_request_user_agent ();
+
+    Serial.print ("- new client");
+    if (sRemoteIp.length ())
+    {
+        Serial.print (" from ");
+        Serial.print (sRemoteIp);
+    }
+    Serial.println ();
     Serial.flush ();
 
     unsigned long ultimeout = millis() + 250;
@@ -10964,15 +11042,21 @@ http_server_loop (void)
         return;
     }
 
-    Serial.print ("- request: ");
-    Serial.println (sRequest);
-    Serial.flush ();
-
     // POST
     start_position = sRequest.indexOf(sPoststart);
 
     if (start_position == 0)
     {
+        Serial.print ("- request");
+        if (sRemoteIp.length ())
+        {
+            Serial.print (" ");
+            Serial.print (sRemoteIp);
+        }
+        Serial.print (": ");
+        Serial.println (sRequest);
+        Serial.flush ();
+
         start_position += sPoststart.length ();
         end_position_space = sRequest.indexOf (" ", start_position);
         end_position_question = sRequest.indexOf ("?", start_position);
@@ -11000,6 +11084,39 @@ http_server_loop (void)
     }
     else // GET
     {
+        while (read_line (sHeaderLine))
+        {
+            if (sHeaderLine == "")
+            {
+                if (http_client.available () && http_client.peek () == '\n')
+                {
+                    http_client.read ();
+                }
+                break;
+            }
+
+            if (sHeaderLine.startsWith ("User-Agent:"))
+            {
+                http_capture_request_user_agent (sHeaderLine);
+            }
+        }
+
+        Serial.print ("- request");
+        if (sRemoteIp.length ())
+        {
+            Serial.print (" ");
+            Serial.print (sRemoteIp);
+        }
+        if (http_get_request_browser_label ())
+        {
+            Serial.print (" [");
+            Serial.print (http_get_request_browser_label ());
+            Serial.print ("]");
+        }
+        Serial.print (": ");
+        Serial.println (sRequest);
+        Serial.flush ();
+
         start_position = sRequest.indexOf(sGetstart);
 
         if (start_position >= 0)
