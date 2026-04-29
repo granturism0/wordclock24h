@@ -9,7 +9,1547 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.37";
+const APP_VERSION = "1.4.61";
+const DEFAULT_LANGUAGE = "de";
+const LANGUAGE_STORAGE_KEY = "wordclock-language";
+const I18N = {
+  de: {
+    "app.title": "WordClock",
+    "app.version_label": "App-Version",
+    "language.de": "Deutsch",
+    "language.en": "English",
+    "hero.eyebrow": "Parallel zur Legacy-Seite",
+    "hero.text": "Erste echte PWA neben der bestehenden ESP-Weboberfläche. Diese Ansicht liest reale Daten vom Gerät und bleibt bewusst schlank, während die Legacy-Seite weiter verfügbar ist.",
+    "hero.language_label": "Sprache",
+    "hero.legacy_button": "Legacy-Seite",
+    "hero.reload_button": "Neu laden",
+    "nav.aria_label": "Bereiche",
+    "nav.main": "Hauptseite",
+    "nav.system": "System",
+    "nav.network": "Netzwerk",
+    "nav.climate": "Umwelt",
+    "nav.display": "Display",
+    "nav.animations": "Animationen",
+    "nav.overlays": "Overlays",
+    "nav.ambilight": "Ambilight",
+    "nav.timers": "Timer",
+    "nav.dfplayer": "DFPlayer",
+    "nav.maintenance": "Wartung",
+    "nav.hint": "Wische seitlich, um weitere Bereiche zu sehen.",
+    "section.eyebrow": "Bereich",
+    "section.main.title": "Hauptseite",
+    "section.main.hint": "Live-Status, Sofortaktionen und die zentrale Gerätezeit auf einen Blick.",
+    "section.system.title": "System",
+    "section.system.hint": "Hardwaredaten, Gerätezeit, erkannte Subsysteme und Debug-Ansichten für die Oberfläche.",
+    "section.network.title": "Netzwerk",
+    "section.network.hint": "WLAN-Client, eigener Access Point und Zeitdienste klar getrennt für Verbindung und Inbetriebnahme.",
+    "section.climate.title": "Umwelt",
+    "section.climate.hint": "Wetter, Temperatursensoren und Helligkeitssensor als gemeinsamer Umweltbereich.",
+    "section.display.title": "Display",
+    "section.display.hint": "Anzeige, Helligkeit, Ticker, Dimmkurven und TFT-spezifische Optionen.",
+    "section.animations.title": "Animationen",
+    "section.animations.hint": "Anzeige- und Farbanimationen inklusive Profilen und Verzögerungen.",
+    "section.overlays.title": "Overlays",
+    "section.overlays.hint": "Einblendungen für Icons, Ticker, Datum, Wetter und DFPlayer-Inhalte.",
+    "section.ambilight.title": "Ambilight",
+    "section.ambilight.hint": "Ambilight-Steuerung, Farben, Profile und die eigene Dimmkurve.",
+    "section.timers.title": "Timer",
+    "section.timers.hint": "Zeitpläne für Display und Ambilight in einem gemeinsamen Modul.",
+    "section.dfplayer.title": "DFPlayer",
+    "section.dfplayer.hint": "Audio, Glocke, Sprache und die gespeicherten Titelblöcke des DFPlayers.",
+    "section.maintenance.title": "Wartung",
+    "section.maintenance.hint": "Update-Quelle, LittleFS, lokale Dateien und Service-Aktionen für das Gerät.",
+    "main.live_eyebrow": "Live",
+    "main.status_title": "Aktueller Status",
+    "main.waiting": "wartet auf Daten",
+    "main.label.display": "Display",
+    "main.label.ambilight": "Ambilight",
+    "main.label.firmware": "Firmware",
+    "main.label.last_start": "Letzter Start",
+    "main.display_toggle": "Display umschalten",
+    "main.ambilight_toggle": "Ambilight umschalten",
+    "main.display_turn_on": "Display einschalten",
+    "main.display_turn_off": "Display ausschalten",
+    "main.ambilight_turn_on": "Ambilight einschalten",
+    "main.ambilight_turn_off": "Ambilight ausschalten",
+    "main.display_toggle_failed": "Display konnte nicht geschaltet werden",
+    "main.ambilight_toggle_failed": "Ambilight konnte nicht geschaltet werden",
+    "common.auto": "Auto",
+    "system.hardware_eyebrow": "System",
+    "system.hardware_title": "Hardware",
+    "system.subsystems_eyebrow": "Subsysteme",
+    "system.subsystems_title": "Verfügbarkeit",
+    "system.time_eyebrow": "Zeit",
+    "system.time_title": "Datum, Uhrzeit und IR",
+    "system.time_loading": "Gerätezeit wird geladen...",
+    "system.date_label": "Datum",
+    "system.day_label": "Tag",
+    "system.month_label": "Monat",
+    "system.year_label": "Jahr",
+    "system.clock_label": "Uhrzeit",
+    "system.hour_label": "Stunde",
+    "system.minute_label": "Minute",
+    "system.datetime_save": "Datum und Uhrzeit speichern",
+    "system.learn_ir": "IR-Fernbedienung lernen",
+    "system.debug_eyebrow": "Debug",
+    "system.debug_overrides_title": "Ansichts-Overrides",
+    "system.debug_overrides_hint": "Nur für lokale Tests in der App. Die Gerätemeldungen selbst werden nicht geändert.",
+    "system.debug_ambilight_ui": "Ambilight UI",
+    "system.debug_dfplayer_ui": "DFPlayer UI",
+    "system.debug_color_ui": "Farb-LED UI",
+    "system.debug_tft_ui": "TFT UI",
+    "system.force_online": "Online erzwingen",
+    "system.force_rgb": "RGB erzwingen",
+    "system.force_rgbw": "RGBW erzwingen",
+    "system.force_visible": "Sichtbar erzwingen",
+    "system.apply_overrides": "Overrides anwenden",
+    "system.reset_overrides": "Overrides zurücksetzen",
+    "system.preview_hint": "Zeigt gespeicherte Display-Farbe, aktuelle Live-Farbe vom Gerät und das verwendete Vorschau-Layout.",
+    "system.logs_hint": "Zeigt bewusst markierte STM32-Logzeilen an, die über die ESP-UART in die Weboberfläche gespiegelt werden.",
+    "system.debug_eyebrow": "Debug",
+    "system.preview_colors": "Vorschau-Farben",
+    "system.logbook_title": "STM32-Logbuch",
+    "network.client_eyebrow": "Client",
+    "network.client_title": "Mit WLAN verbinden",
+    "network.status_loading": "Netzwerkstatus wird geladen...",
+    "network.found_ssids": "Gefundene WLANs",
+    "network.wifi_password": "WLAN-Passwort",
+    "network.wifi_password_placeholder": "Passwort für WLAN-Client",
+    "network.scan": "WLANs neu laden",
+    "network.connect_client": "Als WLAN-Client verbinden",
+    "network.connect_client_error": "WLAN-Client konnte nicht gesetzt werden",
+    "network.connect_client_started": "WLAN-Client-Verbindung wurde angestossen",
+    "network.ap_eyebrow": "Access Point",
+    "network.ap_title": "Eigenes WLAN bereitstellen",
+    "network.ap_hint": "Hilfreich für Erstinbetriebnahme oder wenn kein vorhandenes WLAN genutzt werden soll.",
+    "network.ap_ssid": "AP SSID",
+    "network.ap_ssid_placeholder": "WordClock Zugangspunkt",
+    "network.ap_password": "AP-Passwort",
+    "network.ap_password_placeholder": "Mindestens 10 Zeichen",
+    "network.start_ap": "Zugangspunkt starten",
+    "network.start_ap_error": "Zugangspunkt konnte nicht gesetzt werden",
+    "network.start_ap_started": "Start des Zugangspunkts wurde angestossen",
+    "network.time_eyebrow": "Zeit",
+    "network.time_title": "Zeitserver und Uhrzeit",
+    "network.timeserver": "Zeitserver",
+    "network.save_timeserver": "Zeitserver speichern",
+    "network.timezone": "Zeitzone (GMT +/-)",
+    "network.save_timezone": "Zeitzone speichern",
+    "network.summertime": "Sommerzeit berücksichtigen",
+    "network.summertime_disable": "Sommerzeit-Berücksichtigung deaktivieren",
+    "network.fetch_network_time": "Netzzeit abrufen",
+    "climate.weather_eyebrow": "Wetter",
+    "climate.weather_title": "Wetter und Standort",
+    "climate.api_key": "API-Schlüssel",
+    "climate.save_api_key": "API-Schlüssel speichern",
+    "climate.choose_location": "Standort wählen",
+    "climate.city": "Ort",
+    "climate.save_city": "Ort speichern",
+    "climate.longitude": "Längengrad",
+    "climate.latitude": "Breitengrad",
+    "climate.save_coordinates": "Koordinaten speichern",
+    "climate.pick_on_map": "Ort auf Karte wählen",
+    "climate.location_ready": "Karte und Suche stehen für die Standortwahl bereit.",
+    "climate.load_weather": "Wetter laden",
+    "climate.weather_hint": "Nutze den gewählten Standort und rufe aktuelle Werte oder die Vorhersage ab.",
+    "climate.fetch_weather": "Wetter abrufen",
+    "climate.fetch_forecast": "Wettervorhersage abrufen",
+    "climate.temperature_eyebrow": "Temperatur",
+    "climate.temperature_title": "Sensoren und Korrektur",
+    "climate.ds18xx_correction": "DS18xx-Korrektur (-20 bis +20 in 0,5 °C Schritten)",
+    "climate.save_ds18xx_correction": "DS18xx-Korrektur speichern",
+    "climate.rtc_correction": "RTC-Korrektur (-20 bis +20 in 0,5 °C Schritten)",
+    "climate.save_rtc_correction": "RTC-Korrektur speichern",
+    "climate.show_temperature": "Temperatur anzeigen",
+    "climate.ldr_title": "Helligkeitssensor",
+    "climate.toggle_auto_brightness": "Automatische Helligkeit umschalten",
+    "climate.set_min_ldr": "Aktuellen Wert als Minimum setzen",
+    "climate.set_max_ldr": "Aktuellen Wert als Maximum setzen",
+    "climate.enable_auto_brightness": "Automatische Helligkeit aktivieren",
+    "climate.disable_auto_brightness": "Automatische Helligkeit deaktivieren",
+    "climate.auto_brightness": "Automatische Helligkeit",
+    "climate.current_ldr_value": "Aktueller LDR-Wert",
+    "climate.minimum": "Minimum",
+    "climate.maximum": "Maximum",
+    "climate.status_on": "ein",
+    "climate.status_off": "aus",
+    "display.config_eyebrow": "Konfiguration",
+    "display.config_title": "Wichtige Einstellungen",
+    "display.control_eyebrow": "Display",
+    "display.control_title": "Weitere Steuerung",
+    "display.brightness": "Display-Helligkeit",
+    "display.save_brightness": "Helligkeit speichern",
+    "display.color": "Display-Farbe",
+    "display.color_hint": "Display-Farbe ist wählbar, wenn keine Farbanimation aktiv ist.",
+    "display.white_channel": "Weisskanal",
+    "display.save_color": "Display-Farbe speichern",
+    "display.color_save_failed": "Farbe konnte nicht gespeichert werden",
+    "display.mode": "Display-Modus",
+    "display.save_mode": "Display-Modus speichern",
+    "display.mode_normal": "Normal",
+    "display.mode_seconds": "Sekunden",
+    "display.mode_date": "Datum",
+    "display.mode_temperature": "Temperatur",
+    "display.mode_ticker": "Ticker",
+    "display.keep_it_is": "„ES IST“ dauerhaft anzeigen",
+    "display.keep_it_is_disable": "„ES IST“ deaktivieren",
+    "display.ticker_text": "Ticker-Text",
+    "display.ticker_placeholder": "WordClock bereit",
+    "display.save_ticker": "Ticker speichern",
+    "display.date_format": "Datumsformat im Ticker",
+    "display.save_date_format": "Datumsformat speichern",
+    "display.ticker_delay": "Ticker-Verzögerung",
+    "display.save_ticker_delay": "Ticker-Verzögerung speichern",
+    "display.ticker_delay_save_failed": "Ticker-Verzögerung konnte nicht gespeichert werden",
+    "display.diagnostics": "Diagnose",
+    "display.diagnostics_hint": "Temporärer LED- und Farbtest für die reine Funktionsprüfung des Displays.",
+    "display.run_test": "Displaytest starten",
+    "display.test_running": "Displaytest läuft",
+    "display.test_start_failed": "Displaytest konnte nicht gestartet werden",
+    "display.dim_curve_eyebrow": "Helligkeitskurve",
+    "display.dim_curve_title": "Display",
+    "display.dim_curve_hint": "Dimmwerte für die 16 Helligkeitsstufen.",
+    "display.dim_level": "Stufe {idx}",
+    "display.dim_curve_ambilight_title": "Ambilight",
+    "display.dim_curve_ambilight_hint": "Dimmwerte für die 16 Ambilight-Stufen.",
+    "display.presets": "Voreinstellungen",
+    "display.curve_preset": "Kurvenvorgabe",
+    "display.apply_preset_save": "Voreinstellung anwenden und speichern",
+    "display.dim_curve_save": "Display-Dimmkurve speichern",
+    "display.save_ambilight_dim_curve": "Ambilight-Dimmkurve speichern",
+    "display.dim_curve_save_failed": "Dimmkurve konnte nicht gespeichert werden",
+    "display.tft_eyebrow": "TFT",
+    "display.tft_panel_title": "Panel-Optionen",
+    "display.tft_save_failed": "TFT-Optionen konnten nicht gespeichert werden",
+    "display.ambilight_control_eyebrow": "Ambilight",
+    "display.ambilight_control_title": "Weitere Steuerung",
+    "display.ambilight_brightness": "Ambilight-Helligkeit",
+    "display.save_ambilight_brightness": "Ambilight-Helligkeit speichern",
+    "display.ambilight_brightness_save_failed": "Ambilight-Helligkeit konnte nicht gespeichert werden",
+    "display.ambilight_mode": "Ambilight-Modus",
+    "display.save_ambilight_mode": "Ambilight-Modus speichern",
+    "display.ambilight_mode_save_failed": "Ambilight-Modus konnte nicht gespeichert werden",
+    "display.ambilight_mode_profiles": "Modus-Profile",
+    "display.ambilight_profile_save_failed": "Ambilight-Profil konnte nicht gespeichert werden",
+    "display.ambilight_leds": "Ambilight-LEDs",
+    "display.save_ambilight_leds": "LED-Anzahl speichern",
+    "display.ambilight_leds_save_failed": "LED-Anzahl konnte nicht gespeichert werden",
+    "display.ambilight_offset": "Offset bei Sekunde 0",
+    "display.save_ambilight_offset": "Offset speichern",
+    "display.ambilight_offset_save_failed": "Ambilight-Offset konnte nicht gespeichert werden",
+    "display.colors_eyebrow": "Farben",
+    "display.colors_title": "RGBW und Synchronisierung",
+    "display.color_detecting": "Hardware wird erkannt...",
+    "display.marker_color": "Marker-Farbe",
+    "display.save_ambilight_color": "Ambilight-Farbe speichern",
+    "display.save_marker_color": "Marker-Farbe speichern",
+    "display.manual_adjustment": "Manuelle Anpassung",
+    "display.sync_ambilight": "Ambilight synchronisieren",
+    "display.unsync_ambilight": "Ambilight-Synchronisierung deaktivieren",
+    "display.sync_markers": "Marker synchronisieren",
+    "display.unsync_markers": "Marker-Synchronisierung deaktivieren",
+    "display.fade_clock_seconds": "Sekunden weich ausblenden",
+    "display.fade_clock_seconds_disable": "Weiches Ausblenden deaktivieren",
+    "display.five_second_markers": "5-Sekunden Marker",
+    "display.ambilight_modes_unavailable": "Für die erkannte Hardware gibt es keine konfigurierbaren Ambilight-Modi.",
+    "display.default_set_failed": "Standardwert konnte nicht gesetzt werden",
+    "display.ambilight_default_set_failed": "Ambilight-Standardwert konnte nicht gesetzt werden",
+    "display.tft_rgb_order": "RGB-Reihenfolge",
+    "display.tft_flip_horizontal": "Horizontal spiegeln",
+    "display.tft_flip_vertical": "Vertikal spiegeln",
+    "display.save_tft_options": "TFT-Optionen speichern",
+    "animations.current_eyebrow": "Animationen",
+    "animations.current_title": "Aktuelle Auswahl",
+    "animations.current_hint": "Grundmodus für Anzeige und Farben direkt wählen und speichern.",
+    "animations.display_animation": "Anzeigeanimation",
+    "animations.save_display_animation": "Anzeigeanimation speichern",
+    "animations.color_animation": "Farbanimation",
+    "animations.save_color_animation": "Farbanimation speichern",
+    "animations.display_profiles_eyebrow": "Anzeigeanimationen",
+    "animations.profiles_title": "Profile",
+    "animations.display_profiles_hint": "Verzögerung und Favoriten pro Profil anpassen.",
+    "animations.color_profiles_eyebrow": "Farbanimationen",
+    "animations.color_profiles_hint": "Verzögerung pro Profil anpassen.",
+    "animations.favorite": "Favorit",
+    "animations.delay": "Verzögerung",
+    "animations.profile_save": "Profil speichern",
+    "animations.profile_save_failed": "Animationsprofil konnte nicht gespeichert werden",
+    "animations.color_profile_save_failed": "Farbanimationsprofil konnte nicht gespeichert werden",
+    "animations.default": "Standard",
+    "animations.name_fade": "Einblenden",
+    "animations.name_roll": "Rollen",
+    "animations.name_explode": "Explosion",
+    "animations.name_snake": "Schlange",
+    "animations.name_cube": "Würfel",
+    "animations.name_teletype": "Fernschreiber",
+    "animations.name_none": "Keine",
+    "animations.name_normal": "Normal",
+    "animations.name_clock": "Uhr",
+    "animations.name_rainbow": "Regenbogen",
+    "animations.name_temperature": "Temperatur",
+    "animations.name_ticker": "Ticker",
+    "animations.name_date": "Datum",
+    "animations.name_seconds": "Sekunden",
+    "overlays.eyebrow": "Overlays",
+    "overlays.title": "Einblendungen",
+    "overlays.hint": "Bestehende Overlays bearbeiten oder eine neue Overlay-Zeile anlegen.",
+    "overlays.new_title": "Neues Overlay",
+    "overlays.new_badge": "Neu",
+    "overlays.content": "Inhalt",
+    "overlays.type": "Typ",
+    "overlays.icon": "Icon",
+    "overlays.value": "Wert",
+    "overlays.folder": "Ordner",
+    "overlays.track": "Track",
+    "overlays.time_and_date": "Zeit und Datum",
+    "overlays.interval": "Intervall (Min.)",
+    "overlays.duration": "Dauer (Sek.)",
+    "overlays.date_code": "Datums-Code",
+    "overlays.day": "Tag",
+    "overlays.month": "Monat",
+    "overlays.days": "Tage",
+    "overlays.create": "Overlay anlegen",
+    "overlays.save": "Overlay speichern",
+    "overlays.cancel": "Abbrechen",
+    "overlays.display": "Anzeigen",
+    "overlays.delete": "Löschen",
+    "overlays.type_none": "Keins",
+    "overlays.type_icon": "Icon",
+    "overlays.type_date": "Datum",
+    "overlays.type_temperature": "Temperatur",
+    "overlays.type_weather_icon": "Wetter-Icon",
+    "overlays.type_weather_ticker": "Wetter-Ticker",
+    "overlays.type_ticker": "Ticker",
+    "overlays.type_dfplayer": "DFPlayer",
+    "overlays.type_forecast_icon": "Wettervorhersage-Icon",
+    "overlays.type_forecast_ticker": "Wettervorhersage-Ticker",
+    "overlays.type_temperature_digits": "Temperatur als Ziffern",
+    "overlays.datecode_none": "----",
+    "overlays.datecode_carnival": "Karneval",
+    "overlays.datecode_easter": "Ostersonntag",
+    "overlays.datecode_advent1": "1. Advent",
+    "overlays.datecode_advent2": "2. Advent",
+    "overlays.datecode_advent3": "3. Advent",
+    "overlays.datecode_advent4": "4. Advent",
+    "overlays.save_failed": "Overlay konnte nicht gespeichert werden",
+    "timers.save_all": "Alle Timer speichern",
+    "timers.ambilight_eyebrow": "Ambilight-Timer",
+    "timers.ambilight_title": "Zeiten für Ambilight",
+    "timers.save_all_ambilight": "Alle Ambilight-Timer speichern",
+    "timers.slot": "Slot",
+    "timers.slot_subline": "Timer",
+    "timers.ambilight_slot_subline": "Ambilight-Timer",
+    "timers.period": "Zeitraum",
+    "timers.action": "Aktion",
+    "timers.switch_on": "Einschalten",
+    "timers.switch_off": "Ausschalten",
+    "timers.time": "Zeit",
+    "timers.from_day": "Von Tag",
+    "timers.to_day": "Bis Tag",
+    "timers.clear_slot": "Slot leeren",
+    "timers.main_eyebrow": "Timer",
+    "timers.main_title": "Zeiten",
+    "dfplayer.volume": "Lautstärke",
+    "dfplayer.volume_save": "Lautstärke speichern",
+    "dfplayer.volume_save_failed": "DFPlayer-Lautstärke konnte nicht gespeichert werden",
+    "dfplayer.panel_eyebrow": "DFPlayer",
+    "dfplayer.panel_title": "Audio und Klingel",
+    "dfplayer.note_online": "DFPlayer ist online.",
+    "dfplayer.note_offline": "DFPlayer ist offline und wird ausgeblendet.",
+    "dfplayer.mode": "Modus",
+    "dfplayer.mode_none": "Keiner",
+    "dfplayer.mode_bell": "Glocke",
+    "dfplayer.mode_speech": "Sprache",
+    "dfplayer.mode_save": "Modus speichern",
+    "dfplayer.mode_save_failed": "DFPlayer-Modus konnte nicht gespeichert werden",
+    "dfplayer.bell_times": "Glockenzeiten",
+    "dfplayer.bell_save": "Glockenzeiten speichern",
+    "dfplayer.bell_save_failed": "Glockenzeiten konnten nicht gespeichert werden",
+    "dfplayer.speech": "Sprache",
+    "dfplayer.speak_cycle": "Sprachzyklus",
+    "dfplayer.speak_cycle_save": "Sprachzyklus speichern",
+    "dfplayer.speak_cycle_save_failed": "Sprachzyklus konnte nicht gespeichert werden",
+    "dfplayer.silence_start": "Ruhezeit Beginn",
+    "dfplayer.silence_stop": "Ruhezeit Ende",
+    "dfplayer.silence_start_save": "Ruhezeit Beginn speichern",
+    "dfplayer.silence_stop_save": "Ruhezeit Ende speichern",
+    "dfplayer.silence_start_save_failed": "Ruhezeit Beginn konnte nicht gespeichert werden",
+    "dfplayer.silence_stop_save_failed": "Ruhezeit Ende konnte nicht gespeichert werden",
+    "dfplayer.test_folder": "Test-Ordner",
+    "dfplayer.test_track": "Test-Titel",
+    "dfplayer.play_track": "Titel abspielen",
+    "dfplayer.play_started": "DFPlayer-Titel gestartet",
+    "dfplayer.play_failed": "DFPlayer-Titel konnte nicht gestartet werden",
+    "dfplayer.saved_titles": "Titel 001-008",
+    "dfplayer.alarm_title": "Titel",
+    "dfplayer.alarm_subline": "Zeitplan",
+    "dfplayer.from": "Von",
+    "dfplayer.to": "Bis",
+    "dfplayer.time": "Zeit",
+    "dfplayer.alarm_save_failed": "DFPlayer-Titel konnte nicht gespeichert werden",
+    "maintenance.update_eyebrow": "Update",
+    "maintenance.source_versions_title": "Quelle und Versionen",
+    "maintenance.source_versions_hint": "Update-Quelle, erkannte Versionen und verfügbare Server-Dateien im Überblick.",
+    "maintenance.server": "Server",
+    "maintenance.update_host": "Update-Host",
+    "maintenance.save_update_host": "Update-Host speichern",
+    "maintenance.update_path": "Update-Pfad",
+    "maintenance.save_update_path": "Update-Pfad speichern",
+    "maintenance.server_selection": "Server-Auswahl",
+    "maintenance.stm32_server_firmware": "STM32-Firmware vom Server",
+    "maintenance.layout_server_table": "Layout-Tabelle vom Server",
+    "maintenance.versions": "Versionen",
+    "maintenance.update_progress": "Update-Fortschritt",
+    "maintenance.waiting_for_action": "Wartet auf Aktion...",
+    "maintenance.progress_prepare_title": "Vorbereiten",
+    "maintenance.progress_prepare_note": "Update wird gestartet.",
+    "maintenance.progress_bootloader_title": "Bootloader",
+    "maintenance.progress_bootloader_note": "STM32-Bootloader wird angesprochen.",
+    "maintenance.progress_hex_check_title": "HEX prüfen",
+    "maintenance.progress_hex_check_note": "Firmwaredatei wird geprüft.",
+    "maintenance.progress_flash_erase_title": "Flash löschen",
+    "maintenance.progress_flash_erase_note": "STM32-Flash wird gelöscht.",
+    "maintenance.progress_flash_write_title": "Flash schreiben",
+    "maintenance.progress_flash_write_note": "Firmware wird geschrieben und verifiziert.",
+    "maintenance.progress_reset_title": "Zurücksetzen",
+    "maintenance.progress_reset_note": "STM32 wird automatisch neu gestartet.",
+    "maintenance.progress_finish_title": "Abschliessen",
+    "maintenance.progress_finish_note": "Daten werden neu geladen.",
+    "maintenance.stm32_prepare_note": "STM32-Update wird vorbereitet...",
+    "maintenance.stm32_wait_bootloader": "Warte auf Rückmeldung vom STM32-Bootloader...",
+    "maintenance.stm32_bootloader_reached": "STM32-Bootloader wurde erreicht.",
+    "maintenance.stm32_hex_check_running": "Firmwaredatei wird geprüft.",
+    "maintenance.stm32_flash_erasing": "STM32-Flash wird gelöscht.",
+    "maintenance.stm32_flash_writing": "STM32-Firmware wird geschrieben und verifiziert...",
+    "maintenance.esp_update_waiting": "ESP aktualisiert. Es wird gewartet, bis das Gerät wieder bereit ist.",
+    "maintenance.stm32_flash_failed": "STM32-Flash ist fehlgeschlagen.",
+    "maintenance.stm32_flash_done_reset": "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.",
+    "maintenance.stm32_local_flash_starting": "Lokaler STM32-Flash wird gestartet.",
+    "maintenance.stm32_local_flash_start_failed": "Lokaler STM32-Flash konnte nicht gestartet werden.",
+    "maintenance.stm32_local_upload_failed": "Lokaler STM32-Upload ist fehlgeschlagen.",
+    "maintenance.stm32_local_upload_progress": "STM32-Firmware wird hochgeladen: {percent}%",
+    "maintenance.stm32_local_upload_done": "STM32-Firmware wurde hochgeladen. Flash startet...",
+    "maintenance.stm32_flash_auto_reset_failed": "STM32-Flash fertig, automatischer Reset ist fehlgeschlagen.",
+    "maintenance.stm32_update_response_received": "Update-Antwort empfangen.",
+    "maintenance.server_recheck_running": "Server-Dateien werden mit den neuen Update-Angaben neu geprüft...",
+    "maintenance.server_recheck_done": "Server-Verfügbarkeit wurde neu geprüft",
+    "maintenance.server_recheck_failed": "Server-Verfügbarkeit konnte nicht neu geprüft werden",
+    "maintenance.weather_file": "Wetter-Datei",
+    "maintenance.icon_file": "Icon-Datei",
+    "maintenance.layout_table_file": "Layout-Tabelle",
+    "maintenance.tft_display_file": "TFT-Display-Datei",
+    "maintenance.install_app_files_direct": "App-Dateien direkt installieren",
+    "maintenance.remote_eyebrow": "Remote",
+    "maintenance.remote_title": "Vom Server laden und installieren",
+    "maintenance.remote_hint": "Verfügbare Dateien direkt vom Update-Server laden. Fortschritt und Ergebnis werden darunter angezeigt.",
+    "maintenance.update_esp": "ESP-Firmware aktualisieren",
+    "maintenance.update_esp_confirm": "ESP-Firmware jetzt vom Update-Server aktualisieren? Das Gerät startet dabei neu.",
+    "maintenance.update_esp_start": "ESP-Update wird gestartet...",
+    "maintenance.flash_stm32": "STM32 flashen",
+    "maintenance.flash_stm32_confirm": "STM32 jetzt mit „{file}“ flashen?",
+    "maintenance.flash_stm32_started": "STM32-Flash wurde gestartet.",
+    "maintenance.server_files": "Dateien vom Server",
+    "maintenance.load_layout_table": "Layout-Tabelle laden",
+    "maintenance.load_icon_files": "Icon-Dateien laden",
+    "maintenance.load_app_files": "App-Dateien laden",
+    "maintenance.service_eyebrow": "Wartung",
+    "maintenance.service_title": "Service-Aktionen",
+    "maintenance.service_hint": "Nur für gezielte Servicefälle. Diese Aktionen lösen keinen normalen Update- oder Backup-Workflow aus.",
+    "maintenance.reset_stm32": "STM32 zurücksetzen",
+    "maintenance.reset_stm32_failed": "STM32 konnte nicht zurückgesetzt werden",
+    "maintenance.reset_eeprom": "EEPROM zurücksetzen",
+    "maintenance.release_notes": "Release Notes",
+    "maintenance.files_eyebrow": "Dateien",
+    "maintenance.files_title": "LittleFS",
+    "maintenance.files_hint": "Dateien anzeigen, löschen und die bekannten Upload-Ziele direkt beschicken.",
+    "maintenance.file_list": "Dateiliste",
+    "maintenance.file_preview": "Dateivorschau",
+    "maintenance.file_actions_status": "Aktionen und Status",
+    "maintenance.preview_placeholder": "Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.",
+    "maintenance.file_action_placeholder": "Noch keine Datei-Aktion ausgeführt.",
+    "maintenance.no_files": "Noch keine Dateien im LittleFS gefunden.",
+    "maintenance.special_display_target": "TFT-Sonderfall",
+    "maintenance.no_stm32_files": "keine STM32-Dateien gefunden",
+    "maintenance.no_release_notes": "Keine Release Notes vom Server gelesen.",
+    "maintenance.fs_total": "Gesamt",
+    "maintenance.fs_used": "Belegt",
+    "maintenance.fs_block_size": "Blockgrösse",
+    "maintenance.fs_page_size": "Seitengrösse",
+    "maintenance.fs_max_open_files": "Max. offene Dateien",
+    "maintenance.fs_max_path_length": "Max. Pfadlänge",
+    "maintenance.boot_mode": "Bootmodus",
+    "maintenance.boot_mode_ap": "Zugangspunkt",
+    "maintenance.boot_mode_client": "WLAN-Client",
+    "maintenance.no_data": "keine Daten",
+    "maintenance.version_flash": "ESP-Flash",
+    "maintenance.version_ota": "OTA-Update",
+    "maintenance.version_wc": "WordClock-Version",
+    "maintenance.version_wc_available": "WordClock verfügbar",
+    "maintenance.version_esp": "ESP-Version",
+    "maintenance.version_esp_available": "ESP verfügbar",
+    "maintenance.version_app": "App-Version",
+    "maintenance.version_app_available": "App verfügbar",
+    "maintenance.version_stm32_default": "Standard STM32",
+    "maintenance.version_available_yes": "möglich",
+    "maintenance.version_available_no": "nicht möglich",
+    "maintenance.local_update_unavailable": "Lokales Update ist bei dieser ESP-Flashgrösse nicht verfügbar.",
+    "maintenance.choose_file_for_target": "Bitte zuerst eine Datei für {target} auswählen.",
+    "maintenance.file_expected_pattern": "Falsche Datei ausgewählt. Erwartet wird ein passendes Tabellenmuster wie {pattern} für {target}.",
+    "maintenance.file_expected_exact": "Falsche Datei ausgewählt. Erwartet wird {target}.",
+    "maintenance.txt_required": "{target} muss eine .txt-Datei sein.",
+    "maintenance.file_upload_failed": "{target} konnte nicht hochgeladen werden",
+    "maintenance.file_upload_failed_detail": "{target} konnte nicht hochgeladen werden: {error}",
+    "maintenance.local_uploads": "Lokale Dateien hochladen",
+    "maintenance.local_app_assets": "Lokale App-Dateien (.gz)",
+    "maintenance.choose_local_app_folder": "Lokalen App-Ordner wählen",
+    "maintenance.local_update_eyebrow": "Lokales Update",
+    "maintenance.local_update_title": "ESP- und STM32-Firmware hochladen",
+    "maintenance.local_update_hint": "Lokale Firmware-Dateien direkt hochladen, ohne den Update-Server zu verwenden.",
+    "maintenance.local_update_partial_support": "Einige lokale PWA-Updatepfade werden von dieser Firmware noch nicht unterstützt.",
+    "maintenance.local_update_select_file": "ESP- oder STM32-Datei auswählen und direkt lokal hochladen.",
+    "maintenance.local_update_preparing": "Lokal-Update wird vorbereitet...",
+    "maintenance.local_esp_file": "ESP-Firmwaredatei (.bin)",
+    "maintenance.local_esp_update": "ESP lokal aktualisieren",
+    "maintenance.local_esp_choose_first": "Bitte zuerst eine ESP-Firmwaredatei auswählen.",
+    "maintenance.local_esp_expected": "ESP-.bin-Datei erwartet",
+    "maintenance.local_esp_uploading": "ESP-Firmware wird lokal hochgeladen...",
+    "maintenance.local_esp_uploaded_wait": "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.",
+    "maintenance.local_stm32_file": "STM32-Firmwaredatei (.hex)",
+    "maintenance.local_stm32_update": "STM32 lokal aktualisieren",
+    "maintenance.local_stm32_choose_first": "Bitte zuerst eine STM32-Firmwaredatei auswählen.",
+    "maintenance.local_stm32_expected": "Passende STM32-Datei erwartet",
+    "maintenance.local_stm32_uploading": "STM32-Firmware wird lokal hochgeladen...",
+    "maintenance.local_stm32_update_failed": "STM32-Firmware konnte nicht aktualisiert werden.",
+    "maintenance.backup_eyebrow": "Sicherung",
+    "maintenance.backup_title": "Einstellungen exportieren und importieren",
+    "maintenance.backup_import_file": "Sicherungsdatei importieren",
+    "maintenance.backup_hint": "Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.",
+    "maintenance.backup_idle": "Noch keine Sicherungsaktion ausgeführt.",
+    "weather.map_modal_title": "Standort auf Karte wählen",
+    "weather.close": "Schliessen",
+    "weather.modal_eyebrow": "Wetter",
+    "weather.modal_hint": "Suche nach einem Ort, tippe auf die Karte oder nutze deinen aktuellen Standort.",
+    "weather.search_place": "Ort suchen",
+    "weather.search_placeholder": "Zürich, Schweiz",
+    "weather.use_current_location": "Aktuellen Standort verwenden",
+    "weather.map_aria": "Standortkarte",
+    "weather.waiting_for_map": "Warte auf Karte...",
+    "weather.place": "Ort",
+    "weather.place_placeholder": "Wird aus Suche oder Karte übernommen",
+    "weather.current_location_prefix": "Aktuell:",
+    "status.auto_refresh_paused": "Automatische Aktualisierung pausiert, bis ungespeicherte Änderungen gespeichert sind",
+    "status.waiting_for_data": "Wartet auf Daten...",
+    "status.updated_at": "Aktualisiert {time}",
+    "status.data_load_failed": "Daten konnten nicht geladen werden",
+    "overview.display_mode": "Display-Modus",
+    "overview.brightness": "Helligkeit",
+    "overview.auto_brightness": "Automatische Helligkeit",
+    "overview.led_capabilities": "LED-Fähigkeiten",
+    "overview.timeserver": "Zeitserver",
+    "overview.ticker_delay": "Ticker-Verzögerung",
+    "overview.last_stm32_restart": "Letzter STM32-Neustart",
+    "overview.last_start": "Letzter Start",
+    "overview.weather_location": "Wetter-Ort",
+    "overview.ticker": "Ticker",
+    "overview.date_format": "Datumsformat",
+    "overview.ambilight_mode": "Ambilight-Modus",
+    "overview.ambilight_brightness": "Ambilight-Helligkeit",
+    "overview.ambilight_leds": "Ambilight LEDs",
+    "overview.ambilight_offset": "Ambilight Offset",
+    "overview.dfplayer_mode": "DFPlayer-Modus",
+    "overview.dfplayer_volume": "DFPlayer-Lautstärke",
+    "overview.speak_cycle": "Sprechintervall",
+    "preview.color_animation": "Farbanimation",
+    "preview.persisted_display_color": "Gespeicherte Display-Farbe",
+    "preview.live_device_color": "Live-Farbe vom Gerät",
+    "preview.layout_file": "Vorschau-Layout",
+    "display.white_channel_inactive": "RGBW-Hardware erkannt, aber der White-Channel ist aktuell firmwareseitig nicht aktiv.",
+    "display.color_direct_available": "Die Display-Farbe kann direkt gesetzt werden, solange keine Farbanimation aktiv ist.",
+    "display.color_direct_unavailable": "Die Display-Farbe ist nur direkt wählbar, wenn Farbanimation = Keine ist.",
+    "system.logs_empty": "Noch keine STM32-Logs vorhanden.",
+    "system.logs_buffer": "{count} Log-Zeile{suffix} im Puffer.",
+    "system.logs_reload": "Logs neu laden",
+    "system.logs_clear": "Logs leeren",
+    "system.logs_reload_busy": "lädt...",
+    "system.logs_clear_busy": "leert...",
+    "system.logs_loaded": "geladen",
+    "system.logs_cleared": "geleert",
+    "system.logs_load_failed": "STM32-Logs konnten nicht geladen werden",
+    "system.logs_clear_failed": "STM32-Logbuch konnte nicht geleert werden",
+    "system.logs_cleared_status": "STM32-Logbuch wurde geleert",
+    "system.logs_clear_confirm": "STM32-Logbuch wirklich leeren?",
+    "backup.export_button": "Einstellungen exportieren",
+    "backup.import_button": "Einstellungen importieren",
+    "backup.exported": "exportiert",
+    "backup.imported": "importiert",
+    "backup.export_success": "Einstellungen wurden exportiert.",
+    "backup.export_failed": "Einstellungen konnten nicht exportiert werden.",
+    "backup.choose_file_first": "Bitte zuerst eine Sicherungsdatei auswählen.",
+    "backup.invalid_format": "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei.",
+    "backup.incompatible_version": "Inkompatible Backup-Version – Datei mit einer neueren App erstellt.",
+    "backup.import_failed": "Einstellungen konnten nicht importiert werden.",
+    "backup.import_confirm": "Einstellungen aus „{file}“ jetzt importieren?",
+    "backup.import_start": "Starte Wiederherstellung der Sicherung...",
+    "backup.import_validate": "Prüfe importierte Einstellungen...",
+    "backup.import_verify_sections": "Prüfe Display, Klima, Overlays und Timer...",
+    "backup.import_reload_data": "Lade aktualisierte Gerätedaten neu...",
+    "backup.import_network_final": "Übernehme Netzwerk-Einstellungen abschliessend...",
+    "backup.import_network_verify": "Prüfe Netzwerk-Einstellungen erneut...",
+    "backup.import_network_wait": "Warte auf die Übernahme der Netzwerkeinstellungen...",
+    "backup.import_sensor_final": "Übernehme Sensor-Korrekturen abschliessend...",
+    "backup.import_sensor_verify": "Prüfe Sensor-Korrekturen erneut...",
+    "backup.import_persist_critical": "Schreibe kritische Einstellungen dauerhaft...",
+    "backup.import_persist_temperature": "Schreibe Temperatur-Korrekturen endgültig...",
+    "backup.import_wait_persist": "Warte, bis Einstellungen dauerhaft gespeichert sind...",
+    "backup.import_restart_now": "Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...",
+    "backup.import_restart_reload_data": "STM32 wurde neu gestartet. Lade Daten neu...",
+    "backup.import_restart_refreshing": "Import abgeschlossen. Uhr startet neu, App wird aktualisiert...",
+    "backup.import_service": "Übernehme Wartungs-Einstellungen...",
+    "backup.import_assets": "Stelle Dateien und Assets wieder her...",
+    "backup.import_display": "Übernehme Display-Einstellungen...",
+    "backup.import_climate": "Übernehme Klima- und Wetter-Einstellungen...",
+    "backup.import_animations": "Übernehme Animations-Einstellungen...",
+    "backup.import_tft": "Übernehme TFT-Einstellungen...",
+    "backup.import_ambilight": "Übernehme Ambilight-Einstellungen...",
+    "backup.import_dfplayer": "Übernehme DFPlayer-Einstellungen...",
+    "backup.import_overlays": "Übernehme Overlays...",
+    "backup.import_timers": "Übernehme Timer...",
+    "backup.import_display_retry": "Übernehme Display-Einstellungen erneut...",
+    "backup.import_climate_retry": "Übernehme Klima- und Wetter-Einstellungen erneut...",
+    "backup.import_overlays_retry": "Übernehme Overlays erneut...",
+    "backup.import_timers_retry": "Übernehme Timer erneut...",
+    "backup.import_temperature_retry": "Übernehme Temperatur-Korrekturen erneut...",
+    "backup.import_rtc_final": "Übernehme RTC-Korrektur abschliessend...",
+    "backup.import_rtc_retry": "Übernehme RTC-Korrektur erneut...",
+    "backup.import_network_retry": "Übernehme Netzwerk- und Zeiteinstellungen erneut...",
+    "backup.import_network_time_retry": "Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...",
+    "backup.import_maintenance_retry": "Übernehme Update-Host und Update-Pfad erneut...",
+    "backup.import_network_time_final": "Übernehme Zeitserver- und Uhrzeit-Einstellungen abschliessend...",
+    "backup.import_maintenance_final": "Übernehme Update-Host und Update-Pfad abschliessend...",
+    "backup.import_sensor_persist_final": "Übernehme Sensor-Korrekturen als letzten Persistenzschritt...",
+    "backup.import_restart": "Import abgeschlossen. STM32 wird automatisch neu gestartet",
+    "backup.import_reload": "Import abgeschlossen. App wird neu geladen",
+    "backup.import_reconnect": "Import abgeschlossen. Verbindung wird nach dem Neustart erneut aufgebaut",
+    "weather.map_loading": "Kartendienst wird geladen...",
+    "weather.map_load_failed": "Kartendienst konnte nicht geladen werden.",
+    "weather.map_hint": "Tippe auf die Karte oder suche einen Ort.",
+    "weather.enter_location_first": "Bitte zuerst einen Ort eingeben.",
+    "weather.search_busy": "sucht...",
+    "weather.searching": "Ort wird gesucht...",
+    "weather.no_result": "Kein Treffer für diesen Ort gefunden.",
+    "weather.search_button": "Suchen",
+    "weather.found": "gefunden",
+    "weather.location_found": "Ort gefunden und auf der Karte gesetzt.",
+    "weather.search_failed": "Ortssuche konnte nicht geladen werden.",
+    "weather.current_location_busy": "liest...",
+    "weather.current_location_label": "Aktuellen Standort verwenden",
+    "weather.current_location_reading": "Aktueller Standort wird gelesen...",
+    "weather.current_location_set": "Aktueller Standort gesetzt.",
+    "weather.approx_location_start": "Näherungsstandort über Internetverbindung wird ermittelt...",
+    "weather.approx_location_city": "Näherungsstandort gesetzt: {city}.",
+    "weather.approx_location_set": "Näherungsstandort wurde gesetzt.",
+    "weather.location_unavailable": "Standort konnte auch näherungsweise nicht ermittelt werden.",
+    "weather.map_applied": "Standort aus Karte übernommen.",
+    "weather.reverse_failed": "Koordinaten gesetzt. Ortsname konnte nicht aufgelöst werden.",
+    "weather.map_preview": "Aus Karte gewählt: {city} | {lon} / {lat}",
+    "weather.apply_map_busy": "übernimmt...",
+    "weather.apply_map_idle": "In Wetter übernehmen",
+    "weather.apply_map_done": "übernommen",
+    "weather.apply_map_failed": "Wetter-Ort und Koordinaten konnten nicht übernommen werden",
+    "weather.apply_map_success": "Wetter-Ort und Koordinaten wurden übernommen",
+    "network.scan_busy": "lädt...",
+    "network.scan_success": "WLAN-Liste wurde aktualisiert",
+    "network.scan_failed": "WLAN-Liste konnte nicht aktualisiert werden",
+    "local_app.folder_read_failed": "Der App-Ordner konnte nicht gelesen werden",
+    "local_app.folder_browser_failed": "Der lokale App-Ordner konnte über den Browser nicht geöffnet werden.",
+    "local_app.folder_checked": "Lokaler App-Ordner geprüft: {found}/{total} Pflichtdateien erkannt.",
+    "local_app.folder_none": "Lokaler App-Ordner wurde gewählt, aber der Browser hat keine passenden App-Dateien unter app/... geliefert.",
+    "local_app.note_empty": "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die komprimierten Dateien (.gz) unter app/... enthält.",
+    "local_app.note_complete": "App-Ordner vollständig erkannt. {found}/{total} Dateien sind bereit und können direkt installiert werden.",
+    "local_app.note_missing": "App-Ordner geprüft. {found}/{total} Dateien gefunden. Es fehlen: {missing}",
+    "local_app.incomplete": "Der App-Ordner ist noch nicht vollständig.",
+    "local_app.missing_required": "Lokale App-Dateien können noch nicht installiert werden. Es fehlen Pflichtdateien.",
+    "local_app.upload_unsupported": "Diese Firmware unterstützt noch keinen lokalen App-Datei-Upload.",
+    "local_app.install_confirm": "Die lokalen App-Dateien jetzt direkt auf das Gerät schreiben?",
+    "local_app.installing": "Lokale App-Dateien werden installiert...",
+    "local_app.installing_fs": "Lokale App-Dateien werden direkt in das LittleFS geschrieben...",
+    "local_app.progress": "Lokale App-Dateien: {step}/{total} {asset}",
+    "local_app.installed_reload": "Lokale App-Dateien installiert. App wird neu geladen...",
+    "local_app.installed_status": "Lokale App-Dateien installiert. Seite wird neu geladen.",
+    "local_app.installed_fs": "Lokale App-Dateien wurden erfolgreich installiert.",
+    "local_app.install_button": "Lokale App-Dateien installieren",
+    "local_app.installed": "installiert",
+    "local_app.install_failed": "Lokale App-Dateien konnten nicht installiert werden",
+    "local_app.install_failed_detail": "Lokale App-Dateien konnten nicht installiert werden: {error}",
+    "maintenance.app_install_confirm": "App-Dateien jetzt direkt vom Server laden und installieren?",
+    "maintenance.app_install_button": "App-Dateien laden",
+    "maintenance.app_install_loading": "App-Dateien werden vom Server geladen...",
+    "maintenance.app_install_running": "App-Dateien werden installiert...",
+    "maintenance.app_install_loaded": "App-Dateien wurden geladen und werden installiert...",
+    "maintenance.app_install_reload": "App-Dateien installiert. App wird neu geladen...",
+    "maintenance.app_install_success": "App-Dateien installiert. Seite wird neu geladen.",
+    "maintenance.app_install_failed": "App-Dateien konnten nicht geladen werden",
+    "maintenance.app_install_failed_detail": "App-Dateien konnten nicht geladen oder installiert werden.",
+    "maintenance.layout_choose_first": "Bitte zuerst eine Layout-Tabelle auswählen",
+    "maintenance.layout_confirm": "Layout-Tabelle „{file}“ jetzt laden?",
+    "maintenance.layout_loading": "Layout-Tabelle wird geladen...",
+    "maintenance.layout_loaded": "Layout-Tabelle wurde geladen.",
+    "maintenance.layout_load_failed": "Layout-Tabelle konnte nicht geladen werden",
+    "maintenance.layout_button": "Layout-Tabelle laden",
+    "maintenance.reset_stm32_ok": "STM32 wurde zurückgesetzt",
+    "maintenance.reset_stm32_started_wait": "STM32-Reset wurde ausgelöst. Warte auf Abschluss...",
+    "maintenance.reset_stm32_reconnect": "STM32 wieder bereit. App wird neu geladen...",
+    "maintenance.reset_stm32_reconnect_unclear": "STM32-Reconnect nicht sicher erkannt. App wird vorsorglich neu geladen...",
+    "maintenance.esp_ready_reload": "ESP wieder erreichbar. Seite wird neu geladen.",
+    "maintenance.reset_eeprom_confirm_1": "EEPROM wirklich auf Werkseinstellungen zurücksetzen?",
+    "maintenance.reset_eeprom_confirm_2": "Wirklich alle EEPROM-Werte auf Werkseinstellungen zurücksetzen?",
+    "maintenance.reset_eeprom_busy": "setzt zurück...",
+    "maintenance.reset_eeprom_wait": "wartet...",
+    "maintenance.reset_eeprom_start": "EEPROM-Reset wird ausgelöst...",
+    "maintenance.reset_eeprom_restart": "EEPROM-Reset ausgelöst. STM32 wird neu gestartet...",
+    "maintenance.reset_eeprom_reload": "Warte auf STM32-Neustart. Danach wird die App neu geladen...",
+    "maintenance.reset_eeprom_failed": "EEPROM konnte nicht zurückgesetzt werden",
+    "maintenance.device_ready_reload": "Gerät sollte wieder bereit sein. App wird vorsorglich neu geladen.",
+    "maintenance.no_reconnect_reload": "Kein sicheres Reconnect-Signal erhalten. App wird vorsorglich neu geladen.",
+    "maintenance.esp_not_ready": "ESP ist noch nicht wieder erreichbar. Bitte Seite bei Bedarf manuell neu laden.",
+    "maintenance.unsaved_reload_confirm": "Es gibt ungespeicherte Änderungen. App trotzdem neu laden?",
+    "maintenance.reloading": "App wird neu geladen...",
+    "maintenance.forced_reload": "Neuladen wird erzwungen, damit die aktualisierte App wieder angezeigt wird.",
+    "maintenance.assets_confirm": "Icon-Dateien jetzt wirklich vom Server laden?",
+    "maintenance.assets_loaded": "Icon-Dateien geladen",
+    "maintenance.assets_load_failed": "Icon-Dateien konnten nicht geladen werden",
+    "maintenance.stm32_file_choose_first": "Bitte zuerst eine STM32-Datei auswählen",
+    "maintenance.reset_stm32_confirm": "STM32 jetzt wirklich resetten?",
+    "maintenance.format_fs_confirm": "LittleFS wirklich formatieren?",
+    "maintenance.format_fs_button": "LittleFS formatieren",
+    "maintenance.format_fs_done": "LittleFS wurde formatiert.",
+    "maintenance.local_esp_waiting": "Lokales ESP-Update läuft. Warte auf Neustart und Reconnect...",
+    "maintenance.remote_esp_waiting": "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect...",
+    "maintenance.stm32_auto_reset_wait": "STM32 wurde nach dem Flash automatisch zurückgesetzt. Warte auf Abschluss...",
+    "maintenance.stm32_auto_reset_running": "STM32 wird automatisch zurückgesetzt. Daten werden danach neu geladen.",
+    "maintenance.stm32_flash_success": "STM32-Update erfolgreich abgeschlossen.",
+    "maintenance.fs_showing": "Datei „{file}“ wird angezeigt.",
+    "maintenance.fs_deleted": "Datei „{file}“ wurde gelöscht.",
+    "maintenance.fs_delete_confirm": "Datei „{file}“ wirklich löschen?",
+    "maintenance.file_load_failed": "Datei konnte nicht geladen werden",
+    "maintenance.file_delete_failed": "Datei konnte nicht gelöscht werden",
+    "overlays.discarded": "Verworfen",
+    "overlays.new_discarded": "Neues Overlay verworfen",
+    "overlays.show_failed": "Overlay konnte nicht angezeigt werden",
+    "overlays.show_status": "Overlay {idx} wird angezeigt",
+    "overlays.delete_failed": "Overlay konnte nicht gelöscht werden",
+    "overlays.deleted": "Overlay wurde gelöscht",
+    "overlays.icon_list_failed": "Icon-Liste konnte nicht geladen werden",
+    "timers.saved_all": "Alle Timer wurden gespeichert",
+    "timers.save_all_failed": "Timer konnten nicht vollständig gespeichert werden",
+    "timers.save_failed": "Timer konnte nicht gespeichert werden",
+    "timers.cleared": "Slot geleert",
+    "timers.clear_failed": "Timer konnte nicht geleert werden",
+    "flags.toggle_failed": "Schalter konnte nicht gesetzt werden",
+    "flags.enabled": "aktiviert",
+    "flags.disabled": "deaktiviert",
+    "debug.apply_busy": "übernimmt...",
+    "debug.active": "Overrides aktiv",
+    "debug.active_short": "aktiv",
+    "debug.apply_failed": "Overrides konnten nicht angewendet werden",
+    "debug.reset_busy": "setzt zurück...",
+    "debug.reset_done": "Overrides zurückgesetzt",
+    "debug.reset_short": "zurückgesetzt",
+    "debug.reset_failed": "Overrides konnten nicht zurückgesetzt werden",
+    "common.error": "Fehler",
+    "common.saving": "speichert...",
+    "common.loading": "lädt...",
+    "common.running": "läuft...",
+    "common.connecting": "verbindet...",
+    "common.starting": "startet...",
+    "common.uploading": "lädt hoch...",
+    "common.deleting": "löscht...",
+    "common.clearing": "leert...",
+    "common.showing": "zeigt...",
+    "common.saved": "gespeichert",
+    "common.loaded": "geladen",
+    "common.started": "gestartet",
+    "common.switched_on": "eingeschaltet",
+    "common.switched_off": "ausgeschaltet",
+    "common.applied": "gesetzt",
+    "common.canceled": "verworfen",
+    "common.active": "Aktiv",
+    "common.save": "Speichern",
+    "common.deleted": "gelöscht",
+    "common.cleared": "geleert",
+    "common.none": "Keins",
+    "common.offline": "offline",
+    "common.file": "Datei",
+    "common.display": "Anzeigen",
+    "common.delete": "Löschen",
+    "common.file_upload": "Datei hochladen",
+    "common.loading_short": "wird geladen...",
+    "common.reloading": "lädt neu...",
+    "common.ready": "fertig",
+    "common.invalid_file_extension": "Ungültige Dateiendung"
+  },
+  en: {
+    "app.title": "WordClock",
+    "app.version_label": "App version",
+    "language.de": "German",
+    "language.en": "English",
+    "hero.eyebrow": "Alongside the legacy page",
+    "hero.text": "First real PWA alongside the existing ESP web interface. This view reads real device data and stays intentionally lean while the legacy page remains available.",
+    "hero.language_label": "Language",
+    "hero.legacy_button": "Legacy page",
+    "hero.reload_button": "Reload",
+    "nav.aria_label": "Sections",
+    "nav.main": "Overview",
+    "nav.system": "System",
+    "nav.network": "Network",
+    "nav.climate": "Climate",
+    "nav.display": "Display",
+    "nav.animations": "Animations",
+    "nav.overlays": "Overlays",
+    "nav.ambilight": "Ambilight",
+    "nav.timers": "Timers",
+    "nav.dfplayer": "DFPlayer",
+    "nav.maintenance": "Maintenance",
+    "nav.hint": "Swipe sideways to reveal more sections.",
+    "section.eyebrow": "Section",
+    "section.main.title": "Overview",
+    "section.main.hint": "Live status, quick actions and the central device time at a glance.",
+    "section.system.title": "System",
+    "section.system.hint": "Hardware data, device time, detected subsystems and debug views for the interface.",
+    "section.network.title": "Network",
+    "section.network.hint": "Wi-Fi client, built-in access point and time services clearly separated for connectivity and setup.",
+    "section.climate.title": "Climate",
+    "section.climate.hint": "Weather, temperature sensors and the brightness sensor combined in one climate area.",
+    "section.display.title": "Display",
+    "section.display.hint": "Display, brightness, ticker, dim curves and TFT-specific options.",
+    "section.animations.title": "Animations",
+    "section.animations.hint": "Display and color animations including profiles and delays.",
+    "section.overlays.title": "Overlays",
+    "section.overlays.hint": "Overlay inserts for icons, ticker, date, weather and DFPlayer content.",
+    "section.ambilight.title": "Ambilight",
+    "section.ambilight.hint": "Ambilight control, colors, profiles and its dedicated dim curve.",
+    "section.timers.title": "Timers",
+    "section.timers.hint": "Schedules for display and Ambilight in one shared module.",
+    "section.dfplayer.title": "DFPlayer",
+    "section.dfplayer.hint": "Audio, bell, speech and the DFPlayer's stored track blocks.",
+    "section.maintenance.title": "Maintenance",
+    "section.maintenance.hint": "Update source, LittleFS, local files and service actions for the device.",
+    "main.live_eyebrow": "Live",
+    "main.status_title": "Current status",
+    "main.waiting": "waiting for data",
+    "main.label.display": "Display",
+    "main.label.ambilight": "Ambilight",
+    "main.label.firmware": "Firmware",
+    "main.label.last_start": "Last start",
+    "main.display_toggle": "Toggle display",
+    "main.ambilight_toggle": "Toggle Ambilight",
+    "main.display_turn_on": "Turn display on",
+    "main.display_turn_off": "Turn display off",
+    "main.ambilight_turn_on": "Turn Ambilight on",
+    "main.ambilight_turn_off": "Turn Ambilight off",
+    "main.display_toggle_failed": "Display could not be switched",
+    "main.ambilight_toggle_failed": "Ambilight could not be switched",
+    "common.auto": "Auto",
+    "system.hardware_eyebrow": "System",
+    "system.hardware_title": "Hardware",
+    "system.subsystems_eyebrow": "Subsystems",
+    "system.subsystems_title": "Availability",
+    "system.time_eyebrow": "Time",
+    "system.time_title": "Date, time and IR",
+    "system.time_loading": "Device time is loading...",
+    "system.date_label": "Date",
+    "system.day_label": "Day",
+    "system.month_label": "Month",
+    "system.year_label": "Year",
+    "system.clock_label": "Time",
+    "system.hour_label": "Hour",
+    "system.minute_label": "Minute",
+    "system.datetime_save": "Save date and time",
+    "system.learn_ir": "Learn IR remote",
+    "system.debug_eyebrow": "Debug",
+    "system.debug_overrides_title": "View overrides",
+    "system.debug_overrides_hint": "Only for local app tests. Device messages themselves are not changed.",
+    "system.debug_ambilight_ui": "Ambilight UI",
+    "system.debug_dfplayer_ui": "DFPlayer UI",
+    "system.debug_color_ui": "Color LED UI",
+    "system.debug_tft_ui": "TFT UI",
+    "system.force_online": "Force online",
+    "system.force_rgb": "Force RGB",
+    "system.force_rgbw": "Force RGBW",
+    "system.force_visible": "Force visible",
+    "system.apply_overrides": "Apply overrides",
+    "system.reset_overrides": "Reset overrides",
+    "system.preview_hint": "Shows the stored display color, the current live color from the device, and the preview layout in use.",
+    "system.logs_hint": "Shows deliberately marked STM32 log lines that are mirrored into the web UI over the ESP UART.",
+    "system.debug_eyebrow": "Debug",
+    "system.preview_colors": "Preview colors",
+    "system.logbook_title": "STM32 logbook",
+    "network.client_eyebrow": "Client",
+    "network.client_title": "Connect to Wi-Fi",
+    "network.status_loading": "Network status is loading...",
+    "network.found_ssids": "Detected Wi-Fi networks",
+    "network.wifi_password": "Wi-Fi password",
+    "network.wifi_password_placeholder": "Password for Wi-Fi client",
+    "network.scan": "Reload Wi-Fi list",
+    "network.connect_client": "Connect as Wi-Fi client",
+    "network.connect_client_error": "Wi-Fi client could not be set",
+    "network.connect_client_started": "Wi-Fi client connection was triggered",
+    "network.ap_eyebrow": "Access point",
+    "network.ap_title": "Provide your own Wi-Fi",
+    "network.ap_hint": "Useful for first-time setup or when no existing Wi-Fi should be used.",
+    "network.ap_ssid": "AP SSID",
+    "network.ap_ssid_placeholder": "WordClock access point",
+    "network.ap_password": "AP password",
+    "network.ap_password_placeholder": "At least 10 characters",
+    "network.start_ap": "Start access point",
+    "network.start_ap_error": "Access point could not be set",
+    "network.start_ap_started": "Access point start was triggered",
+    "network.time_eyebrow": "Time",
+    "network.time_title": "Time server and clock",
+    "network.timeserver": "Time server",
+    "network.save_timeserver": "Save time server",
+    "network.timezone": "Timezone (GMT +/-)",
+    "network.save_timezone": "Save timezone",
+    "network.summertime": "Apply daylight saving time",
+    "network.summertime_disable": "Disable daylight saving time",
+    "network.fetch_network_time": "Fetch network time",
+    "climate.weather_eyebrow": "Weather",
+    "climate.weather_title": "Weather and location",
+    "climate.api_key": "API key",
+    "climate.save_api_key": "Save API key",
+    "climate.choose_location": "Choose location",
+    "climate.city": "City",
+    "climate.save_city": "Save city",
+    "climate.longitude": "Longitude",
+    "climate.latitude": "Latitude",
+    "climate.save_coordinates": "Save coordinates",
+    "climate.pick_on_map": "Pick location on map",
+    "climate.location_ready": "Map and search are ready for location selection.",
+    "climate.load_weather": "Load weather",
+    "climate.weather_hint": "Use the selected location and fetch current values or the forecast.",
+    "climate.fetch_weather": "Fetch weather",
+    "climate.fetch_forecast": "Fetch forecast",
+    "climate.temperature_eyebrow": "Temperature",
+    "climate.temperature_title": "Sensors and correction",
+    "climate.ds18xx_correction": "DS18xx correction (-20 to +20 in 0.5 °C steps)",
+    "climate.save_ds18xx_correction": "Save DS18xx correction",
+    "climate.rtc_correction": "RTC correction (-20 to +20 in 0.5 °C steps)",
+    "climate.save_rtc_correction": "Save RTC correction",
+    "climate.show_temperature": "Show temperature",
+    "climate.ldr_title": "Brightness sensor",
+    "climate.toggle_auto_brightness": "Toggle automatic brightness",
+    "climate.set_min_ldr": "Set current value as minimum",
+    "climate.set_max_ldr": "Set current value as maximum",
+    "climate.enable_auto_brightness": "Enable automatic brightness",
+    "climate.disable_auto_brightness": "Disable automatic brightness",
+    "climate.auto_brightness": "Automatic brightness",
+    "climate.current_ldr_value": "Current LDR value",
+    "climate.minimum": "Minimum",
+    "climate.maximum": "Maximum",
+    "climate.status_on": "on",
+    "climate.status_off": "off",
+    "display.config_eyebrow": "Configuration",
+    "display.config_title": "Key settings",
+    "display.control_eyebrow": "Display",
+    "display.control_title": "Additional controls",
+    "display.brightness": "Display brightness",
+    "display.save_brightness": "Save brightness",
+    "display.color": "Display color",
+    "display.color_hint": "Display color can be selected when no color animation is active.",
+    "display.white_channel": "White channel",
+    "display.save_color": "Save display color",
+    "display.color_save_failed": "Color could not be saved",
+    "display.mode": "Display mode",
+    "display.save_mode": "Save display mode",
+    "display.mode_normal": "Normal",
+    "display.mode_seconds": "Seconds",
+    "display.mode_date": "Date",
+    "display.mode_temperature": "Temperature",
+    "display.mode_ticker": "Ticker",
+    "display.keep_it_is": "Keep “IT IS” visible",
+    "display.keep_it_is_disable": "Disable “IT IS”",
+    "display.ticker_text": "Ticker text",
+    "display.ticker_placeholder": "WordClock ready",
+    "display.save_ticker": "Save ticker",
+    "display.date_format": "Ticker date format",
+    "display.save_date_format": "Save date format",
+    "display.ticker_delay": "Ticker delay",
+    "display.save_ticker_delay": "Save ticker delay",
+    "display.diagnostics": "Diagnostics",
+    "display.diagnostics_hint": "Temporary LED and color test for pure display function verification.",
+    "display.run_test": "Start display test",
+    "display.dim_curve_eyebrow": "Brightness curve",
+    "display.dim_curve_title": "Display",
+    "display.dim_curve_hint": "Dim values for the 16 brightness levels.",
+    "display.dim_level": "Level {idx}",
+    "display.dim_curve_ambilight_title": "Ambilight",
+    "display.dim_curve_ambilight_hint": "Dim values for the 16 Ambilight steps.",
+    "display.presets": "Presets",
+    "display.curve_preset": "Curve preset",
+    "display.apply_preset_save": "Apply preset and save",
+    "display.dim_curve_save": "Save display dim curve",
+    "display.save_ambilight_dim_curve": "Save Ambilight dim curve",
+    "display.tft_eyebrow": "TFT",
+    "display.tft_panel_title": "Panel options",
+    "display.ambilight_control_eyebrow": "Ambilight",
+    "display.ambilight_control_title": "Additional controls",
+    "display.ambilight_brightness": "Ambilight brightness",
+    "display.save_ambilight_brightness": "Save Ambilight brightness",
+    "display.ambilight_mode": "Ambilight mode",
+    "display.save_ambilight_mode": "Save Ambilight mode",
+    "display.ambilight_mode_profiles": "Mode profiles",
+    "display.ambilight_leds": "Ambilight LEDs",
+    "display.save_ambilight_leds": "Save LED count",
+    "display.ambilight_offset": "Offset at second 0",
+    "display.save_ambilight_offset": "Save offset",
+    "display.colors_eyebrow": "Colors",
+    "display.colors_title": "RGBW and synchronization",
+    "display.color_detecting": "Detecting hardware...",
+    "display.marker_color": "Marker color",
+    "display.save_ambilight_color": "Save Ambilight color",
+    "display.save_marker_color": "Save marker color",
+    "display.manual_adjustment": "Manual adjustment",
+    "display.sync_ambilight": "Synchronize Ambilight",
+    "display.unsync_ambilight": "Disable Ambilight synchronization",
+    "display.sync_markers": "Synchronize markers",
+    "display.unsync_markers": "Disable marker synchronization",
+    "display.fade_clock_seconds": "Fade out seconds softly",
+    "display.fade_clock_seconds_disable": "Disable soft fade-out",
+    "display.five_second_markers": "5-second markers",
+    "display.ambilight_modes_unavailable": "No configurable Ambilight modes are available for the detected hardware.",
+    "display.tft_rgb_order": "RGB order",
+    "display.tft_flip_horizontal": "Flip horizontally",
+    "display.tft_flip_vertical": "Flip vertically",
+    "display.save_tft_options": "Save TFT options",
+    "animations.current_eyebrow": "Animations",
+    "animations.current_title": "Current selection",
+    "animations.current_hint": "Choose and save the base mode for display and colors directly.",
+    "animations.display_animation": "Display animation",
+    "animations.save_display_animation": "Save display animation",
+    "animations.color_animation": "Color animation",
+    "animations.save_color_animation": "Save color animation",
+    "animations.display_profiles_eyebrow": "Display animations",
+    "animations.profiles_title": "Profiles",
+    "animations.display_profiles_hint": "Adjust delay and favorites per profile.",
+    "animations.color_profiles_eyebrow": "Color animations",
+    "animations.color_profiles_hint": "Adjust the delay per profile.",
+    "animations.favorite": "Favorite",
+    "animations.delay": "Delay",
+    "animations.profile_save": "Save profile",
+    "animations.default": "Default",
+    "animations.name_fade": "Fade",
+    "animations.name_roll": "Roll",
+    "animations.name_explode": "Explode",
+    "animations.name_snake": "Snake",
+    "animations.name_cube": "Cube",
+    "animations.name_teletype": "Teletype",
+    "animations.name_none": "None",
+    "animations.name_normal": "Normal",
+    "animations.name_clock": "Clock",
+    "animations.name_rainbow": "Rainbow",
+    "animations.name_temperature": "Temperature",
+    "animations.name_ticker": "Ticker",
+    "animations.name_date": "Date",
+    "animations.name_seconds": "Seconds",
+    "overlays.eyebrow": "Overlays",
+    "overlays.title": "Overlay entries",
+    "overlays.hint": "Edit existing overlays or create a new overlay row.",
+    "overlays.new_title": "New overlay",
+    "overlays.new_badge": "New",
+    "overlays.content": "Content",
+    "overlays.type": "Type",
+    "overlays.icon": "Icon",
+    "overlays.value": "Value",
+    "overlays.folder": "Folder",
+    "overlays.track": "Track",
+    "overlays.time_and_date": "Time and date",
+    "overlays.interval": "Interval (min.)",
+    "overlays.duration": "Duration (sec.)",
+    "overlays.date_code": "Date code",
+    "overlays.day": "Day",
+    "overlays.month": "Month",
+    "overlays.days": "Days",
+    "overlays.create": "Create overlay",
+    "overlays.save": "Save overlay",
+    "overlays.cancel": "Cancel",
+    "overlays.display": "Display",
+    "overlays.delete": "Delete",
+    "overlays.type_none": "None",
+    "overlays.type_icon": "Icon",
+    "overlays.type_date": "Date",
+    "overlays.type_temperature": "Temperature",
+    "overlays.type_weather_icon": "Weather icon",
+    "overlays.type_weather_ticker": "Weather ticker",
+    "overlays.type_ticker": "Ticker",
+    "overlays.type_dfplayer": "DFPlayer",
+    "overlays.type_forecast_icon": "Forecast icon",
+    "overlays.type_forecast_ticker": "Forecast ticker",
+    "overlays.type_temperature_digits": "Temperature as digits",
+    "overlays.datecode_none": "----",
+    "overlays.datecode_carnival": "Carnival",
+    "overlays.datecode_easter": "Easter Sunday",
+    "overlays.datecode_advent1": "1st Advent",
+    "overlays.datecode_advent2": "2nd Advent",
+    "overlays.datecode_advent3": "3rd Advent",
+    "overlays.datecode_advent4": "4th Advent",
+    "overlays.save_failed": "Overlay could not be saved",
+    "timers.save_all": "Save all timers",
+    "timers.ambilight_eyebrow": "Ambilight timers",
+    "timers.ambilight_title": "Times for ambilight",
+    "timers.save_all_ambilight": "Save all ambilight timers",
+    "timers.slot": "Slot",
+    "timers.slot_subline": "Timer",
+    "timers.ambilight_slot_subline": "Ambilight timer",
+    "timers.period": "Schedule",
+    "timers.action": "Action",
+    "timers.switch_on": "Switch on",
+    "timers.switch_off": "Switch off",
+    "timers.time": "Time",
+    "timers.from_day": "From day",
+    "timers.to_day": "To day",
+    "timers.clear_slot": "Clear slot",
+    "timers.main_eyebrow": "Timers",
+    "timers.main_title": "Schedules",
+    "dfplayer.volume": "Volume",
+    "dfplayer.volume_save": "Save volume",
+    "dfplayer.volume_save_failed": "DFPlayer volume could not be saved",
+    "dfplayer.panel_eyebrow": "DFPlayer",
+    "dfplayer.panel_title": "Audio and bell",
+    "dfplayer.note_online": "DFPlayer is online.",
+    "dfplayer.note_offline": "DFPlayer is offline and hidden.",
+    "dfplayer.mode": "Mode",
+    "dfplayer.mode_none": "None",
+    "dfplayer.mode_bell": "Bell",
+    "dfplayer.mode_speech": "Speech",
+    "dfplayer.mode_save": "Save mode",
+    "dfplayer.mode_save_failed": "DFPlayer mode could not be saved",
+    "dfplayer.bell_times": "Bell times",
+    "dfplayer.bell_save": "Save bell times",
+    "dfplayer.bell_save_failed": "Bell times could not be saved",
+    "dfplayer.speech": "Speech",
+    "dfplayer.speak_cycle": "Speech cycle",
+    "dfplayer.speak_cycle_save": "Save speech cycle",
+    "dfplayer.speak_cycle_save_failed": "Speech cycle could not be saved",
+    "dfplayer.silence_start": "Silence start",
+    "dfplayer.silence_stop": "Silence end",
+    "dfplayer.silence_start_save": "Save silence start",
+    "dfplayer.silence_stop_save": "Save silence end",
+    "dfplayer.silence_start_save_failed": "Silence start could not be saved",
+    "dfplayer.silence_stop_save_failed": "Silence end could not be saved",
+    "dfplayer.test_folder": "Test folder",
+    "dfplayer.test_track": "Test track",
+    "dfplayer.play_track": "Play track",
+    "dfplayer.play_started": "DFPlayer track started",
+    "dfplayer.play_failed": "DFPlayer track could not be started",
+    "dfplayer.saved_titles": "Titles 001-008",
+    "dfplayer.alarm_title": "Title",
+    "dfplayer.alarm_subline": "Schedule",
+    "dfplayer.from": "From",
+    "dfplayer.to": "To",
+    "dfplayer.time": "Time",
+    "dfplayer.alarm_save_failed": "DFPlayer track could not be saved",
+    "maintenance.update_eyebrow": "Update",
+    "maintenance.source_versions_title": "Source and versions",
+    "maintenance.source_versions_hint": "Overview of the update source, detected versions and available server files.",
+    "maintenance.server": "Server",
+    "maintenance.update_host": "Update host",
+    "maintenance.save_update_host": "Save update host",
+    "maintenance.update_path": "Update path",
+    "maintenance.save_update_path": "Save update path",
+    "maintenance.server_selection": "Server selection",
+    "maintenance.stm32_server_firmware": "STM32 firmware from server",
+    "maintenance.layout_server_table": "Layout table from server",
+    "maintenance.versions": "Versions",
+    "maintenance.update_progress": "Update progress",
+    "maintenance.waiting_for_action": "Waiting for action...",
+    "maintenance.progress_prepare_title": "Prepare",
+    "maintenance.progress_prepare_note": "Update is starting.",
+    "maintenance.progress_bootloader_title": "Bootloader",
+    "maintenance.progress_bootloader_note": "Contacting STM32 bootloader.",
+    "maintenance.progress_hex_check_title": "Check HEX",
+    "maintenance.progress_hex_check_note": "Firmware file is being checked.",
+    "maintenance.progress_flash_erase_title": "Erase flash",
+    "maintenance.progress_flash_erase_note": "STM32 flash is being erased.",
+    "maintenance.progress_flash_write_title": "Write flash",
+    "maintenance.progress_flash_write_note": "Firmware is written and verified.",
+    "maintenance.progress_reset_title": "Reset",
+    "maintenance.progress_reset_note": "STM32 is restarted automatically.",
+    "maintenance.progress_finish_title": "Finish",
+    "maintenance.progress_finish_note": "Data is reloaded.",
+    "maintenance.stm32_prepare_note": "Preparing STM32 update...",
+    "maintenance.stm32_wait_bootloader": "Waiting for STM32 bootloader response...",
+    "maintenance.stm32_bootloader_reached": "STM32 bootloader reached.",
+    "maintenance.stm32_hex_check_running": "Firmware file is being checked.",
+    "maintenance.stm32_flash_erasing": "STM32 flash is being erased.",
+    "maintenance.stm32_flash_writing": "STM32 firmware is being written and verified...",
+    "maintenance.esp_update_waiting": "ESP updated. Waiting for the device to become ready again.",
+    "maintenance.stm32_flash_failed": "STM32 flashing failed.",
+    "maintenance.stm32_flash_done_reset": "STM32 flashing finished. STM32 is now reset automatically.",
+    "maintenance.stm32_local_flash_starting": "Local STM32 flash is starting.",
+    "maintenance.stm32_local_flash_start_failed": "Local STM32 flash could not be started.",
+    "maintenance.stm32_local_upload_failed": "Local STM32 upload failed.",
+    "maintenance.stm32_local_upload_progress": "Uploading STM32 firmware: {percent}%",
+    "maintenance.stm32_local_upload_done": "STM32 firmware uploaded. Flash is starting...",
+    "maintenance.stm32_flash_auto_reset_failed": "STM32 flash finished, automatic reset failed.",
+    "maintenance.stm32_update_response_received": "Update response received.",
+    "maintenance.server_recheck_running": "Rechecking server files with the new update settings...",
+    "maintenance.server_recheck_done": "Server availability rechecked",
+    "maintenance.server_recheck_failed": "Server availability could not be rechecked",
+    "maintenance.weather_file": "Weather file",
+    "maintenance.icon_file": "Icon file",
+    "maintenance.layout_table_file": "Layout table",
+    "maintenance.tft_display_file": "TFT display file",
+    "maintenance.install_app_files_direct": "Install app files directly",
+    "maintenance.remote_eyebrow": "Remote",
+    "maintenance.remote_title": "Load and install from server",
+    "maintenance.remote_hint": "Load available files directly from the update server. Progress and result are shown below.",
+    "maintenance.update_esp": "Update ESP firmware",
+    "maintenance.update_esp_confirm": "Update ESP firmware from the update server now? The device will restart.",
+    "maintenance.update_esp_start": "Starting ESP update...",
+    "maintenance.flash_stm32": "Flash STM32",
+    "maintenance.flash_stm32_confirm": "Flash STM32 now with “{file}”?",
+    "maintenance.flash_stm32_started": "STM32 flash started.",
+    "maintenance.server_files": "Files from server",
+    "maintenance.load_layout_table": "Load layout table",
+    "maintenance.load_icon_files": "Load icon files",
+    "maintenance.load_app_files": "Load app files",
+    "maintenance.service_eyebrow": "Maintenance",
+    "maintenance.service_title": "Service actions",
+    "maintenance.service_hint": "Only for targeted service cases. These actions do not trigger a normal update or backup workflow.",
+    "maintenance.reset_stm32": "Reset STM32",
+    "maintenance.reset_stm32_failed": "STM32 could not be reset",
+    "maintenance.reset_eeprom": "Reset EEPROM",
+    "maintenance.release_notes": "Release notes",
+    "maintenance.files_eyebrow": "Files",
+    "maintenance.files_title": "LittleFS",
+    "maintenance.files_hint": "View, delete, and upload directly to the known target files.",
+    "maintenance.file_list": "File list",
+    "maintenance.file_preview": "File preview",
+    "maintenance.file_actions_status": "Actions and status",
+    "maintenance.preview_placeholder": "The content of the selected file from the file list will be shown here via “Display”.",
+    "maintenance.file_action_placeholder": "No file action has been executed yet.",
+    "maintenance.no_files": "No files found in LittleFS yet.",
+    "maintenance.special_display_target": "TFT special case",
+    "maintenance.no_stm32_files": "no STM32 files found",
+    "maintenance.no_release_notes": "No release notes were read from the server.",
+    "maintenance.fs_total": "Total",
+    "maintenance.fs_used": "Used",
+    "maintenance.fs_block_size": "Block size",
+    "maintenance.fs_page_size": "Page size",
+    "maintenance.fs_max_open_files": "Max. open files",
+    "maintenance.fs_max_path_length": "Max. path length",
+    "maintenance.boot_mode": "Boot mode",
+    "maintenance.boot_mode_ap": "Access point",
+    "maintenance.boot_mode_client": "Wi-Fi client",
+    "maintenance.no_data": "no data",
+    "maintenance.version_flash": "ESP flash",
+    "maintenance.version_ota": "OTA update",
+    "maintenance.version_wc": "WordClock version",
+    "maintenance.version_wc_available": "WordClock available",
+    "maintenance.version_esp": "ESP version",
+    "maintenance.version_esp_available": "ESP available",
+    "maintenance.version_app": "App version",
+    "maintenance.version_app_available": "App available",
+    "maintenance.version_stm32_default": "Default STM32",
+    "maintenance.version_available_yes": "possible",
+    "maintenance.version_available_no": "not possible",
+    "maintenance.local_update_unavailable": "Local update is not available with this ESP flash size.",
+    "maintenance.choose_file_for_target": "Please select a file for {target} first.",
+    "maintenance.file_expected_pattern": "Wrong file selected. Expected a matching table pattern like {pattern} for {target}.",
+    "maintenance.file_expected_exact": "Wrong file selected. Expected {target}.",
+    "maintenance.txt_required": "{target} must be a .txt file.",
+    "maintenance.file_upload_failed": "{target} could not be uploaded",
+    "maintenance.file_upload_failed_detail": "{target} could not be uploaded: {error}",
+    "maintenance.local_uploads": "Upload local files",
+    "maintenance.local_app_assets": "Local app files (.gz)",
+    "maintenance.choose_local_app_folder": "Choose local app folder",
+    "maintenance.local_update_eyebrow": "Local update",
+    "maintenance.local_update_title": "Upload ESP and STM32 firmware",
+    "maintenance.local_update_hint": "Upload local firmware files directly without using the update server.",
+    "maintenance.local_update_partial_support": "Some local PWA update paths are not yet supported by this firmware.",
+    "maintenance.local_update_select_file": "Select an ESP or STM32 file and upload it locally.",
+    "maintenance.local_update_preparing": "Preparing local update...",
+    "maintenance.local_esp_file": "ESP firmware file (.bin)",
+    "maintenance.local_esp_update": "Update ESP locally",
+    "maintenance.local_esp_choose_first": "Please choose an ESP firmware file first.",
+    "maintenance.local_esp_expected": "Expected an ESP .bin file",
+    "maintenance.local_esp_uploading": "Uploading ESP firmware locally...",
+    "maintenance.local_esp_uploaded_wait": "ESP firmware was transferred. Waiting for restart.",
+    "maintenance.local_stm32_file": "STM32 firmware file (.hex)",
+    "maintenance.local_stm32_update": "Update STM32 locally",
+    "maintenance.local_stm32_choose_first": "Please choose an STM32 firmware file first.",
+    "maintenance.local_stm32_expected": "Expected a matching STM32 file",
+    "maintenance.local_stm32_uploading": "Uploading STM32 firmware locally...",
+    "maintenance.local_stm32_update_failed": "STM32 firmware could not be updated.",
+    "maintenance.backup_eyebrow": "Backup",
+    "maintenance.backup_title": "Export and import settings",
+    "maintenance.backup_import_file": "Import backup file",
+    "maintenance.backup_hint": "Saves the configurable settings as a JSON file and restores them on request. The file also contains Wi-Fi and AP data in plain text.",
+    "maintenance.backup_idle": "No backup action has been executed yet.",
+    "weather.map_modal_title": "Choose location on map",
+    "weather.close": "Close",
+    "weather.modal_eyebrow": "Weather",
+    "weather.modal_hint": "Search for a place, tap the map, or use your current location.",
+    "weather.search_place": "Search place",
+    "weather.search_placeholder": "Zurich, Switzerland",
+    "weather.use_current_location": "Use current location",
+    "weather.map_aria": "Location map",
+    "weather.waiting_for_map": "Waiting for map...",
+    "weather.place": "Place",
+    "weather.place_placeholder": "Taken from search or map",
+    "weather.current_location_prefix": "Current:",
+    "status.auto_refresh_paused": "Automatic refresh is paused until unsaved changes are stored",
+    "status.waiting_for_data": "Waiting for data...",
+    "status.updated_at": "Updated {time}",
+    "status.data_load_failed": "Data could not be loaded",
+    "overview.display_mode": "Display mode",
+    "overview.brightness": "Brightness",
+    "overview.auto_brightness": "Automatic brightness",
+    "overview.led_capabilities": "LED capabilities",
+    "overview.timeserver": "Time server",
+    "overview.ticker_delay": "Ticker delay",
+    "overview.last_stm32_restart": "Last STM32 restart",
+    "overview.last_start": "Last start",
+    "overview.weather_location": "Weather location",
+    "overview.ticker": "Ticker",
+    "overview.date_format": "Date format",
+    "overview.ambilight_mode": "Ambilight mode",
+    "overview.ambilight_brightness": "Ambilight brightness",
+    "overview.ambilight_leds": "Ambilight LEDs",
+    "overview.ambilight_offset": "Ambilight offset",
+    "overview.dfplayer_mode": "DFPlayer mode",
+    "overview.dfplayer_volume": "DFPlayer volume",
+    "overview.speak_cycle": "Speech interval",
+    "preview.color_animation": "Color animation",
+    "preview.persisted_display_color": "Saved display color",
+    "preview.live_device_color": "Live device color",
+    "preview.layout_file": "Preview layout",
+    "display.white_channel_inactive": "RGBW hardware detected, but the white channel is currently not active in firmware.",
+    "display.color_direct_available": "The display color can be set directly while no color animation is active.",
+    "display.color_direct_unavailable": "The display color can only be selected directly when color animation = none.",
+    "system.logs_empty": "No STM32 logs available yet.",
+    "system.logs_buffer": "{count} log line{suffix} in buffer.",
+    "system.logs_reload": "Reload logs",
+    "system.logs_clear": "Clear logs",
+    "system.logs_reload_busy": "loading...",
+    "system.logs_clear_busy": "clearing...",
+    "system.logs_loaded": "loaded",
+    "system.logs_cleared": "cleared",
+    "system.logs_load_failed": "STM32 logs could not be loaded",
+    "system.logs_clear_failed": "STM32 logbook could not be cleared",
+    "system.logs_cleared_status": "STM32 logbook was cleared",
+    "system.logs_clear_confirm": "Really clear the STM32 logbook?",
+    "backup.export_button": "Export settings",
+    "backup.import_button": "Import settings",
+    "backup.exported": "exported",
+    "backup.imported": "imported",
+    "backup.export_success": "Settings were exported.",
+    "backup.export_failed": "Settings could not be exported.",
+    "backup.choose_file_first": "Please select a backup file first.",
+    "backup.invalid_format": "Invalid file format – no valid WordClock backup file.",
+    "backup.incompatible_version": "Incompatible backup version – file was created with a newer app.",
+    "backup.import_failed": "Settings could not be imported.",
+    "backup.import_confirm": "Import settings from “{file}” now?",
+    "backup.import_start": "Starting backup restore...",
+    "backup.import_validate": "Checking imported settings...",
+    "backup.import_verify_sections": "Checking display, climate, overlays, and timers...",
+    "backup.import_reload_data": "Reloading updated device data...",
+    "backup.import_network_final": "Applying network settings as final step...",
+    "backup.import_network_verify": "Checking network settings again...",
+    "backup.import_network_wait": "Waiting for network settings to be applied...",
+    "backup.import_sensor_final": "Applying sensor corrections as final step...",
+    "backup.import_sensor_verify": "Checking sensor corrections again...",
+    "backup.import_persist_critical": "Persisting critical settings...",
+    "backup.import_persist_temperature": "Persisting temperature corrections...",
+    "backup.import_wait_persist": "Waiting until settings are stored permanently...",
+    "backup.import_restart_now": "Import complete. STM32 is now restarting automatically...",
+    "backup.import_restart_reload_data": "STM32 restarted. Reloading data...",
+    "backup.import_restart_refreshing": "Import complete. Clock is restarting, app will refresh...",
+    "backup.import_service": "Applying maintenance settings...",
+    "backup.import_assets": "Restoring files and assets...",
+    "backup.import_display": "Applying display settings...",
+    "backup.import_climate": "Applying climate and weather settings...",
+    "backup.import_animations": "Applying animation settings...",
+    "backup.import_tft": "Applying TFT settings...",
+    "backup.import_ambilight": "Applying ambilight settings...",
+    "backup.import_dfplayer": "Applying DFPlayer settings...",
+    "backup.import_overlays": "Applying overlays...",
+    "backup.import_timers": "Applying timers...",
+    "backup.import_display_retry": "Reapplying display settings...",
+    "backup.import_climate_retry": "Reapplying climate and weather settings...",
+    "backup.import_overlays_retry": "Reapplying overlays...",
+    "backup.import_timers_retry": "Reapplying timers...",
+    "backup.import_temperature_retry": "Reapplying temperature corrections...",
+    "backup.import_rtc_final": "Applying RTC correction as final step...",
+    "backup.import_rtc_retry": "Reapplying RTC correction...",
+    "backup.import_network_retry": "Reapplying network and time settings...",
+    "backup.import_network_time_retry": "Reapplying time server and clock settings...",
+    "backup.import_maintenance_retry": "Reapplying update host and update path...",
+    "backup.import_network_time_final": "Applying time server and clock settings as final step...",
+    "backup.import_maintenance_final": "Applying update host and update path as final step...",
+    "backup.import_sensor_persist_final": "Applying sensor corrections as final persistence step...",
+    "backup.import_restart": "Import finished. STM32 will restart automatically",
+    "backup.import_reload": "Import finished. App will reload",
+    "backup.import_reconnect": "Import finished. Connection will be restored after restart",
+    "weather.map_loading": "Loading map service...",
+    "weather.map_load_failed": "Map service could not be loaded.",
+    "weather.map_hint": "Tap the map or search for a place.",
+    "weather.enter_location_first": "Please enter a place first.",
+    "weather.search_busy": "searching...",
+    "weather.searching": "Searching location...",
+    "weather.no_result": "No result found for this place.",
+    "weather.search_button": "Search",
+    "weather.found": "found",
+    "weather.location_found": "Location found and placed on the map.",
+    "weather.search_failed": "Location search could not be loaded.",
+    "weather.current_location_busy": "reading...",
+    "weather.current_location_label": "Use current location",
+    "weather.current_location_reading": "Reading current location...",
+    "weather.current_location_set": "Current location set.",
+    "weather.approx_location_start": "Determining approximate location via internet connection...",
+    "weather.approx_location_city": "Approximate location set: {city}.",
+    "weather.approx_location_set": "Approximate location was set.",
+    "weather.location_unavailable": "Even an approximate location could not be determined.",
+    "weather.map_applied": "Location taken from map.",
+    "weather.reverse_failed": "Coordinates set. Place name could not be resolved.",
+    "weather.map_preview": "Chosen from map: {city} | {lon} / {lat}",
+    "weather.apply_map_busy": "applying...",
+    "weather.apply_map_idle": "Apply to weather",
+    "weather.apply_map_done": "applied",
+    "weather.apply_map_failed": "Weather location and coordinates could not be applied",
+    "weather.apply_map_success": "Weather location and coordinates were applied",
+    "network.scan_busy": "loading...",
+    "network.scan_success": "Wi-Fi list was updated",
+    "network.scan_failed": "Wi-Fi list could not be updated",
+    "local_app.folder_read_failed": "The app folder could not be read",
+    "local_app.folder_browser_failed": "The local app folder could not be opened through the browser.",
+    "local_app.folder_checked": "Checked local app folder: {found}/{total} required files detected.",
+    "local_app.folder_none": "A local app folder was chosen, but the browser did not provide matching app files under app/....",
+    "local_app.note_empty": "No app folder selected yet. Please choose the folder that contains the compressed files (.gz) under app/....",
+    "local_app.note_complete": "App folder fully recognized. {found}/{total} files are ready and can be installed directly.",
+    "local_app.note_missing": "App folder checked. {found}/{total} files found. Missing: {missing}",
+    "local_app.incomplete": "The app folder is not complete yet.",
+    "local_app.missing_required": "Local app files cannot be installed yet. Required files are missing.",
+    "local_app.upload_unsupported": "This firmware does not support local app file upload yet.",
+    "local_app.install_confirm": "Write the local app files directly to the device now?",
+    "local_app.installing": "Installing local app files...",
+    "local_app.installing_fs": "Local app files are being written directly to LittleFS...",
+    "local_app.progress": "Local app files: {step}/{total} {asset}",
+    "local_app.installed_reload": "Local app files installed. Reloading app...",
+    "local_app.installed_status": "Local app files installed. Page will reload.",
+    "local_app.installed_fs": "Local app files were installed successfully.",
+    "local_app.install_button": "Install local app files",
+    "local_app.installed": "installed",
+    "local_app.install_failed": "Local app files could not be installed",
+    "local_app.install_failed_detail": "Local app files could not be installed: {error}",
+    "maintenance.app_install_confirm": "Load and install app files directly from the server now?",
+    "maintenance.app_install_button": "Load app files",
+    "maintenance.app_install_loading": "Loading app files from server...",
+    "maintenance.app_install_running": "Installing app files...",
+    "maintenance.app_install_loaded": "App files were loaded and are being installed...",
+    "maintenance.app_install_reload": "App files installed. Reloading app...",
+    "maintenance.app_install_success": "App files installed. Page will reload.",
+    "maintenance.app_install_failed": "App files could not be loaded",
+    "maintenance.app_install_failed_detail": "App files could not be loaded or installed.",
+    "maintenance.layout_choose_first": "Please select a layout table first",
+    "maintenance.layout_confirm": "Load layout table “{file}” now?",
+    "maintenance.layout_loading": "Loading layout table...",
+    "maintenance.layout_loaded": "Layout table was loaded.",
+    "maintenance.layout_load_failed": "Layout table could not be loaded",
+    "maintenance.layout_button": "Load layout table",
+    "maintenance.reset_stm32_ok": "STM32 was reset",
+    "maintenance.reset_stm32_started_wait": "STM32 reset triggered. Waiting for completion...",
+    "maintenance.reset_stm32_reconnect": "STM32 is ready again. App will reload...",
+    "maintenance.reset_stm32_reconnect_unclear": "STM32 reconnect was not detected reliably. App will reload as a precaution...",
+    "maintenance.esp_ready_reload": "ESP reachable again. Reloading page.",
+    "maintenance.reset_eeprom_confirm_1": "Really reset EEPROM to factory defaults?",
+    "maintenance.reset_eeprom_confirm_2": "Really reset all EEPROM values to factory defaults?",
+    "maintenance.reset_eeprom_busy": "resetting...",
+    "maintenance.reset_eeprom_wait": "waiting...",
+    "maintenance.reset_eeprom_start": "Triggering EEPROM reset...",
+    "maintenance.reset_eeprom_restart": "EEPROM reset triggered. STM32 will restart...",
+    "maintenance.reset_eeprom_reload": "Waiting for STM32 restart. The app will reload afterwards...",
+    "maintenance.reset_eeprom_failed": "EEPROM could not be reset",
+    "maintenance.device_ready_reload": "Device should be ready again. App will reload as a precaution.",
+    "maintenance.no_reconnect_reload": "No reliable reconnect signal received. App will reload as a precaution.",
+    "maintenance.esp_not_ready": "ESP is not reachable again yet. Please reload manually if needed.",
+    "maintenance.unsaved_reload_confirm": "There are unsaved changes. Reload the app anyway?",
+    "maintenance.reloading": "Reloading app...",
+    "maintenance.forced_reload": "Reload is being forced so the updated app becomes visible again.",
+    "maintenance.assets_confirm": "Really load icon files from the server now?",
+    "maintenance.assets_loaded": "Icon files loaded",
+    "maintenance.assets_load_failed": "Icon files could not be loaded",
+    "maintenance.stm32_file_choose_first": "Please choose an STM32 file first",
+    "maintenance.reset_stm32_confirm": "Really reset STM32 now?",
+    "maintenance.format_fs_confirm": "Really format LittleFS?",
+    "maintenance.format_fs_button": "Format LittleFS",
+    "maintenance.format_fs_done": "LittleFS was formatted.",
+    "maintenance.local_esp_waiting": "Local ESP update is running. Waiting for restart and reconnect...",
+    "maintenance.remote_esp_waiting": "ESP is updating right now. Waiting for restart and reconnect...",
+    "maintenance.stm32_auto_reset_wait": "STM32 was reset automatically after flashing. Waiting for completion...",
+    "maintenance.stm32_auto_reset_running": "STM32 is being reset automatically. Data will reload afterwards.",
+    "maintenance.stm32_flash_success": "STM32 update completed successfully.",
+    "maintenance.fs_showing": "Showing file “{file}”.",
+    "maintenance.fs_deleted": "File “{file}” was deleted.",
+    "maintenance.fs_delete_confirm": "Really delete file “{file}”?",
+    "maintenance.file_load_failed": "File could not be loaded",
+    "maintenance.file_delete_failed": "File could not be deleted",
+    "overlays.discarded": "Discarded",
+    "overlays.new_discarded": "New overlay discarded",
+    "overlays.show_failed": "Overlay could not be displayed",
+    "overlays.show_status": "Showing overlay {idx}",
+    "overlays.delete_failed": "Overlay could not be deleted",
+    "overlays.deleted": "Overlay was deleted",
+    "overlays.icon_list_failed": "Icon list could not be loaded",
+    "timers.saved_all": "All timers were saved",
+    "timers.save_all_failed": "Timers could not be fully saved",
+    "timers.save_failed": "Timer could not be saved",
+    "timers.cleared": "Slot cleared",
+    "timers.clear_failed": "Timer could not be cleared",
+    "flags.toggle_failed": "Switch could not be updated",
+    "flags.enabled": "enabled",
+    "flags.disabled": "disabled",
+    "debug.apply_busy": "applying...",
+    "debug.active": "Overrides active",
+    "debug.active_short": "active",
+    "debug.apply_failed": "Overrides could not be applied",
+    "debug.reset_busy": "resetting...",
+    "debug.reset_done": "Overrides reset",
+    "debug.reset_short": "reset",
+    "debug.reset_failed": "Overrides could not be reset",
+    "common.error": "Error",
+    "common.saving": "saving...",
+    "common.loading": "loading...",
+    "common.running": "running...",
+    "common.connecting": "connecting...",
+    "common.starting": "starting...",
+    "common.uploading": "uploading...",
+    "common.deleting": "deleting...",
+    "common.clearing": "clearing...",
+    "common.showing": "showing...",
+    "common.saved": "saved",
+    "common.loaded": "loaded",
+    "common.started": "started",
+    "common.switched_on": "switched on",
+    "common.switched_off": "switched off",
+    "common.applied": "applied",
+    "common.canceled": "discarded",
+    "common.active": "Active",
+    "common.save": "Save",
+    "common.deleted": "deleted",
+    "common.cleared": "cleared",
+    "common.none": "None",
+    "common.offline": "offline",
+    "common.file": "File",
+    "common.display": "View",
+    "common.delete": "Delete",
+    "common.file_upload": "Upload file",
+    "common.loading_short": "loading...",
+    "common.reloading": "reloading...",
+    "common.ready": "done",
+    "common.invalid_file_extension": "Invalid file extension"
+  }
+};
 const LOCAL_APP_REQUIRED_ASSETS = [
   "app/index.html.gz",
   "app/styles.css.gz",
@@ -194,29 +1734,33 @@ const DEFAULT_LAYOUT_PREVIEW_ROWS = {
 };
 const LAYOUT_PREVIEW_ROWS_URL = "/app/layout-previews.json";
 
-const OVERLAY_TYPE_NAMES = [
-  "Keins",
-  "Icon",
-  "Datum",
-  "Temperatur",
-  "Wetter-Icon",
-  "Wetter-Ticker",
-  "Ticker",
-  "DFPlayer",
-  "Wettervorhersage-Icon",
-  "Wettervorhersage-Ticker",
-  "Temperatur als Ziffern"
-];
+function getOverlayTypeNames() {
+  return [
+    translate("overlays.type_none"),
+    translate("overlays.type_icon"),
+    translate("overlays.type_date"),
+    translate("overlays.type_temperature"),
+    translate("overlays.type_weather_icon"),
+    translate("overlays.type_weather_ticker"),
+    translate("overlays.type_ticker"),
+    translate("overlays.type_dfplayer"),
+    translate("overlays.type_forecast_icon"),
+    translate("overlays.type_forecast_ticker"),
+    translate("overlays.type_temperature_digits")
+  ];
+}
 
-const OVERLAY_DATE_CODE_NAMES = [
-  "----",
-  "Karneval",
-  "Ostersonntag",
-  "1. Advent",
-  "2. Advent",
-  "3. Advent",
-  "4. Advent"
-];
+function getOverlayDateCodeNames() {
+  return [
+    translate("overlays.datecode_none"),
+    translate("overlays.datecode_carnival"),
+    translate("overlays.datecode_easter"),
+    translate("overlays.datecode_advent1"),
+    translate("overlays.datecode_advent2"),
+    translate("overlays.datecode_advent3"),
+    translate("overlays.datecode_advent4")
+  ];
+}
 
 const MONTH_OPTIONS = [
   "",
@@ -271,6 +1815,7 @@ let wordclockResizeObserver = null;
 let liveDisplayColorTimer = 0;
 let currentLiveDisplayColor = null;
 let lastLiveDisplayColorMode = 0;
+const LIVE_DISPLAY_COLOR_POLL_INTERVAL_MS = 5000;
 let localAppSelectedFiles = new Map();
 let overlayEditorState = null;
 let stm32LogTimer = 0;
@@ -300,6 +1845,86 @@ const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
 const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
 const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+let currentLanguage = DEFAULT_LANGUAGE;
+
+function normalizeLanguage(language) {
+  return Object.prototype.hasOwnProperty.call(I18N, language) ? language : DEFAULT_LANGUAGE;
+}
+
+function getStoredLanguage() {
+  try {
+    return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
+  } catch (_) {
+    return DEFAULT_LANGUAGE;
+  }
+}
+
+function translate(key) {
+  const active = I18N[currentLanguage] || I18N[DEFAULT_LANGUAGE];
+  const fallback = I18N[DEFAULT_LANGUAGE] || {};
+  return active[key] || fallback[key] || key;
+}
+
+function translateFormat(key, values) {
+  return translate(key).replace(/\{(\w+)\}/g, (_, name) => {
+    if (!values || values[name] === undefined || values[name] === null) {
+      return "";
+    }
+    return String(values[name]);
+  });
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = currentLanguage;
+  document.title = translate("app.title");
+
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    const key = element.getAttribute("data-i18n");
+    if (key) {
+      const translated = translate(key);
+      element.textContent = translated;
+      if (element.tagName === "BUTTON") {
+        element.dataset.restoreText = translated;
+      }
+    }
+  });
+
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    const key = element.getAttribute("data-i18n-aria-label");
+    if (key) {
+      element.setAttribute("aria-label", translate(key));
+    }
+  });
+
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+    const key = element.getAttribute("data-i18n-placeholder");
+    if (key) {
+      element.setAttribute("placeholder", translate(key));
+    }
+  });
+
+  const languageSelect = document.getElementById("language-select");
+  if (languageSelect && languageSelect.value !== currentLanguage) {
+    languageSelect.value = currentLanguage;
+  }
+
+  if (appVersionLabel) {
+    appVersionLabel.textContent = translate("app.version_label") + " " + APP_VERSION;
+  }
+}
+
+function setCurrentLanguage(language, persist) {
+  currentLanguage = normalizeLanguage(language);
+
+  if (persist !== false) {
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, currentLanguage);
+    } catch (_) {
+    }
+  }
+
+  applyStaticTranslations();
+}
 
 function bindElementEvent(id, eventName, handler) {
   const element = document.getElementById(id);
@@ -466,12 +2091,13 @@ bindPrefixEvents(["display", "ambilight", "marker"], (prefix) => [
 const appVersionLabel = document.getElementById("app-version");
 const appVersionCard = document.getElementById("app-version-card");
 
-if (appVersionLabel) {
-  appVersionLabel.textContent = "App-Version " + APP_VERSION;
-}
 if (appVersionCard) {
   appVersionCard.textContent = APP_VERSION;
 }
+bindElementEvent("language-select", "change", (event) => {
+  setCurrentLanguage(event.target && event.target.value ? event.target.value : DEFAULT_LANGUAGE);
+});
+setCurrentLanguage(getStoredLanguage(), false);
 renderLocalAppSelectionStatus();
 
 window.setTimeout(() => {
@@ -610,7 +2236,7 @@ function triggerWaitingServiceWorker(worker) {
 
 function startAlignedAutoRefresh() {
   const intervalMs = 15000;
-  const phaseOffsetMs = 1000;
+  const phaseOffsetMs = 2000;
 
   if (alignedAutoRefreshTimeout) {
     window.clearTimeout(alignedAutoRefreshTimeout);
@@ -651,8 +2277,12 @@ function handleDirtyFormInteraction(event) {
   }
   const activeSection = target.closest(".module-section.is-active");
   const visibleModal = target.closest("#weather-map-modal:not(.is-hidden)");
+  const overlayEditor = target.closest("#overlay-list");
 
   if (!activeSection && !visibleModal) {
+    return;
+  }
+  if (overlayEditor) {
     return;
   }
 
@@ -892,7 +2522,7 @@ function syncModuleNavHint() {
 async function loadData(options) {
   const opts = options || {};
   if (opts.auto && hasUnsavedEdits) {
-    announceStatus("Automatische Aktualisierung pausiert, bis ungespeicherte Änderungen gespeichert sind", "warn");
+    announceStatus(translate("status.auto_refresh_paused"), "warn");
     return;
   }
   if (opts.auto && settingsImportInProgress) {
@@ -906,7 +2536,7 @@ async function loadData(options) {
   const hadSnapshotBeforeLoad = !!getCurrentSettingsSnapshot();
 
   if (!hadSnapshotBeforeLoad && !opts.auto) {
-    announceStatus("Wartet auf Daten...", "warn");
+    announceStatus(translate("status.waiting_for_data"), "warn");
   }
 
   try {
@@ -984,12 +2614,13 @@ async function loadData(options) {
     renderDfplayerAlarmRows(settings);
     overlayEditorState = captureOverlayEditorState();
     renderOverlayRows(settings);
-    const overlayDraftRestored = restoreOverlayEditorState(overlayEditorState);
+    restoreOverlayEditorState(overlayEditorState);
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
-    hasUnsavedEdits = overlayDraftRestored;
     lastSuccessfulLoadAt = Date.now();
-    announceStatus("Aktualisiert " + new Date().toLocaleTimeString("de-CH"));
+    announceStatus(translateFormat("status.updated_at", {
+      time: new Date().toLocaleTimeString(currentLanguage === "en" ? "en-CH" : "de-CH")
+    }));
 
     void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
   } catch (error) {
@@ -997,7 +2628,7 @@ async function loadData(options) {
       if (handleInitialLoadPending(error, opts)) {
         return;
       }
-      announceStatus("Daten konnten nicht geladen werden", "error");
+      announceStatus(translate("status.data_load_failed"), "error");
     } else {
       console.warn("Refresh incomplete, keeping previous snapshot", error);
     }
@@ -1271,12 +2902,15 @@ function updateStm32Log(logData) {
   const count = typeof (logData && logData.count) === "number" ? logData.count : lines.length;
 
   if (!lines.length) {
-    meta.textContent = "Noch keine STM32-Logs vorhanden.";
-    output.textContent = "Noch keine STM32-Logs vorhanden.";
+    meta.textContent = translate("system.logs_empty");
+    output.textContent = translate("system.logs_empty");
     return;
   }
 
-  meta.textContent = count + " Log-Zeile" + (count === 1 ? "" : "n") + " im Puffer.";
+  meta.textContent = translateFormat("system.logs_buffer", {
+    count,
+    suffix: count === 1 ? "" : "n"
+  });
   output.textContent = lines.join("\n");
   output.scrollTop = output.scrollHeight;
 }
@@ -1330,54 +2964,54 @@ function syncStm32LogPolling() {
 async function refreshStm32Log() {
   const button = document.getElementById("stm32-log-refresh-button");
 
-  beginButtonFeedback(button, "lädt...");
+  beginButtonFeedback(button, translate("system.logs_reload_busy"));
 
   try {
     await fetchStm32Log(false);
-    finishButtonFeedback(button, "Logs neu laden", "success", "geladen");
+    finishButtonFeedback(button, translate("system.logs_reload"), "success", translate("system.logs_loaded"));
   } catch (error) {
-    announceStatus("STM32-Logs konnten nicht geladen werden", "error");
-    finishButtonFeedback(button, "Logs neu laden", "error", "Fehler");
+    announceStatus(translate("system.logs_load_failed"), "error");
+    finishButtonFeedback(button, translate("system.logs_reload"), "error", translate("common.error"));
   }
 }
 
 async function clearStm32Log() {
   const button = document.getElementById("stm32-log-clear-button");
 
-  if (!window.confirm("STM32-Logbuch wirklich leeren?")) {
+  if (!window.confirm(translate("system.logs_clear_confirm"))) {
     return;
   }
 
-  beginButtonFeedback(button, "leert...");
+  beginButtonFeedback(button, translate("system.logs_clear_busy"));
 
   try {
     await apiFetch(getStm32LogClearUrl());
     updateStm32Log({ count: 0, lines: [] });
-    announceStatus("STM32-Logbuch wurde geleert", "ok");
-    finishButtonFeedback(button, "Logs leeren", "success", "geleert");
+    announceStatus(translate("system.logs_cleared_status"), "ok");
+    finishButtonFeedback(button, translate("system.logs_clear"), "success", translate("system.logs_cleared"));
   } catch (error) {
-    announceStatus("STM32-Logbuch konnte nicht geleert werden", "error");
-    finishButtonFeedback(button, "Logs leeren", "error", "Fehler");
+    announceStatus(translate("system.logs_clear_failed"), "error");
+    finishButtonFeedback(button, translate("system.logs_clear"), "error", translate("common.error"));
   }
 }
 
 async function toggleDisplayPower() {
   const button = document.getElementById("display-toggle-button");
   await runStateToggleButton(button, getDisplayPowerSetUrl(), {
-    currentValue: () => (document.getElementById("display-power").textContent.trim() === "an" ? "on" : "off"),
-    idleText: button.dataset.restoreText || "Display umschalten",
-    successText: (next) => (next === "on" ? "eingeschaltet" : "ausgeschaltet"),
-    errorText: "Display konnte nicht geschaltet werden"
+    currentValue: () => document.getElementById("display-power").dataset.state === "on" ? "on" : "off",
+    idleText: button.dataset.restoreText || translate("main.display_toggle"),
+    successText: (next) => (next === "on" ? translate("common.switched_on") : translate("common.switched_off")),
+    errorText: translate("main.display_toggle_failed")
   });
 }
 
 async function toggleAmbilightPower() {
   const button = document.getElementById("ambilight-toggle-button");
   await runStateToggleButton(button, getAmbilightPowerSetUrl(), {
-    currentValue: () => (document.getElementById("ambilight-power").textContent.trim() === "an" ? "on" : "off"),
-    idleText: button.dataset.restoreText || "Ambilight umschalten",
-    successText: (next) => (next === "on" ? "eingeschaltet" : "ausgeschaltet"),
-    errorText: "Ambilight konnte nicht geschaltet werden"
+    currentValue: () => document.getElementById("ambilight-power").dataset.state === "on" ? "on" : "off",
+    idleText: button.dataset.restoreText || translate("main.ambilight_toggle"),
+    successText: (next) => (next === "on" ? translate("common.switched_on") : translate("common.switched_off")),
+    errorText: translate("main.ambilight_toggle_failed")
   });
 }
 
@@ -1407,13 +3041,13 @@ async function saveAmbilightOnlineState() {
 async function saveBrightness() {
   const slider = document.getElementById("brightness-slider");
   const value = slider.value;
-  await runValueSave("brightness-save-button", getDisplayBrightnessSetUrl(), value, "Helligkeit speichern", "Helligkeit konnte nicht gespeichert werden");
+  await runValueSave("brightness-save-button", getDisplayBrightnessSetUrl(), value, translate("display.save_brightness"), "Helligkeit konnte nicht gespeichert werden");
 }
 
 async function toggleAutoBrightness() {
   const button = document.getElementById("auto-brightness-button");
   await runStateToggleButton(button, getAutoBrightnessSetUrl(), {
-    idleText: button.dataset.restoreText || "Automatische Helligkeit",
+    idleText: button.dataset.restoreText || translate("climate.auto_brightness"),
     errorText: "Automatische Helligkeit konnte nicht geschaltet werden"
   });
 }
@@ -1421,7 +3055,7 @@ async function toggleAutoBrightness() {
 async function togglePermanentItIs() {
   const button = document.getElementById("display-it-is-button");
   await runStateToggleButton(button, getDisplayItIsSetUrl(), {
-    idleText: button.dataset.restoreText || "„ES IST“ dauerhaft anzeigen",
+    idleText: button.dataset.restoreText || translate("display.keep_it_is"),
     errorText: "„ES IST“ konnte nicht gesetzt werden"
   });
 }
@@ -1578,6 +3212,8 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
 
   setText("display-power", overviewMeta.displayPowerLabel);
   setText("ambilight-power", overviewMeta.ambilightPowerLabel);
+  document.getElementById("display-power").dataset.state = overviewMeta.displayPowerState;
+  document.getElementById("ambilight-power").dataset.state = overviewMeta.ambilightPowerState;
   setText("firmware-version", overviewMeta.firmwareVersion);
   setText("esp-version", overviewMeta.espVersion);
   setText("last-start-overview", overviewMeta.lastStartLabel);
@@ -1601,13 +3237,13 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
 
 function updateDisplayButton(displayPower) {
   const button = document.getElementById("display-toggle-button");
-  button.textContent = displayPower === "on" ? "Display ausschalten" : "Display einschalten";
+  button.textContent = displayPower === "on" ? translate("main.display_turn_off") : translate("main.display_turn_on");
 }
 
 function updateAmbilightButton(ambilightPower, ambilightOnline) {
   const button = document.getElementById("ambilight-toggle-button");
   button.classList.toggle("is-hidden", !ambilightOnline);
-  button.textContent = ambilightPower === "on" ? "Ambilight ausschalten" : "Ambilight einschalten";
+  button.textContent = ambilightPower === "on" ? translate("main.ambilight_turn_off") : translate("main.ambilight_turn_on");
 }
 
 function updateAmbilightOnlineButton(state) {
@@ -1639,7 +3275,7 @@ function updateAmbilightAvailability(state) {
 
 function updateDisplayFlagControls(settings) {
   const meta = getDisplayFormUiMeta(settings).display;
-  setActionToggleButton("display-it-is-button", "„ES IST“ deaktivieren", "„ES IST“ dauerhaft anzeigen", meta.itIsActive);
+  setActionToggleButton("display-it-is-button", translate("display.keep_it_is_disable"), translate("display.keep_it_is"), meta.itIsActive);
 }
 
 function updateBrightnessControl(value, autoState) {
@@ -1649,7 +3285,7 @@ function updateBrightnessControl(value, autoState) {
   slider.value = value;
   slider.disabled = autoState === "on";
   saveButton.disabled = autoState === "on";
-  setActionToggleButton("auto-brightness-button", "Automatische Helligkeit deaktivieren", "Automatische Helligkeit aktivieren", autoState === "on");
+  setActionToggleButton("auto-brightness-button", translate("climate.disable_auto_brightness"), translate("climate.enable_auto_brightness"), autoState === "on");
   syncBrightnessLabel();
 }
 
@@ -1694,7 +3330,7 @@ function updateNetworkControlsFromMeta(meta) {
 
   document.getElementById("network-timeserver-input").value = meta.timeserver;
   document.getElementById("network-timezone-input").value = String(meta.timezoneOffset);
-  setActionToggleButton("network-summertime-button", "Sommerzeit-Berücksichtigung deaktivieren", "Sommerzeit berücksichtigen", meta.summertime);
+  setActionToggleButton("network-summertime-button", translate("network.summertime_disable"), translate("network.summertime"), meta.summertime);
 
   document.getElementById("network-status-note").textContent =
     "SSID: " + (meta.currentSsid || "-") +
@@ -2073,10 +3709,10 @@ async function loadImportedBackupState(file) {
 
 function getSettingsBackupImportErrorMessage(error) {
   return error && error.message === "invalid-backup-format"
-    ? "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei."
+    ? translate("backup.invalid_format")
     : error && error.message === "unsupported-backup-version"
-      ? "Inkompatible Backup-Version – Datei mit einer neueren App erstellt."
-      : "Einstellungen konnten nicht importiert werden.";
+      ? translate("backup.incompatible_version")
+      : translate("backup.import_failed");
 }
 
 async function prepareBackupExportDocument() {
@@ -2349,11 +3985,11 @@ async function exportSettingsBackup() {
     link.click();
     document.body.removeChild(link);
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    setSettingsBackupNote("Einstellungen wurden exportiert.", "ok");
-    finishButtonFeedback(button, "Einstellungen exportieren", "success", "exportiert");
+    setSettingsBackupNote(translate("backup.export_success"), "ok");
+    finishButtonFeedback(button, translate("backup.export_button"), "success", translate("backup.exported"));
   } catch (error) {
-    setSettingsBackupNote("Einstellungen konnten nicht exportiert werden.", "error");
-    finishButtonFeedback(button, "Einstellungen exportieren", "error", "Fehler");
+    setSettingsBackupNote(translate("backup.export_failed"), "error");
+    finishButtonFeedback(button, translate("backup.export_button"), "error", translate("common.error"));
   }
 }
 
@@ -2363,7 +3999,7 @@ async function importSettingsBackup() {
   const file = input && input.files && input.files[0];
 
   if (!file) {
-    setSettingsBackupNote("Bitte zuerst eine Sicherungsdatei auswählen.", "warn");
+    setSettingsBackupNote(translate("backup.choose_file_first"), "warn");
     return;
   }
 
@@ -2372,18 +4008,18 @@ async function importSettingsBackup() {
   try {
     const importedState = await loadImportedBackupState(file);
 
-    if (!window.confirm("Einstellungen aus „" + file.name + "“ jetzt importieren?")) {
-      finishButtonFeedback(button, "Einstellungen importieren");
+    if (!window.confirm(translateFormat("backup.import_confirm", { file: file.name }))) {
+      finishButtonFeedback(button, translate("backup.import_button"));
       return;
     }
 
-    setSettingsBackupNote("Starte Wiederherstellung der Sicherung...");
+    setSettingsBackupNote(translate("backup.import_start"));
     hasUnsavedEdits = false;
     await applySettingsBackup(importedState);
-    finishButtonFeedback(button, "Einstellungen importieren", "success", "importiert");
+    finishButtonFeedback(button, translate("backup.import_button"), "success", translate("backup.imported"));
   } catch (error) {
     setSettingsBackupNote(getSettingsBackupImportErrorMessage(error), "error");
-    finishButtonFeedback(button, "Einstellungen importieren", "error", "Fehler");
+    finishButtonFeedback(button, translate("backup.import_button"), "error", translate("common.error"));
   } finally {
     if (input) {
       input.value = "";
@@ -2556,58 +4192,58 @@ function buildPostPrimaryImportStages(executionState) {
 
   return [
     {
-      note: "Prüfe importierte Einstellungen...",
+      note: translate("backup.import_validate"),
       reloadOnly: true,
       pauseMs: 600
     },
     {
-      note: "Prüfe Display, Klima, Overlays und Timer...",
+      note: translate("backup.import_verify_sections"),
       run: () => retryImportedSectionsIfNeeded(settings)
     },
     {
-      note: "Lade aktualisierte Gerätedaten neu...",
+      note: translate("backup.import_reload_data"),
       reloadOnly: true,
       pauseMs: 400
     },
     {
       when: !!network,
-      note: "Übernehme Netzwerk-Einstellungen abschließend...",
+      note: translate("backup.import_network_final"),
       run: () => importNetworkSettings(network),
       reload: true,
       pauseMs: 400
     },
     {
       when: !!network,
-      note: "Prüfe Netzwerk-Einstellungen erneut...",
+      note: translate("backup.import_network_verify"),
       run: () => retryImportedNetworkSettingsIfNeeded(network)
     },
     {
-      note: "Warte auf die Übernahme der Netzwerkeinstellungen...",
+      note: translate("backup.import_network_wait"),
       pauseMs: 400
     },
     {
       when: !!climate,
-      note: "Übernehme Sensor-Korrekturen abschließend...",
+      note: translate("backup.import_sensor_final"),
       run: () => importSensorCorrectionSettings(climate),
       reload: true,
       pauseMs: 600
     },
     {
       when: !!climate,
-      note: "Prüfe Sensor-Korrekturen erneut...",
+      note: translate("backup.import_sensor_verify"),
       run: () => rerunSensorCorrectionImportIfNeeded(climate)
     },
     {
-      note: "Schreibe kritische Einstellungen dauerhaft...",
+      note: translate("backup.import_persist_critical"),
       run: () => finalizeImportedCriticalPersistenceSettings(settings)
     },
     {
       when: !!climate,
-      note: "Schreibe Temperatur-Korrekturen endgültig...",
+      note: translate("backup.import_persist_temperature"),
       run: () => finalizeTemperatureCorrectionPersistence(climate)
     },
     {
-      note: "Warte, bis Einstellungen dauerhaft gespeichert sind...",
+      note: translate("backup.import_wait_persist"),
       reloadOnly: true,
       pauseMs: 5000
     }
@@ -2624,7 +4260,7 @@ async function rerunSensorCorrectionImportIfNeeded(climate) {
   }
 
   await rerunImportStep(
-    "Übernehme Sensor-Korrekturen erneut...",
+    translate("backup.import_temperature_retry"),
     () => importSensorCorrectionSettings(climate),
     { pauseMs: 600, reload: true }
   );
@@ -2639,21 +4275,21 @@ function buildImportRestartPlan(executionState) {
 async function finalizeImportRestartAndReload(restartPlan) {
   const climate = restartPlan && restartPlan.climate ? restartPlan.climate : null;
 
-  setSettingsBackupNote("Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...");
-  announceStatus("Import abgeschlossen. STM32 wird automatisch neu gestartet", "warn");
+  setSettingsBackupNote(translate("backup.import_restart_now"));
+  announceStatus(translate("backup.import_restart"), "warn");
   await apiFetch(getMaintenanceResetStm32Url());
   await sleep(4500);
   try {
     if (climate) {
       await finalizeTemperatureCorrectionPersistence(climate);
     }
-    setSettingsBackupNote("STM32 wurde neu gestartet. Lade Daten neu...");
+    setSettingsBackupNote(translate("backup.import_restart_reload_data"));
     await loadData();
     setSettingsBackupNote("Import abgeschlossen. App wird neu geladen...", "success");
-    announceStatus("Import abgeschlossen. App wird neu geladen", "ok");
+    announceStatus(translate("backup.import_reload"), "ok");
   } catch (error) {
-    setSettingsBackupNote("Import abgeschlossen. Uhr startet neu, App wird aktualisiert...", "success");
-    announceStatus("Import abgeschlossen. Verbindung wird nach dem Neustart erneut aufgebaut", "ok");
+    setSettingsBackupNote(translate("backup.import_restart_refreshing"), "success");
+    announceStatus(translate("backup.import_reconnect"), "ok");
   }
   setTimeout(reloadAppPage, 1200);
 }
@@ -2662,16 +4298,16 @@ function buildPrimaryImportStages(executionState) {
   const settings = executionState && executionState.settings ? executionState.settings : {};
   const assets = executionState && executionState.assets ? executionState.assets : {};
   return [
-    { note: "Übernehme Wartungs-Einstellungen...", run: () => importMaintenanceSettings(settings.maintenance), pauseMs: 250 },
-    { note: "Stelle Dateien und Assets wieder her...", run: () => restoreBackupAssets(assets, settings), pauseMs: 250 },
-    { note: "Übernehme Display-Einstellungen...", run: () => importDisplaySettings(settings.display), reload: true, pauseMs: 600 },
-    { note: "Übernehme Klima- und Wetter-Einstellungen...", run: () => importClimateSettings(settings.climate), pauseMs: 250 },
-    { note: "Übernehme Animations-Einstellungen...", run: () => importAnimationSettings(settings.animations), pauseMs: 250 },
-    { note: "Übernehme TFT-Einstellungen...", run: () => importTftSettings(settings.tft), pauseMs: 250 },
-    { note: "Übernehme Ambilight-Einstellungen...", run: () => importAmbilightSettings(settings.ambilight), pauseMs: 250 },
-    { note: "Übernehme DFPlayer-Einstellungen...", run: () => importDfplayerSettings(settings.dfplayer), pauseMs: 250 },
-    { note: "Übernehme Overlays...", run: () => importOverlaySettings(settings.overlays), reload: true, pauseMs: 1200 },
-    { note: "Übernehme Timer...", run: () => importTimerSettings(settings.timers), reload: true, pauseMs: 1200 }
+    { note: translate("backup.import_service"), run: () => importMaintenanceSettings(settings.maintenance), pauseMs: 250 },
+    { note: translate("backup.import_assets"), run: () => restoreBackupAssets(assets, settings), pauseMs: 250 },
+    { note: translate("backup.import_display"), run: () => importDisplaySettings(settings.display), reload: true, pauseMs: 600 },
+    { note: translate("backup.import_climate"), run: () => importClimateSettings(settings.climate), pauseMs: 250 },
+    { note: translate("backup.import_animations"), run: () => importAnimationSettings(settings.animations), pauseMs: 250 },
+    { note: translate("backup.import_tft"), run: () => importTftSettings(settings.tft), pauseMs: 250 },
+    { note: translate("backup.import_ambilight"), run: () => importAmbilightSettings(settings.ambilight), pauseMs: 250 },
+    { note: translate("backup.import_dfplayer"), run: () => importDfplayerSettings(settings.dfplayer), pauseMs: 250 },
+    { note: translate("backup.import_overlays"), run: () => importOverlaySettings(settings.overlays), reload: true, pauseMs: 1200 },
+    { note: translate("backup.import_timers"), run: () => importTimerSettings(settings.timers), reload: true, pauseMs: 1200 }
   ];
 }
 
@@ -2693,23 +4329,23 @@ function buildSectionRetryStages(retryState) {
   return [
     {
       shouldRetry: displayImportNeedsRetry(settings.display, snapshot),
-      note: "Übernehme Display-Einstellungen erneut...",
+      note: translate("backup.import_display_retry"),
       run: () => importDisplaySettings(settings.display),
       options: { pauseMs: 800, reload: true }
     },
     {
       shouldRetry: climateImportNeedsRetry(settings.climate, snapshot),
-      note: "Übernehme Klima- und Wetter-Einstellungen erneut...",
+      note: translate("backup.import_climate_retry"),
       run: () => importClimateSettings(settings.climate)
     },
     {
       shouldRetry: overlaysImportNeedsRetry(settings.overlays, snapshot),
-      note: "Übernehme Overlays erneut...",
+      note: translate("backup.import_overlays_retry"),
       run: () => importOverlaySettings(settings.overlays)
     },
     {
       shouldRetry: timersImportNeedsRetry(settings.timers, snapshot),
-      note: "Übernehme Timer erneut...",
+      note: translate("backup.import_timers_retry"),
       run: () => importTimerSettings(settings.timers),
       options: { pauseMs: 1200, reload: true }
     }
@@ -2723,19 +4359,19 @@ function buildClimateFinalizationRetryStages(retryState) {
   return [
     {
       shouldRetry: sensorCorrectionsImportNeedsRetry(climate, snapshot),
-      note: "Übernehme Temperatur-Korrekturen erneut...",
+      note: translate("backup.import_temperature_retry"),
       run: () => importSensorCorrectionSettings(climate),
       options: { pauseMs: 1200, reload: true }
     },
     {
       shouldRetry: rtcCorrectionImportNeedsRetry(climate, snapshot),
-      note: "Übernehme RTC-Korrektur abschließend...",
+      note: translate("backup.import_rtc_final"),
       run: () => importRtcCorrectionSetting(climate),
       options: { pauseMs: 1800, reload: true }
     },
     {
       shouldRetry: rtcCorrectionImportNeedsRetry(climate, snapshot),
-      note: "Übernehme RTC-Korrektur erneut...",
+      note: translate("backup.import_rtc_retry"),
       run: () => importRtcCorrectionSetting(climate),
       options: { pauseMs: 2200, reload: true }
     }
@@ -2750,7 +4386,7 @@ function buildNetworkRetryStages(retryState) {
   return [
     {
       shouldRetry: networkImportNeedsRetry(network, snapshot, eepromSettings),
-      note: "Übernehme Netzwerk- und Zeiteinstellungen erneut...",
+      note: translate("backup.import_network_retry"),
       run: () => importNetworkSettings(network),
       options: { pauseMs: 400, reload: true }
     }
@@ -2765,7 +4401,7 @@ function buildNetworkTimeRetryStages(retryState) {
   return [
     {
       shouldRetry: networkImportNeedsRetry(network, snapshot, eepromSettings),
-      note: "Übernehme Zeitserver- und Uhrzeit-Einstellungen erneut...",
+      note: translate("backup.import_network_time_retry"),
       run: () => importNetworkTimeSettings(network),
       options: { pauseMs: 1500, reload: true }
     }
@@ -2779,7 +4415,7 @@ function buildMaintenanceRetryStages(retryState) {
   return [
     {
       shouldRetry: maintenanceImportNeedsRetry(maintenance, snapshot),
-      note: "Übernehme Update-Host und Update-Pfad erneut...",
+      note: translate("backup.import_maintenance_retry"),
       run: () => importMaintenanceSettings(maintenance),
       options: { pauseMs: 1500, reload: true }
     }
@@ -2801,7 +4437,7 @@ async function finalizeImportedNetworkTimeSettings(network) {
     return;
   }
 
-  setSettingsBackupNote("Übernehme Zeitserver- und Uhrzeit-Einstellungen abschließend...");
+  setSettingsBackupNote(translate("backup.import_network_time_final"));
   await runReloadingImportPhase(() => importNetworkTimeSettings(network), 1000);
 
   await runConditionalImportRetryStages(
@@ -2815,7 +4451,7 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
   const maintenance = settings && settings.maintenance ? settings.maintenance : null;
 
   if (climate) {
-    setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschließend...");
+    setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschliessend...");
     await runTimedImportPhase(() => importSensorCorrectionSettings(climate), 1000);
   }
 
@@ -2824,7 +4460,7 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
   }
 
   if (maintenance) {
-    setSettingsBackupNote("Übernehme Update-Host und Update-Pfad abschließend...");
+    setSettingsBackupNote(translate("backup.import_maintenance_final"));
     await runReloadingImportPhase(() => importMaintenanceSettings(maintenance), 1000);
 
     await runConditionalImportRetryStages(
@@ -3322,7 +4958,7 @@ async function finalizeTemperatureCorrectionPersistence(climate) {
 
   const rtcCorrection = Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0)));
   const ds18xxCorrection = Math.max(-20, Math.min(20, Number(climate.ds18xx_temp_correction || 0)));
-  setSettingsBackupNote("Übernehme Sensor-Korrekturen als letzten Persistenzschritt...");
+  setSettingsBackupNote(translate("backup.import_sensor_persist_final"));
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), rtcCorrection);
   await sleep(500);
   await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), ds18xxCorrection);
@@ -3596,10 +5232,10 @@ function renderPreviewDebug(settings) {
   const previewMeta = getPreviewUiMeta(settings);
 
   renderList("preview-debug-list", [
-    ["Farbanimation", previewMeta.animationLabel],
-    ["Gespeicherte Display-Farbe", formatRgbwColor(previewMeta.staticColor)],
-    ["Live-Farbe vom Gerät", formatRgbwColor(currentLiveDisplayColor)],
-    ["Vorschau-Layout", previewMeta.layoutFile]
+    [translate("preview.color_animation"), previewMeta.animationLabel],
+    [translate("preview.persisted_display_color"), formatRgbwColor(previewMeta.staticColor)],
+    [translate("preview.live_device_color"), formatRgbwColor(currentLiveDisplayColor)],
+    [translate("preview.layout_file"), previewMeta.layoutFile]
   ]);
 }
 
@@ -3666,12 +5302,12 @@ function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAni
   const canEditDisplayColor = capabilities.hasColor && colorAnimationMode === 0;
 
   note.textContent = capabilities.whiteChannel && !useRgbw
-    ? "RGBW-Hardware erkannt, aber der White-Channel ist aktuell firmwareseitig nicht aktiv."
+    ? translate("display.white_channel_inactive")
     : capabilities.note;
   if (displayColorNote) {
     displayColorNote.textContent = canEditDisplayColor
-      ? "Die Display-Farbe kann direkt gesetzt werden, solange keine Farbanimation aktiv ist."
-      : "Die Display-Farbe ist nur direkt wählbar, wenn Farbanimation = Keine ist.";
+      ? translate("display.color_direct_available")
+      : translate("display.color_direct_unavailable");
   }
 
   document.getElementById("display-color-card").classList.toggle("is-hidden", !canEditDisplayColor);
@@ -3694,7 +5330,7 @@ function updateDfplayerControlsFromMeta(meta) {
   const note = document.getElementById("dfplayer-note");
 
   document.getElementById("dfplayer-panel").classList.toggle("is-hidden", !isUp);
-  note.textContent = isUp ? "DFPlayer ist online." : "DFPlayer ist offline und wird ausgeblendet.";
+  note.textContent = isUp ? translate("dfplayer.note_online") : translate("dfplayer.note_offline");
 
   if (!isUp) {
     return;
@@ -3729,20 +5365,20 @@ function renderDfplayerAlarmRowsFromMeta(alarms) {
 
     return (
       '<section class="alarm-card">' +
-        '<div class="card-headline"><div><span class="label">Titel ' + escapeHtml(String(idx + 1).padStart(3, "0")) + '</span><p class="card-subline">Zeitplan</p></div></div>' +
+        '<div class="card-headline"><div><span class="label">' + escapeHtml(translate("dfplayer.alarm_title")) + ' ' + escapeHtml(String(idx + 1).padStart(3, "0")) + '</span><p class="card-subline">' + escapeHtml(translate("dfplayer.alarm_subline")) + '</p></div></div>' +
         '<div class="chip-row">' +
-          '<label class="chip-toggle"><input type="checkbox" id="df-alarm-active-' + idx + '" ' + active + '> Aktiv</label>' +
+          '<label class="chip-toggle"><input type="checkbox" id="df-alarm-active-' + idx + '" ' + active + '> ' + escapeHtml(translate("common.active")) + '</label>' +
         '</div>' +
         '<div class="form-section">' +
-          '<p class="section-label">Zeitraum</p>' +
+          '<p class="section-label">' + escapeHtml(translate("timers.period")) + '</p>' +
           '<div class="timer-fields-grid">' +
-            '<label class="field"><span class="label">Von</span><select id="df-alarm-from-' + idx + '">' + buildWeekdayOptions(fromDay) + "</select></label>" +
-            '<label class="field"><span class="label">Bis</span><select id="df-alarm-to-' + idx + '">' + buildWeekdayOptions(toDay) + "</select></label>" +
-            '<label class="field"><span class="label">Zeit</span><input id="df-alarm-time-' + idx + '" type="time" value="' + escapeHtml(time) + '"></label>' +
+            '<label class="field"><span class="label">' + escapeHtml(translate("dfplayer.from")) + '</span><select id="df-alarm-from-' + idx + '">' + buildWeekdayOptions(fromDay) + "</select></label>" +
+            '<label class="field"><span class="label">' + escapeHtml(translate("dfplayer.to")) + '</span><select id="df-alarm-to-' + idx + '">' + buildWeekdayOptions(toDay) + "</select></label>" +
+            '<label class="field"><span class="label">' + escapeHtml(translate("dfplayer.time")) + '</span><input id="df-alarm-time-' + idx + '" type="time" value="' + escapeHtml(time) + '"></label>' +
           '</div>' +
         '</div>' +
         '<div class="profile-actions">' +
-          '<button class="button primary" type="button" data-alarm-save="' + idx + '">Speichern</button>' +
+          '<button class="button primary" type="button" data-alarm-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
         '</div>' +
       "</section>"
     );
@@ -3762,12 +5398,12 @@ function renderAnimationProfilesFromMeta(items) {
     '<section class="profile-card">' +
       '<div class="panel-head compact"><div><span class="label">' + escapeHtml(item.name || String(item.idx)) + "</span></div></div>" +
       '<div class="control-stack">' +
-        '<div class="slider-row"><label class="label" for="an-dec-' + item.idx + '">Verzögerung</label><strong id="an-dec-value-' + item.idx + '" class="value-pill">' + escapeHtml(String(item.deceleration || 1)) + '</strong></div>' +
+        '<div class="slider-row"><label class="label" for="an-dec-' + item.idx + '">' + escapeHtml(translate("animations.delay")) + '</label><strong id="an-dec-value-' + item.idx + '" class="value-pill">' + escapeHtml(String(item.deceleration || 1)) + '</strong></div>' +
         '<input id="an-dec-' + item.idx + '" type="range" min="1" max="15" value="' + escapeHtml(String(item.deceleration || 1)) + '">' +
-        '<label class="checkbox-line"><input type="checkbox" id="an-fav-' + item.idx + '"' + ((item.flags & 0x02) ? " checked" : "") + '> Favorit</label>' +
+        '<label class="checkbox-line"><input type="checkbox" id="an-fav-' + item.idx + '"' + ((item.flags & 0x02) ? " checked" : "") + '> ' + escapeHtml(translate("animations.favorite")) + '</label>' +
         '<div class="profile-actions">' +
-          '<button class="button" type="button" data-an-default="' + item.idx + '">Standard</button>' +
-          '<button class="button primary" type="button" data-an-save="' + item.idx + '">Profil speichern</button>' +
+          '<button class="button" type="button" data-an-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
+          '<button class="button primary" type="button" data-an-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
@@ -3789,11 +5425,11 @@ function renderColorAnimationProfilesFromMeta(items) {
     '<section class="profile-card">' +
       '<div class="panel-head compact"><div><span class="label">' + escapeHtml(item.name || String(item.idx)) + "</span></div></div>" +
       '<div class="control-stack">' +
-        '<div class="slider-row"><label class="label" for="can-dec-' + item.idx + '">Verzögerung</label><strong id="can-dec-value-' + item.idx + '" class="value-pill">' + escapeHtml(String(item.deceleration || 0)) + '</strong></div>' +
+        '<div class="slider-row"><label class="label" for="can-dec-' + item.idx + '">' + escapeHtml(translate("animations.delay")) + '</label><strong id="can-dec-value-' + item.idx + '" class="value-pill">' + escapeHtml(String(item.deceleration || 0)) + '</strong></div>' +
         '<input id="can-dec-' + item.idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(item.deceleration || 0)) + '">' +
         '<div class="profile-actions">' +
-          '<button class="button" type="button" data-can-default="' + item.idx + '">Standard</button>' +
-          '<button class="button primary" type="button" data-can-save="' + item.idx + '">Profil speichern</button>' +
+          '<button class="button" type="button" data-can-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
+          '<button class="button primary" type="button" data-can-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
@@ -3823,14 +5459,14 @@ function renderAmbilightModeProfilesFromMeta(items) {
     '<section class="alarm-card">' +
       '<div class="panel-head compact"><div><span class="label">' + escapeHtml(localizeAmbilightModeName(item.name || String(item.idx))) + "</span></div></div>" +
       '<div class="alarm-grid">' +
-        '<label class="field"><span class="label">Verzögerung</span><input id="alm-dec-' + item.idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(item.deceleration || 0)) + '"></label>' +
+        '<label class="field"><span class="label">' + escapeHtml(translate("animations.delay")) + '</span><input id="alm-dec-' + item.idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(item.deceleration || 0)) + '"></label>' +
         '<div class="hero-actions">' +
-          '<button class="button" type="button" data-alm-default="' + item.idx + '">Standard</button>' +
-          '<button class="button primary" type="button" data-alm-save="' + item.idx + '">Profil speichern</button>' +
+          '<button class="button" type="button" data-alm-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
+          '<button class="button primary" type="button" data-alm-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
-  )).join("") : '<p class="hint">Für die erkannte Hardware gibt es keine konfigurierbaren Ambilight-Modi.</p>';
+  )).join("") : '<p class="hint">' + escapeHtml(translate("display.ambilight_modes_unavailable")) + '</p>';
 
   bindDataAction(root, "data-alm-save", saveAmbilightModeProfile);
   bindDataAction(root, "data-alm-default", resetAmbilightModeProfile);
@@ -3848,11 +5484,11 @@ function renderFileSystem(fsInfo, files, settings) {
         '<strong class="file-size">' + escapeHtml(formatBytes(file.size ?? 0)) + '</strong>' +
       '</div>' +
       '<div class="file-actions">' +
-          '<button class="button" type="button" data-fs-show="' + escapeHtml(file.name || "") + '">Anzeigen</button>' +
-          '<button class="button" type="button" data-fs-delete="' + escapeHtml(file.name || "") + '">Löschen</button>' +
+          '<button class="button" type="button" data-fs-show="' + escapeHtml(file.name || "") + '">' + escapeHtml(translate("common.display")) + '</button>' +
+          '<button class="button" type="button" data-fs-delete="' + escapeHtml(file.name || "") + '">' + escapeHtml(translate("common.delete")) + '</button>' +
       "</div>" +
     "</section>"
-  )).join("") : '<p class="hint">Noch keine Dateien im LittleFS gefunden.</p>';
+  )).join("") : '<p class="hint">' + escapeHtml(translate("maintenance.no_files")) + '</p>';
 
   bindQueryAll(root, "[data-fs-show]", "click", (button) => showFsFile(button.getAttribute("data-fs-show") || ""));
   bindQueryAll(root, "[data-fs-delete]", "click", (button) => deleteFsFile(button.getAttribute("data-fs-delete") || ""));
@@ -3892,7 +5528,7 @@ function updateUploadFormVisibility(formId, labelId, fileName) {
   form.classList.toggle("is-hidden", !fileName);
   if (fileName) {
     if (formId === "fs-upload-display-form") {
-      label.textContent = "TFT-Sonderfall: " + fileName;
+      label.textContent = translate("maintenance.special_display_target") + ": " + fileName;
     } else {
       label.textContent = fileName;
     }
@@ -3962,7 +5598,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const select = document.getElementById("update-stm32-select");
   select.innerHTML = view.stm32Files.length
     ? view.stm32Files.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === view.stm32Default ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
-    : '<option value="">keine STM32-Dateien gefunden</option>';
+    : '<option value="">' + escapeHtml(translate("maintenance.no_stm32_files")) + '</option>';
 
   const tableField = document.getElementById("update-table-field");
   const tableSelect = document.getElementById("update-table-select");
@@ -3982,7 +5618,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   appFilesButton.classList.toggle("is-hidden", !serverFilesMeta.appFilesActionSupported);
   serverFilesBlock.classList.toggle("is-hidden", !serverFilesMeta.anyActionSupported);
 
-  document.getElementById("update-release-notes").innerHTML = view.releaseNotes || "<p>Keine Release Notes vom Server gelesen.</p>";
+  document.getElementById("update-release-notes").innerHTML = view.releaseNotes || "<p>" + escapeHtml(translate("maintenance.no_release_notes")) + "</p>";
   document.getElementById("update-esp-button").disabled = !view.canUpdate;
   document.getElementById("update-stm32-button").disabled = !view.stm32Files.length;
   tableButton.disabled = !serverFilesMeta.tableAvailable || !serverFilesMeta.tableActionSupported;
@@ -3995,10 +5631,10 @@ function updateLocalUpdateControls(updateStatus) {
   const meta = getUpdateModuleMeta(updateStatus).localUpdate;
   const note = document.getElementById("local-update-note");
   note.textContent = !meta.supported
-    ? (meta.message || "Lokales Update ist bei dieser ESP-Flashgröße nicht verfügbar.")
+    ? translate("maintenance.local_update_unavailable")
     : (!meta.localEspSupported || !meta.localStm32Supported)
-      ? "Einige lokale PWA-Updatepfade werden von dieser Firmware noch nicht unterstützt."
-      : (meta.message || "ESP- oder STM32-Datei auswählen und direkt lokal hochladen.");
+      ? translate("maintenance.local_update_partial_support")
+      : translate("maintenance.local_update_select_file");
   document.getElementById("local-update-esp-file-input").disabled = !meta.supported || !meta.localEspSupported;
   document.getElementById("local-update-esp-submit-button").disabled = !meta.supported || !meta.localEspSupported;
   document.getElementById("local-update-stm32-file-input").disabled = !meta.supported || !meta.localStm32Supported;
@@ -4063,8 +5699,8 @@ function getWeatherUiMeta(settings) {
     lon,
     lat,
     locationPreview: parts.length
-      ? "Aktuell: " + parts.join(" | ")
-      : "Karte und Suche stehen für die Standortwahl bereit."
+      ? translate("weather.current_location_prefix") + " " + parts.join(" | ")
+      : translate("climate.location_ready")
   };
 }
 
@@ -4073,12 +5709,12 @@ function getMaintenanceUiMeta(settings, eepromSettings, fsInfo, files) {
 
   if (fsInfo && fsInfo.total !== undefined) {
     fsInfoItems.push(
-      ["Gesamt", formatBytes(fsInfo.total)],
-      ["Belegt", formatBytes(fsInfo.used)],
-      ["Blockgröße", formatBytes(fsInfo.block_size)],
-      ["Seitengröße", formatBytes(fsInfo.page_size)],
-      ["Max. offene Dateien", String(fsInfo.max_open_files)],
-      ["Max. Pfadlänge", String(fsInfo.max_path_length)]
+      [translate("maintenance.fs_total"), formatBytes(fsInfo.total)],
+      [translate("maintenance.fs_used"), formatBytes(fsInfo.used)],
+      [translate("maintenance.fs_block_size"), formatBytes(fsInfo.block_size)],
+      [translate("maintenance.fs_page_size"), formatBytes(fsInfo.page_size)],
+      [translate("maintenance.fs_max_open_files"), String(fsInfo.max_open_files)],
+      [translate("maintenance.fs_max_path_length"), String(fsInfo.max_path_length)]
     );
   }
 
@@ -4086,11 +5722,11 @@ function getMaintenanceUiMeta(settings, eepromSettings, fsInfo, files) {
     updateHost: settings.strvars[STR.UPDATE_HOST] || "",
     updatePath: settings.strvars[STR.UPDATE_PATH] || "",
     infoItems: [
-      ["WLAN-Client", eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "-"],
-      ["Zugangspunkt", eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "-"],
-      ["Bootmodus", eepromSettings && eepromSettings.boot_as_ap ? "Access Point" : "WLAN-Client"]
+      [translate("maintenance.boot_mode_client"), eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "-"],
+      [translate("network.ap_eyebrow"), eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "-"],
+      [translate("maintenance.boot_mode"), eepromSettings && eepromSettings.boot_as_ap ? translate("maintenance.boot_mode_ap") : translate("maintenance.boot_mode_client")]
     ],
-    fsInfoItems: fsInfoItems.length ? fsInfoItems : [["LittleFS", "keine Daten"]],
+    fsInfoItems: fsInfoItems.length ? fsInfoItems : [["LittleFS", translate("maintenance.no_data")]],
     files: Array.isArray(files) ? files : []
   };
 }
@@ -4191,10 +5827,10 @@ function getLdrUiMeta(settings) {
   return {
     canStoreBounds: autoBrightness,
     items: [
-      ["Automatische Helligkeit", autoBrightness ? "ein" : "aus"],
-      ["Aktueller LDR-Wert", String(settings.numvars[NUM.LDR_RAW_VALUE] || 0)],
-      ["Minimum", String(settings.numvars[NUM.LDR_MIN_VALUE] || 0)],
-      ["Maximum", String(settings.numvars[NUM.LDR_MAX_VALUE] || 0)]
+      [translate("climate.auto_brightness"), autoBrightness ? translate("climate.status_on") : translate("climate.status_off")],
+      [translate("climate.current_ldr_value"), String(settings.numvars[NUM.LDR_RAW_VALUE] || 0)],
+      [translate("climate.minimum"), String(settings.numvars[NUM.LDR_MIN_VALUE] || 0)],
+      [translate("climate.maximum"), String(settings.numvars[NUM.LDR_MAX_VALUE] || 0)]
     ]
   };
 }
@@ -4347,10 +5983,11 @@ function renderDimCurveList(rootId, values, prefix) {
 
   for (let idx = 0; idx <= 15; idx += 1) {
     const value = values[idx] ?? 0;
+    const levelLabel = translateFormat("display.dim_level", { idx });
     rows.push(
       '<section class="dim-card">' +
         '<div class="slider-row">' +
-          '<span class="label">Stufe ' + idx + '</span>' +
+          '<span class="label">' + escapeHtml(levelLabel) + '</span>' +
           '<input id="' + prefix + '-dim-' + idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(value)) + '">' +
           '<strong id="' + prefix + '-dim-value-' + idx + '" class="value-pill">' + escapeHtml(String(value)) + '</strong>' +
         '</div>' +
@@ -4422,16 +6059,16 @@ function applyDimPreset(prefix) {
 
 async function applyDimPresetAndSave(prefix) {
   const button = document.getElementById(prefix === "ambi" ? "ambilight-dim-preset-apply-button" : "display-dim-preset-apply-button");
-  const buttonText = "Preset anwenden und speichern";
+  const buttonText = translate("display.apply_preset_save");
 
-  beginButtonFeedback(button, "speichert...");
+  beginButtonFeedback(button, translate("common.saving"));
   applyDimPreset(prefix);
 
   try {
     await persistDimCurve(prefix, button, buttonText);
   } catch (error) {
     announceStatus("Preset konnte nicht angewendet werden", "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
+    finishButtonFeedback(button, buttonText, "error", translate("common.error"));
   }
 }
 
@@ -4454,47 +6091,48 @@ function renderOverlayRowsFromMeta(items) {
     const showDateStart = overlay.date_code === 0;
     const showDays = !(overlay.date_code === 0 && !overlay.date_start);
     const idx = overlay.idx;
-    const title = overlay.isNew ? "Neues Overlay" : "Overlay " + String(idx);
-    const overlayTypeName = OVERLAY_TYPE_NAMES[type] || "Keins";
+    const title = overlay.isNew ? translate("overlays.new_title") : "Overlay " + String(idx);
+    const overlayTypeNames = getOverlayTypeNames();
+    const overlayTypeName = overlayTypeNames[type] || translate("common.none");
 
     return (
       '<section class="overlay-card" data-overlay-idx="' + idx + '"' + (overlay.isNew ? ' data-overlay-new="1"' : '') + '>' +
         '<div class="card-headline">' +
           '<div><span class="label">' + escapeHtml(title) + '</span><p class="card-subline">' + escapeHtml(overlayTypeName) + '</p></div>' +
-          (overlay.isNew ? '<span class="state-pill">Neu</span>' : '') +
+          (overlay.isNew ? '<span class="state-pill">' + escapeHtml(translate("overlays.new_badge")) + '</span>' : '') +
         '</div>' +
         '<div class="chip-row">' +
-          '<label class="chip-toggle"><input type="checkbox" id="ov-active-' + idx + '"' + ((overlay.flags & 0x01) ? " checked" : "") + '> Aktiv</label>' +
+          '<label class="chip-toggle"><input type="checkbox" id="ov-active-' + idx + '"' + ((overlay.flags & 0x01) ? " checked" : "") + '> ' + escapeHtml(translate("common.active")) + '</label>' +
         '</div>' +
         '<div class="overlay-layout">' +
           '<div class="form-section">' +
-            '<p class="section-label">Inhalt</p>' +
-            '<label class="field"><span class="label">Typ</span><select id="ov-type-' + idx + '">' + buildNamedOptions(OVERLAY_TYPE_NAMES, overlay.type) + "</select></label>" +
-            '<label id="ov-icon-wrap-' + idx + '" class="field' + (showIcon ? '' : ' is-hidden') + '"><span class="label">Icon</span><select id="ov-icon-' + idx + '">' + buildIconOptions(overlay.text || "") + '</select></label>' +
-            '<label id="ov-value-wrap-' + idx + '" class="field' + (showText ? '' : ' is-hidden') + '"><span class="label">Wert</span><input id="ov-value-' + idx + '" type="text" maxlength="32" value="' + escapeHtml(overlay.text || "") + '"></label>' +
+            '<p class="section-label">' + escapeHtml(translate("overlays.content")) + '</p>' +
+            '<label class="field"><span class="label">' + escapeHtml(translate("overlays.type")) + '</span><select id="ov-type-' + idx + '">' + buildNamedOptions(overlayTypeNames, overlay.type) + "</select></label>" +
+            '<label id="ov-icon-wrap-' + idx + '" class="field' + (showIcon ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.icon")) + '</span><select id="ov-icon-' + idx + '">' + buildIconOptions(overlay.text || "") + '</select></label>' +
+            '<label id="ov-value-wrap-' + idx + '" class="field' + (showText ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.value")) + '</span><input id="ov-value-' + idx + '" type="text" maxlength="32" value="' + escapeHtml(overlay.text || "") + '"></label>' +
             '<div id="ov-mp3-wrap-' + idx + '" class="time-grid' + (showMp3 ? '' : ' is-hidden') + '">' +
-              '<label class="field"><span class="label">Ordner</span><input id="ov-folder-' + idx + '" type="number" min="0" max="99" step="1" value="' + escapeHtml(mp3.folder) + '"></label>' +
-              '<label class="field"><span class="label">Track</span><input id="ov-track-' + idx + '" type="number" min="0" max="999" step="1" value="' + escapeHtml(mp3.track) + '"></label>' +
+              '<label class="field"><span class="label">' + escapeHtml(translate("overlays.folder")) + '</span><input id="ov-folder-' + idx + '" type="number" min="0" max="99" step="1" value="' + escapeHtml(mp3.folder) + '"></label>' +
+              '<label class="field"><span class="label">' + escapeHtml(translate("overlays.track")) + '</span><input id="ov-track-' + idx + '" type="number" min="0" max="999" step="1" value="' + escapeHtml(mp3.track) + '"></label>' +
             '</div>' +
           '</div>' +
           '<div class="form-section">' +
-            '<p class="section-label">Zeit und Datum</p>' +
+            '<p class="section-label">' + escapeHtml(translate("overlays.time_and_date")) + '</p>' +
             '<div class="overlay-time-grid">' +
-              '<label class="field"><span class="label">Intervall (Min.)</span><input id="ov-interval-' + idx + '" type="number" min="1" max="99" step="1" value="' + escapeHtml(String(overlay.interval || 5)) + '"></label>' +
-              '<label id="ov-duration-wrap-' + idx + '" class="field' + (showDuration ? '' : ' is-hidden') + '"><span class="label">Dauer (Sek.)</span><input id="ov-duration-' + idx + '" type="number" min="5" max="9" step="1" value="' + escapeHtml(String(overlay.duration || 5)) + '"></label>' +
+              '<label class="field"><span class="label">' + escapeHtml(translate("overlays.interval")) + '</span><input id="ov-interval-' + idx + '" type="number" min="1" max="99" step="1" value="' + escapeHtml(String(overlay.interval || 5)) + '"></label>' +
+              '<label id="ov-duration-wrap-' + idx + '" class="field' + (showDuration ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.duration")) + '</span><input id="ov-duration-' + idx + '" type="number" min="5" max="9" step="1" value="' + escapeHtml(String(overlay.duration || 5)) + '"></label>' +
             '</div>' +
-            '<label id="ov-datecode-wrap-' + idx + '" class="field"><span class="label">Datums-Code</span><select id="ov-datecode-' + idx + '">' + buildNamedOptions(OVERLAY_DATE_CODE_NAMES, overlay.date_code) + '</select></label>' +
+            '<label id="ov-datecode-wrap-' + idx + '" class="field"><span class="label">' + escapeHtml(translate("overlays.date_code")) + '</span><select id="ov-datecode-' + idx + '">' + buildNamedOptions(getOverlayDateCodeNames(), overlay.date_code) + '</select></label>' +
             '<div class="overlay-date-grid">' +
-              '<label id="ov-day-wrap-' + idx + '" class="field' + (showDateStart ? '' : ' is-hidden') + '"><span class="label">Tag</span><select id="ov-day-' + idx + '">' + buildDayOptions(day) + '</select></label>' +
-              '<label id="ov-month-wrap-' + idx + '" class="field' + (showDateStart ? '' : ' is-hidden') + '"><span class="label">Monat</span><select id="ov-month-' + idx + '">' + buildMonthOptions(month) + '</select></label>' +
-              '<label id="ov-days-wrap-' + idx + '" class="field' + (showDays ? '' : ' is-hidden') + '"><span class="label">Tage</span><input id="ov-days-' + idx + '" type="number" min="1" max="255" step="1" value="' + escapeHtml(String(overlay.days || 1)) + '"></label>' +
+              '<label id="ov-day-wrap-' + idx + '" class="field' + (showDateStart ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.day")) + '</span><select id="ov-day-' + idx + '">' + buildDayOptions(day) + '</select></label>' +
+              '<label id="ov-month-wrap-' + idx + '" class="field' + (showDateStart ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.month")) + '</span><select id="ov-month-' + idx + '">' + buildMonthOptions(month) + '</select></label>' +
+              '<label id="ov-days-wrap-' + idx + '" class="field' + (showDays ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.days")) + '</span><input id="ov-days-' + idx + '" type="number" min="1" max="255" step="1" value="' + escapeHtml(String(overlay.days || 1)) + '"></label>' +
             '</div>' +
           '</div>' +
           '<div class="profile-actions overlay-actions">' +
-            '<button class="button primary" type="button" data-overlay-save="' + idx + '">' + (overlay.isNew ? "Overlay anlegen" : "Overlay speichern") + "</button>" +
+            '<button class="button primary" type="button" data-overlay-save="' + idx + '">' + escapeHtml(overlay.isNew ? translate("overlays.create") : translate("overlays.save")) + "</button>" +
             (overlay.isNew
-              ? '<button class="button is-hidden" type="button" data-overlay-cancel="' + idx + '">Abbrechen</button>'
-              : '<button class="button" type="button" data-overlay-display="' + idx + '">Anzeigen</button><button class="button" type="button" data-overlay-delete="' + idx + '">Löschen</button>') +
+              ? '<button class="button is-hidden" type="button" data-overlay-cancel="' + idx + '">' + escapeHtml(translate("overlays.cancel")) + '</button>'
+              : '<button class="button" type="button" data-overlay-display="' + idx + '">' + escapeHtml(translate("overlays.display")) + '</button><button class="button" type="button" data-overlay-delete="' + idx + '">' + escapeHtml(translate("overlays.delete")) + '</button>') +
           '</div>' +
         "</div>" +
       "</section>"
@@ -4538,22 +6176,22 @@ function renderTimerRowsFromMeta(items, isAmbilight) {
 
     return (
       '<section class="alarm-card">' +
-        '<div class="card-headline"><div><span class="label">Slot ' + escapeHtml(String(idx)) + '</span><p class="card-subline">' + (isAmbilight ? 'Ambilight-Timer' : 'Timer') + '</p></div></div>' +
+        '<div class="card-headline"><div><span class="label">' + escapeHtml(translate("timers.slot")) + ' ' + escapeHtml(String(idx)) + '</span><p class="card-subline">' + escapeHtml(isAmbilight ? translate("timers.ambilight_slot_subline") : translate("timers.slot_subline")) + '</p></div></div>' +
         '<div class="chip-row">' +
-          '<label class="chip-toggle"><input type="checkbox" id="' + prefix + '-active-' + idx + '" ' + active + '> Aktiv</label>' +
-          '<label class="field timer-action-field"><span class="label">Aktion</span><select id="' + prefix + '-action-' + idx + '"><option value="on"' + ((item.flags & 0x40) ? ' selected' : '') + '>Einschalten</option><option value="off"' + (!(item.flags & 0x40) ? ' selected' : '') + '>Ausschalten</option></select></label>' +
+          '<label class="chip-toggle"><input type="checkbox" id="' + prefix + '-active-' + idx + '" ' + active + '> ' + escapeHtml(translate("common.active")) + '</label>' +
+          '<label class="field timer-action-field"><span class="label">' + escapeHtml(translate("timers.action")) + '</span><select id="' + prefix + '-action-' + idx + '"><option value="on"' + ((item.flags & 0x40) ? ' selected' : '') + '>' + escapeHtml(translate("timers.switch_on")) + '</option><option value="off"' + (!(item.flags & 0x40) ? ' selected' : '') + '>' + escapeHtml(translate("timers.switch_off")) + '</option></select></label>' +
         '</div>' +
         '<div class="form-section">' +
-          '<p class="section-label">Zeitraum</p>' +
+          '<p class="section-label">' + escapeHtml(translate("timers.period")) + '</p>' +
           '<div class="timer-fields-grid">' +
-            '<label class="field"><span class="label">Von</span><select id="' + prefix + '-from-' + idx + '">' + buildWeekdayOptions(fromDay) + "</select></label>" +
-            '<label class="field"><span class="label">Bis</span><select id="' + prefix + '-to-' + idx + '">' + buildWeekdayOptions(toDay) + "</select></label>" +
-            '<label class="field"><span class="label">Zeit</span><input id="' + prefix + '-time-' + idx + '" type="time" value="' + escapeHtml(time) + '"></label>' +
+            '<label class="field"><span class="label">' + escapeHtml(translate("timers.from_day")) + '</span><select id="' + prefix + '-from-' + idx + '">' + buildWeekdayOptions(fromDay) + "</select></label>" +
+            '<label class="field"><span class="label">' + escapeHtml(translate("timers.to_day")) + '</span><select id="' + prefix + '-to-' + idx + '">' + buildWeekdayOptions(toDay) + "</select></label>" +
+            '<label class="field"><span class="label">' + escapeHtml(translate("timers.time")) + '</span><input id="' + prefix + '-time-' + idx + '" type="time" value="' + escapeHtml(time) + '"></label>' +
           '</div>' +
         '</div>' +
         '<div class="profile-actions">' +
-          '<button class="button primary" type="button" data-' + prefix + '-save="' + idx + '">Speichern</button>' +
-          '<button class="button" type="button" data-' + prefix + '-clear="' + idx + '">Leeren</button>' +
+          '<button class="button primary" type="button" data-' + prefix + '-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
+          '<button class="button" type="button" data-' + prefix + '-clear="' + idx + '">' + escapeHtml(translate("timers.clear_slot")) + '</button>' +
         '</div>' +
       "</section>"
     );
@@ -4581,9 +6219,9 @@ function updateFlagControls(settings, ambilightOnline) {
 
 function updateFlagControlsFromMeta(meta) {
 
-  setActionToggleButton("sync-ambilight-button", "Ambilight-Synchronisierung deaktivieren", "Ambilight synchronisieren", meta.syncAmbilight);
-  setActionToggleButton("sync-markers-button", "Marker-Synchronisierung deaktivieren", "Marker synchronisieren", meta.syncMarkers);
-  setActionToggleButton("fade-clock-seconds-button", "Weiches Ausblenden deaktivieren", "Sekunden weich ausblenden", meta.fadeClockSeconds);
+  setActionToggleButton("sync-ambilight-button", translate("display.unsync_ambilight"), translate("display.sync_ambilight"), meta.syncAmbilight);
+  setActionToggleButton("sync-markers-button", translate("display.unsync_markers"), translate("display.sync_markers"), meta.syncMarkers);
+  setActionToggleButton("fade-clock-seconds-button", translate("display.fade_clock_seconds_disable"), translate("display.fade_clock_seconds"), meta.fadeClockSeconds);
   setActionToggleButton("ambilight-markers-button", "5-Sekunden-Marker deaktivieren", "5-Sekunden-Marker aktivieren", meta.ambilightMarkers);
 }
 
@@ -4641,72 +6279,72 @@ function syncWhiteChannelLabel(prefix) {
 
 async function saveDisplayMode() {
   const value = document.getElementById("display-mode-select").value;
-  await runValueSave("display-mode-save-button", getDisplayModeSetUrl(), value, "Display-Modus speichern", "Display-Modus konnte nicht gespeichert werden");
+  await runValueSave("display-mode-save-button", getDisplayModeSetUrl(), value, translate("display.save_mode"), "Display-Modus konnte nicht gespeichert werden");
 }
 
 async function saveTickerText() {
   const value = document.getElementById("ticker-text-input").value;
-  await runValueSave("ticker-save-button", getTickerSetUrl(), value, "Ticker speichern", "Ticker konnte nicht gespeichert werden");
+  await runValueSave("ticker-save-button", getTickerSetUrl(), value, translate("display.save_ticker"), "Ticker konnte nicht gespeichert werden");
 }
 
 async function saveDateTickerFormat() {
   const value = document.getElementById("date-format-input").value;
-  await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, "Datumsformat speichern", "Datumsformat konnte nicht gespeichert werden");
+  await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, translate("display.save_date_format"), "Datumsformat konnte nicht gespeichert werden");
 }
 
 async function saveTickerDeceleration() {
   const input = document.getElementById("ticker-deceleration-input");
   const value = Math.max(0, Math.min(255, Number(input.value || 0)));
   input.value = String(value);
-  await runValueSave("ticker-deceleration-save-button", getTickerDecelerationSetUrl(), value, "Ticker-Verzögerung speichern", "Ticker-Verzögerung konnte nicht gespeichert werden");
+  await runValueSave("ticker-deceleration-save-button", getTickerDecelerationSetUrl(), value, translate("display.save_ticker_delay"), translate("display.ticker_delay_save_failed"));
 }
 
 async function testDisplay() {
   const button = document.getElementById("test-display-button");
-  const restoreText = "Displaytest starten";
+  const restoreText = translate("display.run_test");
   const maxRunTimeMs = 45000;
 
-  beginButtonFeedback(button, "läuft...");
+  beginButtonFeedback(button, translate("common.running"));
 
   try {
     await apiFetch(getDisplayTestUrl());
-    announceStatus("Displaytest läuft", "ok");
+    announceStatus(translate("display.test_running"), "ok");
     window.setTimeout(() => {
       finishButtonFeedback(button, restoreText);
     }, maxRunTimeMs);
   } catch (error) {
-    announceStatus("Displaytest konnte nicht gestartet werden", "error");
-    finishButtonFeedback(button, restoreText, "error", "Fehler");
+    announceStatus(translate("display.test_start_failed"), "error");
+    finishButtonFeedback(button, restoreText, "error", translate("common.error"));
   }
 }
 
 async function saveWeatherAppId() {
   const value = document.getElementById("weather-appid-input").value || "";
-  await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, "API-Schlüssel speichern", "API-Schlüssel konnte nicht gespeichert werden");
+  await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, translate("climate.save_api_key"), "API-Schlüssel konnte nicht gespeichert werden");
 }
 
 async function saveWeatherCity() {
   const value = document.getElementById("weather-city-input").value || "";
-  await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, "Ort speichern", "Ort konnte nicht gespeichert werden");
+  await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, translate("climate.save_city"), "Ort konnte nicht gespeichert werden");
 }
 
 async function saveWeatherCoordinates() {
   const lon = document.getElementById("weather-lon-input").value || "";
   const lat = document.getElementById("weather-lat-input").value || "";
-  await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, "Koordinaten speichern", "Koordinaten konnten nicht gespeichert werden");
+  await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, translate("climate.save_coordinates"), "Koordinaten konnten nicht gespeichert werden");
 }
 
 async function getWeatherNow() {
-  await runWeatherAction("weather-now-button", getWeatherNowUrl(), "Wetter abrufen", "Wetter konnte nicht angefordert werden");
+  await runWeatherAction("weather-now-button", getWeatherNowUrl(), translate("climate.fetch_weather"), "Wetter konnte nicht angefordert werden");
 }
 
 async function getWeatherForecast() {
-  await runWeatherAction("weather-forecast-button", getWeatherForecastUrl(), "Wettervorhersage abrufen", "Wettervorhersage konnte nicht angefordert werden");
+  await runWeatherAction("weather-forecast-button", getWeatherForecastUrl(), translate("climate.fetch_forecast"), "Wettervorhersage konnte nicht angefordert werden");
 }
 
 async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
   await runButtonRequestById(buttonId, {
-    busyText: "läuft...",
+    busyText: translate("common.running"),
     idleText: buttonText,
     successText: "angefragt",
     errorText,
@@ -4785,13 +6423,13 @@ async function openWeatherMapPicker() {
   const status = document.getElementById("weather-map-status");
   modal.classList.remove("is-hidden");
   modal.setAttribute("aria-hidden", "false");
-  status.textContent = "Kartendienst wird geladen...";
+  status.textContent = translate("weather.map_loading");
 
   try {
     await ensureLeafletAssets();
     initializeWeatherMap();
   } catch (_) {
-    status.textContent = "Kartendienst konnte nicht geladen werden.";
+    status.textContent = translate("weather.map_load_failed");
   }
 }
 
@@ -4805,7 +6443,7 @@ function initializeWeatherMap() {
   const status = document.getElementById("weather-map-status");
 
   if (!window.L) {
-    status.textContent = "Kartendienst konnte nicht geladen werden.";
+    status.textContent = translate("weather.map_load_failed");
     return;
   }
 
@@ -4824,7 +6462,7 @@ function initializeWeatherMap() {
   }
 
   syncWeatherMapFromInputs();
-  status.textContent = "Tippe auf die Karte oder suche einen Ort.";
+  status.textContent = translate("weather.map_hint");
   setTimeout(() => weatherMap.invalidateSize(), 50);
 }
 
@@ -4878,12 +6516,12 @@ async function searchWeatherLocation() {
   const status = document.getElementById("weather-map-status");
 
   if (!query) {
-    status.textContent = "Bitte zuerst einen Ort eingeben.";
+    status.textContent = translate("weather.enter_location_first");
     return;
   }
 
-  beginButtonFeedback(button, "sucht...");
-  status.textContent = "Ort wird gesucht...";
+  beginButtonFeedback(button, translate("weather.search_busy"));
+  status.textContent = translate("weather.searching");
 
   try {
     const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" + encodeURIComponent(query);
@@ -4894,8 +6532,8 @@ async function searchWeatherLocation() {
     const results = await response.json();
 
     if (!Array.isArray(results) || !results.length) {
-      status.textContent = "Kein Treffer für diesen Ort gefunden.";
-      finishButtonFeedback(button, "Suchen", "error", "kein Treffer");
+      status.textContent = translate("weather.no_result");
+      finishButtonFeedback(button, translate("weather.search_button"), "error", translate("weather.no_result"));
       return;
     }
 
@@ -4906,11 +6544,11 @@ async function searchWeatherLocation() {
 
     setWeatherMapSelection(lat, lon, city);
     weatherMap.setView([lat, lon], 11);
-    status.textContent = "Ort gefunden und auf der Karte gesetzt.";
-    finishButtonFeedback(button, "Suchen", "success", "gefunden");
+    status.textContent = translate("weather.location_found");
+    finishButtonFeedback(button, translate("weather.search_button"), "success", translate("weather.found"));
   } catch (error) {
-    status.textContent = "Ortssuche konnte nicht geladen werden.";
-    finishButtonFeedback(button, "Suchen", "error", "Fehler");
+    status.textContent = translate("weather.search_failed");
+    finishButtonFeedback(button, translate("weather.search_button"), "error", translate("common.error"));
   }
 }
 
@@ -4928,8 +6566,8 @@ function useCurrentWeatherLocation() {
     return;
   }
 
-  beginButtonFeedback(button, "liest...");
-  status.textContent = "Aktueller Standort wird gelesen...";
+  beginButtonFeedback(button, translate("weather.current_location_busy"));
+  status.textContent = translate("weather.current_location_reading");
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
@@ -4938,9 +6576,9 @@ function useCurrentWeatherLocation() {
 
       setWeatherMapSelection(lat, lon, document.getElementById("weather-map-city-input").value || "");
       weatherMap.setView([lat, lon], 12);
-      status.textContent = "Aktueller Standort gesetzt.";
+      status.textContent = translate("weather.current_location_set");
       reverseLookupWeatherLocation(lat, lon);
-      finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
+      finishButtonFeedback(button, translate("weather.current_location_label"), "success", translate("weather.apply_map_done"));
     },
     (error) => {
       if (error && error.code === 1) {
@@ -4962,7 +6600,7 @@ async function useApproximateWeatherLocation(initialMessage) {
   const status = document.getElementById("weather-map-status");
 
   beginButtonFeedback(button, "ermittelt...");
-  status.textContent = initialMessage || "Näherungsstandort über Internetverbindung wird ermittelt...";
+  status.textContent = initialMessage || translate("weather.approx_location_start");
 
   try {
     const response = await fetch("https://ipapi.co/json/", {
@@ -4983,12 +6621,12 @@ async function useApproximateWeatherLocation(initialMessage) {
       weatherMap.setView([lat, lon], 10);
     }
     status.textContent = city
-      ? "Näherungsstandort gesetzt: " + city + "."
-      : "Näherungsstandort wurde gesetzt.";
-    finishButtonFeedback(button, "Aktuellen Standort verwenden", "success", "gesetzt");
+      ? translateFormat("weather.approx_location_city", { city })
+      : translate("weather.approx_location_set");
+    finishButtonFeedback(button, translate("weather.current_location_label"), "success", translate("weather.apply_map_done"));
   } catch (error) {
-    status.textContent = "Standort konnte auch näherungsweise nicht ermittelt werden.";
-    finishButtonFeedback(button, "Aktuellen Standort verwenden", "error", "Fehler");
+    status.textContent = translate("weather.location_unavailable");
+    finishButtonFeedback(button, translate("weather.current_location_label"), "error", translate("common.error"));
   }
 }
 
@@ -5009,9 +6647,9 @@ async function reverseLookupWeatherLocation(lat, lon) {
     if (selectedWeatherLocation) {
       selectedWeatherLocation.city = city;
     }
-    status.textContent = "Standort aus Karte übernommen.";
+    status.textContent = translate("weather.map_applied");
   } catch (error) {
-    status.textContent = "Koordinaten gesetzt. Ortsname konnte nicht aufgelöst werden.";
+    status.textContent = translate("weather.reverse_failed");
   }
 }
 
@@ -5023,14 +6661,18 @@ async function applyWeatherMapSelection() {
   document.getElementById("weather-city-input").value = city;
   document.getElementById("weather-lon-input").value = lon;
   document.getElementById("weather-lat-input").value = lat;
-  document.getElementById("weather-location-preview").textContent = "Aus Karte gewählt: " + (city || "-") + " | " + (lon || "-") + " / " + (lat || "-");
+  document.getElementById("weather-location-preview").textContent = translateFormat("weather.map_preview", {
+    city: city || "-",
+    lon: lon || "-",
+    lat: lat || "-"
+  });
 
   await runButtonRequestById("weather-map-apply-button", {
-    busyText: "übernimmt...",
-    idleText: "In Wetter übernehmen",
-    successText: "übernommen",
-    errorText: "Wetter-Ort und Koordinaten konnten nicht übernommen werden",
-    successStatusText: "Wetter-Ort und Koordinaten wurden übernommen",
+    busyText: translate("weather.apply_map_busy"),
+    idleText: translate("weather.apply_map_idle"),
+    successText: translate("weather.apply_map_done"),
+    errorText: translate("weather.apply_map_failed"),
+    successStatusText: translate("weather.apply_map_success"),
     reload: true,
     request: async () => {
       await apiFetchValue(getWeatherCitySetUrl(), city);
@@ -5043,15 +6685,15 @@ async function applyWeatherMapSelection() {
 async function refreshNetworkScan() {
   const button = document.getElementById("network-scan-button");
 
-  beginButtonFeedback(button, "lädt...");
+  beginButtonFeedback(button, translate("network.scan_busy"));
 
   try {
     await loadData();
-    announceStatus("WLAN-Liste wurde aktualisiert", "ok");
-    finishButtonFeedback(button, "WLANs neu laden", "success", "geladen");
+    announceStatus(translate("network.scan_success"), "ok");
+    finishButtonFeedback(button, translate("network.scan"), "success", translate("common.loaded"));
   } catch (error) {
-    announceStatus("WLAN-Liste konnte nicht aktualisiert werden", "error");
-    finishButtonFeedback(button, "WLANs neu laden", "error", "Fehler");
+    announceStatus(translate("network.scan_failed"), "error");
+    finishButtonFeedback(button, translate("network.scan"), "error", translate("common.error"));
   }
 }
 
@@ -5061,11 +6703,11 @@ async function saveNetworkClient() {
   await runQueryButtonRequestById("network-client-save-button", {
     endpoint: getNetworkClientSetUrl(),
     query: { ssid, key },
-    busyText: "verbindet...",
-    idleText: "Als WLAN-Client verbinden",
-    successText: "gestartet",
-    errorText: "WLAN-Client konnte nicht gesetzt werden",
-    successStatusText: "WLAN-Client-Verbindung wurde angestoßen",
+    busyText: translate("common.connecting"),
+    idleText: translate("network.connect_client"),
+    successText: translate("common.started"),
+    errorText: translate("network.connect_client_error"),
+    successStatusText: translate("network.connect_client_started"),
     reloadDelayMs: 1500
   });
 }
@@ -5076,24 +6718,24 @@ async function saveNetworkAp() {
   await runQueryButtonRequestById("network-ap-save-button", {
     endpoint: getNetworkApSetUrl(),
     query: { ssid, key },
-    busyText: "startet...",
-    idleText: "Zugangspunkt starten",
-    successText: "gestartet",
-    errorText: "Zugangspunkt konnte nicht gesetzt werden",
-    successStatusText: "Start des Zugangspunkts wurde angestoßen",
+    busyText: translate("common.starting"),
+    idleText: translate("network.start_ap"),
+    successText: translate("common.started"),
+    errorText: translate("network.start_ap_error"),
+    successStatusText: translate("network.start_ap_started"),
     reloadDelayMs: 1500
   });
 }
 
 async function saveTimeServer() {
-  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", "Zeitserver speichern", "Zeitserver konnte nicht gespeichert werden");
+  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", translate("network.save_timeserver"), "Zeitserver konnte nicht gespeichert werden");
 }
 
 async function saveTimezone() {
   const input = document.getElementById("network-timezone-input");
   const value = Math.max(-12, Math.min(14, Number(input.value || 0)));
   input.value = String(value);
-  await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, "Zeitzone speichern", "Zeitzone konnte nicht gespeichert werden", {
+  await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, translate("network.save_timezone"), "Zeitzone konnte nicht gespeichert werden", {
     request: async () => {
       await apiFetchValue(getNetworkTimezoneSetUrl(), value);
       await apiFetch(getNetworkGetTimeUrl());
@@ -5104,7 +6746,7 @@ async function saveTimezone() {
 async function toggleSummertime() {
   const button = document.getElementById("network-summertime-button");
   await runStateToggleButton(button, getNetworkSummertimeSetUrl(), {
-    idleText: button.dataset.restoreText || "Sommerzeit berücksichtigen",
+    idleText: button.dataset.restoreText || translate("network.summertime"),
     errorText: "Sommerzeit konnte nicht gesetzt werden",
     preserveCurrentText: true
   });
@@ -5123,15 +6765,15 @@ async function saveDateTime() {
   document.getElementById("datetime-hour-input").value = String(hour);
   document.getElementById("datetime-minute-input").value = String(minute);
 
-  await runQuerySave("datetime-save-button", getDateTimeSetUrl(), { year, month, day, hour, minute }, "Datum und Uhrzeit speichern", "Datum und Uhrzeit konnten nicht gespeichert werden");
+  await runQuerySave("datetime-save-button", getDateTimeSetUrl(), { year, month, day, hour, minute }, translate("system.datetime_save"), "Datum und Uhrzeit konnten nicht gespeichert werden");
 }
 
 async function learnIrRemote() {
-  await runSimpleAction("learn-ir-button", getLearnIrUrl(), "IR-Fernbedienung lernen", "IR-Lernmodus konnte nicht gestartet werden", "IR-Lernmodus gestartet");
+  await runSimpleAction("learn-ir-button", getLearnIrUrl(), translate("system.learn_ir"), "IR-Lernmodus konnte nicht gestartet werden", "IR-Lernmodus gestartet");
 }
 
 async function getNetTime() {
-  await runSimpleAction("network-nettime-button", getNetworkGetTimeUrl(), "Netzzeit abrufen", "Netzzeit konnte nicht angefordert werden", "Netzzeit angefordert");
+  await runSimpleAction("network-nettime-button", getNetworkGetTimeUrl(), translate("network.fetch_network_time"), "Netzzeit konnte nicht angefordert werden", "Netzzeit angefordert");
 }
 
 async function runWps() {
@@ -5139,12 +6781,12 @@ async function runWps() {
 }
 
 async function saveUpdateHost() {
-  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", "Update-Host speichern", "Update-Host konnte nicht gespeichert werden");
+  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", translate("maintenance.save_update_host"), "Update-Host konnte nicht gespeichert werden");
   await refreshUpdateServerAvailability();
 }
 
 async function saveUpdatePath() {
-  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", "Update-Pfad speichern", "Update-Pfad konnte nicht gespeichert werden");
+  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", translate("maintenance.save_update_path"), "Update-Pfad konnte nicht gespeichert werden");
   await refreshUpdateServerAvailability();
 }
 
@@ -5156,26 +6798,26 @@ async function uploadLocalEspUpdate(event) {
   const file = fileInput.files && fileInput.files[0];
 
   if (!file) {
-    document.getElementById("local-update-note").textContent = "Bitte zuerst eine ESP-Firmwaredatei auswählen.";
+    document.getElementById("local-update-note").textContent = translate("maintenance.local_esp_choose_first");
     return;
   }
 
   if (!isBinFileName(file.name)) {
     document.getElementById("local-update-note").textContent = "Falsche ESP-Datei ausgewählt. Erwartet wird eine .bin-Datei.";
-    announceStatus("ESP-.bin-Datei erwartet", "error");
-    finishButtonFeedback(button, "ESP lokal aktualisieren", "error", "Fehler");
+    announceStatus(translate("maintenance.local_esp_expected"), "error");
+    finishButtonFeedback(button, translate("maintenance.local_esp_update"), "error", translate("common.error"));
     return;
   }
 
   button.disabled = true;
-  button.textContent = "lädt hoch...";
+  button.textContent = translate("common.uploading");
   stopUpdateProgressPolling();
-  announceStatus("ESP-Firmware wird lokal hochgeladen...", "warn");
-  document.getElementById("local-update-note").textContent = "ESP-Firmware wird lokal hochgeladen...";
+  announceStatus(translate("maintenance.local_esp_uploading"), "warn");
+  document.getElementById("local-update-note").textContent = translate("maintenance.local_esp_uploading");
   pendingProgressAction = "esp-local-update";
   pendingProgressButtonId = "local-update-esp-submit-button";
-  button.dataset.restoreText = "ESP lokal aktualisieren";
-  showRemoteUpdateProgressShell("esp-local-update", "Lokales ESP-Update wird vorbereitet.", pendingProgressButtonId);
+  button.dataset.restoreText = translate("maintenance.local_esp_update");
+  showRemoteUpdateProgressShell("esp-local-update", translate("maintenance.local_update_preparing"), pendingProgressButtonId);
 
   try {
     await uploadRawFile(
@@ -5183,7 +6825,7 @@ async function uploadLocalEspUpdate(event) {
       file,
       (loaded, total) => {
         const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-        button.textContent = "lädt hoch... " + percent + "%";
+        button.textContent = translate("common.uploading") + " " + percent + "%";
         document.getElementById("local-update-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
         document.getElementById("update-progress-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
         document.getElementById("updated-at").textContent = document.getElementById("update-progress-note").textContent;
@@ -5193,18 +6835,18 @@ async function uploadLocalEspUpdate(event) {
     stopUpdateProgressPolling();
     document.getElementById("local-update-note").textContent = "ESP-Firmware konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler");
     button.disabled = false;
-    button.textContent = "ESP lokal aktualisieren";
+    button.textContent = translate("maintenance.local_esp_update");
     finishProgressUi(0);
     return;
   }
 
-  button.textContent = "läuft...";
+  button.textContent = translate("common.running");
   try {
     await apiFetch(getLocalEspRestartUrl());
   } catch (error) {
   }
-  document.getElementById("update-progress-note").textContent = "ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.";
-  announceStatus("ESP-Firmware wurde übertragen. Es wird auf den Neustart gewartet.", "warn");
+  document.getElementById("update-progress-note").textContent = translate("maintenance.local_esp_uploaded_wait");
+  announceStatus(translate("maintenance.local_esp_uploaded_wait"), "warn");
   startEspUpdateReconnectWatch(true);
 }
 
@@ -5216,29 +6858,29 @@ async function uploadLocalStm32Update(event) {
   const file = fileInput.files && fileInput.files[0];
 
   if (!file) {
-    document.getElementById("local-update-note").textContent = "Bitte zuerst eine STM32-Firmwaredatei auswählen.";
+    document.getElementById("local-update-note").textContent = translate("maintenance.local_stm32_choose_first");
     return;
   }
 
   if (!isMatchingLocalStm32File(file.name)) {
     const expected = getExpectedLocalStm32Filename(getCurrentUpdateStatus()) || "passende STM32-.hex-Datei";
     document.getElementById("local-update-note").textContent = "Falsche STM32-Datei ausgewählt. Erwartet wird " + expected + ".";
-    announceStatus("Passende STM32-Datei erwartet", "error");
-    finishButtonFeedback(button, "STM32 lokal aktualisieren", "error", "Fehler");
+    announceStatus(translate("maintenance.local_stm32_expected"), "error");
+    finishButtonFeedback(button, translate("maintenance.local_stm32_update"), "error", translate("common.error"));
     return;
   }
 
   button.disabled = true;
   button.textContent = "lädt hoch...";
-  announceStatus("STM32-Firmware wird lokal hochgeladen...", "warn");
-  document.getElementById("local-update-note").textContent = "STM32-Firmware wird lokal hochgeladen...";
+  announceStatus(translate("maintenance.local_stm32_uploading"), "warn");
+  document.getElementById("local-update-note").textContent = translate("maintenance.local_stm32_uploading");
 
   try {
-    await startStm32StreamingUpload(file, "local-update-stm32-submit-button", "STM32 lokal aktualisieren");
+    await startStm32StreamingUpload(file, "local-update-stm32-submit-button", translate("maintenance.local_stm32_update"));
   } catch (error) {
-    document.getElementById("local-update-note").textContent = "STM32-Firmware konnte nicht aktualisiert werden.";
+    document.getElementById("local-update-note").textContent = translate("maintenance.local_stm32_update_failed");
     button.disabled = false;
-    button.textContent = "STM32 lokal aktualisieren";
+    button.textContent = translate("maintenance.local_stm32_update");
     return;
   }
 }
@@ -5366,8 +7008,8 @@ async function openLocalAppDirectoryPicker() {
       return;
     }
 
-    announceStatus("Der App-Ordner konnte nicht gelesen werden", "error");
-    setFsActionStatus("Der lokale App-Ordner konnte ueber den Browser nicht geoeffnet werden.");
+    announceStatus(translate("local_app.folder_read_failed"), "error");
+    setFsActionStatus(translate("local_app.folder_browser_failed"));
   }
 }
 
@@ -5481,8 +7123,8 @@ function applyLocalAppFileEntries(fileEntries) {
   renderLocalAppSelectionStatus();
   setFsActionStatus(
     selectedFiles.size
-      ? "Lokaler App-Ordner geprueft: " + String(selectedFiles.size) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Pflichtdateien erkannt."
-      : "Lokaler App-Ordner wurde gewaehlt, aber der Browser hat keine passenden App-Dateien unter app/... geliefert."
+      ? translateFormat("local_app.folder_checked", { found: selectedFiles.size, total: LOCAL_APP_REQUIRED_ASSETS.length })
+      : translate("local_app.folder_none")
   );
 }
 
@@ -5503,11 +7145,18 @@ function renderLocalAppSelectionStatus() {
 
   if (note) {
     if (!foundCount) {
-      note.textContent = "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die komprimierten Dateien (.gz) unter app/... enthält.";
+      note.textContent = translate("local_app.note_empty");
     } else if (!missingAssets.length) {
-      note.textContent = "App-Ordner vollständig erkannt. " + String(LOCAL_APP_REQUIRED_ASSETS.length) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Dateien sind bereit und koennen direkt installiert werden.";
+      note.textContent = translateFormat("local_app.note_complete", {
+        found: LOCAL_APP_REQUIRED_ASSETS.length,
+        total: LOCAL_APP_REQUIRED_ASSETS.length
+      });
     } else {
-      note.textContent = "App-Ordner geprueft. " + String(foundCount) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Dateien gefunden. Es fehlen: " + missingAssets.join(", ");
+      note.textContent = translateFormat("local_app.note_missing", {
+        found: foundCount,
+        total: LOCAL_APP_REQUIRED_ASSETS.length,
+        missing: missingAssets.join(", ")
+      });
     }
   }
 
@@ -5528,32 +7177,36 @@ async function installLocalAppFiles() {
   const missingAssets = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => !localAppSelectedFiles.has(assetPath));
 
   if (missingAssets.length) {
-    announceStatus("Der App-Ordner ist noch nicht vollständig.", "error");
+    announceStatus(translate("local_app.incomplete"), "error");
     renderLocalAppSelectionStatus();
-    setFsActionStatus("Lokale App-Dateien koennen noch nicht installiert werden. Es fehlen Pflichtdateien.");
+    setFsActionStatus(translate("local_app.missing_required"));
     return;
   }
 
   if (!uploadUrl) {
-    announceStatus("Diese Firmware unterstützt noch keinen lokalen App-Datei-Upload.", "error");
+    announceStatus(translate("local_app.upload_unsupported"), "error");
     return;
   }
 
-  if (!window.confirm("Die lokalen App-Dateien jetzt direkt auf das Gerät schreiben?")) {
+  if (!window.confirm(translate("local_app.install_confirm"))) {
     return;
   }
 
-  setProgressActionContext("app-local-install", "local-app-install-button", "Lokale App-Dateien installieren");
-  showRemoteUpdateProgressShell("app-local-install", "Lokale App-Dateien werden direkt installiert...", "local-app-install-button");
+  setProgressActionContext("app-local-install", "local-app-install-button", translate("local_app.install_button"));
+  showRemoteUpdateProgressShell("app-local-install", translate("local_app.installing"), "local-app-install-button");
   beginButtonFeedback(button, "installiert...");
-  announceStatus("Lokale App-Dateien werden installiert...", "warn");
-  setFsActionStatus("Lokale App-Dateien werden direkt in das LittleFS geschrieben...");
+  announceStatus(translate("local_app.installing"), "warn");
+  setFsActionStatus(translate("local_app.installing_fs"));
 
   try {
     for (let index = 0; index < LOCAL_APP_REQUIRED_ASSETS.length; index += 1) {
       const assetPath = LOCAL_APP_REQUIRED_ASSETS[index];
       const file = localAppSelectedFiles.get(assetPath);
-      const progressMessage = "Lokale App-Dateien: " + String(index + 1) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " " + assetPath;
+      const progressMessage = translateFormat("local_app.progress", {
+        step: index + 1,
+        total: LOCAL_APP_REQUIRED_ASSETS.length,
+        asset: assetPath
+      });
 
       document.getElementById("update-progress-note").textContent = progressMessage;
       document.getElementById("updated-at").textContent = progressMessage;
@@ -5575,19 +7228,19 @@ async function installLocalAppFiles() {
       );
     }
 
-    document.getElementById("update-progress-note").textContent = "Lokale App-Dateien installiert. App wird neu geladen...";
-    document.getElementById("updated-at").textContent = "Lokale App-Dateien installiert. App wird neu geladen...";
-    announceStatus("Lokale App-Dateien installiert. Seite wird neu geladen.", "ok");
-    setFsActionStatus("Lokale App-Dateien wurden erfolgreich installiert.");
-    finishButtonFeedback(button, "Lokale App-Dateien installieren", "success", "installiert");
+    document.getElementById("update-progress-note").textContent = translate("local_app.installed_reload");
+    document.getElementById("updated-at").textContent = translate("local_app.installed_reload");
+    announceStatus(translate("local_app.installed_status"), "ok");
+    setFsActionStatus(translate("local_app.installed_fs"));
+    finishButtonFeedback(button, translate("local_app.install_button"), "success", translate("local_app.installed"));
     window.setTimeout(reloadAppPage, 900);
   } catch (error) {
-    const message = "Lokale App-Dateien konnten nicht installiert werden: " + (error.message || "unbekannter Fehler");
+    const message = translateFormat("local_app.install_failed_detail", { error: error.message || "unknown error" });
     document.getElementById("update-progress-note").textContent = message;
     document.getElementById("updated-at").textContent = message;
-    announceStatus("Lokale App-Dateien konnten nicht installiert werden", "error");
+    announceStatus(translate("local_app.install_failed"), "error");
     setFsActionStatus(message);
-    finishButtonFeedback(button, "Lokale App-Dateien installieren", "error", "Fehler");
+    finishButtonFeedback(button, translate("local_app.install_button"), "error", translate("common.error"));
     resetProgressButton();
     finishProgressUi(1200);
   }
@@ -6167,9 +7820,7 @@ function refreshNetworkUi(settings) {
 function refreshOverlayUi(settings) {
   overlayEditorState = captureOverlayEditorState();
   renderOverlayRows(settings);
-  if (restoreOverlayEditorState(overlayEditorState)) {
-    hasUnsavedEdits = true;
-  }
+  restoreOverlayEditorState(overlayEditorState);
 }
 
 function refreshMaintenanceUi(settings, fsInfo) {
@@ -6666,15 +8317,15 @@ function getUpdateSummaryMeta(updateStatus, settings) {
     stm32Files,
     releaseNotes,
     items: [
-      ["ESP-Flash", versionMeta.flashSize ? formatBytes(versionMeta.flashSize) : "-"],
-      ["OTA-Update", versionMeta.canUpdate ? "möglich" : "nicht möglich"],
-      ["WordClock-Version", versionMeta.wcVersion],
-      ["WordClock verfügbar", versionMeta.wcAvailable],
-      ["ESP-Version", versionMeta.espVersion],
-      ["ESP verfügbar", versionMeta.espAvailable],
-      ["App-Version", versionMeta.appVersion],
-      ["App verfügbar", versionMeta.appAvailable],
-      ["Standard STM32", stm32Default || "-"]
+      [translate("maintenance.version_flash"), versionMeta.flashSize ? formatBytes(versionMeta.flashSize) : "-"],
+      [translate("maintenance.version_ota"), versionMeta.canUpdate ? translate("maintenance.version_available_yes") : translate("maintenance.version_available_no")],
+      [translate("maintenance.version_wc"), versionMeta.wcVersion],
+      [translate("maintenance.version_wc_available"), versionMeta.wcAvailable],
+      [translate("maintenance.version_esp"), versionMeta.espVersion],
+      [translate("maintenance.version_esp_available"), versionMeta.espAvailable],
+      [translate("maintenance.version_app"), versionMeta.appVersion],
+      [translate("maintenance.version_app_available"), versionMeta.appAvailable],
+      [translate("maintenance.version_stm32_default"), stm32Default || "-"]
     ]
   };
 }
@@ -6719,13 +8370,13 @@ function isTablesUploadUrl(url) {
 async function downloadUpdateAssets() {
   await runConfirmedButtonAction(
     "update-assets-button",
-    "Icon-Dateien jetzt wirklich vom Server laden?",
+    translate("maintenance.assets_confirm"),
     {
-      busyText: "läuft...",
-      idleText: "Icon-Dateien laden",
-      successText: "fertig",
-      errorText: "Icon-Dateien konnten nicht geladen werden",
-      successStatusText: "Icon-Dateien geladen",
+      busyText: translate("common.running"),
+      idleText: translate("maintenance.load_icon_files"),
+      successText: translate("common.ready"),
+      errorText: translate("maintenance.assets_load_failed"),
+      successStatusText: translate("maintenance.assets_loaded"),
       reloadDelayMs: 1200,
       request: () => apiFetch(getUpdateDownloadAssetsUrl())
     }
@@ -6733,16 +8384,16 @@ async function downloadUpdateAssets() {
 }
 
 async function downloadUpdateAppFiles() {
-  if (!window.confirm("App-Dateien jetzt direkt vom Server laden und installieren?")) {
+  if (!window.confirm(translate("maintenance.app_install_confirm"))) {
     return;
   }
 
   const button = document.getElementById("update-app-files-button");
 
-  setProgressActionContext("app-file-install", "update-app-files-button", "App-Dateien laden");
-  showRemoteUpdateProgressShell("app-file-install", "App-Dateien werden vom Server geladen...", "update-app-files-button");
-  beginButtonFeedback(button, "lädt...");
-  announceStatus("App-Dateien werden vom Server geladen...", "warn");
+  setProgressActionContext("app-file-install", "update-app-files-button", translate("maintenance.app_install_button"));
+  showRemoteUpdateProgressShell("app-file-install", translate("maintenance.app_install_loading"), "update-app-files-button");
+  beginButtonFeedback(button, translate("common.loading"));
+  announceStatus(translate("maintenance.app_install_loading"), "warn");
 
   try {
     const response = await fetchWithTimeout("/app/?action=install", { cache: "no-store" }, 45000);
@@ -6752,22 +8403,22 @@ async function downloadUpdateAppFiles() {
     }
 
     button.classList.add("is-busy");
-    button.textContent = "installiert...";
-    document.getElementById("update-progress-note").textContent = "App-Dateien wurden geladen und werden installiert...";
-    document.getElementById("updated-at").textContent = "App-Dateien wurden geladen und werden installiert...";
-    announceStatus("App-Dateien werden installiert...", "warn");
+    button.textContent = translate("common.running");
+    document.getElementById("update-progress-note").textContent = translate("maintenance.app_install_loaded");
+    document.getElementById("updated-at").textContent = translate("maintenance.app_install_loaded");
+    announceStatus(translate("maintenance.app_install_running"), "warn");
     await sleep(250);
 
     button.classList.add("is-busy");
-    button.textContent = "lädt neu...";
-    document.getElementById("update-progress-note").textContent = "App-Dateien installiert. App wird neu geladen...";
-    document.getElementById("updated-at").textContent = "App-Dateien installiert. App wird neu geladen...";
-    announceStatus("App-Dateien installiert. Seite wird neu geladen.", "ok");
+    button.textContent = translate("common.reloading");
+    document.getElementById("update-progress-note").textContent = translate("maintenance.app_install_reload");
+    document.getElementById("updated-at").textContent = translate("maintenance.app_install_reload");
+    announceStatus(translate("maintenance.app_install_success"), "ok");
     setTimeout(reloadAppPage, 900);
   } catch (error) {
-    document.getElementById("update-progress-note").textContent = "App-Dateien konnten nicht geladen oder installiert werden.";
-    announceStatus("App-Dateien konnten nicht geladen werden", "error");
-    finishButtonFeedback(button, "App-Dateien laden", "error", "Fehler");
+    document.getElementById("update-progress-note").textContent = translate("maintenance.app_install_failed_detail");
+    announceStatus(translate("maintenance.app_install_failed"), "error");
+    finishButtonFeedback(button, translate("maintenance.app_install_button"), "error", translate("common.error"));
     resetProgressButton();
     finishProgressUi(1200);
   }
@@ -6781,27 +8432,27 @@ async function uploadFsTargetFile(event, url, successMessage) {
   const fileInput = form.querySelector('input[type="file"]');
   const button = form.querySelector('button[type="submit"]');
   const file = fileInput && fileInput.files && fileInput.files[0];
-  const targetName = label ? label.textContent : "Datei";
+  const targetName = label ? label.textContent : translate("common.file");
 
   if (!file) {
-    document.getElementById("fs-action-status").textContent = "Bitte zuerst eine Datei für " + targetName + " auswählen.";
+    document.getElementById("fs-action-status").textContent = translateFormat("maintenance.choose_file_for_target", { target: targetName });
     return;
   }
 
   if (!isMatchingFsUploadFile(url, file.name, targetName)) {
     document.getElementById("fs-action-status").textContent =
       isTablesUploadUrl(url)
-        ? "Falsche Datei ausgewählt. Erwartet wird ein passendes Tabellenmuster wie " + targetName.replace("local.txt", "*.txt") + "."
-        : "Falsche Datei ausgewählt. Erwartet wird " + targetName + ".";
+        ? translateFormat("maintenance.file_expected_pattern", { target: targetName, pattern: targetName.replace("local.txt", "*.txt") })
+        : translateFormat("maintenance.file_expected_exact", { target: targetName });
     announceStatus(targetName + " erwartet", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Datei hochladen", "error", "Fehler");
+    finishButtonFeedback(button, button.dataset.restoreText || translate("common.file_upload"), "error", translate("common.error"));
     return;
   }
 
   if (!isTxtFileName(file.name)) {
-    document.getElementById("fs-action-status").textContent = targetName + " muss eine .txt-Datei sein.";
-    announceStatus("Ungültige Dateiendung", "error");
-    finishButtonFeedback(button, button.dataset.restoreText || "Datei hochladen", "error", "Fehler");
+    document.getElementById("fs-action-status").textContent = translateFormat("maintenance.txt_required", { target: targetName });
+    announceStatus(translate("common.invalid_file_extension"), "error");
+    finishButtonFeedback(button, button.dataset.restoreText || translate("common.file_upload"), "error", translate("common.error"));
     return;
   }
 
@@ -6814,17 +8465,17 @@ async function uploadFsTargetFile(event, url, successMessage) {
       installStatusText: targetName + " wurde hochgeladen und wird jetzt gespeichert...",
       successStatusText: successMessage,
       successAnnounceText: successMessage,
-      idleText: "Datei hochladen",
-      successText: "hochgeladen",
+      idleText: translate("common.file_upload"),
+      successText: translate("common.uploaded"),
       onProgressText: (percent) => targetName + " wird hochgeladen: " + percent + "%",
       onSuccess: async () => {
         await loadData();
       }
     });
   } catch (error) {
-    setFsActionStatus(targetName + " konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler"));
-    announceStatus(targetName + " konnte nicht hochgeladen werden", "error");
-    finishButtonFeedback(button, getUploadActionButtonText(button, "Datei hochladen"), "error", "Fehler");
+    setFsActionStatus(translateFormat("maintenance.file_upload_failed_detail", { target: targetName, error: error.message || "unknown error" }));
+    announceStatus(translateFormat("maintenance.file_upload_failed", { target: targetName }), "error");
+    finishButtonFeedback(button, getUploadActionButtonText(button, translate("common.file_upload")), "error", translate("common.error"));
   }
 }
 
@@ -6840,15 +8491,15 @@ function triggerEspUpdate() {
 }
 
 function startEspUpdateReconnectWatch(isLocalUpdate) {
-  waitForDeviceReady(isLocalUpdate ? 90000 : 120000, isLocalUpdate ? 3000 : 1500, "ESP wieder erreichbar. Seite wird neu geladen.", true, {
+  waitForDeviceReady(isLocalUpdate ? 90000 : 120000, isLocalUpdate ? 3000 : 1500, translate("maintenance.esp_ready_reload"), true, {
     forcedReloadAfterMs: 90000,
     reloadWatchdogDelayMs: 95000,
     requireReconnectCycle: true,
     requiredStableSuccesses: 2,
     probes: buildDeviceReadyProbes(),
     waitingMessage: isLocalUpdate
-      ? "Lokales ESP-Update läuft. Warte auf Neustart und Reconnect..."
-      : "ESP aktualisiert sich gerade. Warte auf Neustart und Reconnect..."
+      ? translate("maintenance.local_esp_waiting")
+      : translate("maintenance.remote_esp_waiting")
   });
 }
 
@@ -6857,7 +8508,7 @@ function triggerStm32Update() {
   const fileName = document.getElementById("update-stm32-select").value || "";
 
   if (!fileName) {
-    announceStatus("Bitte zuerst eine STM32-Datei auswählen", "warn");
+    announceStatus(translate("maintenance.stm32_file_choose_first"), "warn");
     return;
   }
 
@@ -6876,9 +8527,9 @@ function getRemoteUpdateActionMeta(kind) {
       kind: "esp",
       actionType: "esp-update",
       buttonId: "update-esp-button",
-      buttonText: "ESP-Firmware aktualisieren",
-      confirmText: "ESP-Firmware jetzt vom Update-Server aktualisieren? Das Gerät startet dabei neu.",
-      startMessage: "ESP-Update wird gestartet...",
+      buttonText: translate("maintenance.update_esp"),
+      confirmText: translate("maintenance.update_esp_confirm"),
+      startMessage: translate("maintenance.update_esp_start"),
       useProgressFormSubmit: true,
       keepFrameActiveInBackground: true,
       buildUrl: () => remoteUpdateMeta.esp.url
@@ -6889,9 +8540,9 @@ function getRemoteUpdateActionMeta(kind) {
     kind: "stm32",
     actionType: "stm32-flash",
       buttonId: "update-stm32-button",
-      buttonText: "STM32 flashen",
-      confirmText: (fileName) => "STM32 jetzt mit „" + fileName + "“ flashen?",
-      startMessage: "STM32-Flash wurde gestartet.",
+      buttonText: translate("maintenance.flash_stm32"),
+      confirmText: (fileName) => translateFormat("maintenance.flash_stm32_confirm", { file: fileName }),
+      startMessage: translate("maintenance.flash_stm32_started"),
       buildUrl: (fileName) => remoteUpdateMeta.stm32.url + "?filename=" + encodeURIComponent(fileName) + "&stream=1"
     };
 }
@@ -6900,45 +8551,45 @@ function triggerTableUpdate() {
   const fileName = document.getElementById("update-table-select").value || "";
 
   if (!fileName) {
-    announceStatus("Bitte zuerst eine Layout-Tabelle auswählen", "warn");
+    announceStatus(translate("maintenance.layout_choose_first"), "warn");
     return;
   }
 
-  if (!window.confirm("Layout-Tabelle „" + fileName + "“ jetzt laden?")) {
+  if (!window.confirm(translateFormat("maintenance.layout_confirm", { file: fileName }))) {
     return;
   }
 
   const button = document.getElementById("update-table-button");
-  beginButtonFeedback(button, "lädt...");
-  document.getElementById("updated-at").textContent = "Layout-Tabelle wird geladen...";
-  announceStatus("Layout-Tabelle wird geladen...", "warn");
+  beginButtonFeedback(button, translate("common.loading"));
+  document.getElementById("updated-at").textContent = translate("maintenance.layout_loading");
+  announceStatus(translate("maintenance.layout_loading"), "warn");
 
   apiFetch(getUpdateDownloadTableBaseUrl() + encodeURIComponent(fileName))
     .then(async () => {
-      announceStatus("Layout-Tabelle wurde geladen.", "ok");
-      finishButtonFeedback(button, "Layout-Tabelle laden", "success", "geladen");
+      announceStatus(translate("maintenance.layout_loaded"), "ok");
+      finishButtonFeedback(button, translate("maintenance.layout_button"), "success", translate("common.loaded"));
       await loadData();
     })
     .catch(() => {
-      announceStatus("Layout-Tabelle konnte nicht geladen werden", "error");
-      finishButtonFeedback(button, "Layout-Tabelle laden", "error", "Fehler");
+      announceStatus(translate("maintenance.layout_load_failed"), "error");
+      finishButtonFeedback(button, translate("maintenance.layout_button"), "error", translate("common.error"));
     });
 }
 
 async function resetStm32() {
   await runConfirmedButtonAction(
     "maintenance-reset-stm32-button",
-    "STM32 jetzt wirklich resetten?",
+    translate("maintenance.reset_stm32_confirm"),
     {
-      busyText: "läuft...",
-      idleText: "STM32 zurücksetzen",
-      successText: "fertig",
-      errorText: "STM32 konnte nicht zurückgesetzt werden",
-      successStatusText: "STM32-Reset wurde ausgelöst. Warte auf Abschluss...",
+      busyText: translate("common.running"),
+      idleText: translate("maintenance.reset_stm32"),
+      successText: translate("common.ready"),
+      errorText: translate("maintenance.reset_stm32_failed"),
+      successStatusText: translate("maintenance.reset_stm32_started_wait"),
       request: async () => {
         await apiFetch(getMaintenanceResetStm32Url());
         await sleep(4000);
-        announceStatus("STM32 wurde zurückgesetzt", "ok");
+        announceStatus(translate("maintenance.reset_stm32_ok"), "ok");
         await loadData();
       }
     }
@@ -6962,7 +8613,7 @@ async function waitForStm32ResetAndReload(timeoutMs, initialDelayMs) {
         if (reconnectObserved) {
           stableSuccessCount += 1;
           if (stableSuccessCount >= 2) {
-            announceStatus("STM32 wieder bereit. App wird neu geladen...", "ok");
+            announceStatus(translate("maintenance.reset_stm32_reconnect"), "ok");
             await sleep(300);
             await reloadAppPage();
             return;
@@ -6980,7 +8631,7 @@ async function waitForStm32ResetAndReload(timeoutMs, initialDelayMs) {
     await sleep(1500);
   }
 
-  announceStatus("STM32-Reconnect nicht sicher erkannt. App wird vorsorglich neu geladen...", "warn");
+  announceStatus(translate("maintenance.reset_stm32_reconnect_unclear"), "warn");
   await sleep(300);
   await reloadAppPage();
 }
@@ -6996,31 +8647,31 @@ async function resetEeprom() {
 
   const maintenanceButton = document.getElementById("maintenance-reset-eeprom-button");
 
-  beginButtonFeedback(maintenanceButton, "setzt zurück...");
-  announceStatus("EEPROM-Reset wird ausgelöst...", "warn");
+  beginButtonFeedback(maintenanceButton, translate("maintenance.reset_eeprom_busy"));
+  announceStatus(translate("maintenance.reset_eeprom_start"), "warn");
 
   try {
     await apiFetch(getMaintenanceResetEepromUrl());
-    announceStatus("EEPROM-Reset ausgelöst. STM32 wird neu gestartet...", "warn");
-    maintenanceButton.textContent = "wartet...";
+    announceStatus(translate("maintenance.reset_eeprom_restart"), "warn");
+    maintenanceButton.textContent = translate("maintenance.reset_eeprom_wait");
     await sleep(250);
     await apiFetch(getMaintenanceResetStm32Url());
-    announceStatus("Warte auf STM32-Neustart. Danach wird die App neu geladen...", "warn");
+    announceStatus(translate("maintenance.reset_eeprom_reload"), "warn");
     await waitForStm32ResetAndReload(30000, 1500);
   } catch (error) {
-    announceStatus("EEPROM konnte nicht zurückgesetzt werden", "error");
-    finishButtonFeedback(maintenanceButton, "EEPROM zurücksetzen", "error", "Fehler");
+    announceStatus(translate("maintenance.reset_eeprom_failed"), "error");
+    finishButtonFeedback(maintenanceButton, translate("maintenance.reset_eeprom"), "error", translate("common.error"));
   }
 }
 
 async function formatLittleFs() {
   await runConfirmedButtonAction(
     "maintenance-format-fs-button",
-    "LittleFS wirklich formatieren?",
+    translate("maintenance.format_fs_confirm"),
     {
-      busyText: "läuft...",
-      idleText: "LittleFS formatieren",
-      successText: "fertig",
+      busyText: translate("common.running"),
+      idleText: translate("maintenance.format_fs_button"),
+      successText: translate("common.ready"),
       errorText: "LittleFS konnte nicht formatiert werden",
       successStatusText: "LittleFS wurde formatiert",
       reloadDelayMs: 1200,
@@ -7032,11 +8683,11 @@ async function formatLittleFs() {
 async function formatLittleFsFromFiles() {
   const didRun = await runConfirmedButtonAction(
     "files-format-fs-button",
-    "LittleFS wirklich formatieren?",
+    translate("maintenance.format_fs_confirm"),
     {
-      busyText: "läuft...",
-      idleText: "LittleFS formatieren",
-      successText: "fertig",
+      busyText: translate("common.running"),
+      idleText: translate("maintenance.format_fs_button"),
+      successText: translate("common.ready"),
       errorText: "LittleFS konnte nicht formatiert werden",
       successStatusText: "LittleFS wurde formatiert",
       reloadDelayMs: 1200,
@@ -7044,7 +8695,7 @@ async function formatLittleFsFromFiles() {
     }
   );
   if (didRun) {
-    setFsActionStatus("LittleFS wurde formatiert.");
+    setFsActionStatus(translate("maintenance.format_fs_done"));
   }
 }
 
@@ -7057,10 +8708,10 @@ async function showFsFile(fileName) {
     const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
     const text = await response.text();
     document.getElementById("fs-preview-content").textContent = text || "(leer)";
-    setFsActionStatus("Datei „" + fileName + "“ wird angezeigt.");
+    setFsActionStatus(translateFormat("maintenance.fs_showing", { file: fileName }));
     announceStatus(fileName + " geladen", "ok");
   } catch (error) {
-    announceStatus("Datei konnte nicht geladen werden", "error");
+    announceStatus(translate("maintenance.file_load_failed"), "error");
   }
 }
 
@@ -7069,17 +8720,17 @@ async function deleteFsFile(fileName) {
     return;
   }
 
-  if (!window.confirm("Datei „" + fileName + "“ wirklich löschen?")) {
+  if (!window.confirm(translateFormat("maintenance.fs_delete_confirm", { file: fileName }))) {
     return;
   }
 
   try {
     await apiFetch(getFsRemoveBaseUrl() + encodeURIComponent(fileName));
-    document.getElementById("fs-preview-content").textContent = "Mit „Anzeigen“ aus der Dateiliste wird hier der Inhalt der gewählten Datei eingeblendet.";
-    setFsActionStatus("Datei „" + fileName + "“ wurde gelöscht.");
+    document.getElementById("fs-preview-content").textContent = translate("maintenance.preview_placeholder");
+    setFsActionStatus(translateFormat("maintenance.fs_deleted", { file: fileName }));
     await loadData();
   } catch (error) {
-    announceStatus("Datei konnte nicht gelöscht werden", "error");
+    announceStatus(translate("maintenance.file_delete_failed"), "error");
   }
 }
 
@@ -7088,7 +8739,7 @@ function handleProgressFrameLoad() {
 
   try {
     if (pendingProgressAction === "esp-update") {
-      note.textContent = "ESP aktualisiert. Es wird gewartet, bis das Gerät wieder bereit ist.";
+      note.textContent = translate("maintenance.esp_update_waiting");
       return;
     }
 
@@ -7097,14 +8748,14 @@ function handleProgressFrameLoad() {
       const normalized = (text || "").replace(/\s+/g, " ").trim();
 
       if (normalized.indexOf("Flash failed") >= 0 || normalized.indexOf("Check failed") >= 0 || normalized.indexOf("verify failed") >= 0) {
-        failStm32Update("STM32-Flash ist fehlgeschlagen.");
+        failStm32Update(translate("maintenance.stm32_flash_failed"));
         return;
       }
 
-      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+      beginStm32AutoReset(translate("maintenance.stm32_flash_done_reset"));
     }
   } catch (error) {
-    note.textContent = "Update-Antwort empfangen.";
+    note.textContent = translate("maintenance.stm32_update_response_received");
   }
 }
 
@@ -7154,7 +8805,7 @@ function showRemoteUpdateProgressShell(actionType, message, buttonId) {
   document.getElementById("update-progress-visual").classList.toggle("is-hidden", !progressMeta.showVisualProgress);
   document.getElementById("update-progress-note").textContent = progressMeta.message;
   document.getElementById("updated-at").textContent = progressMeta.message;
-  setBusyButton(progressMeta.buttonId, "läuft...");
+  setBusyButton(progressMeta.buttonId, translate("common.running"));
   if (progressMeta.showVisualProgress) {
     beginStm32Progress();
   } else {
@@ -7326,7 +8977,7 @@ function applyStm32RemoteProgressEvent(event) {
 
   if (event.event === "result" && event.result_ok === false) {
     stm32RemoteRequestInFlight = false;
-    failStm32Update(event.message || "STM32-Flash ist fehlgeschlagen.");
+    failStm32Update(event.message || translate("maintenance.stm32_flash_failed"));
     return;
   }
 
@@ -7353,9 +9004,9 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
     progressFrame.classList.add("is-hidden");
     progressFrame.classList.remove("progress-frame-hidden");
     document.getElementById("update-progress-visual").classList.remove("is-hidden");
-    document.getElementById("update-progress-note").textContent = "Lokaler STM32-Flash wird gestartet.";
-    document.getElementById("updated-at").textContent = "Lokaler STM32-Flash wird gestartet.";
-    setBusyButton(buttonId, "läuft...");
+    document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_local_flash_starting");
+    document.getElementById("updated-at").textContent = translate("maintenance.stm32_local_flash_starting");
+    setBusyButton(buttonId, translate("common.running"));
 
     if (button) {
       button.dataset.restoreText = buttonText || button.textContent;
@@ -7370,12 +9021,12 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
       file,
       (loaded, total) => {
         const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-        document.getElementById("local-update-note").textContent = "STM32-Firmware wird hochgeladen: " + percent + "%";
-        document.getElementById("update-progress-note").textContent = "STM32-Firmware wird hochgeladen: " + percent + "%";
+        document.getElementById("local-update-note").textContent = translateFormat("maintenance.stm32_local_upload_progress", { percent });
+        document.getElementById("update-progress-note").textContent = translateFormat("maintenance.stm32_local_upload_progress", { percent });
       },
       () => {
-        document.getElementById("local-update-note").textContent = "STM32-Firmware wurde hochgeladen. Flash startet...";
-        document.getElementById("update-progress-note").textContent = "STM32-Firmware wurde hochgeladen. Flash startet...";
+        document.getElementById("local-update-note").textContent = translate("maintenance.stm32_local_upload_done");
+        document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_local_upload_done");
       }
     ).then(() => {
       const xhr = new XMLHttpRequest();
@@ -7387,7 +9038,7 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         syncStm32ProgressFromText(text);
 
         if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-          beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+          beginStm32AutoReset(translate("maintenance.stm32_flash_done_reset"));
         }
       };
 
@@ -7396,29 +9047,29 @@ function startStm32StreamingUpload(file, buttonId, buttonText) {
         syncStm32ProgressFromText(text);
 
         if (xhr.status < 200 || xhr.status >= 300) {
-          document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
-          failStm32Update("Lokaler STM32-Flash konnte nicht gestartet werden.");
+          document.getElementById("local-update-note").textContent = translate("maintenance.stm32_local_flash_start_failed");
+          failStm32Update(translate("maintenance.stm32_local_flash_start_failed"));
           reject(new Error("stm32 local failed"));
           return;
         }
 
         if (!stm32AutoResetStarted && hasStm32FlashFinished(text)) {
-          beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+          beginStm32AutoReset(translate("maintenance.stm32_flash_done_reset"));
         }
 
         resolve();
       };
 
       xhr.onerror = () => {
-        document.getElementById("local-update-note").textContent = "Lokaler STM32-Flash konnte nicht gestartet werden.";
-        failStm32Update("Lokaler STM32-Flash konnte nicht gestartet werden.");
+        document.getElementById("local-update-note").textContent = translate("maintenance.stm32_local_flash_start_failed");
+        failStm32Update(translate("maintenance.stm32_local_flash_start_failed"));
         reject(new Error("stm32 local failed"));
       };
 
       xhr.send();
     }).catch(() => {
-      document.getElementById("local-update-note").textContent = "Lokaler STM32-Upload ist fehlgeschlagen.";
-      failStm32Update("Lokaler STM32-Upload ist fehlgeschlagen.");
+      document.getElementById("local-update-note").textContent = translate("maintenance.stm32_local_upload_failed");
+      failStm32Update(translate("maintenance.stm32_local_upload_failed"));
       reject(new Error("stm32 local upload failed"));
     });
   });
@@ -7448,12 +9099,12 @@ async function autoResetStm32AfterFlash() {
   try {
     await fetch(getMaintenanceResetStm32Url(), { cache: "no-store" });
     setStm32ProgressStage(6);
-    document.getElementById("updated-at").textContent = "STM32 wurde nach dem Flash automatisch zurückgesetzt. Warte auf Abschluss...";
-    document.getElementById("update-progress-note").textContent = "STM32 wird automatisch zurückgesetzt. Daten werden danach neu geladen.";
+    document.getElementById("updated-at").textContent = translate("maintenance.stm32_auto_reset_wait");
+    document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_auto_reset_running");
     await sleep(4000);
     setStm32ProgressStage(8);
     document.getElementById("updated-at").textContent = "STM32 wurde nach dem Flash automatisch zurückgesetzt";
-    document.getElementById("update-progress-note").textContent = "STM32-Update erfolgreich abgeschlossen.";
+    document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_flash_success");
     stopStm32Progress();
     resetProgressButton();
     finishProgressUi(2200);
@@ -7464,7 +9115,7 @@ async function autoResetStm32AfterFlash() {
       announceStatus("Daten konnten nach dem STM32-Update nicht neu geladen werden", "warn");
     }
   } catch (error) {
-    document.getElementById("update-progress-note").textContent = "STM32-Flash fertig, automatischer Reset ist fehlgeschlagen.";
+    document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_flash_auto_reset_failed");
     stopStm32Progress();
     stopUpdateProgressPolling();
     resetProgressButton();
@@ -7477,7 +9128,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
   const forcedReloadAt = Date.now() + Math.min(timeoutMs, config.forcedReloadAfterMs || 25000);
   const note = document.getElementById("update-progress-note");
   const probes = Array.isArray(config.probes) && config.probes.length ? config.probes : getDefaultReconnectProbes();
-  const waitingMessage = config.waitingMessage || "Warte auf Neustart des ESP...";
+  const waitingMessage = config.waitingMessage || translate("maintenance.remote_esp_waiting");
   const requireReconnectCycle = !!config.requireReconnectCycle;
   const requiredStableSuccesses = Math.max(1, Number(config.requiredStableSuccesses || (requireReconnectCycle ? 2 : 1)));
   const requireProgressClearForType = config.requireProgressClearForType || "";
@@ -7685,8 +9336,8 @@ function manualReloadApp() {
   }
 
   const button = document.getElementById("reload-button");
-  beginButtonFeedback(button, "lädt neu...");
-  announceStatus("App wird neu geladen...", "warn");
+  beginButtonFeedback(button, translate("common.reloading"));
+  announceStatus(translate("maintenance.reloading"), "warn");
   clearProgressReturnScrollPosition();
   window.setTimeout(reloadAppPage, 180);
 }
@@ -7857,7 +9508,7 @@ function applyUpdateProgressStatus(progress) {
   if (progress.state === "error") {
     stopUpdateProgressPolling();
     stopStm32Progress();
-    note.textContent = progress.message || "STM32-Flash ist fehlgeschlagen.";
+    note.textContent = progress.message || translate("maintenance.stm32_flash_failed");
     resetProgressButton();
     clearProgressReturnScrollPosition();
     return;
@@ -8053,17 +9704,17 @@ function beginStm32Progress() {
   stopStm32Progress();
   stm32AutoResetStarted = false;
   setStm32ProgressStage(1);
-  document.getElementById("update-progress-note").textContent = "STM32-Update wird vorbereitet...";
+  document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_prepare_note");
   stm32ProgressAdvanceTimer = window.setTimeout(() => {
     if (stm32ProgressStage === 1) {
-      document.getElementById("update-progress-note").textContent = "Warte auf Rückmeldung vom STM32-Bootloader...";
+      document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_wait_bootloader");
     }
   }, 1200);
   stm32ProgressTimer = window.setInterval(() => {
     const note = document.getElementById("update-progress-note");
 
     if (stm32ProgressStage === 4) {
-      note.textContent = "STM32-Firmware wird geschrieben und verifiziert...";
+      note.textContent = translate("maintenance.stm32_flash_writing");
     }
   }, 3000);
 }
@@ -8092,13 +9743,13 @@ function readUpdateProgressFrameText() {
 function setStm32ProgressStage(stage) {
   stm32ProgressStage = stage;
   const steps = [
-    { title: "Vorbereiten", note: "Update wird gestartet." },
-    { title: "Bootloader", note: "STM32-Bootloader wird angesprochen." },
-    { title: "HEX prüfen", note: "Firmwaredatei wird geprüft." },
-    { title: "Flash löschen", note: "STM32-Flash wird gelöscht." },
-    { title: "Flash schreiben", note: "Firmware wird geschrieben und verifiziert." },
-    { title: "Zurücksetzen", note: "STM32 wird automatisch neu gestartet." },
-    { title: "Abschließen", note: "Daten werden neu geladen." }
+    { title: translate("maintenance.progress_prepare_title"), note: translate("maintenance.progress_prepare_note") },
+    { title: translate("maintenance.progress_bootloader_title"), note: translate("maintenance.progress_bootloader_note") },
+    { title: translate("maintenance.progress_hex_check_title"), note: translate("maintenance.progress_hex_check_note") },
+    { title: translate("maintenance.progress_flash_erase_title"), note: translate("maintenance.progress_flash_erase_note") },
+    { title: translate("maintenance.progress_flash_write_title"), note: translate("maintenance.progress_flash_write_note") },
+    { title: translate("maintenance.progress_reset_title"), note: translate("maintenance.progress_reset_note") },
+    { title: translate("maintenance.progress_finish_title"), note: translate("maintenance.progress_finish_note") }
   ];
   const progressBar = document.getElementById("update-progress-bar");
   const progressSteps = document.getElementById("update-progress-steps");
@@ -8128,28 +9779,28 @@ function syncStm32ProgressFromText(text) {
     if (stm32ProgressStage < 2) {
       setStm32ProgressStage(2);
     }
-    note.textContent = "STM32-Bootloader wurde erreicht.";
+    note.textContent = translate("maintenance.stm32_bootloader_reached");
   }
 
   if (normalized.indexOf("Checking HEX file") >= 0 || normalized.indexOf("Check successful") >= 0) {
     if (stm32ProgressStage < 3) {
       setStm32ProgressStage(3);
     }
-    note.textContent = "Firmwaredatei wird geprüft.";
+    note.textContent = translate("maintenance.stm32_hex_check_running");
   }
 
   if (normalized.indexOf("Erasing flash") >= 0) {
     if (stm32ProgressStage < 4) {
       setStm32ProgressStage(4);
     }
-    note.textContent = "STM32-Flash wird gelöscht.";
+    note.textContent = translate("maintenance.stm32_flash_erasing");
   }
 
   if (normalized.indexOf("Flashing STM32") >= 0 || normalized.indexOf("Pages flashed:") >= 0 || normalized.indexOf("Flash successful") >= 0) {
     if (stm32ProgressStage < 5) {
       setStm32ProgressStage(5);
     }
-    note.textContent = "STM32-Firmware wird geschrieben und verifiziert.";
+    note.textContent = translate("maintenance.stm32_flash_writing");
   }
 }
 
@@ -8169,7 +9820,7 @@ async function saveRtcTemperatureCorrection() {
 }
 
 async function saveDs18xxTemperatureCorrection() {
-  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", getTemperatureDs18xxCorrectionSetUrl(), "DS18xx-Korrektur speichern", "DS18xx-Korrektur konnte nicht gespeichert werden");
+  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", getTemperatureDs18xxCorrectionSetUrl(), translate("climate.save_ds18xx_correction"), "DS18xx-Korrektur konnte nicht gespeichert werden");
 }
 
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
@@ -8180,23 +9831,23 @@ async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText
 }
 
 async function displayTemperatureNow() {
-  await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), "Temperatur anzeigen", "Temperatur konnte nicht angezeigt werden", "Temperaturanzeige ausgelöst");
+  await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), translate("climate.show_temperature"), "Temperatur konnte nicht angezeigt werden", "Temperaturanzeige ausgelöst");
 }
 
 async function setLdrMinValue() {
-  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), "Aktuellen Wert als Minimum setzen", "LDR-Minimum konnte nicht gesetzt werden", "LDR-Minimum gespeichert");
+  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), translate("climate.set_min_ldr"), "LDR-Minimum konnte nicht gesetzt werden", "LDR-Minimum gespeichert");
 }
 
 async function setLdrMaxValue() {
-  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), "Aktuellen Wert als Maximum setzen", "LDR-Maximum konnte nicht gesetzt werden", "LDR-Maximum gespeichert");
+  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), translate("climate.set_max_ldr"), "LDR-Maximum konnte nicht gesetzt werden", "LDR-Maximum gespeichert");
 }
 
 async function saveAnimationMode() {
-  await runSelectSave("animation-mode-select", "animation-mode-save-button", getAnimationModeSetUrl(), "Anzeigeanimation speichern", "Anzeigeanimation konnte nicht gespeichert werden");
+  await runSelectSave("animation-mode-select", "animation-mode-save-button", getAnimationModeSetUrl(), translate("animations.save_display_animation"), "Anzeigeanimation konnte nicht gespeichert werden");
 }
 
 async function saveColorAnimationMode() {
-  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", getColorAnimationModeSetUrl(), "Farbanimation speichern", "Farbanimation konnte nicht gespeichert werden");
+  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", getColorAnimationModeSetUrl(), translate("animations.save_color_animation"), "Farbanimation konnte nicht gespeichert werden");
 }
 
 async function runSelectSave(selectId, buttonId, endpoint, buttonText, errorText) {
@@ -8210,10 +9861,10 @@ async function saveAnimationProfile(idx) {
   await runIndexedQueryButtonRequest('[data-an-save="%idx%"]', idx, {
     endpoint: getAnimationProfileSetUrl(),
     query: { idx, deceleration, favourite },
-    busyText: "speichert...",
-    idleText: "Profil speichern",
-    successText: "gespeichert",
-    errorText: "Animationsprofil konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("animations.profile_save"),
+    successText: translate("common.saved"),
+    errorText: translate("animations.profile_save_failed"),
     reload: true
   });
 }
@@ -8222,10 +9873,10 @@ async function resetAnimationProfileDefault(idx) {
   await runIndexedQueryButtonRequest('[data-an-default="%idx%"]', idx, {
     endpoint: getAnimationProfileDefaultUrl(),
     query: { idx },
-    busyText: "setzt...",
-    idleText: "Standard",
-    successText: "gesetzt",
-    errorText: "Standardwert konnte nicht gesetzt werden",
+    busyText: translate("common.setting"),
+    idleText: translate("animations.default"),
+    successText: translate("common.set"),
+    errorText: translate("display.default_set_failed"),
     reload: true
   });
 }
@@ -8235,10 +9886,10 @@ async function saveColorAnimationProfile(idx) {
   await runIndexedQueryButtonRequest('[data-can-save="%idx%"]', idx, {
     endpoint: getColorAnimationProfileSetUrl(),
     query: { idx, deceleration },
-    busyText: "speichert...",
-    idleText: "Profil speichern",
-    successText: "gespeichert",
-    errorText: "Farbanimationsprofil konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("animations.profile_save"),
+    successText: translate("common.saved"),
+    errorText: translate("animations.color_profile_save_failed"),
     reload: true
   });
 }
@@ -8247,24 +9898,24 @@ async function resetColorAnimationProfileDefault(idx) {
   await runIndexedQueryButtonRequest('[data-can-default="%idx%"]', idx, {
     endpoint: getColorAnimationProfileDefaultUrl(),
     query: { idx },
-    busyText: "setzt...",
-    idleText: "Standard",
-    successText: "gesetzt",
-    errorText: "Standardwert konnte nicht gesetzt werden",
+    busyText: translate("common.setting"),
+    idleText: translate("animations.default"),
+    successText: translate("common.set"),
+    errorText: translate("display.default_set_failed"),
     reload: true
   });
 }
 
 async function saveDimCurve(prefix) {
   const button = document.getElementById(prefix === "ambi" ? "ambilight-dim-save-button" : "display-dim-save-button");
-  const buttonText = prefix === "ambi" ? "Ambilight-Dimmkurve speichern" : "Display-Dimmkurve speichern";
+  const buttonText = prefix === "ambi" ? translate("display.save_ambilight_dim_curve") : translate("display.dim_curve_save");
   await persistDimCurve(prefix, button, buttonText);
 }
 
 async function persistDimCurve(prefix, button, buttonText) {
   const endpoint = prefix === "ambi" ? getAmbilightDimLevelSetUrl() : getDisplayDimLevelSetUrl();
 
-  beginButtonFeedback(button, "speichert...");
+  beginButtonFeedback(button, translate("common.saving"));
 
   try {
     for (let idx = 0; idx <= 15; idx += 1) {
@@ -8275,10 +9926,10 @@ async function persistDimCurve(prefix, button, buttonText) {
       await apiFetch(endpoint + "?idx=" + idx + "&value=" + encodeURIComponent(value));
     }
     await loadData();
-    finishButtonFeedback(button, buttonText, "success", "gespeichert");
+    finishButtonFeedback(button, buttonText, "success", translate("common.saved"));
   } catch (error) {
-    announceStatus("Dimmkurve konnte nicht gespeichert werden", "error");
-    finishButtonFeedback(button, buttonText, "error", "Fehler");
+    announceStatus(translate("display.dim_curve_save_failed"), "error");
+    finishButtonFeedback(button, buttonText, "error", translate("common.error"));
   }
 }
 
@@ -8289,10 +9940,10 @@ async function saveTftFlags() {
   await runQueryButtonRequest(document.getElementById("tft-save-button"), {
     endpoint: getTftFlagsSetUrl(),
     query: { rgb, hflip, vflip },
-    busyText: "speichert...",
-    idleText: "TFT-Optionen speichern",
-    successText: "gespeichert",
-    errorText: "TFT-Optionen konnten nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("display.save_tft_options"),
+    successText: translate("common.saved"),
+    errorText: translate("display.tft_save_failed"),
     reload: true
   });
 }
@@ -8302,20 +9953,20 @@ async function runTextSave(buttonId, endpoint, value, buttonText, errorText) {
 }
 
 async function refreshUpdateServerAvailability() {
-  announceStatus("Server-Dateien werden mit den neuen Update-Angaben neu geprüft...", "warn");
+  announceStatus(translate("maintenance.server_recheck_running"), "warn");
 
   try {
     await loadData();
-    announceStatus("Server-Verfügbarkeit wurde neu geprüft", "ok");
+    announceStatus(translate("maintenance.server_recheck_done"), "ok");
   } catch (error) {
-    announceStatus("Server-Verfügbarkeit konnte nicht neu geprüft werden", "error");
+    announceStatus(translate("maintenance.server_recheck_failed"), "error");
   }
 }
 
 async function runSimpleAction(buttonId, endpoint, buttonText, errorText, successText) {
   await runTriggerAction(buttonId, endpoint, buttonText, errorText, successText, {
-    busyText: "läuft...",
-    successText: "fertig"
+    busyText: translate("common.running"),
+    successText: translate("common.ready")
   });
 }
 
@@ -8370,9 +10021,9 @@ async function runValueSave(buttonId, endpoint, value, buttonText, errorText, op
   return runQueryButtonRequestById(buttonId, {
     endpoint,
     query: { value },
-    busyText: "speichert...",
+    busyText: translate("common.saving"),
     idleText: buttonText,
-    successText: "gespeichert",
+    successText: translate("common.saved"),
     errorText,
     reload: true,
     ...(options || {})
@@ -8383,9 +10034,9 @@ async function runQuerySave(buttonId, endpoint, query, buttonText, errorText, op
   return runQueryButtonRequestById(buttonId, {
     endpoint,
     query,
-    busyText: "speichert...",
+    busyText: translate("common.saving"),
     idleText: buttonText,
-    successText: "gespeichert",
+    successText: translate("common.saved"),
     errorText,
     reload: true,
     ...(options || {})
@@ -8394,9 +10045,9 @@ async function runQuerySave(buttonId, endpoint, query, buttonText, errorText, op
 
 async function runTriggerAction(buttonId, endpoint, buttonText, errorText, successStatusText, options) {
   return runButtonRequestById(buttonId, {
-    busyText: (options && options.busyText) || "startet...",
+    busyText: (options && options.busyText) || translate("common.starting"),
     idleText: buttonText,
-    successText: (options && options.successText) || "gestartet",
+    successText: (options && options.successText) || translate("common.started"),
     errorText,
     successStatusText: successStatusText || "",
     reloadDelayMs: (options && options.reloadDelayMs) || 1200,
@@ -8409,12 +10060,12 @@ async function runStateToggleButton(button, endpoint, options) {
   const current = options && options.currentValue ? options.currentValue() : (button.dataset.state === "on" ? "on" : "off");
   const next = current === "on" ? "off" : "on";
   const idleText = options && options.idleText ? options.idleText : (button.dataset.restoreText || button.textContent);
-  const successText = options && options.successText ? options.successText(next) : (next === "on" ? "aktiviert" : "deaktiviert");
+  const successText = options && options.successText ? options.successText(next) : (next === "on" ? translate("flags.enabled") : translate("flags.disabled"));
 
   await runQueryButtonRequest(button, {
     endpoint,
     query: { value: next },
-    busyText: "schaltet...",
+    busyText: translate("common.running"),
     idleText,
     successText,
     errorText: options && options.errorText ? options.errorText : "Schalter konnte nicht gesetzt werden",
@@ -8425,9 +10076,9 @@ async function runStateToggleButton(button, endpoint, options) {
 
 async function runButtonRequest(button, options) {
   const {
-    busyText = "läuft...",
+    busyText = translate("common.running"),
     idleText = button && (button.dataset.restoreText || button.textContent) ? (button.dataset.restoreText || button.textContent) : "",
-    successText = "fertig",
+    successText = translate("common.started"),
     errorText = "Aktion konnte nicht ausgeführt werden",
     successStatusText = "",
     reload = false,
@@ -8451,7 +10102,7 @@ async function runButtonRequest(button, options) {
     finishButtonFeedback(button, idleText, "success", successText, preserveCurrentText);
   } catch (error) {
     announceStatus(errorText, "error");
-    finishButtonFeedback(button, idleText, "error", "Fehler", preserveCurrentText);
+    finishButtonFeedback(button, idleText, "error", translate("common.error"), preserveCurrentText);
   }
 }
 
@@ -8460,10 +10111,10 @@ async function saveAmbilightModeProfile(idx) {
   await runIndexedQueryButtonRequest('[data-alm-save="%idx%"]', idx, {
     endpoint: getAmbilightModeProfileSetUrl(),
     query: { idx, deceleration },
-    busyText: "speichert...",
-    idleText: "Profil speichern",
-    successText: "gespeichert",
-    errorText: "Ambilight-Profil konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("animations.profile_save"),
+    successText: translate("common.saved"),
+    errorText: translate("display.ambilight_profile_save_failed"),
     reload: true
   });
 }
@@ -8472,10 +10123,10 @@ async function resetAmbilightModeProfile(idx) {
   await runIndexedQueryButtonRequest('[data-alm-default="%idx%"]', idx, {
     endpoint: getAmbilightModeProfileDefaultUrl(),
     query: { idx },
-    busyText: "setzt...",
-    idleText: "Standard",
-    successText: "gesetzt",
-    errorText: "Ambilight-Standardwert konnte nicht gesetzt werden",
+    busyText: translate("common.setting"),
+    idleText: translate("animations.default"),
+    successText: translate("common.set"),
+    errorText: translate("display.ambilight_default_set_failed"),
     reload: true
   });
 }
@@ -8483,10 +10134,10 @@ async function resetAmbilightModeProfile(idx) {
 async function saveAmbilightBrightness() {
   const value = document.getElementById("ambilight-brightness-slider").value;
   await runButtonRequestById("ambilight-brightness-save-button", {
-    busyText: "speichert...",
-    idleText: "Ambilight-Helligkeit speichern",
-    successText: "gespeichert",
-    errorText: "Ambilight-Helligkeit konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("display.save_ambilight_brightness"),
+    successText: translate("common.saved"),
+    errorText: translate("display.ambilight_brightness_save_failed"),
     reload: true,
     request: () => apiFetch(getAmbilightBrightnessSetUrl() + "?value=" + encodeURIComponent(value))
   });
@@ -8495,10 +10146,10 @@ async function saveAmbilightBrightness() {
 async function saveAmbilightMode() {
   const value = document.getElementById("ambilight-mode-select").value;
   await runButtonRequestById("ambilight-mode-save-button", {
-    busyText: "speichert...",
-    idleText: "Ambilight-Modus speichern",
-    successText: "gespeichert",
-    errorText: "Ambilight-Modus konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("display.save_ambilight_mode"),
+    successText: translate("common.saved"),
+    errorText: translate("display.ambilight_mode_save_failed"),
     reload: true,
     request: () => apiFetch(getAmbilightModeSetUrl() + "?value=" + encodeURIComponent(value))
   });
@@ -8509,10 +10160,10 @@ async function saveAmbilightLeds() {
   const value = Math.max(0, Math.min(999, Number(input.value || 0)));
   input.value = String(value);
   await runButtonRequestById("ambilight-leds-save-button", {
-    busyText: "speichert...",
-    idleText: "LED-Anzahl speichern",
-    successText: "gespeichert",
-    errorText: "LED-Anzahl konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("display.save_ambilight_leds"),
+    successText: translate("common.saved"),
+    errorText: translate("display.ambilight_leds_save_failed"),
     reload: true,
     request: () => apiFetch(getAmbilightLedsSetUrl() + "?value=" + encodeURIComponent(value))
   });
@@ -8523,10 +10174,10 @@ async function saveAmbilightOffset() {
   const value = Math.max(0, Math.min(999, Number(input.value || 0)));
   input.value = String(value);
   await runButtonRequestById("ambilight-offset-save-button", {
-    busyText: "speichert...",
-    idleText: "Offset speichern",
-    successText: "gespeichert",
-    errorText: "Ambilight-Offset konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("display.save_ambilight_offset"),
+    successText: translate("common.saved"),
+    errorText: translate("display.ambilight_offset_save_failed"),
     reload: true,
     request: () => apiFetch(getAmbilightOffsetSetUrl() + "?value=" + encodeURIComponent(value))
   });
@@ -8543,17 +10194,17 @@ async function saveColor(prefix) {
   }[prefix];
 
   const idleText = {
-    display: "Display Farbe speichern",
-    ambilight: "Ambilight Farbe speichern",
-    marker: "Marker Farbe speichern"
+    display: translate("display.save_color"),
+    ambilight: translate("display.save_ambilight_color"),
+    marker: translate("display.save_marker_color")
   }[prefix];
   await runQueryButtonRequest(document.getElementById(prefix + "-color-save-button"), {
     endpoint,
     query: { red: rgb.red, green: rgb.green, blue: rgb.blue, white },
-    busyText: "speichert...",
+    busyText: translate("common.saving"),
     idleText,
-    successText: "gespeichert",
-    errorText: "Farbe konnte nicht gespeichert werden",
+    successText: translate("common.saved"),
+    errorText: translate("display.color_save_failed"),
     reload: true
   });
 }
@@ -8563,10 +10214,10 @@ async function saveDfplayerVolume() {
   await runQueryButtonRequest(document.getElementById("dfplayer-volume-save-button"), {
     endpoint: getDfplayerVolumeSetUrl(),
     query: { value },
-    busyText: "speichert...",
-    idleText: "Lautstärke speichern",
-    successText: "gespeichert",
-    errorText: "DFPlayer-Lautstärke konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("dfplayer.volume_save"),
+    successText: translate("common.saved"),
+    errorText: translate("dfplayer.volume_save_failed"),
     reload: true
   });
 }
@@ -8576,10 +10227,10 @@ async function saveDfplayerMode() {
   await runQueryButtonRequest(document.getElementById("dfplayer-mode-save-button"), {
     endpoint: getDfplayerModeSetUrl(),
     query: { value },
-    busyText: "speichert...",
-    idleText: "Modus speichern",
-    successText: "gespeichert",
-    errorText: "DFPlayer-Modus konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("dfplayer.mode_save"),
+    successText: translate("common.saved"),
+    errorText: translate("dfplayer.mode_save_failed"),
     reload: true
   });
 }
@@ -8591,10 +10242,10 @@ async function saveDfplayerBellFlags() {
   await runQueryButtonRequest(document.getElementById("dfplayer-bell-save-button"), {
     endpoint: getDfplayerBellFlagsSetUrl(),
     query: { m15, m30, m45 },
-    busyText: "speichert...",
-    idleText: "Glockenzeiten speichern",
-    successText: "gespeichert",
-    errorText: "Glockenzeiten konnten nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("dfplayer.bell_save"),
+    successText: translate("common.saved"),
+    errorText: translate("dfplayer.bell_save_failed"),
     reload: true
   });
 }
@@ -8606,20 +10257,20 @@ async function saveDfplayerSpeakCycle() {
   await runQueryButtonRequest(document.getElementById("dfplayer-speak-save-button"), {
     endpoint: getDfplayerSpeakCycleSetUrl(),
     query: { value },
-    busyText: "speichert...",
-    idleText: "Sprachzyklus speichern",
-    successText: "gespeichert",
-    errorText: "Sprachzyklus konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("dfplayer.speak_cycle_save"),
+    successText: translate("common.saved"),
+    errorText: translate("dfplayer.speak_cycle_save_failed"),
     reload: true
   });
 }
 
 async function saveDfplayerSilenceStart() {
-  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", getDfplayerSilenceStartSetUrl(), "Ruhezeit Beginn speichern", "Ruhezeit Beginn konnte nicht gespeichert werden");
+  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", getDfplayerSilenceStartSetUrl(), translate("dfplayer.silence_start_save"), translate("dfplayer.silence_start_save_failed"));
 }
 
 async function saveDfplayerSilenceStop() {
-  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", getDfplayerSilenceStopSetUrl(), "Ruhezeit Ende speichern", "Ruhezeit Ende konnte nicht gespeichert werden");
+  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", getDfplayerSilenceStopSetUrl(), translate("dfplayer.silence_stop_save"), translate("dfplayer.silence_stop_save_failed"));
 }
 
 async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, errorText) {
@@ -8627,9 +10278,9 @@ async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, 
   await runQueryButtonRequest(document.getElementById(buttonId), {
     endpoint,
     query: { hour, minute },
-    busyText: "speichert...",
+    busyText: translate("common.saving"),
     idleText: buttonText,
-    successText: "gespeichert",
+    successText: translate("common.saved"),
     errorText,
     reload: true
   });
@@ -8641,11 +10292,11 @@ async function playDfplayerTrack() {
   await runQueryButtonRequest(document.getElementById("dfplayer-play-button"), {
     endpoint: getDfplayerPlayUrl(),
     query: { folder, track },
-    busyText: "spielt...",
-    idleText: "Titel abspielen",
-    successText: "gestartet",
-    errorText: "DFPlayer-Titel konnte nicht gestartet werden",
-    successStatusText: "DFPlayer-Titel gestartet"
+    busyText: translate("common.running"),
+    idleText: translate("dfplayer.play_track"),
+    successText: translate("common.ready"),
+    errorText: translate("dfplayer.play_failed"),
+    successStatusText: translate("dfplayer.play_started")
   });
 }
 
@@ -8654,14 +10305,14 @@ async function saveDfplayerAlarm(idx) {
   const from = document.getElementById("df-alarm-from-" + idx).value;
   const to = document.getElementById("df-alarm-to-" + idx).value;
   const { hour, minute } = parseTimeInput(document.getElementById("df-alarm-time-" + idx).value || "00:00");
-  const idleText = "Titel " + String(idx + 1).padStart(3, "0") + " speichern";
+  const idleText = translate("dfplayer.alarm_title") + " " + String(idx + 1).padStart(3, "0") + " " + translate("common.save").toLowerCase();
   await runIndexedQueryButtonRequest('[data-alarm-save="%idx%"]', idx, {
     endpoint: getDfplayerAlarmSetUrl(),
     query: { idx, active, from, to, hour, minute },
-    busyText: "speichert...",
+    busyText: translate("common.saving"),
     idleText,
-    successText: "gespeichert",
-    errorText: "DFPlayer-Titel konnte nicht gespeichert werden",
+    successText: translate("common.saved"),
+    errorText: translate("dfplayer.alarm_save_failed"),
     reload: true
   });
 }
@@ -8695,10 +10346,10 @@ async function saveOverlay(idx) {
       day,
       days
     },
-    busyText: "speichert...",
-    idleText: "Overlay speichern",
-    successText: "gespeichert",
-    errorText: "Overlay konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("overlays.save"),
+    successText: translate("common.saved"),
+    errorText: translate("overlays.save_failed"),
     reload: true
   });
 }
@@ -8763,11 +10414,11 @@ async function displayOverlay(idx) {
   await runIndexedQueryButtonRequest('[data-overlay-display="%idx%"]', idx, {
     endpoint: getOverlayDisplayUrl(),
     query: { idx },
-    busyText: "zeigt...",
-    idleText: "Anzeigen",
-    successText: "gestartet",
-    errorText: "Overlay konnte nicht angezeigt werden",
-    successStatusText: "Overlay " + idx + " wird angezeigt"
+    busyText: translate("common.showing"),
+    idleText: translate("overlays.display"),
+    successText: translate("common.started"),
+    errorText: translate("overlays.show_failed"),
+    successStatusText: translateFormat("overlays.show_status", { idx })
   });
 }
 
@@ -8775,11 +10426,11 @@ async function deleteOverlay(idx) {
   await runIndexedQueryButtonRequest('[data-overlay-delete="%idx%"]', idx, {
     endpoint: getOverlayDeleteUrl(),
     query: { idx },
-    busyText: "löscht...",
-    idleText: "Löschen",
-    successText: "gelöscht",
-    errorText: "Overlay konnte nicht gelöscht werden",
-    successStatusText: "Overlay wurde gelöscht",
+    busyText: translate("common.deleting"),
+    idleText: translate("overlays.delete"),
+    successText: translate("common.deleted"),
+    errorText: translate("overlays.delete_failed"),
+    successStatusText: translate("overlays.deleted"),
     reload: true
   });
 }
@@ -8796,7 +10447,7 @@ function cancelOverlayEdit(idx) {
     button.disabled = true;
     button.classList.remove("is-hidden");
     button.classList.add("is-success");
-    button.textContent = "Verworfen";
+    button.textContent = translate("common.canceled");
   }
 
   window.setTimeout(() => {
@@ -8818,10 +10469,10 @@ async function saveTimerRow(idx, isAmbilight, options) {
   await runIndexedQueryButtonRequest('[data-' + prefix + '-save="%idx%"]', idx, {
     endpoint,
     query: { idx, active, switch_on: switchOn, from, to, hour, minute },
-    busyText: "speichert...",
-    idleText: "Speichern",
-    successText: "gespeichert",
-    errorText: "Timer konnte nicht gespeichert werden",
+    busyText: translate("common.saving"),
+    idleText: translate("common.save"),
+    successText: translate("common.saved"),
+    errorText: translate("timers.save_failed"),
     reload: opts.reload !== false
   });
 }
@@ -8832,10 +10483,10 @@ async function clearTimerRow(idx, isAmbilight) {
   await runIndexedQueryButtonRequest('[data-' + prefix + '-clear="%idx%"]', idx, {
     endpoint,
     query: { idx, active: "off", switch_on: "off", from: 0, to: 0, hour: 0, minute: 0 },
-    busyText: "leert...",
-    idleText: "Slot leeren",
-    successText: "geleert",
-    errorText: "Timer konnte nicht geleert werden",
+    busyText: translate("common.clearing"),
+    idleText: translate("timers.clear_slot"),
+    successText: translate("timers.cleared"),
+    errorText: translate("timers.clear_failed"),
     reload: true
   });
 }
@@ -8847,7 +10498,7 @@ async function saveAllTimerRows(isAmbilight) {
   const buttons = Array.from(root.querySelectorAll('[data-' + prefix + '-save]'));
   const originalText = button.textContent;
 
-  beginButtonFeedback(button, "speichert...");
+  beginButtonFeedback(button, translate("common.saving"));
 
   try {
     for (const slotButton of buttons) {
@@ -8856,10 +10507,10 @@ async function saveAllTimerRows(isAmbilight) {
     }
     await loadData();
     announceStatus("Alle Timer wurden gespeichert", "ok");
-    finishButtonFeedback(button, originalText, "success", "gespeichert");
+    finishButtonFeedback(button, originalText, "success", translate("common.saved"));
   } catch (error) {
     announceStatus("Timer konnten nicht vollständig gespeichert werden", "error");
-    finishButtonFeedback(button, originalText, "error", "Fehler");
+    finishButtonFeedback(button, originalText, "error", translate("common.error"));
   }
 }
 
@@ -9540,8 +11191,10 @@ function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverride
     ledCapabilities: featureMeta.ledCapabilities,
     ambilightOnline: featureMeta.moduleState.ambilightOnline,
     dfplayerOnline: featureMeta.moduleState.dfplayerOnline,
-    displayPowerLabel: displayPower === "on" ? "an" : "aus",
-    ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? "an" : "aus") : "offline",
+    displayPowerLabel: displayPower === "on" ? translate("climate.status_on") : translate("climate.status_off"),
+    displayPowerState: displayPower === "on" ? "on" : "off",
+    ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? translate("climate.status_on") : translate("climate.status_off")) : translate("common.offline"),
+    ambilightPowerState: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? "on" : "off") : "offline",
     firmwareVersion: displayMeta.firmwareVersion || "-",
     espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || displayMeta.espVersion || "-",
     lastStartLabel: formatLastStartFromSettings(settings),
@@ -9551,20 +11204,20 @@ function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverride
 
 function buildOverviewConfigItems(settings, featureMeta, displayMeta, networkMeta, climateMeta, ambilightMeta, dfplayerMeta) {
   const configItems = [
-    ["Display-Modus", getDisplayModeName(displayMeta.mode)],
-    ["Helligkeit", String(displayMeta.brightness)],
-    ["Automatische Helligkeit", displayMeta.automaticBrightness ? "an" : "aus"],
-    ["LED-Fähigkeiten", featureMeta.ledCapabilities.label],
-    ["Zeitserver", networkMeta.timeserver || "-"],
-    ["Ticker-Verzögerung", String(displayMeta.tickerDeceleration || 0)]
+    [translate("overview.display_mode"), getDisplayModeName(displayMeta.mode)],
+    [translate("overview.brightness"), String(displayMeta.brightness)],
+    [translate("overview.auto_brightness"), displayMeta.automaticBrightness ? "on" : "off"],
+    [translate("overview.led_capabilities"), featureMeta.ledCapabilities.label],
+    [translate("overview.timeserver"), networkMeta.timeserver || "-"],
+    [translate("overview.ticker_delay"), String(displayMeta.tickerDeceleration || 0)]
   ];
 
   if (settings.strvars[STR.RESET_CAUSE]) {
-    configItems.unshift(["Letzter STM32-Neustart", settings.strvars[STR.RESET_CAUSE]]);
+    configItems.unshift([translate("overview.last_stm32_restart"), settings.strvars[STR.RESET_CAUSE]]);
   }
 
   const lastStartLabel = formatLastStartFromSettings(settings);
-  configItems.unshift(["Letzter Start", lastStartLabel]);
+  configItems.unshift([translate("overview.last_start"), lastStartLabel]);
 
   const weatherLocation = climateMeta.weatherCity
     ? climateMeta.weatherCity
@@ -9573,31 +11226,31 @@ function buildOverviewConfigItems(settings, featureMeta, displayMeta, networkMet
       : "");
 
   if (weatherLocation) {
-    configItems.splice(configItems.length - 1, 0, ["Wetter-Ort", weatherLocation]);
+    configItems.splice(configItems.length - 1, 0, [translate("overview.weather_location"), weatherLocation]);
   }
 
   if (displayMeta.tickerText) {
-    configItems.splice(configItems.length - 1, 0, ["Ticker", displayMeta.tickerText]);
+    configItems.splice(configItems.length - 1, 0, [translate("overview.ticker"), displayMeta.tickerText]);
   }
 
   if (displayMeta.dateTickerFormat) {
-    configItems.splice(configItems.length - 1, 0, ["Datumsformat", displayMeta.dateTickerFormat]);
+    configItems.splice(configItems.length - 1, 0, [translate("overview.date_format"), displayMeta.dateTickerFormat]);
   }
 
   if (featureMeta.moduleState.ambilightOnline) {
     configItems.splice(4, 0,
-      ["Ambilight-Modus", getAmbilightModeName(settings)],
-      ["Ambilight-Helligkeit", String(ambilightMeta.brightness || 0)],
-      ["Ambilight LEDs", String(ambilightMeta.leds || 0)],
-      ["Ambilight Offset", String(ambilightMeta.offset || 0)]
+      [translate("overview.ambilight_mode"), getAmbilightModeName(settings)],
+      [translate("overview.ambilight_brightness"), String(ambilightMeta.brightness || 0)],
+      [translate("overview.ambilight_leds"), String(ambilightMeta.leds || 0)],
+      [translate("overview.ambilight_offset"), String(ambilightMeta.offset || 0)]
     );
   }
 
   if (featureMeta.moduleState.dfplayerOnline) {
     configItems.push(
-      ["DFPlayer-Modus", getDfplayerModeName(dfplayerMeta.mode || 0)],
-      ["DFPlayer-Lautstärke", String(dfplayerMeta.volume || 0)],
-      ["Sprechintervall", String(dfplayerMeta.speakCycle || 0)]
+      [translate("overview.dfplayer_mode"), getDfplayerModeName(dfplayerMeta.mode || 0)],
+      [translate("overview.dfplayer_volume"), String(dfplayerMeta.volume || 0)],
+      [translate("overview.speak_cycle"), String(dfplayerMeta.speakCycle || 0)]
     );
   }
 
@@ -9712,7 +11365,7 @@ function getLedCapabilities(config, debugOverrides) {
         whiteChannel: true,
         mode: "rgbw",
         label: displayInfo.label || "RGBW",
-        note: "RGBW-Hardware erkannt. RGB- und Weißkanal sind verfügbar."
+        note: "RGBW-Hardware erkannt. RGB- und Weisskanal sind verfügbar."
       };
     }
 
@@ -9723,7 +11376,7 @@ function getLedCapabilities(config, debugOverrides) {
         mode: whiteChannel ? "rgbw" : "rgb",
         label: displayInfo.label || (hasTft ? "TFT RGB" : "RGB"),
         note: hasTft
-          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weißkanal bleibt ausgeblendet."
+          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weisskanal bleibt ausgeblendet."
           : "RGB-Hardware erkannt. Der White-Channel ist daher ausgeblendet."
       };
     }
@@ -9748,7 +11401,7 @@ function getLedCapabilities(config, debugOverrides) {
         whiteChannel: true,
         mode: "rgbw",
         label: "RGBW",
-        note: "RGBW-Hardware erkannt. RGB- und Weißkanal sind verfügbar."
+        note: "RGBW-Hardware erkannt. RGB- und Weisskanal sind verfügbar."
       };
     case HW.LED_WS2812_GRB:
     case HW.LED_WS2812_RGB:
@@ -9761,7 +11414,7 @@ function getLedCapabilities(config, debugOverrides) {
         mode: "rgb",
         label: led === HW.LED_TFT_RGB ? "TFT RGB" : "RGB",
         note: led === HW.LED_TFT_RGB
-          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weißkanal bleibt ausgeblendet."
+          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weisskanal bleibt ausgeblendet."
           : "RGB-Hardware erkannt. Der White-Channel ist daher ausgeblendet."
       };
     default:
@@ -9817,11 +11470,11 @@ function getFsUploadTargets(config) {
 
 function getDisplayModeName(mode) {
   const names = {
-    0: "Normal",
-    1: "Sekunden",
-    2: "Datum",
-    3: "Temperatur",
-    4: "Ticker"
+    0: translate("display.mode_normal"),
+    1: translate("display.mode_seconds"),
+    2: translate("display.mode_date"),
+    3: translate("display.mode_temperature"),
+    4: translate("display.mode_ticker")
   };
   return names[mode] || String(mode || 0);
 }
@@ -9834,9 +11487,9 @@ function getAmbilightModeName(settings) {
 
 function getDfplayerModeName(mode) {
   return ({
-    0: "Keine",
-    1: "Glocke",
-    2: "Sprache"
+    0: translate("common.none"),
+    1: translate("dfplayer.mode_bell"),
+    2: translate("dfplayer.mode_speech")
   }[mode] || String(mode || 0));
 }
 
@@ -9858,31 +11511,31 @@ function formatRgbwColor(color) {
 
 function localizeDisplayModeName(name) {
   return ({
-    Normal: "Normal",
-    Seconds: "Sekunden",
-    Date: "Datum",
-    Temperature: "Temperatur",
-    Ticker: "Ticker"
+    Normal: translate("display.mode_normal"),
+    Seconds: translate("display.mode_seconds"),
+    Date: translate("display.mode_date"),
+    Temperature: translate("display.mode_temperature"),
+    Ticker: translate("display.mode_ticker")
   }[name] || name);
 }
 
 function localizeAmbilightModeName(name) {
   return ({
-    Clock: "Uhr",
-    Rainbow: "Regenbogen"
+    Clock: translate("animations.name_clock"),
+    Rainbow: translate("animations.name_rainbow")
   }[name] || name);
 }
 
 function localizeAnimationName(name) {
   return ({
-    None: "Keine",
-    Normal: "Normal",
-    Clock: "Uhr",
-    Rainbow: "Regenbogen",
-    Temperature: "Temperatur",
-    Ticker: "Ticker",
-    Date: "Datum",
-    Seconds: "Sekunden"
+    None: translate("animations.name_none"),
+    Normal: translate("animations.name_normal"),
+    Clock: translate("animations.name_clock"),
+    Rainbow: translate("animations.name_rainbow"),
+    Temperature: translate("animations.name_temperature"),
+    Ticker: translate("animations.name_ticker"),
+    Date: translate("animations.name_date"),
+    Seconds: translate("animations.name_seconds")
   }[name] || name);
 }
 
@@ -9935,15 +11588,15 @@ async function applyDebugOverrides() {
     tft: document.getElementById("debug-tft-select").value
   };
 
-  beginButtonFeedback(button, "übernimmt...");
+  beginButtonFeedback(button, translate("debug.apply_busy"));
   try {
     saveDebugOverrides(overrides);
-    document.getElementById("updated-at").textContent = "Overrides aktiv";
+    document.getElementById("updated-at").textContent = translate("debug.active");
     await loadData();
-    finishButtonFeedback(button, "Overrides anwenden", "success", "aktiv");
+    finishButtonFeedback(button, translate("system.apply_overrides"), "success", translate("debug.active_short"));
   } catch (error) {
-    announceStatus("Overrides konnten nicht angewendet werden", "error");
-    finishButtonFeedback(button, "Overrides anwenden", "error", "Fehler");
+    announceStatus(translate("debug.apply_failed"), "error");
+    finishButtonFeedback(button, translate("system.apply_overrides"), "error", translate("common.error"));
   }
 }
 
@@ -9956,16 +11609,16 @@ async function resetDebugOverrides() {
     tft: "auto"
   };
 
-  beginButtonFeedback(button, "setzt zurück...");
+  beginButtonFeedback(button, translate("debug.reset_busy"));
   try {
     saveDebugOverrides(overrides);
     loadDebugOverridesIntoUi();
-    document.getElementById("updated-at").textContent = "Overrides zurückgesetzt";
+    document.getElementById("updated-at").textContent = translate("debug.reset_done");
     await loadData();
-    finishButtonFeedback(button, "Overrides zurücksetzen", "success", "zurückgesetzt");
+    finishButtonFeedback(button, translate("system.reset_overrides"), "success", translate("debug.reset_short"));
   } catch (error) {
-    announceStatus("Overrides konnten nicht zurückgesetzt werden", "error");
-    finishButtonFeedback(button, "Overrides zurücksetzen", "error", "Fehler");
+    announceStatus(translate("debug.reset_failed"), "error");
+    finishButtonFeedback(button, translate("system.reset_overrides"), "error", translate("common.error"));
   }
 }
 
@@ -10208,7 +11861,7 @@ function syncLiveDisplayColorPolling(settings) {
     void refreshLiveDisplayColor();
     liveDisplayColorTimer = window.setInterval(() => {
       void refreshLiveDisplayColor();
-    }, 1200);
+    }, LIVE_DISPLAY_COLOR_POLL_INTERVAL_MS);
   } else if (modeChanged || !currentLiveDisplayColor) {
     void refreshLiveDisplayColor();
   }
@@ -10384,10 +12037,12 @@ function clampNumber(value, min, max, fallback) {
 
 function formatDateTimePreview(current) {
   if (!current.year || !current.month || !current.day) {
-    return "Gerätezeit ist derzeit nicht verfügbar.";
+    return currentLanguage === "en" ? "Device time is currently unavailable." : "Gerätezeit ist derzeit nicht verfügbar.";
   }
 
-  const weekday = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"][current.wday] || "Unbekannt";
+  const weekday = (currentLanguage === "en"
+    ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    : ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"])[current.wday] || (currentLanguage === "en" ? "Unknown" : "Unbekannt");
   return weekday + ", " +
     pad2(current.day) + "." + pad2(current.month) + "." + current.year +
     " " + pad2(current.hour || 0) + ":" + pad2(current.minute || 0);
@@ -10409,11 +12064,11 @@ function formatLastStartFromSettings(settings) {
   const uptimeSeconds = getUptimeSeconds(settings);
 
   if (!current || !current.year || !current.month || !current.day) {
-    return "nicht verfügbar";
+    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
   }
 
   if (uptimeSeconds <= 0) {
-    return "nicht verfügbar";
+    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
   }
 
   const currentDate = new Date(
@@ -10426,7 +12081,7 @@ function formatLastStartFromSettings(settings) {
   );
 
   if (Number.isNaN(currentDate.getTime())) {
-    return "nicht verfügbar";
+    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
   }
 
   const startDate = new Date(currentDate.getTime() - (uptimeSeconds * 1000));

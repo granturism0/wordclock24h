@@ -186,6 +186,7 @@ static int              http_clamp_temp_correction (int temp_corr);
 static void             http_clear_request_user_agent (void);
 static void             http_capture_request_user_agent (const String& line);
 static const char *     http_get_request_browser_label (void);
+static bool             http_read_request_line (String& line, unsigned long timeout_ms);
 
 static const char * const APP_INSTALL_ASSETS[] =
 {
@@ -471,6 +472,35 @@ http_get_default_layout_columns (void)
         case HW_WC_12H: return 11;
         default: return 11;
     }
+}
+
+static bool
+http_read_request_line (String& line, unsigned long timeout_ms)
+{
+    int             c = -1;
+    unsigned long   start_millis = millis ();
+
+    line = "";
+
+    do
+    {
+        if (http_client.available ())
+        {
+            start_millis = millis ();
+            c = http_client.read ();
+
+            if (c >= 0 && c != '\n' && c != '\r')
+            {
+                line += (char) c;
+            }
+        }
+        else if ((millis () - start_millis) >= timeout_ms)
+        {
+            return false;
+        }
+    } while (c >= 0 && c != '\r');
+
+    return true;
 }
 
 static const char *
@@ -11187,7 +11217,19 @@ http_server_loop (void)
     }
     http_client.setNoDelay(1);
 
-    String sRequest = http_client.readStringUntil ('\r');                   // read the first line of the request
+    String sRequest = "";
+
+    if (! http_read_request_line (sRequest, 300))                          // read the first line of the request with a short timeout
+    {
+        Serial.println ("- empty http request");
+        Serial.flush ();
+        while (http_client.available())
+        {
+            http_client.read();
+        }
+        http_client.stop();
+        return;
+    }
 
     if (sRequest == "")                                                     // stop client, if request is empty
     {

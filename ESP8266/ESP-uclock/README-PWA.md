@@ -88,6 +88,20 @@ Für den aktuellen PWA-/Restore-Stand sind diese Punkte wichtig:
 - Bei Mobile Safari war der kritische Punkt zuletzt die HTTP-Auslieferung der PWA-Assets. Der ESP schließt diese Responses jetzt explizit sauber ab.
 - Restore-Fehler bei Overlays, Timern und `ticker_deceleration` waren keine reinen JSON-Probleme, sondern in mehreren Fällen Timing-/Interleaving-Themen im Write-Pfad zur Uhr.
 - Die Timing-Abstände im Restore sind deshalb aktuell bewusst konservativ gewählt und sollten nicht leichtfertig wieder reduziert werden, ohne die seriellen Logs mitzuprüfen.
+- Die PWA ist jetzt durchgängig zweisprachig aufgebaut:
+  - Default-Sprache `de`
+  - optionale Sprache `en`
+  - Speicherung der Auswahl im Browser
+- Für die Sprachumschaltung reicht es nicht, nur statische HTML-Texte zu übersetzen:
+  - auch Button-`restoreText`
+  - Busy-/Success-Zustände
+  - Wartungs-/Update-Fortschritt
+  - Overlay-/Timer-/DFPlayer-Handler
+  müssen explizit über `translate(...)` bzw. `translateFormat(...)` laufen
+- Native Dateiauswahl-Texte der Browser bleiben browserabhängig und sind bewusst nicht Teil des PWA-i18n-Systems.
+- Der Safari-Reload-Pfad war empfindlich gegenüber leeren Verbindungen vor der eigentlichen Request-Line.
+  - Die Firmware liest die erste Request-Zeile deshalb jetzt über eine eigene kurze Timeout-Logik.
+  - Ziel ist, `empty http request`-Fälle schnell zu verwerfen statt den `/app`-Reload spürbar zu blockieren.
 
 ## Einfrierpunkt
 

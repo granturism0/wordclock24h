@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-04-29 Bilingual PWA Finalization And Safari Reload Hardening
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-04-29-2252.zip`
+- PWA-Version: `1.4.61`
+
+Wichtige Punkte:
+
+- Die PWA-Oberfläche ist jetzt durchgängig zweisprachig mit:
+  - Default `Deutsch`
+  - optional `English`
+  - persistierter Sprachwahl im Browser
+- Der Sprachumbau umfasst jetzt nicht nur statische Labels, sondern auch:
+  - Save-/Busy-/Success-Buttontexte
+  - Laufzeit- und Wartungsmeldungen
+  - Remote-Update-/STM32-Flash-Fortschritt
+  - LittleFS-/Update-/Dateiaktionen
+  - Overlay-, Timer- und DFPlayer-Aktionen
+- Mehrere hart codierte deutsche Rücksprungtexte in Button-Handlern wurden auf zentrale `i18n`-Keys umgestellt
+- `restoreText`-Synchronisierung für Buttons wurde vereinheitlicht, damit Buttons nach einem Klick nicht wieder auf alte deutsche Idle-Texte zurückspringen
+- Mobile-Safari-Reload wurde auf ESP-Seite weiter gehärtet:
+  - kürzere Behandlung leerer/angebrochener Requests
+  - eigene kurze Request-Line-Leselogik statt direkter Blockierung über `readStringUntil('\r')`
+- Der Auto-Refresh-Takt der PWA liegt jetzt mit `+1 s` Versatz auf:
+  - `:02`
+  - `:17`
+  - `:32`
+  - `:47`
+
+Wichtige technische Hinweise:
+
+- Restliche Browser-Systemtexte an nativen Dateifeldern wie `Datei auswählen` oder `Keine Datei ausgewählt` kommen weiterhin vom Browser selbst und nicht aus der PWA.
+- Der aktuelle Sprachstand wurde bewusst nicht nur über HTML-Attribute, sondern zusätzlich über die Laufzeitpfade in [app.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/app.js) bereinigt, weil dort die meisten Rücksprungtexte saßen.
+
 ## 2026-04-29 Gzip PWA Rollout, Restore Timing And Safari Hardening
 
 Aktueller verifizierter Arbeitsstand:

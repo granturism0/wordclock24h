@@ -137,6 +137,17 @@ h2 {
   align-content: start;
 }
 
+.language-switch {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  max-width: 180px;
+}
+
+.language-switch select {
+  min-width: 140px;
+}
+
 .hero-actions {
   display: flex;
   gap: 10px;
