@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-04-29 Gzip PWA Rollout, Restore Timing And Safari Hardening
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-04-29-1957.zip`
+- PWA-Version: `1.4.37`
+
+Wichtige Punkte:
+
+- PWA-App-Dateien werden jetzt gzip-komprimiert gebaut, hochgeladen und vom ESP bevorzugt als `.gz` ausgeliefert
+- `/app` prüft installierte App-Dateien nicht mehr nur auf Existenz, sondern auch auf Dateigröße `> 0`, damit Crash-Reste mit leeren Dateien nicht als gültige Installation gelten
+- Remote-App-Installpfad für `/app/?action=install` wurde auf Stack- und Timing-Probleme gehärtet
+- Mobile-Safari-Ladepfad wurde stabilisiert:
+  - statische `/app`-Assets senden jetzt `Connection: close`
+  - der ESP beendet die Verbindung nach dem Dateistream explizit
+- Import/Restore wurde in mehreren empfindlichen Bereichen entschärft:
+  - Overlay-Restore mit absteigendem Delete, sequentiellem Wiederaufbau und zusätzlicher Entkopplung
+  - Timer-Restore mit größeren Abständen und Reload-Schritten
+  - `ticker_deceleration` mit zusätzlichem Schutzabstand vor und nach dem Write, damit serielle Kommandos nicht ineinanderlaufen
+- Der globale Hinweis für fehlende Layout-Tabellen erscheint jetzt erst, wenn die Tabellen-Info wirklich geladen ist, und flackert nicht mehr beim Start auf
+
+Wichtiger technischer Hinweis:
+
+- Der iPhone-Safari-Fall war zuletzt kein klassischer Frontend-Fehler, sondern ein empfindlicher HTTP-/Connection-Fall beim Ausliefern der PWA-Assets.
+- Der Restore-Fehler bei `ticker_deceleration` zeigte sich im Log als Kommando-Interleaving auf der seriellen STM32-Strecke und wurde deshalb bewusst über Timing-Abstände statt über ein Format- oder Mapping-Rework gelöst.
+
 ## 2026-04-15 PWA Update Visibility And UX Polish
 
 Aktueller verifizierter Arbeitsstand:

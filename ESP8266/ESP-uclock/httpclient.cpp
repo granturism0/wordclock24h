@@ -164,7 +164,6 @@ httpclient_read_line (unsigned char * bufp, int buflen, int * lenp)
         {
             break;
         }
-        yield ();
     }
 
     *bufp = '\0';

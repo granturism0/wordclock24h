@@ -175,6 +175,9 @@ static uint_fast8_t     http_table_download_filename_matches (const char * actua
 static void             http_remove_table_family_files (const char * keep_filename);
 static void             http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
 static bool             app_asset_filename (const char * asset_path, char * filename, size_t maxlen);
+static uint_fast8_t     http_app_asset_supports_gzip (const char * asset_path);
+static bool             app_asset_storage_filename (const char * asset_path, uint_fast8_t gzip_encoded, char * filename, size_t maxlen);
+static uint_fast8_t     http_find_stored_app_asset_filename (const char * asset_path, char * filename, size_t maxlen, uint_fast8_t * gzip_encoded);
 static const char *     http_find_app_install_asset (const char * asset_path);
 static uint_fast8_t     http_api_app_file_upload ();
 static int8_t           http_decode_temp_correction (unsigned int value);
@@ -221,6 +224,10 @@ typedef struct
 static UPDATE_PROGRESS   update_progress;
 static uint_fast8_t     update_progress_stream_active;
 static char             http_request_user_agent[96];
+static unsigned char    http_download_buf[1024];
+static char             http_app_asset_local_filename[128];
+static char             http_app_asset_remote_filename[128];
+static char             http_app_asset_stale_filename[128];
 
 static void
 http_clear_request_user_agent (void)
@@ -1001,7 +1008,7 @@ http_content_type (const char * path)
 }
 
 static uint_fast8_t
-http_send_fs_file (const char * filename, const char * content_type)
+http_send_fs_file (const char * filename, const char * content_type, uint_fast8_t gzip_encoded)
 {
     uint_fast8_t    rtc = 0;
 
@@ -1015,22 +1022,31 @@ http_send_fs_file (const char * filename, const char * content_type)
         {
             http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
             http_send (content_type);
-            http_send (FS("\r\nCache-Control: no-cache\r\n\r\n"));
+
+            if (gzip_encoded)
+            {
+                http_send (FS("\r\nContent-Encoding: gzip"));
+            }
+
+            http_send (FS("\r\nContent-Length: "));
+            http_send (String (fp.size ()).c_str ());
+            http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
+            http_flush ();
 
             while (fp.available ())
             {
-                char    buf[257];
-                size_t  len = fp.readBytes (buf, sizeof (buf) - 1);
+                uint8_t buf[256];
+                size_t  len = fp.read (buf, sizeof (buf));
 
                 if (len > 0)
                 {
-                    buf[len] = '\0';
-                    http_send (buf);
+                    http_client.write (buf, len);
                 }
             }
 
+            http_client.flush ();
             fp.close ();
-            http_flush ();
+            http_client.stop ();
             rtc = 1;
         }
     }
@@ -1041,27 +1057,47 @@ http_send_fs_file (const char * filename, const char * content_type)
 }
 
 static bool
+http_fs_file_exists_and_nonempty (const char * filename)
+{
+    File fp;
+    bool rtc = false;
+
+    if (LittleFS.exists (filename))
+    {
+        fp = LittleFS.open (filename, "r");
+
+        if (fp)
+        {
+            rtc = (fp.size () > 0);
+            fp.close ();
+        }
+    }
+
+    return rtc;
+}
+
+static bool
 http_app_installation_complete (void)
 {
-    static const char * required_files[] =
-    {
-        "app-index.html",
-        "app-app.js",
-        "app-styles.css",
-        "app-layout-previews.json",
-        "app-manifest.webmanifest",
-        "app-sw.js",
-        "app-icons-icon-192.svg",
-        "app-icons-icon-512.svg"
-    };
-    uint_fast8_t idx;
-    bool rtc = true;
+    size_t  asset_count = sizeof (APP_INSTALL_ASSETS) / sizeof (APP_INSTALL_ASSETS[0]);
+    bool    rtc = true;
 
     LittleFS.begin ();
 
-    for (idx = 0; idx < sizeof (required_files) / sizeof (required_files[0]); idx++)
+    for (size_t idx = 0; idx < asset_count; idx++)
     {
-        if (! LittleFS.exists (required_files[idx]))
+        const char * asset_path = APP_INSTALL_ASSETS[idx];
+        char flat_gz[72];
+        char native_gz[72];
+
+        const char * slash = strrchr (asset_path, '/');
+        const char * base  = slash ? slash + 1 : asset_path;
+
+        app_asset_storage_filename (asset_path, 1, flat_gz, sizeof (flat_gz));
+        snprintf (native_gz, sizeof (native_gz), "%s.gz", base);
+
+        if (! http_fs_file_exists_and_nonempty (flat_gz) &&
+            ! http_fs_file_exists_and_nonempty (native_gz))
         {
             rtc = false;
             break;
@@ -1073,59 +1109,39 @@ http_app_installation_complete (void)
 }
 
 static bool         download_file (const char * host, const char * path, const char * filename);
+static bool         download_file_to_local (const char * host, const char * path, const char * remote_filename, const char * local_filename);
 static bool         http_remote_app_files_available (char * version_buf, size_t version_buf_len);
 static bool         download_file_as_flattened_app_asset (const char * host, const char * path, const char * remote_filename);
 
 static bool
 download_file_as_flattened_app_asset (const char * host, const char * path, const char * remote_filename)
 {
-    unsigned char   buf[1024];
-    char            local_filename[128];
-    int             len;
-    bool            rtc = false;
+    const char *    requested_remote_filename = remote_filename;
+    uint_fast8_t    gzip_encoded = 0;
 
-    if (! app_asset_filename (remote_filename, local_filename, sizeof (local_filename)))
+    if (http_app_asset_supports_gzip (remote_filename))
+    {
+        snprintf (http_app_asset_remote_filename, sizeof (http_app_asset_remote_filename), "%s.gz", remote_filename);
+        requested_remote_filename = http_app_asset_remote_filename;
+        gzip_encoded = 1;
+    }
+
+    if (! app_asset_storage_filename (remote_filename, gzip_encoded, http_app_asset_local_filename, sizeof (http_app_asset_local_filename)))
     {
         return false;
     }
 
-    len = httpclient (host, path, remote_filename);
-
-    if (len > 0)
+    if (! download_file_to_local (host, path, requested_remote_filename, http_app_asset_local_filename))
     {
-        int  ch;
-        int  idx = 0;
-        File f = LittleFS.open (local_filename, "w");
-
-        if (! f)
-        {
-            httpclient_stop ();
-            return false;
-        }
-
-        while (len > 0)
-        {
-            ch = httpclient_read (&len);
-            buf[idx++] = ch;
-
-            if (idx == (int) sizeof (buf))
-            {
-                f.write (buf, idx);
-                idx = 0;
-            }
-        }
-
-        if (idx > 0)
-        {
-            f.write (buf, idx);
-        }
-
-        f.close ();
-        httpclient_stop ();
-        rtc = true;
+        return false;
     }
 
-    return rtc;
+    if (app_asset_storage_filename (remote_filename, gzip_encoded ? 0 : 1, http_app_asset_stale_filename, sizeof (http_app_asset_stale_filename)))
+    {
+        LittleFS.remove (http_app_asset_stale_filename);
+    }
+
+    return true;
 }
 
 static int
@@ -1161,9 +1177,9 @@ http_try_auto_install_app_files (void)
 
     for (idx = 0; idx < asset_count; idx++)
     {
-        char local_filename[128];
+        uint_fast8_t is_gz = http_app_asset_supports_gzip (APP_INSTALL_ASSETS[idx]);
 
-        if (! app_asset_filename (APP_INSTALL_ASSETS[idx], local_filename, sizeof (local_filename)))
+        if (! app_asset_storage_filename (APP_INSTALL_ASSETS[idx], is_gz, http_app_asset_local_filename, sizeof (http_app_asset_local_filename)))
         {
             Serial.print (FS("(APPDL app-install-fail step="));
             Serial.print (idx + 1);
@@ -1182,8 +1198,9 @@ http_try_auto_install_app_files (void)
         Serial.print (asset_count);
         Serial.print (FS(" remote="));
         Serial.print (APP_INSTALL_ASSETS[idx]);
+        if (is_gz) { Serial.print (FS(".gz")); }
         Serial.print (FS(" local="));
-        Serial.print (local_filename);
+        Serial.print (http_app_asset_local_filename);
         Serial.println (FS(")"));
 
         if (! download_file_as_flattened_app_asset (update_host, update_path, APP_INSTALL_ASSETS[idx]))
@@ -1195,7 +1212,7 @@ http_try_auto_install_app_files (void)
             Serial.print (FS(" remote="));
             Serial.print (APP_INSTALL_ASSETS[idx]);
             Serial.print (FS(" local="));
-            Serial.print (local_filename);
+            Serial.print (http_app_asset_local_filename);
             Serial.println (FS(" reason=download)"));
             rtc = 0;
             break;
@@ -1220,6 +1237,7 @@ http_remote_app_files_available (char * version_buf, size_t version_buf_len)
     STR_VAR *   sv;
     char *      update_host;
     char *      update_path;
+    char        remote_filename[128];
     bool        app_files_available = false;
 
     if (version_buf && version_buf_len)
@@ -1248,7 +1266,17 @@ http_remote_app_files_available (char * version_buf, size_t version_buf_len)
         http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, version_buf, version_buf_len);
     }
 
-    if (httpclient (update_host, update_path, APP_INSTALL_ASSETS[0]) > 0)
+    if (http_app_asset_supports_gzip (APP_INSTALL_ASSETS[0]))
+    {
+        snprintf (remote_filename, sizeof (remote_filename), "%s.gz", APP_INSTALL_ASSETS[0]);
+
+        if (httpclient (update_host, update_path, remote_filename) > 0)
+        {
+            app_files_available = true;
+            httpclient_stop ();
+        }
+    }
+    else if (httpclient (update_host, update_path, APP_INSTALL_ASSETS[0]) > 0)
     {
         app_files_available = true;
         httpclient_stop ();
@@ -1304,6 +1332,84 @@ http_find_app_install_asset (const char * asset_path)
     return (const char *) 0;
 }
 
+static uint_fast8_t
+http_app_asset_supports_gzip (const char * asset_path)
+{
+    const char * p = strrchr (asset_path ? asset_path : "", '.');
+
+    if (! p)
+    {
+        return 0;
+    }
+
+    return (! strcmp (p, ".html") ||
+            ! strcmp (p, ".css") ||
+            ! strcmp (p, ".js") ||
+            ! strcmp (p, ".json") ||
+            ! strcmp (p, ".webmanifest") ||
+            ! strcmp (p, ".svg"));
+}
+
+static bool
+app_asset_storage_filename (const char * asset_path, uint_fast8_t gzip_encoded, char * filename, size_t maxlen)
+{
+    size_t len;
+
+    if (! app_asset_filename (asset_path, filename, maxlen))
+    {
+        return false;
+    }
+
+    if (! gzip_encoded)
+    {
+        return true;
+    }
+
+    len = strlen (filename);
+
+    if (len + 3 >= maxlen)
+    {
+        return false;
+    }
+
+    strcpy (filename + len, ".gz");
+    return true;
+}
+
+static uint_fast8_t
+http_find_stored_app_asset_filename (const char * asset_path, char * filename, size_t maxlen, uint_fast8_t * gzip_encoded)
+{
+    char local_filename[128];
+
+    LittleFS.begin ();
+
+    // flattened .gz  (OTA / PWA-upload path)
+    if (app_asset_storage_filename (asset_path, 1, local_filename, sizeof (local_filename)) &&
+        LittleFS.exists (local_filename))
+    {
+        if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
+        if (gzip_encoded) { *gzip_encoded = 1; }
+        return 1;
+    }
+
+    // basename .gz  (Arduino LittleFS upload tool — files stored flat in root)
+    {
+        const char * slash = strrchr (asset_path, '/');
+        const char * base  = slash ? slash + 1 : asset_path;
+
+        snprintf (local_filename, sizeof (local_filename), "%s.gz", base);
+
+        if (LittleFS.exists (local_filename))
+        {
+            if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
+            if (gzip_encoded) { *gzip_encoded = 1; }
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int8_t
 http_decode_temp_correction (unsigned int value)
 {
@@ -1339,14 +1445,19 @@ http_app (const char * path)
     const char *    content_type;
     const char *    action;
     uint_fast8_t    is_pwa_index = 0;
+    uint_fast8_t    gzip_encoded = 0;
     uint_fast8_t    sent = 0;
     bool            app_complete;
     bool            remote_app_available = false;
 
     if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
     {
-        strncpy (filename, PWA_INDEX_FILE, sizeof (filename) - 1);
-        filename[sizeof (filename) - 1] = '\0';
+        if (! http_find_stored_app_asset_filename ("app/index.html", filename, sizeof (filename), &gzip_encoded))
+        {
+            strncpy (filename, PWA_INDEX_FILE, sizeof (filename) - 1);
+            filename[sizeof (filename) - 1] = '\0';
+        }
+
         is_pwa_index = 1;
     }
     else if (! strncmp (path, PWA_PREFIX "/", strlen (PWA_PREFIX "/")))
@@ -1355,7 +1466,7 @@ http_app (const char * path)
 
         snprintf (asset_path, sizeof (asset_path), "app/%s", path + strlen (PWA_PREFIX "/"));
 
-        if (! app_asset_filename (asset_path, filename, sizeof (filename)))
+        if (! http_find_stored_app_asset_filename (asset_path, filename, sizeof (filename), &gzip_encoded))
         {
             http_send (FS("HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\n\r\nPWA asset not found\r\n"));
             http_flush ();
@@ -1367,7 +1478,21 @@ http_app (const char * path)
         return 0;
     }
 
-    content_type = http_content_type (filename);
+    {
+        char ct_buf[128];
+        size_t ct_len;
+
+        strncpy (ct_buf, filename, sizeof (ct_buf) - 1);
+        ct_buf[sizeof (ct_buf) - 1] = '\0';
+        ct_len = strlen (ct_buf);
+
+        if (gzip_encoded && ct_len > 3)
+        {
+            ct_buf[ct_len - 3] = '\0';
+        }
+
+        content_type = http_content_type (ct_buf);
+    }
     app_complete = http_app_installation_complete ();
     action = http_get_param ("action");
 
@@ -1423,7 +1548,7 @@ http_app (const char * path)
 
     if (! is_pwa_index || app_complete)
     {
-        sent = http_send_fs_file (filename, content_type);
+        sent = http_send_fs_file (filename, content_type, gzip_encoded);
     }
 
     if (sent)
@@ -5141,43 +5266,60 @@ http_tft (void)
     return rtc;
 }
 
-bool
-download_file (const char * host, const char * path, const char * filename)
+static bool
+download_file_to_local (const char * host, const char * path, const char * remote_filename, const char * local_filename)
 {
-    unsigned char   buf[1024];
     int             len;                                                // content len
     bool            rtc = false;
 
-    len = httpclient (host, path, filename);
+    len = httpclient (host, path, remote_filename);
 
     if (len > 0)
     {
         int ch;
         int idx = 0;
 
-        File f = LittleFS.open(filename, "w");
+        File f = LittleFS.open(local_filename, "w");
+
+        if (! f)
+        {
+            httpclient_stop ();
+            return false;
+        }
 
         while (len > 0)
         {
             ch = httpclient_read (&len);
-            buf[idx++] = ch;
+
+            if (ch < 0)
+            {
+                break;
+            }
+
+            http_download_buf[idx++] = ch;
             if (idx == 1024)
             {
-               f.write (buf, idx);
+               f.write (http_download_buf, idx);
                idx = 0;
             }
         }
 
         if (idx > 0)
         {
-           f.write (buf, idx);
+           f.write (http_download_buf, idx);
         }
 
         f.close ();
         httpclient_stop ();
-        rtc = true;
+        rtc = (len == 0);
     }
     return rtc;
+}
+
+static bool
+download_file (const char * host, const char * path, const char * filename)
+{
+    return download_file_to_local (host, path, filename, filename);
 }
 
 #define READ_LINE_TIMEOUT   2000  // 2000 msec
@@ -6089,6 +6231,22 @@ http_api_app_file_upload ()
     }
     else
     {
+        const char * encoding = http_get_param ("encoding");
+        uint_fast8_t gzip_encoded = (encoding && ! strcmp (encoding, "gzip")) ? 1 : 0;
+
+        if (! app_asset_storage_filename (validated_asset, gzip_encoded, local_filename, sizeof (local_filename)))
+        {
+            error_code = 2;
+        }
+        else
+        {
+        char stale_filename[64];
+
+        if (app_asset_storage_filename (validated_asset, gzip_encoded ? 0 : 1, stale_filename, sizeof (stale_filename)))
+        {
+            LittleFS.remove (stale_filename);
+        }
+
         if (step == 1 && total > 0)
         {
             Serial.print (F("APPDL local-install-begin count="));
@@ -6135,7 +6293,8 @@ http_api_app_file_upload ()
             Serial.print (F("APPDL local-install-complete count="));
             Serial.println (total);
         }
-    }
+        }   // else: app_asset_storage_filename ok
+    }   // else: validated_asset && content_length ok
 
     if (! ok)
     {

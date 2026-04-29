@@ -37,9 +37,12 @@
           und bleibt bewusst schlank, während die Legacy-Seite weiter verfügbar ist.
         </p>
       </div>
-      <div class="hero-actions">
-        <a id="legacy-entry-link" class="button primary" href="/legacy">Legacy-Seite</a>
-        <button id="reload-button" class="button" type="button">Neu laden</button>
+      <div class="hero-side">
+        <div id="layout-table-warning-global" class="module-warning is-hidden" role="status"></div>
+        <div class="hero-actions">
+          <a id="legacy-entry-link" class="button primary" href="/legacy">Legacy-Seite</a>
+          <button id="reload-button" class="button" type="button">Neu laden</button>
+        </div>
       </div>
     </header>
 
@@ -735,13 +738,13 @@
                 <div class="panel-head compact"><div><span class="label">Lokale Dateien hochladen</span></div></div>
                 <div class="control-stack">
                   <div id="local-app-files-block" class="control-stack">
-                    <div class="panel-head compact"><div><span class="label">Lokale App-Dateien</span></div></div>
+                    <div class="panel-head compact"><div><span class="label">Lokale App-Dateien (.gz)</span></div></div>
                     <div class="hero-actions compact-actions">
                       <button id="local-app-folder-choose-button" class="button" type="button">Lokalen App-Ordner wählen</button>
                       <button id="local-app-install-button" class="button primary" type="button" disabled>App-Dateien direkt installieren</button>
                     </div>
                     <input id="local-app-folder-input" type="file" webkitdirectory directory multiple class="is-hidden">
-                    <p id="local-app-folder-note" class="hint">Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die bekannten Dateien unter <code>app/...</code> enthält.</p>
+                    <p id="local-app-folder-note" class="hint">Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die komprimierten Dateien (.gz) unter <code>app/...</code> enthält.</p>
                     <div id="local-app-files-list" class="info-list"></div>
                   </div>
                   <form id="fs-upload-icon-form" class="upload-form is-hidden" method="post" action="" enctype="multipart/form-data">

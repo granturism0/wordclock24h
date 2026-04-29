@@ -9,16 +9,16 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.25";
+const APP_VERSION = "1.4.37";
 const LOCAL_APP_REQUIRED_ASSETS = [
-  "app/index.html",
-  "app/styles.css",
-  "app/app.js",
-  "app/sw.js",
-  "app/layout-previews.json",
-  "app/manifest.webmanifest",
-  "app/icons/icon-192.svg",
-  "app/icons/icon-512.svg"
+  "app/index.html.gz",
+  "app/styles.css.gz",
+  "app/app.js.gz",
+  "app/sw.js.gz",
+  "app/layout-previews.json.gz",
+  "app/manifest.webmanifest.gz",
+  "app/icons/icon-192.svg.gz",
+  "app/icons/icon-512.svg.gz"
 ];
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
@@ -244,6 +244,7 @@ let currentSettingsSnapshot = null;
 let currentEepromSettings = null;
 let currentUpdateStatus = {};
 let currentUpdateTableInfo = {};
+let currentUpdateTableInfoLoaded = false;
 let currentNetworkInfo = {};
 const layoutPreviewCache = {};
 let layoutPreviewRowsMap = null;
@@ -280,7 +281,7 @@ let appServiceWorkerRegistration = null;
 let appServiceWorkerUpdateApplied = false;
 let initialLoadRetryTimer = 0;
 let initialLoadAttemptCount = 0;
-let reloadBootstrapPending = hasReloadQueryMarker();
+let reloadBootstrapPending = false;
 let reloadBootstrapTimers = [];
 let startupLoadScheduled = true;
 let startupLoadIssued = false;
@@ -1052,11 +1053,7 @@ function scheduleReloadBootstrapLoads() {
 }
 
 function hasReloadQueryMarker() {
-  try {
-    return new URL(window.location.href).searchParams.has("_reload");
-  } catch (_) {
-    return false;
-  }
+  return false;
 }
 
 function handleInitialLoadPending(error, options) {
@@ -1126,6 +1123,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   const activeModule = opts.moduleName || getActiveModuleName();
   const moduleProfile = getModuleDataProfile(activeModule, opts);
   const maintenanceActive = moduleProfile.maintenance;
+  const displayActive = moduleProfile.display;
   const systemActive = moduleProfile.system;
   const networkActive = moduleProfile.network;
   const overlaysActive = moduleProfile.overlays;
@@ -1146,17 +1144,22 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
     } catch (error) {
       console.warn("Update status load failed", error);
     }
+  }
 
+  if (mainActive || displayActive || maintenanceActive || updateActive) {
     try {
       const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
       if (requestId !== loadRequestSerial) {
         return;
       }
       setCurrentUpdateTableInfo(updateTableInfo);
+      updateLayoutTableWarnings(settings, updateTableInfo);
     } catch (error) {
       console.warn("Update table info load failed", error);
     }
+  }
 
+  if (mainActive || maintenanceActive || updateActive) {
     try {
       refreshUpdateUi(settings, coreData, debugOverrides);
     } catch (error) {
@@ -1247,6 +1250,7 @@ function getModuleDataProfile(moduleName, options) {
 
   return {
     main: activeModule === "main",
+    display: activeModule === "display",
     system: activeModule === "system",
     network: activeModule === "network",
     overlays: activeModule === "overlays",
@@ -1592,6 +1596,7 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   renderList("config-list", configItems);
   renderPreviewDebug(settings);
   updateModuleAvailability(settings, debugOverrides);
+  updateLayoutTableWarnings(settings);
 }
 
 function updateDisplayButton(displayPower) {
@@ -1705,6 +1710,7 @@ function updateMaintenanceControlsFromMeta(meta) {
   document.getElementById("update-host-input").value = meta.updateHost;
   document.getElementById("update-path-input").value = meta.updatePath;
   renderList("backup-info-list", meta.infoItems);
+  updateLayoutTableWarnings(getCurrentSettingsSnapshot());
 }
 
 function setSettingsBackupNote(message, tone) {
@@ -2658,14 +2664,14 @@ function buildPrimaryImportStages(executionState) {
   return [
     { note: "Übernehme Wartungs-Einstellungen...", run: () => importMaintenanceSettings(settings.maintenance), pauseMs: 250 },
     { note: "Stelle Dateien und Assets wieder her...", run: () => restoreBackupAssets(assets, settings), pauseMs: 250 },
-    { note: "Übernehme Display-Einstellungen...", run: () => importDisplaySettings(settings.display), pauseMs: 250 },
+    { note: "Übernehme Display-Einstellungen...", run: () => importDisplaySettings(settings.display), reload: true, pauseMs: 600 },
     { note: "Übernehme Klima- und Wetter-Einstellungen...", run: () => importClimateSettings(settings.climate), pauseMs: 250 },
     { note: "Übernehme Animations-Einstellungen...", run: () => importAnimationSettings(settings.animations), pauseMs: 250 },
     { note: "Übernehme TFT-Einstellungen...", run: () => importTftSettings(settings.tft), pauseMs: 250 },
     { note: "Übernehme Ambilight-Einstellungen...", run: () => importAmbilightSettings(settings.ambilight), pauseMs: 250 },
     { note: "Übernehme DFPlayer-Einstellungen...", run: () => importDfplayerSettings(settings.dfplayer), pauseMs: 250 },
-    { note: "Übernehme Overlays...", run: () => importOverlaySettings(settings.overlays), pauseMs: 500 },
-    { note: "Übernehme Timer...", run: () => importTimerSettings(settings.timers), pauseMs: 800 }
+    { note: "Übernehme Overlays...", run: () => importOverlaySettings(settings.overlays), reload: true, pauseMs: 1200 },
+    { note: "Übernehme Timer...", run: () => importTimerSettings(settings.timers), reload: true, pauseMs: 1200 }
   ];
 }
 
@@ -2688,7 +2694,8 @@ function buildSectionRetryStages(retryState) {
     {
       shouldRetry: displayImportNeedsRetry(settings.display, snapshot),
       note: "Übernehme Display-Einstellungen erneut...",
-      run: () => importDisplaySettings(settings.display)
+      run: () => importDisplaySettings(settings.display),
+      options: { pauseMs: 800, reload: true }
     },
     {
       shouldRetry: climateImportNeedsRetry(settings.climate, snapshot),
@@ -2703,7 +2710,8 @@ function buildSectionRetryStages(retryState) {
     {
       shouldRetry: timersImportNeedsRetry(settings.timers, snapshot),
       note: "Übernehme Timer erneut...",
-      run: () => importTimerSettings(settings.timers)
+      run: () => importTimerSettings(settings.timers),
+      options: { pauseMs: 1200, reload: true }
     }
   ];
 }
@@ -3230,17 +3238,27 @@ async function importDisplaySettings(display) {
   setSettingsBackupNote("Importiere Display-Einstellungen...");
 
   await apiFetchValue(getDisplayPowerSetUrl(), display.power ? "on" : "off");
+  await sleep(180);
   await apiFetchValue(getDisplayModeSetUrl(), Number(display.mode || 0));
+  await sleep(180);
   await apiFetchValue(getDisplayUseRgbwSetUrl(), display.use_rgbw ? "on" : "off");
+  await sleep(180);
   await apiFetchValue(getAutoBrightnessSetUrl(), display.automatic_brightness ? "on" : "off");
-  await sleep(150);
+  await sleep(220);
   await apiFetchValue(getDisplayBrightnessSetUrl(), Number(display.brightness || 0));
+  await sleep(220);
   await apiFetchValue(getDisplayItIsSetUrl(), display.permanent_it_is ? "on" : "off");
+  await sleep(220);
   await apiFetchValue(getTickerSetUrl(), display.ticker_text || "");
+  await sleep(350);
   await apiFetchValue(getDateTickerFormatSetUrl(), display.date_ticker_format || "");
+  await sleep(900);
   await apiFetchValue(getTickerDecelerationSetUrl(), Number(display.ticker_deceleration || 0));
+  await sleep(1800);
   await saveImportedColor(getDisplayColorSetUrl(), display.color);
+  await sleep(250);
   await saveImportedDimCurve(getDisplayDimLevelSetUrl(), display.dim_curve);
+  await sleep(500);
 }
 
 async function importMaintenanceSettings(maintenance) {
@@ -3251,7 +3269,7 @@ async function importMaintenanceSettings(maintenance) {
   setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
 
   await apiFetchValue(getUpdateHostSetUrl(), maintenance.update_host || "");
-  await sleep(500);
+  await sleep(900);
   await apiFetchValue(getUpdatePathSetUrl(), maintenance.update_path || "");
   await sleep(500);
 }
@@ -3264,12 +3282,16 @@ async function importClimateSettings(climate) {
   setSettingsBackupNote("Importiere Klima- und Wetter-Einstellungen...");
 
   await apiFetchValue(getWeatherAppIdSetUrl(), climate.weather_appid || "");
+  await sleep(250);
   await apiFetchValue(getWeatherCitySetUrl(), climate.weather_city || "");
+  await sleep(250);
   await apiFetchQuery(getWeatherCoordinatesSetUrl(), {
     lon: climate.weather_lon || "",
     lat: climate.weather_lat || ""
   });
+  await sleep(250);
   await apiFetchValue(getLdrMinValueSetUrl(), Number(climate.ldr_min || 0));
+  await sleep(150);
   await apiFetchValue(getLdrMaxValueSetUrl(), Number(climate.ldr_max || 0));
 }
 
@@ -3421,27 +3443,33 @@ async function importOverlaySettings(overlays) {
   setSettingsBackupNote("Importiere Overlays...");
 
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
-  for (let idx = 0; idx < 32; idx += 1) {
+  for (let idx = 31; idx >= 0; idx -= 1) {
     try {
       await apiFetchQuery(getOverlayDeleteUrl(), { idx });
     } catch (_) {}
   }
+  await sleep(1500);
 
   for (let idx = 0; idx < items.length; idx += 1) {
     const entry = items[idx] || {};
+    const entryFlags = Number(entry.flags || 0);
+    const entryDateStart = Number(entry.date_start || 0);
+    const entryValue = entry.value !== undefined ? entry.value : entry.text;
     await apiFetchQuery(getOverlaySetUrl(), {
       idx,
-      active: entry.active ? "on" : "off",
+      active: (entry.active !== undefined ? entry.active : !!(entryFlags & 0x01)) ? "on" : "off",
       type: Number(entry.type || 0),
-      value: entry.value || "",
+      value: entryValue || "",
       interval: Number(entry.interval || 0),
       duration: Number(entry.duration || 0),
       date_code: Number(entry.date_code || 0),
-      month: Number(entry.month || 0),
-      day: Number(entry.day || 0),
+      month: Number(entry.month || ((entryDateStart >> 8) & 0xff) || 0),
+      day: Number(entry.day || (entryDateStart & 0xff) || 0),
       days: Number(entry.days || 1)
     });
+    await sleep(idx === 0 ? 1100 : 700);
   }
+  await sleep(1200);
 }
 
 async function importTimerSettings(timers) {
@@ -3451,31 +3479,28 @@ async function importTimerSettings(timers) {
 
   setSettingsBackupNote("Importiere Timer...");
 
-  const buildTimerParams = (entry) => ({
-    idx: Number(entry.idx || 0),
-    active: entry.active ? "on" : "off",
-    switch_on: entry.switch_on ? "on" : "off",
-    from: Number(entry.from || 0),
-    to: Number(entry.to || 0),
-    hour: Number(entry.hour || 0),
-    minute: Number(entry.minute || 0)
-  });
+  const importTimerGroup = async (endpoint, entries) => {
+    const entryMap = new Map((entries || []).map((entry) => [Number(entry.idx || 0), entry]));
 
-  await importIndexedEntries(
-    getTimerSetUrl(),
-    timers.display || [],
-    8,
-    (idx) => ({ idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 }),
-    buildTimerParams
-  );
+    for (let idx = 0; idx < 8; idx += 1) {
+      const entry = entryMap.get(idx) || { idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 };
+      await apiFetchQuery(endpoint, {
+        idx: Number(entry.idx || 0),
+        active: entry.active ? "on" : "off",
+        switch_on: entry.switch_on ? "on" : "off",
+        from: Number(entry.from || 0),
+        to: Number(entry.to || 0),
+        hour: Number(entry.hour || 0),
+        minute: Number(entry.minute || 0)
+      });
+      await sleep(idx < 2 ? 420 : 260);
+    }
+  };
 
-  await importIndexedEntries(
-    getAmbilightTimerSetUrl(),
-    timers.ambilight || [],
-    8,
-    (idx) => ({ idx, active: false, switch_on: false, from: 0, to: 0, hour: 0, minute: 0 }),
-    buildTimerParams
-  );
+  await importTimerGroup(getTimerSetUrl(), timers.display || []);
+  await sleep(700);
+  await importTimerGroup(getAmbilightTimerSetUrl(), timers.ambilight || []);
+  await sleep(900);
 }
 
 async function saveImportedColor(endpoint, color) {
@@ -5218,6 +5243,19 @@ async function uploadLocalStm32Update(event) {
   }
 }
 
+const GZIP_UPLOAD_EXTENSIONS = new Set([".html", ".css", ".js", ".json", ".webmanifest", ".svg"]);
+
+function shouldGzipUpload(assetPath) {
+  const dot = assetPath.lastIndexOf(".");
+  return dot >= 0 && GZIP_UPLOAD_EXTENSIONS.has(assetPath.slice(dot).toLowerCase());
+}
+
+async function gzipBlob(blob) {
+  const stream = blob.stream().pipeThrough(new CompressionStream("gzip"));
+  const compressed = await new Response(stream).arrayBuffer();
+  return new Blob([compressed], { type: "application/octet-stream" });
+}
+
 function uploadRawFile(url, file, onProgress, onUploadComplete) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -5344,6 +5382,12 @@ function normalizeLocalAppAssetPath(relativePath) {
     return normalized;
   }
 
+  const trimmed = normalized.replace(/^\.?\/*/, "");
+
+  if (LOCAL_APP_REQUIRED_ASSETS.includes("app/" + trimmed)) {
+    return "app/" + trimmed;
+  }
+
   const marker = "/app/";
   const markerIndex = normalized.lastIndexOf(marker);
 
@@ -5459,7 +5503,7 @@ function renderLocalAppSelectionStatus() {
 
   if (note) {
     if (!foundCount) {
-      note.textContent = "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die bekannten App-Dateien unter app/... enthält.";
+      note.textContent = "Noch kein App-Ordner gewählt. Bitte den Ordner wählen, der die komprimierten Dateien (.gz) unter app/... enthält.";
     } else if (!missingAssets.length) {
       note.textContent = "App-Ordner vollständig erkannt. " + String(LOCAL_APP_REQUIRED_ASSETS.length) + "/" + String(LOCAL_APP_REQUIRED_ASSETS.length) + " Dateien sind bereit und koennen direkt installiert werden.";
     } else {
@@ -5515,8 +5559,16 @@ async function installLocalAppFiles() {
       document.getElementById("updated-at").textContent = progressMessage;
       setFsActionStatus(progressMessage);
 
+      const isGz = assetPath.endsWith(".gz");
+      const serverAssetPath = isGz ? assetPath.slice(0, -3) : assetPath;
+      const extraParams = { step: index + 1, total: LOCAL_APP_REQUIRED_ASSETS.length };
+
+      if (isGz) {
+        extraParams.encoding = "gzip";
+      }
+
       await uploadRawFile(
-        buildUploadUrl(uploadUrl, assetPath, { step: index + 1, total: LOCAL_APP_REQUIRED_ASSETS.length }),
+        buildUploadUrl(uploadUrl, serverAssetPath, extraParams),
         file,
         () => {
         }
@@ -5975,6 +6027,8 @@ function getCurrentUpdateStatus() {
 
 function setCurrentUpdateTableInfo(updateTableInfo) {
   currentUpdateTableInfo = getNormalizedUpdateTableInfo(updateTableInfo);
+  currentUpdateTableInfoLoaded = true;
+  updateLayoutTableWarnings(getCurrentSettingsSnapshot(), currentUpdateTableInfo);
   return currentUpdateTableInfo;
 }
 
@@ -6452,6 +6506,36 @@ function getUpdateTableCurrentFile(updateTableInfo) {
 
 function getUpdateTableFilesList(updateTableInfo) {
   return getUpdateTableInfoArray(updateTableInfo, "table_files");
+}
+
+function getLayoutTableWarningFileName(settings, updateTableInfo) {
+  const assetMeta = getResolvedAssetMeta(settings || getCurrentSettingsSnapshot(), null, updateTableInfo || getCurrentUpdateTableInfo());
+  const prefix = String(assetMeta && assetMeta.assetPrefix ? assetMeta.assetPrefix : "").trim().toLowerCase();
+  return prefix ? (prefix + "-tables-xx.txt") : "wcxx-tables-xx.txt";
+}
+
+function getLayoutTableWarningMessage(settings, updateTableInfo) {
+  return "Bitte die Layout-Tabelle " + getLayoutTableWarningFileName(settings, updateTableInfo) + " auf LittleFS installieren.";
+}
+
+function updateLayoutTableWarnings(settings, updateTableInfo) {
+  const infoLoaded = currentUpdateTableInfoLoaded || !!(updateTableInfo && typeof updateTableInfo === "object" && Object.keys(updateTableInfo).length);
+  const element = document.getElementById("layout-table-warning-global");
+  if (!element) {
+    return;
+  }
+
+  if (!infoLoaded) {
+    element.classList.add("is-hidden");
+    element.textContent = "";
+    return;
+  }
+
+  const hasLayoutTable = !!normalizeFsFileName(getUpdateTableCurrentFile(updateTableInfo || getCurrentUpdateTableInfo()));
+  const message = hasLayoutTable ? "" : getLayoutTableWarningMessage(settings, updateTableInfo);
+
+  element.classList.toggle("is-hidden", hasLayoutTable);
+  element.textContent = hasLayoutTable ? "" : message;
 }
 
 function canOtaUpdate(updateStatus) {
@@ -7587,23 +7671,12 @@ async function reloadAppPage() {
   }
 
   const url = new URL(window.location.href);
-  url.searchParams.set("_reload", String(Date.now()));
-  window.location.replace(url.toString());
+  const nextPath = "/app/" + (url.hash || "");
+  window.location.replace(nextPath);
 }
 
 function clearReloadQueryMarker() {
-  try {
-    const url = new URL(window.location.href);
-
-    if (!url.searchParams.has("_reload")) {
-      return;
-    }
-
-    url.searchParams.delete("_reload");
-    const nextPath = url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + url.hash;
-    window.history.replaceState({}, document.title, nextPath);
-  } catch (_) {
-  }
+  // Reload query marker removed intentionally; kept as a no-op for compatibility.
 }
 
 function manualReloadApp() {

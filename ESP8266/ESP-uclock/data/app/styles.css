@@ -131,6 +131,12 @@ h2 {
   line-height: 1.55;
 }
 
+.hero-side {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
 .hero-actions {
   display: flex;
   gap: 10px;
@@ -275,6 +281,19 @@ h2 {
 .module-banner .hint {
   margin: 10px 0 0;
   max-width: 58ch;
+}
+
+.module-warning {
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 208, 99, 0.34);
+  background: linear-gradient(180deg, rgba(255, 208, 99, 0.14), rgba(255, 174, 66, 0.1));
+  color: #ffe4a5;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.hero-side .module-warning {
+  max-width: 32rem;
 }
 
 .panel-span-2 {
@@ -501,6 +520,16 @@ h2 {
   border: 1px solid rgba(143, 211, 255, 0.16);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
+}
+
+#update-status-list .info-item {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+#update-status-list .info-item strong {
+  text-align: left;
 }
 
 .control-stack {

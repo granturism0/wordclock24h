@@ -1,5 +1,9 @@
 .DS_Store
 
+# Generated gzip app assets (built via `make app-gz`)
+ESP8266/ESP-uclock/data/app/*.gz
+ESP8266/ESP-uclock/data/app/**/*.gz
+
 # Root build outputs
 /build/
 
