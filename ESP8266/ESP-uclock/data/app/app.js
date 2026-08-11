@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.61";
+const APP_VERSION = "1.4.69";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -570,8 +570,10 @@ const I18N = {
     "system.logs_buffer": "{count} Log-Zeile{suffix} im Puffer.",
     "system.logs_reload": "Logs neu laden",
     "system.logs_clear": "Logs leeren",
+    "system.logs_jump_end": "Ans Ende springen",
     "system.logs_reload_busy": "lädt...",
     "system.logs_clear_busy": "leert...",
+    "system.logs_jump_done": "unten",
     "system.logs_loaded": "geladen",
     "system.logs_cleared": "geleert",
     "system.logs_load_failed": "STM32-Logs konnten nicht geladen werden",
@@ -779,6 +781,7 @@ const I18N = {
     "common.cleared": "geleert",
     "common.none": "Keins",
     "common.offline": "offline",
+    "common.invalid_value": "ungültig",
     "common.file": "Datei",
     "common.display": "Anzeigen",
     "common.delete": "Löschen",
@@ -1331,8 +1334,10 @@ const I18N = {
     "system.logs_buffer": "{count} log line{suffix} in buffer.",
     "system.logs_reload": "Reload logs",
     "system.logs_clear": "Clear logs",
+    "system.logs_jump_end": "Jump to end",
     "system.logs_reload_busy": "loading...",
     "system.logs_clear_busy": "clearing...",
+    "system.logs_jump_done": "bottom",
     "system.logs_loaded": "loaded",
     "system.logs_cleared": "cleared",
     "system.logs_load_failed": "STM32 logs could not be loaded",
@@ -1540,6 +1545,7 @@ const I18N = {
     "common.cleared": "cleared",
     "common.none": "None",
     "common.offline": "offline",
+    "common.invalid_value": "invalid",
     "common.file": "File",
     "common.display": "View",
     "common.delete": "Delete",
@@ -1832,6 +1838,8 @@ let startupLoadScheduled = true;
 let startupLoadIssued = false;
 let startupLoadIssuedAt = 0;
 let lastSuccessfulLoadAt = 0;
+let backgroundPauseUntil = 0;
+let backgroundPauseFinishTimer = 0;
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
 const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
@@ -2072,6 +2080,7 @@ bindElementEvents([
   ["debug-reset-button", "click", resetDebugOverrides],
   ["stm32-log-refresh-button", "click", refreshStm32Log],
   ["stm32-log-clear-button", "click", clearStm32Log],
+  ["stm32-log-jump-button", "click", jumpStm32LogToEnd],
   ["datetime-save-button", "click", saveDateTime],
   ["learn-ir-button", "click", learnIrRemote],
   ["update-progress-frame", "load", handleProgressFrameLoad],
@@ -2432,7 +2441,27 @@ function refreshVisibleModuleData(extraOptions) {
 }
 
 function shouldAutoRefreshCurrentModule() {
-  return true;
+  return !isBackgroundPauseActive();
+}
+
+function isBackgroundPauseActive() {
+  return backgroundPauseUntil > Date.now();
+}
+
+function startBackgroundPause(durationMs, reloadAfter) {
+  backgroundPauseUntil = Date.now() + Math.max(1000, Number(durationMs || 0));
+
+  if (backgroundPauseFinishTimer) {
+    window.clearTimeout(backgroundPauseFinishTimer);
+  }
+
+  backgroundPauseFinishTimer = window.setTimeout(() => {
+    backgroundPauseFinishTimer = 0;
+    backgroundPauseUntil = 0;
+    if (reloadAfter !== false) {
+      void loadData();
+    }
+  }, Math.max(1000, Number(durationMs || 0)) + 250);
 }
 
 function shouldDelayStartupRefresh() {
@@ -2521,6 +2550,9 @@ function syncModuleNavHint() {
 
 async function loadData(options) {
   const opts = options || {};
+  if (isBackgroundPauseActive() && !opts.allowDuringBackgroundPause) {
+    return;
+  }
   if (opts.auto && hasUnsavedEdits) {
     announceStatus(translate("status.auto_refresh_paused"), "warn");
     return;
@@ -2900,6 +2932,8 @@ function updateStm32Log(logData) {
   const output = document.getElementById("stm32-log-output");
   const lines = logData && Array.isArray(logData.lines) ? logData.lines : [];
   const count = typeof (logData && logData.count) === "number" ? logData.count : lines.length;
+  const scrollSlackPx = 8;
+  const wasAtBottom = (output.scrollTop + output.clientHeight) >= (output.scrollHeight - scrollSlackPx);
 
   if (!lines.length) {
     meta.textContent = translate("system.logs_empty");
@@ -2912,7 +2946,19 @@ function updateStm32Log(logData) {
     suffix: count === 1 ? "" : "n"
   });
   output.textContent = lines.join("\n");
+
+  if (wasAtBottom) {
+    output.scrollTop = output.scrollHeight;
+  }
+}
+
+function jumpStm32LogToEnd() {
+  const button = document.getElementById("stm32-log-jump-button");
+  const output = document.getElementById("stm32-log-output");
+
+  beginButtonFeedback(button, translate("common.loading"));
   output.scrollTop = output.scrollHeight;
+  finishButtonFeedback(button, translate("system.logs_jump_end"), "success", translate("system.logs_jump_done"));
 }
 
 async function fetchStm32Log(silent) {
@@ -6305,6 +6351,7 @@ async function testDisplay() {
   const maxRunTimeMs = 45000;
 
   beginButtonFeedback(button, translate("common.running"));
+  startBackgroundPause(maxRunTimeMs, true);
 
   try {
     await apiFetch(getDisplayTestUrl());
@@ -6343,13 +6390,14 @@ async function getWeatherForecast() {
 }
 
 async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
+  startBackgroundPause(12000, false);
+
   await runButtonRequestById(buttonId, {
     busyText: translate("common.running"),
     idleText: buttonText,
     successText: "angefragt",
     errorText,
-    reload: true,
-    request: () => apiFetch(endpoint)
+    request: () => apiFetch(endpoint, { timeoutMs: 12000, attempts: 1 })
   });
 }
 
@@ -11628,7 +11676,11 @@ function onOff(value) {
 
 function formatHalfDegreeValue(value) {
   if (value === null || value === undefined) {
-    return "offline";
+    return translate("common.offline");
+  }
+
+  if (value === 0xFF) {
+    return translate("common.invalid_value");
   }
 
   const integer = Math.floor(value / 2);
@@ -11791,6 +11843,10 @@ function storeLiveDisplayColor(mode, color) {
 }
 
 async function refreshLiveDisplayColor() {
+  if (isBackgroundPauseActive()) {
+    return;
+  }
+
   const settings = getCurrentSettingsSnapshot();
   if (!shouldUseLiveDisplayColor(settings)) {
     return;
@@ -11829,7 +11885,7 @@ async function refreshLiveDisplayColor() {
 }
 
 function syncLiveDisplayColorPolling(settings) {
-  if (settingsImportInProgress) {
+  if (settingsImportInProgress || isBackgroundPauseActive()) {
     if (liveDisplayColorTimer) {
       window.clearInterval(liveDisplayColorTimer);
       liveDisplayColorTimer = 0;

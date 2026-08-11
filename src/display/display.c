@@ -4887,6 +4887,10 @@ display_icon (void)
 
         if (state == DISPLAY_ICON_STATE_CLEAR_DISPLAY)                                                       // 1st show icon
         {
+            log_printf ("display_icon: start rows=%d cols=%d duration=%d\r\n",
+                        display_icon_st.rows,
+                        display_icon_st.cols,
+                        display_icon_st.duration);
             for (idx = 0; idx < DSP_DISPLAY_LEDS; idx++)
             {
                 led.state[idx] = 0;
@@ -5019,6 +5023,7 @@ display_icon (void)
 
             if (cnt >= duration)
             {
+                log_printf ("display_icon: finished cnt=%u duration=%u\r\n", cnt, duration);
                 state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;                       // reset state
                 display.do_display_icon = 0;
             }

@@ -1426,6 +1426,7 @@ static uint_fast8_t     show_date                   = 0;
 static uint_fast8_t     last_ldr_value              = 0xFF;
 static uint_fast8_t     show_overlay_idx            = MAX_OVERLAYS;
 static uint_fast8_t     icon_duration               = 0;
+static uint_fast8_t     pending_weather_ticker_restore = 0;
 static uint32_t         show_icon_stop_time         = 0;
 static uint32_t         local_uptime                = 0;
 
@@ -2740,15 +2741,15 @@ schedule_esp8266_messages (void)
         case ESP8266_WEATHER:
         {
             log_printf ("info: weather = %s\r\n", esp8266.u.weather);
-            display_set_ticker ((unsigned char *) esp8266.u.weather, 1);
-            display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+            display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
+            pending_weather_ticker_restore = 1;
             break;
         }
         case ESP8266_WEATHER_FC:
         {
             log_printf ("info: weather forecast = %s\r\n", esp8266.u.weather);
-            display_set_ticker ((unsigned char *) esp8266.u.weather, 1);
-            display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+            display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
+            pending_weather_ticker_restore = 1;
             break;
         }
         case ESP8266_WEATHER_ICON:
@@ -3695,6 +3696,20 @@ main (void)
             display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;                         // update display after ticker
         }
 
+        if (pending_weather_ticker_restore &&
+            ! display_ticker_active () &&
+            ! display.do_display_icon &&
+            show_icon_stop_time == 0 &&
+            show_overlay_idx >= MAX_OVERLAYS)
+        {
+            pending_weather_ticker_restore = 0;
+
+            if (! display_clock_flag)
+            {
+                display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+            }
+        }
+
         if (display_clock_flag)                                                         // refresh display (time/mode changed)
         {
             debug_log_message ("update display");
@@ -3732,6 +3747,10 @@ main (void)
                             display.display_power_is_on,
                             display.ambilight_power_is_on);
                 display_clock (gmain.hour, gmain.minute, display_clock_flag);           // show new time
+                log_printf ("main: display_clock returned time flags=0x%02x power=%d ambi=%d\r\n",
+                            display_clock_flag,
+                            display.display_power_is_on,
+                            display.ambilight_power_is_on);
             }
 #else
             log_printf ("main: call display_clock time flags=0x%02x power=%d ambi=%d\r\n",
@@ -3739,6 +3758,10 @@ main (void)
                         display.display_power_is_on,
                         display.ambilight_power_is_on);
             display_clock (gmain.hour, gmain.minute, display_clock_flag);               // show new time
+            log_printf ("main: display_clock returned time flags=0x%02x power=%d ambi=%d\r\n",
+                        display_clock_flag,
+                        display.display_power_is_on,
+                        display.ambilight_power_is_on);
 #endif
             display_clock_flag = DISPLAY_CLOCK_FLAG_NONE;
         }

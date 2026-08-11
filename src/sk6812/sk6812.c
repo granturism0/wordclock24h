@@ -33,6 +33,7 @@
 #include "sk6812.h"
 #include "delay.h"
 #include "io.h"
+#include "main.h"
 
 #include "log.h"
 
@@ -120,6 +121,8 @@ static volatile uint_fast16_t       current_leds;
 #define DMA_BUF_LEN                 (2 * SK6812_BIT_PER_LED)                                    // DMA buffer length: 2 LEDs
 
 static volatile uint32_t            sk6812_dma_status;                                          // DMA status
+static volatile uint32_t            sk6812_last_dma_start_uptime;                               // uptime of last DMA start
+static volatile uint32_t            sk6812_last_dma_complete_uptime;                            // uptime of last DMA completion
 static SK6812_RGBW                  rgbw_buf[2][SK6812_MAX_LEDS];                               // RGBW values (double buffered)
 static volatile uint_fast8_t        current_rgbw_buf_idx;                                       // current rgbw buffer index
 static uint_fast8_t                 next_rgbw_buf_idx;                                          // next rgbw buffer index
@@ -273,6 +276,7 @@ static void
 sk6812_dma_start (void)
 {
     sk6812_dma_status = 1;                                                          // set status to "busy"
+    sk6812_last_dma_start_uptime = uptime;
 
     TIM_Cmd (SK6812_TIM, DISABLE);                                                  // disable timer
     DMA_Cmd (SK6812_DMA_STREAM, DISABLE);                                           // disable DMA
@@ -407,6 +411,7 @@ SK6812_DMA_CHANNEL_ISR (void)
         else
         {
             DMA_Cmd (SK6812_DMA_STREAM, DISABLE);                                   // disable DMA
+            sk6812_last_dma_complete_uptime = uptime;
             sk6812_dma_status = 0;                                                  // set status to ready
         }
     }
@@ -427,6 +432,7 @@ SK6812_DMA_CHANNEL_ISR (void)
         else
         {
             DMA_Cmd (SK6812_DMA_STREAM, DISABLE);                                   // disable DMA
+            sk6812_last_dma_complete_uptime = uptime;
             sk6812_dma_status = 0;                                                  // set status to ready
         }
     }
@@ -441,11 +447,33 @@ void
 sk6812_refresh (uint_fast16_t n_leds)
 {
     uint_fast16_t   i;
+    uint32_t        wait_start = uptime;
+    uint32_t        last_wait_log = wait_start;
 
     while (sk6812_dma_status != 0)
     {
-        ;                                                                           // wait until DMA transfer is ready
+        if (uptime != last_wait_log)
+        {
+            uint32_t waited = uptime - wait_start;
+
+            last_wait_log = uptime;
+
+            if (waited > 0)
+            {
+                log_printf ("sk6812_refresh: waiting %lus dma=%lu leds=%u pos=%u off=%u pause=%u last_start=%lus last_done=%lus\r\n",
+                            waited,
+                            (unsigned long) sk6812_dma_status,
+                            n_leds,
+                            current_dma_buf_pos,
+                            current_led_offset,
+                            current_data_pause_len,
+                            sk6812_last_dma_start_uptime,
+                            sk6812_last_dma_complete_uptime);
+            }
+        }
     }
+
+    log_printf ("sk6812_refresh: start leds=%u nextbuf=%u\r\n", n_leds, next_rgbw_buf_idx);
 
     current_rgbw_buf_idx    = next_rgbw_buf_idx;
     next_rgbw_buf_idx       = next_rgbw_buf_idx ? 0 : 1;
@@ -463,6 +491,11 @@ sk6812_refresh (uint_fast16_t n_leds)
     {
         rgbw_buf[next_rgbw_buf_idx][i] = rgbw_buf[current_rgbw_buf_idx][i];
     }
+
+    log_printf ("sk6812_refresh: dma started leds=%u pause=%u buf=%u\r\n",
+                n_leds,
+                current_data_pause_len,
+                current_rgbw_buf_idx);
 
 }
 
