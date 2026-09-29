@@ -291,11 +291,25 @@ ohnehin in einem BTPAG-Projekt stattfinden, nicht in einem privaten Embedded-Pro
 - **Keine Spec geschrieben.** M4 wartet auf Freigabe
 - **Auftrag 9 nicht begonnen**
 
-## Offene Einschränkung, die geprüft werden muss
+## Verifiziert am 2026-09-29: der Hook greift
 
-Der Hook erkennt den `guardrail-runner` daran, dass dessen Name irgendwo in der
-Hook-Nutzlast vorkommt. Welches Feld die Agentenzuordnung trägt, ist je nach
-Claude-Code-Version unterschiedlich und wurde **nicht an einer echten Nutzlast
-verifiziert**. Der Hook fällt in diesem Fall offen aus: Er blockiert dann nichts,
-statt fälschlich alles zu blockieren. Vor dem produktiven Einsatz sollte einmal eine
-echte Nutzlast geprüft werden.
+Die Agentenzuordnung wurde an einer **echten Nutzlast** geprüft, nicht angenommen.
+
+- Subagenten-Aufrufe tragen das Feld **`agent_type`** mit dem Agentennamen
+- Aufrufe aus der Hauptsession tragen es **nicht**
+- `session_id`, `prompt_id` und `transcript_path` sind bei beiden **identisch** und
+  taugen **nicht** zur Unterscheidung — der ursprüngliche Plan, darüber zu gehen,
+  hätte nicht funktioniert
+
+Nachweis im Betrieb: `sed -n '…' src/main.c` (rein lesend) passiert, während
+`echo test > /tmp/…` mit Exit 2 abgelehnt wird und die Datei nachweislich **nicht**
+angelegt wird.
+
+Ein Fehlalarm der ersten Fassung ist dabei aufgefallen und behoben: das Zerlegen an
+`;` zerriss zitierte Argumente wie ein `sed`-Zeilenskript. `split_commands()` zerlegt
+jetzt zitatbewusst. Verstecktes `rm` nach `;` und `git commit` in einer Pipe werden
+weiterhin geblockt.
+
+**Grenze, die bleibt:** Der Hook ist eine Härtung, keine Schranke. Er kennt nur die
+Positivliste; ein Befehl, der darauf steht und trotzdem schadet, käme durch. Die
+eigentliche Trennung liegt bei den vier Agenten ohne `Write` und `Edit`.

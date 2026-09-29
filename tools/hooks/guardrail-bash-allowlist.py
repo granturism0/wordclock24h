@@ -19,10 +19,14 @@ import sys
 
 AGENT = "guardrail-runner"
 
-# Feldnamen, unter denen die Agentenzuordnung erwartet wird. Bewusst eine enge
-# Positivliste: eine Suche ueber die gesamte Nutzlast wuerde auch dann greifen,
-# wenn der Name nur beilaeufig vorkommt, und wuerde fremde Aufrufe blockieren.
-AGENT_FIELDS = ("agent", "agent_name", "agent_type", "subagent_type",
+# Agentenzuordnung. VERIFIZIERT am 2026-09-29 gegen eine echte Nutzlast:
+# Subagenten-Aufrufe tragen das Feld "agent_type" mit dem Agentennamen, Aufrufe
+# aus der Hauptsession tragen es nicht. session_id, prompt_id und
+# transcript_path sind bei beiden IDENTISCH und taugen NICHT zur Unterscheidung.
+# Die uebrigen Namen bleiben als Fallback, falls sich das Feld aendert.
+# Bewusst eine enge Positivliste: eine Suche ueber die gesamte Nutzlast wuerde
+# auch greifen, wenn der Name nur beilaeufig vorkommt, und fremde Aufrufe blockieren.
+AGENT_FIELDS = ("agent_type", "agent", "agent_name", "subagent_type",
                 "agentType", "subagentType", "source_agent", "invoked_by")
 
 LOGFILE = os.environ.get("GUARDRAIL_HOOK_LOG", "")
@@ -59,6 +63,38 @@ FORBIDDEN = (
 )
 
 
+def split_commands(command: str):
+    """Zerlegt an ; && || | — aber nur ausserhalb von Anfuehrungszeichen.
+
+    Ein naives re.split zerreisst sonst zitierte Argumente wie das sed-Skript
+    '8413,8417p;11878,11882p' und lehnt einen rein lesenden Befehl ab.
+    """
+    parts, buf, quote, i = [], [], None, 0
+    while i < len(command):
+        c = command[i]
+        if quote:
+            buf.append(c)
+            if c == quote:
+                quote = None
+            elif c == "\\" and quote == '"' and i + 1 < len(command):
+                i += 1
+                buf.append(command[i])
+        elif c in ("'", '"'):
+            quote = c
+            buf.append(c)
+        elif c == ";":
+            parts.append("".join(buf)); buf = []
+        elif c in ("&", "|") and i + 1 < len(command) and command[i + 1] == c:
+            parts.append("".join(buf)); buf = []; i += 1
+        elif c == "|":
+            parts.append("".join(buf)); buf = []
+        else:
+            buf.append(c)
+        i += 1
+    parts.append("".join(buf))
+    return parts
+
+
 def fail(reason: str) -> None:
     sys.stderr.write(
         f"Vom guardrail-runner abgelehnt: {reason}\n"
@@ -87,8 +123,12 @@ def main() -> None:
             with open(LOGFILE, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps({
                     "top_level_keys": sorted(payload.keys()),
+                    "session_id": payload.get("session_id"),
+                    "transcript_path": payload.get("transcript_path"),
+                    "cwd": payload.get("cwd"),
+                    "prompt_id": payload.get("prompt_id"),
                     "erkannter_aufrufer": caller,
-                    "name_irgendwo_in_nutzlast": AGENT in raw,
+                    "kommando": (payload.get("tool_input") or {}).get("command", "")[:60],
                 }, ensure_ascii=False) + "\n")
         except Exception:
             pass
@@ -110,7 +150,7 @@ def main() -> None:
     if ">" in probe or "<" in probe:
         fail("Datei-Umleitungen sind nicht erlaubt (ausser nach /dev/null).")
 
-    for segment in re.split(r"&&|\|\||;|\|", probe):
+    for segment in split_commands(probe):
         seg = segment.strip()
         if not seg:
             continue
