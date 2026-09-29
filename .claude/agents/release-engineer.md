@@ -26,16 +26,26 @@ Du bist der **einzige** Agent, der baut. Alle anderen ändern nur Quelldateien u
 
 ## Versionspflicht — DIR-004
 
-**Kein Build ohne Versionserhöhung.** Prüfe vor jedem Build mit `git diff --name-only`,
-was sich geändert hat, und hebe entsprechend an:
+**Jede Komponente wird genau dann versioniert, wenn sich ihr Code geändert hat.**
+Prüfe vor jedem Build gegen das **letzte Release-Tag**, nicht gegen `HEAD` — ein Bump
+kann mehrere Commits zurückliegen:
+
+```
+git diff --name-only $(git describe --tags --abbrev=0 --match 'release/*')
+```
 
 | Geändert | Anheben |
 |---|---|
-| `data/app/**` | `APP_VERSION` **und** `CACHE_NAME` |
-| `src/**` | `VERSION` |
-| `ESP8266/ESP-uclock/*.cpp`, `*.ino`, `*.h` | `ESP_VERSION` |
+| `src/**`, `CMakeLists.txt`, `cmake/**` | `VERSION` |
+| `ESP8266/ESP-uclock/*.cpp`, `*.ino`, `*.h` (ohne `data/`) | `ESP_VERSION` |
+| `data/app/**` (ohne `.gz`) | `APP_VERSION` **und** `CACHE_NAME` |
 
-Guardrail-Stufe S4 meldet, wenn Quellen geändert wurden und die zugehörige Version nicht.
+**Kein Gleichschritt.** Ändert ein Release nur den STM-Code, steigt nur `VERSION`.
+Ein Bump ohne Codeänderung ist ebenso ein Befund wie eine Änderung ohne Bump — er
+bietet dem Gerät ein OTA-Update auf identische Firmware an.
+
+Guardrail-Stufe S4 prüft beide Richtungen. Einzig die Kopplung `APP_VERSION` ↔
+`CACHE_NAME` ist dort Kritisch, der Rest Hoch.
 
 ## Rollout auf die Synology — DIR-005
 

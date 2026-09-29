@@ -50,10 +50,10 @@ done
 step S3 "i18n-Schluessel"
 node tools/checks/i18n-keys.mjs "$APP/app.js" "$APP/index.html" || CRIT=$((CRIT+1))
 
-# ------------------------------------------- S4 Versionszeilen und CACHE_NAME
+# ------------------------------------------- S4 Versionszeilen und Versionspflicht
 step S4 "Versionszeilen greppbar und Versionspflicht DIR-004"
 check_version() {
-  local n; n=$(grep -c "$2" "$1" 2>/dev/null || echo 0)
+  local n; n=$(grep -c "$2" "$1" 2>/dev/null); n=${n:-0}
   if [ "$n" -eq 1 ]; then ok "$3: $(grep -m1 "$2" "$1" | tr -s ' ')"
   else crit "$3: Versionszeile in $1 nicht genau einmal gefunden ($n) — Makefile liest sie per grep"; fi
 }
@@ -61,33 +61,78 @@ check_version src/main.h '^#define VERSION' "STM"
 check_version ESP8266/ESP-uclock/version.h '^#define ESP_VERSION' "ESP"
 check_version "$APP/app.js" '^const APP_VERSION' "App"
 check_version "$APP/sw.js" '^const CACHE_NAME' "SW-Cache"
-# DIR-004: bei jedem Build werden ALLE drei Komponenten im Gleichschritt versioniert,
-# auch wenn sich die jeweilige nicht geaendert hat.
+
+# DIR-004: jede Komponente wird genau dann versioniert, wenn sich IHR Code
+# geaendert hat. Kein Gleichschritt — aendert sich nur der STM, steigt nur
+# dessen Version. Umgekehrt ist ein Bump ohne Codeaenderung ebenfalls falsch:
+# er bietet dem Geraet ein OTA-Update auf identische Firmware an.
 #
 # Bezugsgroesse ist das letzte RELEASE, nicht der letzte Commit — ein Bump kann
 # mehrere Commits zurueckliegen und waere gegen HEAD unsichtbar. tools/deploy.sh
 # setzt nach jedem erfolgreichen Rollout ein Tag release/<stm>-<esp>-<app>.
 LAST_TAG=$(git describe --tags --abbrev=0 --match 'release/*' 2>/dev/null)
 vat() { git show "$1:$2" 2>/dev/null | $GREP -m1 "$3" | sed 's/.*"\(.*\)".*/\1/'; }
+now() { $GREP -m1 "$2" "$1" | sed 's/.*"\(.*\)".*/\1/'; }
+
+# Quellen je Komponente. Entscheidend ist die Trennung von ESP und PWA: beide
+# liegen unter ESP8266/, werden aber getrennt versioniert und getrennt
+# ausgeliefert. Die .gz sind Ableitungen und zaehlen nicht als Quelle.
+STM_SRC="src CMakeLists.txt cmake"
+ESP_SRC="ESP8266/ESP-uclock :(exclude)ESP8266/ESP-uclock/data :(exclude)ESP8266/ESP-uclock/tools :(exclude)ESP8266/ESP-uclock/build"
+PWA_SRC="ESP8266/ESP-uclock/data/app :(exclude)ESP8266/ESP-uclock/data/app/**/*.gz"
+
+# 0 = Code der Komponente hat sich geaendert.  $1 Quellen  $2 Versionsdatei  $3 Muster
+#
+# Die Versionszeile selbst liegt IN den Quellen (main.h, version.h, app.js).
+# Wuerde sie mitzaehlen, waere jeder Bump automatisch eine "Codeaenderung" und
+# die Gegenprobe — angehoben, obwohl sich nichts geaendert hat — koennte nie
+# anschlagen. Deshalb wird die Versionsdatei getrennt betrachtet und in ihrem
+# Diff die Versionszeile herausgefiltert.
+changed() {
+  local rest
+  git diff --quiet "$LAST_TAG" HEAD -- $1 ":(exclude)$2" 2>/dev/null || return 0
+  git diff --quiet HEAD -- $1 ":(exclude)$2" 2>/dev/null || return 0
+  rest=$( { git diff -U0 "$LAST_TAG" HEAD -- "$2"; git diff -U0 HEAD -- "$2"; } 2>/dev/null \
+          | $GREP -E '^[-+]' | $GREP -Ev '^(\+\+\+|---)' | $GREP -v "$3" )
+  [ -n "$rest" ] && return 0
+  return 1
+}
 
 if [ -z "$LAST_TAG" ]; then
   echo "  INFO      kein release/-Tag vorhanden — Versionspflicht nicht pruefbar."
   echo "            Das erste tools/deploy.sh setzt eines."
-elif ! git diff --quiet "$LAST_TAG" HEAD -- src ESP8266 2>/dev/null || ! git diff --quiet HEAD -- src ESP8266 2>/dev/null; then
-  miss=0
-  check_bump() {
-    old=$(vat "$LAST_TAG" "$2" "$3"); new=$(grep -m1 "$3" "$2" | sed 's/.*"\(.*\)".*/\1/')
-    if [ -n "$old" ] && [ "$old" = "$new" ]; then
-      warn "$1 unveraendert seit $LAST_TAG ($new) — DIR-004 verlangt Gleichschritt"; miss=1
-    else ok "$1: $old -> $new"; fi
-  }
-  check_bump "STM"      src/main.h                          "define VERSION"
-  check_bump "ESP"      ESP8266/ESP-uclock/version.h        "define ESP_VERSION"
-  check_bump "App"      "$APP/app.js"                       "const APP_VERSION"
-  check_bump "SW-Cache" "$APP/sw.js"                        "const CACHE_NAME"
-  [ "$miss" -eq 0 ] && ok "alle vier Versionsstellen seit $LAST_TAG angehoben"
 else
-  ok "keine Quellen seit $LAST_TAG geaendert, keine Versionspflicht"
+  # $1 Name  $2 Quellen  $3 Versionsdatei  $4 Muster
+  check_comp() {
+    local old new
+    old=$(vat "$LAST_TAG" "$3" "$4"); new=$(now "$3" "$4")
+    if changed "$2" "$3" "$4"; then
+      if [ -n "$old" ] && [ "$old" = "$new" ]; then
+        warn "$1: Code seit $LAST_TAG geaendert, Version steht weiter auf $new"
+      else
+        ok "$1: $old -> $new (Code geaendert)"
+      fi
+    else
+      if [ -n "$old" ] && [ "$old" != "$new" ]; then
+        warn "$1: Version $old -> $new, aber kein Code geaendert — DIR-004 hebt nur bei echter Aenderung an"
+      else
+        ok "$1: unveraendert bei $new, kein Bump noetig"
+      fi
+    fi
+  }
+  check_comp "STM" "$STM_SRC" src/main.h                   "define VERSION"
+  check_comp "ESP" "$ESP_SRC" ESP8266/ESP-uclock/version.h "define ESP_VERSION"
+  check_comp "PWA" "$PWA_SRC" "$APP/app.js"                "const APP_VERSION"
+
+  # APP_VERSION und CACHE_NAME gehoeren zusammen, unabhaengig von DIR-004: ohne
+  # CACHE_NAME-Bump liefert der Service Worker neue index.html mit alter app.js.
+  a_old=$(vat "$LAST_TAG" "$APP/app.js" "const APP_VERSION"); a_new=$(now "$APP/app.js" "const APP_VERSION")
+  c_old=$(vat "$LAST_TAG" "$APP/sw.js"  "const CACHE_NAME");  c_new=$(now "$APP/sw.js"  "const CACHE_NAME")
+  if [ "$a_old" != "$a_new" ] && [ "$c_old" = "$c_new" ]; then
+    crit "SW-Cache: APP_VERSION $a_old -> $a_new, CACHE_NAME bleibt $c_new — SW liefert neue index.html mit alter app.js"
+  else
+    ok "SW-Cache: $c_new passt zu APP_VERSION $a_new"
+  fi
 fi
 
 # ----------------------------------------------------------- S5 .gz-Artefakte
@@ -153,6 +198,28 @@ if [ "$FULL" -eq 1 ]; then
 else
   echo "  uebersprungen: STM- und ESP-Compile-Smoke-Test (nur mit --full)"
 fi
+
+# ------------------------------------------------- S9 Aktualitaet der Doku
+step S9 "Versionsangaben in der lebenden Dokumentation"
+# Momentaufnahmen sind ausgenommen (DIR-006): REVIEW*.md, gap-analysis.md,
+# CHANGELOG.md und specs/** halten bewusst ihren Entstehungsstand fest.
+LIVE_DOCS="CLAUDE.md BEFUNDE.md README.md README-CMAKE.md ESP8266/ESP-uclock/README-PWA.md
+           ESP8266/ESP-uclock/APP-BUNDLE.md tools/preview/README.md specs/README.md"
+for d in knowledge/*.md .claude/agents/*.md; do [ -f "$d" ] && LIVE_DOCS="$LIVE_DOCS $d"; done
+node tools/checks/doc-versions.mjs $LIVE_DOCS || WARN=$((WARN+1))
+
+# Absolute Benutzerpfade zeigen bei jedem anderen Klon ins Leere.
+n=$(git ls-files | xargs $GREP -l '/Users/[a-z]' 2>/dev/null | wc -l | tr -d ' ')
+if [ "${n:-0}" -gt 0 ]; then
+  warn "absolute Benutzerpfade in $n versionierten Datei(en):"
+  git ls-files | xargs $GREP -ln '/Users/[a-z]' 2>/dev/null | sed 's/^/            /'
+else
+  ok "keine absoluten Benutzerpfade in versionierten Dateien"
+fi
+
+# --------------------------------------------- S10 Vollstaendigkeit Katalog
+step S10 "Massnahmenkatalog BEFUNDE.md vollstaendig"
+node tools/checks/befunde-katalog.mjs || WARN=$((WARN+1))
 
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"

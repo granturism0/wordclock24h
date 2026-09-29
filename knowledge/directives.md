@@ -30,11 +30,28 @@ DIR-003:
   seit: 2026-08-12
 
 DIR-004:
-  regel: "Bei jedem Build werden ALLE drei Komponenten im Gleichschritt versioniert: VERSION
-          (STM), ESP_VERSION (ESP) sowie APP_VERSION und CACHE_NAME (PWA) — auch wenn sich die
-          jeweilige Komponente nicht geaendert hat. So ist jedes Fabrikat als Einheit
-          identifizierbar und eindeutig einem Commit zuzuordnen."
+  regel: "Jede Komponente wird genau dann versioniert, wenn sich IHR Code geaendert hat —
+          kein Gleichschritt. Aendert ein Release nur den STM-Code, steigt nur VERSION; ESP und
+          PWA bleiben stehen. Quellen: STM = src/**, CMakeLists.txt, cmake/**; ESP =
+          ESP8266/ESP-uclock/*.cpp|*.h|*.ino ohne data/; PWA = data/app/** ohne .gz. Beide
+          Richtungen sind falsch: Code geaendert ohne Bump macht das Fabrikat unzuordenbar,
+          Bump ohne Codeaenderung bietet ein OTA-Update auf identische Firmware an.
+          APP_VERSION und CACHE_NAME gehoeren unabhaengig davon immer zusammen."
   gilt_fuer: [release-engineer, pwa-developer, ui-developer, stm-developer, esp-developer]
+  seit: 2026-09-29
+  geaendert: 2026-09-29 — vorher Gleichschritt aller drei Komponenten, auf Wunsch des Nutzers
+             auf komponentenweise Versionierung umgestellt.
+
+DIR-006:
+  regel: "Dokumentation zerfaellt in LEBEND (CLAUDE.md, BEFUNDE.md, CHANGELOG.md, alle
+          README*.md, knowledge/**, .claude/agents/**) und MOMENTAUFNAHME (REVIEW*.md,
+          gap-analysis.md, specs/**). Lebende Dokumente werden nachgefuehrt und duerfen nie
+          veralten; Momentaufnahmen tragen ein Datum und werden stehen gelassen. In lebenden
+          Dokumenten stehen KEINE Versionsnummern — eine Kopie des Standes veraltet still.
+          Ausnahmen werden mit <!-- historisch --> markiert. Keine absoluten Benutzerpfade.
+          Guardrail S9 prueft Aktualitaet und Pfade, S10 die Vollstaendigkeit des Katalogs
+          in BEFUNDE.md."
+  gilt_fuer: [doc-writer, release-engineer, spec-writer]
   seit: 2026-09-29
 
 DIR-005:

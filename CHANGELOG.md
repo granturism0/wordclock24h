@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-09-29 Versionierung je Komponente, Befundkatalog, Doku-Pruefungen
+
+Reine Werkzeug- und Dokumentationsaenderung. **Kein Produktcode beruehrt, deshalb kein
+Versionsbump** — genau der Fall, den die neue Regel beschreibt.
+
+### Geaendert
+
+- **Versionspflicht DIR-004 von Gleichschritt auf komponentenweise umgestellt.** Jede
+  Komponente wird genau dann versioniert, wenn sich ihr Code geaendert hat. Aendert ein
+  Release nur den STM-Code, steigt nur dessen Version. Vorher wurden alle drei bei jedem
+  Build angehoben, was ein OTA-Update auf identische Firmware zur Folge hatte.
+- Guardrail-Stufe S4 prueft das jetzt **je Komponente und in beiden Richtungen** — auch
+  ein Bump ohne Codeaenderung ist ein Befund. Entscheidend war die Trennung von ESP und
+  PWA: beide liegen unter `ESP8266/`, sind aber getrennt versioniert. Die vorherige
+  Pruefung hielt jede PWA-Aenderung fuer eine ESP-Aenderung.
+- Bei der Aenderungserkennung wird die Versionszeile aus dem Diff ihrer eigenen Datei
+  gefiltert. Ohne das waere jeder Bump fuer sich schon eine "Codeaenderung" und die
+  Gegenprobe koennte nie anschlagen.
+
+### Neu
+
+- **`BEFUNDE.md`** — lebender Massnahmenkatalog. Die beiden Reviews sind Momentaufnahmen
+  und werden nicht fortgeschrieben; ihr Stand lebt jetzt an einer Stelle: alle 34
+  Massnahmen mit Status und nachpruefbarem Beleg, dazu die Befunde aus der laufenden
+  Arbeit unter eigenen `L`-Nummern.
+- **Guardrail S9** — Aktualitaet der lebenden Dokumentation. Vergleicht Versionsangaben
+  gegen die Quellen und meldet absolute Benutzerpfade.
+- **Guardrail S10** — Vollstaendigkeit des Katalogs. Schlaegt an, wenn eine
+  Massnahmennummer aus einem Review in `BEFUNDE.md` fehlt oder die `L`-Nummerierung eine
+  Luecke hat.
+
+### Behoben in der Dokumentation
+
+- Der Kopf von `README-CMAKE.md` behauptete einen "aktuellen Abschlussstand", der rund
+  dreissig PWA-Versionen zurueck lag. Versionsangaben aus den lebenden Dokumenten
+  entfernt statt gepflegt — was nicht dasteht, kann nicht veralten.
+- Sieben absolute Pfade `/Users/daniel/...` in `CHANGELOG.md`, `README-CMAKE.md` und
+  `.claude/settings.json`. Sie zeigen bei jedem anderen Klon ins Leere.
+- 14 Stellen mit `ss`-Verstoss gegen die Schweizer Schreibung in vier lebenden Dokumenten.
+- Ein Abschnitt in `README-CMAKE.md` beschrieb einen Stand vom April als "aktuell
+  verifiziert".
+
 ## 2026-09-29 Restore-Luecke, Guardrails und Werkzeugschicht
 
 Aktueller verifizierter Arbeitsstand:
@@ -97,7 +139,7 @@ Wichtige Punkte:
 Wichtige technische Hinweise:
 
 - Restliche Browser-Systemtexte an nativen Dateifeldern wie `Datei auswählen` oder `Keine Datei ausgewählt` kommen weiterhin vom Browser selbst und nicht aus der PWA.
-- Der aktuelle Sprachstand wurde bewusst nicht nur über HTML-Attribute, sondern zusätzlich über die Laufzeitpfade in [app.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/app.js) bereinigt, weil dort die meisten Rücksprungtexte saßen.
+- Der aktuelle Sprachstand wurde bewusst nicht nur über HTML-Attribute, sondern zusätzlich über die Laufzeitpfade in [app.js](/ESP8266/ESP-uclock/data/app/app.js) bereinigt, weil dort die meisten Rücksprungtexte sassen.
 
 ## 2026-04-29 Gzip PWA Rollout, Restore Timing And Safari Hardening
 
@@ -109,14 +151,14 @@ Aktueller verifizierter Arbeitsstand:
 Wichtige Punkte:
 
 - PWA-App-Dateien werden jetzt gzip-komprimiert gebaut, hochgeladen und vom ESP bevorzugt als `.gz` ausgeliefert
-- `/app` prüft installierte App-Dateien nicht mehr nur auf Existenz, sondern auch auf Dateigröße `> 0`, damit Crash-Reste mit leeren Dateien nicht als gültige Installation gelten
+- `/app` prüft installierte App-Dateien nicht mehr nur auf Existenz, sondern auch auf Dateigrösse `> 0`, damit Crash-Reste mit leeren Dateien nicht als gültige Installation gelten
 - Remote-App-Installpfad für `/app/?action=install` wurde auf Stack- und Timing-Probleme gehärtet
 - Mobile-Safari-Ladepfad wurde stabilisiert:
   - statische `/app`-Assets senden jetzt `Connection: close`
   - der ESP beendet die Verbindung nach dem Dateistream explizit
 - Import/Restore wurde in mehreren empfindlichen Bereichen entschärft:
   - Overlay-Restore mit absteigendem Delete, sequentiellem Wiederaufbau und zusätzlicher Entkopplung
-  - Timer-Restore mit größeren Abständen und Reload-Schritten
+  - Timer-Restore mit grösseren Abständen und Reload-Schritten
   - `ticker_deceleration` mit zusätzlichem Schutzabstand vor und nach dem Write, damit serielle Kommandos nicht ineinanderlaufen
 - Der globale Hinweis für fehlende Layout-Tabellen erscheint jetzt erst, wenn die Tabellen-Info wirklich geladen ist, und flackert nicht mehr beim Start auf
 
@@ -157,7 +199,7 @@ Wichtige Punkte:
 - damit orientiert sich die PWA wieder am Legacy-Verhalten des ESP-Updates mit rund `40` Sekunden Reconnect-Zeit
 - der zu frühe PWA-Reload nach ca. `25-30` Sekunden wird vermieden und bricht das ESP-Update nicht mehr vorzeitig ab
 - der PWA-Button für ESP-Updates verwendet jetzt wieder den bewährten Legacy-Updatepfad als Top-Level-Navigation statt eines versteckten `iframe`
-- Legacy-Weboberfläche liefert HTML jetzt mit `UTF-8`-Charset aus und verwendet wieder gut lesbare Linkfarben statt Gelb/Weiß auf Weiß
+- Legacy-Weboberfläche liefert HTML jetzt mit `UTF-8`-Charset aus und verwendet wieder gut lesbare Linkfarben statt Gelb/Weiss auf Weiss
 
 ## 2026-04-14 Runtime Recovery And Reset Visibility
 
@@ -170,7 +212,7 @@ Aktueller verifizierter Arbeitsstand:
 
 Wichtige Punkte:
 
-- `STM32`-Schutzmaßnahmen ergänzt: `IWDG` mit ca. `20 s` Timeout
+- `STM32`-Schutzmassnahmen ergänzt: `IWDG` mit ca. `20 s` Timeout
 - `HardFault`, `MemManage`, `BusFault` und `UsageFault` führen nicht mehr in eine Endlosschleife, sondern loggen kurz und starten das Board kontrolliert neu
 - Reset-Ursachen aus den `RCC`-Flags werden beim Boot weiterhin geloggt
 - relevante Reset-Ursachen werden jetzt zusätzlich ohne serielles Kabel in die PWA gespiegelt
@@ -192,7 +234,7 @@ Aktueller verifizierter Abschlussstand:
 
 Wichtige Punkte:
 
-- Backup/Restore läuft jetzt wieder sauber mit automatischem `STM32`-Reset und anschließendem PWA-Reload
+- Backup/Restore läuft jetzt wieder sauber mit automatischem `STM32`-Reset und anschliessendem PWA-Reload
 - `Update-Host/-Pfad` werden nach dem Boot nicht mehr durch ESP-Defaults auf den STM zurückgeschrieben
 - `Zeitserver`, `Zeitzone`, `Sommerzeit`, `RTC`- und `DS18xx`-Korrektur bleiben nach dem Restore und Reboot erhalten
 - Overlay-Restore ist stabil
@@ -217,8 +259,8 @@ Ergänzungen gegenüber den früheren 2026-04-08-Ständen:
 
 Wichtige technische Hinweise:
 
-- Der Overlay-Fix liegt in [vars.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/vars.cpp): `set_overlay_var()` macht jetzt am Ende ein `Serial.flush()`.
-- Der Live-Farbpfad für `Rainbow` wurde in [display.c](/Users/daniel/Documents/GitHub/wordclock24h/src/display/display.c) gedrosselt:
+- Der Overlay-Fix liegt in [vars.cpp](/ESP8266/ESP-uclock/vars.cpp): `set_overlay_var()` macht jetzt am Ende ein `Serial.flush()`.
+- Der Live-Farbpfad für `Rainbow` wurde in [display.c](/src/display/display.c) gedrosselt:
   - kein Versand bei jedem einzelnen Farbschritt mehr
   - stattdessen nur noch höchstens einmal pro Sekunde an den ESP
 - `Daylight` sendet die Live-Farbe weiterhin nur beim echten Stundenwechsel.
@@ -238,7 +280,7 @@ Ergänzungen gegenüber dem Stand vom 2026-04-07:
 
 Wichtiger technischer Hinweis:
 
-- Der Fehler lag im SK6812-Treiber in [src/sk6812/sk6812.c](/Users/daniel/Documents/GitHub/wordclock24h/src/sk6812/sk6812.c).
+- Der Fehler lag im SK6812-Treiber in [src/sk6812/sk6812.c](/src/sk6812/sk6812.c).
 - Für `BLACKPILL_BOARD` war das DMA-/GPIO-Mapping bereits auf `TIM3_CH4 / PB1` ausgelegt, die Timer-Output-Compare-Initialisierung lief aber noch fest über `TIM_OC1...`.
 - Dadurch konnte auf `STM32F411CE BlackPill` trotz korrekter Pinbelegung kein gültiges SK6812-Ausgangssignal auf `PB1` entstehen.
 - Der Treiber verwendet jetzt die zur Board-Konfiguration passende OC-Initialisierung pro Kanal.
@@ -261,8 +303,8 @@ Inhalt dieses Basisstands:
 Wichtiger technischer Hinweis:
 
 - Die Uhranzeige auf der Hardware funktioniert in diesem Stand wieder sauber.
-- Der kritische Rückbau erfolgte in [src/display/display.c](/Users/daniel/Documents/GitHub/wordclock24h/src/display/display.c), damit die STM-Farbpfade wieder dem funktionierenden Verhalten aus `3.1.5` entsprechen.
-- Zusätzliche `var_send_display_colors();`-Aufrufe direkt in `display_init_color_animation_rainbow()` und `display_init_color_animation_daylight()` wurden als instabil verifiziert und bleiben in diesem Basisstand bewusst draußen.
+- Der kritische Rückbau erfolgte in [src/display/display.c](/src/display/display.c), damit die STM-Farbpfade wieder dem funktionierenden Verhalten aus `3.1.5` entsprechen.
+- Zusätzliche `var_send_display_colors();`-Aufrufe direkt in `display_init_color_animation_rainbow()` und `display_init_color_animation_daylight()` wurden als instabil verifiziert und bleiben in diesem Basisstand bewusst draussen.
 - Änderungen in diesem Bereich sollten künftig nur schrittweise und testbar wieder eingeführt werden.
 
 ## 2026-04-07 Stable Runtime Color Hook

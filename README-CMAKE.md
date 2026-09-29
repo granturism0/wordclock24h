@@ -1,12 +1,10 @@
 # STM-Build mit CMake
 
-Aktueller Abschlussstand:
+Den aktuellen Versionsstand aller drei Komponenten zeigt `./tools/guardrails.sh`
+in Stufe S4. Er wird hier bewusst **nicht** wiederholt — die Angabe war über
+Monate falsch, weil sie niemand nachgezogen hat.
 
-- STM-Version: `3.2.0`
-- ESP-Version: `3.2.0`
-- PWA-Version: `1.2.43`
-
-Dieses Setup baut die STM-Firmware außerhalb von EmBitz für:
+Dieses Setup baut die STM-Firmware ausserhalb von EmBitz für:
 
 - `STM32F103` mit `SK6812 RGBW`
 - `STM32F411` mit `SK6812 RGBW`
@@ -172,19 +170,19 @@ Wichtig für diesen Stand:
 - der Auto-Refresh läuft mit `+1.0s` Versatz, damit die Minutenpunkte nach der echten Umschaltung sicher erfasst werden
 - der `/app`-Pfad prüft die PWA-Vollständigkeit robust und zeigt bei fehlenden Dateien den Lade-/Fehlerflow statt einer halben App
 - Status- und Fehlerseiten des Legacy-/Autoinstallationspfads sind bereinigt und mit echten Umlauten versehen
-- PWA-Version dieses Stands: `1.2.11`
-- die instabilen Init-Aufrufe bleiben weiterhin bewusst draußen
+- PWA-Version dieses Stands: `1.2.11` <!-- historisch -->
+- die instabilen Init-Aufrufe bleiben weiterhin bewusst draussen
 
-Der aktuell verifizierte Arbeitsstand mit stabilem Restore, Overlay-Fix und Scroll-Rücksprung nach Update-Aktionen ist:
+Der damals verifizierte Arbeitsstand vom 8. April 2026 mit stabilem Restore, Overlay-Fix und Scroll-Rücksprung nach Update-Aktionen war:
 
 - `build/releases/wordclock-release-2026-04-08-2131.zip`
 
 Wichtig für diesen Stand:
 
-- PWA-Version: `1.2.28`
+- PWA-Version: `1.2.28` <!-- historisch -->
 - Overlay-Restore ist repariert
-  - Ursache war fehlendes `Serial.flush()` in [vars.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/vars.cpp) bei `set_overlay_var()`
-- der laufende Live-Farbpfad für `Rainbow` ist in [display.c](/Users/daniel/Documents/GitHub/wordclock24h/src/display/display.c) gedrosselt
+  - Ursache war fehlendes `Serial.flush()` in [vars.cpp](/ESP8266/ESP-uclock/vars.cpp) bei `set_overlay_var()`
+- der laufende Live-Farbpfad für `Rainbow` ist in [display.c](/src/display/display.c) gedrosselt
   - Live-Farbversand nicht mehr bei jedem einzelnen Farbschritt
   - stattdessen höchstens einmal pro Sekunde
 - `Daylight` sendet die Live-Farbe weiterhin nur beim echten Stundenwechsel
@@ -251,10 +249,20 @@ die nicht Teil des Releases sind.
 
 ## Versionierung
 
-Bei jedem Build werden **alle drei Komponenten im Gleichschritt** versioniert, auch wenn
-sich die jeweilige nicht geändert hat: `VERSION` in `src/main.h`, `ESP_VERSION` in
-`ESP8266/ESP-uclock/version.h`, sowie `APP_VERSION` und `CACHE_NAME` in der PWA. So ist
-jedes Fabrikat als Einheit identifizierbar.
+Jede Komponente wird **genau dann** versioniert, wenn sich ihr Code geändert hat —
+kein Gleichschritt. Ändert ein Release nur den STM-Code, steigt nur `VERSION` in
+`src/main.h`; `ESP_VERSION` und `APP_VERSION` bleiben stehen.
+
+| Geändert | Anheben |
+|---|---|
+| `src/**`, `CMakeLists.txt`, `cmake/**` | `VERSION` in `src/main.h` |
+| `ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` | `ESP_VERSION` in `version.h` |
+| `data/app/**` (ohne `.gz`) | `APP_VERSION` **und** `CACHE_NAME` |
+
+Ein Bump ohne Codeänderung ist ebenso falsch wie eine Änderung ohne Bump: die Uhr
+bietet dann ein OTA-Update auf identische Firmware an. `APP_VERSION` und `CACHE_NAME`
+gehören dagegen immer zusammen — ohne `CACHE_NAME`-Bump liefert der Service Worker
+neue `index.html` mit alter `app.js`.
 
 `tools/deploy.sh` setzt nach jedem Rollout ein Tag `release/<stm>-<esp>-<app>`. Die
 Guardrails messen die Versionspflicht gegen dieses Tag, nicht gegen den letzten Commit.

@@ -8,12 +8,17 @@ Meldungen und Fehlertexte. Bestehende Du-Formulierungen nicht auf „Sie" umschr
 
 ## Versionsstände (Single Source of Truth)
 
-| Was | Datei | Aktuell |
+| Was | Datei | Symbol |
 |---|---|---|
-| STM/WordClock | `src/main.h` → `#define VERSION` | 3.2.4 |
-| ESP | `ESP8266/ESP-uclock/version.h` → `#define ESP_VERSION` | 3.2.1 |
-| PWA-App | `ESP8266/ESP-uclock/data/app/app.js` → `const APP_VERSION` | 1.4.69 |
-| SW-Cache | `ESP8266/ESP-uclock/data/app/sw.js` → `const CACHE_NAME` | wordclock-app-v61 |
+| STM/WordClock | `src/main.h` | `#define VERSION` |
+| ESP | `ESP8266/ESP-uclock/version.h` | `#define ESP_VERSION` |
+| PWA-App | `ESP8266/ESP-uclock/data/app/app.js` | `const APP_VERSION` |
+| SW-Cache | `ESP8266/ESP-uclock/data/app/sw.js` | `const CACHE_NAME` |
+
+**Hier stehen bewusst keine Versionsnummern.** Eine Kopie des Standes in der Doku
+veraltet still — in `README-CMAKE.md` stand über Monate `3.2.0 / 3.2.0 / 1.2.43`,
+ohne dass es jemandem auffiel. Den gültigen Stand zeigt `./tools/guardrails.sh`
+in Stufe S4, und Stufe S9 prüft, dass keine Doku wieder eine eigene Kopie anlegt.
 
 Der Makefile liest diese Werte per `grep` aus (Targets `stm-version-file`,
 `esp-version-file`, `app-version-file`). Das Format der Zeilen darf sich nicht
@@ -62,33 +67,67 @@ bzw. ESP.
 
 ### Versionspflicht bei jedem Build (DIR-004)
 
-**Kein Build ohne Versionserhöhung — und zwar aller drei Komponenten im Gleichschritt.**
-Jedes Fabrikat muss als Einheit identifizierbar und eindeutig einem Commit zuzuordnen
-sein.
+**Jede Komponente wird genau dann versioniert, wenn sich ihr Code geändert hat —
+kein Gleichschritt.** Ändert ein Release nur den STM-Code, steigt nur die
+STM-Version; ESP und PWA bleiben stehen.
 
-| Komponente | Anheben | Datei |
-|---|---|---|
-| STM32 | `VERSION` | `src/main.h` |
-| ESP8266 | `ESP_VERSION` | `ESP8266/ESP-uclock/version.h` |
-| PWA | `APP_VERSION` **und** `CACHE_NAME` | `data/app/app.js`, `sw.js` |
+| Komponente | Anheben | Versionsdatei | Quellen |
+|---|---|---|---|
+| STM32 | `VERSION` | `src/main.h` | `src/**`, `CMakeLists.txt`, `cmake/**` |
+| ESP8266 | `ESP_VERSION` | `ESP8266/ESP-uclock/version.h` | `ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` |
+| PWA | `APP_VERSION` **und** `CACHE_NAME` | `data/app/app.js`, `sw.js` | `data/app/**` ohne `.gz` |
 
-**Alle vier Stellen, bei jedem Build** — auch wenn sich die jeweilige Komponente nicht
-geändert hat. `APP_VERSION` und `CACHE_NAME` gehören ohnehin zusammen: ohne
-`CACHE_NAME`-Bump liefert der Service Worker neue `index.html` mit alter `app.js`.
-Guardrail-Stufe S4 prüft alle vier.
+Die Trennung von ESP und PWA ist dabei der wunde Punkt: beide liegen unter
+`ESP8266/`, sind aber getrennt versioniert und getrennt auszuliefern. Eine Prüfung,
+die `ESP8266` als Ganzes betrachtet, hält jede PWA-Änderung für eine ESP-Änderung.
+Die `.gz` sind Ableitungen und zählen nicht als Quelle.
 
-**Bekannte Nebenwirkung:** Wird eine Komponente angehoben, deren Code unverändert ist,
-bietet die Uhr danach ein Update auf identische Firmware an. Ungefährlich, aber ein
-OTA-Flash ohne Gegenwert.
+Beide Richtungen sind falsch:
+- **Code geändert, Version steht** → das Fabrikat ist keinem Commit mehr zuzuordnen.
+- **Version angehoben, Code unverändert** → die Uhr bietet ein OTA-Update auf
+  identische Firmware an. Ungefährlich, aber ein Flash ohne Gegenwert.
+
+`APP_VERSION` und `CACHE_NAME` gehören dagegen **immer** zusammen, unabhängig von
+DIR-004: ohne `CACHE_NAME`-Bump liefert der Service Worker neue `index.html` mit
+alter `app.js`. Das ist das einzige Kritisch-Finding in S4, der Rest ist Hoch.
+
+Guardrail-Stufe S4 prüft das gegen das letzte `release/*`-Tag, nicht gegen den
+letzten Commit — ein Bump kann mehrere Commits zurückliegen und wäre gegen `HEAD`
+unsichtbar. Beim Vergleich wird die Versionszeile aus dem Diff ihrer eigenen Datei
+herausgefiltert; sonst wäre jeder Bump für sich schon eine „Codeänderung" und die
+Gegenprobe könnte nie anschlagen.
 
 ### Dokumentation nachführen (DIR-006)
 
-Nach jedem Release führt der `doc-writer` `CHANGELOG.md` nach, und bei neuen Werkzeugen
-oder Abläufen auch die README-Dateien. Ein Release gilt erst als fertig, wenn der
-Changelog-Eintrag steht.
+Die Dokumentation zerfällt in zwei Sorten, und die Unterscheidung ist die ganze Regel.
 
-`REVIEW*.md` und `gap-analysis.md` sind Momentaufnahmen mit Datum und werden **nicht**
-fortgeschrieben.
+**Lebend** — wird nachgeführt, darf nie veralten:
+`CLAUDE.md`, `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`,
+`.claude/agents/**`.
+
+**Momentaufnahme** — trägt ein Datum und wird **nicht** fortgeschrieben:
+`REVIEW.md`, `REVIEW-2026-09-29.md`, `gap-analysis.md`, `specs/**`.
+
+Nach jedem Release führt der `doc-writer` `CHANGELOG.md` nach, bei neuen Werkzeugen
+oder Abläufen die README-Dateien, und bei geschlossenen Befunden `BEFUNDE.md`. Ein
+Release gilt erst als fertig, wenn der Changelog-Eintrag steht.
+
+**Versionsnummern gehören nicht in lebende Dokumente.** Eine Kopie des Standes
+veraltet still: der Kopf von `README-CMAKE.md` lag monatelang rund dreissig
+PWA-Versionen hinter den Quellen, ohne dass es auffiel. Eine Anweisung
+an einen Agenten („führe die Doku nach") hat das nicht verhindert und wird es nicht —
+das ist eine Absichtserklärung, keine Prüfung. Deshalb prüft **Guardrail-Stufe S9**
+die lebenden Dokumente gegen die Quellen und meldet zusätzlich absolute
+Benutzerpfade. Eine bewusst historische Angabe in einem lebenden Dokument wird mit
+`<!-- historisch -->` am Zeilenende markiert.
+
+### Warum es zwei Review-Dokumente gibt
+
+`REVIEW.md` (2026-08-12) deckt PWA-Korrektheit, PWA↔STM-Display und UI/UX ab,
+`REVIEW-2026-09-29.md` den API-Vertrag PWA↔ESP, die STM-Restmodule, die UI über die
+Gerätespanne und die Kodierung. Review 2 wiederholt Review 1 nicht, sondern schliesst
+dessen ausdrücklich benannte Lücken. Den **aktuellen Stand** aller 34 Massnahmen führt
+`BEFUNDE.md` — die Reviews selbst bleiben unverändert.
 
 ### Rollout auf die Synology (DIR-005)
 
@@ -177,6 +216,17 @@ Beobachtungen, dass Zeitstempel/Dateien im Release „nicht aktuell" wirkten.
 Bis das behoben ist: nie zwei Release-Builds in derselben Minute starten.
 
 ## Offene technische Themen
+
+Der **vollständige Massnahmenkatalog** steht in `BEFUNDE.md` — 34 Massnahmen aus den
+beiden Reviews plus die Befunde aus der laufenden Arbeit, jeweils mit Status und
+nachprüfbarem Beleg. Die beiden Themen hier stehen zusätzlich, weil sie den
+Projektkontext tragen, den man dem Code nicht ansieht.
+
+Die schwersten offenen Punkte aus dem Katalog, damit sie nicht untergehen:
+`normalize_http_parameters` ohne Null-Prüfung (ESP-Absturz per `GET /?a`, aus dem
+ganzen LAN auslösbar), Backup-Import ohne Guard (kann das Gerät ohne WLAN, ohne AP
+und ohne Webserver zurücklassen) und `watchdog_reload()` mit weiterhin genau **einer**
+Aufrufstelle.
 
 1. **DS18xx-Messwertvalidierung im STM** (klarster nächster Fix)
    Scratchpad-CRC wird beim Read nicht validiert; „online" heisst nur „beim Init

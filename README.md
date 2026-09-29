@@ -15,12 +15,14 @@ Aktueller Betriebsstand:
 
 - Legacy bleibt unter `/` und `/legacy`
 - die moderne Oberfläche läuft unter `/app`
-- der große Migrations- und Entkopplungsblock ist abgeschlossen
+- der grosse Migrations- und Entkopplungsblock ist abgeschlossen
 - neue Änderungen sollen jetzt bewusst klein und gezielt bleiben
 
-## Changelog
+## Changelog und Befundstand
 
-- [CHANGELOG.md](CHANGELOG.md)
+- [CHANGELOG.md](CHANGELOG.md) — was sich pro Release geändert hat
+- [BEFUNDE.md](BEFUNDE.md) — der lebende Massnahmenkatalog: Stand aller Befunde aus
+  den beiden Code-Reviews und aus der laufenden Arbeit, je mit nachprüfbarem Beleg
 
 ## Hardware Notes
 
@@ -33,7 +35,7 @@ Aktueller Betriebsstand:
 | Befehl | Zweck |
 |---|---|
 | `make release-zip` | vollständiger Build aller Komponenten plus Release-ZIP |
-| `./tools/guardrails.sh` | Prüfungen vor jeder Übergabe — Syntax, undefinierte Aufrufe, i18n, Versionen, `.gz`, Muster |
+| `./tools/guardrails.sh` | Prüfungen vor jeder Übergabe — Syntax, undefinierte Aufrufe, i18n, Versionen, `.gz`, Muster, Aktualität der Doku |
 | `python3 tools/preview/server.py 8099` | PWA ohne Gerät ansehen, siehe [tools/preview/README.md](tools/preview/README.md) |
 | `./tools/deploy.sh` | Release auf den Update-Server ausrollen |
 

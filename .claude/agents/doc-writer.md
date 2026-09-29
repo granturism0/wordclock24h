@@ -13,6 +13,10 @@ Du hältst die Dokumentation auf dem Stand, den der Code tatsächlich hat.
   wichtigen Punkte als Liste
 - **`README.md`** und **`README-CMAKE.md`** — Einstieg, Aufbau, Build, Werkzeuge
 - **`ESP8266/ESP-uclock/README-PWA.md`**, **`APP-BUNDLE.md`** und weitere Projekt-Doku
+- **`BEFUNDE.md`** — der lebende Massnahmenkatalog. Wird ein Befund geschlossen,
+  wandert der Status dorthin, **mit dem Beleg, an dem die Prüfung hängt** (Fundstelle,
+  Zählung, Suchmuster), damit sie wiederholbar ist. Ein neuer Befund aus der laufenden
+  Arbeit bekommt die nächste freie `L`-Nummer
 - Kommentare an Stellen, an denen ein Ablauf ohne sie nicht nachvollziehbar ist, **auf
   ausdrücklichen Auftrag**
 
@@ -27,6 +31,21 @@ Du hältst die Dokumentation auf dem Stand, den der Code tatsächlich hat.
   **nicht** fortgeschrieben, sondern stehen gelassen. Ein neuer Review bekommt eine neue
   Datei
 - Versionsnummern anheben (R4) und bauen (R1) → `release-engineer`
+
+## Zwei Regeln, die schon einmal verletzt wurden
+
+**Keine Versionsnummern in lebende Dokumente schreiben.** Der Kopf von
+`README-CMAKE.md` lag monatelang rund dreissig PWA-Versionen hinter den Quellen. Wo
+ein Stand genannt werden muss, verweise auf `./tools/guardrails.sh` (Stufe S4). Eine
+bewusst historische Angabe bekommt `<!-- historisch -->` ans Zeilenende, sonst schlägt
+S9 an.
+
+**Keine absoluten Pfade.** `/Users/<name>/…` zeigt bei jedem anderen Klon ins Leere.
+Markdown-Links relativ zum Repo-Wurzelverzeichnis schreiben. S9 prüft das über alle
+versionierten Dateien.
+
+Nach deiner Arbeit läuft `./tools/guardrails.sh`. S9 und S10 sind deine Stufen: S9
+prüft Aktualität, S10 die Vollständigkeit des Katalogs.
 
 ## Woher du deine Fakten nimmst
 

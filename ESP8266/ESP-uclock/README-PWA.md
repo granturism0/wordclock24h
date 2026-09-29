@@ -69,7 +69,7 @@ Die PWA ist damit produktiv nutzbar, ohne die Legacy-Seite hart zu ersetzen.
 - Komprimierbare PWA-Dateien werden im aktuellen Rollout zusätzlich als `.gz` gebaut, gespeichert und bevorzugt so ausgeliefert
 - Das Routing von `/app/...` auf diese Dateien übernimmt die Firmware in [http.cpp](../../ESP8266/ESP-uclock/http.cpp)
 - Wenn unter `/app` noch keine App installiert ist, liefert die Firmware eine Hinweisseite
-- `/app` betrachtet eine App-Datei nur dann als gültig installiert, wenn sie vorhanden ist und `> 0` Byte groß ist
+- `/app` betrachtet eine App-Datei nur dann als gültig installiert, wenn sie vorhanden ist und `> 0` Byte gross ist
 - Die PWA-Quelldateien unter `data/app` tragen einheitliche Dateikopf-Kommentare
 - Für die App-Update-Prüfung muss auf dem Update-Server zusätzlich `app-version.txt` liegen
 - Relevante `STM32`-Reset-Ursachen werden im Überblick angezeigt, wenn sie beim aktuellen Boot erkannt wurden
@@ -85,7 +85,7 @@ Für den aktuellen PWA-/Restore-Stand sind diese Punkte wichtig:
 
 - Der `.gz`-Pfad umfasst Build, lokalen Upload, Remote-Install und `/app`-Serving konsistent.
 - Der Remote-Installpfad für `/app/?action=install` war auf dem ESP empfindlich gegenüber Stacklast und Timing; der aktuelle Stand ist darauf gehärtet.
-- Bei Mobile Safari war der kritische Punkt zuletzt die HTTP-Auslieferung der PWA-Assets. Der ESP schließt diese Responses jetzt explizit sauber ab.
+- Bei Mobile Safari war der kritische Punkt zuletzt die HTTP-Auslieferung der PWA-Assets. Der ESP schliesst diese Responses jetzt explizit sauber ab.
 - Restore-Fehler bei Overlays, Timern und `ticker_deceleration` waren keine reinen JSON-Probleme, sondern in mehreren Fällen Timing-/Interleaving-Themen im Write-Pfad zur Uhr.
 - Die Timing-Abstände im Restore sind deshalb aktuell bewusst konservativ gewählt und sollten nicht leichtfertig wieder reduziert werden, ohne die seriellen Logs mitzuprüfen.
 - Die PWA ist jetzt durchgängig zweisprachig aufgebaut:
@@ -107,7 +107,7 @@ Für den aktuellen PWA-/Restore-Stand sind diese Punkte wichtig:
 
 Der Umbau wurde bis zu einem stabilen PWA-/Legacy-Zielstand durchgezogen. Ab jetzt gilt:
 
-- keine großen Strukturumbauten mehr “aus Prinzip”
+- keine grossen Strukturumbauten mehr “aus Prinzip”
 - nur noch gezielte Bugfixes oder UX-Nachzüge nach echtem Praxisfund
 - der aktuelle Stand ist als bewusster Freeze-Kandidat zu verstehen
 

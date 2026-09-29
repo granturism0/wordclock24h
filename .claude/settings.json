@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-/Users/daniel/Documents/GitHub/wordclock24h}/tools/hooks/guardrail-bash-allowlist.py\"",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/tools/hooks/guardrail-bash-allowlist.py\"",
             "timeout": 10,
             "statusMessage": "Guardrail-Positivliste prüfen"
           }
