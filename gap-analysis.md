@@ -1,8 +1,9 @@
 # Gap-Analyse: Agenten-Team-Struktur für wordclock24h
 
-**Stand:** 2026-09-29 · Branch `pwa-decoupling` · letzter Commit `1d7d54e` (2026-08-11)
-**Grundlage:** `agenten-team-erweiterung.md`, angewendet nach Auftrag 10, Schritt 3b
-**Status:** reine Bestandsaufnahme, **kein Schreibzugriff auf Projektcode**. Nichts angelegt, nichts verändert ausser dieser Datei.
+**Stand:** 2026-09-29 · Branch `pwa-decoupling`
+**Grundlage:** `agenten-team-erweiterung.md` in der überarbeiteten Fassung vom 2026-09-29
+**Status:** Bestandsaufnahme durchgeführt, Migrationsstufen M0 bis M3 umgesetzt.
+**Kein Projektcode angefasst** — ausschliesslich Prozess- und Agentenstruktur.
 
 ---
 
@@ -73,15 +74,46 @@ ISO 27001 wird hier **nicht** gebraucht. Von OWASP ist genau ein Punkt relevant 
 
 **Folge:** Auftrag 3 („ergänze in jeder bestehenden Agent-Definition…") hat kein Objekt. Grenzen müssen beim Anlegen direkt mitgeschrieben werden, nicht nachgerüstet.
 
-### Auftrag 2 — Spec-Phase · **FEHLT**
+### Auftrag 2 — Spec-Phase · **STRUKTUR UMGESETZT, noch keine echte Spec**
+
+**Umgesetzt:** `specs/README.md` mit dem Ablauf und `specs/_template/` mit den drei
+Teilen. `design.md` enthält die vier Architektur-Kriterien als zu beantwortende Fragen,
+`tasks.md` erzwingt genau einen zuständigen Agenten pro Task und den Guardrail-Lauf
+dazwischen. **Noch offen:** die erste echte Spezifikation, siehe M4.
 
 - Kein `specs/`-Verzeichnis, keine `requirements.md`/`design.md`/`tasks.md`
 - Anforderungen existieren heute nur als Fliesstext in Chatverläufen und in den „Offenen technischen Themen" in `CLAUDE.md`
 - **Risiko konkret belegt:** `REVIEW.md` listet 18 priorisierte Massnahmen ohne Akzeptanzkriterien. Bei Nummer 2 („Restore-Lücke schliessen") ist ohne Spec nicht festgelegt, was als Beweis der Behebung gilt — die Messung aus F2 oder nur „sieht gut aus"
 
-### Auftrag 3 — Zuständigkeits-Grenzen · **FEHLT** (mangels Agenten)
+### Auftrag 3 — Zuständigkeits-Grenzen · **UMGESETZT**
 
-Siehe Schritt 2 oben: Grenzen sind vorgeschlagen, aber nirgends hinterlegt.
+Ausgangslage: keine Agenten, also auch keine Grenzen. Der Auftrag „ergänze in jeder
+bestehenden Agent-Definition" hatte kein Objekt — die Grenzen mussten beim Anlegen
+mitgeschrieben werden statt nachgerüstet.
+
+Umgesetzt sind elf Agenten unter `.claude/agents/`, jeder mit „Zuständig für" und
+„NICHT zuständig für" samt Angabe, an welchen Agenten delegiert wird.
+
+**Entscheidend ist der Grundsatz aus der überarbeiteten Fassung:** die Grenze steht
+nicht nur im Prompt, sondern wird über die **Werkzeugliste technisch durchgesetzt**.
+
+| Agent | Werkzeuge | Kann Code ändern |
+|---|---|---|
+| `stm-developer` | Read, Grep, Glob, Edit, Write, Bash | ja — `src/**` |
+| `esp-developer` | Read, Grep, Glob, Edit, Write, Bash | ja — ESP-Firmware |
+| `pwa-developer` | Read, Grep, Glob, Edit, Write, Bash | ja — `app.js`, `sw.js` |
+| `ui-developer` | Read, Grep, Glob, Edit, Write, Bash | ja — HTML, CSS, Manifest |
+| `release-engineer` | Read, Grep, Glob, Edit, Bash | nur Versionszeilen |
+| `spec-writer` | Read, Grep, Glob, Write | nur unter `specs/` |
+| `firmware-analyst` | Read, Grep, Glob | **nein, technisch unmöglich** |
+| `code-reviewer` | Read, Grep, Glob | **nein, technisch unmöglich** |
+| `ui-reviewer` | Read, Grep, Glob | **nein, technisch unmöglich** |
+| `librarian` | Read, Grep, Glob | **nein, technisch unmöglich** |
+| `guardrail-runner` | Read, Grep, Glob, Bash | nur per Anweisung eingeschränkt |
+
+Die vier Rollen ohne `Write` und `Edit` können nicht schreiben, unabhängig davon, wie
+sie ihre Anweisung interpretieren. Beim `guardrail-runner` bleibt eine Lücke — siehe
+Auftrag 7.
 
 ### Auftrag 4 — Single-threaded writes · **VORHANDEN, und konkreter als im Konzept**
 
@@ -94,11 +126,20 @@ Einziger Auftrag, der hier bereits erfüllt ist. `CLAUDE.md` enthält R1 bis R6 
 - R5: Hardware exklusiv
 - R6: Worktree-Isolation als Ausnahme
 
-**Lücke:** Die Regeln stehen nur in `CLAUDE.md`. Sie sind nicht in Agent-Definitionen eingearbeitet, wie es Auftrag 10 Schritt 2 verlangt. Ohne Agenten war das bisher auch nicht möglich.
+**Lücke geschlossen:** Die Regeln standen nur in `CLAUDE.md`. Jetzt sind sie in jede
+Agent-Definition eingearbeitet, wie Auftrag 10 Schritt 2 verlangt.
 
-### Auftrag 5 — Wissensbasis `knowledge/quick-reference.md` · **FEHLT, aber Rohmaterial ist da**
+Nach der überarbeiteten Fassung ist Auftrag 4 **kein reines Koordinationsprotokoll
+mehr**, sondern folgt direkt aus Auftrag 3: Reviewer, Analyst und Librarian haben kein
+`Write` und `Edit` und **können** gar nicht parallel schreiben. Nur der zugewiesene
+implementierende Agent besitzt Schreibrechte, und nur bis der nächste Task beginnt —
+dieser Satz steht in jeder der fünf schreibenden Definitionen.
 
-- Kein `knowledge/`-Verzeichnis
+### Auftrag 5 — Wissensbasis · **UMGESETZT**
+
+Angelegt sind `quick-reference.md`, `architecture-checklist.md` und `directives.md`.
+
+- Ausgangslage: kein `knowledge/`-Verzeichnis
 - **Aber:** `REVIEW.md` ist faktisch eine ungeordnete Vorstufe davon. Die Beispieleinträge des Konzepts (Key Vault, Odoo-Migrationsskript, ISO 27001 A.8.15) sind hier sämtlich gegenstandslos und müssen vollständig ersetzt werden
 
 Projektspezifischer Ersatz, direkt aus belegten Befunden abgeleitet:
@@ -116,41 +157,35 @@ Projektspezifischer Ersatz, direkt aus belegten Befunden abgeleitet:
 | Deutscher String direkt im Code statt über `translate()` | In die i18n-Tabelle, Du-Form beibehalten | Mittel |
 | CSS-Klasse angelegt, aber im HTML nie gesetzt | Im HTML nachziehen oder CSS entfernen | Mittel |
 
-### Auftrag 6 — Librarian-Agent · **FEHLT, Zurückstellung empfohlen**
+### Auftrag 6 — Librarian-Agent · **ANGELEGT, Bewährung offen**
 
-Siehe Einschränkung in Schritt 2. Kein `knowledge/directives.md`. Überschneidet sich mit dem projektbezogenen Memory von Claude Code.
+Angelegt als `.claude/agents/librarian.md`, mit `knowledge/directives.md` und den drei
+bereits bestätigten Direktiven.
 
-### Auftrag 7 — Guardrails nach jedem Task · **FEHLT, und so nicht umsetzbar**
+Nach dem überarbeiteten Auftrag 3 hat der Librarian **kein `Write` und kein `Edit`** —
+auch nicht für `directives.md`. Er legt Entwürfe vor, eingetragen werden sie vom Lead
+nach ausdrücklicher Bestätigung. Die Überschneidung mit `CLAUDE.md` und dem
+projektbezogenen Memory bleibt und muss sich im Betrieb zeigen, siehe M5.
 
-Der kritischste Punkt der ganzen Analyse.
+### Auftrag 7 — Guardrails nach jedem Task · **MINIMALBASIS GESCHAFFEN**
 
-Das Konzept verlangt drei Schritte: Lint gegen `quick-reference.md`, **Tests ausführen**, Review. Ist-Zustand:
+Die überarbeitete Fassung stellt dem Auftrag eine Voraussetzung voran: ohne Test-,
+Lint- oder CI-Basis ist „blockiert bei Fehlschlägen" reine Dekoration, weil nichts da
+ist, das fehlschlagen könnte. Genau das war der Ist-Zustand.
 
-- **Keine Tests.** Kein `tests/`, kein Testframework, keine einzige Testdatei im ganzen Repository
-- **Keine CI.** Kein `.github/workflows/`
-- **Kein Linter.** Keine ESLint-Konfiguration, kein `package.json`, kein `.clang-format`
-- Ein vollständiger Build braucht CMake **und** arduino-cli, dauert Minuten und darf nach R1 nur seriell laufen — als Guardrail nach *jedem* Task ungeeignet
+**Ausgangslage:** keine Tests, kein `tests/`, kein Testframework, keine einzige
+Testdatei. Keine CI, kein `.github/workflows/`. Kein Linter, keine
+ESLint-Konfiguration, kein `package.json`, kein `.clang-format`. Ein vollständiger
+Build braucht CMake **und** arduino-cli, dauert Minuten und darf nach R1 nur seriell
+laufen — als Guardrail nach *jedem* Task untauglich.
 
-**„Tests ausführen" muss für dieses Projekt neu definiert werden.** Vorschlag, gestaffelt nach Kosten:
+Deshalb wird die Minimalbasis als **eigener, vorgezogener Migrationsschritt M1**
+geführt, nicht als Unterpunkt von „Auftrag 7 fehlt". Siehe Migrationsplan unten.
 
-| Stufe | Prüfung | Kosten | Hätte gefunden |
-|---|---|---|---|
-| 1 | `node --check app.js` | Sekunden | Syntaxfehler |
-| 2 | Undefined-Function-Check über `app.js` | Sekunden | **beide `ReferenceError` aus dem Review** |
-| 3 | i18n-Key-Parität DE/EN + benutzte-aber-undefinierte Keys | Sekunden | **die drei `common.*`-Keys, die als Rohtext auf dem Button stehen** |
-| 4 | Versionskonsistenz über die vier Stellen | Sekunden | inkonsistente Releases |
-| 5 | Alle `.gz` vorhanden und Grösse > 0 | Sekunden | White-Screen-Fall |
-| 6 | CSS-Klassen ohne HTML-Verwendung | Sekunden | **die fünf Grid-Area-Klassen** |
-| 7 | Grep-Lint gegen `quick-reference.md` (z. B. `log_printf` im Refresh-Pfad) | Sekunden | Logblockade |
-| 8 | Voller Build `make release-zip` | Minuten | Kompilierfehler |
+### Auftrag 8 — Architektur-Checkliste · **UMGESETZT**
 
-Stufen 1 bis 7 sind ein einzelnes Shell-Skript ohne neue Abhängigkeiten und laufen nach jedem Task. Stufe 8 bleibt beim `release-engineer` und läuft nicht nach jedem Task, sondern vor jedem Release.
-
-**Bemerkenswert:** Die Stufen 2, 3 und 6 hätten drei der verifizierten Review-Befunde automatisch gefunden. Das ist das stärkste Argument für diesen Auftrag im gesamten Konzept.
-
-### Auftrag 8 — Architektur-Checkliste · **FEHLT, Kriterien müssen übersetzt werden**
-
-Kein `knowledge/architecture-checklist.md`. Die vier Kriterien bleiben gültig, ihre Prüffragen nicht:
+Angelegt als `knowledge/architecture-checklist.md`, verbindlich geprüft in `design.md`
+und im Review-Schritt. Die vier Kriterien bleiben gültig, ihre Prüffragen nicht:
 
 | Kriterium | Konzept (Odoo) | Übersetzung für wordclock24h |
 |---|---|---|
@@ -176,30 +211,91 @@ Ein Agenten-Prozess erhöht die Qualität künftiger Änderungen. Er arbeitet di
 
 ---
 
-## Priorisierter Migrationsplan
+## Migrationsplan
 
-Reihenfolge nach Risiko, nicht nach Auftragsnummer — wie vom Konzept verlangt. Bestehender Projektcode wird dabei **nicht** angefasst.
+Reihenfolge nach Risiko, nicht nach Auftragsnummer. Bestehender Projektcode wird
+**nicht** angefasst.
 
-| Stufe | Schritt | Auftrag | Begründung |
-|---|---|---|---|
-| **0** | `CLAUDE.md`, `REVIEW.md`, `gap-analysis.md` committen | — | Die einzigen Prozessartefakte sind ungesichert. Kostet eine Minute |
-| **1** | Guardrail-Skript Stufen 1–7 anlegen, plus `knowledge/quick-reference.md` | 5 + 7 | Grösstes Risiko, kleinster Aufwand. Hätte drei verifizierte Befunde automatisch gefunden. Funktioniert sofort, auch ohne einen einzigen Agenten |
-| **2** | `knowledge/architecture-checklist.md` mit den übersetzten Prüffragen | 8 | Ohne sie ist der Review-Schritt aus Stufe 1 inhaltsleer |
-| **3** | Spec-Phase einführen, erste Spec für eine kleine reale Änderung | 2 | Kandidat: Massnahme 2 aus `REVIEW.md`, die Restore-Lücke. Klein, belegt, mit klarem Akzeptanzkriterium über F2 |
-| **4** | Agenten anlegen, Grenzen und R1–R6 direkt eingearbeitet | 3 + 4 | Erst jetzt sinnvoll, weil die Agenten auf Stufe 1–3 verweisen können |
-| **5** | Librarian, oder begründet weglassen | 6 | Überschneidung mit dem Memory zuerst klären |
-| **6** | Plugin-Paketierung | 9 | Erst nach Bewährung, und eher in einem BTPAG-Projekt als hier |
+### M0 — Prozessartefakte sichern · **ERLEDIGT**
 
----
+`CLAUDE.md`, `REVIEW.md` und `gap-analysis.md` waren seit sieben Wochen untracked und
+ein `git clean -fd` von der Löschung entfernt. Committet als `4fff45f`.
 
-## Was ich bewusst nicht getan habe
+### M1 — Minimalbasis für Guardrails · **ERLEDIGT** (vorgezogener Schritt zu Auftrag 7)
 
-Nach Auftrag 10, „Ergebnis": nur dieser Plan, keine Umsetzung. Konkret **nicht** angelegt oder verändert:
+Der aus dem Projektkontext abgeleitete Minimalstand nach Auftrag 10, Schritt 2. Ein
+Shell-Skript ohne neue Abhängigkeiten, plus vier Node-Prüfungen.
 
-- keine Agent-Definitionen in `.claude/agents/`
-- kein `knowledge/`, kein `specs/`
-- kein Guardrail-Skript
-- kein Commit
-- keine Zeile Projektcode
+`./tools/guardrails.sh` — schnelle Stufe, läuft nach jedem Task, Laufzeit Sekunden:
 
-Einzige geschriebene Datei ist `gap-analysis.md` selbst.
+| Stufe | Prüfung | Belegter Nutzen |
+|---|---|---|
+| S1 | `node --check` auf `app.js` und `sw.js` | Syntaxfehler |
+| S2 | Undefinierte Funktionsaufrufe | **findet beide `ReferenceError` aus `REVIEW.md`** |
+| S3 | i18n: benutzte-aber-undefinierte Keys, DE/EN-Parität | **findet die drei `common.*`-Keys, die wörtlich in der UI stehen** |
+| S4 | Versionszeilen greppbar, `CACHE_NAME`-Drift gegen `HEAD` | schützt den still brechenden Release-Build |
+| S5 | `.gz` vorhanden, nicht leer, nicht veraltet | der White-Screen-Fall |
+| S6 | CSS-Klassen ohne Verwendung | **findet die fünf Grid-Area-Klassen** |
+| S7 | Grep-Lint gegen `knowledge/quick-reference.md` | unbedingtes `log_printf`, leere `catch`, `innerHTML` ohne `escapeHtml` |
+| S8 | **Smoke-Test:** `app.js` wird mit gestubbtem Browser-Umfeld geladen | Fehler beim Laden, nicht nur Syntax |
+
+`./tools/guardrails.sh --full` ergänzt die Compile-Smoke-Tests `make f103`, `f411`,
+`esp`. Dauert Minuten, läuft nur beim `release-engineer` und nur seriell (R1).
+
+Exit 0 = Task darf abgeschlossen werden. Exit 1 = blockiert, keine Schreibübergabe.
+
+**Erster Lauf gegen den Bestand: Exit 1**, mit zwei Prüfungen im Kritisch-Bereich und
+vier Hoch-Findings — sämtlich Befunde, die `REVIEW.md` bereits belegt hat. Die Basis
+ist damit nachweislich wirksam und nicht dekorativ.
+
+Drei der acht Stufen hätten verifizierte Review-Befunde **automatisch** gefunden. Das
+ist das stärkste Argument für diesen Auftrag im gesamten Konzept.
+
+### M2 — Wissensbasis und Architektur-Checkliste · **ERLEDIGT**
+
+`knowledge/quick-reference.md`, `knowledge/architecture-checklist.md`,
+`knowledge/directives.md`. Die Odoo- und Azure-Beispieleinträge des Konzepts sind
+vollständig ersetzt; jeder Eintrag stammt aus einem belegten Befund.
+
+### M3 — Spec-Phase und Agenten · **ERLEDIGT**
+
+`specs/` mit Vorlage und Ablaufbeschreibung. Elf Agenten unter `.claude/agents/` mit
+technisch durchgesetzten Grenzen. Zusätzlich
+`tools/hooks/guardrail-bash-allowlist.py` als Härtung für den `guardrail-runner`
+— getestet, aber **noch nicht registriert**.
+
+### M4 — Erste echte Spec · **OFFEN**
+
+Kandidat: Massnahme 2 aus `REVIEW.md`, die Restore-Lücke in `main.c:3699-3711`. Klein,
+verifiziert, mit klarem Akzeptanzkriterium über den Diagnoseschritt F2.
+
+### M5 — Librarian im Betrieb prüfen · **OFFEN**
+
+Angelegt, aber die Abgrenzung zu `CLAUDE.md` und zum projektbezogenen Memory muss sich
+erst zeigen. Gegebenenfalls begründet wieder entfernen.
+
+### M6 — Plugin-Paketierung · **ZURÜCKGESTELLT**
+
+Erst nach Bewährung. Zusätzlich fehlt die Infrastruktur — als Marketplace ist nur
+`claude-plugins-official` registriert, kein BTPAG-Repository. Die Bewährung müsste
+ohnehin in einem BTPAG-Projekt stattfinden, nicht in einem privaten Embedded-Projekt.
+
+## Was bewusst nicht getan wurde
+
+- **Kein Projektcode angefasst.** Keine Zeile in `src/**`, `ESP8266/**` oder
+  `data/app/**`. Die 18 Massnahmen aus `REVIEW.md` sind unverändert offen
+- **Der Hook ist nicht registriert.** `tools/hooks/guardrail-bash-allowlist.py` ist
+  angelegt und getestet, aber in keiner `settings.json` eingetragen. Ein PreToolUse-Hook
+  greift in **jeden** Bash-Aufruf der Session ein; die Aktivierung ist eine bewusste
+  Entscheidung des Nutzers
+- **Keine Spec geschrieben.** M4 wartet auf Freigabe
+- **Auftrag 9 nicht begonnen**
+
+## Offene Einschränkung, die geprüft werden muss
+
+Der Hook erkennt den `guardrail-runner` daran, dass dessen Name irgendwo in der
+Hook-Nutzlast vorkommt. Welches Feld die Agentenzuordnung trägt, ist je nach
+Claude-Code-Version unterschiedlich und wurde **nicht an einer echten Nutzlast
+verifiziert**. Der Hook fällt in diesem Fall offen aus: Er blockiert dann nichts,
+statt fälschlich alles zu blockieren. Vor dem produktiven Einsatz sollte einmal eine
+echte Nutzlast geprüft werden.
