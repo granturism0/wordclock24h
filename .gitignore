@@ -26,3 +26,6 @@ compile_commands.json
 
 # Screenshots der PWA-Vorschau
 tools/preview/shots/
+
+# Zugangsdaten fuer den Rollout
+tools/deploy.conf

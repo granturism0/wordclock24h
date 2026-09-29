@@ -43,17 +43,30 @@ Nach jedem erfolgreichen Release gehört das Fabrikat nach
 `/volume1/web/wordclock/test8`: die App-Assets, beide `.hex`, die ESP-`.bin` und die
 Versionsdateien.
 
-**Der Transportweg ist noch offen** — der Pfad ist auf diesem Rechner nicht gemountet
-und es gibt keinen passenden SSH-Eintrag. Frag den Nutzer, bevor du etwas kopierst.
+```
+./tools/deploy.sh --dry-run    zeigt, was uebertragen wuerde
+./tools/deploy.sh              uebertraegt
+```
+
+Zugang über SSH auf `diskstation.lan`, Port 5002, Benutzer `admin`, Schlüssel
+`~/.ssh/nas_hps_hr`. Die Werte stehen in `tools/deploy.conf`, die **nicht** im
+Repository liegt.
+
+**Mach immer zuerst den Probelauf.** Das Skript prüft vorher jedes Artefakt auf
+Vorhandensein, Grösse > 0 und veraltete `.gz`, und bricht ab, statt einen kaputten
+Stand auszurollen.
 
 **Zwei Dinge, die du dabei wissen musst:**
 
 1. Das Ziel ist zugleich der **Update-Server**, von dem die Uhr per OTA lädt. Ein
    unvollständiger Rollout kann also nicht nur ein Archiv beschädigen, sondern ein Gerät,
    das gerade aktualisiert.
-2. Der ESP erwartet dort `wc-list.txt` und `wc-list-tables.txt` (`http.cpp:47-54`).
-   Beide sind **nicht** im Release-ZIP. Wer nur den ZIP-Inhalt auspackt, hinterlässt
-   einen Update-Server, auf dem die Firmware-Auswahl leer bleibt.
+2. Auf dem Ziel liegen Dateien, die **der Nutzer selbst pflegt**: `wc-list.txt`,
+   `wc-list-tables.txt`, die `wc12h-tables-*.txt` und `wc12h-icon.txt`. Das Skript
+   überträgt deshalb nur und löscht nichts — **niemals `--delete` ergänzen.**
+3. Die `releasenote.html` liegt ebenfalls dort und gehört nicht ins Repository. Das
+   Skript zieht **ausschliesslich die H2-Kopfzeile** auf die aktuelle STM-Version
+   nach, der übrige Inhalt bleibt unangetastet.
 
 ## NICHT zuständig für
 

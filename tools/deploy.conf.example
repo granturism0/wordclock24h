@@ -1,0 +1,8 @@
+# Vorlage fuer tools/deploy.conf — diese Datei kopieren und ausfuellen.
+# tools/deploy.conf ist gitignored und gehoert nicht ins Repository.
+
+DEPLOY_HOST=diskstation.lan
+DEPLOY_USER=admin
+DEPLOY_PORT=5002
+DEPLOY_PATH=/volume1/web/wordclock/test8
+DEPLOY_KEY=~/.ssh/nas_hps_hr

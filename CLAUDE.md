@@ -76,13 +76,20 @@ Service Worker neue `index.html` mit alter `app.js`. Guardrail-Stufe S4 prüft d
 
 ### Rollout auf die Synology (DIR-005)
 
-Das fertige Fabrikat wird **immer** nach `/volume1/web/wordclock/test8` ausgerollt —
-App-Assets, `.hex`, ESP-`.bin` und Versionsdateien. **Der Transportweg ist noch nicht
-festgelegt** (der Pfad ist auf diesem Rechner nicht gemountet).
+```
+./tools/deploy.sh --dry-run    zeigt, was uebertragen wuerde
+./tools/deploy.sh              uebertraegt
+```
 
-Achtung, das Ziel ist zugleich der Update-Server, von dem die Uhr selbst lädt. Der ESP
-erwartet dort laut `http.cpp:47-54` zusätzlich `wc-list.txt` und `wc-list-tables.txt` —
-beide sind **nicht** im Release-ZIP enthalten.
+Ziel ist `/volume1/web/wordclock/test8` auf `diskstation.lan` (SSH, Port 5002). Übertragen
+werden App-Assets, beide `.hex`, die ESP-`.bin` und die Versionsdateien. Zusätzlich wird
+die H2-Kopfzeile in `releasenote.html` auf die aktuelle STM-Version nachgezogen.
+
+**Das Ziel ist zugleich der Update-Server, von dem die Uhr per OTA lädt.** Deshalb prüft
+das Skript jedes Artefakt, bevor es irgendetwas überträgt, und bricht ab statt einen
+kaputten Stand auszurollen. Dort liegen ausserdem Dateien, die du selbst pflegst —
+`wc-list.txt`, `wc-list-tables.txt`, die Layout-Tabellen und `releasenote.html`. Das
+Skript löscht nichts; **niemals `--delete` ergänzen.**
 
 ---
 

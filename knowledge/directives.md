@@ -40,7 +40,9 @@ DIR-004:
 DIR-005:
   regel: "Das fertige Fabrikat wird immer auf die Synology nach /volume1/web/wordclock/test8
           ausgerollt: die App-Assets, die gebauten .hex, die ESP-.bin und die Versionsdateien.
-          Der Transportweg ist noch festzulegen."
+          Zusaetzlich wird die H2-Kopfzeile der releasenote.html auf die aktuelle STM-Version
+          nachgezogen. Werkzeug: ./tools/deploy.sh. Nichts loeschen, der Nutzer pflegt dort
+          eigene Dateien."
   gilt_fuer: [release-engineer]
   seit: 2026-09-29
 
