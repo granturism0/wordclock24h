@@ -12,6 +12,39 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/tools/hooks/guardrails-before-stop.py\"",
+            "timeout": 15,
+            "statusMessage": "Guardrail-Stand pruefen"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./tools/guardrails.sh)",
+      "Bash(node tools/checks/:*)",
+      "Bash(python3 tools/hooks/:*)",
+      "Bash(python3 tools/preview/server.py:*)",
+      "Bash(./tools/preview/shot.sh:*)",
+      "Bash(./tools/deploy.sh --dry-run)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git describe:*)",
+      "Bash(make stm-version-file)",
+      "Bash(make esp-version-file)",
+      "Bash(make app-version-file)",
+      "Read(//Applications/Arduino IDE.app/Contents/Resources/app/lib/backend/resources/**)",
+      "Read(//Applications/CMake.app/Contents/bin/**)"
     ]
   }
 }

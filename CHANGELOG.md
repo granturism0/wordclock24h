@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-09-30 Regeln maschinell erzwungen, Ablaeufe als Skills
+
+Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
+
+Nach einer Recherche zum aktuellen Stand der Claude-Code-Funktionen umgesetzt. Drei
+Faehigkeiten waren ungenutzt, und alle drei zielen auf Probleme, die dieses Projekt hat.
+
+### Regeln, die jetzt greifen statt nur dazustehen
+
+- **R1 "nur der Lead baut"** haengt als PreToolUse-Hook im Frontmatter aller
+  schreibenden Agenten ausser dem `release-engineer`. Abgewiesen werden `make`, `cmake`,
+  `arduino-cli` und `guardrails.sh --full`; harmlose Ziele wie `make stm-version-file`
+  bleiben erlaubt. Grund: f103 und f411 bauen beide mit -j4 in dasselbe Verzeichnis,
+  parallele Builds korrumpieren den CMake-Cache.
+- **Ein Stop-Hook** blockiert das Turn-Ende, wenn ueberwachte Dateien geaendert sind und
+  die Guardrails dafuer nicht liefen. Drei Absicherungen verhindern Dauerblockaden:
+  `stop_hook_active`, ein Hash pro Aenderungsstand (pro Stand wird hoechstens einmal
+  blockiert) und ein Durchlassen bei jedem Fehler im Hook selbst. Die Hashberechnung
+  liegt bewusst nur an einer Stelle — zwei Fassungen wuerden auseinanderlaufen und
+  dauerhaft blockieren.
+
+### Ablaeufe als Skills
+
+`CLAUDE.md` war auf 248 Zeilen gewachsen und lud bei jeder Sitzung komplett, auch die
+STM-Interna waehrend PWA-Arbeit. Die Ablaeufe liegen jetzt unter `.claude/skills/`:
+
+- `/release` — Build, Versionspflicht, Rollout, was zu flashen ist
+- `/pwa-vorschau` — PWA ohne Geraet ansehen, mit den drei Chrome-Eigenheiten
+- `/doku-nachfuehren` — CHANGELOG, READMEs, Befundkatalog
+- `stm-firmware` — belegtes Detailwissen zur Firmware, laedt automatisch ueber
+  `paths: src/**`
+
+`CLAUDE.md` ist damit auf 178 Zeilen. Die Kurzregeln bleiben dort, weil sie immer
+gelten; die Prozeduren laden nur bei Bedarf.
+
+### Weiteres
+
+- Die zwoelf Agenten haben Farben nach Rolle: Firmware orange, PWA blau, nur lesend
+  violett, pruefen und bauen gruen, Doku und Spec cyan.
+- Projektweite Berechtigungen in `.claude/settings.json` statt verstreut und mit
+  absoluten Pfaden in der lokalen Datei. Bewusst **ohne** `deny` auf `deploy.sh` — eine
+  deny-Regel ist nicht ueberstimmbar, und der Rollout soll moeglich sein und nur
+  nachfragen.
+- S9 prueft jetzt auch die Skills.
+
 ## 2026-09-29 Versionierung je Komponente, Befundkatalog, Doku-Pruefungen
 
 Reine Werkzeug- und Dokumentationsaenderung. **Kein Produktcode beruehrt, deshalb kein
@@ -36,7 +81,7 @@ Versionsbump** — genau der Fall, den die neue Regel beschreibt.
 - Der Kopf von `README-CMAKE.md` behauptete einen "aktuellen Abschlussstand", der rund
   dreissig PWA-Versionen zurueck lag. Versionsangaben aus den lebenden Dokumenten
   entfernt statt gepflegt — was nicht dasteht, kann nicht veralten.
-- Sieben absolute Pfade `/Users/daniel/...` in `CHANGELOG.md`, `README-CMAKE.md` und
+- Sieben absolute Pfade `/Users/<name>/...` in `CHANGELOG.md`, `README-CMAKE.md` und
   `.claude/settings.json`. Sie zeigen bei jedem anderen Klon ins Leere.
 - 14 Stellen mit `ss`-Verstoss gegen die Schweizer Schreibung in vier lebenden Dokumenten.
 - Ein Abschnitt in `README-CMAKE.md` beschrieb einen Stand vom April als "aktuell

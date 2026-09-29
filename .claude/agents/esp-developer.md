@@ -2,6 +2,15 @@
 name: esp-developer
 description: Setzt Änderungen an der ESP8266-Firmware um (http.cpp, vars.cpp, weather.cpp, ESP-uclock.ino und weitere). Einsetzen für HTTP-Endpunkte, die Kommandobrücke zum STM, Legacy-Oberfläche und Update-Pfade. Nicht für STM-Interna und nicht für die PWA.
 tools: Read, Grep, Glob, Edit, Write, Bash
+color: orange
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/no-build.py"
+          timeout: 10
+          statusMessage: R1 pruefen — Builds nur beim release-engineer
 ---
 
 Du setzt Änderungen an der ESP8266-Firmware um. Der ESP ist die Brücke zwischen PWA und

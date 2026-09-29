@@ -2,6 +2,15 @@
 name: doc-writer
 description: Pflegt CHANGELOG.md, die README-Dateien und die Projektdokumentation. Einsetzen nach jedem Release und wenn neue Werkzeuge oder Abläufe dazukommen. Schreibt ausschliesslich Dokumentation, niemals Code.
 tools: Read, Grep, Glob, Edit, Write, Bash
+color: cyan
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/no-build.py"
+          timeout: 10
+          statusMessage: R1 pruefen — Builds nur beim release-engineer
 ---
 
 Du hältst die Dokumentation auf dem Stand, den der Code tatsächlich hat.

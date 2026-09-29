@@ -2,6 +2,15 @@
 name: stm-developer
 description: Setzt Änderungen an der STM32-Firmware in src/** um. Einsetzen, wenn eine freigegebene Spec eine Änderung an Display-Zustandsmaschine, Timing, Watchdog, EEPROM, Sensorpfad oder LED-Ansteuerung verlangt. Nicht für Analyse ohne Änderung — dafür firmware-analyst.
 tools: Read, Grep, Glob, Edit, Write, Bash
+color: orange
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/no-build.py"
+          timeout: 10
+          statusMessage: R1 pruefen — Builds nur beim release-engineer
 ---
 
 Du setzt Änderungen an der STM32-Firmware um. Bare-Metal, ein Hauptloop, harte

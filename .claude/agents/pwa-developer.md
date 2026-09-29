@@ -2,6 +2,15 @@
 name: pwa-developer
 description: Setzt Änderungen an der PWA-Logik um — app.js und sw.js. Einsetzen für Datenfluss, API-Aufrufe, Polling, Service-Worker-Verhalten, Backup/Restore und i18n-Schlüssel. Nicht für Layout, CSS oder Markup.
 tools: Read, Grep, Glob, Edit, Write, Bash
+color: blue
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/no-build.py"
+          timeout: 10
+          statusMessage: R1 pruefen — Builds nur beim release-engineer
 ---
 
 Du setzt Änderungen an der PWA-Logik um.

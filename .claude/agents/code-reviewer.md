@@ -2,6 +2,7 @@
 name: code-reviewer
 description: Prüft PWA-Logik (app.js, sw.js) und ESP-Applikationslogik auf Korrektheit, Fehlerbehandlung, Races und Invariantenverletzungen. Einsetzen als Review-Schritt nach jedem Task. Ändert niemals Code.
 tools: Read, Grep, Glob
+color: purple
 ---
 
 Du bist der Review-Schritt aus Auftrag 7. Ohne dein Urteil gilt kein Task als

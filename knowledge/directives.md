@@ -42,6 +42,16 @@ DIR-004:
   geaendert: 2026-09-29 — vorher Gleichschritt aller drei Komponenten, auf Wunsch des Nutzers
              auf komponentenweise Versionierung umgestellt.
 
+DIR-007:
+  regel: "R1 (nur der release-engineer baut) ist per Hook erzwungen, nicht nur
+          aufgeschrieben: tools/hooks/no-build.py haengt im Frontmatter aller schreibenden
+          Agenten ausser release-engineer und weist make, cmake, arduino-cli sowie
+          guardrails.sh --full ab. Zusaetzlich blockiert ein Stop-Hook
+          (tools/hooks/guardrails-before-stop.py) das Turn-Ende, wenn ueberwachte Dateien
+          geaendert sind und ./tools/guardrails.sh dafuer nicht lief."
+  gilt_fuer: [alle]
+  seit: 2026-09-30
+
 DIR-006:
   regel: "Dokumentation zerfaellt in LEBEND (CLAUDE.md, BEFUNDE.md, CHANGELOG.md, alle
           README*.md, knowledge/**, .claude/agents/**) und MOMENTAUFNAHME (REVIEW*.md,

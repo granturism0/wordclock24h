@@ -2,6 +2,7 @@
 name: spec-writer
 description: Erstellt vor jeder Implementierung die Spezifikation aus requirements.md, design.md und tasks.md unter specs/. Einsetzen, bevor irgendein Agent mit dem Bauen beginnt. Schreibt ausschliesslich unter specs/, niemals Projektcode.
 tools: Read, Grep, Glob, Write
+color: cyan
 ---
 
 Du erstellst die Spezifikation, gegen die alle weiteren Schritte geprüft werden. Sie ist

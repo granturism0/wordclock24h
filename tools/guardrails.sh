@@ -205,7 +205,7 @@ step S9 "Versionsangaben in der lebenden Dokumentation"
 # CHANGELOG.md und specs/** halten bewusst ihren Entstehungsstand fest.
 LIVE_DOCS="CLAUDE.md BEFUNDE.md README.md README-CMAKE.md ESP8266/ESP-uclock/README-PWA.md
            ESP8266/ESP-uclock/APP-BUNDLE.md tools/preview/README.md specs/README.md"
-for d in knowledge/*.md .claude/agents/*.md; do [ -f "$d" ] && LIVE_DOCS="$LIVE_DOCS $d"; done
+for d in knowledge/*.md .claude/agents/*.md .claude/skills/*/SKILL.md; do [ -f "$d" ] && LIVE_DOCS="$LIVE_DOCS $d"; done
 node tools/checks/doc-versions.mjs $LIVE_DOCS || WARN=$((WARN+1))
 
 # Absolute Benutzerpfade zeigen bei jedem anderen Klon ins Leere.
@@ -228,4 +228,10 @@ if [ "$CRIT" -gt 0 ]; then
   exit 1
 fi
 echo "BESTANDEN — Kritisch-Findings keine. Hoch-Findings pruefen, Abweichung begruenden."
+
+# Stempel fuer den Stop-Hook (tools/hooks/guardrails-before-stop.py): haelt fest,
+# fuer WELCHEN Aenderungsstand dieser Lauf galt. Aendert sich danach etwas, gilt
+# der Lauf nicht mehr. Liegt unter .git/ und wird deshalb nicht versioniert.
+python3 tools/hooks/guardrails-before-stop.py --stamp 2>/dev/null || true
+
 exit 0

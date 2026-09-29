@@ -2,6 +2,15 @@
 name: ui-developer
 description: Setzt Änderungen an Markup, Layout und Gestaltung der PWA um — index.html, styles.css, Manifest und Icons. Einsetzen für Barrierefreiheit, Kontraste, iOS-Safari-Themen, responsive Layout und Dark Mode. Nicht für app.js.
 tools: Read, Grep, Glob, Edit, Write, Bash
+color: blue
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/no-build.py"
+          timeout: 10
+          statusMessage: R1 pruefen — Builds nur beim release-engineer
 ---
 
 Du setzt Änderungen an Markup und Gestaltung der PWA um.

@@ -38,88 +38,34 @@ Der Makefile liest diese Werte per `grep` aus (Targets `stm-version-file`,
   Display-Restore erst wenn Ticker inaktiv, kein Icon aktiv, kein Icon-Stop-Timer
   offen, kein Overlay aktiv. Diese Bedingung nicht vereinfachen.
 
-## Vorschau der PWA ohne Gerät
+## Abläufe liegen als Skills bereit
 
-```
-python3 tools/preview/server.py 8099      # Terminal 1
-./tools/preview/shot.sh --diag 390x844    # Terminal 2
-```
+Die ausführlichen Abläufe stehen nicht mehr hier, sondern unter `.claude/skills/`.
+Sie laden nur, wenn sie gebraucht werden — das hält den Dauerkontext klein, ohne dass
+Wissen verloren geht.
 
-Liefert `data/app` aus und simuliert die Geräte-API. Damit lässt sich die Oberfläche
-ansehen und vermessen, ohne dass eine WordClock erreichbar ist — horizontaler Überlauf,
-abgeschnittener Text, Touch-Targets unter 44 px, Fokusstil, `color-scheme`.
+| Skill | Wofür | Lädt |
+|---|---|---|
+| `/release` | Build, Versionspflicht DIR-004, Rollout DIR-005, was zu flashen ist | bei Bedarf |
+| `/pwa-vorschau` | PWA ohne Gerät ansehen und vermessen | bei Bedarf |
+| `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006 | bei Bedarf |
+| `stm-firmware` | belegtes Detailwissen zur STM-Firmware | automatisch bei Arbeit an `src/**` |
 
-**Ersetzt keinen Test am Gerät.** Chrome statt iOS Safari, kein Notch also keine
-Safe-Area, `127.0.0.1` ist ein sicherer Kontext und das echte Gerät nicht, und die
-Mock-Daten sind kürzer als echte. Details und die drei eingebauten Chrome-Eigenheiten
-stehen in `tools/preview/README.md`.
+Die Kurzregeln bleiben hier, weil sie immer gelten:
 
-## Build
-
-```
-make app-gz        # nur die .gz-Artefakte
-make release-zip   # app-gz + app-version-file + f103 + f411 + esp + ZIP
-```
-
-Nach jeder relevanten Änderung: **kompletter Build und Release-ZIP**, nicht nur
-`app-gz`. Immer explizit sagen, was zu flashen ist: nur App/LittleFS, oder auch STM
-bzw. ESP.
-
-### Versionspflicht bei jedem Build (DIR-004)
-
-**Jede Komponente wird genau dann versioniert, wenn sich ihr Code geändert hat —
-kein Gleichschritt.** Ändert ein Release nur den STM-Code, steigt nur die
-STM-Version; ESP und PWA bleiben stehen.
-
-| Komponente | Anheben | Versionsdatei | Quellen |
-|---|---|---|---|
-| STM32 | `VERSION` | `src/main.h` | `src/**`, `CMakeLists.txt`, `cmake/**` |
-| ESP8266 | `ESP_VERSION` | `ESP8266/ESP-uclock/version.h` | `ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` |
-| PWA | `APP_VERSION` **und** `CACHE_NAME` | `data/app/app.js`, `sw.js` | `data/app/**` ohne `.gz` |
-
-Die Trennung von ESP und PWA ist dabei der wunde Punkt: beide liegen unter
-`ESP8266/`, sind aber getrennt versioniert und getrennt auszuliefern. Eine Prüfung,
-die `ESP8266` als Ganzes betrachtet, hält jede PWA-Änderung für eine ESP-Änderung.
-Die `.gz` sind Ableitungen und zählen nicht als Quelle.
-
-Beide Richtungen sind falsch:
-- **Code geändert, Version steht** → das Fabrikat ist keinem Commit mehr zuzuordnen.
-- **Version angehoben, Code unverändert** → die Uhr bietet ein OTA-Update auf
-  identische Firmware an. Ungefährlich, aber ein Flash ohne Gegenwert.
-
-`APP_VERSION` und `CACHE_NAME` gehören dagegen **immer** zusammen, unabhängig von
-DIR-004: ohne `CACHE_NAME`-Bump liefert der Service Worker neue `index.html` mit
-alter `app.js`. Das ist das einzige Kritisch-Finding in S4, der Rest ist Hoch.
-
-Guardrail-Stufe S4 prüft das gegen das letzte `release/*`-Tag, nicht gegen den
-letzten Commit — ein Bump kann mehrere Commits zurückliegen und wäre gegen `HEAD`
-unsichtbar. Beim Vergleich wird die Versionszeile aus dem Diff ihrer eigenen Datei
-herausgefiltert; sonst wäre jeder Bump für sich schon eine „Codeänderung" und die
-Gegenprobe könnte nie anschlagen.
-
-### Dokumentation nachführen (DIR-006)
-
-Die Dokumentation zerfällt in zwei Sorten, und die Unterscheidung ist die ganze Regel.
-
-**Lebend** — wird nachgeführt, darf nie veralten:
-`CLAUDE.md`, `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`,
-`.claude/agents/**`.
-
-**Momentaufnahme** — trägt ein Datum und wird **nicht** fortgeschrieben:
-`REVIEW.md`, `REVIEW-2026-09-29.md`, `gap-analysis.md`, `specs/**`.
-
-Nach jedem Release führt der `doc-writer` `CHANGELOG.md` nach, bei neuen Werkzeugen
-oder Abläufen die README-Dateien, und bei geschlossenen Befunden `BEFUNDE.md`. Ein
-Release gilt erst als fertig, wenn der Changelog-Eintrag steht.
-
-**Versionsnummern gehören nicht in lebende Dokumente.** Eine Kopie des Standes
-veraltet still: der Kopf von `README-CMAKE.md` lag monatelang rund dreissig
-PWA-Versionen hinter den Quellen, ohne dass es auffiel. Eine Anweisung
-an einen Agenten („führe die Doku nach") hat das nicht verhindert und wird es nicht —
-das ist eine Absichtserklärung, keine Prüfung. Deshalb prüft **Guardrail-Stufe S9**
-die lebenden Dokumente gegen die Quellen und meldet zusätzlich absolute
-Benutzerpfade. Eine bewusst historische Angabe in einem lebenden Dokument wird mit
-`<!-- historisch -->` am Zeilenende markiert.
+- **Kein Build ohne Versionserhöhung der geänderten Komponenten (DIR-004).** Kein
+  Gleichschritt — ändert ein Release nur den STM-Code, steigt nur dessen Version.
+  `APP_VERSION` und `CACHE_NAME` gehören dagegen immer zusammen.
+- **Nach jeder relevanten Änderung kompletter Build und Release-ZIP**, nicht nur
+  `app-gz`. Immer explizit sagen, was zu flashen ist.
+- **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
+  `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
+  ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
+- **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
+  `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
+  Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
+  `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
+  Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
 ### Warum es zwei Review-Dokumente gibt
 
@@ -128,25 +74,6 @@ Benutzerpfade. Eine bewusst historische Angabe in einem lebenden Dokument wird m
 Gerätespanne und die Kodierung. Review 2 wiederholt Review 1 nicht, sondern schliesst
 dessen ausdrücklich benannte Lücken. Den **aktuellen Stand** aller 34 Massnahmen führt
 `BEFUNDE.md` — die Reviews selbst bleiben unverändert.
-
-### Rollout auf die Synology (DIR-005)
-
-```
-./tools/deploy.sh --dry-run    zeigt, was uebertragen wuerde
-./tools/deploy.sh              uebertraegt
-```
-
-Ziel ist `/volume1/web/wordclock/test8` auf `diskstation.lan` (SSH, Port 5002). Übertragen
-werden App-Assets, beide `.hex`, die ESP-`.bin` und die Versionsdateien. Zusätzlich wird
-die H2-Kopfzeile in `releasenote.html` auf die aktuelle STM-Version nachgezogen.
-
-**Das Ziel ist zugleich der Update-Server, von dem die Uhr per OTA lädt.** Deshalb prüft
-das Skript jedes Artefakt, bevor es irgendetwas überträgt, und bricht ab statt einen
-kaputten Stand auszurollen. Dort liegen ausserdem Dateien, die du selbst pflegst —
-`wc-list.txt`, `wc-list-tables.txt`, die Layout-Tabellen und `releasenote.html`. Das
-Skript löscht nichts; **niemals `--delete` ergänzen.**
-
----
 
 # Koordination bei mehreren Agents / Teammates
 
@@ -158,6 +85,12 @@ unter diesen Regeln erlaubt.
 
 Teammates führen **niemals** `make` aus. Sie ändern nur Quelldateien und melden
 „fertig" zurück. Der Lead baut einmal am Ende.
+
+**Das ist seit 2026-09-30 erzwungen, nicht mehr nur aufgeschrieben.** Alle schreibenden
+Agenten ausser dem `release-engineer` tragen im Frontmatter einen PreToolUse-Hook
+(`tools/hooks/no-build.py`), der `make`, `cmake`, `arduino-cli` und
+`guardrails.sh --full` abweist. Harmlose Ziele wie `make stm-version-file` bleiben
+erlaubt.
 
 Grund — alle Build-Targets schreiben in geteilte Verzeichnisse:
 - `f103` und `f411` hängen beide an `configure` und bauen in **dasselbe**
@@ -208,12 +141,10 @@ Nicht parallelisierbar: alles unter R1–R5.
 
 ## Bekannte Falle im Release-Build
 
-`RELEASE_ZIP` in `Makefile:18` nutzt `date +"%Y-%m-%d-%H%M"` — **Minutengenauigkeit**.
-Zwei `release-zip`-Läufe in derselben Minute erzeugen denselben Dateinamen, und
-`Makefile:74` macht `rm -f` darauf. Der zweite Lauf überschreibt den ersten
-kommentarlos; beide Läufe melden Erfolg. Das erklärt vermutlich frühere
-Beobachtungen, dass Zeitstempel/Dateien im Release „nicht aktuell" wirkten.
-Bis das behoben ist: nie zwei Release-Builds in derselben Minute starten.
+`RELEASE_ZIP` in `Makefile:18` nutzt Minutengenauigkeit, `Makefile:74` macht `rm -f`
+darauf. Zwei Release-Builds in derselben Minute überschreiben sich **kommentarlos**,
+beide melden Erfolg. Bis das behoben ist (`BEFUNDE.md`, L2): nie zwei Release-Builds in
+derselben Minute starten. Ausführlich im Skill `/release`.
 
 ## Offene technische Themen
 
