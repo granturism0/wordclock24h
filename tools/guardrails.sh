@@ -61,27 +61,34 @@ check_version src/main.h '^#define VERSION' "STM"
 check_version ESP8266/ESP-uclock/version.h '^#define ESP_VERSION' "ESP"
 check_version "$APP/app.js" '^const APP_VERSION' "App"
 check_version "$APP/sw.js" '^const CACHE_NAME' "SW-Cache"
-# DIR-004: kein Build ohne Versionserhoehung der geaenderten Komponente
-# Geaendert = gegen HEAD. Version angehoben = die Versionszeile selbst steht im Diff.
-bumped() { git diff HEAD -- "$1" 2>/dev/null | $GREP -q "^+.*$2"; }
-changed() { ! git diff --quiet HEAD -- $1 2>/dev/null; }
+# DIR-004: bei jedem Build werden ALLE drei Komponenten im Gleichschritt versioniert,
+# auch wenn sich die jeweilige nicht geaendert hat.
+#
+# Bezugsgroesse ist das letzte RELEASE, nicht der letzte Commit — ein Bump kann
+# mehrere Commits zurueckliegen und waere gegen HEAD unsichtbar. tools/deploy.sh
+# setzt nach jedem erfolgreichen Rollout ein Tag release/<stm>-<esp>-<app>.
+LAST_TAG=$(git describe --tags --abbrev=0 --match 'release/*' 2>/dev/null)
+vat() { git show "$1:$2" 2>/dev/null | $GREP -m1 "$3" | sed 's/.*"\(.*\)".*/\1/'; }
 
-if changed "$APP/app.js $APP/sw.js $APP/index.html $APP/styles.css $APP/manifest.webmanifest $APP/icons"; then
-  bumped "$APP/app.js" "APP_VERSION"  || warn "PWA geaendert, APP_VERSION nicht angehoben (DIR-004)"
-  bumped "$APP/sw.js"  "CACHE_NAME"   || warn "PWA geaendert, CACHE_NAME nicht angehoben — neue index.html mit alter app.js moeglich"
-  bumped "$APP/app.js" "APP_VERSION"  && bumped "$APP/sw.js" "CACHE_NAME" && ok "PWA: APP_VERSION und CACHE_NAME angehoben"
-else ok "PWA unveraendert, keine Versionspflicht"; fi
-
-if changed "src"; then
-  bumped src/main.h "define VERSION" && ok "STM: VERSION angehoben" \
-    || warn "src/** geaendert, VERSION in src/main.h nicht angehoben (DIR-004)"
-else ok "STM unveraendert, keine Versionspflicht"; fi
-
-ESP_SRC=$(git diff --name-only HEAD -- ESP8266/ESP-uclock 2>/dev/null | $GREP -vE "data/app/" | tr "\n" " ")
-if [ -n "$ESP_SRC" ]; then
-  bumped ESP8266/ESP-uclock/version.h "define ESP_VERSION" && ok "ESP: ESP_VERSION angehoben" \
-    || warn "ESP-Quellen geaendert, ESP_VERSION nicht angehoben (DIR-004)"
-else ok "ESP unveraendert, keine Versionspflicht"; fi
+if [ -z "$LAST_TAG" ]; then
+  echo "  INFO      kein release/-Tag vorhanden — Versionspflicht nicht pruefbar."
+  echo "            Das erste tools/deploy.sh setzt eines."
+elif ! git diff --quiet "$LAST_TAG" HEAD -- src ESP8266 2>/dev/null || ! git diff --quiet HEAD -- src ESP8266 2>/dev/null; then
+  miss=0
+  check_bump() {
+    old=$(vat "$LAST_TAG" "$2" "$3"); new=$(grep -m1 "$3" "$2" | sed 's/.*"\(.*\)".*/\1/')
+    if [ -n "$old" ] && [ "$old" = "$new" ]; then
+      warn "$1 unveraendert seit $LAST_TAG ($new) — DIR-004 verlangt Gleichschritt"; miss=1
+    else ok "$1: $old -> $new"; fi
+  }
+  check_bump "STM"      src/main.h                          "define VERSION"
+  check_bump "ESP"      ESP8266/ESP-uclock/version.h        "define ESP_VERSION"
+  check_bump "App"      "$APP/app.js"                       "const APP_VERSION"
+  check_bump "SW-Cache" "$APP/sw.js"                        "const CACHE_NAME"
+  [ "$miss" -eq 0 ] && ok "alle vier Versionsstellen seit $LAST_TAG angehoben"
+else
+  ok "keine Quellen seit $LAST_TAG geaendert, keine Versionspflicht"
+fi
 
 # ----------------------------------------------------------- S5 .gz-Artefakte
 step S5 "gz-Artefakte vorhanden, nicht leer, nicht veraltet"

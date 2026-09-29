@@ -1,11 +1,37 @@
 # WordClock App Bundle
 
+> **Dieser Weg wird nicht mehr verwendet. Dieses Dokument ist historisch.**
+>
+> Geprüft am 2026-09-29, im Code und auf dem Update-Server:
+>
+> - Der ESP meldet der PWA ausdrücklich `app_bundle_available: 0`,
+>   `update_download_app_bundle_api_supported: 0` und
+>   `app_bundle_upload_api_supported: 0` (`http.cpp:9532`, `:9540`, `:9543`)
+> - Die drei zugehörigen URLs sendet er als **leeren String** (`http.cpp:9622`, `:9625`,
+>   `:9635`). Einen Handler gibt es nicht
+> - Die Legacy-`/fs`-Seite bietet **keinen** Bundle-Upload mehr
+> - In `app.js` gibt es genau **ein** Vorkommen: einen Default-Eintrag, der von keiner
+>   Stelle gelesen wird
+> - Auf dem Update-Server liegt **keine** `app-bundle.txt`
+> - `build-app-bundle.py` läuft ohnehin nicht mehr durch: es liest die vorhandenen
+>   `*.gz` als UTF-8 und bricht mit `UnicodeDecodeError: byte 0x8b` ab. Kein
+>   Makefile-Ziel ruft es auf; das vorhandene `data/app-bundle.txt` stammt vom
+>   29. April 2026
+>
+> **Der aktuelle Weg** ist `make release-zip` gefolgt von `./tools/deploy.sh`. Die
+> App-Assets werden einzeln als `.gz` ausgeliefert, nicht als Bundle.
+>
+> Kandidaten zum Entfernen, sobald du es entscheidest: `tools/build-app-bundle.py`,
+> `tools/release-app-bundle.sh`, `data/app-bundle.txt` und dieses Dokument.
+
+
+
 Die moderne PWA läuft parallel zur Legacy-Seite unter `/app` und wird als einzelnes Bundle per LittleFS OTA verteilt.
 
 Quellen:
 
-- [data/app](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app)
-- [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt)
+- [data/app](../../ESP8266/ESP-uclock/data/app)
+- [app-bundle.txt](../../ESP8266/ESP-uclock/data/app-bundle.txt)
 
 ## Zweck
 
@@ -21,15 +47,15 @@ Die Firmware liefert `/app` aus LittleFS aus. Die eigentlichen App-Dateien liege
 
 Die wichtigsten Dateien:
 
-- [index.html](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/index.html)
+- [index.html](../../ESP8266/ESP-uclock/data/app/index.html)
   Einstieg, Modulstruktur, Panels
-- [app.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/app.js)
+- [app.js](../../ESP8266/ESP-uclock/data/app/app.js)
   UI-Logik, API-Aufrufe, WordClock-Vorschau, Statusführung
-- [styles.css](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/styles.css)
+- [styles.css](../../ESP8266/ESP-uclock/data/app/styles.css)
   Layout, Responsivität, Komponentenstil
-- [manifest.webmanifest](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/manifest.webmanifest)
+- [manifest.webmanifest](../../ESP8266/ESP-uclock/data/app/manifest.webmanifest)
   PWA-Metadaten
-- [sw.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/sw.js)
+- [sw.js](../../ESP8266/ESP-uclock/data/app/sw.js)
   Service Worker
 
 ## Bundle bauen
@@ -48,13 +74,13 @@ python3 ESP8266/ESP-uclock/tools/build-app-bundle.py
 
 Ergebnis:
 
-- [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt)
+- [app-bundle.txt](../../ESP8266/ESP-uclock/data/app-bundle.txt)
 - `build/esp8266/app-version.txt`
 
 Zusätzliche Hilfsdateien:
 
-- [build-app-bundle.py](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/tools/build-app-bundle.py)
-- [release-app-bundle.sh](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/tools/release-app-bundle.sh)
+- [build-app-bundle.py](../../ESP8266/ESP-uclock/tools/build-app-bundle.py)
+- [release-app-bundle.sh](../../ESP8266/ESP-uclock/tools/release-app-bundle.sh)
 
 ## Verteilung
 
@@ -115,15 +141,15 @@ Firmware neu flashen nötig:
 - neue oder geänderte HTTP-Endpunkte
 - Änderungen an LittleFS-Routen
 - Änderungen am Legacy-`/fs`- oder `/app`-Verhalten
-- Änderungen in [http.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/http.cpp)
+- Änderungen in [http.cpp](../../ESP8266/ESP-uclock/http.cpp)
 
 ## Praktischer Ablauf
 
 Nur PWA geändert:
 
-1. Dateien unter [data/app](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app) anpassen
+1. Dateien unter [data/app](../../ESP8266/ESP-uclock/data/app) anpassen
 2. `sh ESP8266/ESP-uclock/tools/release-app-bundle.sh`
-3. neues [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt) und `build/esp8266/app-version.txt` auf den Server legen oder das Bundle über `/fs` hochladen
+3. neues [app-bundle.txt](../../ESP8266/ESP-uclock/data/app-bundle.txt) und `build/esp8266/app-version.txt` auf den Server legen oder das Bundle über `/fs` hochladen
 4. `/app` neu laden
 
 ESP-Verhalten geändert:

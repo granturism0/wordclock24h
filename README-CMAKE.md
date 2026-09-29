@@ -216,3 +216,45 @@ Konkret für die `.hex`-Dateien:
 - LED-Typ fest auf `SK6812_RGBW_LED`
 
 Wenn du später weitere Varianten brauchst, können wir darauf aufbauend zusätzliche CMake-Presets oder Optionen ergänzen.
+
+## Werkzeuge rund um den Build
+
+Neben den `make`-Zielen gibt es drei Werkzeuge unter `tools/`.
+
+### `./tools/guardrails.sh`
+
+Prüfungen, die nach jedem Task laufen und vor einer Übergabe bestehen müssen. Acht
+Stufen, Laufzeit Sekunden, ohne zusätzliche Abhängigkeiten: Syntax, undefinierte
+Funktionsaufrufe, i18n-Schlüssel, Versionspflicht, `.gz`-Artefakte, ungenutzte
+CSS-Klassen, Muster aus `knowledge/quick-reference.md`, Kodierung der C-Quellen und ein
+Smoke-Test, der `app.js` mit gestubbtem Browser-Umfeld lädt.
+
+`--full` ergänzt die Compile-Smoke-Tests `f103`, `f411` und `esp`. Exit 0 heisst: keine
+Kritisch-Findings.
+
+### `python3 tools/preview/server.py 8099`
+
+Liefert die PWA aus und simuliert die Geräte-API, sodass die Oberfläche ohne erreichbare
+WordClock betrachtet und vermessen werden kann. `./tools/preview/shot.sh` rendert sie in
+mehreren Geräteklassen. Grenzen in `tools/preview/README.md` — das ersetzt keinen Test
+am Gerät.
+
+### `./tools/deploy.sh`
+
+Rollt das fertige Release auf den Update-Server aus. Prüft vorher jedes Artefakt auf
+Vorhandensein, Grösse grösser null und veraltete `.gz`, und bricht ab statt einen
+kaputten Stand auszuliefern. `--dry-run` zeigt die Dateiliste, ohne etwas zu schreiben.
+Zugangsdaten in `tools/deploy.conf`, Vorlage daneben.
+
+Das Skript **löscht nichts** — auf dem Ziel liegen Layout-Tabellen und Listendateien,
+die nicht Teil des Releases sind.
+
+## Versionierung
+
+Bei jedem Build werden **alle drei Komponenten im Gleichschritt** versioniert, auch wenn
+sich die jeweilige nicht geändert hat: `VERSION` in `src/main.h`, `ESP_VERSION` in
+`ESP8266/ESP-uclock/version.h`, sowie `APP_VERSION` und `CACHE_NAME` in der PWA. So ist
+jedes Fabrikat als Einheit identifizierbar.
+
+`tools/deploy.sh` setzt nach jedem Rollout ein Tag `release/<stm>-<esp>-<app>`. Die
+Guardrails messen die Versionspflicht gegen dieses Tag, nicht gegen den letzten Commit.

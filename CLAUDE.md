@@ -62,17 +62,33 @@ bzw. ESP.
 
 ### Versionspflicht bei jedem Build (DIR-004)
 
-**Kein Build ohne Versionserhöhung.** Jedes Fabrikat muss eindeutig einem Commit
-zuzuordnen sein.
+**Kein Build ohne Versionserhöhung — und zwar aller drei Komponenten im Gleichschritt.**
+Jedes Fabrikat muss als Einheit identifizierbar und eindeutig einem Commit zuzuordnen
+sein.
 
-| Geändert wurde | Anheben |
-|---|---|
-| `data/app/**` (PWA) | `APP_VERSION` **und** `CACHE_NAME` |
-| `src/**` (STM32) | `VERSION` in `src/main.h` |
-| `ESP8266/ESP-uclock/*.cpp`, `*.ino`, `*.h` | `ESP_VERSION` in `version.h` |
+| Komponente | Anheben | Datei |
+|---|---|---|
+| STM32 | `VERSION` | `src/main.h` |
+| ESP8266 | `ESP_VERSION` | `ESP8266/ESP-uclock/version.h` |
+| PWA | `APP_VERSION` **und** `CACHE_NAME` | `data/app/app.js`, `sw.js` |
 
-`APP_VERSION` und `CACHE_NAME` gehören zusammen: ohne `CACHE_NAME`-Bump liefert der
-Service Worker neue `index.html` mit alter `app.js`. Guardrail-Stufe S4 prüft das.
+**Alle vier Stellen, bei jedem Build** — auch wenn sich die jeweilige Komponente nicht
+geändert hat. `APP_VERSION` und `CACHE_NAME` gehören ohnehin zusammen: ohne
+`CACHE_NAME`-Bump liefert der Service Worker neue `index.html` mit alter `app.js`.
+Guardrail-Stufe S4 prüft alle vier.
+
+**Bekannte Nebenwirkung:** Wird eine Komponente angehoben, deren Code unverändert ist,
+bietet die Uhr danach ein Update auf identische Firmware an. Ungefährlich, aber ein
+OTA-Flash ohne Gegenwert.
+
+### Dokumentation nachführen (DIR-006)
+
+Nach jedem Release führt der `doc-writer` `CHANGELOG.md` nach, und bei neuen Werkzeugen
+oder Abläufen auch die README-Dateien. Ein Release gilt erst als fertig, wenn der
+Changelog-Eintrag steht.
+
+`REVIEW*.md` und `gap-analysis.md` sind Momentaufnahmen mit Datum und werden **nicht**
+fortgeschrieben.
 
 ### Rollout auf die Synology (DIR-005)
 

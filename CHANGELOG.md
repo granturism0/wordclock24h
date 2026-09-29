@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-09-29 Restore-Luecke, Guardrails und Werkzeugschicht
+
+Aktueller verifizierter Arbeitsstand:
+
+- Release-ZIP: `build/releases/wordclock-release-2026-09-29-2341.zip`
+- STM32: `3.2.6` · ESP8266: `3.2.2` · PWA: `1.4.70` · SW-Cache: `wordclock-app-v62`
+
+### Behoben
+
+- **Display blieb nach einem Wetter-Ticker bis zu 60 Sekunden dunkel**, bei
+  `WCLOCK24H == 0` bis zu fuenf Minuten. Ursache: `pending_weather_ticker_restore` wurde
+  unbedingt geloescht, `UPDATE_ALL` aber nur gesetzt, wenn gerade kein anderes Update
+  anstand. Da die Flags disjunkte Bits sind, ging das Restore in diesem Fall verloren.
+  Ausgeloest wurde es aus der PWA durch das Speichern der Dimmkurve, ohne PWA durch die
+  Helligkeitsautomatik.
+- **Zwei Aufrufe nicht vorhandener Funktionen in der PWA.** Beim Layout-Tabellen-Upload
+  wirkte der Button tot, ohne Fehlermeldung. Bei laufender Farbanimation fror die
+  WordClock-Vorschau auf der alten Farbe ein.
+- **Drei fehlende Uebersetzungsschluessel** standen woertlich als `common.setting` auf
+  Buttons, in beiden Sprachen. Dazu 14 Schluessel, die in der englischen Oberflaeche
+  deutschen Text zeigten.
+- **Release-Notes werden nicht mehr ungefiltert eingesetzt.** Der Inhalt kommt vom
+  konfigurierbaren Update-Host ueber HTTP. Ersetzt durch einen Whitelist-Filter, der den
+  Baum aus frisch erzeugten Elementen neu aufbaut; Attribute werden nicht uebernommen.
+- **Drei stille Fehlerschlucker.** Beim Overlay-Loeschen im Backup-Import wird die Zahl
+  fehlgeschlagener Plaetze jetzt sichtbar gemeldet statt verschluckt.
+
+### Neu: Messung statt Vermutung
+
+- **`do_display_icon`-Freeze wird sichtbar.** Wird das Display ausgeschaltet, waehrend
+  ein Icon laeuft, bleibt ein Flag dauerhaft gesetzt — mit der Folge, dass
+  Temperatur-Restore, Wetter-Ticker-Restore und Helligkeitsautomatik einfrieren, solange
+  das Display aus ist. Eingebaut ist **nur die Messung**, kein Fix: eine Logzeile bei
+  Zustandswechsel. Erscheint sie beim Ausschalten, ist der Freeze belegt; bleibt sie aus,
+  ist er widerlegt.
+
+### Neu: Werkzeuge
+
+- **`./tools/guardrails.sh`** — acht Pruefstufen, Laufzeit Sekunden, ohne neue
+  Abhaengigkeiten. Findet unter anderem undefinierte Funktionsaufrufe, fehlende
+  i18n-Schluessel, veraltete `.gz` und ungefiltertes `innerHTML`.
+- **`tools/preview/`** — die PWA laeuft ohne Geraet, inklusive Vermessung ueber mehrere
+  Bildschirmgroessen. Ersetzt keinen Test am Geraet, faengt aber Layoutfehler ab.
+- **`./tools/deploy.sh`** — Rollout auf den Update-Server. Prueft jedes Artefakt, bevor
+  es etwas ueberträgt, und loescht auf dem Ziel nichts.
+
+### Bekannt und bewusst offen
+
+- Die unbedingten Logausgaben im Refresh-Pfad und das fehlende `watchdog_reload()` in den
+  blockierenden Pfaden bleiben. Beide wuerden das Timing veraendern und damit die
+  `do_display_icon`-Messung unbrauchbar machen. Eigener Schritt danach.
+- Der App-Bundle-Weg (`app-bundle.txt`) wird **nicht mehr verwendet**: Der ESP meldet
+  die Unterstuetzung ausdruecklich als nicht vorhanden, die zugehoerigen URLs sind leer,
+  die Legacy-Seite bietet keinen Upload, und auf dem Update-Server liegt keine solche
+  Datei. `build-app-bundle.py` laeuft ohnehin nicht mehr durch. `APP-BUNDLE.md` ist als
+  historisch gekennzeichnet; die vier Dateien koennen entfernt werden.
+
+### Konventionen
+
+- Bei jedem Build werden **alle drei Komponenten im Gleichschritt** versioniert, auch
+  wenn sich die jeweilige nicht geaendert hat.
+- `tools/deploy.sh` setzt nach jedem Rollout ein Tag `release/<stm>-<esp>-<app>`.
+
+
 ## 2026-04-29 Bilingual PWA Finalization And Safari Reload Hardening
 
 Aktueller verifizierter Arbeitsstand:

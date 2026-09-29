@@ -19,12 +19,12 @@ Damit gilt aktuell bewusst:
 
 ## Relevante Dateien
 
-- [index.html](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/index.html)
-- [app.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/app.js)
-- [styles.css](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/styles.css)
-- [manifest.webmanifest](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/manifest.webmanifest)
-- [sw.js](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app/sw.js)
-- [http.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/http.cpp)
+- [index.html](../../ESP8266/ESP-uclock/data/app/index.html)
+- [app.js](../../ESP8266/ESP-uclock/data/app/app.js)
+- [styles.css](../../ESP8266/ESP-uclock/data/app/styles.css)
+- [manifest.webmanifest](../../ESP8266/ESP-uclock/data/app/manifest.webmanifest)
+- [sw.js](../../ESP8266/ESP-uclock/data/app/sw.js)
+- [http.cpp](../../ESP8266/ESP-uclock/http.cpp)
 
 ## Bundle bauen
 
@@ -34,7 +34,7 @@ sh ESP8266/ESP-uclock/tools/release-app-bundle.sh
 
 Erzeugt:
 
-- [app-bundle.txt](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/data/app-bundle.txt)
+- [app-bundle.txt](../../ESP8266/ESP-uclock/data/app-bundle.txt)
 - `build/esp8266/app-version.txt`
 
 ## Deployment
@@ -67,7 +67,7 @@ Die PWA ist damit produktiv nutzbar, ohne die Legacy-Seite hart zu ersetzen.
 
 - Die PWA-Dateien werden flach im LittleFS abgelegt, z. B. `app-index.html`, `app-app.js`, `app-styles.css`
 - Komprimierbare PWA-Dateien werden im aktuellen Rollout zusätzlich als `.gz` gebaut, gespeichert und bevorzugt so ausgeliefert
-- Das Routing von `/app/...` auf diese Dateien übernimmt die Firmware in [http.cpp](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/http.cpp)
+- Das Routing von `/app/...` auf diese Dateien übernimmt die Firmware in [http.cpp](../../ESP8266/ESP-uclock/http.cpp)
 - Wenn unter `/app` noch keine App installiert ist, liefert die Firmware eine Hinweisseite
 - `/app` betrachtet eine App-Datei nur dann als gültig installiert, wenn sie vorhanden ist und `> 0` Byte groß ist
 - Die PWA-Quelldateien unter `data/app` tragen einheitliche Dateikopf-Kommentare
@@ -115,4 +115,25 @@ Der Umbau wurde bis zu einem stabilen PWA-/Legacy-Zielstand durchgezogen. Ab jet
 
 Ausführlicher beschrieben in:
 
-- [APP-BUNDLE.md](/Users/daniel/Documents/GitHub/wordclock24h/ESP8266/ESP-uclock/APP-BUNDLE.md)
+- [APP-BUNDLE.md](../../ESP8266/ESP-uclock/APP-BUNDLE.md)
+
+## Oberfläche ohne Gerät ansehen
+
+`tools/preview/` liefert die PWA aus und simuliert die Geräte-API, sodass die Oberfläche
+ohne erreichbare WordClock betrachtet und vermessen werden kann:
+
+```
+python3 tools/preview/server.py 8099
+./tools/preview/shot.sh --diag 390x844
+```
+
+Grenzen und Details in [tools/preview/README.md](../../tools/preview/README.md).
+
+## Bauen und ausrollen
+
+Der Weg ist `make release-zip` gefolgt von `./tools/deploy.sh`. Die App-Assets werden
+einzeln als `.gz` ausgeliefert.
+
+Der in [APP-BUNDLE.md](APP-BUNDLE.md) beschriebene Bundle-Weg wird **nicht mehr
+verwendet** — der ESP meldet die Bundle-Unterstützung ausdrücklich als nicht vorhanden,
+und auf dem Update-Server liegt keine `app-bundle.txt`.

@@ -30,10 +30,10 @@ DIR-003:
   seit: 2026-08-12
 
 DIR-004:
-  regel: "Bei jedem Build wird die Versionsnummer der geaenderten Komponente erhoeht, damit
-          jedes Fabrikat eindeutig einem Commit zuzuordnen ist. PWA-Aenderung hebt APP_VERSION
-          und CACHE_NAME, STM-Aenderung hebt VERSION, ESP-Aenderung hebt ESP_VERSION. Kein Build
-          ohne mindestens eine Erhoehung."
+  regel: "Bei jedem Build werden ALLE drei Komponenten im Gleichschritt versioniert: VERSION
+          (STM), ESP_VERSION (ESP) sowie APP_VERSION und CACHE_NAME (PWA) — auch wenn sich die
+          jeweilige Komponente nicht geaendert hat. So ist jedes Fabrikat als Einheit
+          identifizierbar und eindeutig einem Commit zuzuordnen."
   gilt_fuer: [release-engineer, pwa-developer, ui-developer, stm-developer, esp-developer]
   seit: 2026-09-29
 
@@ -44,5 +44,13 @@ DIR-005:
           nachgezogen. Werkzeug: ./tools/deploy.sh. Nichts loeschen, der Nutzer pflegt dort
           eigene Dateien."
   gilt_fuer: [release-engineer]
+  seit: 2026-09-29
+
+DIR-006:
+  regel: "Nach jedem Release wird CHANGELOG.md nachgefuehrt, bei neuen Werkzeugen oder
+          Ablaeufen auch die README-Dateien. Ein Release gilt erst als fertig, wenn der
+          Changelog-Eintrag steht. REVIEW-Dateien und gap-analysis.md sind Momentaufnahmen
+          und werden nicht fortgeschrieben."
+  gilt_fuer: [doc-writer, release-engineer]
   seit: 2026-09-29
 

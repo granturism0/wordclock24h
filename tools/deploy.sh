@@ -146,6 +146,20 @@ echo
 if [ -n "$DRY" ]; then
   echo "Probelauf beendet. Nichts geschrieben. Ohne --dry-run wird uebertragen."
 else
+  # Tag als Bezugsgroesse fuer die Versionspflicht (DIR-004). Die Guardrails messen
+  # dagegen, nicht gegen den letzten Commit — ein Bump kann mehrere Commits zurueckliegen.
+  APP_VER=$(cat "$ESPB/app-version.txt")
+  ESP_VER=$(cat "$ESPB/ESP-WordClock.txt")
+  TAG="release/$STM_VER-$ESP_VER-$APP_VER"
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "  Tag $TAG existiert bereits, nicht neu gesetzt"
+  elif ! git diff --quiet HEAD 2>/dev/null; then
+    echo "  Arbeitsbaum nicht sauber — Tag $TAG NICHT gesetzt."
+    echo "  Nach dem Commit nachholen:  git tag -a $TAG -m 'Release $TAG'"
+  else
+    git tag -a "$TAG" -m "Release $TAG" && echo "  Tag gesetzt: $TAG"
+  fi
+
   echo "Rollout abgeschlossen."
   echo "Hinweis: wc-list.txt und wc-list-tables.txt pflegst du selbst auf der Synology —"
   echo "der ESP erwartet sie dort (http.cpp:47-54), sie sind nicht Teil des Releases."
