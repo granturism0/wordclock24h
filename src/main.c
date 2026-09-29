@@ -3702,10 +3702,9 @@ main (void)
             show_icon_stop_time == 0 &&
             show_overlay_idx >= MAX_OVERLAYS)
         {
-            pending_weather_ticker_restore = 0;
-
-            if (! display_clock_flag)
+            if (! display_clock_flag)                                                   // only consume the flag if the restore can take effect
             {
+                pending_weather_ticker_restore = 0;                                     // else keep it pending and retry next iteration
                 display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
             }
         }
