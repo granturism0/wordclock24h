@@ -33,6 +33,22 @@ Der Makefile liest diese Werte per `grep` aus (Targets `stm-version-file`,
   Display-Restore erst wenn Ticker inaktiv, kein Icon aktiv, kein Icon-Stop-Timer
   offen, kein Overlay aktiv. Diese Bedingung nicht vereinfachen.
 
+## Vorschau der PWA ohne Gerät
+
+```
+python3 tools/preview/server.py 8099      # Terminal 1
+./tools/preview/shot.sh --diag 390x844    # Terminal 2
+```
+
+Liefert `data/app` aus und simuliert die Geräte-API. Damit lässt sich die Oberfläche
+ansehen und vermessen, ohne dass eine WordClock erreichbar ist — horizontaler Überlauf,
+abgeschnittener Text, Touch-Targets unter 44 px, Fokusstil, `color-scheme`.
+
+**Ersetzt keinen Test am Gerät.** Chrome statt iOS Safari, kein Notch also keine
+Safe-Area, `127.0.0.1` ist ein sicherer Kontext und das echte Gerät nicht, und die
+Mock-Daten sind kürzer als echte. Details und die drei eingebauten Chrome-Eigenheiten
+stehen in `tools/preview/README.md`.
+
 ## Build
 
 ```

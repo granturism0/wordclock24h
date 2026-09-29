@@ -22,6 +22,20 @@ parallel arbeiten — solange keiner in die Dateien des anderen greift (R3).
 - Bewertung der Barrierefreiheit → `ui-reviewer` prüft, du setzt um
 - Builds und `.gz` → `release-engineer`
 
+## Vorher und nachher ansehen
+
+`tools/preview/` liefert die PWA ohne Gerät aus. Rendere **vor** deiner Änderung und
+danach dieselbe Grösse, und vergleiche:
+
+```
+python3 tools/preview/server.py 8099
+./tools/preview/shot.sh 390x844 852x393 1280x820
+```
+
+Das ist kein Ersatz für den Test am Gerät — kein iOS Safari, kein Notch, keine echte
+Latenz. Aber es fängt ab, dass eine CSS-Änderung an einer anderen Breite etwas zerlegt,
+ohne dass es jemand merkt.
+
 ## Was bei jeder Änderung gilt
 
 - Dynamische Statusbereiche brauchen `aria-live`, Dialoge `role="dialog"`,

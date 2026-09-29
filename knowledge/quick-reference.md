@@ -22,8 +22,12 @@ abgewichen wird. **Mittel** wird gemeldet und darf bewusst offenbleiben.
 
 **Falle beim Durchsuchen von `src/**`:** Acht Dateien sind **ISO-8859-1**, nicht UTF-8 —
 `base.c`, `base.h`, `display.c`, `ds18xx.c`, `irmp.c`, `rtc.c`, `tempsensor.c`, `w25qxx.c`.
-Unter einem UTF-8-Locale bricht `grep` dort **still** ab und meldet **null Treffer**. Das
-sieht aus wie „nicht vorhanden", ist aber „nicht gelesen". Immer `LC_ALL=C grep` verwenden.
+`grep` stuft sie als **binär** ein und gibt **gar nichts** aus — nicht „0 Treffer", sondern
+eine leere Ausgabe. Das sieht aus wie „nicht vorhanden", ist aber „nicht gelesen".
+
+**Das Heilmittel ist `grep -a`, nicht das Locale.** `LC_ALL=C` allein behebt es
+nachweislich **nicht**: `LC_ALL=C grep -c 'display_icon' display.c` liefert leer,
+`grep -ac` liefert 29. Das ripgrep-basierte Grep-Tool ist nicht betroffen.
 Betrifft direkt `display.c` (Display-Zustandsmaschine) und `ds18xx.c`/`tempsensor.c`
 (offenes DS18xx-Thema).
 

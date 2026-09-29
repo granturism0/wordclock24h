@@ -23,3 +23,6 @@ compile_commands.json
 # Persoenliche Claude-Code-Einstellungen und Hook-Diagnose
 .claude/settings.local.json
 .claude/hook-probe.log
+
+# Screenshots der PWA-Vorschau
+tools/preview/shots/

@@ -13,10 +13,13 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
-# Acht C-Dateien im Repo sind ISO-8859-1, nicht UTF-8. Unter einem UTF-8-Locale
-# bricht grep dort still ab und meldet NULL Treffer — ein falsches "OK".
-# Deshalb laufen alle Textpruefungen unter LC_ALL=C.
+# Acht C-Dateien im Repo sind ISO-8859-1. grep stuft sie als BINAER ein und
+# unterdrueckt die Ausgabe vollstaendig — nicht "0 Treffer", sondern gar nichts.
+# Das sieht aus wie "nicht vorhanden", ist aber "nicht gelesen".
+# Entscheidend ist -a (als Text behandeln), NICHT das Locale. LC_ALL=C allein
+# behebt es nachweislich nicht.
 export LC_ALL=C
+GREP="grep -a"
 
 APP="ESP8266/ESP-uclock/data/app"
 FULL=0
@@ -82,13 +85,13 @@ node tools/checks/unused-css.mjs "$APP/styles.css" "$APP/index.html" "$APP/app.j
 
 # ------------------------------------------- S7 Lint gegen quick-reference.md
 step S7 "Muster aus knowledge/quick-reference.md"
-n=$(grep -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null || echo 0)
+n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null || echo 0)
 [ "$n" -gt 0 ] && warn "sk6812.c: $n unbedingte log_printf im Refresh-Pfad — blockieren pro Refresh, debug_log_printf verwenden" || ok "sk6812.c: kein unbedingtes log_printf"
-n=$(grep -c 'watchdog_reload ()\s*;' src/main.c 2>/dev/null || echo 0)
+n=$($GREP -c 'watchdog_reload ()\s*;' src/main.c 2>/dev/null || echo 0)
 [ "$n" -le 1 ] && warn "watchdog_reload() hat nur $n Aufrufstelle — jeder Pfad ueber 20 s ist ein IWDG-Reset" || ok "watchdog_reload(): $n Aufrufstellen"
-n=$(grep -n 'innerHTML' "$APP/app.js" | grep -vc 'escapeHtml' || echo 0)
+n=$($GREP -n 'innerHTML' "$APP/app.js" | $GREP -vc 'escapeHtml' || echo 0)
 [ "$n" -gt 0 ] && warn "app.js: $n innerHTML-Zuweisungen ohne escapeHtml in derselben Zeile — einzeln pruefen" || ok "app.js: jedes innerHTML mit escapeHtml"
-n=$(grep -cE 'catch\s*\(\s*_\s*\)\s*\{\s*\}|catch\s*\{\s*\}' "$APP/app.js" 2>/dev/null || echo 0)
+n=$($GREP -cE 'catch\s*\(\s*_\s*\)\s*\{\s*\}|catch\s*\{\s*\}' "$APP/app.js" 2>/dev/null || echo 0)
 [ "$n" -gt 0 ] && warn "app.js: $n leere catch-Bloecke — verschlucken Fehler stillschweigend" || ok "app.js: keine leeren catch-Bloecke"
 
 # ------------------------------------------------ S7b Kodierung der Quellen
@@ -101,8 +104,8 @@ for f in $(find src -name "*.c" -o -name "*.h" | sort); do
   fi
 done
 if [ "$enc_bad" -gt 0 ]; then
-  printf '  INFO      %s Datei(en) sind nicht UTF-8. Textpruefungen darueber brauchen LC_ALL=C,\n' "$enc_bad"
-  echo   '            sonst liefert grep still null Treffer statt eines Fehlers.'
+  printf '  INFO      %s Datei(en) sind nicht UTF-8. grep braucht dort -a, sonst stuft es sie\n' "$enc_bad"
+  echo   '            als binaer ein und gibt GAR NICHTS aus. LC_ALL=C allein reicht nicht.'
 else
   ok "alle C-Quellen sind UTF-8"
 fi

@@ -23,6 +23,28 @@ iPhone mit Safari.
 - Logik in `app.js` → `code-reviewer`
 - Firmware → `firmware-analyst`
 
+## Du kannst die Oberfläche tatsächlich ansehen
+
+Nicht mehr nur Quelltext lesen. `tools/preview/` liefert die PWA ohne Gerät aus und
+vermisst sie:
+
+```
+python3 tools/preview/server.py 8099
+./tools/preview/shot.sh --diag 390x844
+```
+
+Die PNGs landen in `tools/preview/shots/` und du kannst sie mit `Read` ansehen. Die
+Messung nennt horizontalen Überlauf, abgeschnittenen Text, Touch-Targets unter 44 px,
+den berechneten Fokusstil und `color-scheme` — also Zahlen statt Vermutungen.
+
+**Miss, bevor du einen Layoutmangel meldest.** Ein aus dem Stylesheet abgeleiteter
+Überlauf, den die Messung nicht zeigt, ist kein Befund. Umgekehrt gilt: Was die Vorschau
+nicht zeigen kann — Safe-Area am Notch, native iOS-Picker, `dvh`, Tastaturüberdeckung —
+meldest du weiterhin aus dem Quelltext, aber **ausdrücklich als nicht gemessen**.
+
+Die Grenzen stehen in `tools/preview/README.md`. Lies sie, bevor du dich auf ein
+Messergebnis berufst.
+
 ## Trennung, die du einhältst
 
 Unterscheide in deinem Bericht immer klar zwischen:
