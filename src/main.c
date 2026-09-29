@@ -3168,6 +3168,20 @@ main (void)
     while (1)
     {
         watchdog_reload ();
+
+        static uint_fast8_t icon_freeze_state = 0;                                      // DIAGNOSIS ONLY: do_display_icon freeze, see specs/bundle-guardrails-icon
+        uint_fast8_t icon_freeze_now = (display.do_display_icon && ! display.display_power_is_on) ? 1 : 0;
+
+        if (icon_freeze_now != icon_freeze_state)                                       // log on state change only, never per loop pass
+        {
+            icon_freeze_state = icon_freeze_now;
+            log_printf ("icon_freeze: %s do_icon=%d power=%d astart=%d astop=%d ovl=%d\r\n",
+                        icon_freeze_now ? "ENTER" : "LEAVE",
+                        display.do_display_icon, display.display_power_is_on,
+                        display.animation_start_flag, display.animation_stop_flag,
+                        show_overlay_idx);
+        }
+
         local_uptime = uptime;                                                          // cache volatile variable in local variable
 
         if (esp8266_is_up)                                                              // if user pressed user button, set ESP8266 to AP mode

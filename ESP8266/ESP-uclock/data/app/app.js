@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.69";
+const APP_VERSION = "1.4.70";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -615,6 +615,7 @@ const I18N = {
     "backup.import_ambilight": "Übernehme Ambilight-Einstellungen...",
     "backup.import_dfplayer": "Übernehme DFPlayer-Einstellungen...",
     "backup.import_overlays": "Übernehme Overlays...",
+    "backup.overlay_clear_failed": "{count} von 32 Overlay-Plätzen konnten nicht geleert werden. Dort können alte Einträge stehen bleiben – prüfe die Overlays nach dem Import.",
     "backup.import_timers": "Übernehme Timer...",
     "backup.import_display_retry": "Übernehme Display-Einstellungen erneut...",
     "backup.import_climate_retry": "Übernehme Klima- und Wetter-Einstellungen erneut...",
@@ -768,12 +769,15 @@ const I18N = {
     "common.deleting": "löscht...",
     "common.clearing": "leert...",
     "common.showing": "zeigt...",
+    "common.setting": "setzt...",
     "common.saved": "gespeichert",
     "common.loaded": "geladen",
     "common.started": "gestartet",
     "common.switched_on": "eingeschaltet",
     "common.switched_off": "ausgeschaltet",
     "common.applied": "gesetzt",
+    "common.set": "gesetzt",
+    "common.uploaded": "hochgeladen",
     "common.canceled": "verworfen",
     "common.active": "Aktiv",
     "common.save": "Speichern",
@@ -978,9 +982,12 @@ const I18N = {
     "display.save_date_format": "Save date format",
     "display.ticker_delay": "Ticker delay",
     "display.save_ticker_delay": "Save ticker delay",
+    "display.ticker_delay_save_failed": "Ticker delay could not be saved",
     "display.diagnostics": "Diagnostics",
     "display.diagnostics_hint": "Temporary LED and color test for pure display function verification.",
     "display.run_test": "Start display test",
+    "display.test_running": "Display test is running",
+    "display.test_start_failed": "Display test could not be started",
     "display.dim_curve_eyebrow": "Brightness curve",
     "display.dim_curve_title": "Display",
     "display.dim_curve_hint": "Dim values for the 16 brightness levels.",
@@ -992,19 +999,26 @@ const I18N = {
     "display.apply_preset_save": "Apply preset and save",
     "display.dim_curve_save": "Save display dim curve",
     "display.save_ambilight_dim_curve": "Save Ambilight dim curve",
+    "display.dim_curve_save_failed": "Dim curve could not be saved",
     "display.tft_eyebrow": "TFT",
     "display.tft_panel_title": "Panel options",
+    "display.tft_save_failed": "TFT options could not be saved",
     "display.ambilight_control_eyebrow": "Ambilight",
     "display.ambilight_control_title": "Additional controls",
     "display.ambilight_brightness": "Ambilight brightness",
     "display.save_ambilight_brightness": "Save Ambilight brightness",
+    "display.ambilight_brightness_save_failed": "Ambilight brightness could not be saved",
     "display.ambilight_mode": "Ambilight mode",
     "display.save_ambilight_mode": "Save Ambilight mode",
+    "display.ambilight_mode_save_failed": "Ambilight mode could not be saved",
     "display.ambilight_mode_profiles": "Mode profiles",
+    "display.ambilight_profile_save_failed": "Ambilight profile could not be saved",
     "display.ambilight_leds": "Ambilight LEDs",
     "display.save_ambilight_leds": "Save LED count",
+    "display.ambilight_leds_save_failed": "LED count could not be saved",
     "display.ambilight_offset": "Offset at second 0",
     "display.save_ambilight_offset": "Save offset",
+    "display.ambilight_offset_save_failed": "Ambilight offset could not be saved",
     "display.colors_eyebrow": "Colors",
     "display.colors_title": "RGBW and synchronization",
     "display.color_detecting": "Detecting hardware...",
@@ -1020,6 +1034,8 @@ const I18N = {
     "display.fade_clock_seconds_disable": "Disable soft fade-out",
     "display.five_second_markers": "5-second markers",
     "display.ambilight_modes_unavailable": "No configurable Ambilight modes are available for the detected hardware.",
+    "display.default_set_failed": "Default value could not be set",
+    "display.ambilight_default_set_failed": "Ambilight default value could not be set",
     "display.tft_rgb_order": "RGB order",
     "display.tft_flip_horizontal": "Flip horizontally",
     "display.tft_flip_vertical": "Flip vertically",
@@ -1039,6 +1055,8 @@ const I18N = {
     "animations.favorite": "Favorite",
     "animations.delay": "Delay",
     "animations.profile_save": "Save profile",
+    "animations.profile_save_failed": "Animation profile could not be saved",
+    "animations.color_profile_save_failed": "Color animation profile could not be saved",
     "animations.default": "Default",
     "animations.name_fade": "Fade",
     "animations.name_roll": "Roll",
@@ -1379,6 +1397,7 @@ const I18N = {
     "backup.import_ambilight": "Applying ambilight settings...",
     "backup.import_dfplayer": "Applying DFPlayer settings...",
     "backup.import_overlays": "Applying overlays...",
+    "backup.overlay_clear_failed": "{count} of 32 overlay slots could not be cleared. Old entries may remain there – check the overlays after the import.",
     "backup.import_timers": "Applying timers...",
     "backup.import_display_retry": "Reapplying display settings...",
     "backup.import_climate_retry": "Reapplying climate and weather settings...",
@@ -1532,12 +1551,15 @@ const I18N = {
     "common.deleting": "deleting...",
     "common.clearing": "clearing...",
     "common.showing": "showing...",
+    "common.setting": "setting...",
     "common.saved": "saved",
     "common.loaded": "loaded",
     "common.started": "started",
     "common.switched_on": "switched on",
     "common.switched_off": "switched off",
     "common.applied": "applied",
+    "common.set": "set",
+    "common.uploaded": "uploaded",
     "common.canceled": "discarded",
     "common.active": "Active",
     "common.save": "Save",
@@ -2413,7 +2435,10 @@ function setActiveModule(moduleName) {
   });
   try {
     localStorage.setItem(MODULE_STORAGE_KEY, target);
-  } catch (_) {}
+  } catch (error) {
+    // Kein harter Fehler: das Modul bleibt aktiv, nur die Auswahl überlebt den Reload nicht.
+    console.warn("Active module could not be stored, selection will not survive a reload", error);
+  }
   if (target === "main") {
     scheduleWordclockSizing();
   }
@@ -2476,7 +2501,11 @@ function restoreActiveModule() {
   let moduleName = "main";
   try {
     moduleName = localStorage.getItem(MODULE_STORAGE_KEY) || "main";
-  } catch (_) {}
+  } catch (error) {
+    // Kein harter Fehler: es wird auf das Hauptmodul zurückgefallen.
+    console.warn("Stored module could not be read, falling back to the main module", error);
+    moduleName = "main";
+  }
   if (!document.querySelector('.module-section[data-module="' + moduleName + '"]')) {
     moduleName = "main";
   }
@@ -5125,11 +5154,26 @@ async function importOverlaySettings(overlays) {
   setSettingsBackupNote("Importiere Overlays...");
 
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
+  const failedDeletes = [];
+
   for (let idx = 31; idx >= 0; idx -= 1) {
     try {
       await apiFetchQuery(getOverlayDeleteUrl(), { idx });
-    } catch (_) {}
+    } catch (error) {
+      // Der Import läuft bewusst weiter, sonst bleibt das Gerät halb geleert zurück.
+      // Ein fehlgeschlagenes Löschen ist aber nicht folgenlos: die Schreibschleife
+      // unten beschreibt nur die Plätze 0..items.length-1, alles darüber behält
+      // seinen alten Inhalt.
+      failedDeletes.push(idx);
+      console.warn("Overlay " + idx + " could not be cleared, old content may remain", error);
+    }
   }
+
+  if (failedDeletes.length) {
+    console.warn("Overlay import: " + failedDeletes.length + " slot(s) not cleared", failedDeletes.join(", "));
+    setSettingsBackupNote(translateFormat("backup.overlay_clear_failed", { count: failedDeletes.length }), "error");
+  }
+
   await sleep(1500);
 
   for (let idx = 0; idx < items.length; idx += 1) {
@@ -5633,6 +5677,120 @@ function setUploadFormSupported(formId, supported, unsupportedMessage) {
   });
 }
 
+// Release Notes kommen als HTML vom konfigurierbaren Update-Host über HTTP und
+// gelten damit als nicht vertrauenswürdig. Sie werden bewusst nicht escaped,
+// sondern über eine Whitelist gefiltert und anschliessend aus frisch erzeugten
+// DOM-Knoten neu aufgebaut. Kein innerHTML mit Fremdinhalt.
+const RELEASE_NOTES_ALLOWED_TAGS = [
+  "H1", "H2", "H3", "H4", "H5", "H6",
+  "P", "BR", "HR", "DIV", "SPAN",
+  "UL", "OL", "LI", "DL", "DT", "DD",
+  "B", "STRONG", "I", "EM", "U", "SMALL", "SUB", "SUP",
+  "CODE", "PRE", "BLOCKQUOTE",
+  "TABLE", "THEAD", "TBODY", "TR", "TH", "TD",
+  "A"
+];
+
+const RELEASE_NOTES_ALLOWED_LINK_SCHEMES = ["http:", "https:", "mailto:"];
+const RELEASE_NOTES_MAX_DEPTH = 24;
+
+function getSafeReleaseNotesLink(href) {
+  try {
+    const parsed = new URL(String(href || ""), window.location.origin);
+    if (RELEASE_NOTES_ALLOWED_LINK_SCHEMES.indexOf(parsed.protocol) < 0) {
+      console.warn("Release notes: link dropped, scheme not allowed", parsed.protocol);
+      return "";
+    }
+    return parsed.href;
+  } catch (error) {
+    console.warn("Release notes: link dropped, URL not parsable", href, error);
+    return "";
+  }
+}
+
+function sanitizeReleaseNotesChildren(source, target, depth, dropped) {
+  const nodes = Array.prototype.slice.call(source.childNodes);
+
+  for (let idx = 0; idx < nodes.length; idx += 1) {
+    const node = nodes[idx];
+
+    if (node.nodeType === 3) {
+      target.appendChild(document.createTextNode(node.nodeValue || ""));
+      continue;
+    }
+
+    if (node.nodeType !== 1) {
+      continue;
+    }
+
+    const tag = String(node.tagName || "").toUpperCase();
+
+    if (depth >= RELEASE_NOTES_MAX_DEPTH || RELEASE_NOTES_ALLOWED_TAGS.indexOf(tag) < 0) {
+      dropped.push(tag || "?");
+      continue;
+    }
+
+    const element = document.createElement(tag);
+
+    if (tag === "A") {
+      const href = getSafeReleaseNotesLink(node.getAttribute("href"));
+      if (href) {
+        element.setAttribute("href", href);
+        element.setAttribute("target", "_blank");
+        element.setAttribute("rel", "noopener noreferrer");
+      }
+    }
+
+    sanitizeReleaseNotesChildren(node, element, depth + 1, dropped);
+    target.appendChild(element);
+  }
+}
+
+function buildSanitizedReleaseNotes(html) {
+  const fragment = document.createDocumentFragment();
+  let parsed = null;
+
+  try {
+    parsed = new DOMParser().parseFromString(String(html), "text/html");
+  } catch (error) {
+    console.warn("Release notes: HTML not parsable, falling back to plain text", error);
+  }
+
+  if (!parsed || !parsed.body) {
+    fragment.appendChild(document.createTextNode(String(html)));
+    return fragment;
+  }
+
+  const dropped = [];
+  sanitizeReleaseNotesChildren(parsed.body, fragment, 0, dropped);
+
+  if (dropped.length) {
+    console.warn("Release notes: " + dropped.length + " element(s) removed by whitelist", dropped.join(", "));
+  }
+
+  return fragment;
+}
+
+function renderReleaseNotes(host, html) {
+  if (!host) {
+    return;
+  }
+
+  host.textContent = "";
+
+  const raw = typeof html === "string" ? html.trim() : "";
+  const fragment = raw ? buildSanitizedReleaseNotes(raw) : null;
+
+  if (fragment && fragment.childNodes.length && (fragment.textContent || "").trim()) {
+    host.appendChild(fragment);
+    return;
+  }
+
+  const placeholder = document.createElement("p");
+  placeholder.textContent = translate("maintenance.no_release_notes");
+  host.appendChild(placeholder);
+}
+
 function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const updateMeta = getUpdateModuleMeta(updateStatus, updateTableInfo, settings);
   const summary = updateMeta.summary;
@@ -5664,7 +5822,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   appFilesButton.classList.toggle("is-hidden", !serverFilesMeta.appFilesActionSupported);
   serverFilesBlock.classList.toggle("is-hidden", !serverFilesMeta.anyActionSupported);
 
-  document.getElementById("update-release-notes").innerHTML = view.releaseNotes || "<p>" + escapeHtml(translate("maintenance.no_release_notes")) + "</p>";
+  renderReleaseNotes(document.getElementById("update-release-notes"), view.releaseNotes);
   document.getElementById("update-esp-button").disabled = !view.canUpdate;
   document.getElementById("update-stm32-button").disabled = !view.stm32Files.length;
   tableButton.disabled = !serverFilesMeta.tableAvailable || !serverFilesMeta.tableActionSupported;
@@ -8411,8 +8569,23 @@ function getDefaultReconnectProbes() {
   ];
 }
 
+function normalizeUrlPath(url) {
+  if (typeof url !== "string" || !url) {
+    return "";
+  }
+
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch (error) {
+    console.warn("normalizeUrlPath: URL not parsable", url, error);
+    return url.split("#")[0].split("?")[0];
+  }
+}
+
 function isTablesUploadUrl(url) {
-  return normalizeUrlPath(url) === normalizeUrlPath(getFsUploadUrl("tables"));
+  const path = normalizeUrlPath(url);
+  const tablesPath = normalizeUrlPath(getFsUploadUrl("tables"));
+  return !!path && !!tablesPath && path === tablesPath;
 }
 
 async function downloadUpdateAssets() {
@@ -11877,7 +12050,7 @@ async function refreshLiveDisplayColor() {
     return;
   }
 
-  const colorMeta = getColorUiMeta(settings, !!(settings.numvars && settings.numvars[NUM.AMBILIGHT_IS_UP]), loadDebugOverrides());
+  const colorMeta = getColorUiMeta(settings, !!(settings.numvars && settings.numvars[NUM.AMBILIGHT_IS_UP]), getDebugOverrides());
   const useRgbw = colorMeta.useRgbw;
   const colorAnimationMode = Number(settings.numvars[NUM.COLOR_ANIMATION_MODE] || 0);
 

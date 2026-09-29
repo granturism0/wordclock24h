@@ -101,13 +101,21 @@ node tools/checks/unused-css.mjs "$APP/styles.css" "$APP/index.html" "$APP/app.j
 
 # ------------------------------------------- S7 Lint gegen quick-reference.md
 step S7 "Muster aus knowledge/quick-reference.md"
-n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null || echo 0)
-[ "$n" -gt 0 ] && warn "sk6812.c: $n unbedingte log_printf im Refresh-Pfad — blockieren pro Refresh, debug_log_printf verwenden" || ok "sk6812.c: kein unbedingtes log_printf"
-n=$($GREP -c 'watchdog_reload ()\s*;' src/main.c 2>/dev/null || echo 0)
-[ "$n" -le 1 ] && warn "watchdog_reload() hat nur $n Aufrufstelle — jeder Pfad ueber 20 s ist ein IWDG-Reset" || ok "watchdog_reload(): $n Aufrufstellen"
-n=$($GREP -n 'innerHTML' "$APP/app.js" | $GREP -vc 'escapeHtml' || echo 0)
-[ "$n" -gt 0 ] && warn "app.js: $n innerHTML-Zuweisungen ohne escapeHtml in derselben Zeile — einzeln pruefen" || ok "app.js: jedes innerHTML mit escapeHtml"
-n=$($GREP -cE 'catch\s*\(\s*_\s*\)\s*\{\s*\}|catch\s*\{\s*\}' "$APP/app.js" 2>/dev/null || echo 0)
+n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null); n=${n:-0}
+[ "$n" -gt 0 ] && warn "sk6812.c: $n unbedingte log_printf im Refresh-Pfad — REVIEW.md Massnahme 13, eigener Schritt nach der icon_freeze-Messung" || ok "sk6812.c: kein unbedingtes log_printf"
+n=$($GREP -c 'watchdog_reload ()\s*;' src/main.c 2>/dev/null); n=${n:-0}
+[ "$n" -le 1 ] && warn "watchdog_reload() hat nur $n Aufrufstelle — REVIEW.md Massnahme 1, braucht eigene Spec mit Geraeteverifikation" || ok "watchdog_reload(): $n Aufrufstellen"
+# innerHTML: eigene Pruefung statt zeilenbasiertem grep. Die alte Fassung meldete
+# 21 korrekte .map()-Stellen und uebersah app.js:5667, weil dort escapeHtml fuer den
+# Fallback auf derselben Zeile steht, waehrend der Wert roh eingesetzt wird.
+ih=$(node tools/checks/innerhtml.mjs "$APP/app.js" 2>&1)
+if printf '%s' "$ih" | $GREP -q "HOCH"; then
+  printf '%s\n' "$ih"
+  WARN=$((WARN + $(printf '%s' "$ih" | $GREP -c "HOCH")))
+else
+  ok "app.js: jede innerHTML-Zuweisung ist gefiltert"
+fi
+n=$($GREP -cE 'catch\s*\(\s*_\s*\)\s*\{\s*\}|catch\s*\{\s*\}' "$APP/app.js" 2>/dev/null); n=${n:-0}
 [ "$n" -gt 0 ] && warn "app.js: $n leere catch-Bloecke — verschlucken Fehler stillschweigend" || ok "app.js: keine leeren catch-Bloecke"
 
 # ------------------------------------------------ S7b Kodierung der Quellen
