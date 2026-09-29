@@ -51,7 +51,7 @@ step S3 "i18n-Schluessel"
 node tools/checks/i18n-keys.mjs "$APP/app.js" "$APP/index.html" || CRIT=$((CRIT+1))
 
 # ------------------------------------------- S4 Versionszeilen und CACHE_NAME
-step S4 "Versionszeilen greppbar und CACHE_NAME aktuell"
+step S4 "Versionszeilen greppbar und Versionspflicht DIR-004"
 check_version() {
   local n; n=$(grep -c "$2" "$1" 2>/dev/null || echo 0)
   if [ "$n" -eq 1 ]; then ok "$3: $(grep -m1 "$2" "$1" | tr -s ' ')"
@@ -61,11 +61,27 @@ check_version src/main.h '^#define VERSION' "STM"
 check_version ESP8266/ESP-uclock/version.h '^#define ESP_VERSION' "ESP"
 check_version "$APP/app.js" '^const APP_VERSION' "App"
 check_version "$APP/sw.js" '^const CACHE_NAME' "SW-Cache"
-if ! git diff --quiet HEAD -- "$APP/app.js" 2>/dev/null; then
-  if git diff --quiet HEAD -- "$APP/sw.js" 2>/dev/null; then
-    warn "app.js geaendert, CACHE_NAME in sw.js unveraendert — neue index.html mit alter app.js moeglich"
-  else ok "app.js geaendert und sw.js ebenfalls"; fi
-fi
+# DIR-004: kein Build ohne Versionserhoehung der geaenderten Komponente
+# Geaendert = gegen HEAD. Version angehoben = die Versionszeile selbst steht im Diff.
+bumped() { git diff HEAD -- "$1" 2>/dev/null | $GREP -q "^+.*$2"; }
+changed() { ! git diff --quiet HEAD -- $1 2>/dev/null; }
+
+if changed "$APP/app.js $APP/sw.js $APP/index.html $APP/styles.css $APP/manifest.webmanifest $APP/icons"; then
+  bumped "$APP/app.js" "APP_VERSION"  || warn "PWA geaendert, APP_VERSION nicht angehoben (DIR-004)"
+  bumped "$APP/sw.js"  "CACHE_NAME"   || warn "PWA geaendert, CACHE_NAME nicht angehoben — neue index.html mit alter app.js moeglich"
+  bumped "$APP/app.js" "APP_VERSION"  && bumped "$APP/sw.js" "CACHE_NAME" && ok "PWA: APP_VERSION und CACHE_NAME angehoben"
+else ok "PWA unveraendert, keine Versionspflicht"; fi
+
+if changed "src"; then
+  bumped src/main.h "define VERSION" && ok "STM: VERSION angehoben" \
+    || warn "src/** geaendert, VERSION in src/main.h nicht angehoben (DIR-004)"
+else ok "STM unveraendert, keine Versionspflicht"; fi
+
+ESP_SRC=$(git diff --name-only HEAD -- ESP8266/ESP-uclock 2>/dev/null | $GREP -vE "data/app/" | tr "\n" " ")
+if [ -n "$ESP_SRC" ]; then
+  bumped ESP8266/ESP-uclock/version.h "define ESP_VERSION" && ok "ESP: ESP_VERSION angehoben" \
+    || warn "ESP-Quellen geaendert, ESP_VERSION nicht angehoben (DIR-004)"
+else ok "ESP unveraendert, keine Versionspflicht"; fi
 
 # ----------------------------------------------------------- S5 .gz-Artefakte
 step S5 "gz-Artefakte vorhanden, nicht leer, nicht veraltet"

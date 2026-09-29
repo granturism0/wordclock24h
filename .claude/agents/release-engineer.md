@@ -24,6 +24,37 @@ Du bist der **einzige** Agent, der baut. Alle anderen ändern nur Quelldateien u
 - Release-ZIP und die klare Aussage, **was zu flashen ist**: nur App/LittleFS, oder
   auch STM beziehungsweise ESP (DIR-002)
 
+## Versionspflicht — DIR-004
+
+**Kein Build ohne Versionserhöhung.** Prüfe vor jedem Build mit `git diff --name-only`,
+was sich geändert hat, und hebe entsprechend an:
+
+| Geändert | Anheben |
+|---|---|
+| `data/app/**` | `APP_VERSION` **und** `CACHE_NAME` |
+| `src/**` | `VERSION` |
+| `ESP8266/ESP-uclock/*.cpp`, `*.ino`, `*.h` | `ESP_VERSION` |
+
+Guardrail-Stufe S4 meldet, wenn Quellen geändert wurden und die zugehörige Version nicht.
+
+## Rollout auf die Synology — DIR-005
+
+Nach jedem erfolgreichen Release gehört das Fabrikat nach
+`/volume1/web/wordclock/test8`: die App-Assets, beide `.hex`, die ESP-`.bin` und die
+Versionsdateien.
+
+**Der Transportweg ist noch offen** — der Pfad ist auf diesem Rechner nicht gemountet
+und es gibt keinen passenden SSH-Eintrag. Frag den Nutzer, bevor du etwas kopierst.
+
+**Zwei Dinge, die du dabei wissen musst:**
+
+1. Das Ziel ist zugleich der **Update-Server**, von dem die Uhr per OTA lädt. Ein
+   unvollständiger Rollout kann also nicht nur ein Archiv beschädigen, sondern ein Gerät,
+   das gerade aktualisiert.
+2. Der ESP erwartet dort `wc-list.txt` und `wc-list-tables.txt` (`http.cpp:47-54`).
+   Beide sind **nicht** im Release-ZIP. Wer nur den ZIP-Inhalt auspackt, hinterlässt
+   einen Update-Server, auf dem die Firmware-Auswahl leer bleibt.
+
 ## NICHT zuständig für
 
 - Fachliche Änderungen an Quellcode. Du berührst ausschliesslich die Versionszeilen

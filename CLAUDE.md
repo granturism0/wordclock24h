@@ -57,8 +57,32 @@ make release-zip   # app-gz + app-version-file + f103 + f411 + esp + ZIP
 ```
 
 Nach jeder relevanten Änderung: **kompletter Build und Release-ZIP**, nicht nur
-`app-gz`. Version anheben, wenn fachlich sinnvoll. Immer explizit sagen, was zu
-flashen ist: nur App/LittleFS, oder auch STM bzw. ESP.
+`app-gz`. Immer explizit sagen, was zu flashen ist: nur App/LittleFS, oder auch STM
+bzw. ESP.
+
+### Versionspflicht bei jedem Build (DIR-004)
+
+**Kein Build ohne Versionserhöhung.** Jedes Fabrikat muss eindeutig einem Commit
+zuzuordnen sein.
+
+| Geändert wurde | Anheben |
+|---|---|
+| `data/app/**` (PWA) | `APP_VERSION` **und** `CACHE_NAME` |
+| `src/**` (STM32) | `VERSION` in `src/main.h` |
+| `ESP8266/ESP-uclock/*.cpp`, `*.ino`, `*.h` | `ESP_VERSION` in `version.h` |
+
+`APP_VERSION` und `CACHE_NAME` gehören zusammen: ohne `CACHE_NAME`-Bump liefert der
+Service Worker neue `index.html` mit alter `app.js`. Guardrail-Stufe S4 prüft das.
+
+### Rollout auf die Synology (DIR-005)
+
+Das fertige Fabrikat wird **immer** nach `/volume1/web/wordclock/test8` ausgerollt —
+App-Assets, `.hex`, ESP-`.bin` und Versionsdateien. **Der Transportweg ist noch nicht
+festgelegt** (der Pfad ist auf diesem Rechner nicht gemountet).
+
+Achtung, das Ziel ist zugleich der Update-Server, von dem die Uhr selbst lädt. Der ESP
+erwartet dort laut `http.cpp:47-54` zusätzlich `wc-list.txt` und `wc-list-tables.txt` —
+beide sind **nicht** im Release-ZIP enthalten.
 
 ---
 

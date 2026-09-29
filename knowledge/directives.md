@@ -28,3 +28,19 @@ DIR-003:
   regel: "Beim Thema der sporadischen F411-Hänger keinen pauschalen DMA-Fix und keinen Recovery-Mechanismus einbauen. Erst per gezielter Instrumentierung erhärten."
   gilt_fuer: [firmware-analyst, stm-developer]
   seit: 2026-08-12
+
+DIR-004:
+  regel: "Bei jedem Build wird die Versionsnummer der geaenderten Komponente erhoeht, damit
+          jedes Fabrikat eindeutig einem Commit zuzuordnen ist. PWA-Aenderung hebt APP_VERSION
+          und CACHE_NAME, STM-Aenderung hebt VERSION, ESP-Aenderung hebt ESP_VERSION. Kein Build
+          ohne mindestens eine Erhoehung."
+  gilt_fuer: [release-engineer, pwa-developer, ui-developer, stm-developer, esp-developer]
+  seit: 2026-09-29
+
+DIR-005:
+  regel: "Das fertige Fabrikat wird immer auf die Synology nach /volume1/web/wordclock/test8
+          ausgerollt: die App-Assets, die gebauten .hex, die ESP-.bin und die Versionsdateien.
+          Der Transportweg ist noch festzulegen."
+  gilt_fuer: [release-engineer]
+  seit: 2026-09-29
+
