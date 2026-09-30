@@ -199,10 +199,17 @@ Aufrufstelle.
    Dateien: `src/ds18xx/ds18xx.c`, `src/tempsensor/tempsensor.c`, `src/vars/vars.c`,
    `src/main.c`, `data/app/app.js`
 
-2. **Sporadische Hänger auf BlackPill STM32F411 + neues LED-Board** — nicht gelöst,
-   nicht bewiesen. BluePill F103 läuft stabiler. Bild: Uhr steht, Web-UI zeigt
-   eingefrorene Zeit, STM-Reset per Web-UI geht meist noch, teils Hänger exakt bei
-   Anzeige von „IP" in der Startsequenz.
+2. **Sporadische Hänger auf BlackPill STM32F411 + neues LED-Board** — nicht gelöst.
+   BluePill F103 läuft stabiler. Bild: Uhr steht, Web-UI zeigt eingefrorene Zeit,
+   STM-Reset per Web-UI geht meist noch, teils Hänger exakt bei Anzeige von „IP" in
+   der Startsequenz.
+
+   **Ein Hänger wurde am 30.09.2026 vollständig mitgeschnitten** (`haenger-2026-09-30.md`).
+   Ergebnis: **kein Watchdog-Reset über 18 Minuten**, und mitten im Hänger wurde ein
+   Ticker-Kommando noch vollständig ausgeführt. Der Hauptloop lief also, ausgefallen war
+   nur der **zeitgesteuerte Zweig** — `show_time`, `read rtc`, Temperatur, Refresh.
+   Damit ist die Blockade-Spur für diesen Fall tot. Die neue Frage lautet: Was macht den
+   periodischen Zweig unerreichbar, während der Rest weiterläuft?
    **Bewusste Entscheidung: keinen pauschalen DMA-Fix und keinen Recovery-Mechanismus
    einbauen.** Die Logs zeigten keinen klaren DMA-Stillstand. Erst per gezielterer
    Instrumentierung erhärten. Mechanische Kontaktprobleme (Stiftleiste statt
