@@ -1,0 +1,9 @@
+# /etc/udev/rules.d/99-wordclock-uart.rules
+#
+# Gibt dem USB-TTL-Adapter den festen Namen /dev/wordclock. Ohne das heisst er
+# mal ttyUSB0 und mal ttyUSB1 -- je nachdem, was sonst noch am USB haengt und in
+# welcher Reihenfolge die Geraete erkannt wurden.
+#
+# idVendor/idProduct aus `lsusb` eintragen. Typische Adapter:
+#   CP2102  10c4:ea60      CH340  1a86:7523      FT232  0403:6001      PL2303  067b:2303
+SUBSYSTEM=="tty", ATTRS{idVendor}=="HIER", ATTRS{idProduct}=="HIER", SYMLINK+="wordclock", MODE="0660", GROUP="dialout"

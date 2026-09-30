@@ -1,0 +1,21 @@
+# /etc/logrotate.d/wordclock
+#
+# Der Mitschnitt waechst schnell: Die Firmware loggt jeden LED-Refresh, und die
+# Minutenpunkte werden mit hoher Rate aktualisiert. Gerechnet sind das mehrere
+# hundert MB pro Tag -- komprimiert bleibt davon wenig uebrig, weil sich die
+# Zeilen stark wiederholen.
+/var/log/wordclock/serial.log {
+    daily
+    rotate 14
+    size 200M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    # Kein copytruncate: dabei gehen die Zeilen verloren, die zwischen Kopie und
+    # Truncate geschrieben werden. Stattdessen SIGHUP -- der Logger oeffnet die
+    # Datei dann neu.
+    postrotate
+        systemctl kill -s HUP wordclock-logger.service 2>/dev/null || true
+    endscript
+}

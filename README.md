@@ -50,6 +50,7 @@ Pinbelegung, Signalwege und der Abgleich gegen den Firmware-Code stehen in
 | `./tools/guardrails.sh` | Prüfungen vor jeder Übergabe — Syntax, undefinierte Aufrufe, i18n, Versionen, `.gz`, Muster, Aktualität der Doku |
 | `python3 tools/preview/server.py 8099` | PWA ohne Gerät ansehen, siehe [tools/preview/README.md](tools/preview/README.md) |
 | `./tools/deploy.sh` | Release auf den Update-Server ausrollen |
+| `./tools/logger/log.sh` | Debug-UART der Uhr abrufen, siehe [tools/logger/README.md](tools/logger/README.md) |
 
 Arbeitsregeln, Architektur-Invarianten und Versionskonventionen stehen in
 [CLAUDE.md](CLAUDE.md).

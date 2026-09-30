@@ -1,0 +1,19 @@
+# /etc/systemd/system/wordclock-logger.service
+[Unit]
+Description=WordClock Debug-UART mitschneiden
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/wordclock/serial-logger.py \
+  --port /dev/wordclock --baud 115200 --out /var/log/wordclock/serial.log
+Restart=always
+RestartSec=3
+# Der Logger schreibt nur in sein Log und die FIFO.
+ProtectSystem=strict
+ReadWritePaths=/var/log/wordclock /run
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

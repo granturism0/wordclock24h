@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-09-30 Dauerhafter Mitschnitt des Debug-UART
+
+Reine Werkzeugaenderung, kein Produktcode, deshalb kein Versionsbump.
+
+Ein Raspberry haengt ueber einen USB-TTL-Adapter am Stecker H6 und schneidet
+durchgehend mit, was der STM32 sendet. Der Mitschnitt ist ueber SSH abrufbar.
+
+**Warum das mehr ist als /api/stm32_log:** Der Endpunkt der PWA versagt genau dann,
+wenn man ihn braucht -- haengt die Uhr, antwortet der ESP nicht mehr. Der Mitschnitt
+laeuft durch, auch durch einen Watchdog-Reset hindurch, und faengt danach die
+Reset-Ursache aus der Startsequenz. Vier der offenen Messungen in BEFUNDE.md sind
+ohne ihn nicht zu beantworten.
+
+Neu unter `tools/logger/`:
+
+- `README.md` -- vollstaendige Anleitung von der Verkabelung bis zu den Testablaeufen,
+  mit der Warnung zu H6 Pin 1: dort liegen 3,3 V hinter einer Schottky-Diode, die zur
+  Platine zeigt. 5 V an dieser Stelle zerstoeren STM32, ESP, RTC und EEPROM.
+- `serial-logger.py` -- Mitschnitt mit Zeitstempel auf Millisekunden, ueberlebt das
+  Abziehen des Adapters, mischt Markierungen aus einer FIFO ein, damit Testschritte im
+  Log auffindbar sind.
+- `log.sh` -- Abruf vom Mac: tail, grep ueber rotierte Dateien, since, follow, mark,
+  stats und **gaps**. Letzteres findet Luecken im Mitschnitt: Die Firmware gibt laufend
+  aus, eine Pause heisst also, dass der Hauptloop stand. Das ist die direkteste Messung
+  von Blockaden, die es gibt, und ohne durchgehenden Mitschnitt nicht moeglich.
+- systemd-Unit, udev-Regel fuer den festen Geraetenamen und logrotate mit SIGHUP statt
+  copytruncate, damit beim Rotieren keine Zeilen verlorengehen.
+
+### Am laufenden Geraet festgestellt
+
+Der Temperatursensor liefert nichts: Die Uhr meldet durchgehend
+`DS18xxx temperature: 127.5`, und das ist kein Messwert, sondern der Fehlercode --
+intern 255, geteilt durch zwei. Die RTC-Temperatur daneben ist plausibel, der I2C-Bus
+ist also in Ordnung und nur der 1-Wire-Pfad gestoert. Das ist das offene Thema 1 aus
+CLAUDE.md, erstmals am Geraet belegt statt hergeleitet.
+
+Ausserdem laeuft auf der Uhr STM 3.2.4, waehrend der Projektstand bei 3.2.6 liegt. Die
+icon_freeze-Instrumentierung ist damit noch nicht geflasht -- Test T6 geht erst danach.
+
 ## 2026-09-30 LED-Board erfasst, LED-Typ korrigiert
 
 Reine Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
