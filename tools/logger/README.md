@@ -229,6 +229,28 @@ Danach funktioniert vom Mac aus:
 ./tools/logger/log.sh stats
 ```
 
+### Damit ich den Logger selbst nachziehen kann
+
+Das Skript gehört `pi` und lässt sich per `scp` ersetzen. Für den Neustart des Dienstes
+brauche ich aber Rechte. Eine eng begrenzte Regel — **nur dieser eine Dienst**, keine
+anderen Befehle:
+
+```bash
+sudo tee /etc/sudoers.d/wordclock-logger >/dev/null <<'EOT'
+pi ALL=(root) NOPASSWD: /usr/bin/systemctl restart wordclock-logger, \
+                        /usr/bin/systemctl start wordclock-logger, \
+                        /usr/bin/systemctl stop wordclock-logger, \
+                        /usr/bin/systemctl kill -s HUP wordclock-logger
+EOT
+sudo chmod 440 /etc/sudoers.d/wordclock-logger
+sudo visudo -c
+```
+
+Die letzte Zeile muss `parsed OK` melden. Heisst dein Benutzer anders, ersetze `pi`.
+
+Ohne diese Regel musst du nach jeder Änderung am Logger selbst
+`sudo systemctl restart wordclock-logger` ausführen.
+
 Heisst dein Benutzer anders oder hat der Pi eine feste IP, setze das einmal:
 
 ```bash

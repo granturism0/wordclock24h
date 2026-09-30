@@ -31,8 +31,8 @@ FLUSH_SECONDS = 0.5      # SD-Karte schonen, ohne im Fehlerfall viel zu verliere
 FLUSH_LINES = 64
 
 
-def stamp():
-    return datetime.now().astimezone().isoformat(timespec="milliseconds")
+def stamp(when=None):
+    return (when or datetime.now().astimezone()).isoformat(timespec="milliseconds")
 
 
 class Writer:
@@ -45,9 +45,9 @@ class Writer:
         self.pending = 0
         self.last = time.monotonic()
 
-    def line(self, text, kind=" "):
+    def line(self, text, kind=" ", when=None):
         with self.lock:
-            self.fh.write(f"{stamp()} {kind} {text}\n")
+            self.fh.write(f"{stamp(when)} {kind} {text}\n")
             self.pending += 1
             now = time.monotonic()
             if self.pending >= FLUSH_LINES or now - self.last >= FLUSH_SECONDS:
@@ -113,15 +113,28 @@ def main():
             with serial.Serial(args.port, args.baud, timeout=1) as ser:
                 writer.line("logger: Port offen", kind="#")
                 buf = bytearray()
+                t0 = None
                 while True:
-                    chunk = ser.read(256)
-                    if not chunk:
-                        continue
-                    buf.extend(chunk)
+                    # Das erste Byte einer Zeile wird einzeln gelesen und legt den
+                    # Zeitstempel fest. Wuerde man in Bloecken lesen, bekaemen alle
+                    # Zeilen eines Blocks dieselbe Zeit -- bei 700 Byte/s sind das
+                    # leicht ein Dutzend Zeilen mit identischem Stempel, und jede
+                    # Aussage ueber Abstaende waere wertlos.
+                    if not buf:
+                        first = ser.read(1)
+                        if not first:
+                            continue
+                        t0 = datetime.now().astimezone()
+                        buf.extend(first)
+                    # Den Rest, der schon anliegt, ohne Warten dazunehmen.
+                    waiting = ser.in_waiting
+                    if waiting:
+                        buf.extend(ser.read(waiting))
                     while b"\n" in buf:
                         raw, _, rest = buf.partition(b"\n")
+                        writer.line(raw.decode("utf-8", "replace").rstrip("\r"), when=t0)
                         buf = bytearray(rest)
-                        writer.line(raw.decode("utf-8", "replace").rstrip("\r"))
+                        t0 = datetime.now().astimezone() if buf else None
         except Exception as exc:
             writer.line(f"logger: Port weg ({exc}) -- neuer Versuch in 2 s", kind="!")
             time.sleep(2)
