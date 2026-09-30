@@ -78,7 +78,9 @@ now() { $GREP -m1 "$2" "$1" | sed 's/.*"\(.*\)".*/\1/'; }
 # liegen unter ESP8266/, werden aber getrennt versioniert und getrennt
 # ausgeliefert. Die .gz sind Ableitungen und zaehlen nicht als Quelle.
 STM_SRC="src CMakeLists.txt cmake"
-ESP_SRC="ESP8266/ESP-uclock :(exclude)ESP8266/ESP-uclock/data :(exclude)ESP8266/ESP-uclock/tools :(exclude)ESP8266/ESP-uclock/build"
+# Markdown im Komponentenverzeichnis ist Dokumentation, kein Code -- sonst verlangt
+# jede Korrektur an README-PWA.md einen ESP-Bump und damit ein OTA-Update ohne Gegenwert.
+ESP_SRC="ESP8266/ESP-uclock :(exclude)ESP8266/ESP-uclock/data :(exclude)ESP8266/ESP-uclock/tools :(exclude)ESP8266/ESP-uclock/build :(exclude)ESP8266/ESP-uclock/*.md"
 PWA_SRC="ESP8266/ESP-uclock/data/app :(exclude)ESP8266/ESP-uclock/data/app/**/*.gz"
 
 # 0 = Code der Komponente hat sich geaendert.  $1 Quellen  $2 Versionsdatei  $3 Muster

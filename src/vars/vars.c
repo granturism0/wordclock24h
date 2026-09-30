@@ -44,10 +44,14 @@ uint_fast8_t        var_send_busy;
  * send buffer to ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
+#define VAR_SEND_TIMEOUT_SEC    3                               // deutlich unter den 20s des Watchdogs
+
+static uint_fast8_t var_send_nested = 0;                        // eigener Wiedereintrittsschutz
+
 static void
 var_send_buf (char * buf)
 {
-    uint_fast8_t    rtc;
+    uint32_t        start_uptime;
 
     esp8266_uart_puts ("var ");
     esp8266_uart_puts (buf);
@@ -57,12 +61,41 @@ var_send_buf (char * buf)
     debug_log_printf ("var_send: %s\r\n", buf);
     debug_log_flush ();
 
-    var_send_busy = 1;
-
-    while ((rtc = schedule_esp8266_messages ()) != ESP8266_OK)
+    /* Die Warteschleife unten ruft schedule_esp8266_messages() selbst auf und fuehrt
+     * eintreffende Kommandos damit verschachtelt aus. Ruft eines davon wieder hier
+     * herein, darf NICHT erneut gewartet werden -- sonst verschachtelt sich das
+     * beliebig tief. Das Kommando ist oben bereits rausgegangen, nur die
+     * Quittungspruefung entfaellt.
+     *
+     * var_send_busy taugt dafuer nicht: main.c setzt es bei jedem ESP8266_OK zurueck,
+     * auch bei dem eines verschachtelten Kommandos.
+     */
+    if (var_send_nested)
     {
-        ;
+        return;
     }
+
+    var_send_nested = 1;
+    var_send_busy = 1;
+    start_uptime = uptime;
+
+    /* Frueher stand hier eine Schleife ohne jede Abbruchbedingung. Blieb die Quittung
+     * aus, kehrte der Aufrufer nie zurueck. Am 30.09.2026 zweimal reproduziert: Die
+     * Uhr blieb mitten in set_display_power() stehen und lief bis zum manuellen Reset
+     * nicht weiter.
+     */
+    while (schedule_esp8266_messages () != ESP8266_OK)
+    {
+        if (uptime - start_uptime >= VAR_SEND_TIMEOUT_SEC)
+        {
+            log_printf ("var_send_buf: keine Quittung nach %ds, weiter ohne: %s\r\n",
+                        VAR_SEND_TIMEOUT_SEC, buf);
+            break;
+        }
+    }
+
+    var_send_busy = 0;
+    var_send_nested = 0;
 }
 
 static void

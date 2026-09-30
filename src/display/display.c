@@ -6076,6 +6076,7 @@ display_test (void)
     LED_RGB      rgb;
     uint_fast16_t   i;
     uint_fast16_t   j;
+    uint_fast16_t   w;
 
 #if DSP_USE_SK6812_RGBW == 1
 
@@ -6092,7 +6093,19 @@ display_test (void)
         }
 
         display_refresh_ambilight_leds ();
-        delay_sec (3);
+
+        /* Kein delay_sec(3): Der Display-Test dauert insgesamt 45 s (RGBW) bzw. 21 s
+         * (RGB) und liegt damit ueber den 20 s des Watchdogs. delay_sec() ist ein
+         * reiner Busy-Wait ohne Reload -- mit aktivem IWDG waere jeder Display-Test
+         * ein garantierter Reset. Das Warten ist hier gewollt, also wird der Watchdog
+         * dabei bedient. Der Test bleibt damit das, was er sein soll: ein Werkzeug
+         * fuer den LED-Test.
+         */
+        for (w = 0; w < 30; w++)
+        {
+            delay_msec (100);
+            watchdog_reload ();
+        }
     }
 
 #else
@@ -6109,7 +6122,19 @@ display_test (void)
         }
 
         display_refresh_ambilight_leds ();
-        delay_sec (3);
+
+        /* Kein delay_sec(3): Der Display-Test dauert insgesamt 45 s (RGBW) bzw. 21 s
+         * (RGB) und liegt damit ueber den 20 s des Watchdogs. delay_sec() ist ein
+         * reiner Busy-Wait ohne Reload -- mit aktivem IWDG waere jeder Display-Test
+         * ein garantierter Reset. Das Warten ist hier gewollt, also wird der Watchdog
+         * dabei bedient. Der Test bleibt damit das, was er sein soll: ein Werkzeug
+         * fuer den LED-Test.
+         */
+        for (w = 0; w < 30; w++)
+        {
+            delay_msec (100);
+            watchdog_reload ();
+        }
     }
 
 #endif

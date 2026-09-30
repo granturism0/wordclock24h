@@ -15,7 +15,7 @@
 #include <time.h>
 #include "eeprom-data.h"
 
-#define VERSION                     "3.2.6"
+#define VERSION                     "3.2.7"
 #define MAX_RESET_CAUSE_LEN         63
 
 #define MAX_EEPROM_VERSION_LEN      4
@@ -132,6 +132,7 @@ typedef struct
 
 extern MAIN_GLOBALS                 gmain;
 extern volatile uint32_t            uptime;
+extern void                         watchdog_reload (void);     // damit gewollte lange Blockaden ihn bedienen koennen
 
 extern uint_fast8_t                 schedule_esp8266_messages (void);
 extern void                         set_overlay_idx (uint_fast8_t);

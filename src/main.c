@@ -382,7 +382,7 @@ static char                     current_reset_cause[MAX_RESET_CAUSE_LEN + 1] = "
 #define WATCHDOG_TIMEOUT_MS      20000UL
 
 static void                     watchdog_init (void);
-static void                     watchdog_reload (void);
+void                            watchdog_reload (void);         // nicht static: display_test() bedient ihn selbst
 static void                     fault_reset (const char *);
 static void                     append_reset_cause (const char *);
 
@@ -494,6 +494,30 @@ watchdog_init (void)
 {
     uint32_t timeout = 1000000UL;
 
+    /* Der IWDG laeuft am LSI. Die Flags PVU und RVU werden erst geloescht, wenn ein
+     * LSI-Takt anliegt -- und der LSI startet von selbst erst mit IWDG_Enable(), also
+     * NACH den Warteschleifen weiter unten. Ohne expliziten Start liefen sie deshalb
+     * immer in den Timeout, die Funktion kehrte mit return zurueck und IWDG_Enable()
+     * wurde nie erreicht. Am Geraet belegt: "IWDG init timeout, watchdog disabled" bei
+     * jedem Start, und damit war der Watchdog wirkungslos -- ein Haenger am 30.09.2026
+     * dauerte 18 Minuten, statt nach 20 s aufgeloest zu werden.
+     */
+    RCC_LSICmd (ENABLE);
+
+    while (RCC_GetFlagStatus (RCC_FLAG_LSIRDY) == RESET && timeout > 0)
+    {
+        timeout--;
+    }
+
+    if (timeout == 0)
+    {
+        log_message ("LSI startet nicht, watchdog disabled");
+        log_flush ();
+        return;
+    }
+
+    timeout = 1000000UL;                                        // fuer die Flag-Schleifen unten
+
 #if defined (STM32F103)
     IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
     IWDG_SetPrescaler (IWDG_Prescaler_256);
@@ -532,7 +556,7 @@ watchdog_init (void)
  * reload independent watchdog
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+void
 watchdog_reload (void)
 {
     IWDG_ReloadCounter ();
