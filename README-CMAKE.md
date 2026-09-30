@@ -249,17 +249,20 @@ die nicht Teil des Releases sind.
 
 ## ESP-Build auf Apple Silicon
 
-Auf diesem Rechner (macOS 27, arm64) bricht `make esp` ab mit
-`bad CPU type in executable`. Die gesamte ESP8266-Werkzeugkette ist x86_64 und
-braucht **Rosetta 2**, das hier nicht installiert ist. Der Paketindex bietet keine
-native arm64-Toolchain, und 3.1.2 ist die neueste Version.
+Die gesamte ESP8266-Werkzeugkette ist **x86_64** und braucht auf Apple Silicon
+**Rosetta 2**. Der Paketindex bietet keine native arm64-Toolchain, auch nicht nach
+Aktualisierung — 3.1.2 ist die neueste Version, und sie kennt nur
+`i386-apple-darwin` und `x86_64-apple-darwin`.
+
+Fehlt Rosetta, bricht `make esp` ab mit `bad CPU type in executable`:
 
 ```
 softwareupdate --install-rosetta
 ```
 
 Das betrifft alle Wege gleichermassen — Makefile, `arduino-cli`, VS Code und die
-Arduino IDE gehen über dieselben Binärdateien.
+Arduino IDE gehen über dieselben Binärdateien. Nach der Installation läuft auch
+`make release-zip` wieder vollständig durch.
 
 **Bereits erledigt:** Das mitgelieferte Python der Plattform ist durch einen Wrapper
 auf `/usr/bin/python3` ersetzt, weil es ebenfalls x86_64 ist. Die Build-Skripte der
