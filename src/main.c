@@ -516,39 +516,45 @@ watchdog_init (void)
         return;
     }
 
-    timeout = 1000000UL;                                        // fuer die Flag-Schleifen unten
+    IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
+    IWDG_SetPrescaler (IWDG_Prescaler_256);
 
 #if defined (STM32F103)
-    IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
-    IWDG_SetPrescaler (IWDG_Prescaler_256);
     IWDG_SetReload ((WATCHDOG_TIMEOUT_MS * 40UL) / 256UL);             // LSI approx. 40kHz on STM32F1
-
-    while ((IWDG_GetFlagStatus (IWDG_FLAG_PVU) != RESET || IWDG_GetFlagStatus (IWDG_FLAG_RVU) != RESET) && timeout > 0)
-    {
-        timeout--;
-    }
 #else
-    IWDG_WriteAccessCmd (IWDG_WriteAccess_Enable);
-    IWDG_SetPrescaler (IWDG_Prescaler_256);
     IWDG_SetReload ((WATCHDOG_TIMEOUT_MS * 32UL) / 256UL);             // LSI approx. 32kHz on STM32F4
+#endif
+
+    IWDG_ReloadCounter ();
+    IWDG_Enable ();                                             // ab hier laeuft der Watchdog
+
+    /* Erst JETZT auf PVU/RVU warten, nicht vorher. Der IWDG-Block bekommt seinen Takt
+     * mit dem Enable; davor kann die Uebernahme der Werte gar nicht abgeschlossen
+     * werden und die Schleife lief zwangslaeufig in den Timeout. Genau daran scheiterte
+     * die Initialisierung bisher -- mit dem frueheren "return" blieb der Watchdog aus.
+     *
+     * IWDG_ReloadCounter() in der Schleife ist Pflicht: Bis die Werte uebernommen sind,
+     * laeuft der Watchdog noch mit seinen Vorgabewerten von rund einer halben Sekunde.
+     * Ohne Nachtriggern koennte er hier zuschlagen und das Geraet in eine Resetschleife
+     * schicken.
+     */
+    timeout = 1000000UL;
 
     while ((IWDG_GetFlagStatus (IWDG_FLAG_PVU) != RESET || IWDG_GetFlagStatus (IWDG_FLAG_RVU) != RESET) && timeout > 0)
     {
+        IWDG_ReloadCounter ();
         timeout--;
     }
-#endif
 
     if (timeout == 0)
     {
-        log_message ("IWDG init timeout, watchdog disabled");
-        log_flush ();
-        return;
+        log_printf ("IWDG laeuft, Werte aber nicht bestaetigt (timeout=%lums angefordert)\r\n", WATCHDOG_TIMEOUT_MS);
+    }
+    else
+    {
+        log_printf ("IWDG enabled: timeout=%lums\r\n", WATCHDOG_TIMEOUT_MS);
     }
 
-    IWDG_ReloadCounter ();
-    IWDG_Enable ();
-
-    log_printf ("IWDG enabled: timeout=%lums\r\n", WATCHDOG_TIMEOUT_MS);
     log_flush ();
 }
 

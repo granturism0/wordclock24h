@@ -105,13 +105,21 @@ echo
 export COPYFILE_DISABLE=1
 TAR_OPT="--no-xattrs"   # sonst meldet das tar auf der Synology jede macOS-Metadatei
 
+# --no-overwrite-dir ist hier KEIN Feinschliff, sondern Pflicht: Das Archiv enthaelt
+# den Eintrag "." mit den Rechten des Staging-Verzeichnisses, und mktemp -d legt das
+# mit 0700 an. Ohne diese Option setzt tar damit das ZIELverzeichnis auf 0700 --
+# Apache kann dann nicht mehr hineinlesen und beantwortet jede Anfrage mit
+# "403 Forbidden ... unable to read htaccess file". Genau das ist am 01.10.2026
+# passiert: Der Update-Server war danach fuer die Uhr nicht mehr erreichbar.
+mkdir -p "$STAGE" && chmod 755 "$STAGE"
+
 if [ -n "$DRY" ]; then
   echo "=== Probelauf: diese Dateien wuerden geschrieben ==="
   tar $TAR_OPT -cf - -C "$STAGE" . | $SSH "$TARGET" "tar tvf -" | sed 's/^/  /' \
     || fail "Uebertragung fehlgeschlagen"
 else
   echo "=== Uebertragung ==="
-  tar $TAR_OPT -cf - -C "$STAGE" . | $SSH "$TARGET" "tar xvf - -C '$DEST'" | sed 's/^/  /' \
+  tar $TAR_OPT -cf - -C "$STAGE" . | $SSH "$TARGET" "tar xv --no-overwrite-dir -f - -C '$DEST'" | sed 's/^/  /' \
     || fail "Uebertragung fehlgeschlagen"
 fi
 
