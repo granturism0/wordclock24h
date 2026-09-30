@@ -10,8 +10,8 @@ allowed-tools: Read Grep Glob Bash
 Die Dokumentation zerfällt in zwei Sorten, und die Unterscheidung ist die ganze Regel.
 
 **Lebend** — wird nachgeführt, darf nie veralten:
-`CLAUDE.md`, `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`,
-`.claude/agents/**`, `.claude/skills/**`.
+`CLAUDE.md`, `BEFUNDE.md`, `HARDWARE.md`, `CHANGELOG.md`, alle `README*.md`,
+`knowledge/**`, `.claude/agents/**`, `.claude/skills/**`.
 
 **Momentaufnahme** — trägt ein Datum und wird **nicht** fortgeschrieben:
 `REVIEW.md`, `REVIEW-2026-09-29.md`, `gap-analysis.md`, `specs/**`.

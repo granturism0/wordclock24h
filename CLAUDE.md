@@ -49,7 +49,7 @@ Wissen verloren geht.
 | `/release` | Build, Versionspflicht DIR-004, Rollout DIR-005, was zu flashen ist | bei Bedarf |
 | `/pwa-vorschau` | PWA ohne Gerät ansehen und vermessen | bei Bedarf |
 | `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006 | bei Bedarf |
-| `stm-firmware` | belegtes Detailwissen zur STM-Firmware | automatisch bei Arbeit an `src/**` |
+| `stm-firmware` | belegtes Detailwissen zur STM-Firmware und zur Platine | automatisch bei Arbeit an `src/**` |
 
 Die Kurzregeln bleiben hier, weil sie immer gelten:
 
@@ -63,7 +63,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
 - **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
   `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
-  Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
+  `HARDWARE.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
@@ -145,6 +145,22 @@ Nicht parallelisierbar: alles unter R1–R5.
 darauf. Zwei Release-Builds in derselben Minute überschreiben sich **kommentarlos**,
 beide melden Erfolg. Bis das behoben ist (`BEFUNDE.md`, L2): nie zwei Release-Builds in
 derselben Minute starten. Ausführlich im Skill `/release`.
+
+## Hardware
+
+Die Platine ist eine Eigenentwicklung — **WordClock USB-C / STM32F411 V2**, kein
+BlackPill-Modul mit Zusatzplatine, aber bewusst pinkompatibel dazu. Pinbelegung,
+Signalwege und der Abgleich gegen den Firmware-Code stehen in `HARDWARE.md`, die
+Quelle ist das KiCad-Projekt unter `~/Documents/WordClock-USB C - STM32F411 - V2`.
+
+Drei Punkte, die man dem Code allein nicht ansieht:
+
+- **Das EEPROM hängt am I2C** (AT24C32M, zusammen mit der DS3231-RTC). Der STM32F411
+  hat keins. Die oft zitierten „16 ms pro Byte" sind der EEPROM-Schreibzyklus.
+- **`PB0` schaltet die 5-V-Versorgung der LED-Kette.** `U3` (SN74AHCT1G125) hebt die
+  Datenleitung von 3,3 V auf 5 V — das frühere Pegelproblem ist auf V2 gelöst.
+- **Der ESP hat nur einen vollwertigen UART, und das ist die Brücke zum STM.** Jede
+  Debugzeile des ESP landet deshalb zwangsläufig auf der STM-UART.
 
 ## Offene technische Themen
 

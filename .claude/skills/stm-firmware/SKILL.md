@@ -10,7 +10,19 @@ allowed-tools: Read Grep Glob
 
 Alles hier ist am Code oder am ELF nachgeprüft, nicht vermutet. Fundstellen sind
 genannt, damit jede Behauptung wiederholbar ist. Der vollständige Befundstand steht
-in `BEFUNDE.md`.
+in `BEFUNDE.md`, die **Pinbelegung und die Signalwege der Platine** in `HARDWARE.md`.
+
+## Was die Hardware vorgibt
+
+- Das Board ist eine Eigenentwicklung, **pinkompatibel zur BlackPill** — deshalb passt
+  `BLACKPILL_BOARD`. Kein Modul mit Zusatzplatine.
+- **Das EEPROM hängt am I2C** (AT24C32M, zusammen mit der DS3231-RTC). Der STM32F411
+  hat keins. Daher die 15 ms Wartezeit je Schreibzyklus — das ist der
+  EEPROM-Schreibzyklus, nicht Flash-Programmierung.
+- **`PB0` schaltet die 5-V-Versorgung der LED-Kette** über zwei MOSFETs. Der
+  `delay_msec(200)` nach `power_on()` ist die Einschwingzeit, keine Willkür.
+- **Der ESP hat nur einen vollwertigen UART, und das ist die Brücke zum STM.** Jede
+  `Serial.print`-Debugzeile des ESP landet deshalb zwangsläufig auf der STM-UART.
 
 ## Die Quellen sind teilweise ISO-8859-1 — `grep` braucht `-a`
 

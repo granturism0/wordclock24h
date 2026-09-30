@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-09-30 Hardware erfasst und gegen die Firmware abgeglichen
+
+Reine Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
+
+### Neu: HARDWARE.md
+
+Das KiCad-Projekt der Platine ausgelesen (Schaltplan, PCB, Stueckliste) und **jede
+Pinangabe gegen den Firmware-Code abgeglichen**. Die Platine ist eine Eigenentwicklung
+"WordClock USB-C / STM32F411 V2" und kein BlackPill-Modul mit Zusatzplatine -- aber
+bewusst pinkompatibel dazu, weshalb `BLACKPILL_BOARD` passt.
+
+Vier Erkenntnisse, die man dem Code allein nicht ansieht:
+
+- **Das EEPROM haengt am I2C** (AT24C32M, zusammen mit der DS3231-RTC). Der STM32F411
+  hat keins. Die oft zitierten "16 ms pro Byte" sind der Schreibzyklus dieses
+  Bausteins, nicht Flash-Programmierung.
+- **PB0 schaltet die 5-V-Versorgung der LED-Kette** ueber zwei MOSFETs. Der
+  `delay_msec(200)` nach `power_on()` ist die Einschwingzeit, keine Willkuer.
+- **U3 (SN74AHCT1G125) hebt die Datenleitung von 3,3 V auf 5 V.** Die Notiz in
+  README.md, 3,3 V seien an 5-V-versorgten SK6812 grenzwertig, gilt nur fuer die
+  Vorgaengerbestueckung. Korrigiert.
+- **Der ESP hat nur einen vollwertigen UART, und das ist die Bruecke zum STM.** Jede
+  Serial.print-Debugzeile des ESP landet deshalb zwangslaeufig auf der STM-UART. Damit
+  ist Kernbefund 4 aus REVIEW.md hardwareseitig bestaetigt: Es ist keine
+  Nachlaessigkeit im Code, sondern eine Folge der Verdrahtung.
+
+### Neuer Befund L7
+
+`eeprom_write()` schreibt Byte fuer Byte und wartet nach jedem 15 ms. Der Kommentar
+dort dreht die Begruendung um -- man wartet **nach** einem Zyklus, und ein Zyklus
+fasst beim AT24C32M eine ganze 32-Byte-Seite. `i2c_write` kann das bereits. Fuer die
+Dimmkurve bedeutet das 240 ms statt 15 ms, Faktor 16. Da die PWA 16 solche Kommandos
+sendet, erklaert das REVIEW.md Kernbefund 3 an der Wurzel. Heikel im Umbau, braucht
+eigene Spec.
+
 ## 2026-09-30 Regeln maschinell erzwungen, Ablaeufe als Skills
 
 Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.

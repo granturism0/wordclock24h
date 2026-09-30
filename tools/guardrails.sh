@@ -203,7 +203,7 @@ fi
 step S9 "Versionsangaben in der lebenden Dokumentation"
 # Momentaufnahmen sind ausgenommen (DIR-006): REVIEW*.md, gap-analysis.md,
 # CHANGELOG.md und specs/** halten bewusst ihren Entstehungsstand fest.
-LIVE_DOCS="CLAUDE.md BEFUNDE.md README.md README-CMAKE.md ESP8266/ESP-uclock/README-PWA.md
+LIVE_DOCS="CLAUDE.md BEFUNDE.md HARDWARE.md README.md README-CMAKE.md ESP8266/ESP-uclock/README-PWA.md
            ESP8266/ESP-uclock/APP-BUNDLE.md tools/preview/README.md specs/README.md"
 for d in knowledge/*.md .claude/agents/*.md .claude/skills/*/SKILL.md; do [ -f "$d" ] && LIVE_DOCS="$LIVE_DOCS $d"; done
 node tools/checks/doc-versions.mjs $LIVE_DOCS || WARN=$((WARN+1))
