@@ -118,10 +118,25 @@ Andere PWA-Aufgaben warten oder laufen gegen `index.html` / `styles.css` / `sw.j
 Vier Stellen (Tabelle oben) müssen zueinander passen. Teammates bumpen nichts;
 sonst kollidieren zwei unabhängige Erhöhungen und das Release ist inkonsistent.
 
-## R5 — Hardware ist exklusiv
+## R5 — Hardware ist exklusiv, und die Uhr laeuft produktiv
 
 Es gibt eine physische Uhr und einen Serial-Port. Flashen und Live-Test macht der
 Nutzer bzw. genau ein Agent. Kein paralleles Flashen, kein paralleler Display-Test.
+
+**Die Uhr ist unter `http://192.168.1.184/app/` erreichbar (DIR-008).** Lesende
+Abfragen sind frei. Alles Schreibende braucht die ausdrückliche Freigabe des Nutzers
+im selben Gespräch — es ist seine Uhr im Dauerbetrieb, kein Testgerät.
+
+Diese Endpunkte sind aus unseren eigenen Befunden heraus gefährlich:
+
+| Endpunkt | Was passiert |
+|---|---|
+| `GET /?a` (Parameter **ohne** `=`) | **ESP stürzt ab.** Nie senden, auch nicht versehentlich |
+| `/api/test_display` | 45 s Blockade ⇒ garantierter Watchdog-Reset |
+| `/api/learn_ir` | unbegrenzte Blockade ⇒ garantierter Watchdog-Reset |
+| `/api/maintenance_reset_eeprom`, `/api/maintenance_format_fs` | Datenverlust, PWA weg |
+| `/api/fs_remove?filename=app.js.gz` | löscht die PWA vom Gerät |
+| Backup-**Import** | kann das Gerät ohne WLAN, ohne AP und ohne Webserver zurücklassen |
 
 ## R6 — Wer wirklich parallel bauen muss, braucht ein Worktree
 

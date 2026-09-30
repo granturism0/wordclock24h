@@ -42,6 +42,18 @@ DIR-004:
   geaendert: 2026-09-29 — vorher Gleichschritt aller drei Komponenten, auf Wunsch des Nutzers
              auf komponentenweise Versionierung umgestellt.
 
+DIR-008:
+  regel: "Die produktive Uhr unter http://192.168.1.184/app/ darf LESEND abgefragt werden
+          (GET auf /api/-Endpunkte, die nur Zustand liefern). VERBOTEN ohne ausdrueckliche
+          Freigabe des Nutzers im selben Gespraech: jeder schreibende Endpunkt, jeder Flash,
+          jeder Reset, Backup-Import, maintenance_reset_eeprom, maintenance_format_fs,
+          fs_remove, test_display (45 s Watchdog-Reset), learn_ir (unbegrenzter Reset).
+          NIE senden: eine URL mit Parameter ohne Gleichheitszeichen, etwa GET /?a --
+          das stuerzt den ESP nachweislich ab (Review 2, Kernbefund 3). Grund: Es ist die
+          Uhr des Nutzers im Dauerbetrieb, nicht ein Testgeraet."
+  gilt_fuer: [alle]
+  seit: 2026-09-30
+
 DIR-007:
   regel: "R1 (nur der release-engineer baut) ist per Hook erzwungen, nicht nur
           aufgeschrieben: tools/hooks/no-build.py haengt im Frontmatter aller schreibenden
