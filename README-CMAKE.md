@@ -247,6 +247,34 @@ Zugangsdaten in `tools/deploy.conf`, Vorlage daneben.
 Das Skript **löscht nichts** — auf dem Ziel liegen Layout-Tabellen und Listendateien,
 die nicht Teil des Releases sind.
 
+## ESP-Build auf Apple Silicon
+
+Auf diesem Rechner (macOS 27, arm64) bricht `make esp` ab mit
+`bad CPU type in executable`. Die gesamte ESP8266-Werkzeugkette ist x86_64 und
+braucht **Rosetta 2**, das hier nicht installiert ist. Der Paketindex bietet keine
+native arm64-Toolchain, und 3.1.2 ist die neueste Version.
+
+```
+softwareupdate --install-rosetta
+```
+
+Das betrifft alle Wege gleichermassen — Makefile, `arduino-cli`, VS Code und die
+Arduino IDE gehen über dieselben Binärdateien.
+
+**Bereits erledigt:** Das mitgelieferte Python der Plattform ist durch einen Wrapper
+auf `/usr/bin/python3` ersetzt, weil es ebenfalls x86_64 ist. Die Build-Skripte der
+Plattform verwenden ausschliesslich Standardmodule, das native System-Python genügt.
+Das Original liegt als `python3.x86_64.orig` daneben.
+
+> Ein Update der esp8266-Plattform überschreibt den Wrapper. Datei:
+> `~/Library/Arduino15/packages/esp8266/tools/python3/3.7.2-post1/python3`,
+> Inhalt: `#!/bin/sh` und `exec /usr/bin/python3 "$@"`.
+
+**Solange der ESP unverändert bleibt, ist das kein Hindernis:** Nach DIR-004 wird er
+dann ohnehin nicht neu versioniert, und die vorhandene `.bin` aus `build/esp8266/`
+bleibt gültig. `tools/deploy.sh` rollt sie unverändert mit aus. Erst eine echte
+Änderung an der ESP-Firmware verlangt einen neuen Build.
+
 ## Versionierung
 
 Jede Komponente wird **genau dann** versioniert, wenn sich ihr Code geändert hat —
