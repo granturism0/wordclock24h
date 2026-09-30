@@ -113,6 +113,148 @@ Daraus folgt die oft zitierte Zahl von rund 16 ms pro Byte: Es ist der
 des STM32. Siehe dazu den Befund L7 in `BEFUNDE.md` — der Baustein könnte 32 Byte in
 einem einzigen Zyklus schreiben, die Firmware schreibt byteweise.
 
+---
+
+# Das LED-Board
+
+Eigenes KiCad-Projekt unter `~/Documents/WordClock-LED_Board`. Verbunden mit dem
+Controller über den siebenpoligen Stecker.
+
+## Bestückung
+
+| Ref | Bauteil | Anzahl |
+|---|---|---|
+| V1–V114 | **SKC6812RGBW-BW**, OPSCO Optoelectronics, LCSC `C5181320` | **114** |
+| C1–C115 | 100 nF | 115 — eine Abblockung je LED |
+| C116 | Elko 6,3 V | 1 |
+| R1 | **GL5528 (LDR)** | 1 — der Helligkeitssensor sitzt **hier**, nicht auf dem Controller |
+| R4 | 220 Ω | in Serie zur ersten LED |
+| R5, R6, R7 | 0 Ω | Brücken in der Datenkette bei V4/V5, V48/V49, V92/V93 |
+| U1 | Stecker 7-polig | zum Controller |
+
+**114 LEDs = 110 Matrix + 4 Minutenpunkte**, und das passt exakt zur Firmware:
+`WC_ROWS 10 × WC_COLUMNS 11 = 110` (`wclock24h-config.h:19`) plus `DSP_MINUTE_LEDS 4`
+und `DSP_DISPLAY_LEDS 110` (`display-config.h:113`).
+
+## SKC6812 ist nicht SK6812 — und die Firmware weiss das
+
+Verbaut ist die **SKC**-Variante von OPSCO, nicht die gewöhnliche SK6812. Die
+Unterschiede sind klein, aber sie betreffen genau das Protokoll:
+
+| | Wert laut Hersteller |
+|---|---|
+| Versorgung | 3,5–5,5 V |
+| Ruhestrom je LED | **0,29 mA** |
+| Datenrate | 800 kbit/s |
+| PWM-Frequenz | 4 kHz, fest |
+| Gehäuse | SMD5050-4P, 1,6 mm hoch |
+
+**Der kritische Unterschied ist die Reset-Pause.** `sk6812.c` führt zwei Timing-Sätze,
+und der Kommentar dort benennt es ausdrücklich:
+
+```c
+#if 0 // only usable for SK6812
+#define SK6812_PAUSE_TIME  100000   // should be longer than 80us for SK6812, should be 200us for SKC6812
+#else // usable for SK6812 and SK6812C
+#define SK6812_PAUSE_TIME  250000   // ... should be longer than 200us for SKC6812
+#endif
+```
+
+Aktiv ist der **zweite** Satz: Periode 1250 ns, `T0H` 300 ns, `T1H` 750 ns, Pause
+**250 µs**. Das passt zu den 800 kbit/s und liegt über den 200 µs, die die SKC-Variante
+verlangt.
+
+**Fallstrick:** Wer den `#if 0` umdreht, bekommt 100 µs Pause. Das genügt einer SK6812,
+**nicht** einer SKC6812 — die Folge wären sporadische Anzeigefehler, die wie ein
+Wackelkontakt aussehen. Der Zweig bleibt zu.
+
+Ein Refresh kostet damit 114 × 32 bit × 1,25 µs ≈ **4,6 ms** plus 250 µs Pause.
+
+## Der Stecker ist gespiegelt
+
+| | Controller `H7` | LED-Board `U1` |
+|---:|---|---|
+| 1 | 5 V | GND |
+| 2 | 5 V | GND |
+| 3 | 3,3 V | LDR |
+| 4 | SK6812-Daten | SK6812-Daten |
+| 5 | LDR | 3,3 V |
+| 6 | GND | 5 V |
+| 7 | GND | 5 V |
+
+**Controller-Pin n gehört an LED-Board-Pin (8 − n).** Die Belegung passt nur
+spiegelverkehrt zusammen — bei gegenüberliegend montierten Steckern und geradem
+Flachbandkabel ergibt sich das von selbst. Bei einzeln gecrimpten Adern führt ein
+1:1-Kabel dagegen 5 V auf GND.
+
+## Signalwege zwischen den Platinen
+
+**Daten:** `PB1` → `U3` (Pegelwandler) → `R11` 330 Ω → Stecker → `R4` 220 Ω → `V1.DIN`.
+
+Beide Serienwiderstände liegen hintereinander, zusammen **550 Ω**. Das ist am oberen
+Ende des Üblichen (100–470 Ω). Für das 800-kHz-Protokoll zählt die Flankensteilheit an
+der ersten LED; mit längerem Kabel wächst die Last und die Reserve schrumpft. Nicht
+gemessen, nur gerechnet.
+
+**LDR:** `GL5528` auf dem LED-Board hängt an 3,3 V, der Abgriff geht über den Stecker
+zu `PA5` und dort über `R22` (1 kΩ) nach Masse. Der ADC misst also am Mittelpunkt eines
+Teilers, dessen oberer Zweig der LDR ist:
+
+| Umgebung | LDR grob | Spannung an PA5 | von 4095 Schritten |
+|---|---|---|---|
+| dunkel | 1 MΩ | 3 mV | ~4 |
+| Zimmerlicht | 20 kΩ | 157 mV | ~195 |
+| hell | 10 kΩ | 300 mV | ~373 |
+
+Im Normalbetrieb wird damit weniger als ein Zehntel des ADC-Bereichs genutzt. Das ist
+handhabbar, weil `ldr.c:69` gegen die kalibrierten Grenzen `ldr_min_value` und
+`ldr_max_value` aus dem EEPROM normiert — die Auflösung bleibt aber begrenzt.
+
+**Das Kettenende ist offen:** `V114.DOUT` ist nicht herausgeführt. Ein Ambilight-Streifen
+lässt sich an diesem Board also **nicht in Reihe anschliessen**. Der zweite Stecker `H4`
+am Controller liegt **parallel** zu `H7` auf demselben Datensignal — was dort hängt,
+bekäme die Daten ab LED 1, also die Uhrzeitanzeige, nicht die Ambilight-Daten ab
+Position 114. Die Firmware reserviert dafür Platz (`DSP_AMBILIGHT_LEDS 120`), die
+tatsächliche Zahl steht im EEPROM.
+
+## Stromaufnahme — die Rechnung, nicht gemessen
+
+Belegt ist der **Ruhestrom von 0,29 mA je LED**. Den Strom je Farbkanal nennt das
+Datenblatt auf der Vertriebsseite nicht; die folgende Rechnung setzt die für
+5050-RGBW übliche Grössenordnung von rund 20 mA je Kanal an. **Diese Zahl ist eine
+Annahme, kein Herstellerwert** — für die Grössenordnung reicht sie, für eine Auslegung
+nicht.
+
+| Fall | Strom |
+|---|---|
+| alle 114 aus (nur die internen Controller) | **0,033 A**, belegt |
+| 40 LEDs weiss über den W-Kanal | ~0,8 A, angenommen |
+| 40 LEDs weiss über R+G+B | ~2,4 A, angenommen |
+| alle 114 auf allen vier Kanälen voll | ~9,1 A, angenommen |
+
+Dem stehen die beiden Rückstellsicherungen gegenüber: **`F1` mit 1,5 A Haltestrom im
+USB-C-Zweig** und `F2` mit 3,0 A im Zweig der externen Einspeisung.
+
+**Über USB-C wird es bei heller Anzeige eng.** Eine Rückstellsicherung löst nicht hart
+aus, sondern erhöht bei Erwärmung allmählich ihren Widerstand — die Spannung sackt,
+statt dass etwas abschaltet. Das ist ein Verhalten, das zu „läuft meistens, hängt
+gelegentlich" passt.
+
+**Das ist eine Hypothese aus einer Rechnung, keine Messung**, und sie steht neben den
+belegten Software-Ursachen aus `REVIEW.md`, sie ersetzt sie nicht. Prüfbar wäre sie
+ohne Codeänderung: Spannung an `VCC_5V` (Testpunkt `TP7`) unter heller Anzeige messen,
+oder beobachten, ob die Hänger bei dunkler Anzeige seltener auftreten. Siehe Befund L9
+in `BEFUNDE.md`.
+
+## Unstimmigkeit in der Stückliste
+
+`C116` ist in `production/bom.csv` mit **680 µF** geführt, im PCB steht als Wert
+**100 µF**. Die Stückliste stammt vom 12. März, das PCB wurde am 12. April zuletzt
+geändert — vermutlich wurde der Wert danach angepasst und die Stückliste nicht neu
+erzeugt. Für den Stützkondensator der LED-Versorgung ist der Unterschied nicht egal.
+
+---
+
 ## Stromversorgung
 
 ```

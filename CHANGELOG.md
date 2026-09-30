@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-30 LED-Board erfasst, LED-Typ korrigiert
+
+Reine Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
+
+`HARDWARE.md` um das LED-Board erweitert: 114 LEDs, das sind 110 Matrix (10x11) plus
+4 Minutenpunkte -- exakt `DSP_DISPLAY_LEDS 110` und `DSP_MINUTE_LEDS 4` der Firmware.
+Der LDR (GL5528) sitzt auf dem LED-Board, nicht auf dem Controller.
+
+**Korrektur:** Verbaut sind **SKC6812RGBW-BW** von OPSCO (LCSC C5181320), nicht
+SK6812RGBW. Die Unterschiede betreffen das Protokoll: Die SKC-Variante braucht eine
+Reset-Pause von mehr als 200 us statt 80 us. Die Firmware traegt dem bereits Rechnung
+-- `sk6812.c` fuehrt zwei Timing-Saetze, aktiv ist der mit 250 us Pause, kommentiert
+mit "usable for SK6812 and SK6812C". Der abgeschaltete Zweig haette nur 100 us und
+wuerde sporadische Anzeigefehler erzeugen, die wie ein Wackelkontakt aussehen.
+
+Weiter dokumentiert: Der Stecker zwischen den Platinen ist **gespiegelt** belegt
+(Controller-Pin n gehoert an LED-Board-Pin 8-n), und in der Datenleitung liegen zwei
+Serienwiderstaende hintereinander -- 330 Ohm auf dem Controller plus 220 Ohm auf dem
+LED-Board, zusammen 550 Ohm.
+
+### Neue Befunde L9 bis L11
+
+- **L9:** Die Rueckstellsicherung im USB-C-Zweig haelt 1,5 A. Bei heller Anzeige ueber
+  R+G+B kommen nach ueblicher Annahme rund 2,4 A zusammen. Eine Rueckstellsicherung
+  schaltet nicht ab, sondern laesst die Spannung allmaehlich sacken -- das passt zum
+  Bild "laeuft meistens, haengt gelegentlich". Rechnung, keine Messung.
+- **L10:** Zwei Unstimmigkeiten in der Stueckliste des LED-Boards (C116-Wert, falsche
+  LCSC-Nummer bei R4).
+- **L11:** Kein Ambilight-Ausgang am LED-Board -- die Kette endet auf der Platine.
+
 ## 2026-09-30 Hardware erfasst und gegen die Firmware abgeglichen
 
 Reine Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
