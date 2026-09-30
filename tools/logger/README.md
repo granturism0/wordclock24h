@@ -240,20 +240,22 @@ export LOG_USER=deinname
 
 ## 7. Was auf dich zukommt — Datenmenge
 
-Die Firmware protokolliert **jeden** LED-Refresh, und die Minutenpunkte werden mit
-hoher Rate aktualisiert. Das ergibt eine erhebliche Datenmenge. Miss sie selbst:
+**Gemessen am 30.09.2026 im Ruhezustand: rund 31 Byte/s, also etwa 2,7 MB pro Tag.**
+Das ist unkritisch. Die Rotation (14 Tage, komprimiert, maximal 200 MB je Datei) hat
+reichlich Luft.
 
 ```bash
 ./tools/logger/log.sh stats
 ```
 
-Die Ausgabe nennt Byte pro Sekunde und hochgerechnet MB pro Tag. Die Rotation ist auf
-**14 Tage, komprimiert, maximal 200 MB je Datei** eingestellt — die Zeilen wiederholen
-sich stark, deshalb komprimiert das sehr gut.
+Die Ausgabe nennt Byte pro Sekunde und hochgerechnet MB pro Tag.
 
-Wird es zu viel, ist das kein Konfigurationsproblem, sondern ein Befund: Massnahme 13
-aus `REVIEW.md` will genau dieses Logging im heissen Pfad abstellen. Der Mitschnitt
-macht es zum ersten Mal messbar.
+> **Korrektur einer früheren Annahme:** Hier stand zunächst, es seien mehrere hundert MB
+> pro Tag zu erwarten. Diese Schätzung stützte sich auf die Angabe „Minuten-LEDs mit
+> 64 Hz" aus `REVIEW.md` und lag um **Faktor 225** daneben. Im Ruhezustand erscheinen
+> rund 0,1 `sk6812_refresh`-Paare je Sekunde, nicht 64. Die Firmware protokolliert nur
+> bei Ereignissen. Während Tickern und Animationen kann die Rate deutlich höher liegen
+> — das ist noch nicht gemessen.
 
 ---
 
@@ -349,15 +351,26 @@ Lass das ein paar Tage laufen, bevor du es auswertest. Ein einzelner Tag sagt we
 
 ### T4 — Blockaden sichtbar machen
 
-Das ist der Test, den es ohne Mitschnitt gar nicht geben kann. Die Firmware gibt
-laufend aus; **eine Lücke im Log heisst, dass der Hauptloop in dieser Zeit stand.**
+Der Test, den es ohne Mitschnitt gar nicht geben kann.
 
 ```bash
 ./tools/logger/log.sh gaps 500
 ```
 
-Zeigt jede Pause über 500 ms, mit der Zeile davor und danach. Der Watchdog schlägt bei
-20 s zu — alles darüber ist ein Reset, alles zwischen 0,5 s und 20 s eine überstandene
+Zeigt jede Pause über 500 ms, mit der Zeile davor und danach.
+
+**Eine Lücke allein beweist noch keine Blockade.** Die Firmware protokolliert nur bei
+Ereignissen — im Ruhezustand vergehen regelmässig zehn Sekunden und mehr ohne eine
+einzige Zeile. Aussagekräftig ist eine Lücke erst dort, wo eine Fortsetzung erwartet
+wird:
+
+- zwischen `sk6812_refresh: start` und dem zugehörigen `dma started` — die beiden
+  gehören unmittelbar zusammen
+- zwischen `main: call display_clock` und `main: display_clock returned`
+- über einer Minutengrenze hinweg, wo `show_time` fällig wäre
+
+Der Watchdog schlägt bei 20 s zu. Eine Lücke darüber mit anschliessender Startsequenz
+ist ein Reset; eine Lücke zwischen zusammengehörigen Zeilen ist eine überstandene
 Blockade.
 
 Gezielt provozieren, jeweils mit Marke:

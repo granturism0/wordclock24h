@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-30 Erste Messungen am laufenden Geraet
+
+Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.
+
+Der Mitschnitt laeuft. Drei Ergebnisse, alle am Geraet gemessen statt gerechnet.
+
+**Kernbefund 4 aus REVIEW.md ist bestaetigt, aber entschaerft.** 10 HTTP-Requests
+erzeugen exakt 20 Debugzeilen auf der STM-UART, rund 106 Byte je Request -- die
+Schaetzung "~100 Byte" stimmt. Die Burst-These stimmt dagegen nicht: 5 Runden zu je 3
+parallelen Requests ergaben 30 von 30 erwarteten Zeilen, kein Verlust. Der 256-Byte-Ring
+wird laufend geleert, die 300 Byte treffen nicht in einem Fenster ein. Massnahme 6
+bleibt richtig, ist aber kein akuter Fehler.
+
+**Die Logmenge ist weit kleiner als angenommen.** Gemessen: 37 Byte/s, 28 Zeilen/min,
+rund 3 MB/Tag. Meine Schaetzung in der Logger-Anleitung lag bei mehreren hundert MB/Tag
+-- Faktor 225 daneben. Sie stuetzte sich auf "Minuten-LEDs mit 64 Hz" aus REVIEW.md;
+tatsaechlich erscheinen im Ruhezustand rund 0,1 sk6812_refresh-Paare je Sekunde. Die
+Anleitung ist korrigiert, die Annahme als Befund L12 festgehalten. Offen bleibt die Rate
+waehrend Ticker und Animation.
+
+**Eine zerrissene Zeile beobachtet** (L13): zwei Ausgaben ineinandergeschoben. Im
+gezielten Nachtest nicht reproduzierbar -- ein Einzelfall unter rund 200 Zeilen.
+
+### Am Werkzeug nachgebessert
+
+- `log.sh stats` bildet die Rate jetzt ueber die gesamte Laufzeit der Datei statt ueber
+  ein Fenster von fuenf Sekunden. Der Verkehr kommt schubweise, die kurze Messung landete
+  regelmaessig bei null und war damit irrefuehrend.
+- In der Anleitung stand, eine Luecke im Log heisse, der Hauptloop habe gestanden. Das
+  ist zu absolut: Die Firmware protokolliert nur bei Ereignissen, im Ruhezustand vergehen
+  regelmaessig zehn Sekunden ohne eine Zeile. Aussagekraeftig ist eine Luecke erst
+  zwischen Zeilen, die zusammengehoeren -- etwa `sk6812_refresh: start` und
+  `dma started`. Entsprechend praezisiert.
+
 ## 2026-09-30 Dauerhafter Mitschnitt des Debug-UART
 
 Reine Werkzeugaenderung, kein Produktcode, deshalb kein Versionsbump.

@@ -34,14 +34,23 @@ case "$CMD" in
   follow) $SSH "$T" "timeout ${1:-30} tail -n 5 -f '$FILE'" ;;
   mark)   [ $# -gt 0 ] || { echo "Text fehlt" >&2; exit 2; }
           $SSH "$T" "echo 'MARKE: $*' > /run/wordclock-mark" && echo "gesetzt: $*" ;;
-  stats)  $SSH "$T" "
-            echo '--- Dienst';       systemctl is-active wordclock-logger.service
-            echo '--- Groesse';      ls -lh '$FILE' | awk '{print \$5, \$NF}'
-            echo '--- Zeilen gesamt'; wc -l < '$FILE'
-            echo '--- Rate (5 s Messung)'
-            a=\$(stat -c%s '$FILE'); sleep 5; b=\$(stat -c%s '$FILE')
-            echo \$(( (b-a)/5 )) 'Byte/s  =' \$(( (b-a)*17280/1000000 )) 'MB/Tag'
-            echo '--- Platz';        df -h / | tail -1" ;;
+  stats)  # Die Rate wird ueber die GESAMTE Laufzeit der Datei gebildet, nicht ueber
+          # ein kurzes Fenster. Der Verkehr kommt schubweise -- eine Messung ueber
+          # fuenf Sekunden landet regelmaessig bei null und ist damit irrefuehrend.
+          $SSH "$T" "
+            echo '--- Dienst';        systemctl is-active wordclock-logger.service
+            echo '--- Groesse';       du -h '$FILE' | cut -f1
+            echo '--- Zeilen';        wc -l < '$FILE'
+            a=\$(date -d \"\$(head -1 '$FILE' | cut -d' ' -f1)\" +%s 2>/dev/null)
+            b=\$(date -d \"\$(tail -1 '$FILE' | cut -d' ' -f1)\" +%s 2>/dev/null)
+            n=\$(wc -l < '$FILE'); sz=\$(stat -c%s '$FILE'); d=\$(( b - a ))
+            if [ \"\${d:-0}\" -gt 0 ]; then
+              echo \"--- Rate ueber \$(( d / 60 )) min Laufzeit\"
+              echo \"\$(( sz / d )) Byte/s  =  \$(( sz * 864 / d / 10000 )) MB/Tag  =  \$(( n * 60 / d )) Zeilen/min\"
+            else
+              echo '--- Rate: Laufzeit zu kurz'
+            fi
+            echo '--- Platz';         df -h / | tail -1" ;;
   gaps)   MS=${1:-500}
           # Zeitstempel in Millisekunden umrechnen und Abstaende suchen. Eine
           # Luecke im Log heisst: der Hauptloop hat in dieser Zeit nichts
