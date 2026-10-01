@@ -42,6 +42,16 @@ DIR-004:
   geaendert: 2026-09-29 — vorher Gleichschritt aller drei Komponenten, auf Wunsch des Nutzers
              auf komponentenweise Versionierung umgestellt.
 
+DIR-009:
+  regel: "Nach jedem Flashen laeuft ./tools/smoke-device.sh gegen das Geraet. Die
+          Guardrail-Stufen sind ausnahmslos statisch und sagen nichts darueber, ob die
+          Uhr nach einer Aenderung noch funktioniert -- besonders nach Eingriffen in
+          http.cpp, dessen Parameter-Auswertung jeder Request durchlaeuft. Der Test ist
+          ausschliesslich lesend; einzige Ausnahme ist maintenance_reset_stm32 mit
+          Sec-Fetch-Dest: image, wo 403 erwartet wird."
+  gilt_fuer: [release-engineer, alle]
+  seit: 2026-10-02
+
 DIR-008:
   regel: "Die produktive Uhr unter http://192.168.1.184/app/ darf LESEND abgefragt werden
           (GET auf /api/-Endpunkte, die nur Zustand liefern). VERBOTEN ohne ausdrueckliche

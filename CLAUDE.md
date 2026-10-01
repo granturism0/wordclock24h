@@ -67,6 +67,25 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
+### Nach dem Flashen prüfen (DIR-009)
+
+```
+./tools/smoke-device.sh
+```
+
+**Die Guardrail-Stufen sind ausnahmslos statisch** — sie lesen Quelltext und sprechen
+nicht mit dem Gerät. Nach einer Änderung an `http.cpp`, dessen Parameter-Auswertung
+*jeder* Request durchläuft, sagen sie nichts darüber, ob die Uhr noch funktioniert.
+
+Der Smoketest prüft am Gerät: Erreichbarkeit, gemeldete Versionen, alle PWA-Assets,
+elf lesende API-Endpunkte auf die **jeweils erwartete Antwortform**, die
+Legacy-Oberfläche, die Absturzfestigkeit bei Parametern ohne `=` (ESP 3.2.3) und die
+Abwehr eingebetteter Wartungsaufrufe (ESP 3.2.4).
+
+**Ausschliesslich lesend** (DIR-008). Einzige Ausnahme ist `maintenance_reset_stm32`
+mit `Sec-Fetch-Dest: image` — dort *muss* 403 kommen, und käme stattdessen 200, würde
+lediglich der STM neu starten.
+
 ### Warum es zwei Review-Dokumente gibt
 
 `REVIEW.md` (2026-08-12) deckt PWA-Korrektheit, PWA↔STM-Display und UI/UX ab,

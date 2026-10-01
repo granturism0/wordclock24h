@@ -48,6 +48,16 @@ bietet dem Gerät ein OTA-Update auf identische Firmware an.
 Guardrail-Stufe S4 prüft beide Richtungen. Einzig die Kopplung `APP_VERSION` ↔
 `CACHE_NAME` ist dort Kritisch, der Rest Hoch.
 
+## Nach dem Flashen prüfen — DIR-009
+
+```
+./tools/smoke-device.sh
+```
+
+Die Guardrails sind statisch. Dass das Gerät nach dem Flashen noch tut, was es soll,
+sagen sie nicht — das sagt nur dieser Test. **Ein Release ist erst fertig, wenn er
+bestanden ist.**
+
 ## Rollout auf die Synology — DIR-005
 
 Nach jedem erfolgreichen Release gehört das Fabrikat nach
