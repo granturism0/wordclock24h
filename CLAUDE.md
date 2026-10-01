@@ -191,6 +191,11 @@ und ohne Webserver zurücklassen) und `watchdog_reload()` mit weiterhin genau **
 Aufrufstelle.
 
 1. **DS18xx-Messwertvalidierung im STM** (klarster nächster Fix)
+   **Neu belegt (01.10.2026):** `temp_init()` läuft genau einmal beim Start
+   (`main.c:3140`). Scheitert die Erkennung dort, liefert der Sensor bis zum nächsten
+   Reset nur den Fehlercode — am Gerät beobachtet, 11 Fehlerwerte vor einem Reset,
+   1506 gültige danach. Es braucht deshalb **beides**: CRC-Prüfung beim Lesen **und**
+   erneute Erkennung zur Laufzeit.
    Scratchpad-CRC wird beim Read nicht validiert; „online" heisst nur „beim Init
    gefunden", nicht „letzter Messwert gültig". Gewünscht: CRC-Prüfung im Read,
    separates Flag „letzter Messwert gültig", UI-Status um „Messwert ungültig"
