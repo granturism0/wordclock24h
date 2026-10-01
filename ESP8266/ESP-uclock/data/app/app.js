@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.70";
+const APP_VERSION = "1.4.71";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -586,6 +586,8 @@ const I18N = {
     "backup.imported": "importiert",
     "backup.export_success": "Einstellungen wurden exportiert.",
     "backup.export_failed": "Einstellungen konnten nicht exportiert werden.",
+    "backup.export_eeprom_unavailable": "Die Netzwerkeinstellungen liessen sich nicht lesen. Der Export wurde abgebrochen, damit die Sicherung keine leeren WLAN-Felder enthält.",
+    "backup.network_skipped_empty_ssid": "WLAN-Zugangsdaten übersprungen: In der Sicherung steht keine SSID. Die bestehenden Einstellungen bleiben unverändert.",
     "backup.choose_file_first": "Bitte zuerst eine Sicherungsdatei auswählen.",
     "backup.invalid_format": "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei.",
     "backup.incompatible_version": "Inkompatible Backup-Version – Datei mit einer neueren App erstellt.",
@@ -1368,6 +1370,8 @@ const I18N = {
     "backup.imported": "imported",
     "backup.export_success": "Settings were exported.",
     "backup.export_failed": "Settings could not be exported.",
+    "backup.export_eeprom_unavailable": "The network settings could not be read. The export was cancelled so the backup does not contain empty Wi-Fi fields.",
+    "backup.network_skipped_empty_ssid": "Wi-Fi credentials skipped: the backup contains no SSID. The existing settings remain unchanged.",
     "backup.choose_file_first": "Please select a backup file first.",
     "backup.invalid_format": "Invalid file format – no valid WordClock backup file.",
     "backup.incompatible_version": "Incompatible backup version – file was created with a newer app.",
@@ -4039,6 +4043,15 @@ async function ensureBackupExportState() {
     setCurrentEepromSettings(await settleFetchJson(getEepromSettingsUrl(), {}, 5000));
   }
 
+  // Ohne diese Werte stuenden im Backup vier leere WLAN-Felder -- und der Import
+  // schriebe sie spaeter zurueck. Lieber gar kein Backup als eines, das beim
+  // Einspielen die Zugangsdaten loescht.
+  if (!getCurrentEepromSettings().ok) {
+    const error = new Error("eeprom-settings-unavailable");
+    error.backupReason = "eeprom-settings-unavailable";
+    throw error;
+  }
+
   if (!getUpdateTableCurrentFile(getCurrentUpdateTableInfo())) {
     setCurrentUpdateTableInfo(await settleFetchJson(getUpdateTableFilesUrl(), {}, 5000));
   }
@@ -4063,7 +4076,10 @@ async function exportSettingsBackup() {
     setSettingsBackupNote(translate("backup.export_success"), "ok");
     finishButtonFeedback(button, translate("backup.export_button"), "success", translate("backup.exported"));
   } catch (error) {
-    setSettingsBackupNote(translate("backup.export_failed"), "error");
+    const reason = error && error.backupReason === "eeprom-settings-unavailable"
+      ? "backup.export_eeprom_unavailable"
+      : "backup.export_failed";
+    setSettingsBackupNote(translate(reason), "error");
     finishButtonFeedback(button, translate("backup.export_button"), "error", translate("common.error"));
   }
 }
@@ -4917,6 +4933,14 @@ async function importNetworkSettings(network) {
   setSettingsBackupNote("Importiere Netzwerk- und EEPROM-Einstellungen...");
 
   await importNetworkTimeSettings(network);
+
+  // Ein Backup ohne SSID wuerde das Geraet ohne WLAN und ohne Accesspoint
+  // zuruecklassen -- erreichbar dann nur noch ueber die serielle Schnittstelle.
+  // Zeitserver und Zeitzone sind oben bereits importiert, die sind ungefaehrlich.
+  if (!network.wifi_ssid) {
+    setSettingsBackupNote(translate("backup.network_skipped_empty_ssid"), "warn");
+    return;
+  }
 
   const query = new URLSearchParams({
     ssid: network.wifi_ssid || "",

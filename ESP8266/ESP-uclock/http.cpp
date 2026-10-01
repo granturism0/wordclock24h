@@ -7805,25 +7805,38 @@ http_api_eeprom_settings_set ()
     String pap_ssid = ap_ssid;
     String pap_key = ap_key;
 
-    if (! pssid.equals (eeprom_ssid))
+    /* Ein LEERES Feld heisst "nicht aendern", nicht "loeschen".
+     *
+     * Der Backup-Import der PWA sendet diese fuenf Felder bedingungslos. Lief beim
+     * Export der Abruf von /api/eeprom_settings in einen Timeout, stehen im
+     * Sicherungsdokument vier leere Zeichenketten -- und der Import schrieb sie
+     * zurueck. Danach hatte das Geraet keine WLAN-Zugangsdaten mehr, und weil der
+     * AP-Schalter im selben Zug geloescht wurde, auch keinen Accesspoint. wifi.cpp
+     * startet den Webserver nur im Erfolgszweig: Das Geraet war ueber Netzwerk nicht
+     * mehr erreichbar, Rueckweg nur ueber die serielle Schnittstelle.
+     *
+     * Wer eine Zugangskennung wirklich entfernen will, setzt eine neue -- ein
+     * versehentlich leeres Feld darf eine funktionierende Konfiguration nie loeschen.
+     */
+    if (pssid.length () > 0 && ! pssid.equals (eeprom_ssid))
     {
         pssid.toCharArray (eeprom_ssid, EEPROM_SSID_LEN);
         eeprom_save_ssid ();
     }
 
-    if (! pkey.equals (eeprom_ssidkey))
+    if (pkey.length () > 0 && ! pkey.equals (eeprom_ssidkey))
     {
         pkey.toCharArray (eeprom_ssidkey, EEPROM_SSID_KEY_LEN);
         eeprom_save_ssidkey ();
     }
 
-    if (! pap_ssid.equals (eeprom_ap_ssid))
+    if (pap_ssid.length () > 0 && ! pap_ssid.equals (eeprom_ap_ssid))
     {
         pap_ssid.toCharArray (eeprom_ap_ssid, EEPROM_AP_SSID_LEN);
         eeprom_save_ap_ssid ();
     }
 
-    if (! pap_key.equals (eeprom_ap_ssidkey))
+    if (pap_key.length () > 0 && ! pap_key.equals (eeprom_ap_ssidkey))
     {
         pap_key.toCharArray (eeprom_ap_ssidkey, EEPROM_AP_SSID_KEY_LEN);
         eeprom_save_ap_ssidkey ();
@@ -7833,8 +7846,11 @@ http_api_eeprom_settings_set ()
     {
         eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
     }
-    else
+    else if (boot_as_ap && eeprom_ssid[0])
     {
+        /* Den Accesspoint nur abschalten, wenn danach noch ein WLAN bleibt. Sonst
+         * faellt der letzte Weg ins Geraet weg.
+         */
         eeprom_flags &= ~EEPROM_FLAG_BOOT_AS_AP;
     }
 
