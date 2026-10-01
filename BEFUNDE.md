@@ -42,14 +42,14 @@ unter anderem aus `tools/guardrails.sh` und aus vier Agentendefinitionen.
 |---|---|---|---|
 | 1 | `watchdog_reload()` in die langen Busy-Waits | **offen** | `grep -c 'watchdog_reload ('` in `src/**` → weiterhin genau **eine** Aufrufstelle, `main.c:3170` |
 | 2 | Restore-Lücke schliessen | **erledigt** 3.2.5 | `main.c:3699-3711`, Flag wird nur bei wirksamem Restore verbraucht · Spec `specs/restore-luecke/` |
-| 3 | Globale Meldungsfläche ausserhalb der Sections | **offen** | genau ein `role="status"` in `index.html`, und der sitzt am Layout-Warnhinweis |
+| 3 | Globale Meldungsfläche ausserhalb der Sections | **erledigt** PWA 1.4.72 | `#status-banner` liegt nach `</main>`, also ausserhalb jeder `.module-section`, mit `role="status"` und `aria-live="polite"`. `announceStatus()` schreibt zusätzlich dorthin; `#updated-at` behält seinen Hinweis auf der Hauptseite. Fehlermeldungen bleiben 7 s stehen, andere 4 s |
 | 4 | `hasUnsavedEdits` nach dem Speichern zurücksetzen | **offen** | `hasUnsavedEdits = false` nur an `app.js:4092` (Backup-Import) und `:10675` (Overlay verwerfen) |
 | 5 | Die beiden `ReferenceError` beheben | **erledigt** 1.4.70 | `normalizeUrlPath` definiert · `loadDebugOverrides()` null Fehlaufrufe |
 | 6 | HTTP-Debugzeilen für `/api/` unterdrücken | **offen, aber entschärft** | `http.cpp:11196`, `:11251`, `:11305` unverändert. **Am Gerät gemessen (30.09.2026):** 10 Requests erzeugen exakt 20 Debugzeilen auf der STM-UART, rund **106 Byte je Request** — die Schätzung „~100 Byte" aus Review 1 stimmt. Die **Burst-These ist dagegen nicht bestätigt**: 5 Runden zu je 3 parallelen Requests ergaben 30 von 30 erwarteten Zeilen, **kein Verlust**. Der 256-Byte-Ring wird laufend geleert, die 300 Byte treffen nicht in einem Fenster ein. Damit sinkt die Dringlichkeit deutlich — der Hebel bleibt richtig, ist aber kein akuter Fehler |
 | 7 | `file.size > 0` bei App-Install, Längenprüfung im SW | **offen** | siehe Review 2, Massnahme 2 — derselbe Befund ESP-seitig |
 | 8 | Drei fehlende i18n-Keys | **erledigt** 1.4.70 | `common.uploaded`, `common.setting`, `common.set` in beiden Tabellen |
-| 9 | `color-scheme`, Fokus-Stil, `prefers-reduced-motion`, `dvh`, Safe-Area | **offen** | `color-scheme` → **0 Treffer** in `styles.css` und `index.html` |
-| 10 | `.button.primary` und `:disabled` reparieren | **offen** | `styles.css:162` und `:176` weiterhin identisch |
+| 9 | `color-scheme`, Fokus-Stil, `prefers-reduced-motion`, Safe-Area | **grösstenteils erledigt** PWA 1.4.72 | `color-scheme: dark` auf `:root` — **gemessen:** Auswahlfelder jetzt `rgb(59,59,59)` mit weisser Schrift statt weiss. `:focus-visible` mit 2 px in der Akzentfarbe, gemessen `solid 2px` statt `auto 1px`. `prefers-reduced-motion` schaltet Animationen und Übergänge ab. Safe-Area links/rechts in `body` ergänzt — im Querformat frisst der Notch bis 47 px. **Offen bleibt `dvh` beim Modal** |
+| 10 | `.button.primary` und `:disabled` reparieren | **erledigt** PWA 1.4.72 | `.button.primary` hat jetzt kräftigeren Verlauf, deutlichere Randfarbe, `font-weight: 600` und einen Schimmer — vorher deklarierte es exakt dieselben Werte wie `.button`. `:disabled` von `opacity: 0.92` auf `0.45` plus `cursor: not-allowed` |
 | 11 | Nicht-Text-Kontrast auf ≥ 3:1 | **offen** | — |
 | 12 | Fünf Grid-Area-Klassen im HTML nachziehen | **offen** | S6 der Guardrails meldet sie |
 | 13 | Unbedingte `log_printf` im Refresh-Pfad | **zurückgestellt** | S7 meldet sie. Gegenprobe F7 — würde die `icon_freeze`-Messung verfälschen, deshalb erst danach |
@@ -79,7 +79,7 @@ Zusätzlich erledigt, in Review 1 unter „Hoch" statt in der Massnahmenliste:
 | 6 | `display_icon`-Freeze **messen**, dann entscheiden | **in Messung** 3.2.6 | Instrumentierung in `main.c:3171` eingebaut. **Ergebnis steht aus — Gerätetest AK7** |
 | 7 | Safe-Area links/rechts, `dvh`, Kartenmodal-Höhe | **offen** | — |
 | 8 | Globale Meldungsfläche | **offen** | identisch mit Review 1, Massnahme 3 |
-| 9 | `target="_blank"` am Legacy-Link | **offen** | `index.html`, `href="/legacy"` ohne `target` |
+| 9 | `target="_blank"` am Legacy-Link | **erledigt** PWA 1.4.72 | `target="_blank" rel="noopener"`. In der installierten PWA auf iOS gab es sonst keinen Rückweg — und der Link wird gerade dann gebraucht, wenn etwas nicht stimmt |
 | 10 | Hinweis bei `isSecureContext === false` | **offen** | Kernbefund 1 |
 | 11 | Poller bei `document.hidden` stoppen | **offen** | `app.js:2170`, `visibilitychange` ohne `else` |
 | 12 | `watchdog_reload()` in Busy-Waits, inkl. `remote_ir_learn()` | **zurückgestellt** | identisch mit Review 1, Massnahme 1. Ändert Verhalten auf laufender Firmware, braucht eigene Spec mit Geräteverifikation |

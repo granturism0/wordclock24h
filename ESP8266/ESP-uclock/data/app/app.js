@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.71";
+const APP_VERSION = "1.4.72";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -2324,7 +2324,35 @@ function handleDirtyFormInteraction(event) {
   hasUnsavedEdits = true;
 }
 
+let statusBannerTimer = 0;
+
+// Zeigt die Meldung dort, wo sie in JEDEM Bereich sichtbar ist. #updated-at bleibt
+// zusaetzlich beschrieben, damit die Hauptseite ihren gewohnten Hinweis behaelt.
+function showStatusBanner(message, tone) {
+  const banner = document.getElementById("status-banner");
+  if (!banner || !message) {
+    return;
+  }
+
+  banner.textContent = message;
+  banner.classList.remove("is-ok", "is-error", "is-warn");
+  if (tone === "ok" || tone === "error" || tone === "warn") {
+    banner.classList.add("is-" + tone);
+  }
+  banner.classList.add("is-visible");
+
+  if (statusBannerTimer) {
+    window.clearTimeout(statusBannerTimer);
+  }
+  statusBannerTimer = window.setTimeout(() => {
+    banner.classList.remove("is-visible");
+    statusBannerTimer = 0;
+  }, tone === "error" ? 7000 : 4000);
+}
+
 function announceStatus(message, tone) {
+  showStatusBanner(message, tone);
+
   const element = document.getElementById("updated-at");
   if (!element) {
     return;

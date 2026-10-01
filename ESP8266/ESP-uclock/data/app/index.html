@@ -47,7 +47,7 @@
         </div>
         <div id="layout-table-warning-global" class="module-warning is-hidden" role="status"></div>
         <div class="hero-actions">
-          <a id="legacy-entry-link" class="button primary" href="/legacy" data-i18n="hero.legacy_button">Legacy-Seite</a>
+          <a id="legacy-entry-link" class="button primary" href="/legacy" target="_blank" rel="noopener" data-i18n="hero.legacy_button">Legacy-Seite</a>
           <button id="reload-button" class="button" type="button" data-i18n="hero.reload_button">Neu laden</button>
         </div>
       </div>
@@ -818,6 +818,12 @@
       </section>
     </main>
   </div>
+
+  <!-- Statusmeldungen gehoeren NACH ausserhalb der Module-Sections: #updated-at liegt
+       in der Hauptseite, und .module-section ohne .is-active ist display:none. Wer in
+       Netzwerk, Wartung oder Backup arbeitete, bekam deshalb keine einzige Rueckmeldung
+       zu sehen. role="status" meldet sie zusaetzlich an Screenreader. -->
+  <div id="status-banner" class="status-banner" role="status" aria-live="polite"></div>
 
   <div id="weather-map-modal" class="modal-shell is-hidden" aria-hidden="true">
     <div class="modal-card">
