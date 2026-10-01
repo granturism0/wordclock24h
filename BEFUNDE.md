@@ -71,8 +71,8 @@ Zusätzlich erledigt, in Review 1 unter „Hoch" statt in der Massnahmenliste:
 
 | # | Massnahme | Status | Beleg |
 |---|---|---|---|
-| 1 | Null-Prüfung in `normalize_http_parameters` | **offen** | ESP-Absturz per `GET /?a`, aus dem ganzen LAN auslösbar |
-| 2 | `http_fs_file_exists_and_nonempty` auf dem Auslieferungspfad | **offen** | Helfer existiert (`http.cpp:1090`), benutzt nur an `:1129`/`:1130`. Auslieferpfad `:1418`, `:1432`, `:1047` prüft weiter nur `exists()` |
+| 1 | Null-Prüfung in `normalize_http_parameters` | **erledigt** ESP 3.2.3 | Zwei Ursachen, beide behoben: `.value` blieb beim `&`-Zweig auf dem Wert des vorherigen Parameters stehen, und die Funktion dereferenzierte ungeprüft. Jetzt wird `.value` beim Anlegen jedes Namens auf NULL gesetzt **und** bei NULL sofort zurückgekehrt. **Am Gerät geprüft:** sieben Varianten (`/?a`, `/?abc`, `/?a&b`, `/?a&b&c`, `/api/settings_xml?x`, `/?=`, `/?&`) — alle 200 OK, ESP durchgehend erreichbar |
+| 2 | `http_fs_file_exists_and_nonempty` auf dem Auslieferungspfad | **erledigt** ESP 3.2.3 | Alle drei Stellen umgestellt: `http_send_fs_file()` sowie beide Fundstellen in `http_find_stored_app_asset_filename()`. Dafür war eine Forward-Deklaration nötig, weil der Helfer weiter unten im File steht. **Am Gerät geprüft:** sechs Assets werden unverändert ausgeliefert, `Content-Encoding: gzip` korrekt |
 | 3 | Backup-Export/-Import absichern | **offen** | kann das Gerät ohne WLAN, ohne AP und ohne Webserver zurücklassen |
 | 4 | `apiFetch` statt rohem `fetch` im Flash-Pfad | **offen** | `app.js:9148` |
 | 5 | `finishProgressUi(2200)` statt `(0)` | **offen** | `app.js:9126`, fehlgeschlagener Flash nur einen Frame sichtbar |

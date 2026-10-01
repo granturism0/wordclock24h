@@ -168,6 +168,7 @@ static int              http_api_display_power ();
 static int              http_api_ambilight_power ();
 static int              http_api_power_status ();
 static int              http_api_update_progress ();
+static bool             http_fs_file_exists_and_nonempty (const char * filename);
 static uint_fast8_t     http_filename_matches (const char * actual, const char * expected);
 static uint_fast8_t     http_local_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_remote_stm32_filename_matches (const char * actual);
@@ -1044,7 +1045,12 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
 
     LittleFS.begin ();
 
-    if (LittleFS.exists (filename))
+    /* Nicht LittleFS.exists(): Eine 0-Byte-Datei existiert und wuerde mit 200 OK
+     * ausgeliefert. Bei app.js.gz bedeutet das einen weissen Bildschirm, und die PWA
+     * ist danach nicht mehr bedienbar, um es zu korrigieren. Genau dieser Fall ist
+     * real eingetreten; die Invariante steht in CLAUDE.md.
+     */
+    if (http_fs_file_exists_and_nonempty (filename))
     {
         File fp = LittleFS.open (filename, "r");
 
@@ -1415,7 +1421,7 @@ http_find_stored_app_asset_filename (const char * asset_path, char * filename, s
 
     // flattened .gz  (OTA / PWA-upload path)
     if (app_asset_storage_filename (asset_path, 1, local_filename, sizeof (local_filename)) &&
-        LittleFS.exists (local_filename))
+        http_fs_file_exists_and_nonempty (local_filename))
     {
         if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
         if (gzip_encoded) { *gzip_encoded = 1; }
@@ -1429,7 +1435,7 @@ http_find_stored_app_asset_filename (const char * asset_path, char * filename, s
 
         snprintf (local_filename, sizeof (local_filename), "%s.gz", base);
 
-        if (LittleFS.exists (local_filename))
+        if (http_fs_file_exists_and_nonempty (local_filename))
         {
             if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
             if (gzip_encoded) { *gzip_encoded = 1; }
@@ -1654,6 +1660,11 @@ http_app (const char * path)
 static void
 normalize_http_parameters (char * p)
 {
+    if (! p)                                                // ein Parameter ohne '=' hat keinen Wert
+    {
+        return;
+    }
+
     while (*p)
     {
         if (*p == '%')
@@ -1686,6 +1697,7 @@ http_set_params (char * paramlist)
     if (paramlist && *paramlist)
     {
         http_parameters[idx].name = paramlist;
+        http_parameters[idx].value = (char *) 0;            // siehe unten
 
         for (p = paramlist; idx < MAX_HTTP_PARAMS - 1 && *p; p++)
         {
@@ -1699,6 +1711,15 @@ http_set_params (char * paramlist)
                 *p = '\0';
                 idx++;
                 http_parameters[idx].name = p + 1;
+
+                /* Ohne dieses Zuruecksetzen behaelt .value den Wert des vorherigen
+                 * Parameters -- und beim ersten Request nach dem Start zeigt es ins
+                 * Nichts. Eine Anfrage wie "GET /?a" (Parameter ohne '=') liess
+                 * normalize_http_parameters() dann in einen Stackpuffer schreiben,
+                 * dessen Frame laengst weg war. Aus dem ganzen LAN ausloesbar,
+                 * ohne Anmeldung.
+                 */
+                http_parameters[idx].value = (char *) 0;
             }
         }
         idx++;
