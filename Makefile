@@ -19,7 +19,7 @@ RELEASE_ZIP ?= $(RELEASE_DIR)/wordclock-release-$(shell date +"%Y-%m-%d-%H%M").z
 STM_VERSION_FILE ?= $(BUILD_DIR)/wc.txt
 ESP_VERSION_FILE ?= $(ESP_BUILD_DIR)/ESP-WordClock.txt
 
-.PHONY: configure f103 f411 all esp release-zip stm-version-file esp-version-file app-version-file app-gz clean clean-stm clean-esp clean-release clean-app-gz
+.PHONY: configure f103 f411 all esp release-zip stm-version-file esp-version-file app-version-file app-gz clean clean-stm clean-esp clean-release clean-app-gz say-stm say-esp say-versions
 
 configure:
 	$(CMAKE) $(CONFIGURE_ARGS)
@@ -27,14 +27,17 @@ configure:
 f103: configure
 	$(CMAKE) --build $(BUILD_DIR) --target wordclock_f103_rgbw -j4
 	$(MAKE) stm-version-file
+	@$(MAKE) --no-print-directory say-stm
 
 f411: configure
 	$(CMAKE) --build $(BUILD_DIR) --target wordclock_f411_rgbw -j4
 	$(MAKE) stm-version-file
+	@$(MAKE) --no-print-directory say-stm
 
 all: configure
 	$(CMAKE) --build $(BUILD_DIR) -j4
 	$(MAKE) stm-version-file
+	@$(MAKE) --no-print-directory say-stm
 
 esp:
 	"$(ARDUINO_CLI)" compile --fqbn '$(ESP_FQBN)' --build-path $(ESP_BUILD_DIR) $(ESP_SKETCH_DIR)
@@ -42,6 +45,7 @@ esp:
 	cp $(ESP_BUILD_DIR)/ESP-uclock.ino.elf $(ESP_BUILD_DIR)/$(ESP_OUTPUT_BASENAME).elf
 	cp $(ESP_BUILD_DIR)/ESP-uclock.ino.map $(ESP_BUILD_DIR)/$(ESP_OUTPUT_BASENAME).map
 	$(MAKE) esp-version-file
+	@$(MAKE) --no-print-directory say-esp
 
 stm-version-file:
 	mkdir -p $(BUILD_DIR)
@@ -54,6 +58,20 @@ esp-version-file:
 app-version-file:
 	mkdir -p $(ESP_BUILD_DIR)
 	grep '^const APP_VERSION' $(APP_VERSION_SOURCE) | head -n 1 | cut -d'"' -f2 > $(APP_VERSION_FILE)
+
+# arduino-cli meldet im Protokoll die PLATTFORM ("esp8266:esp8266 3.1.2") -- das ist
+# der Framework-Stand, nicht unsere Firmware. Beide fangen mit "3." an und stehen zwei
+# Zeilen auseinander; das hat schon zur Verwechslung gefuehrt. Deshalb sagt jedes
+# Build-Ziel am Ende ausdruecklich, WELCHE unserer Versionen entstanden ist.
+say-stm: stm-version-file
+	@printf '\n  gebaut: STM-Firmware %s\n\n' "$$(cat $(STM_VERSION_FILE))"
+
+say-esp: esp-version-file
+	@printf '\n  gebaut: ESP-Firmware %s   (esp8266-Plattform oben ist der Framework-Stand)\n\n' "$$(cat $(ESP_VERSION_FILE))"
+
+say-versions: stm-version-file esp-version-file app-version-file
+	@printf '\n  STM-Firmware: %s\n  ESP-Firmware: %s\n  PWA:          %s\n\n' \
+		"$$(cat $(STM_VERSION_FILE))" "$$(cat $(ESP_VERSION_FILE))" "$$(cat $(APP_VERSION_FILE))"
 
 app-gz:
 	@for f in $(GZIP_SOURCES); do \
@@ -83,6 +101,7 @@ release-zip: app-gz app-version-file f103 f411 esp
 	@echo
 	@echo "Release ZIP ready:"
 	@echo "  $(RELEASE_ZIP)"
+	@$(MAKE) --no-print-directory say-versions
 
 clean:
 	rm -rf $(BUILD_DIR) $(ESP_BUILD_DIR) $(RELEASE_DIR)
