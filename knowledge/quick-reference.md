@@ -66,6 +66,7 @@ Betrifft direkt `display.c` (Display-Zustandsmaschine) und `ds18xx.c`/`tempsenso
 | Modal ohne `role="dialog"`, Fokus-Management und Escape | Ergänzen | Hoch |
 | Rand- oder Umrissfarbe eines Bedienelements unter 3:1 | Anheben. WCAG 2.1 SC 1.4.11 | Hoch |
 | C-Quellen mit Python im **Textmodus** patchen | **Binär lesen und schreiben.** Die Quellen haben gemischte Zeilenenden — `vars.c` etwa 940 CRLF und 45 LF. Universal Newlines vereinheitlichen sie still, und aus einem Dreizeiler wird ein Diff über die ganze Datei | Kritisch |
+| Suchmuster mit Umlauten binär patchen | **Umlaute aus dem Muster heraushalten.** Der Patcher kodiert `latin-1`, die ESP-Quellen sind UTF-8 — ein `ü` im Muster trifft nie. Kostete einen stillen Fehlschlag, der erst beim Nachzählen auffiel | Hoch |
 | `outline: none` ohne Ersatz | Eigenen Fokusstil setzen | Hoch |
 | Neues `<select>`, `time`, `color` oder `range` ohne `color-scheme` | `color-scheme: dark` setzen, sonst heller Picker auf iOS | Mittel |
 | CSS-Klasse angelegt, aber im HTML nie gesetzt | Im HTML nachziehen oder CSS entfernen. Guardrail-Stufe 6 meldet das | Mittel |

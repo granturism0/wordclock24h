@@ -231,6 +231,89 @@ static char             http_app_asset_local_filename[128];
 static char             http_app_asset_remote_filename[128];
 static char             http_app_asset_stale_filename[128];
 
+/* Sec-Fetch-Dest des laufenden Requests.
+ *
+ * Browser senden diesen Header bei jeder Anfrage mit und nennen darin, WOFUER die
+ * Antwort gedacht ist: "document" bei einem Seitenaufruf, "empty" bei fetch(),
+ * "image" bei einem <img src=...>. Genau das unterscheidet einen bewussten Aufruf
+ * von einem, den eine fremde Seite im Hintergrund ausloest.
+ */
+static char             http_request_fetch_dest[24];
+
+static void
+http_clear_request_fetch_dest (void)
+{
+    http_request_fetch_dest[0] = '\0';
+}
+
+static void
+http_capture_request_fetch_dest (const String& line)
+{
+    String v;
+
+    if (! line.startsWith ("Sec-Fetch-Dest:"))
+    {
+        return;
+    }
+
+    v = line.substring (15);
+    v.trim ();
+    strncpy (http_request_fetch_dest, v.c_str (), sizeof (http_request_fetch_dest) - 1);
+    http_request_fetch_dest[sizeof (http_request_fetch_dest) - 1] = '\0';
+}
+
+/* Wahr, wenn die Antwort als eingebettete Ressource verwendet werden soll -- Bild,
+ * Schrift, Stylesheet und dergleichen. Eine Wartungsaktion darf daraus nie entstehen.
+ *
+ * Ein <img src="http://<uhr>/api/maintenance_format_fs"> auf einer beliebigen Seite
+ * im Heimnetz genuegte bisher, um das Dateisystem zu loeschen: die PWA, die
+ * Layout-Tabelle und die Icon-Dateien. Die Rueckfragen dagegen stehen nur in der
+ * Oberflaeche, nicht im Geraet -- wer die URL direkt aufruft, umgeht sie.
+ *
+ * Grenzen, bewusst in Kauf genommen: Aeltere Browser senden den Header nicht, dann
+ * bleibt es beim bisherigen Verhalten. Gegen ein gezieltes curl hilft das ebenfalls
+ * nicht. Es schliesst den Weg, der versehentlich getroffen wird, nicht jeden.
+ */
+static uint_fast8_t
+http_request_is_embedded_subresource (void)
+{
+    static const char * const dests[] =
+    {
+        "image", "audio", "video", "font", "style", "script",
+        "track", "embed", "object", "manifest", (const char *) 0
+    };
+    int i;
+
+    if (! http_request_fetch_dest[0])
+    {
+        return 0;                                           // Header fehlt: nicht entscheidbar
+    }
+
+    for (i = 0; dests[i]; i++)
+    {
+        if (! strcmp (http_request_fetch_dest, dests[i]))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void
+http_deny_embedded_subresource (const char * what)
+{
+    Serial.print ("- abgewiesen: ");
+    Serial.print (what);
+    Serial.print (" als Sec-Fetch-Dest=");
+    Serial.println (http_request_fetch_dest);
+    Serial.flush ();
+
+    http_send (FS("HTTP/1.0 403 Forbidden\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":false,\"error\":\"embedded-subresource\"}"));
+    http_flush ();
+}
+
 static void
 http_clear_request_user_agent (void)
 {
@@ -8001,6 +8084,12 @@ http_api_update_download_table ()
 static int
 http_api_maintenance_format_fs ()
 {
+    if (http_request_is_embedded_subresource ())
+    {
+        http_deny_embedded_subresource ("maintenance_format_fs");
+        return 0;
+    }
+
     LittleFS.begin ();
     LittleFS.format ();
     LittleFS.end ();
@@ -8015,6 +8104,16 @@ http_api_maintenance_format_fs ()
 static int
 http_api_maintenance_reset_stm32 ()
 {
+    /* Bewusst auch hier, obwohl ein STM-Reset nichts loescht: Daran laesst sich die
+     * Schutzlogik pruefen, ohne Daten zu riskieren -- die beiden anderen Endpunkte
+     * kann man zum Testen nicht aufrufen.
+     */
+    if (http_request_is_embedded_subresource ())
+    {
+        http_deny_embedded_subresource ("maintenance_reset_stm32");
+        return 0;
+    }
+
     update_progress_state ("reset", "STM32 wird zurückgesetzt.");
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
@@ -8029,6 +8128,12 @@ http_api_maintenance_reset_stm32 ()
 static int
 http_api_maintenance_reset_eeprom ()
 {
+    if (http_request_is_embedded_subresource ())
+    {
+        http_deny_embedded_subresource ("maintenance_reset_eeprom");
+        return 0;
+    }
+
     rpc (RESET_EEPROM_RPC_VAR);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -11213,6 +11318,7 @@ http_server_loop (void)
 
     sRemoteIp = http_client.remoteIP().toString();
     http_clear_request_user_agent ();
+    http_clear_request_fetch_dest ();                       // sonst wirkt der vorige Request nach
 
     Serial.print ("- new client");
     if (sRemoteIp.length ())
@@ -11320,6 +11426,10 @@ http_server_loop (void)
             if (sHeaderLine.startsWith ("User-Agent:"))
             {
                 http_capture_request_user_agent (sHeaderLine);
+            }
+            else if (sHeaderLine.startsWith ("Sec-Fetch-Dest:"))
+            {
+                http_capture_request_fetch_dest (sHeaderLine);
             }
         }
 
