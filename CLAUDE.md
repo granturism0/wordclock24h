@@ -67,6 +67,22 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
+### Die PWA kommt nicht durch den Rollout aufs Gerät
+
+`tools/deploy.sh` bringt die Assets auf den **Update-Server**. Auf der Uhr liegen sie
+im LittleFS und müssen eigens hochgeladen werden:
+
+```
+./tools/install-app.sh --check     zeigt lokal gegen Gerät
+./tools/install-app.sh             lädt hoch
+```
+
+Das ist lange übersehen worden: Am 02.10.2026 lief auf dem Gerät noch **1.4.69**,
+während Repo und Server bei 1.4.71 standen — alle PWA-Korrekturen der Tage davor waren
+nirgends wirksam. `/api/update_download_assets` hilft nicht, obwohl der Name es
+nahelegt: Der Endpunkt lädt nur die Icon- und Wetterdatei nach und meldet trotzdem
+`{"ok":true}`.
+
 ### Nach dem Flashen prüfen (DIR-009)
 
 ```
