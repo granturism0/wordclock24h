@@ -16,8 +16,17 @@
 #include "eep.h"
 #include "eeprom-data.h"
 #include "log.h"
+#include "delay.h"
+#include "main.h"
 
 static  IRMP_DATA   irmp_data_array[N_REMOTE_IR_CMDS];
+
+/* Wartezeit je Taste. var_send_buf() bricht nach 3 s ab, dort wartet aber eine Maschine.
+ * Hier wartet ein Mensch, der erst den Ticker lesen und dann die Fernbedienung suchen muss --
+ * 30 s sind dafuer reichlich und lassen die Uhr trotzdem nicht ewig stehen, wenn niemand drueckt.
+ */
+#define REMOTE_IR_LEARN_TIMEOUT_MSEC    30000
+#define REMOTE_IR_LEARN_POLL_MSEC       1
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * search for a previously stored IR command
@@ -80,10 +89,11 @@ remote_ir_learn (void)
 {
     uint_fast8_t    rtc = 1;
     uint_fast8_t    i;
+    uint_fast32_t   waited_msec;
     IRMP_DATA       dummy;
     const char * t;
 
-    for (i = 0; i < N_REMOTE_IR_CMDS; i++)
+    for (i = 0; i < N_REMOTE_IR_CMDS && rtc; i++)                                   // rtc == 0: abgebrochen, Rest nicht mehr abfragen
     {
         switch (i)
         {
@@ -114,6 +124,8 @@ remote_ir_learn (void)
 
         irmp_get_data (&dummy);
 
+        waited_msec = 0;
+
         while (1)
         {
             if (irmp_get_data (&irmp_data_array[i]))                                            // read ir data
@@ -128,10 +140,40 @@ remote_ir_learn (void)
                     }
                 }
             }
+
+            /* Hier wird auf einen Menschen gewartet, ueber bis zu N_REMOTE_IR_CMDS Durchlaeufe.
+             * Ohne Reload faellt der IWDG nach 20 s zu, obwohl das Warten gewollt ist -- deshalb
+             * wird er bedient, wie in display_test(). Und weil "gewollt" nicht "unbegrenzt" heisst,
+             * bricht die Schleife ab, wenn niemand eine Taste drueckt.
+             */
+            delay_msec (REMOTE_IR_LEARN_POLL_MSEC);
+            watchdog_reload ();
+
+            waited_msec += REMOTE_IR_LEARN_POLL_MSEC;
+
+            if (waited_msec >= REMOTE_IR_LEARN_TIMEOUT_MSEC)
+            {
+                rtc = 0;                                                            // Aufrufer schreibt dann nichts ins EEPROM
+                break;
+            }
         }
     }
 
-    display_set_ticker ((const unsigned char *) "  Thank you!", 1);
+    if (rtc)
+    {
+        display_set_ticker ((const unsigned char *) "  Thank you!", 1);
+    }
+    else
+    {
+        /* Abgebrochen: irmp_data_array ist bis zur aktuellen Taste halb beschrieben, das EEPROM
+         * dagegen unveraendert. Beides wieder in Deckung bringen, sonst reagiert die Uhr bis zum
+         * naechsten Reset auf halb gelernte Codes.
+         */
+        remote_ir_read_codes_from_eep ();
+
+        display_set_ticker ((const unsigned char *) "  timeout", 1);
+        log_message ("IR learn aborted: timeout, codes unchanged");
+    }
 
     return rtc;
 }

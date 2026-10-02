@@ -233,6 +233,10 @@
           </div>
           <div class="control-stack">
             <label class="field"><span class="label" data-i18n="network.found_ssids">Gefundene WLANs</span><select id="network-ssid-select"></select></label>
+            <!-- Ein verstecktes Netz strahlt seine SSID nicht aus und taucht in der
+                 Trefferliste nie auf. Ohne dieses Feld war es ueber die PWA nicht
+                 einzurichten, obwohl die Legacy-Seite es konnte (BEFUNDE.md, L24). -->
+            <label class="field"><span class="label" data-i18n="network.manual_ssid">Oder SSID von Hand (verstecktes Netz)</span><input id="network-ssid-manual-input" type="text" maxlength="32" data-i18n-placeholder="network.manual_ssid_placeholder" placeholder="leer lassen, wenn oben gewählt"></label>
             <label class="field"><span class="label" data-i18n="network.wifi_password">WLAN-Passwort</span><input id="network-key-input" type="password" maxlength="32" data-i18n-placeholder="network.wifi_password_placeholder" placeholder="Passwort für WLAN-Client"></label>
             <div class="hero-actions">
               <button id="network-scan-button" class="button" type="button" data-i18n="network.scan">WLANs neu laden</button>
@@ -264,7 +268,10 @@
             </div>
           </div>
           <div class="control-stack">
-            <label class="field"><span class="label" data-i18n="network.timeserver">Zeitserver</span><input id="network-timeserver-input" type="text" maxlength="32" placeholder="pool.ntp.org"></label>
+            <label class="field"><span class="label" data-i18n="network.timeserver">Zeitserver</span><!-- 16, nicht 32: MAX_TIMESERVER_NAME_LEN im ESP ist 16. Vorher liess sich
+                 "0.europe.pool.ntp.org" eintippen, wurde still abgeschnitten, und die
+                 Zeitsynchronisation scheiterte danach stumm (BEFUNDE.md, L23). -->
+            <input id="network-timeserver-input" type="text" maxlength="16" placeholder="pool.ntp.org"></label>
             <button id="network-timeserver-save-button" class="button primary" type="button" data-i18n="network.save_timeserver">Zeitserver speichern</button>
             <div class="time-grid">
               <label class="field"><span class="label" data-i18n="network.timezone">Zeitzone (GMT +/-)</span><input id="network-timezone-input" type="number" min="-12" max="14" step="1" inputmode="numeric"></label>

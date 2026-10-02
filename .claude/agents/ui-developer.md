@@ -5,6 +5,11 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 color: blue
 hooks:
   PreToolUse:
+    - matcher: "Write|Edit|NotebookEdit|Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/file-ownership.py" --agent ui-developer
+          timeout: 10
     - matcher: "Bash"
       hooks:
         - type: command

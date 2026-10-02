@@ -9,13 +9,14 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.74";
+const APP_VERSION = "1.4.75";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
   de: {
     "app.title": "WordClock",
     "app.version_label": "App-Version",
+    "app.insecure_context": "Ohne HTTPS gibt es keinen Service Worker: Offline-Betrieb und Installation als App stehen über diese Adresse nicht zur Verfügung. Die Bedienung funktioniert trotzdem vollständig.",
     "language.de": "Deutsch",
     "language.en": "English",
     "hero.eyebrow": "Parallel zur Legacy-Seite",
@@ -119,6 +120,9 @@ const I18N = {
     "network.connect_client": "Als WLAN-Client verbinden",
     "network.connect_client_error": "WLAN-Client konnte nicht gesetzt werden",
     "network.connect_client_started": "WLAN-Client-Verbindung wurde angestossen",
+    "network.manual_ssid": "Oder SSID von Hand (verstecktes Netz)",
+    "network.manual_ssid_placeholder": "leer lassen, wenn oben gewählt",
+    "network.ssid_missing": "Bitte zuerst ein WLAN auswählen oder die SSID von Hand eintragen.",
     "network.ap_eyebrow": "Access Point",
     "network.ap_title": "Eigenes WLAN bereitstellen",
     "network.ap_hint": "Hilfreich für Erstinbetriebnahme oder wenn kein vorhandenes WLAN genutzt werden soll.",
@@ -251,6 +255,8 @@ const I18N = {
     "display.fade_clock_seconds": "Sekunden weich ausblenden",
     "display.fade_clock_seconds_disable": "Weiches Ausblenden deaktivieren",
     "display.five_second_markers": "5-Sekunden Marker",
+    "display.ambilight_markers": "5-Sekunden-Marker aktivieren",
+    "display.ambilight_markers_disable": "5-Sekunden-Marker deaktivieren",
     "display.ambilight_modes_unavailable": "Für die erkannte Hardware gibt es keine konfigurierbaren Ambilight-Modi.",
     "display.default_set_failed": "Standardwert konnte nicht gesetzt werden",
     "display.ambilight_default_set_failed": "Ambilight-Standardwert konnte nicht gesetzt werden",
@@ -494,6 +500,8 @@ const I18N = {
     "maintenance.version_available_no": "nicht möglich",
     "maintenance.local_update_unavailable": "Lokales Update ist bei dieser ESP-Flashgrösse nicht verfügbar.",
     "maintenance.choose_file_for_target": "Bitte zuerst eine Datei für {target} auswählen.",
+    "maintenance.file_empty": "{file} ist 0 Byte gross und wird nicht hochgeladen — eine leere Datei würde die vorhandene ersetzen.",
+    "maintenance.file_empty_status": "Leere Datei wird nicht hochgeladen",
     "maintenance.file_expected_pattern": "Falsche Datei ausgewählt. Erwartet wird ein passendes Tabellenmuster wie {pattern} für {target}.",
     "maintenance.file_expected_exact": "Falsche Datei ausgewählt. Erwartet wird {target}.",
     "maintenance.txt_required": "{target} muss eine .txt-Datei sein.",
@@ -541,6 +549,8 @@ const I18N = {
     "status.waiting_for_data": "Wartet auf Daten...",
     "status.updated_at": "Aktualisiert {time}",
     "status.data_load_failed": "Daten konnten nicht geladen werden",
+    "input.number_required": "Bitte einen Wert zwischen {min} und {max} eintragen. Ein leeres Feld wird nicht gespeichert.",
+    "status.settings_parse_error": "Die Konfiguration des Geräts ist beschädigt und konnte nicht gelesen werden. Ein Anführungszeichen in Ort, Tickertext, AppID oder Update-Host ist die häufigste Ursache — korrigiere es über die Legacy-Oberfläche.",
     "overview.display_mode": "Display-Modus",
     "overview.brightness": "Helligkeit",
     "overview.auto_brightness": "Automatische Helligkeit",
@@ -673,6 +683,8 @@ const I18N = {
     "local_app.note_complete": "App-Ordner vollständig erkannt. {found}/{total} Dateien sind bereit und können direkt installiert werden.",
     "local_app.note_missing": "App-Ordner geprüft. {found}/{total} Dateien gefunden. Es fehlen: {missing}",
     "local_app.incomplete": "Der App-Ordner ist noch nicht vollständig.",
+    "local_app.empty_assets": "Leere App-Dateien gefunden — es wird nichts hochgeladen",
+    "local_app.empty_assets_detail": "Diese Dateien sind 0 Byte gross: {assets}. Eine leere .gz führt auf dem Gerät zum weissen Bildschirm. Baue die App neu und wähle den Ordner erneut.",
     "local_app.missing_required": "Lokale App-Dateien können noch nicht installiert werden. Es fehlen Pflichtdateien.",
     "local_app.upload_unsupported": "Diese Firmware unterstützt noch keinen lokalen App-Datei-Upload.",
     "local_app.install_confirm": "Die lokalen App-Dateien jetzt direkt auf das Gerät schreiben?",
@@ -753,6 +765,7 @@ const I18N = {
     "flags.toggle_failed": "Schalter konnte nicht gesetzt werden",
     "flags.enabled": "aktiviert",
     "flags.disabled": "deaktiviert",
+    "flags.ambilight_offline_hint": "Das Ambilight meldet sich gerade nicht. Der angezeigte Zustand stammt aus dem Gerätespeicher.",
     "debug.apply_busy": "übernimmt...",
     "debug.active": "Overrides aktiv",
     "debug.active_short": "aktiv",
@@ -762,6 +775,10 @@ const I18N = {
     "debug.reset_short": "zurückgesetzt",
     "debug.reset_failed": "Overrides konnten nicht zurückgesetzt werden",
     "common.error": "Fehler",
+    "api.error.1": "Das Feld darf nicht leer sein und muss eine Zahl enthalten. Es wurde nichts gespeichert.",
+    "api.error.2": "Der Wert liegt ausserhalb des erlaubten Bereichs. Es wurde nichts gespeichert.",
+    "api.error.3": "Der Schluessel ist zu kurz — mindestens 10 Zeichen. Es wurde nichts gespeichert.",
+    "api.error.4": "Datum oder Uhrzeit sind ungueltig. Die Uhr wurde nicht gestellt.",
     "common.saving": "speichert...",
     "common.loading": "lädt...",
     "common.running": "läuft...",
@@ -800,6 +817,7 @@ const I18N = {
   en: {
     "app.title": "WordClock",
     "app.version_label": "App version",
+    "app.insecure_context": "Without HTTPS there is no service worker: offline use and installing as an app are unavailable on this address. Everything else keeps working.",
     "language.de": "German",
     "language.en": "English",
     "hero.eyebrow": "Alongside the legacy page",
@@ -903,6 +921,9 @@ const I18N = {
     "network.connect_client": "Connect as Wi-Fi client",
     "network.connect_client_error": "Wi-Fi client could not be set",
     "network.connect_client_started": "Wi-Fi client connection was triggered",
+    "network.manual_ssid": "Or enter the SSID manually (hidden network)",
+    "network.manual_ssid_placeholder": "leave empty when picked above",
+    "network.ssid_missing": "Please pick a Wi-Fi network first or enter the SSID manually.",
     "network.ap_eyebrow": "Access point",
     "network.ap_title": "Provide your own Wi-Fi",
     "network.ap_hint": "Useful for first-time setup or when no existing Wi-Fi should be used.",
@@ -1035,6 +1056,8 @@ const I18N = {
     "display.fade_clock_seconds": "Fade out seconds softly",
     "display.fade_clock_seconds_disable": "Disable soft fade-out",
     "display.five_second_markers": "5-second markers",
+    "display.ambilight_markers": "Enable 5-second markers",
+    "display.ambilight_markers_disable": "Disable 5-second markers",
     "display.ambilight_modes_unavailable": "No configurable Ambilight modes are available for the detected hardware.",
     "display.default_set_failed": "Default value could not be set",
     "display.ambilight_default_set_failed": "Ambilight default value could not be set",
@@ -1278,6 +1301,8 @@ const I18N = {
     "maintenance.version_available_no": "not possible",
     "maintenance.local_update_unavailable": "Local update is not available with this ESP flash size.",
     "maintenance.choose_file_for_target": "Please select a file for {target} first.",
+    "maintenance.file_empty": "{file} is 0 bytes and will not be uploaded — an empty file would replace the existing one.",
+    "maintenance.file_empty_status": "Empty file is not uploaded",
     "maintenance.file_expected_pattern": "Wrong file selected. Expected a matching table pattern like {pattern} for {target}.",
     "maintenance.file_expected_exact": "Wrong file selected. Expected {target}.",
     "maintenance.txt_required": "{target} must be a .txt file.",
@@ -1325,6 +1350,8 @@ const I18N = {
     "status.waiting_for_data": "Waiting for data...",
     "status.updated_at": "Updated {time}",
     "status.data_load_failed": "Data could not be loaded",
+    "input.number_required": "Please enter a value between {min} and {max}. An empty field is not saved.",
+    "status.settings_parse_error": "The device configuration is damaged and could not be read. A quotation mark in city, ticker text, app ID or update host is the most common cause — fix it through the legacy web UI.",
     "overview.display_mode": "Display mode",
     "overview.brightness": "Brightness",
     "overview.auto_brightness": "Automatic brightness",
@@ -1457,6 +1484,8 @@ const I18N = {
     "local_app.note_complete": "App folder fully recognized. {found}/{total} files are ready and can be installed directly.",
     "local_app.note_missing": "App folder checked. {found}/{total} files found. Missing: {missing}",
     "local_app.incomplete": "The app folder is not complete yet.",
+    "local_app.empty_assets": "Empty app files found — nothing will be uploaded",
+    "local_app.empty_assets_detail": "These files are 0 bytes: {assets}. An empty .gz causes a white screen on the device. Rebuild the app and pick the folder again.",
     "local_app.missing_required": "Local app files cannot be installed yet. Required files are missing.",
     "local_app.upload_unsupported": "This firmware does not support local app file upload yet.",
     "local_app.install_confirm": "Write the local app files directly to the device now?",
@@ -1537,6 +1566,7 @@ const I18N = {
     "flags.toggle_failed": "Switch could not be updated",
     "flags.enabled": "enabled",
     "flags.disabled": "disabled",
+    "flags.ambilight_offline_hint": "The Ambilight is not responding right now. The shown state comes from the device memory.",
     "debug.apply_busy": "applying...",
     "debug.active": "Overrides active",
     "debug.active_short": "active",
@@ -1546,6 +1576,10 @@ const I18N = {
     "debug.reset_short": "reset",
     "debug.reset_failed": "Overrides could not be reset",
     "common.error": "Error",
+    "api.error.1": "The field must not be empty and has to contain a number. Nothing was saved.",
+    "api.error.2": "The value is outside the allowed range. Nothing was saved.",
+    "api.error.3": "The key is too short — at least 10 characters. Nothing was saved.",
+    "api.error.4": "Date or time is invalid. The clock was not set.",
     "common.saving": "saving...",
     "common.loading": "loading...",
     "common.running": "running...",
@@ -1876,6 +1910,7 @@ const MODULE_STORAGE_KEY = "wordclock-app-active-module";
 const AMBILIGHT_STORAGE_KEY = "wordclock-app-ambilight-online";
 const LAYOUT_PREVIEW_STORAGE_KEY = "wordclock-app-layout-preview";
 const LIVE_DISPLAY_COLOR_STORAGE_KEY = "wordclock-app-live-display-color";
+const INSECURE_CONTEXT_HINT_KEY = "wordclock-app-insecure-context-hint";
 const PROGRESS_SCROLL_RESTORE_KEY = "wordclock-progress-scroll-restore";
 const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
@@ -2194,12 +2229,23 @@ window.addEventListener("pageshow", () => {
   void refreshVisibleModuleData({ pageShow: true });
 });
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    if (shouldDelayStartupRefresh() || shouldSkipLifecycleRefresh()) {
-      return;
-    }
-    void refreshVisibleModuleData({ visibilityRefresh: true });
+  // Im Hintergrund schaut niemand hin, jeder Poll kostet den STM aber Debugtext auf
+  // der UART und blockiert dort den Hauptloop. Deshalb anhalten und beim Sichtbarwerden
+  // mit einem sofortigen Lauf wieder aufnehmen. R2-11.
+  if (document.hidden) {
+    stopAlignedAutoRefresh();
+    return;
   }
+
+  if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
+    startAlignedAutoRefresh();
+  }
+
+  if (shouldDelayStartupRefresh() || shouldSkipLifecycleRefresh()) {
+    return;
+  }
+
+  void refreshVisibleModuleData({ visibilityRefresh: true });
 });
 
 function scheduleServiceWorkerRegistration() {
@@ -2215,7 +2261,37 @@ function scheduleServiceWorkerRegistration() {
   window.setTimeout(register, 1200);
 }
 
+// Ohne sicheren Kontext (HTTPS oder localhost) stellt der Browser navigator
+// .serviceWorker gar nicht erst bereit: Offline-Betrieb und "zum Startbildschirm
+// hinzufuegen" scheitern heute wortlos. Einmal pro Sitzung erklaeren — bei jedem
+// Neuladen zu melden waere auf einem Geraet, das nur HTTP spricht, blosser Laerm.
+// R2-10.
+function reportInsecureContextOnce() {
+  if (window.isSecureContext !== false) {
+    return;
+  }
+
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1") {
+    return;
+  }
+
+  try {
+    if (window.sessionStorage.getItem(INSECURE_CONTEXT_HINT_KEY)) {
+      return;
+    }
+    window.sessionStorage.setItem(INSECURE_CONTEXT_HINT_KEY, "1");
+  } catch (_) {
+    // Kein sessionStorage (privater Modus): dann lieber einmal zu viel erklaeren als
+    // den Nutzer im Unklaren lassen, warum die Installation fehlt.
+  }
+
+  showStatusBanner(translate("app.insecure_context"), "warn");
+}
+
 async function registerAppServiceWorker() {
+  reportInsecureContextOnce();
+
   if (!("serviceWorker" in navigator)) {
     return;
   }
@@ -2224,7 +2300,14 @@ async function registerAppServiceWorker() {
     const registration = await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" });
     appServiceWorkerRegistration = registration;
     bindServiceWorkerLifecycle(registration);
-  } catch (_) {
+  } catch (error) {
+    // Hier zu landen heisst: der Kontext war sicher, die Registrierung ist trotzdem
+    // gescheitert. Ohne Ausgabe bliebe der Grund unauffindbar. Kein Banner — zum
+    // Startzeitpunkt kann der Nutzer daran nichts aendern, die Bedienung laeuft
+    // vollstaendig weiter, und der unsichere Kontext ist bereits eigens gemeldet.
+    if (window.console && window.console.warn) {
+      window.console.warn("Service Worker konnte nicht registriert werden:", error);
+    }
   }
 }
 
@@ -2269,10 +2352,7 @@ function triggerWaitingServiceWorker(worker) {
   worker.postMessage({ type: "SKIP_WAITING" });
 }
 
-function startAlignedAutoRefresh() {
-  const intervalMs = 15000;
-  const phaseOffsetMs = 2000;
-
+function stopAlignedAutoRefresh() {
   if (alignedAutoRefreshTimeout) {
     window.clearTimeout(alignedAutoRefreshTimeout);
     alignedAutoRefreshTimeout = 0;
@@ -2281,6 +2361,13 @@ function startAlignedAutoRefresh() {
     window.clearInterval(alignedAutoRefreshInterval);
     alignedAutoRefreshInterval = 0;
   }
+}
+
+function startAlignedAutoRefresh() {
+  const intervalMs = 15000;
+  const phaseOffsetMs = 2000;
+
+  stopAlignedAutoRefresh();
 
   const now = Date.now();
   const nextAlignedTick = Math.floor(now / intervalMs) * intervalMs + intervalMs + phaseOffsetMs;
@@ -2399,11 +2486,72 @@ async function apiFetch(url, options) {
     throw new Error("http-" + response.status);
   }
 
+  // Das Geraet weist ungueltige Eingaben mit HTTP 200 und {"ok":false,...} ab -- das
+  // ist die Hausform, http_api_app_file_upload macht es seit jeher so. Ohne diese
+  // Pruefung sah die Oberflaeche nur den Status, meldete "gespeichert" und log damit
+  // den Nutzer an: Das Geraet hatte nichts geschrieben. Seit das Geraet eine Menge
+  // Eingaben abweist statt sie still zurechtzubiegen, waere das die schlimmere
+  // Variante des Fehlers gewesen, den wir gerade beheben.
+  const apiError = await readApiErrorFromResponse(response);
+
+  if (apiError) {
+    const error = new Error("api-" + apiError.code);
+    error.apiErrorCode = apiError.code;
+    error.apiDetail = apiError.detail;
+    throw error;
+  }
+
   if (settingsImportInProgress) {
     await sleep(180);
   }
 
   return response;
+}
+
+// Liest die Fehlerkennung aus der Antwort, OHNE sie dem Aufrufer wegzunehmen.
+// response.clone() ist hier Pflicht: Der Rumpf laesst sich nur einmal lesen, und
+// mehrere Aufrufer rufen danach .json() oder .text() auf.
+async function readApiErrorFromResponse(response) {
+  const contentType = String(response.headers && response.headers.get("content-type") || "");
+
+  // display_power und ambilight_power antworten mit reinem Text ("on"/"off").
+  if (!contentType.toLowerCase().includes("json")) {
+    return null;
+  }
+
+  let payload;
+
+  try {
+    payload = await response.clone().json();
+  } catch (_) {
+    // Ein unparsbarer Rumpf ist kein Fehler DIESER Pruefung. Wer den Inhalt
+    // wirklich braucht, scheitert gleich selbst und mit besserer Meldung.
+    return null;
+  }
+
+  if (!payload || payload.ok !== false) {
+    return null;
+  }
+
+  return { code: Number(payload.error || 0), detail: String(payload.detail || "") };
+}
+
+// Die Fehlertexte des Geraets sind englisch, weil die Legacy-Oberflaeche es ist.
+// Hier wird deutsch gesprochen, also uebersetzt die Kennung, nicht der Text. Das
+// "detail" bleibt als Diagnose erhalten, falls eine Kennung einmal unbekannt ist.
+function describeApiError(error, fallbackText) {
+  if (!error || !error.apiErrorCode) {
+    return fallbackText;
+  }
+
+  const key = "api.error." + error.apiErrorCode;
+  const translated = translate(key);
+
+  if (translated && translated !== key) {
+    return translated;
+  }
+
+  return error.apiDetail ? fallbackText + " (" + error.apiDetail + ")" : fallbackText;
 }
 
 function clearButtonFeedback(button) {
@@ -3167,8 +3315,36 @@ async function togglePermanentItIs() {
   });
 }
 
+let lastSettingsParseErrorAt = 0;
+
+// Ein beschaedigtes settings_xml liefert ein parsererror-Dokument. Ohne diese Pruefung
+// greift parseSettings() darauf zu, findet nichts und liefert lauter Leerwerte — die
+// Oberflaeche sieht dann aus wie "nichts konfiguriert", statt den Fehler zu zeigen.
+// Haeufigster Ausloeser: ein Anfuehrungszeichen in einem Textfeld, das der ESP nicht
+// maskiert. Genau dann braucht der Nutzer den Hinweis, weil der Rueckweg ueber die
+// PWA nicht mehr offensteht. L26.
+function reportSettingsParseError() {
+  const now = Date.now();
+
+  // Der Fehler besteht fort, bis jemand den Wert korrigiert. Bei jedem
+  // Aktualisierungslauf erneut zu melden waere Dauerfeuer statt Information.
+  if (lastSettingsParseErrorAt && (now - lastSettingsParseErrorAt) < 60000) {
+    return;
+  }
+
+  lastSettingsParseErrorAt = now;
+  announceStatus(translate("status.settings_parse_error"), "error");
+}
+
 function parseSettings(xmlText) {
   const xml = new DOMParser().parseFromString(xmlText, "application/xml");
+
+  // Leerer Text ist der normale Startfall — parseSettings("") baut bewusst ein leeres
+  // Geruest auf und darf nicht als Geraetefehler gemeldet werden.
+  if (String(xmlText || "").trim() && xml.querySelector("parsererror")) {
+    reportSettingsParseError();
+  }
+
   const numvars = {};
   const strvars = {};
   const dispmodes = [];
@@ -3424,6 +3600,23 @@ function updateWeatherControlsFromMeta(meta) {
   document.getElementById("weather-location-preview").textContent = meta.locationPreview;
 }
 
+// Vorbefuellen darf nie ueber eine laufende Eingabe huschen. Deshalb merkt sich das
+// Feld, welchen Geraetewert es zuletzt bekommen hat: steht etwas anderes drin, hat der
+// Nutzer getippt und behaelt das letzte Wort.
+function prefillDeviceValue(input, deviceValue) {
+  if (!input || document.activeElement === input) {
+    return;
+  }
+
+  const applied = input.dataset.devicePrefill;
+  if (input.value && input.value !== applied) {
+    return;
+  }
+
+  input.value = deviceValue || "";
+  input.dataset.devicePrefill = input.value;
+}
+
 function updateNetworkControls(settings, networkInfo) {
   updateNetworkControlsFromMeta(getSettingsControlUiMeta(settings, networkInfo).network);
 }
@@ -3434,6 +3627,8 @@ function updateNetworkControlsFromMeta(meta) {
   select.innerHTML = meta.networks.length
     ? meta.networks.map((ssid) => '<option value="' + escapeHtml(ssid) + '"' + (ssid === meta.currentSsid ? " selected" : "") + ">" + escapeHtml(ssid) + "</option>").join("")
     : '<option value="">Keine WLANs gefunden</option>';
+
+  prefillDeviceValue(document.getElementById("network-ap-ssid-input"), meta.apSsid);
 
   document.getElementById("network-timeserver-input").value = meta.timeserver;
   document.getElementById("network-timezone-input").value = String(meta.timezoneOffset);
@@ -5906,10 +6101,39 @@ function refreshUpdateUi(settings, coreData, debugOverrides) {
   updateLocalUpdateControls(meta.status);
 }
 
-function getNetworkUiMeta(settings, networkInfo) {
+// network_scan liefert dasselbe Netz mehrfach, einmal je Accesspoint und Kanal — im
+// Testdurchlauf acht Eintraege fuer fuenf Netze. Doppelte Zeilen in der Auswahlliste
+// helfen niemandem. Liefert der Endpunkt eines Tages eine Feldstaerke mit, gewinnt der
+// staerkste Eintrag; heute sind es blosse Namen, dann bleibt der erste Treffer. L34c.
+function dedupeScannedNetworks(list) {
+  const strongest = new Map();
+
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const ssid = typeof entry === "string" ? entry : String((entry && entry.ssid) || "");
+    if (!ssid) {
+      return;
+    }
+
+    const rawRssi = entry && typeof entry === "object" ? Number(entry.rssi) : NaN;
+    const rssi = Number.isFinite(rawRssi) ? rawRssi : null;
+    const known = strongest.get(ssid);
+
+    if (!known || (rssi !== null && (known.rssi === null || rssi > known.rssi))) {
+      strongest.set(ssid, { ssid, rssi });
+    }
+  });
+
+  return Array.from(strongest.values()).map((entry) => entry.ssid);
+}
+
+function getNetworkUiMeta(settings, networkInfo, eepromSettings) {
   const timezone = decodeTimezone(settings.numvars[NUM.TIMEZONE] || 0);
+  // Der AP-Name steht im EEPROM und wird von /api/eeprom_settings geliefert. Ohne ihn
+  // behauptet die Oberflaeche, es sei nichts hinterlegt. L34a.
+  const eeprom = eepromSettings || getCurrentEepromSettings();
   return {
-    networks: Array.isArray(networkInfo && networkInfo.networks) ? networkInfo.networks : [],
+    networks: dedupeScannedNetworks(networkInfo && networkInfo.networks),
+    apSsid: eeprom && eeprom.ap_ssid ? String(eeprom.ap_ssid) : "",
     currentSsid: networkInfo && networkInfo.ssid ? networkInfo.ssid : "",
     ip: networkInfo && networkInfo.ip ? networkInfo.ip : "",
     mode: networkInfo && networkInfo.mode ? networkInfo.mode : "",
@@ -6010,7 +6234,7 @@ function getSettingsControlUiMeta(settings, networkInfo, eepromSettings) {
 
   return {
     weather: environmentMeta.weather,
-    network: getNetworkUiMeta(settings, networkInfo),
+    network: getNetworkUiMeta(settings, networkInfo, eepromSettings),
     maintenance: getMaintenanceUiMeta(settings, eepromSettings, null, null),
     dateTime: environmentMeta.dateTime,
     temperature: environmentMeta.temperature,
@@ -6200,14 +6424,24 @@ function getTimerUiMeta(settings, isAmbilight) {
 
 function getFlagUiMeta(settings, ambilightOnline) {
   const flags = settings.numvars[NUM.DISPLAY_FLAGS] || 0;
-  const clockMode = (settings.almodes || []).find((entry) => entry.idx === 0) || null;
+
+  // Der ESP schreibt das Markerflag nach CLOCK_AMBILIGHT_MODE_VAR, und das ist in der
+  // Aufzaehlung Index 1 (vars.h). Index 0 ist NORMAL. Wer Index 0 liest, sieht den
+  // Schalter dauerhaft auf "aus" und kann ihn deshalb einschalten, aber nie wieder
+  // ausschalten. L31.
+  const clockMode = (settings.almodes || []).find((entry) => entry.idx === 1) || null;
   const markersEnabled = !!(((clockMode && clockMode.flags) || 0) & 0x02);
 
+  // Zustand und Bedienbarkeit sind zwei verschiedene Dinge: die Bits stehen im
+  // Geraetespeicher, auch wenn gerade kein Ambilight antwortet. Wer beides verundet,
+  // beschriftet einen gesetzten Schalter mit "aktivieren" und zeigt damit das
+  // Gegenteil der Wahrheit. L34b.
   return {
-    syncAmbilight: ambilightOnline && !!(flags & 0x02),
-    syncMarkers: ambilightOnline && !!(flags & 0x04),
-    fadeClockSeconds: ambilightOnline && !!(flags & 0x08),
-    ambilightMarkers: ambilightOnline && markersEnabled
+    syncAmbilight: !!(flags & 0x02),
+    syncMarkers: !!(flags & 0x04),
+    fadeClockSeconds: !!(flags & 0x08),
+    ambilightMarkers: markersEnabled,
+    controlsEnabled: !!ambilightOnline
   };
 }
 
@@ -6474,25 +6708,56 @@ function updateFlagControls(settings, ambilightOnline) {
 }
 
 function updateFlagControlsFromMeta(meta) {
+  // Beschriftung aus dem echten Bitzustand, Bedienbarkeit getrennt davon aus der
+  // Erreichbarkeit des Ambilights. L34b.
+  const available = meta.controlsEnabled !== false;
 
-  setActionToggleButton("sync-ambilight-button", translate("display.unsync_ambilight"), translate("display.sync_ambilight"), meta.syncAmbilight);
-  setActionToggleButton("sync-markers-button", translate("display.unsync_markers"), translate("display.sync_markers"), meta.syncMarkers);
-  setActionToggleButton("fade-clock-seconds-button", translate("display.fade_clock_seconds_disable"), translate("display.fade_clock_seconds"), meta.fadeClockSeconds);
-  setActionToggleButton("ambilight-markers-button", "5-Sekunden-Marker deaktivieren", "5-Sekunden-Marker aktivieren", meta.ambilightMarkers);
+  setActionToggleButton("sync-ambilight-button", translate("display.unsync_ambilight"), translate("display.sync_ambilight"), meta.syncAmbilight, available);
+  setActionToggleButton("sync-markers-button", translate("display.unsync_markers"), translate("display.sync_markers"), meta.syncMarkers, available);
+  setActionToggleButton("fade-clock-seconds-button", translate("display.fade_clock_seconds_disable"), translate("display.fade_clock_seconds"), meta.fadeClockSeconds, available);
+  setActionToggleButton("ambilight-markers-button", translate("display.ambilight_markers_disable"), translate("display.ambilight_markers"), meta.ambilightMarkers, available);
 }
 
-function setActionToggleButton(id, onText, offText, enabled) {
+function setActionToggleButton(id, onText, offText, enabled, available) {
   const button = document.getElementById(id);
+  if (!button) {
+    return;
+  }
+
   button.dataset.state = enabled ? "on" : "off";
   button.textContent = enabled ? onText : offText;
   button.classList.toggle("primary", enabled);
+
+  // Nur Aufrufer, die die Bedienbarkeit kennen, duerfen sie setzen. Alle anderen
+  // Schalter bleiben unberuehrt, sonst aktivierte dieser Zweig sie ungewollt.
+  if (available === undefined) {
+    return;
+  }
+
+  button.disabled = !available;
+  if (available) {
+    button.removeAttribute("title");
+  } else {
+    button.title = translate("flags.ambilight_offline_hint");
+  }
 }
 
 function updateLiveColorPreview(prefix, syncTheme) {
   const preview = document.getElementById(prefix + "-color-preview");
   const rgbInput = document.getElementById(prefix + "-color-rgb");
   const whiteInput = document.getElementById(prefix + "-color-white");
-  const white = Number(whiteInput.value || 0);
+  // Reine Anzeige: waehrend des Tippens ist das Feld kurz leer, und die Vorschau darf
+  // deswegen nicht auf 0 springen. Dann bleibt der zuletzt gueltige Wert stehen —
+  // abgewiesen wird hier nichts, es wird ja auch nichts gespeichert. L29.
+  const whiteRaw = String(whiteInput.value === null || whiteInput.value === undefined ? "" : whiteInput.value).trim();
+  const whiteNumber = Number(whiteRaw);
+  const whiteIsValid = !!whiteRaw && Number.isFinite(whiteNumber);
+
+  if (whiteIsValid) {
+    whiteInput.dataset.lastValidWhite = String(whiteNumber);
+  }
+
+  const white = whiteIsValid ? whiteNumber : Number(whiteInput.dataset.lastValidWhite || 0);
   const rgb = hexToRgb63(rgbInput.value);
 
   preview.style.background = buildColorPreview({
@@ -6550,7 +6815,13 @@ async function saveDateTickerFormat() {
 
 async function saveTickerDeceleration() {
   const input = document.getElementById("ticker-deceleration-input");
-  const value = Math.max(0, Math.min(255, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, 0, 255);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(0, Math.min(255, number));
   input.value = String(value);
   await runValueSave("ticker-deceleration-save-button", getTickerDecelerationSetUrl(), value, translate("display.save_ticker_delay"), translate("display.ticker_delay_save_failed"));
 }
@@ -7055,8 +7326,22 @@ async function refreshNetworkScan() {
 }
 
 async function saveNetworkClient() {
-  const ssid = document.getElementById("network-ssid-select").value || "";
+  // Ein Netz, das seine SSID nicht ausstrahlt, taucht in network_scan nie auf und ist
+  // deshalb aus der Trefferliste nicht waehlbar. Steht im freien Feld etwas, hat es
+  // Vorrang. Das Feld kann je nach Markupstand fehlen — defensiv lesen. L24.
+  const manualInput = document.getElementById("network-ssid-manual-input");
+  const manualSsid = manualInput ? String(manualInput.value || "").trim() : "";
+  const selectElement = document.getElementById("network-ssid-select");
+  const ssid = manualSsid || (selectElement ? selectElement.value || "" : "");
   const key = document.getElementById("network-key-input").value || "";
+
+  // Eine leere SSID zu speichern haengt die Uhr vom WLAN ab und laesst sie nur noch
+  // ueber den Accesspoint erreichbar — das ist nie gewollt.
+  if (!ssid) {
+    announceStatus(translate("network.ssid_missing"), "error");
+    return;
+  }
+
   await runQueryButtonRequestById("network-client-save-button", {
     endpoint: getNetworkClientSetUrl(),
     query: { ssid, key },
@@ -7090,7 +7375,13 @@ async function saveTimeServer() {
 
 async function saveTimezone() {
   const input = document.getElementById("network-timezone-input");
-  const value = Math.max(-12, Math.min(14, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, -12, 14);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(-12, Math.min(14, number));
   input.value = String(value);
   await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, translate("network.save_timezone"), "Zeitzone konnte nicht gespeichert werden", {
     request: async () => {
@@ -7159,6 +7450,16 @@ async function uploadLocalEspUpdate(event) {
     return;
   }
 
+  // Eine 0-Byte-Datei in den Flashpfad wiegt schwerer als jede leere .gz: danach laeuft
+  // auf dem ESP keine Firmware mehr, die ein weiteres Update annehmen koennte.
+  // Massnahme 7.
+  if (!file.size) {
+    document.getElementById("local-update-note").textContent = translateFormat("maintenance.file_empty", { file: file.name });
+    announceStatus(translate("maintenance.file_empty_status"), "error");
+    finishButtonFeedback(button, translate("maintenance.local_esp_update"), "error", translate("common.error"));
+    return;
+  }
+
   if (!isBinFileName(file.name)) {
     document.getElementById("local-update-note").textContent = "Falsche ESP-Datei ausgewählt. Erwartet wird eine .bin-Datei.";
     announceStatus(translate("maintenance.local_esp_expected"), "error");
@@ -7193,7 +7494,9 @@ async function uploadLocalEspUpdate(event) {
     document.getElementById("local-update-note").textContent = "ESP-Firmware konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler");
     button.disabled = false;
     button.textContent = translate("maintenance.local_esp_update");
-    finishProgressUi(0);
+    // Wie in failStm32Update: mit 0 ms verschwindet die Meldung im selben Frame, in dem
+    // sie gesetzt wird. R2-5.
+    finishProgressUi(2200);
     return;
   }
 
@@ -7216,6 +7519,14 @@ async function uploadLocalStm32Update(event) {
 
   if (!file) {
     document.getElementById("local-update-note").textContent = translate("maintenance.local_stm32_choose_first");
+    return;
+  }
+
+  // Siehe ESP-Pfad: eine leere .hex schreibt einen leeren Flash. Massnahme 7.
+  if (!file.size) {
+    document.getElementById("local-update-note").textContent = translateFormat("maintenance.file_empty", { file: file.name });
+    announceStatus(translate("maintenance.file_empty_status"), "error");
+    finishButtonFeedback(button, translate("maintenance.local_stm32_update"), "error", translate("common.error"));
     return;
   }
 
@@ -7542,6 +7853,21 @@ async function installLocalAppFiles() {
 
   if (!uploadUrl) {
     announceStatus(translate("local_app.upload_unsupported"), "error");
+    return;
+  }
+
+  // Eine leere .gz fuehrt auf dem Geraet zum weissen Bildschirm, und der Service Worker
+  // haelt sie danach fest — der Fehler ueberlebt jedes Neuladen. Deshalb vor dem ersten
+  // Upload pruefen, nicht erst unterwegs: ein Abbruch mitten in der Reihe liesse einen
+  // halb beschriebenen Satz App-Dateien zurueck. Massnahme 7.
+  const emptyAssets = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => {
+    const asset = localAppSelectedFiles.get(assetPath);
+    return !asset || !asset.size;
+  });
+
+  if (emptyAssets.length) {
+    announceStatus(translate("local_app.empty_assets"), "error");
+    setFsActionStatus(translateFormat("local_app.empty_assets_detail", { assets: emptyAssets.join(", ") }));
     return;
   }
 
@@ -8811,6 +9137,15 @@ async function uploadFsTargetFile(event, url, successMessage) {
     return;
   }
 
+  // Eine 0-Byte-Datei nimmt der ESP anstandslos an und ersetzt damit eine
+  // funktionierende Datei durch nichts. Massnahme 7.
+  if (!file.size) {
+    document.getElementById("fs-action-status").textContent = translateFormat("maintenance.file_empty", { file: file.name });
+    announceStatus(translate("maintenance.file_empty_status"), "error");
+    finishButtonFeedback(button, button.dataset.restoreText || translate("common.file_upload"), "error", translate("common.error"));
+    return;
+  }
+
   if (!isMatchingFsUploadFile(url, file.name, targetName)) {
     document.getElementById("fs-action-status").textContent =
       isTablesUploadUrl(url)
@@ -9452,7 +9787,10 @@ function failStm32Update(message) {
   stopStm32Progress();
   stopUpdateProgressPolling();
   resetProgressButton();
-  finishProgressUi(0);
+  // Mit 0 ms verschwindet die Fortschrittsflaeche samt Fehlermeldung im selben Frame,
+  // in dem sie gesetzt wird — ein fehlgeschlagener Flash sieht dann aus wie nichts.
+  // Gleiche Standzeit wie beim Erfolgsfall. R2-5.
+  finishProgressUi(2200);
   clearProgressReturnScrollPosition();
 }
 
@@ -9491,6 +9829,10 @@ async function autoResetStm32AfterFlash() {
     stopStm32Progress();
     stopUpdateProgressPolling();
     resetProgressButton();
+    // Ohne diesen Aufruf bleibt die Fortschrittsflaeche nach einem gescheiterten
+    // Auto-Reset dauerhaft stehen und verdeckt die Bedienung. Spiegelbild von R2-5:
+    // dort war sie einen Frame lang zu sehen, hier fuer immer.
+    finishProgressUi(2200);
   }
 }
 
@@ -10197,7 +10539,13 @@ async function saveDs18xxTemperatureCorrection() {
 
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
   const input = document.getElementById(inputId);
-  const value = Math.max(-20, Math.min(20, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, -20, 20);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(-20, Math.min(20, number));
   input.value = String(value);
   await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
@@ -10287,20 +10635,39 @@ async function saveDimCurve(prefix) {
 async function persistDimCurve(prefix, button, buttonText) {
   const endpoint = prefix === "ambi" ? getAmbilightDimLevelSetUrl() : getDisplayDimLevelSetUrl();
 
+  // Erst alle sechzehn Stufen einsammeln, dann senden. Die Schleife kostet den STM
+  // sechzehn Kommandos am Stueck — rund vier Sekunden Hauptloop-Stillstand. Bricht sie
+  // erst bei Stufe neun ab, bleibt die Kurve halb geschrieben auf dem Geraet zurueck.
+  const values = [];
+
+  for (let idx = 0; idx <= 15; idx += 1) {
+    const input = document.getElementById(prefix + "-dim-" + idx);
+    const number = readNumberInputOrReport(input, 0, 15);
+
+    if (number === null) {
+      return;
+    }
+
+    const value = Math.max(0, Math.min(15, number));
+    input.value = String(value);
+    syncDimCurveValue(prefix, idx);
+    values.push(value);
+  }
+
   beginButtonFeedback(button, translate("common.saving"));
 
   try {
     for (let idx = 0; idx <= 15; idx += 1) {
-      const input = document.getElementById(prefix + "-dim-" + idx);
-      const value = Math.max(0, Math.min(15, Number(input.value || 0)));
-      input.value = String(value);
-      syncDimCurveValue(prefix, idx);
-      await apiFetch(endpoint + "?idx=" + idx + "&value=" + encodeURIComponent(value));
+      await apiFetch(endpoint + "?idx=" + idx + "&value=" + encodeURIComponent(values[idx]));
     }
     await loadData();
     finishButtonFeedback(button, buttonText, "success", translate("common.saved"));
   } catch (error) {
-    announceStatus(translate("display.dim_curve_save_failed"), "error");
+    // Dieselbe Behandlung wie in runButtonRequest: traegt der Fehler eine Begruendung
+    // vom Geraet, ist sie konkreter als "Dimmkurve konnte nicht gespeichert werden".
+    // Hier besonders wertvoll, weil die Reihe mitten in sechzehn Kommandos abbrechen
+    // kann — welche Stufen schon stehen, zeigt der anschliessende Aktualisierungslauf.
+    announceStatus(describeApiError(error, translate("display.dim_curve_save_failed")), "error");
     finishButtonFeedback(button, buttonText, "error", translate("common.error"));
   }
 }
@@ -10463,7 +10830,14 @@ async function runButtonRequest(button, options) {
 
   try {
     await request();
+
+    // Nach einem erfolgreichen Schreibvorgang mit anschliessendem Neulesen sind die
+    // Felder gleich darauf wieder Geraetestand — das Dirty-Flag haette nichts mehr zu
+    // schuetzen. Blieb es stehen, legte es ueber "opts.auto && hasUnsavedEdits" in
+    // loadData() die Selbstaktualisierung fuer den Rest der Sitzung still. L33,
+    // Massnahme 4. Reine Ausloeseaktionen (reloadDelayMs) ruehren es bewusst nicht an.
     if (reload) {
+      hasUnsavedEdits = false;
       await loadData();
     } else if (reloadDelayMs > 0) {
       setTimeout(loadData, reloadDelayMs);
@@ -10473,7 +10847,9 @@ async function runButtonRequest(button, options) {
     }
     finishButtonFeedback(button, idleText, "success", successText, preserveCurrentText);
   } catch (error) {
-    announceStatus(errorText, "error");
+    // Hat das Geraet die Eingabe begruendet abgewiesen, gehoert SEIN Grund angezeigt
+    // und nicht "Aktion konnte nicht ausgefuehrt werden".
+    announceStatus(describeApiError(error, errorText), "error");
     finishButtonFeedback(button, idleText, "error", translate("common.error"), preserveCurrentText);
   }
 }
@@ -10529,7 +10905,13 @@ async function saveAmbilightMode() {
 
 async function saveAmbilightLeds() {
   const input = document.getElementById("ambilight-leds-input");
-  const value = Math.max(0, Math.min(999, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, 0, 999);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(0, Math.min(999, number));
   input.value = String(value);
   await runButtonRequestById("ambilight-leds-save-button", {
     busyText: translate("common.saving"),
@@ -10543,7 +10925,13 @@ async function saveAmbilightLeds() {
 
 async function saveAmbilightOffset() {
   const input = document.getElementById("ambilight-offset-input");
-  const value = Math.max(0, Math.min(999, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, 0, 999);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(0, Math.min(999, number));
   input.value = String(value);
   await runButtonRequestById("ambilight-offset-save-button", {
     busyText: translate("common.saving"),
@@ -10624,7 +11012,13 @@ async function saveDfplayerBellFlags() {
 
 async function saveDfplayerSpeakCycle() {
   const input = document.getElementById("dfplayer-speak-cycle-input");
-  const value = Math.max(0, Math.min(255, Number(input.value || 0)));
+  const number = readNumberInputOrReport(input, 0, 255);
+
+  if (number === null) {
+    return;
+  }
+
+  const value = Math.max(0, Math.min(255, number));
   input.value = String(value);
   await runQueryButtonRequest(document.getElementById("dfplayer-speak-save-button"), {
     endpoint: getDfplayerSpeakCycleSetUrl(),
@@ -10898,7 +11292,10 @@ async function toggleFlagButton(id, endpoint) {
     await loadData();
     finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "success", next === "on" ? "aktiviert" : "deaktiviert", true);
   } catch (error) {
-    announceStatus("Schalter konnte nicht gesetzt werden", "error");
+    // Eigener Pfad neben runButtonRequest, deshalb braucht er dieselbe Behandlung:
+    // sonst meldete gerade dieser Schalter eine Abweisung des Geraets nur als
+    // allgemeinen Fehler. (Die hartcodierten Texte hier gehoeren zu Massnahme 18.)
+    announceStatus(describeApiError(error, "Schalter konnte nicht gesetzt werden"), "error");
     finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "error", "Fehler", true);
   }
 }
@@ -12405,7 +12802,37 @@ function toggleHidden(id, hidden) {
   }
 }
 
+// Ein leeres oder nicht numerisches Feld ist KEIN Wert. Einen Rueckfallwert
+// einzusetzen waere nur eine andere stille Verfaelschung — deshalb wird abgewiesen und
+// gar nicht erst gesendet. Der ESP antwortet seit seiner Haelfte der Korrektur ebenso
+// mit {"ok":false}; die PWA zieht die Grenze nur frueher. Die Meldung nennt den
+// erlaubten Bereich, damit sie spaeter auch Massnahme 17 traegt. L29.
+//
+// Geclampt wird bewusst weiterhin an der Aufrufstelle: die Temperaturkorrektur rechnet
+// in halben Grad, ein Abrunden hier wuerde sie still zerstoeren.
+function readNumberInputOrReport(input, min, max) {
+  const raw = input && input.value !== null && input.value !== undefined ? String(input.value).trim() : "";
+  const number = Number(raw);
+
+  if (!raw || !Number.isFinite(number)) {
+    announceStatus(translateFormat("input.number_required", { min, max }), "error");
+    if (input && input.focus) {
+      input.focus();
+    }
+    return null;
+  }
+
+  return number;
+}
+
 function clampNumber(value, min, max, fallback) {
+  // Number("") ist 0 und damit endlich — der Rueckfallwert griffe nie, und ein leer
+  // gelassenes Feld schriebe still eine 0 (leeres Helligkeitsfeld ⇒ Display dunkel,
+  // leeres LED-Feld ⇒ Kette aus). Leer heisst "kein Wert", nicht "null". L29.
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return fallback;
+  }
+
   const number = Number(value);
 
   if (!Number.isFinite(number)) {

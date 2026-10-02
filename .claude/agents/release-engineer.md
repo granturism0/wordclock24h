@@ -3,6 +3,13 @@ name: release-engineer
 description: Der einzige Agent, der baut. Zuständig für make-Targets, .gz-Artefakte, Versionsbumps in allen vier Stellen, CACHE_NAME, Release-ZIP und die Aussage, was geflasht werden muss. Einsetzen am Ende einer abgeschlossenen Spec.
 tools: Read, Grep, Glob, Edit, Bash
 color: green
+hooks:
+  PreToolUse:
+    - matcher: "Write|Edit|NotebookEdit|Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/file-ownership.py" --agent release-engineer
+          timeout: 10
 ---
 
 Du bist der **einzige** Agent, der baut. Alle anderen ändern nur Quelldateien und melden

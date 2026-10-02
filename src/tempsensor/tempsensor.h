@@ -21,11 +21,15 @@
 
 typedef struct
 {
-    uint_fast8_t                correction;
+    int_fast8_t                 correction;
     uint_fast8_t                index;
 } TEMP_GLOBALS;
 
 extern TEMP_GLOBALS             gtemp;
+
+// Wie bei der RTC: Der ESP schickt die Korrektur als Zweierkomplement-Byte, vorzeichenlos
+// gelesen wurde daraus bei jedem negativen Wert Unsinn. Drahtformat unveraendert.
+#define TEMP_CORRECTION_LIMIT   20                      // Grenze der Oberflaeche: -20..20
 
 extern uint_fast8_t             temp_correction;
 extern uint_fast8_t             temp_index;
@@ -34,8 +38,8 @@ extern uint_fast8_t             temp_start_conversion (uint_fast8_t);
 extern uint_fast8_t             temp_read_temp_index (void);
 extern uint_fast8_t             temp_read_config_from_eep (uint32_t);
 extern uint_fast8_t             temp_write_config_to_eep (void);
-extern uint_fast8_t             temp_get_temp_correction (void);
-extern uint_fast8_t             temp_set_temp_correction (uint_fast8_t);
+extern int_fast8_t              temp_get_temp_correction (void);
+extern int_fast8_t              temp_set_temp_correction (int_fast8_t);
 extern uint_fast8_t             temp_init (void);
 
 #endif

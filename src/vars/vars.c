@@ -655,7 +655,9 @@ var_send_rtc_temp_index (void)
 static void
 var_send_rtc_temp_correction (void)
 {
-    var_send_num_variable (RTC_TEMP_CORRECTION_NUM_VAR, grtc.rtc_temp_correction);
+    // Auf dem Draht steht weiterhin genau ein Zweierkomplement-Byte. Die Maske haelt das
+    // Vorzeichen aus dem High-Byte heraus, sonst aendert sich das Protokoll gegenueber dem ESP.
+    var_send_num_variable (RTC_TEMP_CORRECTION_NUM_VAR, (uint8_t) grtc.rtc_temp_correction);
 }
 
 void
@@ -667,7 +669,7 @@ var_send_ds18xx_temp_index (void)
 static void
 var_send_ds18xx_temp_correction (void)
 {
-    var_send_num_variable (DS18XX_TEMP_CORRECTION_NUM_VAR, gtemp.correction);
+    var_send_num_variable (DS18XX_TEMP_CORRECTION_NUM_VAR, (uint8_t) gtemp.correction);
 }
 
 static void

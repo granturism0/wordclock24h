@@ -1839,9 +1839,13 @@ schedule_esp8266_numeric_variable (char * parameters)
 
         case RTC_TEMP_CORRECTION_NUM_VAR:
         {
-            rtc_set_temp_correction (val);
+            // Das uebertragene Byte ist ein Zweierkomplement: der ESP schickt fuer -1 eine 0xFF.
+            // Vorzeichenlos gelesen wurde daraus eine 255 und damit jede negative Korrektur Unsinn.
+            int_fast8_t corr = (int8_t) (val & 0xFF);
+
+            rtc_set_temp_correction (corr);
             read_rtc_temperature_flag = 1;
-            debug_log_printf ("cmd: set rtc_temp_correction = %d\r\n", val);
+            debug_log_printf ("cmd: set rtc_temp_correction = %d\r\n", (int) corr);
             break;
         }
 
@@ -1853,10 +1857,12 @@ schedule_esp8266_numeric_variable (char * parameters)
 
         case DS18XX_TEMP_CORRECTION_NUM_VAR:
         {
-            temp_set_temp_correction (val);
+            int_fast8_t corr = (int8_t) (val & 0xFF);                               // Zweierkomplement, siehe RTC_TEMP_CORRECTION_NUM_VAR
+
+            temp_set_temp_correction (corr);
             measure_temperature_flag = 1;                                           // measure & read
             read_temperature_flag = 1;
-            debug_log_printf ("cmd: set ds18xx_temp_correction = %d\r\n", val);
+            debug_log_printf ("cmd: set ds18xx_temp_correction = %d\r\n", (int) corr);
             break;
         }
 

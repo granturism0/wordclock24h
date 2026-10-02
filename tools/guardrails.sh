@@ -157,8 +157,28 @@ node tools/checks/unused-css.mjs "$APP/styles.css" "$APP/index.html" "$APP/app.j
 step S7 "Muster aus knowledge/quick-reference.md"
 n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null); n=${n:-0}
 [ "$n" -gt 0 ] && warn "sk6812.c: $n unbedingte log_printf im Refresh-Pfad — REVIEW.md Massnahme 13, eigener Schritt nach der icon_freeze-Messung" || ok "sk6812.c: kein unbedingtes log_printf"
-n=$($GREP -c 'watchdog_reload ()\s*;' src/main.c 2>/dev/null); n=${n:-0}
-[ "$n" -le 1 ] && warn "watchdog_reload() hat nur $n Aufrufstelle — REVIEW.md Massnahme 1, braucht eigene Spec mit Geraeteverifikation" || ok "watchdog_reload(): $n Aufrufstellen"
+# Diese Stufe zaehlte frueher nur in src/main.c und meldete deshalb dauerhaft
+# "nur 1 Aufrufstelle", obwohl display_test() seit 3.2.8 zwei eigene hat. Ein
+# Dauer-Falschbefund ist schlimmer als keine Pruefung -- man liest ihn irgendwann
+# nicht mehr. Gezaehlt wird jetzt ueber den ganzen Baum, und $GREP traegt das -a:
+# src/display/display.c ist ISO-8859-1, ohne -a stuft grep sie als BINAER ein und
+# gibt gar nichts aus. Nicht "0 Treffer", sondern "nicht gelesen".
+#
+# Die Aussage hat sich dabei umgedreht. Massnahme 1 ist fuer die Schleifen ohne
+# Abbruchbedingung erledigt (display_test, remote_ir_learn). var_send_buf() bekommt
+# BEWUSST keinen Reload: Dort gibt es seit 3.2.8 einen 3-s-Abbruch, und der daraus
+# folgende Watchdog-Reset hat die Uhr am 02.10.2026 nach sieben Sekunden wieder ins
+# Leben gebracht (L25). Ein Reload an dieser Stelle wuerde daraus wieder ein stilles
+# Steckenbleiben machen. Die Stufe bewacht deshalb jetzt den Bestand: Faellt die Zahl
+# unter vier, ist ein Fix verlorengegangen.
+WD_EXPECTED=4
+n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
+n=${n:-0}
+if [ "$n" -lt "$WD_EXPECTED" ]; then
+  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (display_test 2x, Hauptloop, remote_ir_learn)"
+else
+  ok "watchdog_reload(): $n Aufrufstellen, Bestand vollstaendig"
+fi
 # innerHTML: eigene Pruefung statt zeilenbasiertem grep. Die alte Fassung meldete
 # 21 korrekte .map()-Stellen und uebersah app.js:5667, weil dort escapeHtml fuer den
 # Fallback auf derselben Zeile steht, waehrend der Wert roh eingesetzt wird.

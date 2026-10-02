@@ -256,6 +256,7 @@ rtc_read_config_from_eep (uint32_t eep_version)
 {
     uint_fast8_t            rtc = 0;
     uint8_t                 rtc_temp_correction8;
+    int_fast8_t             corr;
 
     if (eep_is_up)
     {
@@ -263,18 +264,20 @@ rtc_read_config_from_eep (uint32_t eep_version)
         {
             rtc = eep_read (EEPROM_DATA_OFFSET_RTC_TEMP_CORR, &rtc_temp_correction8, EEPROM_DATA_SIZE_RTC_TEMP_CORR);
 
-            if (rtc_temp_correction8 > 10)
+            corr = (int8_t) rtc_temp_correction8;                    // Zweierkomplement, siehe rtc.h
+
+            if (corr < -RTC_TEMP_CORRECTION_LIMIT || corr > RTC_TEMP_CORRECTION_LIMIT)
             {
-                rtc_temp_correction8 = 0;
+                corr = 0;
             }
         }
         else
         {
-            rtc_temp_correction8 = 0;
+            corr = 0;
             rtc = 1;
         }
 
-        grtc.rtc_temp_correction = rtc_temp_correction8;
+        grtc.rtc_temp_correction = corr;
     }
 
     return rtc;
@@ -290,7 +293,7 @@ rtc_write_config_to_eep (void)
     uint_fast8_t            rtc = 0;
     uint8_t                 rtc_temp_correction8;
 
-    rtc_temp_correction8    = grtc.rtc_temp_correction;
+    rtc_temp_correction8    = (uint8_t) grtc.rtc_temp_correction;   // negativ wird zum Zweierkomplement-Byte, Layout bleibt 1 Byte
 
     if (eep_is_up)
     {
@@ -307,7 +310,7 @@ rtc_write_config_to_eep (void)
  * get temperature correction
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast8_t
+int_fast8_t
 rtc_get_temp_correction (void)
 {
     return grtc.rtc_temp_correction;
@@ -317,9 +320,20 @@ rtc_get_temp_correction (void)
  * set temperature correction
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast8_t
-rtc_set_temp_correction (uint_fast8_t new_rtc_temp_correction)
+int_fast8_t
+rtc_set_temp_correction (int_fast8_t new_rtc_temp_correction)
 {
+    // Begrenzen statt uebernehmen: ein verstuemmeltes UART-Kommando soll keinen
+    // Unsinn ins EEPROM schreiben, aus dem er nach jedem Neustart wieder hervorkommt.
+    if (new_rtc_temp_correction < -RTC_TEMP_CORRECTION_LIMIT)
+    {
+        new_rtc_temp_correction = -RTC_TEMP_CORRECTION_LIMIT;
+    }
+    else if (new_rtc_temp_correction > RTC_TEMP_CORRECTION_LIMIT)
+    {
+        new_rtc_temp_correction = RTC_TEMP_CORRECTION_LIMIT;
+    }
+
     grtc.rtc_temp_correction = new_rtc_temp_correction;
     rtc_write_config_to_eep ();
     return grtc.rtc_temp_correction;
@@ -339,6 +353,7 @@ rtc_get_temperature_index (void)
 {
     uint8_t         buffer[2];
     uint_fast8_t    index = 0xFF;
+    int_fast16_t    corrected;
 
     if (grtc.rtc_is_up)
     {
@@ -346,8 +361,22 @@ rtc_get_temperature_index (void)
 
         if (index)
         {
-            index = (buffer[0] << 1) | ((buffer[1] & 0x02) >> 1);     // multiply integer part by 2, add 1 if fractional part >= 2
-            index -= grtc.rtc_temp_correction;                        // correct temperature due to self-heating
+            corrected = (buffer[0] << 1) | ((buffer[1] & 0x02) >> 1); // multiply integer part by 2, add 1 if fractional part >= 2
+            corrected -= grtc.rtc_temp_correction;                    // correct temperature due to self-heating
+
+            // Der Index kennt nur 0..250 (0..125 Grad), 255 ist der Fehlerwert. Zwischenrechnung
+            // deshalb vorzeichenbehaftet und breiter, und das Ergebnis begrenzt statt umlaufen
+            // gelassen -- genau dieser Umlauf war im Mitschnitt der Messwert von zig tausend Grad.
+            if (corrected < 0)
+            {
+                corrected = 0;
+            }
+            else if (corrected > 250)
+            {
+                corrected = 250;
+            }
+
+            index = (uint_fast8_t) corrected;
         }
     }
     grtc.rtc_temperature_index = index;

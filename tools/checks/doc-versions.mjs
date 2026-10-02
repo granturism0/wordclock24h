@@ -42,7 +42,31 @@ for (const file of process.argv.slice(2)) {
     // Explizit statt heuristisch: eine aufgeweichte Regel haette den Realfall
     // "STM-Version: 3.2.0" ebenfalls durchgelassen.
     if (line.includes("<!-- historisch -->")) return;
+
+    // Zweite Ausnahme, bewusst eng: "in welcher Version wurde es behoben" ist eine
+    // Angabe ueber die VERGANGENHEIT und veraltet nicht. BEFUNDE.md fuehrt das in
+    // jeder Statuszelle -- 13 Meldungen je Lauf, alle falsch. Eine Pruefung, die
+    // regelmaessig Fehlalarme produziert, liest irgendwann niemand mehr, und das
+    // ist schlimmer als gar keine.
+    //
+    // Eng bleibt es dadurch, dass der Erledigt-Marker VOR der Versionsnummer stehen
+    // muss. Der Realfall, der diese Pruefung ausgeloest hat -- "Aktueller
+    // Abschlussstand: STM 3.2.0" -- traegt keinen solchen Marker und schlaegt
+    // weiterhin an.
+    // Rueckwaertsgewandte Formulierungen, die dieses Projekt tatsaechlich benutzt:
+    // eine Statuszelle ("**erledigt** 3.2.5", "**groesstenteils erledigt** PWA 1.4.72")
+    // oder Fliesstext ("seit ESP 3.2.4", "der Fix in ESP 3.2.5", "behoben mit 3.2.8").
+    const doneMarker = /\*\*[^*]{0,40}(?:erledigt|behoben|gekl(?:ä|ae)rt|belegt)[^*]{0,24}\*\*|\b(?:seit|Seit)\s+(?:STM|ESP|PWA)\b|\b[Ff]ix in\b|\bbehoben\s+(?:in|mit)\b|\bBehoben\s+(?:in|mit)\b/;
+    const doneAt = line.search(doneMarker);
+
+    // Eine Versionsnummer ALLEIN in Klammern ist in diesem Projekt durchgehend eine
+    // Herkunftsangabe: "die Abwehr eingebetteter Wartungsaufrufe (ESP 3.2.4)". Der
+    // Realfall "Aktueller Abschlussstand: STM 3.2.0" steht nicht in Klammern.
+    const PROVENANCE = /\((?:STM|ESP|PWA|App)\s+\d+\.\d+\.\d+\)/;
+
     for (const m of line.matchAll(VER)) {
+      if (doneAt !== -1 && doneAt < m.index) continue;
+      if (PROVENANCE.test(line.slice(Math.max(0, m.index - 1), m.index + m[0].length + 1))) continue;
       if (!known.has(m[2])) {
         console.log(`  HOCH      ${file}:${i + 1}  "${m[1]} ${m[2]}" — Quellen stehen bei STM ${cur.STM} / ESP ${cur.ESP} / PWA ${cur.PWA}`);
         bad++;

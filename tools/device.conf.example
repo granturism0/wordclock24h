@@ -9,8 +9,8 @@
 # Alternativ ohne Datei, je Aufruf:
 #   DEVICE_HOST=192.0.2.10 ./tools/smoke-device.sh
 #
-# Der ESP meldet sich NICHT per mDNS an — ein Name wie "wordclock.local" gibt es
-# also nicht. Es muss die IP sein, die der Router der Uhr gibt; am besten dort
+# Der ESP meldet sich NICHT per mDNS an. Einen mDNS-Namen fuer die Uhr gibt es also
+# nicht, auch keinen mit der Endung .local. Es muss die IP sein, die der Router der Uhr gibt; am besten dort
 # fest zuordnen, sonst zeigt diese Datei nach einem Lease-Wechsel ins Leere.
 
 DEVICE_HOST=192.0.2.10

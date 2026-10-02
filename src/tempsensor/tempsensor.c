@@ -50,14 +50,28 @@ temp_read_temp_index (void)
     uint_fast8_t    is_negative;
     uint_fast16_t   raw_temp;
     uint_fast8_t    index = 0xFF;
+    int_fast16_t    corrected;
 
     if (ds18xx_read_raw_temp (&resolution, &is_negative, &raw_temp))
     {
         if (! is_negative)
         {
-            index = raw_temp;
-            index -= gtemp.correction;                              // correct temperature due to self-heating
+            corrected = (int_fast16_t) raw_temp;
+            corrected -= gtemp.correction;                          // correct temperature due to self-heating
 
+            // Der Index kennt nur 0..250 (0..125 Grad), 255 ist der Fehlerwert. Begrenzen,
+            // damit eine Korrektur ueber den Rand hinaus nicht umlaeuft und als Fehlerwert
+            // oder als absurder Messwert beim Nutzer landet.
+            if (corrected < 0)
+            {
+                corrected = 0;
+            }
+            else if (corrected > 250)
+            {
+                corrected = 250;
+            }
+
+            index = (uint_fast8_t) corrected;
         }
         gtemp.index = index;
     }
@@ -73,6 +87,7 @@ temp_read_config_from_eep (uint32_t eep_version)
 {
     uint_fast8_t            rtc = 0;
     uint8_t                 temp_correction8;
+    int_fast8_t             corr;
 
     if (eep_is_up)
     {
@@ -80,18 +95,20 @@ temp_read_config_from_eep (uint32_t eep_version)
         {
             rtc = eep_read (EEPROM_DATA_OFFSET_DS18XX_TEMP_CORR, &temp_correction8, EEPROM_DATA_SIZE_DS18XX_TEMP_CORR);
 
-            if (temp_correction8 > 10)
+            corr = (int8_t) temp_correction8;                        // Zweierkomplement, siehe tempsensor.h
+
+            if (corr < -TEMP_CORRECTION_LIMIT || corr > TEMP_CORRECTION_LIMIT)
             {
-                temp_correction8 = 0;
+                corr = 0;
             }
         }
         else
         {
-            temp_correction8 = 0;
+            corr = 0;
             rtc = 1;
         }
 
-        gtemp.correction = temp_correction8;
+        gtemp.correction = corr;
     }
 
     return rtc;
@@ -107,7 +124,7 @@ temp_write_config_to_eep (void)
     uint_fast8_t            rtc = 0;
     uint8_t                 temp_correction8;
 
-    temp_correction8    = gtemp.correction;
+    temp_correction8    = (uint8_t) gtemp.correction;               // negativ wird zum Zweierkomplement-Byte, Layout bleibt 1 Byte
 
     if (eep_is_up)
     {
@@ -124,7 +141,7 @@ temp_write_config_to_eep (void)
  * get temperature correction
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast8_t
+int_fast8_t
 temp_get_temp_correction (void)
 {
     return gtemp.correction;
@@ -134,9 +151,20 @@ temp_get_temp_correction (void)
  * set temperature correction
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast8_t
-temp_set_temp_correction (uint_fast8_t new_temp_correction)
+int_fast8_t
+temp_set_temp_correction (int_fast8_t new_temp_correction)
 {
+    // Begrenzen statt uebernehmen: ein verstuemmeltes UART-Kommando soll keinen
+    // Unsinn ins EEPROM schreiben, aus dem er nach jedem Neustart wieder hervorkommt.
+    if (new_temp_correction < -TEMP_CORRECTION_LIMIT)
+    {
+        new_temp_correction = -TEMP_CORRECTION_LIMIT;
+    }
+    else if (new_temp_correction > TEMP_CORRECTION_LIMIT)
+    {
+        new_temp_correction = TEMP_CORRECTION_LIMIT;
+    }
+
     gtemp.correction = new_temp_correction;
     temp_write_config_to_eep ();
     return gtemp.correction;

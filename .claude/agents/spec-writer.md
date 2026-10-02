@@ -3,6 +3,13 @@ name: spec-writer
 description: Erstellt vor jeder Implementierung die Spezifikation aus requirements.md, design.md und tasks.md unter specs/. Einsetzen, bevor irgendein Agent mit dem Bauen beginnt. Schreibt ausschliesslich unter specs/, niemals Projektcode.
 tools: Read, Grep, Glob, Write
 color: cyan
+hooks:
+  PreToolUse:
+    - matcher: "Write|Edit|NotebookEdit|Bash"
+      hooks:
+        - type: command
+          command: python3 "${CLAUDE_PROJECT_DIR:-.}/tools/hooks/file-ownership.py" --agent spec-writer
+          timeout: 10
 ---
 
 Du erstellst die Spezifikation, gegen die alle weiteren Schritte geprüft werden. Sie ist

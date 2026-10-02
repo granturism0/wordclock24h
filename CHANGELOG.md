@@ -1,5 +1,83 @@
 # Changelog
 
+## 2026-10-03 Oktober-Paket (STM 3.2.9, ESP 3.2.7, PWA 1.4.75)
+
+Alle drei Komponenten. 17 Befunde geschlossen, drei neue gefunden.
+
+### Der wichtigste Punkt kam aus einer Rueckfrage
+
+Der ESP hatte gelernt, ungueltige Eingaben abzuweisen -- mit HTTP 200 und
+{"ok":false,...}, der Hausform. apiFetch() prueft aber nur response.ok, also
+den HTTP-Status, und liest den Rumpf nie. runButtonRequest() wertete "keine
+Ausnahme" als Erfolg.
+
+Damit haette das halbe Paket das stille Scheitern durch eine FALSCHAUSSAGE
+ersetzt: Das Geraet weist ab, die Oberflaeche meldet "gespeichert". Das waere
+schlimmer gewesen als der Zustand vorher.
+
+Gefunden, weil der Nutzer gefragt hat, ob im UI auch wirklich ein Fehler
+erscheint. Behoben zentral in apiFetch() -- ueber response.clone(), weil der
+Rumpf sonst fuer alle weiteren Leser verbraucht ist, und nur bei
+JSON-Content-Type, weil display_power reinen Text liefert. Die Fehlerkennung
+wird uebersetzt statt durchgereicht: Die Geraetetexte sind englisch, weil die
+Legacy-Oberflaeche es ist. Als L39 festgehalten.
+
+### ESP
+
+L26 sanitize_xml_string maskiert jetzt auch " und ' -- ein Anfuehrungszeichen
+zerlegte settings_xml und machte die PWA fuer alle nachfolgenden Werte blind.
+L28 und L32 auf BEIDEN Wegen, API und Legacy: Der Legacy-Pfad war im ersten
+Anlauf uebersehen worden und waere offen geblieben; aufgefallen ist es, weil
+der umsetzende Agent den Befund nicht als erledigt gemeldet hat. L29 ueber eine
+neue Hilfsfunktion, die "fehlt oder leer" von "ist 0" unterscheidet und
+zusaetzlich nicht numerische Eingaben erkennt, die atoi stumm zu 0 gemacht
+haette -- elf Setter, darunter drei zusaetzlich gefundene. L30 und L36.
+
+### PWA
+
+L26 parsererror-Pruefung, L29, L31 Markerindex, L33 und Massnahme 4, L34, L24
+freies SSID-Feld fuer versteckte Netze, dazu R2-5, R2-10, R2-11 und
+Massnahme 7. Leere Felder werden jetzt ABGEWIESEN statt mit einem erfundenen
+Rueckfallwert gefuellt -- ein erfundener Wert waere nur eine andere stille
+Verfaelschung gewesen.
+
+### STM
+
+L27: Das uebertragene Byte war bereits ein korrektes Zweierkomplement und wurde
+nur vorzeichenlos gelesen. Zusaetzlich lief die Zwischenrechnung in
+rtc_get_temperature_index() bei 255 auf einem uint_fast8_t ueber -- das erklaert
+den Wert 2147483549.5 aus dem Mitschnitt. Drahtformat unveraendert.
+
+Massnahme 1, neu zugeschnitten: watchdog_reload() in remote_ir_learn(), plus
+ein Abbruch nach 30 s je Taste. var_send_buf() bleibt BEWUSST unberuehrt -- dort
+gibt es seit 3.2.8 einen 3-s-Abbruch, und der daraus folgende Watchdog-Reset hat
+die Uhr am 02.10. nach sieben Sekunden wieder ins Leben gebracht (L25). Ein
+Reload an dieser Stelle wuerde daraus wieder ein stilles Steckenbleiben machen.
+
+### Werkzeuge
+
+L2: Der Zeitstempel im Release-ZIP ist jetzt sekundengenau. Dabei fiel auf, dass
+RELEASE_ZIP mit "?=" eine rekursiv expandierte Variable war -- $(shell date) lief
+bei jeder der vier Verwendungen neu. Mit Minuten fiel das kaum auf, mit Sekunden
+haette das Archiv regelmaessig anders geheissen als das, was geloescht und
+gemeldet wird. Jetzt RELEASE_STAMP := , genau einmal ausgewertet.
+
+Drei Fehlalarme in den eigenen Guardrails beseitigt. S7 meldete seit Wochen
+"watchdog_reload() hat nur 1 Aufrufstelle" -- gezaehlt wurde nur in src/main.c,
+die zwei Aufrufe in display.c sah die Stufe nie. Beim Nachpruefen bin ich erst
+selbst in die dokumentierte Falle getappt: display.c ist ISO-8859-1, und grep
+ohne -a stuft sie als BINAER ein und gibt gar nichts aus. Nicht "0 Treffer",
+sondern "nicht gelesen". Die Stufe zaehlt jetzt ueber den ganzen Baum und hat
+die Aussage umgedreht -- von "diese Massnahme ist offen" zu "sind alle vier
+Aufrufstellen noch da". S9 meldete 13 Fehlalarme je Lauf, alle aus
+Statuszellen wie "**erledigt** PWA 1.4.72": Angaben ueber die Vergangenheit
+veralten nicht.
+
+### Drei neue Befunde
+
+L39 (oben), L40 vier weitere Setter mit stiller Erfolgsmeldung, L41
+network_scan liefert keine Feldstaerke.
+
 ## 2026-10-02 Erster vollstaendiger PWA-Testdurchlauf — zehn neue Befunde
 
 Reine Dokumentations- und Werkzeugaenderung, kein Produktcode, deshalb kein

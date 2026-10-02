@@ -151,7 +151,22 @@ static int      http_response_len = 0;
  */
 #define PWA_PREFIX                                  "/app"
 #define PWA_INDEX_FILE                              "app-index.html"
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Fehlercodes der JSON-Antworten der Setter. Sie stehen hier beisammen, damit nicht jede
+ * Funktion eine eigene Nummerierung erfindet - die PWA wertet nur "ok" aus, der Code
+ * dient der Diagnose am Geraet.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_API_ERROR_MISSING_VALUE                1
+#define HTTP_API_ERROR_OUT_OF_RANGE                 2
+#define HTTP_API_ERROR_TOO_SHORT                    3
+#define HTTP_API_ERROR_INVALID_DATE                 4
+
 static void             http_json_ok ();
+static void             http_json_error (unsigned int error_code, const char * detail);
+static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
+static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
 static int              http_api_stm32_log ();
@@ -2696,6 +2711,7 @@ http_main (void)
     const char *    values[5]                                   = { year_str, mon_str, day_str, hour_str, minutes_str };
     char *          action;
     const char *    message                                     = (const char *) 0;
+    const char *    alert_message                               = (const char *) 0;
     STR_VAR *       sv;
     const char *    esp_firmware_version                        = ESP_VERSION;
     char *          version;
@@ -2788,27 +2804,58 @@ http_main (void)
         {
             TM tm;
 
-            int year    = atoi (http_get_param ("year"));
-            int month   = atoi (http_get_param ("month"));
-            int day     = atoi (http_get_param ("day"));
-            int hour    = atoi (http_get_param ("hour"));
-            int minutes = atoi (http_get_param ("min"));
+            int year    = 0;
+            int month   = 0;
+            int day     = 0;
+            int hour    = 0;
+            int minutes = 0;
 
+            /* Leere Felder duerfen nicht als 0 durchgehen - sonst stellt ein nur halb
+             * ausgefuelltes Formular die Uhr auf das Jahr 0 (L29). Bewusst nicht mit &&
+             * verkettet: Jedes Feld wird gelesen, damit nach einer Abweisung alle
+             * uebrigen Eingaben im Formular stehen bleiben.
+             */
+            uint_fast8_t fields_ok = 1;
+
+            fields_ok &= http_get_int_param ("year", &year);
+            fields_ok &= http_get_int_param ("month", &month);
+            fields_ok &= http_get_int_param ("day", &day);
+            fields_ok &= http_get_int_param ("hour", &hour);
+            fields_ok &= http_get_int_param ("min", &minutes);
+
+            /* Die Eingabe bleibt im Formular stehen, auch wenn sie abgewiesen wird -
+             * sonst muesste der Nutzer alle fuenf Felder neu tippen.
+             */
             sprintf (year_str,      "%4d",  year);
             sprintf (mon_str,       "%02d", month);
             sprintf (day_str,       "%02d", day);
             sprintf (hour_str,      "%02d", hour);
             sprintf (minutes_str,   "%02d", minutes);
 
-            tm.tm_year  = year - 1900;
-            tm.tm_mon   = month - 1;
-            tm.tm_mday  = day;
-            tm.tm_hour  = hour;
-            tm.tm_min   = minutes;
-            tm.tm_sec   = 0;
-            tm.tm_wday  = dayofweek (day, month, year);
+            /* Dieselbe Kalenderpruefung wie in http_api_datetime_set: Jedes Feld nur
+             * einzeln zu begrenzen laesst den 31. Februar durch (L32).
+             */
+            if (! fields_ok ||
+                year < 2000 || year > 2999 ||
+                month < 1 || month > 12 ||
+                day < 1 || day > (int) http_days_in_month (year, month) ||
+                hour < 0 || hour > 23 ||
+                minutes < 0 || minutes > 59)
+            {
+                alert_message = "Invalid date or time - clock not changed!";
+            }
+            else
+            {
+                tm.tm_year  = year - 1900;
+                tm.tm_mon   = month - 1;
+                tm.tm_mday  = day;
+                tm.tm_hour  = hour;
+                tm.tm_min   = minutes;
+                tm.tm_sec   = 0;
+                tm.tm_wday  = dayofweek (day, month, year);
 
-            set_tm_var (CURRENT_TM_VAR, &tm);
+                set_tm_var (CURRENT_TM_VAR, &tm);
+            }
         }
         else if (! strcmp (action, "saveticker"))
         {
@@ -2964,7 +3011,13 @@ http_main (void)
             // http_eeprom_dump ();
         }
 
-        if (message)
+        if (alert_message)
+        {
+            http_send_FS ("<P><font color=red><B>");
+            http_send (alert_message);
+            http_send_FS ("</B></font>\r\n");
+        }
+        else if (message)
         {
             http_send_FS ("<P><font color=green>");
             http_send (message);
@@ -3108,34 +3161,47 @@ http_network (void)
         }
         else if (! strcmp (action, "savetimezone"))
         {
-            tz = atoi (http_get_param ("timezone"));
+            /* Zweiter, bisher voellig ungepruefter Weg auf TIMEZONE_NUM_VAR neben
+             * http_api_network_timezone_set: Ab 256 kippt das Vorzeichenbit 0x100,
+             * ab 512 kollidiert der Wert mit dem Sommerzeitbit 0x200 (L28).
+             */
+            int tz_param = 0;
 
-            if (get_numvar (TIMEZONE_NUM_VAR) & 0x200)
+            if (! http_get_int_param ("timezone", &tz_param) || tz_param < -12 || tz_param > 14)
             {
-                observe_summertime = 1;
+                alert_message = "Time zone must be a whole number between -12 and 14!";
             }
             else
             {
-                observe_summertime = 0;
-            }
+                tz = tz_param;
 
-            if (tz < 0)
-            {
-                utz = -tz;
-                utz |= 0x100;
-            }
-            else
-            {
-                utz = tz;
-            }
+                if (get_numvar (TIMEZONE_NUM_VAR) & 0x200)
+                {
+                    observe_summertime = 1;
+                }
+                else
+                {
+                    observe_summertime = 0;
+                }
 
-            if (observe_summertime)
-            {
-                utz |= 0x200;
-            }
+                if (tz < 0)
+                {
+                    utz = -tz;
+                    utz |= 0x100;
+                }
+                else
+                {
+                    utz = tz;
+                }
 
-            set_numvar (TIMEZONE_NUM_VAR, utz);
-            message = "Timezone successfully changed.";
+                if (observe_summertime)
+                {
+                    utz |= 0x200;
+                }
+
+                set_numvar (TIMEZONE_NUM_VAR, utz);
+                message = "Timezone successfully changed.";
+            }
         }
         else if (! strcmp (action, "saveobserve_summertime"))
         {
@@ -6977,6 +7043,17 @@ sanitize_xml_string(const String& str)
         case '>':
             result += "&gt;";
             break;
+        case '"':
+            /* Jede Zeichenkette landet in einem "-begrenzten XML-Attribut. Ohne diese
+             * beiden Faelle zerlegt ein einziges Anfuehrungszeichen in Ort, Tickertext,
+             * Wetter-AppID oder Update-Host die settings_xml, und die PWA verliert alle
+             * nachfolgenden Werte ohne Fehlermeldung (L26).
+             */
+            result += "&quot;";
+            break;
+        case '\'':
+            result += "&apos;";
+            break;
         default:
             result += str[i];
             break;
@@ -7402,8 +7479,16 @@ http_api_ambilight_power_set ()
 static int
 http_api_display_brightness_set ()
 {
-    char * value = http_get_param ("value");
-    int    brightness = atoi (value ? value : "0");
+    int brightness;
+
+    /* Ein leeres Feld darf nicht still als 0 gelten - das schaltet das Display
+     * dunkel, obwohl gar keine Helligkeit angegeben wurde (L29).
+     */
+    if (! http_get_int_param ("value", &brightness))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (brightness < 0)
     {
@@ -7453,8 +7538,16 @@ http_api_auto_brightness_set ()
 static int
 http_api_display_mode_set ()
 {
-    char * value = http_get_param ("value");
-    int    mode = atoi (value ? value : "0");
+    int mode;
+
+    /* Leer heisst nicht 0 - sonst springt die Anzeige auf den ersten Modus,
+     * obwohl niemand einen Modus gewaehlt hat (L29).
+     */
+    if (! http_get_int_param ("value", &mode))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (mode < 0)
     {
@@ -7529,8 +7622,16 @@ http_api_date_ticker_format_set ()
 static int
 http_api_ticker_deceleration_set ()
 {
-    char * value = http_get_param ("value");
-    int    deceleration = atoi (value ? value : "0");
+    int deceleration;
+
+    /* Leer heisst nicht 0 - eine 0 laesst den Ticker mit voller Geschwindigkeit
+     * laufen und ist unlesbar (L29).
+     */
+    if (! http_get_int_param ("value", &deceleration))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (deceleration < 0)
     {
@@ -7742,29 +7843,35 @@ http_api_network_ap_set ()
         key = (char *) "";
     }
 
-    if (strlen (key) >= 10)
+    /* Bei zu kurzem Schluessel passierte bisher gar nichts, die Antwort lautete aber
+     * {"ok":true} und die Oberflaeche meldete "Zugangspunkt gestartet" (L30).
+     */
+    if (strlen (key) < 10)
     {
-        String ap_ssid = ssid;
-        String ap_key  = key;
-
-        if (! ap_ssid.equals (eeprom_ap_ssid))
-        {
-            ap_ssid.toCharArray (eeprom_ap_ssid, EEPROM_AP_SSID_LEN);
-            eeprom_save_ap_ssid ();
-        }
-
-        if (! ap_key.equals (eeprom_ap_ssidkey))
-        {
-            ap_key.toCharArray (eeprom_ap_ssidkey, EEPROM_AP_SSID_KEY_LEN);
-            eeprom_save_ap_ssidkey ();
-        }
-
-        eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
-        eeprom_save_flags ();
-        eeprom_commit ();
-
-        wifi_ap (ssid, key);
+        http_json_error (HTTP_API_ERROR_TOO_SHORT, "ap key too short (min. 10 characters)");
+        return 0;
     }
+
+    String ap_ssid = ssid;
+    String ap_key  = key;
+
+    if (! ap_ssid.equals (eeprom_ap_ssid))
+    {
+        ap_ssid.toCharArray (eeprom_ap_ssid, EEPROM_AP_SSID_LEN);
+        eeprom_save_ap_ssid ();
+    }
+
+    if (! ap_key.equals (eeprom_ap_ssidkey))
+    {
+        ap_key.toCharArray (eeprom_ap_ssidkey, EEPROM_AP_SSID_KEY_LEN);
+        eeprom_save_ap_ssidkey ();
+    }
+
+    eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
+    eeprom_save_flags ();
+    eeprom_commit ();
+
+    wifi_ap (ssid, key);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
@@ -7888,9 +7995,24 @@ http_api_network_timeserver_set ()
 static int
 http_api_network_timezone_set ()
 {
-    char * value = http_get_param ("value");
-    int tz = atoi (value ? value : "0");
+    int tz;
     uint_fast16_t utz = 0;
+
+    /* Die Grenzen -12..14 standen bisher nur in der PWA. Legacy-Oberflaeche, direkter
+     * API-Aufruf und Backup-Import gehen daran vorbei: Ab 256 kippt das Vorzeichenbit
+     * 0x100, ab 512 kollidiert der Wert mit dem Sommerzeitbit 0x200 (L28).
+     */
+    if (! http_get_int_param ("value", &tz))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
+
+    if (tz < -12 || tz > 14)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "timezone out of range (-12..14)");
+        return 0;
+    }
 
     if (tz < 0)
     {
@@ -8172,55 +8294,37 @@ static int
 http_api_datetime_set ()
 {
     TM  tm;
-    int year = atoi (http_get_param ("year"));
-    int month = atoi (http_get_param ("month"));
-    int day = atoi (http_get_param ("day"));
-    int hour = atoi (http_get_param ("hour"));
-    int minute = atoi (http_get_param ("minute"));
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
 
-    if (year < 2000)
+    /* Fehlende Felder nicht stillschweigend auf 0 bzw. den Mindestwert ziehen -
+     * sonst stellt ein unvollstaendiger Aufruf die Uhr auf den 01.01.2000 (L29).
+     */
+    if (! http_get_int_param ("year", &year) ||
+        ! http_get_int_param ("month", &month) ||
+        ! http_get_int_param ("day", &day) ||
+        ! http_get_int_param ("hour", &hour) ||
+        ! http_get_int_param ("minute", &minute))
     {
-        year = 2000;
-    }
-    else if (year > 2999)
-    {
-        year = 2999;
-    }
-
-    if (month < 1)
-    {
-        month = 1;
-    }
-    else if (month > 12)
-    {
-        month = 12;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "year, month, day, hour and minute required");
+        return 0;
     }
 
-    if (day < 1)
+    /* Bisher wurde jedes Feld nur einzeln begrenzt. Damit kam der 31. Februar
+     * widerspruchslos durch, und zu grosse Werte wurden stumm zurechtgebogen
+     * statt abgewiesen (L32).
+     */
+    if (year < 2000 || year > 2999 ||
+        month < 1 || month > 12 ||
+        day < 1 || day > (int) http_days_in_month (year, month) ||
+        hour < 0 || hour > 23 ||
+        minute < 0 || minute > 59)
     {
-        day = 1;
-    }
-    else if (day > 31)
-    {
-        day = 31;
-    }
-
-    if (hour < 0)
-    {
-        hour = 0;
-    }
-    else if (hour > 23)
-    {
-        hour = 23;
-    }
-
-    if (minute < 0)
-    {
-        minute = 0;
-    }
-    else if (minute > 59)
-    {
-        minute = 59;
+        http_json_error (HTTP_API_ERROR_INVALID_DATE, "invalid date or time");
+        return 0;
     }
 
     tm.tm_year = year - 1900;
@@ -8425,29 +8529,46 @@ http_api_color_animation_mode_set ()
 static int
 http_api_animation_profile_set ()
 {
-    uint_fast8_t idx = atoi (http_get_param ("idx"));
-    uint_fast8_t deceleration = atoi (http_get_param ("deceleration"));
-    uint_fast8_t favourite = 0;
+    int                 idx;
+    int                 deceleration;
+    uint_fast8_t        favourite = 0;
+    DISPLAY_ANIMATION * da;
 
-    if (idx < max_display_animation_variables)
+    /* Weder idx noch deceleration wurden bisher geprueft: Ein unzulaessiger Wert hat
+     * das Profil unveraendert gelassen und trotzdem {"ok":true} gemeldet, ein leeres
+     * Feld wurde zu 0 (Fehlerklasse von L30 und L29).
+     */
+    if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("deceleration", &deceleration))
     {
-        DISPLAY_ANIMATION * da = get_display_animation_var (idx);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx and deceleration required");
+        return 0;
+    }
 
-        if (deceleration >= ANIMATION_MIN_DECELERATION && deceleration <= ANIMATION_MAX_DECELERATION)
-        {
-            set_display_animation_deceleration (idx, deceleration);
-        }
+    if (idx < 0 || idx >= (int) max_display_animation_variables)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
 
-        favourite = (http_get_param ("favourite") && ! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
+    if (deceleration < ANIMATION_MIN_DECELERATION || deceleration > ANIMATION_MAX_DECELERATION)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range");
+        return 0;
+    }
 
-        if (favourite)
-        {
-            set_display_animation_flags (idx, da->flags | ANIMATION_FLAG_FAVOURITE);
-        }
-        else
-        {
-            set_display_animation_flags (idx, da->flags & ~ANIMATION_FLAG_FAVOURITE);
-        }
+    da = get_display_animation_var ((uint_fast8_t) idx);
+
+    set_display_animation_deceleration ((uint_fast8_t) idx, (uint_fast8_t) deceleration);
+
+    favourite = (http_get_param ("favourite") && ! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
+
+    if (favourite)
+    {
+        set_display_animation_flags ((uint_fast8_t) idx, da->flags | ANIMATION_FLAG_FAVOURITE);
+    }
+    else
+    {
+        set_display_animation_flags ((uint_fast8_t) idx, da->flags & ~ANIMATION_FLAG_FAVOURITE);
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -8479,13 +8600,31 @@ http_api_animation_profile_default ()
 static int
 http_api_color_animation_profile_set ()
 {
-    uint_fast8_t idx = atoi (http_get_param ("idx"));
-    uint_fast8_t deceleration = atoi (http_get_param ("deceleration"));
+    int idx;
+    int deceleration;
 
-    if (idx < MAX_COLOR_ANIMATION_VARIABLES && deceleration <= COLOR_ANIMATION_MAX_DECELERATION)
+    /* Stiller Nichtstun-Pfad mit Erfolgsmeldung, und ein leeres Feld wurde zur
+     * schnellsten Stufe 0 (Fehlerklasse von L30 und L29).
+     */
+    if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("deceleration", &deceleration))
     {
-        set_color_animation_deceleration ((COLOR_ANIMATION_VARIABLE) idx, deceleration);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx and deceleration required");
+        return 0;
     }
+
+    if (idx < 0 || idx >= MAX_COLOR_ANIMATION_VARIABLES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    if (deceleration < 0 || deceleration > COLOR_ANIMATION_MAX_DECELERATION)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range");
+        return 0;
+    }
+
+    set_color_animation_deceleration ((COLOR_ANIMATION_VARIABLE) idx, (uint_fast8_t) deceleration);
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
@@ -8609,8 +8748,14 @@ http_api_display_use_rgbw_set ()
 static int
 http_api_ambilight_brightness_set ()
 {
-    char * value = http_get_param ("value");
-    int    brightness = atoi (value ? value : "0");
+    int brightness;
+
+    /* Leer heisst nicht 0 - sonst dunkelt ein leeres Feld das Ambilight ab (L29). */
+    if (! http_get_int_param ("value", &brightness))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (brightness < 0)
     {
@@ -8637,8 +8782,14 @@ http_api_ambilight_brightness_set ()
 static int
 http_api_ambilight_mode_set ()
 {
-    char * value = http_get_param ("value");
-    int    mode = atoi (value ? value : "0");
+    int mode;
+
+    /* Leer heisst nicht 0 - sonst wechselt der Ambilight-Modus ungewollt (L29). */
+    if (! http_get_int_param ("value", &mode))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (mode < 0)
     {
@@ -8665,8 +8816,16 @@ http_api_ambilight_mode_set ()
 static int
 http_api_ambilight_leds_set ()
 {
-    char * value = http_get_param ("value");
-    int    leds = atoi (value ? value : "0");
+    int leds;
+
+    /* Ein leeres Feld wuerde die LED-Kette auf 0 setzen und das Ambilight
+     * stilllegen (L29).
+     */
+    if (! http_get_int_param ("value", &leds))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (leds < 0)
     {
@@ -8693,8 +8852,16 @@ http_api_ambilight_leds_set ()
 static int
 http_api_ambilight_offset_set ()
 {
-    char * value = http_get_param ("value");
-    int    offset = atoi (value ? value : "0");
+    int offset;
+
+    /* Leer heisst nicht 0 - sonst verschiebt ein leeres Feld den Startpunkt der
+     * Kette ungewollt auf Anfang (L29).
+     */
+    if (! http_get_int_param ("value", &offset))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (offset < 0)
     {
@@ -8721,22 +8888,35 @@ http_api_ambilight_offset_set ()
 static int
 http_api_ambilight_mode_profile_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
-    int deceleration = atoi (http_get_param ("deceleration"));
+    int idx;
+    int deceleration;
 
-    if (idx >= 0 && idx < MAX_AMBILIGHT_MODE_VARIABLES)
+    /* Ein idx ausserhalb des Bereichs hat bisher gar nichts bewirkt und trotzdem
+     * {"ok":true} gemeldet (Fehlerklasse von L30). Die Klammerung von deceleration
+     * bleibt absichtlich stehen - das ist Massnahme 17 und nicht dieser Schritt.
+     */
+    if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("deceleration", &deceleration))
     {
-        if (deceleration < 0)
-        {
-            deceleration = 0;
-        }
-        else if (deceleration > AMBILIGHT_MODE_MAX_DECELERATION)
-        {
-            deceleration = AMBILIGHT_MODE_MAX_DECELERATION;
-        }
-
-        set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, deceleration);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx and deceleration required");
+        return 0;
     }
+
+    if (idx < 0 || idx >= MAX_AMBILIGHT_MODE_VARIABLES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    if (deceleration < 0)
+    {
+        deceleration = 0;
+    }
+    else if (deceleration > AMBILIGHT_MODE_MAX_DECELERATION)
+    {
+        deceleration = AMBILIGHT_MODE_MAX_DECELERATION;
+    }
+
+    set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, (uint_fast8_t) deceleration);
 
     http_json_ok ();
 
@@ -8769,6 +8949,73 @@ http_json_ok ()
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();
+}
+
+/* Fehlerantwort in derselben Form wie http_api_app_file_upload: HTTP 200 mit ok=false.
+ * Ein echter HTTP-Fehlerstatus wuerde in der Legacy-Oberflaeche als Verbindungsabbruch
+ * erscheinen, statt die Ursache zu zeigen.
+ */
+static void
+http_json_error (unsigned int error_code, const char * detail)
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":false,\"error\":"));
+    http_send (String (error_code).c_str ());
+    http_send (FS(",\"detail\":\""));
+    http_send (sanitize_json_string (detail ? detail : "").c_str ());
+    http_send (FS("\"}"));
+    http_flush ();
+}
+
+/* Trennt "Parameter fehlt oder ist leer" von "Parameter ist 0". Das bisherige
+ * atoi (value ? value : "0") konnte das nicht: Ein leeres Helligkeitsfeld hat das
+ * Display dunkel geschaltet, ein leeres LED-Feld die Kette auf 0 gesetzt (L29).
+ * Resttext hinter der Zahl gilt ebenfalls als ungueltig - atoi haette daraus still
+ * eine 0 gemacht.
+ */
+static uint_fast8_t
+http_get_int_param (const char * name, int * valuep)
+{
+    char *  value = http_get_param (name);
+    char *  endp;
+    long    parsed;
+
+    if (! value || ! *value)
+    {
+        return 0;
+    }
+
+    parsed = strtol (value, &endp, 10);
+
+    if (endp == value || *endp)
+    {
+        return 0;
+    }
+
+    *valuep = (int) parsed;
+
+    return 1;
+}
+
+/* Laenge eines Monats inklusive Schaltjahr. Ohne sie nimmt datetime_set den
+ * 31. Februar widerspruchslos an (L32).
+ */
+static uint_fast8_t
+http_days_in_month (int year, int month)
+{
+    static const uint_fast8_t days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+    if (month < 1 || month > 12)
+    {
+        return 0;
+    }
+
+    if (month == 2 && ((year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0)))
+    {
+        return 29;
+    }
+
+    return days[month - 1];
 }
 
 static uint_fast8_t
@@ -8969,8 +9216,14 @@ http_api_ambilight_online_set ()
 static int
 http_api_dfplayer_volume_set ()
 {
-    char * value = http_get_param ("value");
-    int    volume = atoi (value ? value : "0");
+    int volume;
+
+    /* Leer heisst nicht 0 - sonst stellt ein leeres Feld den Ton stumm (L29). */
+    if (! http_get_int_param ("value", &volume))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (volume < 0)
     {
@@ -8997,8 +9250,16 @@ http_api_dfplayer_volume_set ()
 static int
 http_api_dfplayer_mode_set ()
 {
-    char * value = http_get_param ("value");
-    int    mode = atoi (value ? value : "0");
+    int mode;
+
+    /* Leer heisst nicht DFPLAYER_MODE_NONE - sonst schaltet ein leeres Feld die
+     * Tonausgabe ganz ab (L29).
+     */
+    if (! http_get_int_param ("value", &mode))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (mode < DFPLAYER_MODE_NONE)
     {
@@ -9042,8 +9303,14 @@ http_api_dfplayer_bell_flags_set ()
 static int
 http_api_dfplayer_speak_cycle_set ()
 {
-    char * value = http_get_param ("value");
-    int    speak_cycle = atoi (value ? value : "0");
+    int speak_cycle;
+
+    /* Leer heisst nicht 0 - eine 0 schaltet die Sprachansage ab (L29). */
+    if (! http_get_int_param ("value", &speak_cycle))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
 
     if (speak_cycle < 0)
     {
@@ -9063,13 +9330,26 @@ http_api_dfplayer_speak_cycle_set ()
 static int
 http_api_dfplayer_silence_start_set ()
 {
-    int hour = atoi (http_get_param ("hour"));
-    int minute = atoi (http_get_param ("minute"));
+    int hour;
+    int minute;
 
-    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60)
+    /* Fehlende oder unzulaessige Zeit hat bisher gar nichts bewirkt und trotzdem
+     * {"ok":true} gemeldet - die Oberflaeche zeigte "gespeichert" an, obwohl im
+     * Geraet nichts stand (Fehlerklasse von L30).
+     */
+    if (! http_get_int_param ("hour", &hour) || ! http_get_int_param ("minute", &minute))
     {
-        set_numvar (DFPLAYER_SILENCE_START_NUM_VAR, hour * 60 + minute);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "hour and minute required");
+        return 0;
     }
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour must be 0..23, minute 0..59");
+        return 0;
+    }
+
+    set_numvar (DFPLAYER_SILENCE_START_NUM_VAR, hour * 60 + minute);
 
     http_json_ok ();
 
@@ -9079,13 +9359,23 @@ http_api_dfplayer_silence_start_set ()
 static int
 http_api_dfplayer_silence_stop_set ()
 {
-    int hour = atoi (http_get_param ("hour"));
-    int minute = atoi (http_get_param ("minute"));
+    int hour;
+    int minute;
 
-    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60)
+    /* Wie bei silence_start: stiller Nichtstun-Pfad mit Erfolgsmeldung. */
+    if (! http_get_int_param ("hour", &hour) || ! http_get_int_param ("minute", &minute))
     {
-        set_numvar (DFPLAYER_SILENCE_STOP_NUM_VAR, hour * 60 + minute);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "hour and minute required");
+        return 0;
     }
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour must be 0..23, minute 0..59");
+        return 0;
+    }
+
+    set_numvar (DFPLAYER_SILENCE_STOP_NUM_VAR, hour * 60 + minute);
 
     http_json_ok ();
 
@@ -9166,8 +9456,25 @@ http_api_dfplayer_alarm_set ()
 static int
 http_api_overlay_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
+    int idx;
     int n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    if (! http_get_int_param ("idx", &idx))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx missing or not numeric");
+        return 0;
+    }
+
+    /* type und date_code haben keinen sinnvollen Rueckfallwert: Fehlen sie, wurde das
+     * Overlay bisher still auf Typ 0 und Datumscode 0 umgestellt (L29). interval,
+     * duration, month, day und days behalten dagegen ihre vorhandenen Rueckfallwerte -
+     * die sind absichtlich so gesetzt.
+     */
+    if (http_get_param ("type")[0] == '\0' || http_get_param ("date_code")[0] == '\0')
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "type and date_code required");
+        return 0;
+    }
 
     if (idx >= 0 && idx < MAX_OVERLAYS)
     {
@@ -9247,10 +9554,19 @@ http_api_overlay_set ()
             }
 
             set_overlay_var (idx);
+
+            http_json_ok ();
+
+            return 0;
         }
     }
 
-    http_json_ok ();
+    /* Bisher kam hier {"ok":true} heraus, obwohl nichts geschrieben wurde: ein idx
+     * ausserhalb des Bereichs oder jenseits der belegten Overlays fiel stumm durch,
+     * und die Oberflaeche zeigte danach ein Overlay, das im Geraet nicht existiert
+     * (Fehlerklasse von L30).
+     */
+    http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "overlay index out of range or not in use");
 
     return 0;
 }

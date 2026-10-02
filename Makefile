@@ -15,7 +15,18 @@ APP_VERSION_FILE ?= $(ESP_BUILD_DIR)/app-version.txt
 APP_DIR ?= ESP8266/ESP-uclock/data/app
 GZIP_SOURCES ?= $(APP_DIR)/app.js $(APP_DIR)/styles.css $(APP_DIR)/index.html $(APP_DIR)/sw.js $(APP_DIR)/manifest.webmanifest $(APP_DIR)/layout-previews.json $(APP_DIR)/icons/icon-192.svg $(APP_DIR)/icons/icon-512.svg $(APP_DIR)/icons/icon-192.png $(APP_DIR)/icons/icon-512.png $(APP_DIR)/icons/icon-180.png $(APP_DIR)/icons/icon-mask.png
 RELEASE_DIR ?= build/releases
-RELEASE_ZIP ?= $(RELEASE_DIR)/wordclock-release-$(shell date +"%Y-%m-%d-%H%M").zip
+# Sekundengenau statt minutengenau: Das Release-Ziel macht ein "rm -f" auf diesen
+# Namen. Zwei Builds in derselben Minute haben sich vorher KOMMENTARLOS
+# ueberschrieben, und beide meldeten Erfolg (BEFUNDE.md, L2).
+#
+# Der Zeitstempel steht in einer EIGENEN Variablen mit ":=", und das ist hier
+# Pflicht, nicht Geschmack: "?=" erzeugt eine rekursiv expandierte Variable, deren
+# $(shell date) bei JEDER Verwendung neu laeuft. RELEASE_ZIP wird vier Mal benutzt
+# (rm, zip, zip -@, echo) -- mit Minutengenauigkeit fiel das kaum auf, mit Sekunden
+# haette das Archiv regelmaessig unter einem anderen Namen gestanden als dem, der
+# geloescht und gemeldet wird. ":=" expandiert genau einmal beim Einlesen.
+RELEASE_STAMP := $(shell date +"%Y-%m-%d-%H%M%S")
+RELEASE_ZIP ?= $(RELEASE_DIR)/wordclock-release-$(RELEASE_STAMP).zip
 STM_VERSION_FILE ?= $(BUILD_DIR)/wc.txt
 ESP_VERSION_FILE ?= $(ESP_BUILD_DIR)/ESP-WordClock.txt
 

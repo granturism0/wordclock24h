@@ -158,12 +158,46 @@ anderer Agent `app.js` noch editiert, entsteht eine **`.gz` einer halb
 geschriebenen Datei** — genau der White-Screen-Fehlerfall aus R-Invarianten.
 Vor `app-gz`: `git status` prüfen, alle Editier-Tasks müssen abgeschlossen sein.
 
-## R3 — `app.js` hat immer genau einen Besitzer
+## R3 — Jede Datei hat genau einen Schreiber, **den Lead eingeschlossen**
 
-`ESP8266/ESP-uclock/data/app/app.js` ist eine einzige Datei mit ~12'200 Zeilen und
-Sammelpunkt fast aller PWA-Arbeit. Zwei Agents mit Edit auf dieser Datei
-überschreiben sich gegenseitig. Pro Runde arbeitet **ein** Agent an `app.js`.
-Andere PWA-Aufgaben warten oder laufen gegen `index.html` / `styles.css` / `sw.js`.
+Die PWA-Hauptdatei ist eine einzige Datei mit über 12'000 Zeilen und Sammelpunkt
+fast aller PWA-Arbeit. Zwei Schreiber in derselben Datei überschreiben sich
+gegenseitig, und das fällt erst auf, wenn der Stand schon kaputt ist.
+
+**Die Regel lautete früher „pro Runde arbeitet ein Agent daran".** Das regelte die
+Gleichzeitigkeit *unter Agenten* und sagte über den Lead nichts — und genau diese
+Lücke ist am 03.10.2026 genutzt worden: Der Lead hat während eines laufenden
+Auftrags selbst in dieser Datei geschrieben. Der zuständige Agent fand die Korrektur
+vor und brach seinen Patch ab, weil **sein** Skript jeden Anker auf „genau einmal"
+prüft. Hätte er stur ersetzt, stünden zwei konkurrierende Implementierungen
+derselben Prüfung darin. Verhindert hat das seine Sorgfalt, nicht die Regel.
+
+**Der Lead schreibt keinen Produktcode.** Er baut, prüft, pflegt Werkzeug und
+Dokumentation, bumpt Versionen und rollt aus. Alles andere geht an den zuständigen
+Agenten — auch wenn ein Auftrag einmal nicht ankommt und es schneller ginge, selbst
+Hand anzulegen. Genau diese Abkürzung hat die Regel gebrochen.
+
+**Erzwungen, nicht aufgeschrieben.** `tools/hooks/file-ownership.py` weist jeden
+Schreibzugriff auf eine fremde Datei ab — im Frontmatter jedes schreibenden Agenten
+und in `.claude/settings.json` für den Lead. Geprüft werden `Write`, `Edit` **und
+`Bash`**: Die Agenten patchen durchgehend über Python-Heredocs, ein Hook nur auf
+`Write`/`Edit` hätte gar nichts gesehen. Lesen bleibt frei.
+
+Jedes Erkennungsmuster muss den Pfad enthalten. Der erste Entwurf prüfte auf
+`open(p,'w')` ohne Pfadbezug und blockierte damit eine Änderung an dieser Datei
+hier, nur weil im neuen Text ein fremder Dateiname vorkam. Ein Hook, der die eigene
+Dokumentation blockiert, wird umgangen statt befolgt.
+
+| Wer | Schreibt |
+|---|---|
+| `stm-developer` | `src/**` |
+| `esp-developer` | `ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` |
+| `pwa-developer` | die PWA-Logik: Hauptdatei und Service Worker |
+| `ui-developer` | Markup, Stilvorlage, Manifest, `icons/**` |
+| `doc-writer` | `*.md`, `knowledge/**` |
+| `spec-writer` | `specs/**` |
+| `release-engineer` | `Makefile`, `cmake/**`, die vier Versionsdateien |
+| Lead | `tools/**`, `.claude/**`, Doku, Build, Rollout |
 
 ## R4 — Versionsnummern und `CACHE_NAME` bumpt nur der Lead
 
