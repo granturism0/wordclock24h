@@ -73,9 +73,18 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 im LittleFS und müssen eigens hochgeladen werden:
 
 ```
-./tools/install-app.sh --check     zeigt lokal gegen Gerät
+./tools/install-app.sh --check     Version und abgelegte Dateien gegen die Weissliste
 ./tools/install-app.sh             lädt hoch
 ```
+
+**Nach jedem ESP-Update prüfen.** Ein Firmware-Wechsel löscht das Dateisystem nicht —
+das ist am 02.10.2026 direkt belegt: Nach dem OTA lieferte das Gerät `app.js`
+unverändert aus, bevor irgendetwas neu hochgeladen wurde. Aber der ESP sucht
+**ausschliesslich** nach dem abgeflachten `.gz`-Namen, und `APP_INSTALL_ASSETS` in
+`http.cpp` ist eine Weissliste. Ändert sich ein Name oder kommt ein Asset dazu, ist
+die Datei nicht weg — sie wird nur nicht mehr gefunden, und die PWA wirkt
+verschwunden. Genau so ist es am 29.04.2026 beim Umstieg auf `.gz`-only passiert
+(`BEFUNDE.md`, L21). `--check` nennt jede fehlende Datei beim Namen.
 
 Das ist lange übersehen worden: Am 02.10.2026 lief auf dem Gerät noch **1.4.69**,
 während Repo und Server bei 1.4.71 standen — alle PWA-Korrekturen der Tage davor waren

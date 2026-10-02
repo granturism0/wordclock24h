@@ -49,11 +49,44 @@ local_version() {
   grep -m1 '^const APP_VERSION' "$D/app.js" | sed 's/.*"\(.*\)".*/\1/'
 }
 
+# Gleicht ab, welche Assets wirklich im LittleFS liegen. Die Versionszeile allein
+# genuegt nicht: Der ESP sucht AUSSCHLIESSLICH nach dem abgeflachten .gz-Namen
+# (http_find_stored_app_asset_filename). Aendert sich der Name oder kommt ein Asset
+# dazu, ist die Datei nicht geloescht -- sie wird nur nicht mehr gefunden. Genau das
+# ist am 29.04.2026 passiert, als die Auslieferung auf .gz-only umgestellt wurde:
+# Die PWA war "weg", obwohl auf dem Geraet nichts fehlte.
+check_stored() {
+  local listing missing=0 name
+  listing=$(curl -s -m 20 "$U/api/fs_list" 2>/dev/null)
+
+  if [ -z "$listing" ]; then
+    echo "  Dateiliste nicht abrufbar — Abgleich uebersprungen."
+    return 0
+  fi
+
+  for a in $ASSETS; do
+    # app/icons/icon-192.png  ->  app-icons-icon-192.png.gz
+    name="$(printf '%s' "$a" | tr '/' '-').gz"
+    case "$listing" in
+      *"\"$name\""*) ;;
+      *) printf '  FEHLT auf dem Geraet: %s\n' "$name"; missing=$((missing+1));;
+    esac
+  done
+
+  if [ "$missing" -gt 0 ]; then
+    printf '  %d Datei(en) fehlen — "./tools/install-app.sh" ausfuehren.\n' "$missing"
+    return 1
+  fi
+  echo "  Alle erwarteten Assets liegen auf dem Geraet."
+  return 0
+}
+
 printf '=== PWA-Installation auf %s ===\n\n' "$HOST"
 printf '  lokal:  %s\n  Geraet: %s\n\n' "$(local_version)" "$(device_version)"
 
 if [ "${1:-}" = "--check" ]; then
-  exit 0
+  check_stored
+  exit $?
 fi
 
 # Vor dem Hochladen pruefen: Eine leere .gz wuerde einen weissen Bildschirm erzeugen,
