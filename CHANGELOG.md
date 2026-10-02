@@ -1,5 +1,84 @@
 # Changelog
 
+## 2026-10-02 Erster vollstaendiger PWA-Testdurchlauf — zehn neue Befunde
+
+Reine Dokumentations- und Werkzeugaenderung, kein Produktcode, deshalb kein
+Versionsbump. Die gefundenen Fehler sind NICHT behoben, nur belegt.
+
+Gefahren wurden die Phasen 0 bis 4 und 9 aus TESTPLAN-PWA.md: 32 lesende
+Pruefungen, 109 schreibende der Klasse S, rund 115 Grenzfallsonden ueber 20
+Felder. Backup-Import, Verbindungstrennung und die gefaehrlichen Funktionen
+blieben wie vorgesehen aussen vor.
+
+### Der Durchlauf endete mit einem Watchdog-Reset (L25)
+
+03:45:07, Reset flags IWDGRST PINRST. Das ist der ERSTE echte Watchdog-Reset,
+seit es mit 3.2.8 ueberhaupt einen funktionierenden Watchdog gibt (L15).
+Ausloeser war doppelte Last: der Testtreiber und parallel die im Safari offene
+PWA mit neun Endpunkten je 15 s.
+
+In den letzten vier Sekunden davor steht im Mitschnitt alles, was den Haenger
+von L14 ausgemacht hat -- var_send_buf-Timeout, eine zerrissene Logzeile als
+Beleg verschachtelter Ausfuehrung, show_time vier Sekunden zu spaet.
+
+Was dabei NICHT belegt ist: die Kette bis zum Ablauf der 20 Sekunden. Ich hatte
+zwischenzeitlich eine Logstille von 20,5 s als Blockade gelesen -- das war
+falsch. Die Firmware protokolliert nur bei Ereignissen, und Stillen von 44 s
+zwischen show_time und read rtc sind im Normalbetrieb regelmaessig und harmlos.
+Aus einer Logluecke laesst sich hier keine Blockade ableiten.
+
+Der Code zeigt den Weg trotzdem: Die Warteschleife in var_send_buf() ruft
+schedule_esp8266_messages(), aber NICHT watchdog_reload(). Damit ist dies der
+erste direkte Beleg fuer Massnahme 1.
+
+Und die gute Haelfte: Vor 3.2.8 waere dasselbe Ereignis ein minutenlanges
+Einfrieren gewesen. Jetzt sind es sieben Sekunden bis zum selbsttaetigen
+Wiederanlauf. Der Abschlussvergleich ueber alle Felder zeigte ausser Uptime und
+Reset-Ursache KEINE Abweichung -- alle 109 Schreibpruefungen zurueckgenommen,
+und die Werte haben einen EEPROM-Neuladevorgang ueberlebt.
+
+### Der schwerste Befund: ein Anfuehrungszeichen (L26)
+
+sanitize_xml_string maskiert &, < und > -- aber nicht ", obwohl jede
+Zeichenkette in einem "-begrenzten XML-Attribut landet. parseSettings prueft das
+Ergebnis von DOMParser nicht auf parsererror. Wer ein " in Ort, Tickertext,
+AppID oder Update-Host eintraegt, verliert in der PWA alle danach folgenden
+Werte, ohne jede Fehlermeldung -- und kann es ueber die PWA nicht rueckgaengig
+machen, weil sie die Einstellung nicht mehr lesen kann.
+
+Beide Haelften am Quelltext nachgeprueft. Beide muessen behoben werden.
+
+### Der Testplan hat sich selbst korrigiert (L30)
+
+network_ap_set war im Plan als "betrifft nur den AP-Modus, daher pruefbar"
+eingestuft. Der Agent hat die beauftragte Pruefung von sich aus VERWEIGERT und
+begruendet: Der Endpunkt setzt EEPROM_FLAG_BOOT_AS_AP, schreibt das EEPROM und
+ruft sofort wifi_ap() -- die Uhr waere aus dem WLAN gewesen, auch nach dem
+naechsten Start. Am Quelltext bestaetigt.
+
+Dass er das musste, war die Luecke: Der Hook deckte nur eeprom_settings_set mit
+boot_as_ap=1 ab. network_ap_set ist jetzt gesperrt, der Plan korrigiert.
+
+Zweitbefund an derselben Stelle: Bei strlen(key) < 10 passiert gar nichts, der
+Endpunkt meldet trotzdem {"ok":true}.
+
+### Weitere Befunde
+
+L27 negative Temperaturkorrektur liefert Unsinn (Vorzeichenbruch ESP/STM, im
+Mitschnitt belegt mit "RTC temperature: 2147483549.5") · L28 Zeitzone ohne jede
+Bereichspruefung im ESP · L29 leeres Zahlenfeld heisst still "0" · L31
+ambilight_markers_set schreibt idx 1, die PWA liest idx 0 · L32 der 31. Februar
+wird uebernommen · L33 hasUnsavedEdits legt zusaetzlich die Selbstaktualisierung
+still · L34 drei kleinere Anzeigebefunde.
+
+Bestaetigt, wie vorhergesagt: Massnahme 17 an ALLEN geprueften Zahlenfeldern,
+Massnahme 4, Massnahme 7, die Zeitserver-Kuerzung (L23) und das versteckte WLAN
+(L24).
+
+Sauber bestanden und damit ebenfalls ein Ergebnis: Temperaturformatierung bei
+positiver Korrektur, Geraetezeit auf 0 s genau, alle zwoelf .gz byte-genau,
+Overlay-Datumskodierung, Timer-Dekodierung, Farbumrechnung, Umlaute und Emoji.
+
 ## 2026-10-02 Teststrategie, Sicherungskonzept und Testagent
 
 Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein

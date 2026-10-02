@@ -42,6 +42,13 @@ import sys
 FORBIDDEN = {
     "network_client_set": "schreibt SSID und WLAN-Schluessel und loest eine Neuanmeldung aus — das kappt genau die Verbindung, ueber die geprueft wird",
     "network_wps": "kann die gespeicherten Zugangsdaten ersetzen, ohne dass das Ergebnis kontrollierbar ist",
+    # Nachgetragen am 02.10.2026: Der erste Testdurchlauf hat gezeigt, dass der
+    # Testplan diesen Endpunkt falsch eingestuft hatte. http_api_network_ap_set
+    # setzt EEPROM_FLAG_BOOT_AS_AP, schreibt das EEPROM und ruft sofort wifi_ap() --
+    # die Uhr ist dann aus dem WLAN und kommt auch beim naechsten Start als
+    # Zugangspunkt hoch. Der Agent hat die Pruefung von sich aus verweigert; dass
+    # er das musste, war die Luecke.
+    "network_ap_set": "setzt EEPROM_FLAG_BOOT_AS_AP und schaltet sofort in den Zugangspunkt-Modus — die Uhr ist dann aus dem WLAN, auch nach dem naechsten Start",
     "maintenance_format_fs": "loescht die PWA vom Geraet — danach fehlt die Oberflaeche, mit der man sie wieder hochladen wuerde",
     "maintenance_reset_eeprom": "setzt alle Geraeteeinstellungen zurueck; die angelernten IR-Codes stehen in KEINER Sicherung",
     "fs_remove": "loescht einzelne Dateien aus dem LittleFS, darunter die PWA selbst",

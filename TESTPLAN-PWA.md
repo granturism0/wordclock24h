@@ -285,7 +285,7 @@ Beide stehen deshalb in **Phase 8**, nicht hier.
 | WLAN-Suche (`network_scan`) | **L** | Liefert die Liste? Wie reagiert sie, wenn keine Netze gefunden werden? Rein lesend, gefahrlos |
 | **WLAN-SSID und -Schlüssel setzen** | **G** | **Nicht ausführen** — Phase 8 |
 | **WPS** | **G** | **Nicht ausführen** — Phase 8 |
-| AP-SSID und AP-Schlüssel | N | Betrifft **nur** den Zugangspunkt-Modus, nicht die laufende Client-Verbindung — daher prüfbar. Eingabefeld 32 Zeichen, EEPROM **64**: die PWA ist strenger als das Gerät. **Danach unbedingt zurückschreiben**, sonst ist der Notzugang mit falschen Daten hinterlegt |
+| **AP-SSID und AP-Schlüssel** (`network_ap_set`) | **G** | **Nicht ausführen** — Phase 8. *Diese Zeile stand bis zum 02.10.2026 als „Klasse N, daher prüfbar" hier. Das war falsch:* `http_api_network_ap_set` setzt `EEPROM_FLAG_BOOT_AS_AP`, schreibt das EEPROM und ruft **sofort** `wifi_ap()`. Die Uhr ist damit aus dem WLAN und kommt auch beim nächsten Start als Zugangspunkt hoch — genau die Wirkung, die dieser Plan für `boot_as_ap` ausschliesst. Der erste Testdurchlauf hat den Widerspruch gefunden, weil der Agent die Prüfung von sich aus verweigert hat. Dass er das musste, war die Lücke |
 | „Als Zugangspunkt starten" (`boot_as_ap`) | **G** | **Nicht setzen.** Beim nächsten Neustart wäre die Uhr nicht mehr im WLAN |
 | Zeitserver | N | Eingabefeld **32** Zeichen, ESP speichert **16** (`MAX_TIMESERVER_NAME_LEN`). **Erwarteter Befund:** stille Kürzung |
 | Zeitzone, Sommerzeit | S | Bereich −12..14, wirkt auf die Anzeige, sofort rücknehmbar |
