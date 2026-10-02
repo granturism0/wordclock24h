@@ -73,7 +73,7 @@ Compile-Smoke-Tests; das baut und darf nach R1 nur seriell laufen.
 ./tools/deploy.sh              uebertraegt
 ```
 
-Ziel ist `/volume1/web/wordclock/test8` auf `diskstation.lan` (SSH, Port 5002).
+Ziel ist der Pfad aus `DEPLOY_PATH` auf dem Host aus `tools/deploy.conf` (SSH). Die Zugangsdaten stehen nicht im Repo — Vorlage: `tools/deploy.conf.example`.
 Übertragen werden App-Assets, beide `.hex`, die ESP-`.bin` und die Versionsdateien.
 Zusätzlich wird die H2-Kopfzeile in `releasenote.html` auf die aktuelle STM-Version
 nachgezogen, und nach erfolgreichem Rollout entsteht ein Tag

@@ -53,7 +53,7 @@ DIR-009:
   seit: 2026-10-02
 
 DIR-008:
-  regel: "Die produktive Uhr unter http://192.168.1.184/app/ darf LESEND abgefragt werden
+  regel: "Die produktive Uhr (Adresse aus tools/device.conf, DEVICE_HOST) darf LESEND abgefragt werden
           (GET auf /api/-Endpunkte, die nur Zustand liefern). VERBOTEN ohne ausdrueckliche
           Freigabe des Nutzers im selben Gespraech: jeder schreibende Endpunkt, jeder Flash,
           jeder Reset, Backup-Import, maintenance_reset_eeprom, maintenance_format_fs,

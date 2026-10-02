@@ -69,9 +69,10 @@ Versionsdateien.
 ./tools/deploy.sh              uebertraegt
 ```
 
-Zugang über SSH auf `diskstation.lan`, Port 5002, Benutzer `admin`, Schlüssel
-`~/.ssh/nas_hps_hr`. Die Werte stehen in `tools/deploy.conf`, die **nicht** im
-Repository liegt.
+Zugang über SSH. Host, Port, Benutzer, Zielpfad und Schlüssel stehen in
+`tools/deploy.conf` — die Datei ist gitignored und liegt **nicht** im Repository,
+weil das hier öffentlich ist. Vorlage: `tools/deploy.conf.example`. Fehlt die Datei,
+bricht `deploy.sh` mit einem Hinweis ab, statt irgendwohin zu übertragen.
 
 **Mach immer zuerst den Probelauf.** Das Skript prüft vorher jedes Artefakt auf
 Vorhandensein, Grösse > 0 und veraltete `.gz`, und bricht ab, statt einen kaputten

@@ -1,0 +1,22 @@
+# Vorlage fuer tools/device.conf — diese Datei kopieren und ausfuellen.
+# tools/device.conf ist gitignored und gehoert nicht ins Repository: Die Adresse
+# der eigenen Uhr ist interne Netzstruktur und hat in einem oeffentlichen Repo
+# nichts verloren.
+#
+#   cp tools/device.conf.example tools/device.conf
+#   $EDITOR tools/device.conf
+#
+# Alternativ ohne Datei, je Aufruf:
+#   DEVICE_HOST=192.0.2.10 ./tools/smoke-device.sh
+#
+# Der ESP meldet sich NICHT per mDNS an — ein Name wie "wordclock.local" gibt es
+# also nicht. Es muss die IP sein, die der Router der Uhr gibt; am besten dort
+# fest zuordnen, sonst zeigt diese Datei nach einem Lease-Wechsel ins Leere.
+
+DEVICE_HOST=192.0.2.10
+
+# Raspberry mit dem UART-Mitschnitt (tools/logger/). Die Vorgaben von log.sh passen
+# zur Anleitung in tools/logger/README.md; nur abweichende Werte muessen hier stehen.
+#LOG_HOST=wordclock-pi.local
+#LOG_USER=pi
+#LOG_KEY=~/.ssh/wordclock_pi

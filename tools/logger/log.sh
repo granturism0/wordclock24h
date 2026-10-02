@@ -9,9 +9,15 @@
 #   ./tools/logger/log.sh stats           Datenrate, Groesse, Dienststatus
 #   ./tools/logger/log.sh gaps [ms]       Luecken ueber ms finden (Vorgabe 500) -- Blockaden
 #
-# Ziel per Umgebungsvariablen: LOG_HOST LOG_USER LOG_PORT LOG_KEY LOG_FILE
+# Ziel aus tools/device.conf (gitignored) oder per Umgebungsvariablen:
+# LOG_HOST LOG_USER LOG_PORT LOG_KEY LOG_FILE
 set -uo pipefail
 
+CONF="$(git rev-parse --show-toplevel 2>/dev/null)/tools/device.conf"
+[ -f "$CONF" ] && . "$CONF"
+
+# wordclock-pi.local ist der Name, den tools/logger/README.md beim Aufsetzen vergibt.
+# Er ist mDNS und gilt nur im eigenen Netz -- deshalb darf er hier als Vorgabe stehen.
 HOST=${LOG_HOST:-wordclock-pi.local}
 USER=${LOG_USER:-pi}
 PORT=${LOG_PORT:-22}

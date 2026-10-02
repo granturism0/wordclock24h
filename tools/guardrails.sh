@@ -219,6 +219,27 @@ else
   ok "keine absoluten Benutzerpfade in versionierten Dateien"
 fi
 
+# Interne Netzstruktur gehoert nicht in ein oeffentliches Repository. Adressen und
+# Hostnamen kommen aus tools/device.conf und tools/deploy.conf -- beide gitignored.
+# Ausgenommen: Dokumentationsadressen nach RFC 5737 (192.0.2.*, 198.51.100.*,
+# 203.0.113.*) und wctris/, das aus dem Ursprungsprojekt stammt.
+# Zwei getrennte Muster: eine vollstaendige IPv4 aus einem privaten Bereich, und
+# Hostnamen mit einer Heimnetz-Endung. Die Oktettzahl muss je Praefix stimmen --
+# ein verkuerztes "10\.[0-9]+\.[0-9]+" wuerde jede Versionsnummer wie 10.5.3 melden.
+NET_IP='(^|[^0-9.])(10(\.[0-9]{1,3}){3}|192\.168(\.[0-9]{1,3}){2}|172\.(1[6-9]|2[0-9]|3[01])(\.[0-9]{1,3}){2})([^0-9.]|$)'
+# Der Unterstrich muss in der Abgrenzung stehen: sonst meldet jeder i18n-Schluessel
+# wie "maintenance.local_update" einen Treffer.
+NET_HOST='[A-Za-z0-9-]+\.(lan|home|fritz\.box|local)([^A-Za-z0-9._-]|$)'
+hits=$(git ls-files | $GREP -v '^wctris/' \
+       | xargs $GREP -nE "$NET_IP|$NET_HOST" 2>/dev/null \
+       | $GREP -vE '192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|example\.(lan|local)|wordclock-pi\.local')
+if [ -n "$hits" ]; then
+  warn "interne Netzadressen in versionierten Dateien:"
+  printf '%s\n' "$hits" | sed 's/^/            /' | head -10
+else
+  ok "keine internen Netzadressen in versionierten Dateien"
+fi
+
 # --------------------------------------------- S10 Vollstaendigkeit Katalog
 step S10 "Massnahmenkatalog BEFUNDE.md vollstaendig"
 node tools/checks/befunde-katalog.mjs || WARN=$((WARN+1))

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Prueft nach einem Release, ob das Geraet noch antwortet wie erwartet.
 #
-#   ./tools/smoke-device.sh              gegen die Uhr unter DEVICE_HOST
-#   DEVICE_HOST=192.168.1.184 ./tools/smoke-device.sh
+#   ./tools/smoke-device.sh              gegen die Uhr aus tools/device.conf
+#   DEVICE_HOST=192.0.2.10 ./tools/smoke-device.sh
 #
 # Warum es das braucht: Die elf Guardrail-Stufen sind ausnahmslos STATISCH. Sie lesen
 # Quelltext, sie sprechen nicht mit dem Geraet. Nach einer Aenderung an http.cpp --
@@ -15,7 +15,17 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
-HOST=${DEVICE_HOST:-192.168.1.184}
+# Die Adresse der Uhr steht NICHT im Repo (oeffentlich) -- sie kommt aus
+# tools/device.conf (gitignored, Vorlage: tools/device.conf.example) oder aus der
+# Umgebung.
+[ -f tools/device.conf ] && . tools/device.conf
+HOST=${DEVICE_HOST:-}
+if [ -z "$HOST" ]; then
+  echo "DEVICE_HOST fehlt." >&2
+  echo "tools/device.conf anlegen (Vorlage: tools/device.conf.example)" >&2
+  echo "oder DEVICE_HOST=<ip> voranstellen." >&2
+  exit 2
+fi
 U="http://$HOST"
 TIMEOUT=${TIMEOUT:-10}
 

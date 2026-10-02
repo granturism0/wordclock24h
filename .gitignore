@@ -29,3 +29,6 @@ tools/preview/shots/
 
 # Zugangsdaten fuer den Rollout
 tools/deploy.conf
+
+# Adresse der eigenen Uhr
+tools/device.conf

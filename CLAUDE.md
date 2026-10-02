@@ -158,8 +158,10 @@ sonst kollidieren zwei unabhängige Erhöhungen und das Release ist inkonsistent
 Es gibt eine physische Uhr und einen Serial-Port. Flashen und Live-Test macht der
 Nutzer bzw. genau ein Agent. Kein paralleles Flashen, kein paralleler Display-Test.
 
-**Die Uhr ist unter `http://192.168.1.184/app/` erreichbar (DIR-008).** Lesende
-Abfragen sind frei. Alles Schreibende braucht die ausdrückliche Freigabe des Nutzers
+**Die Uhr ist unter `http://$DEVICE_HOST/app/` erreichbar (DIR-008).** Die Adresse
+steht in `tools/device.conf` (gitignored, Vorlage `tools/device.conf.example`) und
+bewusst nirgends im Repo — es ist öffentlich, und interne Netzstruktur gehört dort
+nicht hinein. Lesende Abfragen sind frei. Alles Schreibende braucht die ausdrückliche Freigabe des Nutzers
 im selben Gespräch — es ist seine Uhr im Dauerbetrieb, kein Testgerät.
 
 Diese Endpunkte sind aus unseren eigenen Befunden heraus gefährlich:

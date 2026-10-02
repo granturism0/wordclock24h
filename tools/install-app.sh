@@ -4,6 +4,8 @@
 #   ./tools/install-app.sh              laedt hoch
 #   ./tools/install-app.sh --check      zeigt nur, was auf dem Geraet liegt
 #
+# Die Adresse der Uhr kommt aus tools/device.conf oder aus DEVICE_HOST.
+#
 # Warum es das braucht: tools/deploy.sh bringt die Assets auf den UPDATE-SERVER, nicht
 # auf die Uhr. Dort liegen sie im LittleFS und muessen eigens hochgeladen werden -- und
 # genau das ist lange nicht passiert: Am 02.10.2026 lief auf dem Geraet noch 1.4.69,
@@ -17,7 +19,17 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
-HOST=${DEVICE_HOST:-192.168.1.184}
+# Die Adresse der Uhr steht NICHT im Repo (oeffentlich) -- sie kommt aus
+# tools/device.conf (gitignored, Vorlage: tools/device.conf.example) oder aus der
+# Umgebung.
+[ -f tools/device.conf ] && . tools/device.conf
+HOST=${DEVICE_HOST:-}
+if [ -z "$HOST" ]; then
+  echo "DEVICE_HOST fehlt." >&2
+  echo "tools/device.conf anlegen (Vorlage: tools/device.conf.example)" >&2
+  echo "oder DEVICE_HOST=<ip> voranstellen." >&2
+  exit 2
+fi
 U="http://$HOST"
 D=ESP8266/ESP-uclock/data/app
 

@@ -251,12 +251,15 @@ Die letzte Zeile muss `parsed OK` melden. Heisst dein Benutzer anders, ersetze `
 Ohne diese Regel musst du nach jeder Änderung am Logger selbst
 `sudo systemctl restart wordclock-logger` ausführen.
 
-Heisst dein Benutzer anders oder hat der Pi eine feste IP, setze das einmal:
+Heisst dein Benutzer anders oder hat der Pi eine feste IP, trag das dauerhaft in
+`tools/device.conf` ein (die Datei ist gitignored, Vorlage `tools/device.conf.example`):
 
-```bash
-export LOG_HOST=192.168.1.xxx
-export LOG_USER=deinname
 ```
+LOG_HOST=192.0.2.20
+LOG_USER=deinname
+```
+
+Für einen einzelnen Aufruf geht auch `LOG_HOST=192.0.2.20 ./tools/logger/log.sh tail`.
 
 ---
 
