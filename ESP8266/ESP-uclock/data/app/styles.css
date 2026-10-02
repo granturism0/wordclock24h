@@ -1149,7 +1149,7 @@ h2 {
   }
 
   .module-chip {
-    min-height: 40px;
+    min-height: 44px;                 /* nicht darunter: WCAG 2.5.5 gilt auch am Desktop */
     padding: 0 14px;
     font-size: 0.96rem;
   }
@@ -1413,7 +1413,7 @@ h2 {
   }
 
   .module-chip {
-    min-height: 42px;
+    min-height: 44px;
     padding: 0 15px;
     font-size: 0.98rem;
   }

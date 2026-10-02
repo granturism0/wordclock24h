@@ -54,6 +54,19 @@
     add("SW registriert", navigator.serviceWorker && navigator.serviceWorker.controller ? "ja" : "nein");
     add("isSecureContext", String(window.isSecureContext));
 
+    // Zusaetzlich an den Server melden. Der legt daraus diag-<breite>_<hoehe>.json an,
+    // und erst damit laesst sich eine Reihe ueber zwanzig Formate auswerten, ohne
+    // zwanzig Screenshots einzeln anzusehen.
+    try {
+      const payload = JSON.stringify({ viewport: innerWidth + "x" + innerHeight, lines: L });
+      const url = "/diag-result?vp=" + innerWidth + "x" + innerHeight;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([payload], { type: "application/json" }));
+      } else {
+        fetch(url, { method: "POST", body: payload, keepalive: true });
+      }
+    } catch (_) { }
+
     const pre = document.createElement("pre");
     pre.textContent = L.join("\n");
     pre.style.cssText = "position:fixed;inset:0;z-index:2147483647;margin:0;padding:10px;" +

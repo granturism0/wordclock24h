@@ -27,7 +27,16 @@ DIAG=""
 
 [ "${1:-}" = "--diag" ] && { DIAG="&diag=1"; shift; }
 SIZES=("$@")
-[ ${#SIZES[@]} -eq 0 ] && SIZES=(320x568 390x844 430x932 852x393 820x1180 1280x820 1920x1080)
+# Hoch- UND Querformat jeder Klasse, dazu die breiten Schreibtischformate.
+# 3440x1440 und 5120x1440 sind keine Exoten: Darauf wird hier gearbeitet.
+[ ${#SIZES[@]} -eq 0 ] && SIZES=(
+  320x568    360x800    390x844    430x932          # Telefon hoch
+  568x320    800x360    852x393    932x430          # Telefon quer
+  768x1024   820x1180   1024x1366                   # Tablet hoch
+  1024x768   1180x820   1366x1024                   # Tablet quer
+  1280x820   1512x982   1920x1080                   # Schreibtisch
+  2560x1080  3440x1440  5120x1440                   # ultrabreit
+)
 
 if [ ! -x "$CHROME" ]; then
   echo "Chrome nicht gefunden: $CHROME" >&2
