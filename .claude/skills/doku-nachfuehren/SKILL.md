@@ -21,8 +21,8 @@ Die Dokumentation zerfällt in zwei Sorten, und die Unterscheidung ist die ganze
 | Anlass | Was |
 |---|---|
 | Release | `CHANGELOG.md` — ein Release gilt erst als fertig, wenn der Eintrag steht |
-| Befund geschlossen | `BEFUNDE.md` — Status **mit dem Beleg**, an dem die Prüfung hängt |
-| Neuer Befund aus der Arbeit | `BEFUNDE.md`, nächste freie `L`-Nummer |
+| Befund geschlossen | `BEFUNDE.md` — Status **mit dem Beleg**, an dem die Prüfung hängt, **und** den Eintrag aus dem ToDo-Abschnitt entfernen |
+| Neuer Befund aus der Arbeit | `BEFUNDE.md`, nächste freie `L`-Nummer, **und** ein Eintrag im ToDo-Abschnitt |
 | Neues Werkzeug oder neuer Ablauf | die passende `README`, und bei einer Regel `knowledge/directives.md` |
 
 Der Beleg in `BEFUNDE.md` ist kein Schmuck: Er macht die Prüfung wiederholbar. „offen"
@@ -57,9 +57,15 @@ umschreiben.
 ./tools/guardrails.sh
 ```
 
-**S9** vergleicht Versionsangaben in lebenden Dokumenten gegen die Quellen und meldet
-absolute Benutzerpfade. **S10** schlägt an, wenn eine Massnahmennummer aus einem Review
-in `BEFUNDE.md` fehlt oder die `L`-Nummerierung eine Lücke hat.
+**S9** vergleicht Versionsangaben in lebenden Dokumenten gegen die Quellen, meldet
+absolute Benutzerpfade und interne Netzadressen. **S10** schlägt an, wenn eine
+Massnahmennummer aus einem Review in `BEFUNDE.md` fehlt, die `L`-Nummerierung eine
+Lücke hat **oder ein offener Befund nicht im ToDo-Abschnitt steht**.
+
+Der letzte Punkt ist der jüngste: Die Tabellen führten den Stand, aber niemand konnte
+ihnen ablesen, was als Nächstes zu tun ist. Eine Arbeitsliste, die nur von Hand
+nachgezogen wird, veraltet still — genau wie die Versionsnummern, die monatelang falsch
+in `README-CMAKE.md` standen.
 
 Beides ist bewusst maschinell: „Führe die Doku nach" ist eine Absichtserklärung und hat
 in diesem Projekt nachweislich nicht gehalten.

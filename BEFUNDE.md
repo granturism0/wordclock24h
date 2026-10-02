@@ -8,6 +8,77 @@ Massnahmen.
 Der Status ist am Code nachgeprüft, nicht aus dem Changelog abgeschrieben. Die
 Spalte „Beleg" nennt, woran die Prüfung hängt, damit sie wiederholbar ist.
 
+## ToDo — was als Nächstes ansteht
+
+Die Tabellen weiter unten führen **jeden** Befund mit Status und Beleg. Dieser
+Abschnitt ist die Arbeitsliste daraus: nur das Offene, nach Aufwand und Risiko
+sortiert, mit der Angabe, was es jeweils braucht. Er wird bei jedem Abschluss
+mitgeführt — ein Punkt verschwindet hier erst, wenn seine Zeile unten auf
+„erledigt" steht.
+
+### A — braucht eigene Spec und Verifikation am Gerät
+
+Diese drei ändern das Laufzeitverhalten der **produktiven** Uhr. Kein Nebenbei-Fix.
+
+| | Was | Warum heikel | Dateien |
+|---|---|---|---|
+| **A1** | `watchdog_reload()` in die langen Busy-Waits (Massnahme 1, R2-12) | Weiterhin genau **eine** Aufrufstelle, `main.c:3170`. Seit 3.2.8 läuft der Watchdog überhaupt erst (L15) — damit wird jede lange Schleife erstmals wirklich gefährlich, statt wie vorher folgenlos zu hängen | `src/main.c`, `src/display/display.c`, `src/remote-ir/` |
+| **A2** | DS18xx: CRC-Prüfung beim Lesen **und** erneute Erkennung zur Laufzeit (Massnahme 16) | `temp_init()` läuft genau einmal beim Start (`main.c:3140`). Scheitert die Erkennung dort, liefert der Sensor bis zum nächsten Reset nur den Fehlercode — am Gerät belegt (L18): 11 Fehlerwerte davor, 1506 gültige danach. „online" heisst heute nur „beim Init gefunden" | `src/ds18xx/`, `src/tempsensor/`, `src/vars/vars.c`, `src/main.c` |
+| **A3** | Bereichsprüfungen `overlay_set_n_overlays`, `display_set_animation_flags` (R2-13) | Über PWA und Legacy nicht erreichbar, über ein verstümmeltes UART-Kommando schon | `src/main.c` |
+
+### B — PWA, überschaubare Eingriffe
+
+| | Was | Fundstelle |
+|---|---|---|
+| **B1** | `hasUnsavedEdits` nach dem Speichern zurücksetzen (Massnahme 4) | nur `app.js:4092` und `:10675` setzen es zurück — nach einem normalen Speichern bleibt es stehen |
+| **B2** | Poller bei `document.hidden` stoppen (R2-11) | `app.js:2170`, `visibilitychange` ohne `else`. Die Uhr wird weiter abgefragt, während das Fenster im Hintergrund liegt |
+| **B3** | `apiFetch` statt rohem `fetch` im Flash-Pfad (R2-4) | `app.js:9148` |
+| **B4** | `finishProgressUi(2200)` statt `(0)` (R2-5) | `app.js:9126` — ein fehlgeschlagener Flash ist derzeit genau einen Frame lang sichtbar |
+| **B5** | Hinweis, wenn `isSecureContext === false` (R2-10) | Ohne HTTPS gibt es keinen Service Worker. Heute scheitert die Installation wortlos |
+| **B6** | Formularvalidierung statt stillem Clamping (Massnahme 17) | Eingaben ausserhalb des Bereichs werden stillschweigend zurechtgebogen |
+| **B7** | `file.size > 0` beim App-Install, Längenprüfung im SW (Massnahme 7) | ESP-Seite ist seit 3.2.3 abgesichert, die PWA-Seite nicht |
+| **B8** | ~176 hartcodierte Strings in die i18n-Tabelle (Massnahme 18) | DE/EN sind paritätisch, die hartcodierten Strings bleiben |
+
+### C — ESP und Build
+
+| | Was | Fundstelle |
+|---|---|---|
+| **C1** | Release-ZIP kollidiert bei Minutengleichheit (L2) | `Makefile:18` nutzt Minutengenauigkeit, `Makefile:74` macht `rm -f` darauf. Zwei Builds in derselben Minute überschreiben sich **kommentarlos**, beide melden Erfolg |
+| **C2** | HTTP-Debugzeilen für `/api/` unterdrücken (Massnahme 6) | `http.cpp:11196`, `:11251`, `:11305`. Am Gerät gemessen: rund 106 Byte je Request auf der STM-UART. Die Burst-These ist **widerlegt** — deshalb kein akuter Fehler, aber der Hebel bleibt richtig |
+| **C3** | EEPROM seitenweise statt Byte für Byte schreiben (L7) | Der AT24C32M kann 32-Byte-Seiten; die Firmware schreibt einzeln, 16 ms je Byte |
+| **C4** | Acht C-Dateien auf UTF-8 (R2-16) | 62 Zeilen mit Nicht-ASCII, **alle in Kommentaren, null in String-Literalen**. Verifikationsweg steht fest: Prüfsummenvergleich der `.hex` vor/nach |
+| **C5** | Unbedingte `log_printf` im Refresh-Pfad (Massnahme 13) | **Zurückgestellt, mit Grund:** würde die `icon_freeze`-Messung verfälschen. Erst nach AK7 |
+| **C6** | Destruktive Endpunkte wirklich auf POST (R2-14) | Seit ESP 3.2.4 greift die Herkunftsprüfung über `Sec-Fetch-Dest`. Die Umstellung auf POST steht aus und bricht die PWA, solange `apiFetch` ohne Methode aufruft — beides muss zusammen geschehen |
+| **C7** | `debug_log_*` entscheiden (L3) | Alle 141 Aufrufe in `main.c` übersetzen zu nichts, weil `DEBUG` nirgends gesetzt wird. Entweder aktivierbar machen oder entfernen — der jetzige Zustand täuscht Instrumentierung vor, die es nicht gibt |
+
+### D — nur am Gerät zu beantworten
+
+Siehe „Offene Gerätetests" weiter unten. Der dringendste ist **AK7**: In 24,5 Stunden
+Mitschnitt trat die Bedingung nie ein, weil Icons um 00:40 und dann erst ab 07:20
+liefen und die Nachtabschaltung um 01:00 dazwischenlag. Das Ausschalten muss in das
+Icon-Fenster fallen. Blockiert C5. Als Befund geführt unter **L19**.
+
+### E — Dokumentation und Hardware
+
+| | Was |
+|---|---|
+| **E1** | `README-CMAKE.md` enthält Changelog-Inhalt (L5) — gehört in `CHANGELOG.md` |
+| **E2** | Vier tote App-Bundle-Dateien löschen oder behalten (L1) — **Entscheidung steht aus**. Der Weg ist nicht defekt, sondern tot: Der ESP meldet alle drei Bundle-Fähigkeiten als `0` und hat keinen Handler |
+| **E3** | Stückliste des LED-Boards (L10): `C116` steht mit 680 µF in beiden `bom.csv`, im PCB mit 100 µF. `R4` trägt in `production/bom.csv` die LCSC-Nummer der 0-Ω-Widerstände |
+| **E4** | Sechs `release/*`-Tags liegen nur lokal, nicht auf dem Remote |
+
+### Was dieser Abschnitt bewusst **nicht** enthält
+
+- **Thema 2 aus `CLAUDE.md`** (sporadische Hänger auf F411) ist für den
+  mitgeschnittenen Fall **erledigt** — Ursache war `var_send_buf()`, behoben mit
+  3.2.8, seither Dauerbetrieb ohne Ausfall. Ob es eine zweite, mechanische Ursache
+  gibt (Stiftleiste statt Lötverbindung), bleibt offen, lässt sich aber ohne einen
+  neuen Vorfall nicht bearbeiten.
+- **L11** (kein Ambilight-Ausgang am LED-Board) ist keine Aufgabe, sondern eine
+  Eigenschaft der Platine. Festgehalten, damit niemand danach sucht.
+
+---
+
 ## Warum es zwei Review-Dokumente gibt
 
 Keine Doppelung, sondern zwei Durchgänge mit verschiedenen Achsen.
@@ -77,8 +148,8 @@ Zusätzlich erledigt, in Review 1 unter „Hoch" statt in der Massnahmenliste:
 | 4 | `apiFetch` statt rohem `fetch` im Flash-Pfad | **offen** | `app.js:9148` |
 | 5 | `finishProgressUi(2200)` statt `(0)` | **offen** | `app.js:9126`, fehlgeschlagener Flash nur einen Frame sichtbar |
 | 6 | `display_icon`-Freeze **messen**, dann entscheiden | **in Messung** 3.2.6 | Instrumentierung in `main.c:3171` eingebaut. **Ergebnis steht aus — Gerätetest AK7** |
-| 7 | Safe-Area links/rechts, `dvh`, Kartenmodal-Höhe | **offen** | — |
-| 8 | Globale Meldungsfläche | **offen** | identisch mit Review 1, Massnahme 3 |
+| 7 | Safe-Area links/rechts, `dvh`, Kartenmodal-Höhe | **erledigt** PWA 1.4.72 / 1.4.74 | Alle drei Teile. Safe-Area links/rechts in `body` (1.4.72) — im Querformat frisst der Notch bis 47 px. `dvh` beim Kartenmodal und Safe-Area auch an der Modalhülle (1.4.74). **Gemessen** bei 393 px Viewport: Deckelung 362 px statt 980 px |
+| 8 | Globale Meldungsfläche | **erledigt** PWA 1.4.72 | identisch mit Review 1, Massnahme 3 — dort belegt. `#status-banner` liegt nach `</main>`, mit `role="status"` und `aria-live="polite"` |
 | 9 | `target="_blank"` am Legacy-Link | **erledigt** PWA 1.4.72 | `target="_blank" rel="noopener"`. In der installierten PWA auf iOS gab es sonst keinen Rückweg — und der Link wird gerade dann gebraucht, wenn etwas nicht stimmt |
 | 10 | Hinweis bei `isSecureContext === false` | **offen** | Kernbefund 1 |
 | 11 | Poller bei `document.hidden` stoppen | **offen** | `app.js:2170`, `visibilitychange` ohne `else` |

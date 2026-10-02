@@ -221,6 +221,12 @@ beiden Reviews plus die Befunde aus der laufenden Arbeit, jeweils mit Status und
 nachprüfbarem Beleg. Die beiden Themen hier stehen zusätzlich, weil sie den
 Projektkontext tragen, den man dem Code nicht ansieht.
 
+**Was als Nächstes ansteht, steht im Abschnitt „ToDo" ganz oben in `BEFUNDE.md`** —
+die Arbeitsliste, nach Aufwand und Risiko sortiert. Die Tabellen darunter führen den
+Stand, die Liste führt die Arbeit. Guardrail S10 prüft, dass dort **jeder** offene
+Befund genannt ist; eine Zeile auf „offen" zu setzen, ohne sie in die Liste zu nehmen,
+schlägt fehl.
+
 Die schwersten offenen Punkte aus dem Katalog, damit sie nicht untergehen:
 `normalize_http_parameters` ohne Null-Prüfung (ESP-Absturz per `GET /?a`, aus dem
 ganzen LAN auslösbar), Backup-Import ohne Guard (kann das Gerät ohne WLAN, ohne AP
