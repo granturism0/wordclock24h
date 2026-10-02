@@ -35,3 +35,7 @@ tools/device.conf
 
 # Rohabzuege des Geraets (koennen Zugangsdaten enthalten)
 tools/snapshots/
+
+# Python-Bytecode
+__pycache__/
+*.pyc

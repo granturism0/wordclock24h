@@ -106,6 +106,14 @@ nahelegt: Der Endpunkt lädt nur die Icon- und Wetterdatei nach und meldet trotz
 ./tools/smoke-device.sh
 ```
 
+**Nach jedem ESP-Update gehört die Update-Quelle geprüft.** Verliert der ESP bei
+seinem Neustart den Variablenspeicher (`BEFUNDE.md`, L42), sind Host und Pfad leer,
+und er fällt auf seine eingebauten Vorgaben zurück — die zeigen auf den Server des
+**Ursprungsprojekts**. Das nächste Update holte damit fremde Firmware, ohne jede
+Fehlermeldung. Am 03.10.2026 eingetreten. Der Smoketest prüft das inzwischen selbst
+gegen `DEVICE_UPDATE_HOST`/`DEVICE_UPDATE_PATH` aus `tools/device.conf`; ohne diese
+Werte in der Konfiguration meldet er nur leere Felder, nicht die falsche Quelle.
+
 **Die Guardrail-Stufen sind ausnahmslos statisch** — sie lesen Quelltext und sprechen
 nicht mit dem Gerät. Nach einer Änderung an `http.cpp`, dessen Parameter-Auswertung
 *jeder* Request durchläuft, sagen sie nichts darüber, ob die Uhr noch funktioniert.

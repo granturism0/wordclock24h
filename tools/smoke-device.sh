@@ -62,6 +62,23 @@ for a in "" app.js styles.css index.html sw.js manifest.webmanifest; do
   fi
 done
 
+# --------------------------------------- Update-Quelle stimmt noch (BEFUNDE L42)
+# Verliert der ESP seinen Variablenspeicher, sind Host und Pfad LEER, und er faellt
+# auf seine eingebauten Vorgaben zurueck -- die zeigen auf den Server des
+# Ursprungsprojekts. Das naechste Update holte dann fremde Firmware, ohne dass
+# irgendwo ein Fehler erschiene. Am 03.10.2026 genau so passiert, nach einem
+# ESP-OTA; aufgefallen ist es nur, weil der Nutzer selbst nachgesehen hat.
+uh=$(printf '%s' "$sx" | grep -o '<strvar idx="9" value="[^"]*"'  | sed 's/.*value="//;s/"//')
+up=$(printf '%s' "$sx" | grep -o '<strvar idx="10" value="[^"]*"' | sed 's/.*value="//;s/"//')
+
+if [ -z "$uh" ] || [ -z "$up" ]; then
+  fail "Update-Quelle" "LEER — der ESP wuerde auf seine eingebaute Vorgabe zurueckfallen"
+elif [ -n "${DEVICE_UPDATE_HOST:-}" ] && { [ "$uh" != "$DEVICE_UPDATE_HOST" ] || [ "$up" != "${DEVICE_UPDATE_PATH:-}" ]; }; then
+  fail "Update-Quelle" "$uh/$up — erwartet $DEVICE_UPDATE_HOST/${DEVICE_UPDATE_PATH:-}"
+else
+  pass "Update-Quelle" "$uh/$up"
+fi
+
 # ------------------------------------------------- Lesende API, Antwort gueltig
 # Nur Endpunkte ohne Seiteneffekt. Die Liste ist bewusst von Hand gepflegt statt aus
 # app.js erzeugt: Dort stehen auch alle schreibenden, und eine Automatik, die sich

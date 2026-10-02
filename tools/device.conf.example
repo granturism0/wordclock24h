@@ -20,3 +20,14 @@ DEVICE_HOST=192.0.2.10
 #LOG_HOST=wordclock-pi.local
 #LOG_USER=pi
 #LOG_KEY=~/.ssh/wordclock_pi
+
+# Erwartete Update-Quelle. Der Smoketest vergleicht sie gegen das, was die Uhr
+# tatsaechlich gespeichert hat.
+#
+# Warum das geprueft gehoert: Verliert der ESP seinen Variablenspeicher -- etwa nach
+# einem eigenen Neustart, siehe BEFUNDE.md L42 -- sind Host und Pfad LEER. Der ESP
+# faellt dann auf seine eingebauten Vorgaben zurueck, und die zeigen auf den Server
+# des Ursprungsprojekts. Das naechste Update holte damit fremde Firmware, ohne dass
+# irgendwo ein Fehler erschiene. Genau das ist am 03.10.2026 passiert.
+DEVICE_UPDATE_HOST=update.example.net
+DEVICE_UPDATE_PATH=release
