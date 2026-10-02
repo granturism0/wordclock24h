@@ -196,6 +196,10 @@ static const char * const APP_INSTALL_ASSETS[] =
     "app/layout-previews.json",
     "app/icons/icon-192.svg",
     "app/icons/icon-512.svg",
+    "app/icons/icon-192.png",
+    "app/icons/icon-512.png",
+    "app/icons/icon-180.png",
+    "app/icons/icon-mask.png",
     "app/manifest.webmanifest",
     "app/app.js",
     "app/sw.js"
@@ -1466,7 +1470,12 @@ http_app_asset_supports_gzip (const char * asset_path)
             ! strcmp (p, ".js") ||
             ! strcmp (p, ".json") ||
             ! strcmp (p, ".webmanifest") ||
-            ! strcmp (p, ".svg"));
+            ! strcmp (p, ".svg") ||
+            // PNG ist bereits komprimiert, gzip bringt hier unter einem Prozent.
+            // Es steht trotzdem hier, weil http_find_stored_app_asset_filename
+            // AUSSCHLIESSLICH nach .gz sucht: eine Datei ohne diese Endung wuerde
+            // im LittleFS liegen und nie gefunden.
+            ! strcmp (p, ".png"));
 }
 
 static bool

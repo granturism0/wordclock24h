@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const CACHE_NAME = "wordclock-app-v65";
+const CACHE_NAME = "wordclock-app-v66";
 const ASSETS = [
   "/app/",
   "/app/index.html",
@@ -18,7 +18,11 @@ const ASSETS = [
   "/app/layout-previews.json",
   "/app/manifest.webmanifest",
   "/app/icons/icon-192.svg",
-  "/app/icons/icon-512.svg"
+  "/app/icons/icon-512.svg",
+  "/app/icons/icon-192.png",
+  "/app/icons/icon-512.png",
+  "/app/icons/icon-180.png",
+  "/app/icons/icon-mask.png"
 ];
 
 self.addEventListener("install", (event) => {

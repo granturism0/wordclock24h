@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.73";
+const APP_VERSION = "1.4.74";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -6676,11 +6676,92 @@ function ensureLeafletAssets() {
   return leafletAssetsPromise;
 }
 
+// Das Kartenmodal war bis hierher nur eine Ebene mit dunklem Hintergrund. Mit Tab
+// landete man dahinter in Feldern, die man nicht sieht, Escape tat nichts, und nach
+// dem Schliessen sass der Fokus am Seitenanfang statt wieder auf der Schaltflaeche,
+// die das Modal geoeffnet hatte. Fuer role="dialog" verlangt WAI-ARIA genau diese
+// drei Dinge: Fokus hinein, Fokus drin halten, Fokus zurueck.
+let modalReturnFocus = null;
+
+function focusableInModal(modal) {
+  const candidates = modal.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),' +
+    ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  // Leaflet haengt eigene Bedienelemente in die Karte, die zeitweise unsichtbar sind.
+  // offsetParent === null faengt alles ab, was display:none ist oder in einem solchen
+  // Vorfahren steckt -- genau die Elemente, auf die Tab ohnehin nicht springt.
+  return Array.prototype.filter.call(candidates, (element) => element.offsetParent !== null);
+}
+
+function handleModalKeydown(event) {
+  const modal = document.getElementById("weather-map-modal");
+
+  if (!modal || modal.classList.contains("is-hidden")) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeWeatherMapPicker();
+    return;
+  }
+
+  if (event.key !== "Tab") {
+    return;
+  }
+
+  const items = focusableInModal(modal);
+
+  if (!items.length) {
+    return;
+  }
+
+  const first = items[0];
+  const last = items[items.length - 1];
+
+  if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function handleModalBackdropClick(event) {
+  // Nur der Klick auf die Abdeckung selbst schliesst. Ein Klick in die Karte oder auf
+  // ein Feld blubbert zwar bis hierher, hat dann aber ein anderes Ziel.
+  if (event.target === event.currentTarget) {
+    closeWeatherMapPicker();
+  }
+}
+
 async function openWeatherMapPicker() {
   const modal = document.getElementById("weather-map-modal");
   const status = document.getElementById("weather-map-status");
+  const shell = document.querySelector(".shell");
+
+  modalReturnFocus = document.activeElement;
   modal.classList.remove("is-hidden");
   modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("has-modal");
+
+  // inert nimmt dem Hintergrund Fokus UND Mausereignisse in einem Zug. Wo es fehlt
+  // (aeltere iOS-Versionen), traegt die Tab-Falle unten allein.
+  if (shell && "inert" in HTMLElement.prototype) {
+    shell.inert = true;
+  }
+
+  document.addEventListener("keydown", handleModalKeydown, true);
+  modal.addEventListener("mousedown", handleModalBackdropClick);
+
+  const firstField = document.getElementById("weather-map-search-input");
+
+  if (firstField) {
+    firstField.focus();
+  }
+
   status.textContent = translate("weather.map_loading");
 
   try {
@@ -6693,8 +6774,26 @@ async function openWeatherMapPicker() {
 
 function closeWeatherMapPicker() {
   const modal = document.getElementById("weather-map-modal");
+  const shell = document.querySelector(".shell");
+
   modal.classList.add("is-hidden");
   modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("has-modal");
+
+  if (shell && "inert" in HTMLElement.prototype) {
+    shell.inert = false;
+  }
+
+  document.removeEventListener("keydown", handleModalKeydown, true);
+  modal.removeEventListener("mousedown", handleModalBackdropClick);
+
+  // Zurueck auf die Schaltflaeche, die geoeffnet hat -- sonst beginnt die
+  // Tastaturbedienung nach dem Schliessen wieder ganz oben.
+  if (modalReturnFocus && document.contains(modalReturnFocus)) {
+    modalReturnFocus.focus();
+  }
+
+  modalReturnFocus = null;
 }
 
 function initializeWeatherMap() {

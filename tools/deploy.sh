@@ -62,7 +62,7 @@ for b in $GZ_SRC; do
   [ -s "$APP/$b.gz" ] || fail "ist 0 Byte: $b.gz — das ergaebe einen Weisschirm auf dem Geraet"
   [ "$APP/$b" -nt "$APP/$b.gz" ] && fail "$b.gz ist aelter als die Quelle — erst 'make app-gz'"
 done
-for i in icon-192.svg icon-512.svg; do
+for i in icon-192.svg icon-512.svg icon-192.png icon-512.png icon-180.png icon-mask.png; do
   [ -s "$APP/icons/$i.gz" ] || fail "fehlt oder leer: icons/$i.gz"
 done
 echo "  ok  alle .gz vorhanden, nicht leer, nicht veraltet"

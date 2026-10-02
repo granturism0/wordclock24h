@@ -36,8 +36,10 @@ D=ESP8266/ESP-uclock/data/app
 # Reihenfolge und Pfade muessen zu APP_INSTALL_ASSETS in http.cpp passen; der ESP
 # weist alles andere ab.
 ASSETS="app/index.html app/styles.css app/layout-previews.json \
-        app/icons/icon-192.svg app/icons/icon-512.svg app/manifest.webmanifest \
-        app/app.js app/sw.js"
+        app/icons/icon-192.svg app/icons/icon-512.svg \
+        app/icons/icon-192.png app/icons/icon-512.png \
+        app/icons/icon-180.png app/icons/icon-mask.png \
+        app/manifest.webmanifest app/app.js app/sw.js"
 
 device_version() {
   curl -s --compressed -m 20 "$U/app/app.js" 2>/dev/null \

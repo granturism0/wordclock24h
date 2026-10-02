@@ -1,5 +1,97 @@
 # Changelog
 
+## 2026-10-02 UI/UX-Block abgeschlossen (ESP 3.2.6, PWA 1.4.74)
+
+STM unveraendert bei 3.2.8 -- an `src/**` wurde nichts angefasst.
+
+### Ultrabreit: die Oberflaeche endete bei 1540 px
+
+Auf einem 3440er Monitor blieben links und rechts je rund 950 px leer. Zwei neue
+Stufen (ab 1700 px und ab 2400 px) ziehen den Inhalt nicht breiter, sondern geben
+ihm eine SPALTE mehr: die Statuskacheln stehen jetzt zu dritt statt zu zweit, bei
+2400 px zu sechst, und System, Klima, Ambilight, Netzwerk und Wartung sind
+dreispaltig. Die Textzeile bleibt dabei gleich lang -- eine Zeile ueber rund 90
+Zeichen liest sich schlecht, egal wie viel Platz daneben ist.
+
+Gemessen: 3440x1440 vorher 1540 px genutzt (45 %), jetzt 2280 px (66 %).
+Bei 5120 px bleibt es bei 2280 px; mehr waere messbar breiter, aber nicht mehr
+lesbar.
+
+### Die Luecke zwischen 561 und 899 px ist zu (Review 2, Massnahme 15)
+
+Darunter griff der Telefonblock, darueber das zweispaltige Raster -- dazwischen
+nichts. Bei 852 px, also dem iPhone im Querformat, stand die ganze Oberflaeche als
+EINE Spalte von 824 px da, bei 393 px Hoehe. Jetzt zweispaltig; die
+Modulnavigation bleibt bewusst beim bisherigen Scrollverhalten, weil neun Reiter
+nebeneinander bei 600 px nicht passen.
+
+### Nicht-Text-Kontrast (Review 1, Massnahme 11)
+
+Die Raender der Bedienelemente lagen bei 1,35:1 -- WCAG 1.4.11 verlangt 3:1. Neues
+Token `--line-control`; `--line` bleibt fuer dekorative Trennlinien. Am gerenderten
+Feld gemessen: **3,58:1 gegen die eigene Flaeche, 3,93:1 gegen die Umgebung.**
+Regler, Kontrollkaestchen und Auswahlknoepfe bekommen `accent-color`, das Farbfeld
+einen zweiten, dunklen Ring -- ein einzelner heller Ring verschwindet auf hellen
+Farben.
+
+### Modal auf Dialog-Standard (Review 1, Massnahme 14)
+
+Das Kartenmodal war eine Ebene mit dunklem Hintergrund, mehr nicht. Mit Tab landete
+man dahinter in Feldern, die man nicht sieht; Escape tat nichts; nach dem
+Schliessen sass der Fokus wieder am Seitenanfang. Jetzt `role="dialog"`,
+`aria-modal`, Fokus hinein, Tab-Falle, Escape, Fokus zurueck auf die oeffnende
+Schaltflaeche, Hintergrund `inert`, Seite gesperrt.
+
+Dazu `dvh` statt `vh`: 92vh rechnet mit der AUSGEKLAPPTEN Adressleiste. Auf dem
+iPhone im Querformat ragte das Modal darunter, und "In Wetter uebernehmen" war
+nicht erreichbar. Gemessen bei 393 px Viewport: 362 px statt 980 px Deckelung.
+
+### PNG-Icons (Review 1, Massnahme 15)
+
+`apple-touch-icon` zeigte auf ein SVG. iOS wertet das nicht aus und legt beim "Zum
+Home-Bildschirm" statt des Icons einen verkleinerten Abzug der Seite ab. Neu:
+`icon-192.png`, `icon-512.png`, `icon-180.png` fuer iOS und `icon-mask.png` als
+eigenes Maskable-Icon -- Android beschneidet maskable Icons auf 80 % Durchmesser,
+und der gruene Punkt des bisherigen Motivs lag ausserhalb dieser Zone.
+
+Der kurze Name `icon-mask.png` ist kein Geschmack: Das LittleFS meldet
+maxPathLength 32, und die Ablage flacht `app/icons/...` zu `app-icons-...` ab. Aus
+`icon-maskable-512.png` waeren 34 Zeichen geworden -- und das waere erst auf dem
+Geraet aufgefallen, nicht hier.
+
+**Die Icons brauchen ESP 3.2.6 auf dem Geraet.** `APP_INSTALL_ASSETS` in `http.cpp`
+ist die Weissliste fuer `/api/app_file_upload`; eine aeltere Firmware weist die vier
+PNG-Dateien ab.
+
+### Am Werkzeug
+
+- `tools/make-icons.sh` rastert die Icons mit demselben Chrome wie die Vorschau.
+  Chrome schreibt den Abzug dabei NICHT direkt ins Projekt: unter einer Sandbox,
+  die Schreibzugriffe einzeln freigibt, haengt der Prozess dort stumm -- erst in
+  den Temporaerordner, dann kopieren.
+- `tools/preview/diag.js` misst zusaetzlich die genutzte Breite, den
+  Nicht-Text-Kontrast am gerenderten Feld und das Modal (Rolle, Fokus, Escape,
+  Fokusrueckgabe, Deckelung). Damit belegt die Messreihe die Korrekturen, statt
+  dass ich sie behaupte.
+
+### Messreihe ueber 20 Formate, 320x568 bis 5120x1440
+
+0 px horizontaler Ueberlauf, 0 abgeschnittener Text, 0 Touch-Ziele unter 44 px.
+
+## 2026-10-02 Interne Netzstruktur raus aus dem oeffentlichen Repo
+
+Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein
+Versionsbump.
+
+Adresse der Uhr, NAS-Hostname mit Port und Benutzer sowie Client-IPs aus zwei
+Logauszuegen standen in versionierten Dateien. Keine Zugangsdaten, aber die
+komplette interne Netzstruktur. Sie kommen jetzt aus `tools/device.conf` und
+`tools/deploy.conf`, beide gitignored; fehlt die Datei, brechen die Skripte mit
+einem Hinweis ab. Guardrail S9 prueft das mit.
+
+**Die Historie ist davon nicht beruehrt** -- in fuenf aelteren Commits stehen die
+Werte weiterhin.
+
 ## 2026-09-30 Erste Messungen am laufenden Geraet
 
 Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein Versionsbump.

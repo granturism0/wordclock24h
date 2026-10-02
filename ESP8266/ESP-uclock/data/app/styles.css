@@ -18,6 +18,10 @@
   --panel: rgba(11, 22, 37, 0.84);
   --panel-strong: rgba(14, 27, 46, 0.95);
   --line: rgba(143, 211, 255, 0.14);
+  /* Rand von BEDIENELEMENTEN. WCAG 1.4.11 verlangt fuer deren Begrenzung 3:1 gegen
+     die Umgebung; --line kommt auf 1,35:1 und reicht nur fuer dekorative Trennung.
+     Gemessen gegen die Panelflaeche #0a1422: 0.5 ergibt 3,65 bis 3,95:1. */
+  --line-control: rgba(143, 211, 255, 0.5);
   --text: #eef5ff;
   --muted: #9bb0d0;
   --accent: #8fd3ff;
@@ -67,8 +71,19 @@ select {
   padding: 0 10px;
 }
 
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+  /* Ohne accent-color zeichnet der Browser Spur und Haken im Systemgrau. Auf dem
+     dunklen Untergrund kommt die Spur auf rund 1,6:1 -- unter den 3:1, die WCAG
+     1.4.11 fuer die grafische Darstellung eines Werts verlangt. */
+  accent-color: var(--accent);
+}
+
 input[type="range"] {
   width: min(320px, 100%);
+  /* 44 px Zielgroesse auch fuer den Schieber (WCAG 2.5.5). */
+  min-height: 44px;
 }
 
 .shell {
@@ -180,7 +195,7 @@ h2 {
   min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(143, 211, 255, 0.32);
+  border: 1px solid var(--line-control);
   background: linear-gradient(180deg, rgba(143, 211, 255, 0.22), rgba(78, 180, 255, 0.18));
   color: var(--text);
   text-decoration: none;
@@ -335,7 +350,7 @@ h2 {
   min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(143, 211, 255, 0.14);
+  border: 1px solid var(--line-control);
   background: rgba(9, 18, 31, 0.82);
   color: var(--muted);
 }
@@ -608,7 +623,7 @@ h2 {
   min-height: 44px;
   padding: 0 12px;
   border-radius: 12px;
-  border: 1px solid rgba(143, 211, 255, 0.16);
+  border: 1px solid var(--line-control);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
 }
@@ -691,7 +706,7 @@ h2 {
   min-height: 46px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(143, 211, 255, 0.16);
+  border: 1px solid var(--line-control);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
 }
@@ -890,7 +905,7 @@ h2 {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(143, 211, 255, 0.16);
+  border: 1px solid var(--line-control);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -1051,7 +1066,8 @@ h2 {
   overflow: hidden;
   border-radius: 999px;
   background: rgba(143, 211, 255, 0.1);
-  border: 1px solid rgba(143, 211, 255, 0.14);
+  /* Der Fortschritt wird ausschliesslich grafisch dargestellt -- hier gilt 1.4.11. */
+  border: 1px solid var(--line-control);
 }
 
 .progress-meter-fill {
@@ -1114,7 +1130,10 @@ h2 {
   width: 56px;
   height: 20px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  /* Ein einzelner Ring verschwindet: hell auf hellen Farben, dunkel auf dunklen.
+     Der zweite, dunkle Ring darunter macht die Grenze auf jeder Fuellung sichtbar. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
   background: linear-gradient(90deg, #444, #ddd);
 }
 
@@ -1243,14 +1262,27 @@ h2 {
   z-index: 50;
   display: grid;
   place-items: center;
-  padding: 18px;
+  /* Im Querformat auf dem Telefon lag der obere Rand des Modals unter dem Notch. */
+  padding: calc(18px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right))
+           calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
   background: rgba(4, 8, 16, 0.78);
   backdrop-filter: blur(14px);
 }
 
+/* Solange das Modal offen ist, darf die Seite dahinter nicht mitscrollen. Sonst
+   verliert man beim Schliessen die Stelle, an der man war. */
+body.has-modal {
+  overflow: hidden;
+}
+
 .modal-card {
   width: min(920px, 100%);
+  /* 92vh rechnet mit der AUSGEKLAPPTEN Adressleiste. Auf dem iPhone im Querformat
+     ragte das Modal dadurch unter die eingeblendete Leiste, und die Schaltflaeche
+     "In Wetter uebernehmen" war nicht erreichbar. dvh misst, was gerade sichtbar
+     ist; die vh-Zeile bleibt als Rueckfall fuer Browser ohne dvh. */
   max-height: min(92vh, 980px);
+  max-height: min(92dvh, 980px);
   overflow: auto;
   padding: 20px;
   border-radius: var(--radius-xl);
@@ -1265,7 +1297,7 @@ h2 {
   min-height: 360px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid rgba(143, 211, 255, 0.16);
+  border: 1px solid var(--line-control);
 }
 
 .leaflet-container {
@@ -1453,6 +1485,115 @@ h2 {
 
   .module-section[data-module="network"] {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+/* -------------------------------------------------- Luecke 561 bis 899 px (R2-15)
+   Unterhalb 561 px greift der Telefonblock, ab 900 px das zweispaltige Raster.
+   Dazwischen lag nichts: Bei 852 px Breite -- iPhone im Querformat -- stand die
+   gesamte Oberflaeche als EINE Spalte von 824 px Breite da. Textzeilen weit
+   jenseits der lesbaren Laenge, und bei 393 px Hoehe muss man fuer jede Einstellung
+   scrollen, obwohl daneben die halbe Flaeche leer ist. Dasselbe beim Tablet im
+   Hochformat (768 px).
+   Uebernommen wird hier nur das RASTER, nicht die Modulnavigation: Deren Regeln ab
+   900 px setzen die Reiter auf nowrap, und neun Reiter nebeneinander passen bei
+   600 px nicht. Das Umbruch- und Scrollverhalten bleibt deshalb unveraendert. */
+@media (min-width: 561px) and (max-width: 899px) {
+  .module-section[data-module="system"],
+  .module-section[data-module="climate"],
+  .module-section[data-module="ambilight"],
+  .module-section[data-module="maintenance"],
+  .module-section[data-module="network"],
+  .module-section[data-module="display"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  /* Der Modulkopf erklaert den ganzen Bereich und gehoert ueber beide Spalten. */
+  .module-section .module-banner {
+    grid-column: 1 / -1;
+  }
+
+  /* Die Kachel mit der Uhrenvorschau traegt die Hauptaussage der Seite. */
+  .module-section[data-module="main"] .panel,
+  .panel-span-2,
+  .panel-maintenance-files {
+    grid-column: 1 / -1;
+  }
+
+  .split-card-grid,
+  .weather-coordinate-grid,
+  .datetime-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .datetime-date-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------ ultrabreit
+   Bis hierher endete die Oberflaeche bei 1540 px. Auf einem 3440er Monitor blieben
+   links und rechts je rund 950 px leer, auf einem 5120er je 1790.
+   Die Maximalbreite selbst ist richtig: Eine Textzeile ueber rund 90 Zeichen liest
+   sich schlecht, egal wie viel Platz daneben ist. Deshalb wird der Inhalt hier auch
+   NICHT breitergezogen -- es kommt eine SPALTE dazu. Mehr Panels nebeneinander, die
+   einzelne Zeile bleibt gleich lang, und man scrollt deutlich weniger.
+   Gemessen: Hauptseite 3440x1440 vorher 1540 px genutzt, jetzt 1920. */
+@media (min-width: 1700px) {
+  .shell {
+    width: min(1920px, calc(100vw - 56px));
+  }
+
+  /* Sechs Statuswerte in einer Reihe statt in drei Reihen zu zweit. */
+  .status-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .module-section[data-module="system"],
+  .module-section[data-module="climate"],
+  .module-section[data-module="ambilight"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .module-section[data-module="network"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "banner banner banner"
+      "client access time";
+  }
+
+  .module-section[data-module="maintenance"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "banner  banner  banner"
+      "source  remote  backup"
+      "local   service backup"
+      "files   files   files";
+  }
+
+  .module-section[data-module="timers"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "banner  banner"
+      "display ambilight";
+  }
+
+  /* Die Dateiliste der Wartung ist das einzige Panel, das die Breite wirklich
+     braucht -- sie zeigt Name, Groesse und Aktionen nebeneinander. */
+  .fs-workspace-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  }
+}
+
+@media (min-width: 2400px) {
+  .shell {
+    width: min(2280px, calc(100vw - 72px));
+  }
+
+  .status-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
