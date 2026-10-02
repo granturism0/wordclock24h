@@ -1,5 +1,70 @@
 # Changelog
 
+## 2026-10-02 Teststrategie, Sicherungskonzept und Testagent
+
+Reine Werkzeug- und Dokumentationsaenderung, kein Produktcode, deshalb kein
+Versionsbump.
+
+### TESTPLAN-PWA.md
+
+Vollstaendige Teststrategie fuer die PWA: 11 Module, 87 Schaltflaechen, 55
+Eingabefelder, 103 Endpunkte -- aus dem Quelltext erhoben, nicht geschaetzt.
+Zehn Phasen von der Sicherung bis zum feldweisen Abschlussvergleich, acht
+Grenzfallklassen je Eingabefeld, und eine Liste der Befunde, die der
+Durchlauf VORAUSSICHTLICH findet. Ein Testplan, der nur Bekanntes bestaetigt,
+ist ueberfluessig; einer, der so tut, als sei alles offen, ist unehrlich.
+
+Zwei Module haben null statische Bedienelemente -- overlays und timers bauen
+ihre Oberflaeche zur Laufzeit. Eine Pruefung, die nur das Markup ablaeuft,
+uebersieht sie vollstaendig.
+
+### Backup- und Restore-Konzept (Kapitel 2b)
+
+Drei Medien mit drei verschiedenen Zwecken, und der Unterschied ist wesentlich:
+
+  M1  PWA-Sicherung       Klartext-Zugangsdaten, einziger automatischer Rueckweg
+  M2  --restore-Abzug     Klartext, aber AES-256-verschluesselt, Handarbeit
+  M3  Vergleichsabzug     Schluessel nur als Pruefsumme, kann NICHTS zurueckholen
+
+Der erste Entwurf hatte nur M3. Ein gehashter Schluessel laesst sich nicht
+wiederherstellen -- wer nur Vergleichsabzuege hat, hat kein Backup, sondern
+einen Messpunkt. M2 schliesst die Luecke.
+
+Festgehalten ist auch, was in KEINEM der drei Medien steht: die angelernten
+IR-Codes. Fuer alles andere gibt es einen Weg zurueck, fuer sie nicht. Das ist
+der Grund, warum maintenance_reset_eeprom nicht beilaeufig ausgeloest wird.
+
+### Werkzeuge
+
+- tools/snapshot-device.sh -- Rohabzug, ausschliesslich lesend. Hasht die
+  Schluessel standardmaessig; mit --restore verschluesselt es stattdessen das
+  Ganze und loescht das Klartextverzeichnis sofort danach.
+- tools/diff-snapshot.sh -- vergleicht FELDWEISE. Ein diff ueber settings_xml
+  meldet sonst eine einzige lange Zeile und sagt nicht, welche Variable sich
+  geaendert hat. stm32_log ist ausgenommen: ein Ringpuffer im Sekundentakt.
+  Gemessen: ueber 25 s Stillstand aendert sich sonst kein einziges Feld.
+
+### Agent pwa-tester
+
+Faehrt die Phasen 0 bis 4 und 9. Backup-Import, Verbindungstrennung und die
+gefaehrlichen Funktionen bleiben ausdruecklich beim Nutzer -- ein Agent, der
+unbeaufsichtigt Sicherungen importiert, ist genau das, was die Uhr lahmlegt.
+
+tools/hooks/no-danger.py weist elf Endpunkte ab, bevor der Agent sie erreicht:
+die Zugangsdaten der aktiven Verbindung, alles mit Datenverlust, die garantierten
+Blockaden und die Firmware-Updates. Dazu boot_as_ap=1 und der Request mit einem
+Parameter ohne '='. In beide Richtungen geprueft, 13 Faelle.
+
+### Drei neue Befunde beim Erheben
+
+- L22: /api/eeprom_settings gibt den WLAN-Schluessel IM KLARTEXT heraus, an
+  jeden im LAN, ohne Authentisierung. Aufgefallen beim Bau des Abzugs -- der
+  haette das Passwort sonst in eine Datei geschrieben.
+- L23: Zeitserver-Feld erlaubt 32 Zeichen, der ESP speichert 16. Still
+  gekuerzt, danach scheitert die Zeitsynchronisation stumm.
+- L24: Verstecktes WLAN ist ueber die PWA nicht einrichtbar -- die SSID ist nur
+  aus der Trefferliste waehlbar.
+
 ## 2026-10-02 UI/UX-Block abgeschlossen (ESP 3.2.6, PWA 1.4.74)
 
 STM unveraendert bei 3.2.8 -- an `src/**` wurde nichts angefasst.

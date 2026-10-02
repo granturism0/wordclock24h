@@ -51,6 +51,14 @@ Wissen verloren geht.
 | `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006 | bei Bedarf |
 | `stm-firmware` | belegtes Detailwissen zur STM-Firmware und zur Platine | automatisch bei Arbeit an `src/**` |
 
+Für den vollständigen PWA-Durchlauf gibt es keinen Skill, sondern einen **Agenten**:
+`pwa-tester` arbeitet `TESTPLAN-PWA.md` ab. Einsetzen nach grösseren Umbauten an
+`app.js`, `http.cpp` oder der Display-Zustandsmaschine und vor einem Release, das mehr
+als eine Komponente berührt. Er fährt die Phasen 0 bis 4 und 9; Backup-Import,
+Verbindungstrennung und die gefährlichen Funktionen bleiben beim Nutzer. Zwei
+PreToolUse-Hooks weisen die gefährlichen Endpunkte ab, bevor der Agent sie erreicht
+(`tools/hooks/no-danger.py`).
+
 Die Kurzregeln bleiben hier, weil sie immer gelten:
 
 - **Kein Build ohne Versionserhöhung der geänderten Komponenten (DIR-004).** Kein
@@ -63,7 +71,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
 - **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
   `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
-  `HARDWARE.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
+  `HARDWARE.md`, `TESTPLAN-PWA.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 

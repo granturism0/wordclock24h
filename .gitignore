@@ -32,3 +32,6 @@ tools/deploy.conf
 
 # Adresse der eigenen Uhr
 tools/device.conf
+
+# Rohabzuege des Geraets (koennen Zugangsdaten enthalten)
+tools/snapshots/
