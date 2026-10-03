@@ -1280,14 +1280,25 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
     if (len > 0)
     {
         File f = LittleFS.open("stm32.hex", "w");
+        bool write_ok = f ? true : false;
     
-        while (len > 0)
+        while (write_ok && len > 0)
         {
             read_len = httpclient_read_line (linebuf, MAX_LINEBUFLEN, &len);
 
             if (read_len > 0)
             {
-                f.write (linebuf, read_len);
+                /* File::write () nimmt bei vollem LittleFS weniger an als uebergeben.
+                 * Ungeprueft lag danach eine abgeschnittene stm32.hex im Dateisystem,
+                 * die der Aufrufer anschliessend in den STM geflasht haette - eine
+                 * halbe Firmware ist schlimmer als gar keine. Der Rueckgabewert von
+                 * LittleFS.open () wurde ebenfalls nie geprueft.
+                 */
+                if (f.write (linebuf, (size_t) read_len) != (size_t) read_len)
+                {
+                    write_ok = false;
+                    break;
+                }
             }
             else
             {
@@ -1299,7 +1310,13 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
 
         httpclient_stop ();
 
-        if (len > 0)                                                                // data remaining?
+        if (! write_ok)                                                             // filesystem full or file not writable?
+        {
+            LittleFS.remove ("stm32.hex");                                          // lieber keine Datei als eine halbe
+            http_send_FS ("filesystem write error<br/>");
+            update_progress_fail (1, "stm32.hex konnte nicht vollständig gespeichert werden.");
+        }
+        else if (len > 0)                                                           // data remaining?
         {
             http_send_FS ("http read error<br/>");
             update_progress_fail (1, "STM32-Firmware konnte nicht vollständig geladen werden.");

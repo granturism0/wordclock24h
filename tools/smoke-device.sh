@@ -109,19 +109,54 @@ check_api() {                                               # $1 Endpunkt  $2 er
              && pass "/api/$1" "$(printf '%s' "$data" | tr -d ' \r\n')" \
              || fail "/api/$1" "weder on noch off: $(printf '%s' "$data" | head -c 20)" ;;
   esac
+
+  # Dritter Parameter: Pflichtfelder, durch Komma getrennt. GUELTIGES JSON IST NICHT
+  # GENUG -- genau das ist am 03.10.2026 aufgefallen (L147/L148): /api/update_status
+  # verlor einen vollen Pufferinhalt von 1072 Byte, 26 von 162 Feldern, und die Antwort
+  # blieb syntaktisch gueltig. Dieser Smoketest meldete "OK 7012 Byte", die
+  # Browserpruefung 8/0. Ein Endpunkt, der gueltiges JSON mit fehlendem Inhalt liefert,
+  # bestand bis dahin jede Pruefung dieses Projekts.
+  if [ -n "${3:-}" ]; then
+    fehlend=""
+    for feld in $(printf '%s' "$3" | tr ',' ' '); do
+      printf '%s' "$data" | grep -q "\"$feld\"" || fehlend="$fehlend $feld"
+    done
+    if [ -n "$fehlend" ]; then
+      fail "/api/$1 vollstaendig" "Pflichtfelder fehlen:$fehlend - Antwort abgeschnitten?"
+    else
+      pass "/api/$1 vollstaendig" "alle Pflichtfelder da"
+    fi
+  fi
 }
 
-check_api device_ready       json
+check_api device_ready       json  ready,free_heap,max_free_block
 check_api settings_xml       xml
 check_api display_power      onoff
 check_api ambilight_power    onoff
 check_api power_status       json
-check_api update_status      json
+check_api update_status      json  wc_version,esp_version,app_available,wc_available,stm32_default
 check_api update_table_files json
 check_api fs_info            json
 check_api fs_list            json
 check_api stm32_log          json
 check_api overlay_icons      json
+
+# ------------------------------------- Hat das Geraet je eine Antwort verloren?
+# write_lost_bytes/-blocks zaehlen, was http_flush() nicht hinausbekommen hat. Solange
+# beide 0 sind, hat jede Antwort dieses Geraets die Verbindung vollstaendig erreicht --
+# das war vor der Korrektur zu L147 gar nicht feststellbar. Fehlen die Felder, laeuft
+# eine aeltere Firmware; das ist kein Fehlschlag, sondern eine Luecke in der Aussage,
+# und die gehoert benannt statt stillschweigend als "bestanden" verbucht.
+dr=$(curl -s -m "$TIMEOUT" "$U/api/device_ready" 2>/dev/null)
+lb=$(printf '%s' "$dr" | grep -o '"write_lost_bytes":[0-9]*'  | cut -d: -f2)
+lk=$(printf '%s' "$dr" | grep -o '"write_lost_blocks":[0-9]*' | cut -d: -f2)
+if [ -z "$lb" ] || [ -z "$lk" ]; then
+  printf '  --    %-34s %s\n' "Antwortverluste" "Zaehler fehlen, Firmware aelter als die L147-Korrektur"
+elif [ "$lb" = "0" ] && [ "$lk" = "0" ]; then
+  pass "Antwortverluste" "keine - kein Block ging verloren"
+else
+  fail "Antwortverluste" "$lk Block(e), $lb Byte verloren - Antworten kamen unvollstaendig an"
+fi
 
 # --------------------------------------------------- Legacy bleibt erreichbar
 code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' "$U/" 2>/dev/null)

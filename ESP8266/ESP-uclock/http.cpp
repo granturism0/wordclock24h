@@ -141,6 +141,15 @@ static int                                          bgcolor_cnt;
 static char     http_response[MAX_HTTP_RESPONSE_LEN + 1];
 static int      http_response_len = 0;
 
+/* Auslieferungsdiagnose: Antwortbyte, die nicht in die Verbindung gelangt sind.
+ * Kostet 7 Byte im statischen Bereich, nichts vom Heap. http_write_broken gilt je
+ * Verbindung und wird beim Annehmen in http_server_loop () zurueckgesetzt; die beiden
+ * Zaehler laufen seit dem Start und stehen in /api/device_ready.
+ */
+static uint32_t     http_write_lost_bytes  = 0;
+static uint16_t     http_write_lost_blocks = 0;
+static uint_fast8_t http_write_broken      = 0;
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display flags:
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -1038,6 +1047,38 @@ update_progress_clear (void)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
+ *
+ * WiFiClient::write () liefert die Zahl der tatsaechlich uebernommenen Byte, und die
+ * darf kleiner sein als die uebergebene Laenge: ClientContext::_write_from_source ()
+ * bricht ab, sobald _timeout_ms (Vorgabe 5000 ms) ohne jeden Fortschritt verstrichen
+ * ist, und gibt zurueck, was bis dahin durchkam (Core 3.1.2, ClientContext.h:463-494).
+ * Ohne Fortschritt bleibt es, wenn tcp_sndbuf () leer bleibt oder tcp_write () mit
+ * ERR_MEM antwortet. Letzteres ist hier real: _sync ist aus, also kopiert lwIP jeden
+ * Block in frisch angeforderte pbufs - bei rund 5'400 Byte freiem Heap und 4'648 Byte
+ * groesstem zusammenhaengendem Block (L134) ist das keine theoretische Lage.
+ *
+ * Bis ESP 3.2.14 stand hier http_client.print () ohne Auswertung des Rueckgabewerts.
+ * Das ergab den lautlosesten denkbaren Fehler: Genau ein Pufferinhalt fehlt mitten in
+ * der Antwort, alles danach geht korrekt hinaus, und weil diese Antworten ohne
+ * Content-Length mit "Connection: close" laufen, sieht der Client ein sauberes Ende.
+ * Bei /api/update_status blieb das Ergebnis sogar gueltiges JSON - 8084 Byte mit 162
+ * Feldern gegen 7012 Byte mit 136 Feldern, ohne eine Fehlermeldung irgendwo.
+ *
+ * Hoechstens ein Wiederholungsversuch, und nur wenn der erste Aufruf ueberhaupt etwas
+ * geschrieben hat: Ein Aufruf, der gar nichts unterbringt, hat bereits fuenf Sekunden
+ * auf Fortschritt gewartet - ein zweiter wartet erneut so lange und findet dieselbe
+ * Lage vor. So bleibt die Dauer eines Fehlschlags bei den heutigen rund 5 s.
+ *
+ * Das frueher hier stehende http_client.flush () ist entfallen. Es ist im Core 3.1.2
+ * kein Leeren, sondern ein Warten bis zur Quittung mit bis zu 300 ms
+ * (WIFICLIENT_MAX_FLUSH_WAIT_MS, L136) - und zwar je Block, also achtmal in einer
+ * 8-KB-Antwort. Noetig ist es nicht: write () kehrt erst zurueck, wenn lwIP die Daten
+ * uebernommen hat, WiFiClient::stop () wartet ohnehin selbst bis zur Quittung
+ * (WiFiClient.cpp:316-325), und vor dem stop () am Ende von http_server_loop () steht
+ * weiterhin ein flush (). Auch fuer die Wiederverwendung von http_response als
+ * Lesepuffer in http_send_fs_file () aendert sich nichts: _sync ist aus
+ * (WiFiClient.cpp:46), der Core setzt deshalb TCP_WRITE_FLAG_COPY und lwIP haelt eine
+ * eigene Kopie - der Puffer darf unmittelbar nach write () neu befuellt werden.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 void
@@ -1045,8 +1086,58 @@ http_flush (void)
 {
     if (http_response_len > 0)
     {
-        http_client.print (http_response);
-        http_client.flush ();
+        size_t rest = (size_t) http_response_len;
+
+        if (! http_write_broken)
+        {
+            const uint8_t * p = (const uint8_t *) http_response;
+            uint_fast8_t    attempt;
+
+            for (attempt = 0; attempt < 2; attempt++)
+            {
+                size_t written = http_client.write (p, rest);
+
+                if (written >= rest)
+                {
+                    rest = 0;
+                    break;
+                }
+
+                p    += written;
+                rest -= written;
+
+                if (written == 0 || ! http_client.connected ())
+                {
+                    break;
+                }
+
+                yield ();
+            }
+        }
+
+        if (rest > 0)
+        {
+            http_write_lost_bytes += (uint32_t) rest;
+
+            if (http_write_lost_blocks < 0xFFFF)
+            {
+                http_write_lost_blocks++;
+            }
+
+            if (! http_write_broken)
+            {
+                /* Genau eine Zeile je Verbindung. Jede Zeile hier geht auf die
+                 * STM-UART, deren RX-Ring 256 Byte fasst und bei Ueberlauf still
+                 * verwirft (uart-driver.h:698). Die Folgebloecke derselben Antwort
+                 * laufen ueber den Zweig oben und schweigen.
+                 */
+                http_write_broken = 1;
+                Serial.print ("- http write lost ");
+                Serial.println ((unsigned long) rest);
+                Serial.flush ();
+            }
+        }
+
         http_response[0] = '\0';
         http_response_len = 0;
     }
@@ -5614,6 +5705,8 @@ download_file_to_local (const char * host, const char * path, const char * remot
             return false;
         }
 
+        bool write_ok = true;
+
         while (len > 0)
         {
             ch = httpclient_read (&len);
@@ -5626,19 +5719,38 @@ download_file_to_local (const char * host, const char * path, const char * remot
             http_download_buf[idx++] = ch;
             if (idx == 1024)
             {
-               f.write (http_download_buf, idx);
+               /* File::write () liefert die tatsaechlich geschriebene Menge und faellt
+                * bei vollem LittleFS kleiner aus. Ungeprueft bliebe eine verkuerzte
+                * Datei liegen, die jede Existenz- und Groessenpruefung besteht - bei
+                * einem .gz-Asset ist genau das der dokumentierte Weissschirm.
+                */
+               if (f.write (http_download_buf, (size_t) idx) != (size_t) idx)
+               {
+                   write_ok = false;
+                   break;
+               }
+
                idx = 0;
             }
         }
 
-        if (idx > 0)
+        if (write_ok && idx > 0 && f.write (http_download_buf, (size_t) idx) != (size_t) idx)
         {
-           f.write (http_download_buf, idx);
+            write_ok = false;
         }
 
         f.close ();
         httpclient_stop ();
-        rtc = (len == 0);
+
+        if (! write_ok)
+        {
+            Serial.print ("- fs write short: ");
+            Serial.println (local_filename);
+            Serial.flush ();
+            LittleFS.remove (local_filename);               // lieber keine Datei als eine halbe
+        }
+
+        rtc = (write_ok && len == 0);
     }
     return rtc;
 }
@@ -5746,7 +5858,19 @@ read_request_body_to_file (File& f, size_t content_length)
 
             if (n > 0)
             {
-                f.write (buf, n);
+                /* Kurzschreibung des Dateisystems: bei vollem LittleFS nimmt
+                 * File::write () weniger an als uebergeben. Ungeprueft landete eine
+                 * verkuerzte Datei auf dem Geraet und der Aufrufer meldete Erfolg -
+                 * bei app.js.gz ist das der dokumentierte Weissschirm. Der Aufrufer
+                 * entfernt die Datei, wenn hier false zurueckkommt.
+                 */
+                if (f.write (buf, (size_t) n) != (size_t) n)
+                {
+                    Serial.println ("- fs write short on upload");
+                    Serial.flush ();
+                    return false;
+                }
+
                 content_length -= n;
                 start_millis = millis ();
                 yield ();
@@ -5920,6 +6044,7 @@ http_fs (int post = POST_ICON_NONE)
     {
         File f = (File) 0;
         String line;
+        bool   write_ok = true;
         LittleFS.begin();
 
         if (post == POST_ICON_FILE)
@@ -5995,14 +6120,30 @@ http_fs (int post = POST_ICON_NONE)
                     {
                         break;
                     }
-                    f.write((const unsigned char*)line.c_str(), line.length());
-                    f.write('\r');
-                    f.write('\n');
+                    /* File::write () nimmt bei vollem LittleFS weniger an als
+                     * uebergeben. Ungeprueft lag danach eine verkuerzte Tabellen-,
+                     * Icon- oder Wetterdatei auf dem Geraet, und die Seite meldete
+                     * trotzdem Erfolg.
+                     */
+                    if (f.write((const unsigned char*)line.c_str(), line.length()) != line.length() ||
+                        f.write('\r') != 1 || f.write('\n') != 1)
+                    {
+                        write_ok = false;
+                        break;
+                    }
+
                     yield ();
                 }
             }
 
             f.close();
+
+            if (! write_ok)
+            {
+                Serial.println ("- fs write short on legacy upload");
+                Serial.flush ();
+                http_send_FS ("<font color=red>Dateisystem voll &mdash; Datei unvollstaendig geschrieben.</font></B><BR>\r\n");
+            }
         }
         else
         {
@@ -7325,32 +7466,120 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
     buffer[l] = '\0';
 }
 
-static String
-http_fetch_remote_text (const char * host, const char * path, const char * filename, size_t max_len)
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * http_json_send_remote_text_field () - Text vom Update-Server als JSON-Feld ausgeben,
+ * ohne ihn vorher vollstaendig im Speicher zu sammeln
+ *
+ * Ersetzt das fruehere Paar http_fetch_remote_text () + sanitize_json_string (). Das
+ * hielt denselben Inhalt ZWEIMAL im Heap: einmal den rohen String (bis 3072 Byte) und
+ * einmal die maskierte Kopie, die sanitize_json_string () zeichenweise aufbaut und
+ * dabei mehrfach umkopiert. Beide lagen gleichzeitig vor, und der rohe String lebte vom
+ * Kopf von http_api_update_status () bis zur Ausgabe des Feldes, also ueber die GANZE
+ * Antwort. Spitzenbedarf ueber 6 KB gegen 5'400 Byte freien Heap und 4'648 Byte
+ * groessten zusammenhaengenden Block (L134).
+ *
+ * Genau das war die Ursache der verstuemmelten Antworten: lwIP kopiert jeden Block in
+ * frisch angeforderte pbufs (TCP_WRITE_FLAG_COPY, weil _sync aus ist), bekam keinen
+ * Speicher mehr, tcp_write () antwortete mit ERR_MEM, und _write_from_source () gab
+ * nach 5000 ms ohne Fortschritt auf - am Geraet gemessen 7012 statt 8084 Byte in 11 von
+ * 12 Abrufen. Die Pruefung in http_flush () macht diesen Verlust seit ESP 3.2.14
+ * sichtbar; sie verhindert ihn nicht. Der Endpunkt soll aber GELINGEN, nicht ehrlich
+ * scheitern - deshalb hier die Ursache statt nur die Meldung.
+ *
+ * Der Zeilenpuffer liegt auf dem Stack und wird nach jeweils rund 128 Zeichen ueber
+ * http_send () geleert. Keine einzige Heap-Anforderung, und der 3072-Byte-Hoechstwert
+ * wirkt weiterhin auf die Zahl der gelesenen QUELLzeichen, nicht auf die maskierte
+ * Laenge - wie zuvor bei result.length () < max_len.
+ *
+ * MASKIERUNG: Zeichen fuer Zeichen identisch zu sanitize_json_string () - '\\', '"',
+ * '\r', '\n', '\t', alles andere roh. Das ist hier wichtiger als es aussieht: Die
+ * Maskierung ist ZUSTANDSLOS, jedes Quellzeichen wird fuer sich entschieden. Deshalb
+ * kann eine Escape-Folge an einer Puffergrenze nicht zerfallen - sie wird immer als
+ * Ganzes geschrieben, und wenn sie nicht mehr passt, geht der Puffer vorher hinaus.
+ * Ebenso unkritisch ist eine Mehrbyte-UTF-8-Folge: Jedes ihrer Bytes landet im
+ * default-Zweig unveraendert im Strom und in derselben Reihenfolge; wo die
+ * Puffergrenze faellt, sieht der Empfaenger nicht.
+ *
+ * EINZIGER Unterschied zum frueheren Verhalten: ein 0x00 im Fremdtext. Vorher landete
+ * es im String, und http_send () brach die Ausgabe dort per strlen () ab - die Release
+ * Notes waren ab dieser Stelle weg. Hier wird das Byte uebersprungen, zaehlt aber wie
+ * zuvor gegen max_len. Ein rohes 0x00 in einem JSON-String waere ohnehin ungueltig.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+http_json_send_remote_text_field (const char * key, const char * host, const char * path, const char * filename, size_t max_len)
 {
-    int len;
-    String result;
+    char    buf[132];                                   // 128 Nutzzeichen plus Reserve fuer eine Escape-Folge und die Null
+    size_t  idx = 0;
+    size_t  taken = 0;                                  // gelesene Quellzeichen, Vergleichsgroesse fuer max_len
+    int     len;
+
+    http_json_send_field_prefix (key);
+    http_send (FS("\""));
 
     len = httpclient (host, path, filename);
 
     if (len > 0)
     {
-        int ch;
-
-        while (len > 0 && result.length () < max_len)
+        while (len > 0 && taken < max_len)
         {
-            ch = httpclient_read (&len);
+            int             ch = httpclient_read (&len);
+            const char *    esc;
+            char            raw[2];
+            size_t          esc_len;
 
-            if (ch >= 0)
+            if (ch < 0)
             {
-                result += (char) ch;
+                break;                                  // Lesefehler: httpclient_read () liefert das nur bei leerem Rest
             }
+
+            taken++;
+
+            if (ch == 0)
+            {
+                continue;                               // siehe Kommentar oben
+            }
+
+            switch (ch)
+            {
+                case '\\': esc = "\\\\"; break;
+                case '"':  esc = "\\\""; break;
+                case '\r': esc = "\\r";  break;
+                case '\n': esc = "\\n";  break;
+                case '\t': esc = "\\t";  break;
+                default:
+                    raw[0] = (char) ch;
+                    raw[1] = '\0';
+                    esc    = raw;
+                    break;
+            }
+
+            esc_len = strlen (esc);
+
+            if (idx + esc_len >= sizeof (buf))          // Escape-Folge nie zerschneiden
+            {
+                buf[idx] = '\0';
+                http_send (buf);
+                idx = 0;
+            }
+
+            memcpy (buf + idx, esc, esc_len);
+            idx += esc_len;
         }
 
+        if (idx > 0)
+        {
+            buf[idx] = '\0';
+            http_send (buf);
+        }
+
+        /* Wie zuvor: Bei Erreichen von max_len wird der Rest NICHT nachgelesen, die
+         * Verbindung wird einfach geschlossen.
+         */
         httpclient_stop ();
     }
 
-    return result;
+    http_send (FS("\""));
 }
 
 static void
@@ -10760,7 +10989,6 @@ http_api_update_status ()
     char new_wc_version[16];
     char stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     const char * filter = (const char *) NULL;
-    String release_notes;
     uint_fast8_t assets_available = 0;
     const char * fname_icon = (const char *) 0;
     const char * fname_weather = (const char *) 0;
@@ -10787,7 +11015,6 @@ http_api_update_status ()
     http_fetch_remote_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
     http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, new_app_version, sizeof (new_app_version));
     http_fetch_remote_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
-    release_notes = http_fetch_remote_text (update_host, update_path, RELEASENOTE_HTML, 3072);
     http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
 
     if (hardware_configuration != 0xFFFF)
@@ -10990,7 +11217,15 @@ http_api_update_status ()
     http_json_send_string_field (FS("app_available"), new_app_version);
     http_json_send_string_field (FS("wc_version"), get_strvar (VERSION_STR_VAR)->str);
     http_json_send_string_field (FS("wc_available"), new_wc_version);
-    http_json_send_string_field (FS("release_notes"), release_notes);
+    /* Die Release Notes werden erst HIER geholt und dabei unmittelbar in die Antwort
+     * geschrieben. Frueher standen sie als 3072-Byte-String schon am Kopf der Funktion
+     * im Heap und blieben dort, bis diese Zeile erreicht war. Der ausgehende Abruf
+     * mitten in der eigenen Antwort ist in dieser Funktion nichts Neues: dreissig
+     * Zeilen weiter unten holt WC_LIST_TXT seine Daten genauso, und httpclient.cpp
+     * benutzt dafuer eine eigene WiFiClient-Instanz (httpclient.cpp:16), nicht
+     * http_client.
+     */
+    http_json_send_remote_text_field (FS("release_notes"), update_host, update_path, RELEASENOTE_HTML, 3072);
     http_json_send_string_field (FS("stm32_default"), stm32_default_filename);
     http_send (FS(",\"stm32_files\":["));
 
@@ -11106,6 +11341,12 @@ http_api_device_ready ()
     http_send (FS("{\"ok\":true,\"ready\":true"));
     http_json_send_uint_field (FS("free_heap"), free_heap);
     http_json_send_uint_field (FS("max_free_block"), max_free_block);
+    /* Verlorene Antwortbyte seit dem Start. Solange beide 0 sind, hat jede Antwort
+     * dieses Geraets die Verbindung vollstaendig erreicht - vorher war das gar nicht
+     * feststellbar, weil ein Verlust syntaktisch gueltiges JSON hinterlaesst.
+     */
+    http_json_send_uint_field (FS("write_lost_bytes"), (unsigned long) http_write_lost_bytes);
+    http_json_send_uint_field (FS("write_lost_blocks"), (unsigned long) http_write_lost_blocks);
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -11753,6 +11994,7 @@ flash_stm32_local (bool post = false)
 
                 LittleFS.begin();
                 File f = LittleFS.open("stm32.hex", "w+");
+                bool write_ok = true;
 
                 if (f)
                 {
@@ -11764,13 +12006,31 @@ flash_stm32_local (bool post = false)
                         {
                             break;
                         }
-                        f.write((const unsigned char*)line.c_str(), line.length());
-                        f.write('\n');
+                        /* Ungeprueft wanderte eine bei vollem LittleFS abgeschnittene
+                         * stm32.hex anschliessend in den STM. Eine halbe Firmware ist
+                         * schlimmer als gar keine - der Flashvorgang unterbleibt.
+                         */
+                        if (f.write((const unsigned char*)line.c_str(), line.length()) != line.length() ||
+                            f.write('\n') != 1)
+                        {
+                            write_ok = false;
+                            break;
+                        }
                     }
     
                     f.close();
 
-                    return run_local_stm32_flash_response ();
+                    if (write_ok)
+                    {
+                        return run_local_stm32_flash_response ();
+                    }
+
+                    LittleFS.remove ("stm32.hex");
+                    Serial.println ("- fs write short on stm32.hex upload");
+                    Serial.flush ();
+                    http_header("Local Update", NULL, NULL);
+                    begin_box ("Local Update");
+                    http_send_FS ("<font color='red'>Dateisystem voll &mdash; stm32.hex unvollstaendig, es wurde nicht geflasht.</font><br/>");
                 }
                 else
                 {
@@ -12526,6 +12786,7 @@ http_server_loop (void)
     sRemoteIp = http_client.remoteIP().toString();
     http_clear_request_user_agent ();
     http_clear_request_fetch_dest ();                       // sonst wirkt der vorige Request nach
+    http_write_broken = 0;                                  // gilt je Verbindung, nicht ueber den Lauf
 
     Serial.print ("- new client");
     if (sRemoteIp.length ())
@@ -12679,6 +12940,19 @@ http_server_loop (void)
         }
 
         http (sPath.c_str(), sParam.c_str());
+    }
+
+    if (http_write_broken)
+    {
+        /* Mindestens ein Pufferinhalt ist nicht in die Verbindung gelangt. Ein
+         * regulaeres stop () sendet FIN, und weil diese Antworten ohne Content-Length
+         * laufen, liest der Client das als vollstaendige Antwort - genau so wurde aus
+         * einer verstuemmelten /api/update_status-Antwort gueltiges JSON mit 26
+         * fehlenden Feldern. abort () sendet stattdessen RST; fetch (), curl und die
+         * PWA melden dann einen Verbindungsfehler statt stiller Datenverluste.
+         */
+        http_client.abort();
+        return;
     }
 
     http_client.flush();
