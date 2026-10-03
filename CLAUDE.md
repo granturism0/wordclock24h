@@ -97,6 +97,16 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   beim Laden einen **Fehler wirft** — dann bleibt die Oberfläche halb leer, und
   weder API noch Smoketest noch Screenshot zeigen das. Bis 03.10.2026 hat das kein
   Durchlauf geprüft, obwohl an `app.js` ständig gearbeitet wird.
+- **Waehrend eines Testlaufs wird der Mitschnitt mitgelesen (DIR-013).** `./tools/watch-log.sh`
+  laeuft parallel und meldet Exceptions, Neustarts, Watchdog-Resets, Spruenge in den
+  verworfenen Zeichen (`d=`) und ein Stillstehen der `diag`-Folge. Am 03.10.2026 lief
+  ein vollstaendiger Durchlauf, und mitten darin stuerzte der ESP ab — bemerkt hat es
+  **der Nutzer** im Mitschnitt, nicht die Pruefung. Seine Forderung danach: „Zudem
+  erwarte ich von dir, dass du eigentlich waehrend der Tests die Logs ueberwachst und
+  auch laufend auswertest wenn du testest!" **Das Problem ist nicht der uebersehene
+  Absturz, sondern der Bericht, der sauber meldet, waehrend das Geraet zwischendurch
+  neu gestartet ist** — er erzeugt Vertrauen, das nicht gedeckt ist. Gleiches gilt fuer
+  jede Messung am Geraet, nicht nur fuer den vollen Durchlauf.
 - **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
   Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
   `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr
