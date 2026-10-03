@@ -38,6 +38,31 @@ static const char *         hardware = "unknown";
 static uint_fast16_t        hardware_configuration = 0xFFFF;
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Debugausgaben auf die STM-UART
+ *
+ * Der ESP hat nur EINEN vollwertigen UART, und das ist die Bruecke zum STM. Jede
+ * Serial-Ausgabe landet deshalb zwangslaeufig im 256-Byte-Empfangsring des STM, und
+ * der verwirft bei Ueberlauf still (uart-driver.h, kein else-Zweig).
+ *
+ * Je Request standen hier zwei unbedingte Zeilen zu zusammen rund 105 Byte:
+ *      "- new client from <ip>"                rund 35 Byte
+ *      "- request <ip> [<browser>]: <req>"     rund 70 Byte
+ *
+ * Die erste traegt keine Information, die die zweite nicht schon enthaelt: dieselbe
+ * IP, derselbe Request. Der STM wertet ohnehin keine von beiden aus -- fuehrendes
+ * "- " wird zu ESP8266_DEBUGMSG, und schedule_esp8266_messages() hat dafuer keinen
+ * case. Sie kostet reine Abholzeit und hat nachweislich schon Ausgaben zerrissen
+ * (BEFUNDE.md L13: "- request 192.168.x.y- new client from 192.168.x.yz").
+ *
+ * Darum ist sie abschaltbar statt geloescht: Fuer die Fehlersuche
+ * HTTP_DEBUG_CLIENT_LOG auf 1 setzen und neu bauen, im Dauerbetrieb bleibt sie aus
+ * (A21 / BEFUNDE.md L141, L144). Die zweite Zeile bleibt unbedingt -- sie ist das
+ * einzige Protokoll darueber, WAS angefragt wurde.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_DEBUG_CLIENT_LOG                       0
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * firmware update parameters
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -262,6 +287,31 @@ static const char * const APP_INSTALL_ASSETS[] =
     "app/icons/icon-mask.png",
     "app/manifest.webmanifest",
     "app/app.js",
+    /* Sprachdatei der PWA (B15). Pflichteintrag, und zwar aus drei Gruenden -- die
+     * Weissliste ist NICHT der Tuersteher beim Ausliefern (http_app() fragt sie gar
+     * nicht), sondern entscheidet an diesen Stellen:
+     *   - http_api_app_file_upload() weist die Datei sonst mit error_code = 1 ab,
+     *   - http_try_auto_install_app_files() holt sie bei der OTA-Nachinstallation nicht,
+     *   - http_app_installation_complete() haelt die Installation faelschlich fuer
+     *     vollstaendig.
+     * Die Sprache bliebe stumm, obwohl im Repo alles stimmt -- derselbe Mechanismus,
+     * der am 29.04.2026 die ganze PWA "verschwinden" liess (BEFUNDE.md L21). Daraus
+     * folgt die Rollout-Reihenfolge: erst ESP flashen, dann die PWA hochladen.
+     *
+     * Im LittleFS heisst die Datei app-i18n-en.json.gz -- app_asset_filename()
+     * ersetzt jeden '/' durch '-', es entsteht kein Unterordner (wie bei
+     * app/icons/icon-192.png). Die Endung .json fuehrt http_app_asset_supports_gzip()
+     * bereits, dort ist nichts zu tun.
+     *
+     * Jede weitere Sprache ist genau eine weitere Zeile hier -- aber zwei Dinge
+     * bleiben gesetzt: (1) Der Vergleich in http_find_app_install_asset() bleibt
+     * exakt, kein Praefixvergleich; er ist die einzige Pruefung vor einem
+     * schreibenden LittleFS-Zugriff. (2) Der Basisname einer Sprachdatei ist der
+     * Sprachcode und darf sonst nirgends im Asset-Baum vorkommen, weil
+     * http_find_stored_app_asset_filename() hilfsweise auf den blossen Basisnamen
+     * "en.json.gz" zurueckfaellt.
+     */
+    "app/i18n/en.json",
     "app/sw.js"
 };
 static int              http_api_live_display_color ();
@@ -806,12 +856,6 @@ http_json_send_string_field (const char * key, const char * value)
     http_send (FS("\""));
     http_send (sanitize_json_string (value ? value : "").c_str ());
     http_send (FS("\""));
-}
-
-static void
-http_json_send_string_field (const char * key, const String& value)
-{
-    http_json_send_string_field (key, value.c_str ());
 }
 
 static const char *
@@ -12788,6 +12832,7 @@ http_server_loop (void)
     http_clear_request_fetch_dest ();                       // sonst wirkt der vorige Request nach
     http_write_broken = 0;                                  // gilt je Verbindung, nicht ueber den Lauf
 
+#if HTTP_DEBUG_CLIENT_LOG                               // rund 35 Byte je Request auf die STM-UART, siehe oben
     Serial.print ("- new client");
     if (sRemoteIp.length ())
     {
@@ -12796,6 +12841,7 @@ http_server_loop (void)
     }
     Serial.println ();
     Serial.flush ();
+#endif
 
     unsigned long ultimeout = millis() + 250;
 

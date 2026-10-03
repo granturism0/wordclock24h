@@ -414,8 +414,8 @@ Die beiden Hauptschalter der Uhr liegen hier, nicht im Modul `display`.
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S3** | Gerätezeit setzen (`datetime_set?year=&month=&day=&hour=&minute=`) | S | `tmvar[idx=0].year/month/day/hour/minute` tragen die gesetzten Werte | Der Parameter heisst `minute`, nicht `min` — die Legacy-Seite benutzt `min`. **Zuletzt prüfen und sofort korrigieren**, eine falsche Zeit fällt auf dem Display auf |
-| **S4** | 31. Februar setzen | S | Antwort `error_code=4` (`INVALID_DATE`), `tmvar[idx=0]` **unverändert** | Schaltjahr mitprüfen: 29.02. eines Schaltjahrs muss angenommen werden |
-| **S5** | `datetime_set` ohne `minute` | S | Antwort `error_code=1` (`MISSING_VALUE`), `tmvar[idx=0]` unverändert | Jedes Feld ist Pflicht; ein fehlendes darf nicht zu `0` werden |
+| **S4** | 31. Februar setzen | S | Antwort `error=4` (`INVALID_DATE`), `tmvar[idx=0]` **unverändert** | Schaltjahr mitprüfen: 29.02. eines Schaltjahrs muss angenommen werden |
+| **S5** | `datetime_set` ohne `minute` | S | Antwort `error=1` (`MISSING_VALUE`), `tmvar[idx=0]` unverändert | Jedes Feld ist Pflicht; ein fehlendes darf nicht zu `0` werden |
 | **S6** | Zeit vom Netz holen (`network_get_time`) | S | `tmvar[idx=0]` stimmt binnen 10 s auf ±2 s mit der eigenen Uhr überein | Schlägt fehl, wenn der Zeitserver aus S9 unbrauchbar ist — Reihenfolge beachten |
 | **S7** | Logbuch leeren (`stm32_log_clear`) | S | `/api/stm32_log` meldet unmittelbar danach ein kleineres `count` als davor; die nächste Zeile trägt eine lückenlos fortgesetzte Folgenummer | Der Ring füllt sich sofort weiter, `count=0` ist deshalb **kein** zulässiges Soll |
 | **S8** | Debug-Ansichten umschalten (vier Auswahlfelder, Anwenden, Zurücksetzen) | S | Rohabzug vor und nach dem Umschalten **feldgleich** | **Kein Endpunkt dahinter** — die Umschaltung wirkt nur lokal in der Oberfläche. Genau das ist das Soll: Sie darf am Gerät nichts ändern |
@@ -447,7 +447,7 @@ darin, zeigt die Oberfläche den Verbindungszustand richtig an.
 | **S9** | Zeitserver setzen (`network_timeserver_set?value=`) | N | `strvar[idx=4].value` (`TIMESERVER`) trägt den gesetzten Namen | Trifft den Zeitabgleich, nicht die Verbindung — deshalb N und nicht G |
 | **S10** | Zeitserver mit 17 Zeichen | N | `strvar[idx=4].value` ist auf **16 Zeichen** gekürzt | **Erwarteter Befund:** Das Eingabefeld erlaubt 32, `MAX_TIMESERVER_NAME_LEN` ist 16. Stille Kürzung ohne Meldung. Festhalten, nicht als Fehler des Durchlaufs werten |
 | **S11** | Zeitzone setzen (`network_timezone_set?value=`) | S | `numvar[idx=19].value` (`TIMEZONE`) = Betrag der Zeitzone, bei negativen Werten zusätzlich Bit `0x100`, Sommerzeitbit `0x200` **unverändert** | MEZ mit Sommerzeit ergibt `513`. Wirkt sofort auf die Anzeige |
-| **S12** | Zeitzone `15` und `-13` setzen | S | Antwort `error_code=2` (`OUT_OF_RANGE`), `numvar[idx=19].value` unverändert | Die Grenze prüft der ESP selbst (L28), nicht nur die Oberfläche |
+| **S12** | Zeitzone `15` und `-13` setzen | S | Antwort `error=2` (`OUT_OF_RANGE`), `numvar[idx=19].value` unverändert | Die Grenze prüft der ESP selbst (L28), nicht nur die Oberfläche |
 | **S13** | Sommerzeit umschalten (`network_summertime_set?value=on\|off`) | S | Bit `0x200` in `numvar[idx=19].value` gesetzt bzw. gelöscht, die unteren Bits unverändert | Gegenprobe **ohne** `value`: Der Wert muss stehen bleiben. Ein fehlender Parameter hat die Sommerzeit früher abgeschaltet und Erfolg gemeldet (L47) |
 
 ### 6.3 `climate`
@@ -464,21 +464,21 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
-| **S14** | Wetter-AppID setzen (`weather_appid_set?value=`) | S | `strvar[idx=5].value` (`WEATHER_APPID`) trägt den Wert, Grenze 32 | Leerer Wert wird mit `error_code=1` abgewiesen |
+| **S14** | Wetter-AppID setzen (`weather_appid_set?value=`) | S | `strvar[idx=5].value` (`WEATHER_APPID`) trägt den Wert, Grenze 32 | Leerer Wert wird mit `error=1` abgewiesen |
 | **S15** | Ort setzen (`weather_city_set?value=`) | S | `strvar[idx=6].value` (`WEATHER_CITY`), Grenze 32 | |
-| **S16** | Koordinaten setzen (`weather_coordinates_set?lon=&lat=`) | S | `strvar[idx=7].value` (`WEATHER_LON`) und `strvar[idx=8].value` (`WEATHER_LAT`), je Grenze 8 | Nur eines von beiden gesetzt ⇒ `error_code=1` |
-| **S17** | Ort leeren, während keine Koordinaten stehen | S | `error_code=1`, `strvar[idx=6].value` unverändert | Ort und Koordinaten sind Alternativen; die letzte Angabe darf nicht wegfallen |
+| **S16** | Koordinaten setzen (`weather_coordinates_set?lon=&lat=`) | S | `strvar[idx=7].value` (`WEATHER_LON`) und `strvar[idx=8].value` (`WEATHER_LAT`), je Grenze 8 | Nur eines von beiden gesetzt ⇒ `error=1` |
+| **S17** | Ort leeren, während keine Koordinaten stehen | S | `error=1`, `strvar[idx=6].value` unverändert | Ort und Koordinaten sind Alternativen; die letzte Angabe darf nicht wegfallen |
 | **S18** | Wetter jetzt abrufen (`weather_get_now`) | S | Am Display erscheint die Wetterzeile; der Ticker läuft danach wieder an | **Nicht L.** `{"ok":true}` kommt auch bei unbrauchbarer AppID (L54) — Beleg ist die Anzeige, nicht die Antwort |
 | **S19** | Vorhersage abrufen (`weather_get_forecast`) | S | wie S18 | |
 | **S20** | DS18xx-Korrektur setzen (`temperature_ds18xx_correction_set?value=`) | S | `numvar[idx=24].value` (`DS18XX_TEMP_CORRECTION`) trägt den Wert | Bereich −20..20 in halben Grad |
 | **S21** | RTC-Korrektur setzen (`temperature_rtc_correction_set?value=`) | S | `numvar[idx=22].value` (`RTC_TEMP_CORRECTION`) | |
-| **S22** | Korrektur `21` und `-21` setzen | S | `error_code=2`, beide Variablen unverändert | |
+| **S22** | Korrektur `21` und `-21` setzen | S | `error=2`, beide Variablen unverändert | |
 | **S23** | Temperatur anzeigen (`temperature_display`) | S | Die Temperatur erscheint auf dem Display | Zeigt der Sensor `127.5`, ist das **keine Messung**, sondern der STM-Fehlerwert `255` |
 | **S24** | Automatische Helligkeit umschalten (`auto_brightness_set?value=on\|off`) | S | `numvar[idx=8].value` (`DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE`) 1 bzw. 0 | **Das Bedienelement liegt im Modul `climate`, nicht in `display`** — es steht im LDR-Bereich. Solange es an ist, überschreibt der LDR die Helligkeit aus S29 |
 | **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`) | Fernauslösung eines STM-Kommandos; der Rohwert schwankt, deshalb unmittelbar vorher ablesen |
 | **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend | |
 | **S27** | LDR-Grenzen numerisch setzen (`ldr_min_value_set`, `ldr_max_value_set`, je 0..4095) | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf |
-| **S28** | LDR-Grenze `4096` setzen | S | `error_code=2`, Variable unverändert | Früher angenommen (L67/L68) |
+| **S28** | LDR-Grenze `4096` setzen | S | `error=2`, Variable unverändert | Früher angenommen (L67/L68) |
 
 ### 6.4 `display`
 
@@ -486,18 +486,18 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 |---|---|---|---|---|
 | **S29** | Helligkeit setzen (`display_brightness_set?value=`, 0..15) | S | `numvar[idx=6].value` (`DISPLAY_BRIGHTNESS`) trägt den Wert, Antwort enthält `display_brightness` mit demselben Wert | Vorher S24 ausschalten, sonst stellt der LDR den Wert gleich wieder um |
 | **S30** | Helligkeit `16` setzen | S | Antwort meldet `display_brightness: 15`, `numvar[idx=6].value` = 15 | **Erwarteter Befund:** Der ESP **klemmt** still statt abzuweisen. Festhalten, dass es klemmt — das ist Massnahme 17 |
-| **S31** | `display_brightness_set` ohne `value` | S | `error_code=1`, `numvar[idx=6].value` unverändert | Leer darf nicht `0` heissen — das stellt die Uhr dunkel (L29) |
+| **S31** | `display_brightness_set` ohne `value` | S | `error=1`, `numvar[idx=6].value` unverändert | Leer darf nicht `0` heissen — das stellt die Uhr dunkel (L29) |
 | **S32** | Display-Modus wählen (`display_mode_set?value=`) | S | `numvar[idx=4].value` (`DISPLAY_MODE`) trägt den Index, Antwort enthält `display_mode` | Die Obergrenze hängt an der geladenen Layout-Tabelle, nicht an einer festen Zahl |
 | **S33** | Display-Modus oberhalb der Modusliste setzen | S | Antwort meldet den höchsten gültigen Index, `numvar[idx=4].value` entsprechend | Klemmt still, wie S30 |
 | **S34** | Display-Farbe setzen (`display_color_set?red=&green=&blue=`, je 0..63) | S | `dspcolor[idx=0].red/green/blue` tragen die Werte | Sofort am Display sichtbar. Fehlende Anteile behalten ihren alten Wert (L37) |
 | **S35** | Weisskanal setzen (`display_color_set?white=`, 0..63) | S | `dspcolor[idx=0].white` trägt den Wert | **Nur wenn `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) auf 1 steht.** Sonst setzt der ESP `white` bedingungslos auf 0 — dann als „nicht prüfbar" protokollieren |
-| **S36** | `display_color_set` ohne jeden Farbanteil | S | `error_code=1`, `dspcolor[idx=0]` unverändert | Verhindert einen EEPROM-Schreibzyklus ohne Inhalt |
+| **S36** | `display_color_set` ohne jeden Farbanteil | S | `error=1`, `dspcolor[idx=0]` unverändert | Verhindert einen EEPROM-Schreibzyklus ohne Inhalt |
 | **S37** | „ES IST" dauerhaft umschalten (`display_it_is_set?value=on\|off`) | S | Bit `0x01` in `numvar[idx=7].value` (`DISPLAY_FLAGS`) gesetzt bzw. gelöscht, **die übrigen Bits unverändert** | Vier Schalter teilen sich diese eine Variable — die Gegenprobe gehört auf das Bit, nicht auf den Zahlenwert |
 | **S38** | Tickertext setzen (`ticker_set?value=`, 32 Zeichen) | S | `strvar[idx=0].value` (`TICKER_TEXT`) trägt den Text | Umlaute und Sonderzeichen mitprüfen: Gekürzt wird nach **Bytes**, nicht nach Zeichen (L46) |
 | **S39** | Tickertext leeren | S | `strvar[idx=0].value` ist leer | **Bewusste Ausnahme:** Der leere Text ist zulässig und der einzige Weg, den Ticker abzuschalten. Hier darf **keine** Fehlermeldung kommen |
-| **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error_code=1`. Gegenprobe am Display: `%d.%m` muss das Datum ergeben |
+| **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error=1`. Gegenprobe am Display: `%d.%m` muss das Datum ergeben |
 | **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | Wert `256` klemmt still auf 255 — wie S30 festhalten |
-| **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error_code=1` |
+| **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error=1` |
 | **S43** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=0][idx=0..15].value` entsprechen der gewählten Vorgabe | Schreibt sechzehn Werte auf einmal — **Ausgangskurve vorher vollständig notieren**, sonst ist sie nicht rücknehmbar |
 | **S44** | TFT-Flags setzen (`tft_flags_set?rgb=&hflip=&vflip=`) | S | `numvar[idx=5].value` (`SSD1963_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | **Abweichend von allen anderen Schaltern:** Der Handler baut die Flags von `0` auf. Ein **nicht** gesendeter Parameter **löscht** das Flag. Ohne TFT als „nicht prüfbar" protokollieren |
 | **S45** | RGBW-Umschaltung (`display_use_rgbw_set?value=on\|off`) | S | `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) 1 bzw. 0 | **Kein Bedienelement in der Oberfläche** — nur über den Backup-Import erreichbar. Prüfung per direktem Aufruf. Ändert die Wirkung von S35 |
@@ -508,11 +508,11 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
-| **S46** | Anzeigeanimation wählen (`animation_mode_set?value=`) | S | `numvar[idx=10].value` (`ANIMATION_MODE`) trägt den Index | Nicht-numerischer Wert ⇒ `error_code=1`, früher wurde `"abc"` zu 0 (L49) |
+| **S46** | Anzeigeanimation wählen (`animation_mode_set?value=`) | S | `numvar[idx=10].value` (`ANIMATION_MODE`) trägt den Index | Nicht-numerischer Wert ⇒ `error=1`, früher wurde `"abc"` zu 0 (L49) |
 | **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) | Solange eine Farbanimation läuft, ist die Display-Farbe aus S34 wirkungslos |
 | **S48** | Verzögerung eines Anzeigeprofils setzen (`animation_profile_set?idx=&deceleration=`, 1..15) | S | `dispanim[idx=N].dcl` trägt den Wert | Mindestens zwei verschiedene Profile prüfen |
 | **S49** | Profil als Favorit markieren (`animation_profile_set?...&favourite=on`) | S | Bit `0x02` in `dispanim[idx=N].flags` gesetzt bzw. gelöscht | Das Flag wird aus demselben Aufruf mitgeschrieben — ohne `favourite` wird es **gelöscht** |
-| **S50** | Verzögerung `0` und `16` setzen | S | `error_code=2`, `dispanim[idx=N].dcl` unverändert | Gültig ist 1..15, nicht 0..15 |
+| **S50** | Verzögerung `0` und `16` setzen | S | `error=2`, `dispanim[idx=N].dcl` unverändert | Gültig ist 1..15, nicht 0..15 |
 | **S51** | Profilvorgabe zurücksetzen (`animation_profile_default?idx=`) | S | `dispanim[idx=N].dcl` gleicht `dispanim[idx=N].def_dcl` | **Unumkehrbar für dieses Profil** — den Ausgangswert vorher aus dem Rohabzug notieren |
 | **S52** | Verzögerung eines Farbprofils setzen (`color_animation_profile_set?idx=&deceleration=`) | S | `coloranim[idx=N].dcl` trägt den Wert | |
 | **S53** | Farbprofilvorgabe zurücksetzen (`color_animation_profile_default?idx=`) | S | `coloranim[idx=N].dcl` gleicht `coloranim[idx=N].def_dcl` | wie S51 |
@@ -561,20 +561,20 @@ jede Nacht zusätzlich ausgeschaltet (L81).
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S70** | Overlay anlegen (`overlay_set?idx=<n_overlays>&type=&date_code=`) | S | `numvar[idx=46].value` (`OVERLAY_N_OVERLAYS`) um 1 höher, `overlay[idx=N].type` trägt den Typ | Ein neues Overlay entsteht nur, wenn `idx` **genau** dem bisherigen Zählerstand entspricht |
-| **S71** | Jeden Overlay-Typ durchschalten (`type=0..10`) | S | `overlay[idx=N].type` trägt jeden Wert | **Elf Typen**, nicht drei: keiner, Icon, Datum, Temperatur, Wettericon, Wetter, Ticker, MP3, Vorhersage-Icon, Vorhersage, Temperatur als Ziffern. `type=11` ⇒ `error_code=2` |
+| **S71** | Jeden Overlay-Typ durchschalten (`type=0..10`) | S | `overlay[idx=N].type` trägt jeden Wert | **Elf Typen**, nicht drei: keiner, Icon, Datum, Temperatur, Wettericon, Wetter, Ticker, MP3, Vorhersage-Icon, Vorhersage, Temperatur als Ziffern. `type=11` ⇒ `error=2` |
 | **S72** | Icon-Overlay mit jedem vom Gerät gemeldeten Icon | S | `overlay[idx=N].text` trägt den Iconnamen | Die Liste kommt aus `/api/overlay_icons` und hängt an der hochgeladenen Icondatei — **nicht auf eine feste Anzahl festlegen**, sondern die gemeldete Liste vollständig durchgehen |
 | **S73** | Text- und Ticker-Overlay (`value=`, 32 Zeichen) | S | `overlay[idx=N].text` trägt den Text, nach **Bytes** gekürzt | Umlaute mitprüfen (L46) |
 | **S74** | MP3-Overlay | S | `overlay[idx=N].type` = 7, Ton hörbar | Ohne DFPlayer als „nicht prüfbar" protokollieren |
-| **S75** | Datumscode durchschalten (`date_code=0..6`) | S | `overlay[idx=N].date_code` trägt den Wert | Sieben Codes: keiner, Rosenmontag, Ostern, Advent 1 bis 4. `date_code=7` ⇒ `error_code=2` |
+| **S75** | Datumscode durchschalten (`date_code=0..6`) | S | `overlay[idx=N].date_code` trägt den Wert | Sieben Codes: keiner, Rosenmontag, Ostern, Advent 1 bis 4. `date_code=7` ⇒ `error=2` |
 | **S76** | Klemmungen prüfen: `interval=0`, `duration=3`, `duration=10`, `days=0` | S | `overlay[idx=N].interval`=5, `.duration`=5 bzw. 9, `.days`=1 | Diese vier Werte werden **still zurechtgebogen**, nicht abgewiesen. Festhalten |
-| **S77** | Startdatum setzen (`month=&day=`) | S | `overlay[idx=N].date_start` = `month*256 + day`; bei `month=0` oder `day=0` ist `date_start` = 0 | `month=13` oder `day=32` ⇒ `error_code=2` |
+| **S77** | Startdatum setzen (`month=&day=`) | S | `overlay[idx=N].date_start` = `month*256 + day`; bei `month=0` oder `day=0` ist `date_start` = 0 | `month=13` oder `day=32` ⇒ `error=2` |
 | **S78** | Overlay aktiv schalten (`active=on\|off`) | S | Bit `0x01` in `overlay[idx=N].flags` | Ohne `active` wird das Flag **gelöscht** |
 | **S79** | Overlay anzeigen (`overlay_display?idx=`) | S | `numvar[idx=45].value` (`DISPLAY_OVERLAY`) trägt den Index, Overlay erscheint am Display | |
 | **S80** | Overlay löschen (`overlay_delete?idx=`) | S | `numvar[idx=46].value` um 1 kleiner, die folgenden Einträge rücken auf | **Letzten Eintrag eigens prüfen** — und den ersten, wenn mehrere stehen |
-| **S81** | `overlay_display` und `overlay_delete` **ohne** `idx` | S | Beide `error_code=1`, `numvar[idx=46].value` unverändert | Früher zeigte beziehungsweise **löschte** das den ersten Eintrag und meldete Erfolg (L70) |
+| **S81** | `overlay_display` und `overlay_delete` **ohne** `idx` | S | Beide `error=1`, `numvar[idx=46].value` unverändert | Früher zeigte beziehungsweise **löschte** das den ersten Eintrag und meldete Erfolg (L70) |
 | **S82** | Display-Timer setzen (`timer_set?idx=&from=&to=&hour=&minute=&active=&switch_on=`) | S | `nighttime[idx=N].minutes` = `hour*60+minute`, Bit `0x80` (aktiv) und `0x40` (einschalten) in `.flags`, Wochentage in den unteren Bits | **Acht Slots** (0..7). Ein aktiver Testtimer schaltet die Uhr im Wohnraum — Zeiten weit vom aktuellen Zeitpunkt wählen |
 | **S83** | Ambilight-Timer setzen (`ambilight_timer_set?...`) | S | `ambinighttime[idx=N].minutes` und `.flags` entsprechend | Gleiche Prüfung, eigener Variablensatz |
-| **S84** | Timer-Grenzfälle: `idx=8`, `from=7`, `hour=24`, `minute=60` | S | Jeweils `error_code=2`, der Slot unverändert | Diese vier wurden früher angenommen (L71) |
+| **S84** | Timer-Grenzfälle: `idx=8`, `from=7`, `hour=24`, `minute=60` | S | Jeweils `error=2`, der Slot unverändert | Diese vier wurden früher angenommen (L71) |
 | **S85** | Mitternachtsübergang und Start gleich Ende | S | Ein Paar 22:00 ein / 06:00 aus steht als zwei Einträge im Abzug und schaltet über die Nacht hinweg richtig | Braucht entweder Geduld oder eine verschobene Gerätezeit — in beiden Fällen **nach S3** einplanen und danach wieder korrigieren |
 
 ### 6.8 `dfplayer`
@@ -586,13 +586,13 @@ sind S86 bis S96 als „nicht prüfbar" zu protokollieren, nicht als „bestande
 |---|---|---|---|---|
 | **S86** | Lautstärke setzen (`dfplayer_volume_set?value=`, 0..30) | S | `numvar[idx=34].value` (`DFPLAYER_VOLUME`), Antwort enthält `dfplayer_volume` | Hörbare Gegenprobe über S96 |
 | **S87** | Lautstärke `31` setzen | S | Antwort meldet `30`, `numvar[idx=34].value` = 30 | Klemmt still |
-| **S88** | Modus wählen (`dfplayer_mode_set?value=`, 0..2) | S | `numvar[idx=37].value` (`DFPLAYER_MODE`): 0 aus, 1 Glocke, 2 Zeitansage | Fehlender Wert ⇒ `error_code=1`; leer hätte den Ton ganz abgeschaltet (L29) |
+| **S88** | Modus wählen (`dfplayer_mode_set?value=`, 0..2) | S | `numvar[idx=37].value` (`DFPLAYER_MODE`): 0 aus, 1 Glocke, 2 Zeitansage | Fehlender Wert ⇒ `error=1`; leer hätte den Ton ganz abgeschaltet (L29) |
 | **S89** | Glockenflags setzen (`dfplayer_bell_flags_set?m15=&m30=&m45=`) | S | `numvar[idx=38].value` (`DFPLAYER_BELL_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | |
 | **S90** | Glockenflags mit nur **einem** gesendeten Parameter | S | Die beiden nicht gesendeten Bits sind **gelöscht** | Wie S44 baut der Handler die Flags von `0` auf. Die Oberfläche sendet immer alle drei — ein direkter Aufruf nicht |
 | **S91** | Sprechzyklus setzen (`dfplayer_speak_cycle_set?value=`, 0..255) | S | `numvar[idx=39].value` (`DFPLAYER_SPEAK_CYCLE`) | |
 | **S92** | Stille ab setzen (`dfplayer_silence_start_set?hour=&minute=`) | S | `numvar[idx=35].value` (`DFPLAYER_SILENCE_START`) = `hour*60+minute` | |
 | **S93** | Stille bis setzen (`dfplayer_silence_stop_set?hour=&minute=`) | S | `numvar[idx=36].value` (`DFPLAYER_SILENCE_STOP`) | |
-| **S94** | Stille mit `hour=24` oder `minute=60` | S | `error_code=2`, Variable unverändert | |
+| **S94** | Stille mit `hour=24` oder `minute=60` | S | `error=2`, Variable unverändert | |
 | **S95** | Alarm setzen (`dfplayer_alarm_set?idx=&active=&from=&to=&hour=&minute=`) | S | `alarmtime[idx=N].minutes` = `hour*60+minute`, Bit `0x80` in `.flags` | **Acht Slots.** Aufräumen nach Mitschnitt, nicht nach Planung — ein stehengebliebener Alarm weckt den Nutzer |
 | **S96** | Titel abspielen (`dfplayer_play?folder=&track=`, je 0..255) | S | `numvar[idx=44].value` (`DFPLAYER_PLAY_FOLDER_TRACK`) = `folder*256 + track`, Ton hörbar | Lautstärke vorher auf einen erträglichen Wert stellen |
 
@@ -608,7 +608,7 @@ Sicherung exportieren und importieren.
 |---|---|---|---|---|
 | **S97** | Update-Host setzen (`update_host_set?value=`, 63 Zeichen) | S | `strvar[idx=9].value` (`UPDATE_HOST`) trägt den Wert | **Danach sofort gegen `DEVICE_UPDATE_HOST` aus `tools/device.conf` prüfen.** Ein falscher Host holt beim nächsten Update fremde Firmware, ohne Fehlermeldung (L42) |
 | **S98** | Update-Pfad setzen (`update_path_set?value=`, 63 Zeichen) | S | `strvar[idx=10].value` (`UPDATE_PATH`) | wie S97 |
-| **S99** | Update-Host mit 64 Zeichen | S | `strvar[idx=9].value` ist auf 63 gekürzt | Leerer Wert ⇒ `error_code=1` |
+| **S99** | Update-Host mit 64 Zeichen | S | `strvar[idx=9].value` ist auf 63 gekürzt | Leerer Wert ⇒ `error=1` |
 | **S100** | Tabellendatei vom Server laden (`update_download_table`) | S | Die Datei erscheint in `/api/fs_list` mit Grösse > 0, danach stehen in `settings_xml` neue `dispmode`-Einträge | Wechselt das Layout der Uhr — **Ausgangstabelle vorher aus `/api/update_status` notieren** |
 | **S101** | Icon- und Wetterdatei vom Server laden (`update_download_assets`) | S | Beide Dateien in `/api/fs_list` mit Grösse > 0 | Der Endpunkt meldet `{"ok":true}` auch dann, wenn er nur einen Teil geladen hat — Beleg ist die Dateiliste |
 | **S102** | Tabellendatei lokal hochladen (`fs_upload_tables`) | S | Datei in `/api/fs_list`, Grösse gleich der lokalen Datei | |

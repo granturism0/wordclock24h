@@ -50,7 +50,8 @@ import sys
 OWNERSHIP = {
     "stm-developer":    [r"^src/"],
     "esp-developer":    [r"^ESP8266/ESP-uclock/(?!data/app/).*\.(cpp|h|ino)$"],
-    "pwa-developer":    [r"^ESP8266/ESP-uclock/data/app/(app|sw)\.js$"],
+    "pwa-developer":    [r"^ESP8266/ESP-uclock/data/app/(app|sw)\.js$",
+                         r"^ESP8266/ESP-uclock/data/app/i18n/.*\.json$"],
     "ui-developer":     [r"^ESP8266/ESP-uclock/data/app/(index\.html|styles\.css|manifest\.webmanifest)$",
                          r"^ESP8266/ESP-uclock/data/app/icons/"],
     "doc-writer":       [r"\.md$", r"^knowledge/"],
