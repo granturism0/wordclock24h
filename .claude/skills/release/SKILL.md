@@ -95,3 +95,14 @@ nichts; **niemals `--delete` ergänzen.**
 - `CHANGELOG.md` nachführen — ein Release gilt erst als fertig, wenn der Eintrag steht
   (DIR-006).
 - Sind Befunde geschlossen worden, den Stand in `BEFUNDE.md` nachziehen.
+
+## STM32 flashen — immer über das Skript
+
+```
+./tools/flash-stm.sh
+```
+
+Nicht `/api/remote_stm32_flash` von Hand aufrufen. Ohne den Pflichtparameter
+`filename` tut der Endpunkt **stillschweigend nichts**, und nach dem Flashen ist ein
+**STM-Reset nötig**, den der ESP nicht selbst auslöst. Beides steht in `CLAUDE.md`
+unter DIR-010; das Skript erzwingt es und weist die Version am Ende nach.

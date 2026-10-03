@@ -100,6 +100,32 @@ nirgends wirksam. `/api/update_download_assets` hilft nicht, obwohl der Name es
 nahelegt: Der Endpunkt lädt nur die Icon- und Wetterdatei nach und meldet trotzdem
 `{"ok":true}`.
 
+### STM32 flashen (DIR-010)
+
+```
+./tools/flash-stm.sh --check     prüft, ob alles bereitliegt
+./tools/flash-stm.sh             flasht und setzt danach zurück
+```
+
+**Nicht von Hand `/api/remote_stm32_flash` aufrufen.** Drei Dinge sieht man dem
+Endpunkt nicht an, und alle drei führen dazu, dass er **stillschweigend nichts tut**:
+
+- **`filename` ist Pflicht.** Fehlt er, setzt `http_api_remote_stm32_flash()`
+  `error_code = 2` und bricht ab. Der Aufruf sieht erfolgreich aus, die Firmware
+  bleibt alt. Am 03.10.2026 genau so passiert — bemerkt hat es der Nutzer, nicht die
+  Prüfung. Den richtigen Namen meldet das Gerät selbst als `stm32_default` in
+  `/api/update_status`; er hängt an der erkannten Hardware.
+- **Ist `HARDWARE_CONFIGURATION` gleich 65535**, bildet der ESP gar keinen
+  Dateinamenfilter und weist **jeden** Namen ab. Diesen Zustand hinterlässt ein
+  ESP-Neustart (`BEFUNDE.md`, L42). Dann zuerst den STM zurücksetzen, dann flashen.
+- **Nach dem Flashen muss der STM zurückgesetzt werden.** Der ESP meldet selbst
+  „STM32-Flash abgeschlossen. Warte auf Reset" — er löst ihn aber nicht aus. Ohne
+  Reset läuft die alte Firmware weiter. Der Reset ist Teil des Vorgangs, kein
+  Nachklapp.
+
+Das Skript erzwingt alle drei Punkte, prüft Quelle und Dateigrösse auf dem Server
+vorher, und weist am Ende die gemeldete Version nach.
+
 ### Nach dem Flashen prüfen (DIR-009)
 
 ```
