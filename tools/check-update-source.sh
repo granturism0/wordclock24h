@@ -58,17 +58,44 @@ if [ -n "${DEPLOY_PATH:-}" ]; then
   fi
 fi
 
-sx=$(curl -s -m 15 "http://$HOST/api/settings_xml" 2>/dev/null)
-if [ -z "$sx" ]; then
-  say "  Update-Quelle: Geraet antwortet nicht."
-  exit 2
-fi
+# NICHT EINMAL FRAGEN, SONDERN WARTEN -- und das ist aus Schaden gelernt.
+#
+# Nach einem ESP-Neustart ist der Variablensatz kurzzeitig leer: Der ESP hat ihn
+# verloren, der STM liefert ihn nach, und dazwischen liegen Sekunden. Wer in diesem
+# Fenster EINMAL fragt, sieht "leer" und haelt es fuer den Endzustand.
+#
+# Am 03.10.2026 ist genau das passiert: Direkt nach einem OTA meldete dieses Skript
+# "LEER am Geraet", woraufhin der STM zurueckgesetzt wurde -- ein Eingriff in eine
+# produktiv laufende Uhr, der vermutlich unnoetig war. Der Nutzer sah in der
+# Oberflaeche alle Werte und hat widersprochen. Nachgemessen: Der Nachlieferung
+# reichen wenige Sekunden.
+#
+# Deshalb wird bis RETRIES mal nachgefragt, bevor "leer" als Befund gilt. Ein echter
+# Verlust ueberlebt diese Wartezeit; eine Nachlieferung nicht. Der Unterschied ist
+# genau das, was die Meldung behaupten soll.
+RETRIES=${RETRIES:-6}
+WAIT=${WAIT:-5}
 
-ist_host=$(printf '%s' "$sx" | grep -o '<strvar idx="9" value="[^"]*"'  | sed 's/.*value="//;s/"//')
-ist_pfad=$(printf '%s' "$sx" | grep -o '<strvar idx="10" value="[^"]*"' | sed 's/.*value="//;s/"//')
+ist_host=""; ist_pfad=""
+versuch=0
+while [ "$versuch" -lt "$RETRIES" ]; do
+  versuch=$((versuch+1))
+  sx=$(curl -s -m 15 "http://$HOST/api/settings_xml" 2>/dev/null)
+  if [ -z "$sx" ]; then
+    [ "$versuch" -ge "$RETRIES" ] && { say "  Update-Quelle: Geraet antwortet nicht."; exit 2; }
+    sleep "$WAIT"; continue
+  fi
+  ist_host=$(printf '%s' "$sx" | grep -o '<strvar idx="9" value="[^"]*"'  | sed 's/.*value="//;s/"//')
+  ist_pfad=$(printf '%s' "$sx" | grep -o '<strvar idx="10" value="[^"]*"' | sed 's/.*value="//;s/"//')
+  [ -n "$ist_host" ] && [ -n "$ist_pfad" ] && break
+  if [ "$versuch" -lt "$RETRIES" ]; then
+    say "  Update-Quelle: noch leer, warte auf die Nachlieferung durch den STM ($versuch/$RETRIES) ..."
+    sleep "$WAIT"
+  fi
+done
 
 if [ -z "$ist_host" ] || [ -z "$ist_pfad" ]; then
-  say "  Update-Quelle: LEER am Geraet."
+  say "  Update-Quelle: LEER am Geraet — auch nach $((RETRIES * WAIT)) Sekunden Wartezeit."
   say "                 Der ESP faellt dann auf seine eingebaute Vorgabe zurueck, und die"
   say "                 zeigt auf den Server des URSPRUNGSPROJEKTS (BEFUNDE.md, L42)."
   say "                 Abhilfe: STM zuruecksetzen, dann sendet er den Satz neu."
