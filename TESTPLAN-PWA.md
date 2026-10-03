@@ -245,6 +245,41 @@ PWA-Backup lässt sich als JSON einlesen.
 
 ---
 
+## 4b. Phase 1b — Die PWA im Browser
+
+```
+./tools/check-pwa.sh
+```
+
+**Vor allem anderen, und zwar bei jedem Durchlauf.** Der Smoketest sagt, dass das
+Gerät lebt und `app.js.gz` ausliefert. Er sagt **nicht**, ob die Datei beim Laden
+einen Fehler wirft — dann bleibt die Oberfläche halb leer, und weder die API noch
+ein Screenshot zeigen das.
+
+Bis zum 03.10.2026 hat das kein Durchlauf geprüft. Der Testagent verglich die
+API-Ebene gegen die Rohwerte, also das, was **unter** der Oberfläche liegt; seine
+eigene Formulierung lautete „kein Browser in diesem Lauf". Das ist eine Lücke mit
+Ansage, denn an `app.js` wird ständig gearbeitet.
+
+Geprüft wird in einem echten Browser gegen das **echte** Gerät:
+
+| | Was | Warum |
+|---|---|---|
+| **P1b-1** | Seite lädt, DOM entsteht | sonst ist alles Weitere gegenstandslos |
+| **P1b-2** | **keine JavaScript-Fehler** | der wichtigste Punkt — ein Tippfehler in `app.js` lässt die Seite halb leer, ohne dass irgendwo ein Fehler erscheint |
+| **P1b-3** | Oberfläche über den Ladebildschirm hinaus | Module im DOM vorhanden |
+| **P1b-4** | **echte Gerätewerte in der Seite** | die gemeldete STM-Version wird aus `/api/settings_xml` geholt und im DOM gesucht. Steht sie nicht da, hat die Oberfläche die Daten nicht verarbeitet |
+| **P1b-5** | Platzhalter gefüllt | viele stehengebliebene Striche heissen: Abrufe ohne Ergebnis, ohne geworfenen Fehler |
+
+**Nicht zu verwechseln mit `tools/preview/`.** Das rendert die PWA in zwanzig
+Viewports, aber gegen **Attrappen-Daten** aus `server.py` — gut für das Layout,
+ungeeignet für die Frage, ob die Oberfläche mit den echten Werten der Uhr
+zurechtkommt. Beides hat seinen Platz: `preview` für Phase 7, `check-pwa.sh` hier.
+
+Rein lesend: Die Seite wird geladen, nichts angeklickt.
+
+---
+
 ## 5. Phase 2 — Alles Lesende
 
 **Klasse L. Risikofrei, deshalb zuerst und vollständig.**

@@ -92,6 +92,11 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 - **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
   `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
+- **Die PWA wird im Browser geprüft, nicht nur über die API.** `./tools/check-pwa.sh`
+  lädt sie vom Gerät in einen echten Browser und meldet unter anderem, ob `app.js`
+  beim Laden einen **Fehler wirft** — dann bleibt die Oberfläche halb leer, und
+  weder API noch Smoketest noch Screenshot zeigen das. Bis 03.10.2026 hat das kein
+  Durchlauf geprüft, obwohl an `app.js` ständig gearbeitet wird.
 - **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
   Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
   `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr

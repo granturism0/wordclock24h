@@ -58,6 +58,32 @@ Phase 8 nicht ausgeführt" und mach weiter.
 vollständiger Test — er ist der automatisierbare Teil davon. Wer das verschweigt,
 erzeugt ein falsches Sicherheitsgefühl.
 
+## Die PWA im Browser — nicht optional
+
+```
+./tools/check-pwa.sh
+```
+
+**Fahr das bei jedem Durchlauf, direkt nach dem Smoketest.** Du prüfst sonst nur die
+API-Ebene — also das, was **unter** der Oberfläche liegt. Genau das ist am
+03.10.2026 passiert: Der Bericht hielt fest „kein Browser in diesem Lauf, ich habe
+die API-Ebene gegen die Rohwerte geprüft, nicht die Anzeige". Der Nutzer hat
+daraufhin zu Recht gesagt, er könne sich auf die Durchläufe nicht verlassen.
+
+Das Skript lädt die PWA **vom Gerät** in einen echten Browser und prüft fünf Dinge,
+darunter das, was sonst niemand sieht: **ob `app.js` beim Laden einen Fehler wirft.**
+Tut sie das, bleibt die Oberfläche halb leer — und weder die API noch ein Screenshot
+noch der Smoketest zeigen es. Der Smoketest prüft, ob `app.js.gz` **ausgeliefert**
+wird, nicht ob sie **läuft**.
+
+Dazu holt es die gemeldete STM-Version vom Gerät und sucht sie im gerenderten DOM.
+Steht sie nicht da, hat die Oberfläche die Daten nicht verarbeitet — unabhängig
+davon, ob die API sie korrekt geliefert hat.
+
+**Verwechsle es nicht mit `tools/preview/`.** Das rendert zwanzig Viewports gegen
+**Attrappen-Daten**; gut für das Layout, ungeeignet für die Frage, ob die Oberfläche
+mit den echten Werten zurechtkommt.
+
 ## Wie du prüfst
 
 Für jede schreibende Prüfung **immer** dieses Muster:
