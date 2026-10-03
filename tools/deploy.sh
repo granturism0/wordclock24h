@@ -169,6 +169,12 @@ else
   fi
 
   echo "Rollout abgeschlossen."
+  echo
+  # Sofort pruefen, ob das Geraet ueberhaupt hierher schaut. Sonst liegt das Fabrikat
+  # richtig und wird trotzdem nie geholt -- und das faellt erst beim naechsten Flash
+  # auf, wenn eine alte Firmware kommt (BEFUNDE.md, L124).
+  ./tools/check-update-source.sh || echo "  ^ Der Rollout liegt bereit, die Uhr schaut woanders hin."
+  echo
   echo "Hinweis: wc-list.txt und wc-list-tables.txt pflegst du selbst auf der Synology —"
   echo "der ESP erwartet sie dort (http.cpp:47-54), sie sind nicht Teil des Releases."
 fi

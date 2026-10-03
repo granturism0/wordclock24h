@@ -292,4 +292,16 @@ extern void         var_send_ssd1963_flags (void);
 
 extern void         var_send_all_variables (void);
 
+/* Nullpunkt des Reload-Budgets in var_send_buf(). Gehoert an den Kopf des Hauptloops, neben den
+ * regulaeren watchdog_reload() -- und nirgendwo sonst hin. Siehe VAR_SEND_RELOAD_BUDGET_SEC.
+ */
+extern void         var_send_reload_budget_reset (void);
+
+/* Die beiden Messfelder der Diagnosezeile, v=<timeouts>/<verschachtelt>. Saettigende uint16_t,
+ * kumulativ seit dem STM-Start. Welchen der beiden Verlustwege aus L107 sie unterscheiden und
+ * wie ihr Stand zu deuten ist, steht bei ihrer Definition in vars.c.
+ */
+extern uint_fast16_t var_send_timeout_count (void);
+extern uint_fast16_t var_send_nested_count (void);
+
 #endif

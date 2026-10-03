@@ -13,7 +13,8 @@ Oberflaeche ohne Hardware betrachtet und vermessen werden kann.
 Der iframe-Umweg ist noetig, weil Chromes --window-size im Headless-Modus nur die
 Bildgroesse setzt, nicht das Layout-Viewport. Ohne ihn misst man die falsche Breite.
 """
-import json, os, re, sys, time
+import json
+import re, os, re, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -113,10 +114,41 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query)
             w = int(q.get("w", ["390"])[0]); h = int(q.get("h", ["844"])[0])
             diag = "1" if q.get("diag") else ""
+            modul = (q.get("module", [""])[0] or "").strip()
+            # Nur bekannte Modulnamen, und nur Kleinbuchstaben: Der Wert landet in einer
+            # Zeichenkette im erzeugten Skript.
+            if not modul.isalpha() or not modul.islower():
+                modul = ""
+
+            # Das aktive Modul steht in localStorage und wird beim Start daraus
+            # wiederhergestellt (app.js, restoreActiveModule). shot.sh gibt jedem Lauf
+            # ein FRISCHES Profil -- der Speicher ist also immer leer, und jede Vorschau
+            # zeigte bis zum 03.10.2026 die Hauptseite. Zehn von elf Modulen sind
+            # dadurch nie vermessen worden; alle bisherigen Aussagen zu "kein Ueberlauf"
+            # galten nur fuer die Startseite (BEFUNDE.md, L117).
+            #
+            # Gesetzt wird der Speicher deshalb hier, BEVOR die App laedt -- der
+            # iframe wird erst danach eingehaengt. Den Schluesselnamen liest das Skript
+            # aus app.js statt ihn abzuschreiben, damit er nicht still auseinanderlaeuft.
+            vorlauf = ""
+            if modul:
+                here = os.path.dirname(os.path.abspath(__file__))
+                appjs = os.path.join(here, "..", "..", "ESP8266", "ESP-uclock", "data", "app", "app.js")
+                schluessel = "wordclock-app-active-module"
+                try:
+                    with open(appjs, encoding="utf-8", errors="replace") as fh:
+                        m = re.search(r'MODULE_STORAGE_KEY\s*=\s*"([^"]+)"', fh.read())
+                        if m:
+                            schluessel = m.group(1)
+                except OSError:
+                    pass
+                vorlauf = ("<script>try{localStorage.setItem(%s,%s);}catch(e){}</script>"
+                           % (json.dumps(schluessel), json.dumps(modul)))
+
             html = ("<!doctype html><meta charset=utf-8>"
                     "<style>html,body{margin:0;background:#222}"
                     "iframe{width:%dpx;height:%dpx;border:0;display:block}</style>"
-                    "<iframe src='/app/%s'></iframe>") % (w, h, "?diag=1" if diag else "")
+                    "%s<iframe src='/app/%s'></iframe>") % (w, h, vorlauf, "?diag=1" if diag else "")
             return self._send(html, "text/html; charset=utf-8")
         if path in ("/", "/legacy"):
             return self._send("<h1>Legacy</h1>", "text/html")

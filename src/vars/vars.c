@@ -49,6 +49,96 @@ uint_fast8_t        var_send_busy;
 
 static uint_fast8_t var_send_nested = 0;                        // eigener Wiedereintrittsschutz
 
+/* Zeitbudget fuer den Watchdog-Reload nach eingetroffener Quittung, je Hauptloop-Durchlauf.
+ *
+ * Die Quittungsbedingung allein deckt nur zwei Lagen ab -- Bruecke antwortet, Bruecke tot.
+ * Die dritte fehlte: Antwortet die Bruecke SPORADISCH, bedient jede eintreffende Quittung den
+ * Watchdog erneut, und var_send_all_variables() darf mit rund 194 Kommandos a bis zu
+ * VAR_SEND_TIMEOUT_SEC bis zu zehn Minuten laufen. Die Uhr steht waehrenddessen.
+ *
+ *   Lage der Bruecke                             ohne Budget              mit Budget
+ *   ----------------------------------------------------------------------------------------
+ *   antwortet zuegig (Millisekunden)             kein Reload noetig       unveraendert
+ *   antwortet langsam (bis ~150ms je Kommando)   laeuft durch             laeuft durch, das
+ *                                                                         Budget traegt einen
+ *                                                                         Burst von 194
+ *   antwortet sporadisch (Sekunden je Kommando)  bis zu 600s Stillstand   hoechstens 30s, dann
+ *                                                                         greift der Watchdog
+ *   antwortet nicht                              Reset nach rund sieben   unveraendert
+ *                                                Kommandos
+ *
+ * Schlechtester Fall danach: 30s Budget + bis zu 20s Watchdog-Fenster = 50s Stillstand. Gegen
+ * den Stand vor 9eb6dd9 (20s) eine bewusste Verschlechterung, gegen den Stand danach (600s)
+ * eine Verbesserung um den Faktor zwanzig -- der Preis dafuer, dass ein langsamer, aber
+ * lebendiger ESP seinen Variablensatz vollstaendig bekommt.
+ *
+ * Zeit und nicht Zahl der Reloads, weil die Zahl nichts ueber den Stillstand sagt: 194 schnelle
+ * Kommandos sind harmlos, sieben langsame nicht. Geschuetzt wird die Uhr, nicht die Bruecke.
+ * Wer den Wert aendert, sieht an der Tabelle, wogegen er tauscht.
+ */
+#define VAR_SEND_RELOAD_BUDGET_SEC  30
+
+/* Nullpunkt des Budgets. Zurueckgesetzt wird er am Kopf des Hauptloops, an derselben Stelle wie
+ * der regulaere watchdog_reload() (main.c), ueber var_send_reload_budget_reset(). GESETZT wird
+ * er erst beim ersten wartenden Aufruf danach -- nicht im Loopkopf selbst, sonst zaehlte das
+ * Budget die Zeit fuer Anzeige, RTC und Temperatur mit und waere aufgebraucht, bevor das erste
+ * Kommando ueberhaupt draussen ist.
+ *
+ * Keine neue watchdog_reload()-Aufrufstelle: Der Bestand bleibt bei 7 (Guardrail S7).
+ */
+static uint32_t     var_send_reload_start = 0;                  // uptime beim ersten wartenden Aufruf dieses Durchlaufs
+static uint_fast8_t var_send_reload_armed = 0;                  // Nullpunkt in diesem Durchlauf bereits gesetzt?
+
+void
+var_send_reload_budget_reset (void)
+{
+    var_send_reload_armed = 0;
+}
+
+/* Zwei Messfelder fuer die Diagnosezeile (specs/bruecke, Design 3). Sie beantworten EINE Frage,
+ * die bis heute offen ist: Welcher der beiden Verlustwege aus BEFUNDE.md L107 laeuft, wenn der
+ * ESP neu startet und der Variablensatz danach beschaedigt ist?
+ *
+ *   <timeouts>       Weg (A): ein Kommando ist in den 3-Sekunden-Abbruch gelaufen und endgueltig
+ *                    weg. Erhoeht im Zeitzweig der Warteschleife.
+ *   <verschachtelt>  Weg (B): ein Aufruf kehrte bei var_send_nested sofort zurueck, also OHNE
+ *                    jede Quittungspruefung. Laeuft ein ganzer Vollabgleich so, gehen rund 194
+ *                    Kommandos mit Leitungsgeschwindigkeit in den 256-Byte-Empfangsring des ESP.
+ *
+ * Deutung nach EINEM ESP-Neustart:
+ *
+ *   timeouts   verschachtelt   Abzug beschaedigt   Folgerung
+ *   ----------------------------------------------------------------------------------------
+ *   klein      springt um ~190 ja                  Weg (B), der Massenverlust
+ *   steigt     klein           ja                  Weg (A), einzelne Kommandos im Timeout
+ *   steigt     springt         ja                  beide, nacheinander
+ *   klein      klein           ja                  KEINER von beiden -- die Ursache liegt dann
+ *                                                  nicht in var_send_buf()
+ *   klein      klein           nein                der Abgleich lief sauber durch; ein einzelner
+ *                                                  Durchgang ohne Vorfall belegt nichts
+ *
+ * Saettigend statt umlaufend: Eine umlaufende Zahl liest sich als kleine Zahl und luegt dabei.
+ * Beide sind seit dem STM-Start kumulativ; nach einem Reset stehen sie auf 0, und dass ein Reset
+ * war, zeigt die Folgenummer seq, die wieder bei 1 beginnt.
+ *
+ * Im Ruhebetrieb muessen beide bei 0 bleiben. Steigt <timeouts> dort, kommt die Punkt-Quittung
+ * nicht an -- dann ist Design 1 falsch umgesetzt und nicht "fast richtig" (AK2).
+ */
+static uint16_t     var_send_timeout_cnt = 0;                   // Weg (A): Abbrueche nach VAR_SEND_TIMEOUT_SEC
+static uint16_t     var_send_nested_cnt = 0;                    // Weg (B): quittungsfreie Eintritte ueber var_send_nested
+
+uint_fast16_t
+var_send_timeout_count (void)
+{
+    return var_send_timeout_cnt;
+}
+
+uint_fast16_t
+var_send_nested_count (void)
+{
+    return var_send_nested_cnt;
+}
+
 static void
 var_send_buf (char * buf)
 {
@@ -74,6 +164,11 @@ var_send_buf (char * buf)
      */
     if (var_send_nested)
     {
+        if (var_send_nested_cnt < 0xFFFF)                       // saettigend: 65535 heisst "mindestens 65535"
+        {
+            var_send_nested_cnt++;
+        }
+
         return;
     }
 
@@ -81,6 +176,12 @@ var_send_buf (char * buf)
     var_send_busy = 1;
     start_uptime = uptime;
     got_ack = 0;
+
+    if (! var_send_reload_armed)                                // erster wartender Aufruf seit dem Loopkopf: Budget beginnt hier
+    {
+        var_send_reload_armed = 1;
+        var_send_reload_start = start_uptime;
+    }
 
     /* Frueher stand hier eine Schleife ohne jede Abbruchbedingung. Blieb die Quittung
      * aus, kehrte der Aufrufer nie zurueck. Am 30.09.2026 zweimal reproduziert: Die
@@ -101,6 +202,11 @@ var_send_buf (char * buf)
 
         if (uptime - start_uptime >= VAR_SEND_TIMEOUT_SEC)
         {
+            if (var_send_timeout_cnt < 0xFFFF)                  // saettigend: 65535 heisst "mindestens 65535"
+            {
+                var_send_timeout_cnt++;
+            }
+
             log_printf ("var_send_buf: keine Quittung nach %ds, weiter ohne: %s\r\n",
                         VAR_SEND_TIMEOUT_SEC, buf);
             break;                                              // got_ack bleibt 0
@@ -125,15 +231,24 @@ var_send_buf (char * buf)
      *
      * Deshalb belohnt der Reload Fortschritt, nicht Warten: got_ack wird ausschliesslich
      * im ESP8266_OK-Zweig gesetzt, der Timeout-Zweig laesst es auf 0. ESP8266_OK entsteht
-     * nur aus einer tatsaechlich empfangenen Zeile der Bruecke ("." oder "OK",
-     * esp8266.c:227 und :301) -- bei toter Bruecke bleibt es also unveraendert beim Reset
-     * nach rund sieben Kommandos.
+     * nur noch aus dem Punkt (esp8266.c:227), den der ESP unmittelbar nach jedem
+     * var-Kommando sendet. Die drei unaufgeforderten "OK ..."-Zeilen seines Bootlaufs
+     * liefern seit specs/bruecke Design 1 ESP8266_STATUS und setzen got_ack nicht mehr --
+     * ein Reload auf eine Falschquittung hin ist durch kein Budget gerechtfertigt.
+     * Bei toter Bruecke bleibt es beim Reset nach rund sieben Kommandos.
      *
      * Der verschachtelte Fall erreicht diese Stelle gar nicht: Er kehrt oben bei
      * var_send_nested zurueck, hat also nie gewartet. Ein Reload dort waere keiner
      * "nach Quittung", sondern einer ohne jede Aussage; der aeussere Aufruf erledigt ihn.
+     *
+     * Seit specs/bruecke Design 2 traegt der Reload zusaetzlich ein Zeitbudget je
+     * Hauptloop-Durchlauf. Die Quittung allein genuegt nicht mehr: Eine sporadisch antwortende
+     * Bruecke erfuellt sie dauernd und hielte den Hauptloop damit bis zu zehn Minuten am Leben,
+     * ohne dass die Uhr weiterlaeuft. Nach VAR_SEND_RELOAD_BUDGET_SEC greift der Watchdog wieder
+     * wie vor 9eb6dd9. Der Nullpunkt wird am Kopf des Hauptloops geloescht, der Vergleich ist
+     * vorzeichenlos und ueberlebt den Umlauf von uptime.
      */
-    if (got_ack)
+    if (got_ack && uptime - var_send_reload_start < VAR_SEND_RELOAD_BUDGET_SEC)
     {
         watchdog_reload ();
     }

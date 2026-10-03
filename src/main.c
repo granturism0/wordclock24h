@@ -3017,9 +3017,18 @@ schedule_esp8266_messages (void)
             break;
         }
 #endif
-        case ESP8266_OK:
+        case ESP8266_OK:                                                        // nur noch der Punkt: Quittung eines var-Kommandos
         {
             var_send_busy = 0;
+            break;
+        }
+        case ESP8266_STATUS:                                                    // "OK ..." vom ESP: Statusmeldung, keine Quittung
+        {
+            /* Bewusst ohne Wirkung: var_send_busy bleibt stehen, damit eine der drei
+             * unaufgeforderten OK-Zeilen des ESP (esp8266.c:299) nicht das Kommando
+             * eines fremden Senders quittiert. Die Zeile ist bereits in esp8266.c:294-297
+             * geloggt, es geht also nichts verloren.
+             */
             break;
         }
 #if 0 // yet not used
@@ -3371,6 +3380,7 @@ main (void)
     while (1)
     {
         watchdog_reload ();
+        var_send_reload_budget_reset ();                                                // Nullpunkt des Reload-Budgets in var_send_buf(), siehe VAR_SEND_RELOAD_BUDGET_SEC
 
         /*---------------------------------------------------------------------------------------------------------------------------------
          * DIAGNOSE (specs/beobachtbarkeit): eine Zeile je Takt, am KOPF des Loops - nicht in einem flaggesteuerten Zweig,
@@ -3394,7 +3404,22 @@ main (void)
          * <groesse> liest der Treiber selbst aus (esp8266_uart_rxbuflen), es gibt hier keine zweite Kopie von UART_RXBUFLEN:
          * die ist je UART verschieden, dfplayer-uart.c setzt 32 statt 256.
          *
-         * Maximale Laenge der Zeile: 102 Zeichen, Grenze 119 (120 des ESP-Rings minus Kappungsmarke). Wer ein Feld ergaenzt, rechnet neu.
+         * v=<timeouts>/<verschachtelt>  die beiden Verlustwege der Kommandobruecke, Stand seit dem Start. Beide Zaehler sind saettigend,
+         *                               die Deutung ihres Standes steht bei ihrer Definition in vars.c (specs/bruecke, Design 3).
+         *                               Im Ruhebetrieb bleibt das Feld auf v=0/0; tut es das nicht, kommt die Punkt-Quittung nicht an.
+         *
+         * Maximale Laenge der Zeile: 116 Zeichen, Grenze 119 (120 des ESP-Rings minus Kappungsmarke). Rest: 3 Zeichen - das ist kein Feld mehr.
+         * Nachgerechnet, nicht uebernommen:
+         *
+         *   "diag " 5 + seq 10 + " l=" 3 + loop 10 + " t=" 3 + tick 10 + " u=" 3 + uptime 10            =  54
+         *   + " r=" 3 + refresh 10 + " w=" 3 + dmawait 5 + " rx=" 4 + rxmax 3 + "/" 1 + rxbuflen 3      =  86
+         *   + " d=" 3 + drops 5 + " o=" 3 + ore 5                                                       = 102
+         *   + " v=" 3 + timeouts 5 + "/" 1 + verschachtelt 5                                            = 116
+         *
+         * Die 102 des Bestands gehen nur auf, weil rx= zwei DREIstellige Werte traegt: UART_RXBUFLEN ist 256 (esp8266-uart.c:69), nicht
+         * fuenfstellig. Wer das Format anfasst, rechnet neu. Wer mehr Platz braucht, weitet die Ringzeile des ESP von 120 auf 136
+         * (CMD_BUFFER_SIZE 128 -> 144) - das kostet 64 x 16 = 1024 Byte DRAM von rund 12400 freien, einen ESP-Flash und einen zweiten
+         * Besitzer. Es gehoert damit nicht in dieses Paket.
          *---------------------------------------------------------------------------------------------------------------------------------
          */
         static uint32_t     diag_seq            = 0;                                    // Folgenummer: eine Luecke im Ring ist sonst nicht von Ruhe zu unterscheiden
@@ -3437,7 +3462,7 @@ main (void)
             diag_last_loop = diag_loop_cnt;
             diag_seq++;
 
-            log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u\r\n",
+            log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u v=%u/%u\r\n",
                         (unsigned long) diag_seq,
                         (unsigned long) diag_loop_cnt,
                         (unsigned long) diag_tick_now,
@@ -3447,7 +3472,9 @@ main (void)
                         (unsigned int)  esp8266_uart_rxmax (),
                         (unsigned int)  esp8266_uart_rxbuflen (),
                         (unsigned int)  esp8266_uart_rxdrops (),
-                        (unsigned int)  esp8266_uart_rxore ());
+                        (unsigned int)  esp8266_uart_rxore (),
+                        (unsigned int)  var_send_timeout_count (),
+                        (unsigned int)  var_send_nested_count ());
         }
 
         static uint_fast8_t icon_freeze_state = 0;                                      // DIAGNOSIS ONLY: do_display_icon freeze, see specs/bundle-guardrails-icon

@@ -67,7 +67,12 @@ if [ "$hw" = "65535" ]; then
   echo "  Danach rund 10 s warten und dieses Skript erneut starten."
   exit 1
 fi
-[ -n "$uh" ] && [ -n "$up" ] || fail "Update-Quelle am Geraet ist leer (BEFUNDE.md, L42) — erst Host und Pfad setzen"
+# Nicht "ist etwas eingestellt", sondern "ist DAS eingestellt, wohin wir ausrollen".
+# Am 03.10.2026 stand hier test7 statt test8, dort lag eine Firmware 3.2.4 -- der Flash
+# gelang, meldete Erfolg, und die Uhr fiel um Monate zurueck (BEFUNDE.md, L124).
+# Ein falscher Pfad ist gefaehrlicher als ein leerer: Er traegt oft eine AELTERE,
+# lauffaehige Firmware.
+./tools/check-update-source.sh || fail "Update-Quelle stimmt nicht — siehe oben"
 
 us=$(curl -s -m 20 "$U/api/update_status" 2>/dev/null)
 name=$(printf '%s' "$us" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("stm32_default",""))' 2>/dev/null)

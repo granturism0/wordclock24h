@@ -216,12 +216,21 @@ fi
 #   tote Bruecke        -> kein Reload, Reset nach rund sieben Kommandos wie bisher,
 #                          die Selbstheilung aus L25 bleibt unangetastet
 #
-# Belegt und nicht nur beabsichtigt: ESP8266_OK entsteht ausschliesslich in
-# esp8266.c:227 und :301, beide setzen empfangene Bytes bis zum '\n' voraus. Eine
-# tote Bruecke kann die Bedingung nicht erfuellen.
+# Belegt und nicht nur beabsichtigt: ESP8266_OK entsteht seit dem Bruecken-Paket
+# NUR NOCH aus der Zeile "." (esp8266.c:227). Der Praefixtest auf "OK" liefert
+# seither ESP8266_STATUS -- der ESP schickt waehrend seines Bootlaufs unaufgefordert
+# "OK cap", "OK ap" und "OK time", und jede dieser Zeilen quittierte vorher ein
+# FREMDES Kommando und lud den Watchdog auf eine Falschmeldung hin nach.
+# (Dieser Kommentar nannte bis dahin esp8266.c:301 als zweite Quelle. Die Stelle
+# gibt es noch, sie liefert aber nicht mehr ESP8266_OK.)
+#
+# Dazu ein Zeitbudget: Der Reload greift nur nach Quittung UND innerhalb von
+# VAR_SEND_RELOAD_BUDGET_SEC seit dem ersten wartenden Sender. Ohne das durfte eine
+# sporadisch antwortende Bruecke den Hauptloop bis zu zehn Minuten blockieren --
+# jede eintreffende Quittung hielt den Watchdog am Leben (BEFUNDE.md, L108).
 #
 # 7 seit 03.10.2026: Hauptloop, remote_ir_learn, display_test (2), Ticker-
-# Warteschleife (2) und var_send_buf (nach Quittung). Die Zahl veraltet still, wenn
+# Warteschleife (2) und var_send_buf (nach Quittung und innerhalb des Budgets). Die Zahl veraltet still, wenn
 # sie beim Nachruesten vergessen wird -- der Schutz griffe dann erst, wenn mehrere
 # Stellen fehlen.
 WD_EXPECTED=7
@@ -344,7 +353,15 @@ if [ "$FULL" -eq 1 ]; then
     # also ausgerechnet in dem Moment selbst abgeschaltet, in dem der Bestand
     # sauber ist. Aufgefallen ist das dem Agenten, der die Senkung vorbereitet hat,
     # nicht beim Schreiben dieser Stufe.
-    fresh=$(find "$objdir" -newer "$BUILD_STAMP" \( -name '*.o' -o -name '*.a' \) 2>/dev/null | wc -l | tr -d ' ')
+    # .obj ZUERST, denn das ist die Endung, die hier wirklich zaehlt: CMake legt im
+    # STM-Baum 161 .obj an und genau EINE .o -- eine Compiler-Probedatei, die nur beim
+    # Konfigurieren entsteht. Die erste Fassung suchte nur nach .o und .a und meldete
+    # deshalb "19 Warnungen bei 1 uebersetzten Dateien" statt bei 67. Schlimmer: Laeuft
+    # --full ohne vorheriges clean, ist auch diese eine Datei nicht frisch, fresh wird 0
+    # und die Stufe meldet "in diesem Lauf wurde NICHTS uebersetzt", obwohl alles neu
+    # gebaut wurde -- genau die Verwechslung, die der Kommentar oben verhindern soll.
+    # Gemeldet vom release-engineer, der die Zahl 1 nicht als plausibel hingenommen hat.
+    fresh=$(find "$objdir" -newer "$BUILD_STAMP" \( -name '*.obj' -o -name '*.o' -o -name '*.a' \) 2>/dev/null | wc -l | tr -d ' ')
 
     if [ "$n" -gt "$want" ]; then
       printf '  HOCH      %s: %s Compilerwarnungen, erwartet waren %s — die neuen stehen in /tmp/guardrail-%s.log\n' "$t" "$n" "$want" "$t"

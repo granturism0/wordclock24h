@@ -47,6 +47,7 @@
 #define ESP8266_WEATHER_FC_ICON         22
 #define ESP8266_TABLES                  23
 #define ESP8266_DISP                    24
+#define ESP8266_STATUS                  25                                      // "OK ..." vom ESP: Statusmeldung, KEINE Quittung
 
 #define ESP8266_UNSPECIFIED             0xFF
 

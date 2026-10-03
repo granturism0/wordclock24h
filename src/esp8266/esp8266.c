@@ -298,7 +298,22 @@ esp8266_get_message (void)
 
                         if (! strncmp (answer, "OK", 2))
                         {
-                            rtc = ESP8266_OK;
+                            /* Die Quittung eines var-Kommandos ist der Punkt (oben, :227) -- der ESP
+                             * sendet ihn in ESP-uclock.ino:444 unmittelbar nach var_set_parameter().
+                             * Eine Zeile mit "OK" ist NIE eine Quittung. Der ESP sendet genau drei
+                             * davon, alle unaufgefordert waehrend seines Bootlaufs:
+                             *
+                             *   "OK cap"   wifi.cpp:68    statusmsg beim Hochfahren
+                             *   "OK ap"    wifi.cpp:144   Wechsel in den AP-Modus
+                             *   "OK time"  ntp.cpp:101    nach dem NTP-Abgleich
+                             *
+                             * statusmsg() (base.cpp:264) kennt keinen weiteren OK-Aufruf: abgezaehlt,
+                             * nicht vermutet. Als ESP8266_OK quittierte jede dieser drei Zeilen ein
+                             * fremdes Kommando, verschob die Paarung dauerhaft um eins und lud seit
+                             * 3.2.14 zusaetzlich den Watchdog in var_send_buf() auf eine Falschmeldung
+                             * hin nach. Deshalb ein eigener Rueckgabewert (specs/bruecke, Design 1).
+                             */
+                            rtc = ESP8266_STATUS;
                             break;
                         }
                         else if (! strncmp (answer, "ERROR", 5))

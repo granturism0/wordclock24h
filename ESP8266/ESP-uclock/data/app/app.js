@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.81";
+const APP_VERSION = "1.4.82";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {

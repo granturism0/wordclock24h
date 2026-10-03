@@ -114,6 +114,42 @@ else:
     print("  wenn etwas passiert. Unter LED-Last liegt sie deutlich niedriger — am")
     print("  03.10.2026 gemessen: 1,2 s waehrend eines Ticker-Overlays (BEFUNDE.md, L75).")
 
+# ------------------------------------------------- Groesstes Delta u (Stillstand)
+#
+# DIE Kennzahl des Bruecken-Pakets. Die Diagnosezeile kommt alle 10 s; steht zwischen
+# zwei aufeinanderfolgenden Folgenummern eine groessere Luecke in "u=", stand die Uhr
+# genau so lange still. Vor dem Paket waren bis zu 600 s denkbar (194 Kommandos à 3 s
+# Quittungswartezeit, jede eintreffende Quittung hielt den Watchdog am Leben, L108),
+# nach Runde 1 hoechstens 50 s.
+#
+# GRENZE, die man kennen muss: Setzt der Watchdog zurueck, erscheint die Luecke NICHT
+# als grosses Delta u -- die Folgenummer faengt dann wieder bei 1 an. Beide Ausgaenge
+# sind unterscheidbar, aber man muss nach beiden sehen. Deshalb wird auch ein
+# Neuanfang gemeldet.
+import re as _re
+diag = []
+for z in b:
+    m = _re.search(r"\bdiag\s+(\d+)\b.*?\bu=(\d+)", z)
+    if m:
+        diag.append((int(m.group(1)), int(m.group(2))))
+
+if len(diag) >= 2:
+    print()
+    neustart = [a for (a, _), (c, _) in zip(diag, diag[1:]) if c < a]
+    paare = [(a, c, vu - u) for (a, u), (c, vu) in zip(diag, diag[1:]) if c == a + 1]
+    if paare:
+        a, c, d = max(paare, key=lambda x: x[2])
+        print(f"  groesstes Delta u      {d} s  (zwischen diag {a} und {c}, bei {len(paare)} Paaren)")
+        if d > 50:
+            print("                        ueber 50 s -- die Uhr stand laenger still, als Runde 1 zulaesst.")
+        elif d > 12:
+            print("                        ueber dem 10-s-Takt: hier hat etwas den Hauptloop aufgehalten.")
+    else:
+        print("  groesstes Delta u      nicht messbar -- keine zwei aufeinanderfolgenden Folgenummern")
+    if neustart:
+        print(f"  ACHTUNG               Folgenummer faengt neu an ({len(neustart)}x) -- Watchdog-Reset?")
+        print("                        Ein Reset erscheint NICHT als grosses Delta u.")
+
 # ---------------------------------------------------------------- Zeilenklassen
 #
 # WER den Ring fuellt, ist wichtiger als WIE SCHNELL. Eine halbierte Rate sagt

@@ -1148,6 +1148,16 @@ http_content_type (const char * path)
     return "text/plain";
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * http_send_fs_file () - eine Datei aus dem LittleFS ausliefern
+ *
+ * Rueckgabewert:
+ *   0 = nichts gesendet, der Aufrufer darf eine eigene Antwort schreiben
+ *   1 = vollstaendig gesendet
+ *   2 = nach gesendeten Kopfzeilen abgebrochen, Verbindung verbraucht -
+ *       der Aufrufer darf KEINE zweite Antwort mehr in diese Verbindung schreiben
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
 static uint_fast8_t
 http_send_fs_file (const char * filename, const char * content_type, uint_fast8_t gzip_encoded)
 {
@@ -1166,6 +1176,17 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
 
         if (fp)
         {
+            /* Nagle nur fuer die Dateiauslieferung einschalten. Die pauschale Zeile
+             * http_client.setNoDelay (1) beim Annehmen der Verbindung bleibt stehen:
+             * fuer die kleinen API-Antworten, die die PWA pollt, ist "sofort raus"
+             * richtig. Hier dagegen verhindert sie das Verschmelzen zu vollen
+             * MSS-Segmenten - am Geraet gemessen gingen 129'477 Byte in 758 Paketen
+             * hinaus statt in 242 (L131), also 1,50 Pakete je 256-Byte-Block.
+             * Zuruecksetzen ist nicht noetig: Die Verbindung wird unten mit stop()
+             * geschlossen, und jede neue Verbindung setzt den Wert wieder auf 1.
+             */
+            http_client.setNoDelay (0);
+
             http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
             http_send (content_type);
 
@@ -1179,21 +1200,59 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
             http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
             http_flush ();
 
+            /* Lesepuffer ist bewusst der bereits vorhandene statische Antwortpuffer:
+             * 1024 Byte (MAX_HTTP_RESPONSE_LEN), unmittelbar darueber mit http_flush()
+             * geleert und bis zum Verbindungsende ungenutzt. Ein eigener Puffer auf dem
+             * Stack kostete 768 Byte vom 4-KB-cont-Stack, ein eigener statischer Puffer
+             * 1 KB vom ohnehin knappen Heap - bei einem Speicherbefund beides die
+             * falsche Richtung.
+             * BEDINGUNG: Zwischen dem http_flush() oben und dem Ende der Schleife darf
+             * kein http_send() stehen, sonst ueberschreiben sich beide Nutzungen.
+             */
             while (fp.available ())
             {
-                uint8_t buf[256];
-                size_t  len = fp.read (buf, sizeof (buf));
+                int len = fp.read ((uint8_t *) http_response, MAX_HTTP_RESPONSE_LEN);
 
-                if (len > 0)
+                /* Vorzeichenbehafteter Typ mit Absicht: File::read() liefert int.
+                 * Der Core 3.1.2 gibt im Fehlerfall 0 zurueck (LittleFS.h:411-422,
+                 * nachgesehen); mit size_t wuerde aus einem spaeteren -1 ein
+                 * Schreibvorgang ueber 4 GB. Ohne break liefe die Schleife hier
+                 * endlos, weil die Dateiposition nicht vorrueckt (L129 a).
+                 */
+                if (len <= 0)
                 {
-                    http_client.write (buf, len);
+                    Serial.print ("- fs read error: ");
+                    Serial.println (filename);
+                    Serial.flush ();
+                    rtc = 2;
+                    break;
                 }
+
+                /* Kurzschreibung: WiFiClient::write () liefert die tatsaechlich
+                 * uebergebene Menge und bricht nach seinem Zeitlimit oder bei
+                 * geschlossener Verbindung frueher ab. Ungeprueft entstuende eine
+                 * stillschweigend verstuemmelte Datei beim Client.
+                 */
+                if (http_client.write ((const uint8_t *) http_response, (size_t) len) != (size_t) len)
+                {
+                    Serial.print ("- fs write short: ");
+                    Serial.println (filename);
+                    Serial.flush ();
+                    rtc = 2;
+                    break;
+                }
+
+                yield ();
             }
 
             http_client.flush ();
             fp.close ();
             http_client.stop ();
-            rtc = 1;
+
+            if (rtc == 0)
+            {
+                rtc = 1;
+            }
         }
     }
 
@@ -1530,7 +1589,8 @@ app_asset_storage_filename (const char * asset_path, uint_fast8_t gzip_encoded, 
 static uint_fast8_t
 http_find_stored_app_asset_filename (const char * asset_path, char * filename, size_t maxlen, uint_fast8_t * gzip_encoded)
 {
-    char local_filename[128];
+    char            local_filename[128];
+    uint_fast8_t    rtc = 0;
 
     LittleFS.begin ();
 
@@ -1540,11 +1600,11 @@ http_find_stored_app_asset_filename (const char * asset_path, char * filename, s
     {
         if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
         if (gzip_encoded) { *gzip_encoded = 1; }
-        return 1;
+        rtc = 1;
     }
-
-    // basename .gz  (Arduino LittleFS upload tool — files stored flat in root)
+    else
     {
+        // basename .gz  (Arduino LittleFS upload tool — files stored flat in root)
         const char * slash = strrchr (asset_path, '/');
         const char * base  = slash ? slash + 1 : asset_path;
 
@@ -1554,11 +1614,16 @@ http_find_stored_app_asset_filename (const char * asset_path, char * filename, s
         {
             if (filename && maxlen) { strncpy (filename, local_filename, maxlen - 1); filename[maxlen - 1] = '\0'; }
             if (gzip_encoded) { *gzip_encoded = 1; }
-            return 1;
+            rtc = 1;
         }
     }
 
-    return 0;
+    /* Ein Ausstieg, ein Unmount: Vorher kehrten alle drei Wege ohne Unmount
+     * zurueck (L129 b), geraeteweit 28 x begin gegen 27 x end.
+     */
+    LittleFS.end ();
+
+    return rtc;
 }
 
 static int8_t
@@ -1598,7 +1663,7 @@ http_app (const char * path)
     uint_fast8_t    is_pwa_index = 0;
     uint_fast8_t    gzip_encoded = 0;
     uint_fast8_t    sent = 0;
-    bool            app_complete;
+    bool            app_complete = false;
     bool            remote_app_available = false;
 
     if (! strcmp (path, PWA_PREFIX) || ! strcmp (path, PWA_PREFIX "/"))
@@ -1644,7 +1709,20 @@ http_app (const char * path)
 
         content_type = http_content_type (ct_buf);
     }
-    app_complete = http_app_installation_complete ();
+    /* Nur unter is_pwa_index: app_complete wird ausschliesslich weiter unten in
+     * "is_pwa_index && ! app_complete" und "! is_pwa_index || app_complete" gelesen -
+     * bei is_pwa_index == 0 entscheidet in beiden Faellen bereits der erste Operand,
+     * der Startwert false aendert dort also nichts. Fuer /app/app.js entfallen damit
+     * ein LittleFS-Mount, zwoelf Dateipruefungen und ein Unmount, deren Ergebnis
+     * weggeworfen wurde - unmittelbar vor der grossen Uebertragung (L129 d). Am
+     * Geraet gemessen vergehen 239 ms zwischen dem ACK der Anfrage und dem ersten
+     * Datenpaket, 18 % der Gesamtzeit (L131).
+     */
+    if (is_pwa_index)
+    {
+        app_complete = http_app_installation_complete ();
+    }
+
     action = http_get_param ("action");
 
     if (is_pwa_index && action && ! strcmp (action, "install"))
@@ -10983,8 +11061,22 @@ http_api_update_progress ()
 static int
 http_api_device_ready ()
 {
+    /* Beide Werte zuerst einlesen, dann ausgeben: http_json_send_uint_field () baut
+     * intern ein String-Objekt. Wuerde erst gesendet und dann gemessen, laege die
+     * Messung hinter einer eigenen Heap-Anforderung.
+     * device_ready ist bewusst der Ort: die billigste lesende Antwort im Geraet,
+     * ohne LittleFS-Mount, ohne STM-Kommando, ohne Abfrage beim Update-Server.
+     * max_free_block neben free_heap, weil eine gescheiterte Pufferanforderung auch
+     * bei reichlich freiem, aber zerstueckeltem Speicher auftritt (L125).
+     */
+    unsigned long free_heap      = ESP.getFreeHeap ();
+    unsigned long max_free_block = ESP.getMaxFreeBlockSize ();
+
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true,\"ready\":true}"));
+    http_send (FS("{\"ok\":true,\"ready\":true"));
+    http_json_send_uint_field (FS("free_heap"), free_heap);
+    http_json_send_uint_field (FS("max_free_block"), max_free_block);
+    http_send (FS("}"));
     http_flush ();
     return 0;
 }

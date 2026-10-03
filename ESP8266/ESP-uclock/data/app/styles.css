@@ -932,14 +932,47 @@ h2 {
   align-items: end;
 }
 
+/* Fuer das Wort "Aktiv" mass die Pille 92 x 72 px -- die Umrandung dominierte den
+   Inhalt. Die Hoehe kam nicht vom Innenabstand allein: Die globale input-Regel zieht
+   JEDES Ankreuzfeld auf 44 px (gemessen: 13 x 44 px), dazu kamen 2 x 10 px Polster,
+   der 3-px-Standardrand des Felds und der Rahmen. Die Zielgroesse traegt jetzt die
+   Pille selbst (min-height 44px, WCAG 2.5.5) statt das Feld darin -- die Flaeche zum
+   Antippen bleibt also gleich gross, nur die sichtbare Umrandung tritt zurueck. */
 .chip-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 999px;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  /* Kein 999px mehr: Bei kurzem Text wird daraus eine Blase um zwei Silben. */
+  border-radius: var(--radius-md);
   border: 1px solid var(--line-control);
   background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+/* Ohne diese Regel zoege die globale input-Vorgabe (min-height 44px, padding 0 10px)
+   das Ankreuzfeld auf 13 x 44 px auseinander -- ein hoher schmaler Kasten, um den
+   auch der Fokusring hoch und schmal ausfiel. Der Fokusstil selbst bleibt der
+   globale :focus-visible-Ring, er umschliesst jetzt nur ein normal grosses Feld. */
+.chip-toggle input[type="checkbox"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Damit haengt der Zustand nicht allein am Haken: Angekreuzt faerbt sich die ganze
+   Flaeche, und der Rand wechselt von --line-control auf --accent. Gegen die
+   Panelflaeche #0a1422 gerechnet sind das 3,69:1 gegenueber 11,38:1 -- beide ueber
+   den 3:1 aus WCAG 1.4.11, und der Unterschied zwischen ihnen traegt den Zustand.
+   Ein Browser ohne :has() zeigt weiterhin den Haken in accent-color; der Zustand
+   bleibt also in jedem Fall ablesbar. */
+.chip-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(143, 211, 255, 0.14);
 }
 
 .form-section {
