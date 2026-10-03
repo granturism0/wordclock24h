@@ -185,11 +185,23 @@ Dokumentation, bumpt Versionen und rollt aus. Alles andere geht an den zuständi
 Agenten — auch wenn ein Auftrag einmal nicht ankommt und es schneller ginge, selbst
 Hand anzulegen. Genau diese Abkürzung hat die Regel gebrochen.
 
-**Erzwungen, nicht aufgeschrieben.** `tools/hooks/file-ownership.py` weist jeden
-Schreibzugriff auf eine fremde Datei ab — im Frontmatter jedes schreibenden Agenten
-und in `.claude/settings.json` für den Lead. Geprüft werden `Write`, `Edit` **und
-`Bash`**: Die Agenten patchen durchgehend über Python-Heredocs, ein Hook nur auf
-`Write`/`Edit` hätte gar nichts gesehen. Lesen bleibt frei.
+**Für die Agenten erzwungen.** `tools/hooks/file-ownership.py` weist jeden
+Schreibzugriff auf eine fremde Datei ab, registriert im Frontmatter jedes
+schreibenden Agenten. Geprüft werden `Write`, `Edit` **und `Bash`**: Die Agenten
+patchen durchgehend über Python-Heredocs, ein Hook nur auf `Write`/`Edit` hätte gar
+nichts gesehen. Lesen bleibt frei.
+
+**Für den Lead gilt die Regel, nicht der Zwang — und das ist eine benannte Lücke.**
+Der erste Versuch registrierte den Hook zusätzlich projektweit in
+`.claude/settings.json` mit `--agent lead`. Gemessen am 03.10.2026: Ein dort
+eingetragener Hook feuert **auch innerhalb jeder Unteragenten-Sitzung**, und die
+Nutzlast enthält kein Feld, das beide unterscheidet — `session_id` und
+`transcript_path` sind identisch. Ein einziges Deny blockiert den Aufruf, also
+sperrte ausgerechnet der Hook, der dem `stm-developer` die Hoheit über `src/**`
+sichern soll, genau ihn davon aus; sein erster Auftrag scheiterte daran. Der
+Eintrag ist wieder entfernt. Erzwingbar wäre es nur über eine Verständigung der
+beiden Hook-Aufrufe via `tool_use_id`, und die hinge an einer Reihenfolge, die
+nirgends zugesichert ist.
 
 Jedes Erkennungsmuster muss den Pfad enthalten. Der erste Entwurf prüfte auf
 `open(p,'w')` ohne Pfadbezug und blockierte damit eine Änderung an dieser Datei

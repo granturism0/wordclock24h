@@ -2,17 +2,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/tools/hooks/file-ownership.py\" --agent lead",
-            "timeout": 10,
-            "statusMessage": "R3 pruefen — der Lead schreibt keinen Produktcode"
-          }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           {

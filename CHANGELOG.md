@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-03 Tickerschleife bedient den Watchdog (STM 3.2.10)
+
+Nur STM-Code geaendert, also steigt nach DIR-004 nur dessen Version.
+
+Einen Tickertext zu speichern konnte die Uhr neu starten. Die Warteschleife in
+display_set_ticker() laesst den Text durchlaufen und ruft dabei kein
+watchdog_reload(). Seit 3.2.8 laeuft der IWDG wirklich -- damit ist aus einer
+jahrelang harmlosen Schleife ein Reset-Ausloeser geworden.
+
+Zweimal am Geraet belegt. 03.10. 01:36:23 Tickerkommando mit 32 Zeichen, danach
+14,5 s ohne eine einzige Hauptloop-Zeile, um 01:37:03 IWDGRST. Und rueckwirkend
+02.10.: Tickerkommando um 03:44:46, Reset um 03:45:07 -- 20,85 s bei 20 s
+Timeout. Damit ist L25 ein starker Kandidat fuer dieselbe Ursache; lueckenlos
+ist es nicht, eine show_time-Zeile zwei Sekunden vor dem Reset passt nicht zu
+einer durchgehenden Blockade.
+
+Rechnung: Bei ticker_deceleration = 4 sind es 62 ms je Spaltenschritt, also rund
+14,5 s fuer 32 Zeichen -- 73 % der Grenze. Das Feld laesst 0..255 zu; bei 255
+waeren es knapp 14 Minuten.
+
+Betroffen war nicht nur die Nutzereingabe: do_wait = 1 gilt auch fuer
+Wetterticker, Overlay-Ticker und Datumsticker. Auf diesem Geraet laeuft ein
+Datums-Overlay stuendlich.
+
+Die Wartezeit ist jetzt in 100-ms-Stuecke zerlegt, mit einem Reload je Stueck --
+ein Reload nur je Spaltenschritt haette bei ticker_deceleration = 255 rund 4 s
+Abstand bedeutet, knapp unter der Grenze und ohne Reserve. Die Schleife bekommt
+bewusst KEINEN Abbruch, sie endet von selbst.
+
+var_send_buf() bleibt unberuehrt. Ebenso die zweite Schleife, die dabei
+aufgefallen ist: do { schedule_esp8266_messages(); } while (! tables.complete)
+in display_set_display_mode(). Das ist dasselbe Muster wie var_send_buf --
+Warten auf eine ESP-Quittung --, und dort ist der Reset gewollt. Dort gehoert,
+wenn ueberhaupt, ein Timeout hin.
+
+Guardrail S7 bewacht jetzt sechs Aufrufstellen statt vier. Die Zahl war nach
+dem Patch still veraltet: Der Schutz haette erst gegriffen, wenn drei Stellen
+verlorengegangen waeren. Gegenprobe gefahren.
+
 ## 2026-10-03 Oktober-Paket (STM 3.2.9, ESP 3.2.7, PWA 1.4.75)
 
 Alle drei Komponenten. 17 Befunde geschlossen, drei neue gefunden.

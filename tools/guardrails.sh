@@ -171,11 +171,14 @@ n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null); n=${n:-0}
 # Leben gebracht (L25). Ein Reload an dieser Stelle wuerde daraus wieder ein stilles
 # Steckenbleiben machen. Die Stufe bewacht deshalb jetzt den Bestand: Faellt die Zahl
 # unter vier, ist ein Fix verlorengegangen.
-WD_EXPECTED=4
+# 6 seit 03.10.2026: Hauptloop, remote_ir_learn, display_test (2) und neu die
+# Ticker-Warteschleife (2). Die Zahl veraltet still, wenn sie beim Nachruesten
+# vergessen wird -- der Schutz griffe dann erst, wenn mehrere Stellen fehlen.
+WD_EXPECTED=6
 n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
 n=${n:-0}
 if [ "$n" -lt "$WD_EXPECTED" ]; then
-  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (display_test 2x, Hauptloop, remote_ir_learn)"
+  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x)"
 else
   ok "watchdog_reload(): $n Aufrufstellen, Bestand vollstaendig"
 fi

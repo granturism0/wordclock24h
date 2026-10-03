@@ -4801,10 +4801,44 @@ display_set_ticker (const unsigned char * ticker, uint_fast8_t do_wait)
 
         if (do_wait)
         {
+            /* Watchdog waehrend des Wartens bedienen, Muster wie in display_test():
+             * Seit 3.2.8 laeuft der IWDG wirklich (der LSI wird vor der Konfiguration
+             * gestartet), Timeout 20 s, und watchdog_reload() hat weiterhin genau eine
+             * Aufrufstelle im Hauptloop. Diese Schleife haelt den Hauptloop an und
+             * reisst den Watchdog deshalb seit 3.2.8 erstmals wirklich. Am Geraet
+             * zweimal belegt: 03.10.2026 01:36:23 Tickerkommando ueber 32 Zeichen ->
+             * 14,5 s ohne eine einzige Hauptloop-Zeile, um 01:37:03 dann
+             * "Reset flags: IWDGRST"; 02.10.2026 03:44:46 derselbe Ablauf, 20,85 s bis
+             * zum IWDGRST bei 20 s Timeout. Bei ticker_deceleration = 4 sind das 62 ms
+             * je Spaltenschritt und rund 14,5 s fuer 32 Zeichen; das Feld laesst 0..255
+             * zu, bei 255 waeren es knapp 14 Minuten -- also jedes Mal ein Reset.
+             * Betroffen sind nicht nur Nutzereingaben, sondern auch das Tickerkommando
+             * vom ESP, der Wetterticker, das Ticker-Overlay und der Datumsticker
+             * (alle mit do_wait = 1).
+             *
+             * Kein Timeout: Die Schleife endet von selbst, sobald der Text durchgelaufen
+             * ist. Gewollt ist allein, dass der Watchdog waehrenddessen bedient wird.
+             * Deshalb wird die Wartezeit in Abschnitte von hoechstens 100 ms zerlegt --
+             * ein einzelnes langes delay_msec() liefe bei grossem ticker_deceleration
+             * trotz Reload je Durchlauf ueber die 20 s.
+             */
             while (*ticker_ptr)
             {
+                uint32_t    msec_left;
+
                 display_ticker ();
-                delay_msec ((display.ticker_deceleration * 1000) / 64);
+                watchdog_reload ();
+
+                msec_left = ((uint32_t) display.ticker_deceleration * 1000) / 64;
+
+                while (msec_left > 0)
+                {
+                    uint32_t    msec_chunk = (msec_left > 100) ? 100 : msec_left;
+
+                    delay_msec (msec_chunk);
+                    watchdog_reload ();
+                    msec_left -= msec_chunk;
+                }
             }
         }
     }

@@ -56,7 +56,7 @@ for (const file of process.argv.slice(2)) {
     // Rueckwaertsgewandte Formulierungen, die dieses Projekt tatsaechlich benutzt:
     // eine Statuszelle ("**erledigt** 3.2.5", "**groesstenteils erledigt** PWA 1.4.72")
     // oder Fliesstext ("seit ESP 3.2.4", "der Fix in ESP 3.2.5", "behoben mit 3.2.8").
-    const doneMarker = /\*\*[^*]{0,40}(?:erledigt|behoben|gekl(?:ä|ae)rt|belegt)[^*]{0,24}\*\*|\b(?:seit|Seit)\s+(?:STM|ESP|PWA)\b|\b[Ff]ix in\b|\bbehoben\s+(?:in|mit)\b|\bBehoben\s+(?:in|mit)\b/;
+    const doneMarker = /\*\*[^*]{0,40}(?:erledigt|behoben|gekl(?:ä|ae)rt|belegt)[^*]{0,24}\*\*|\b(?:seit|Seit|mit|Mit|ab|Ab)\s+(?:STM|ESP|PWA)\b|\b[Ff]ix in\b|\bbehoben\s+(?:in|mit)\b|\bBehoben\s+(?:in|mit)\b/;
     const doneAt = line.search(doneMarker);
 
     // Eine Versionsnummer ALLEIN in Klammern ist in diesem Projekt durchgehend eine

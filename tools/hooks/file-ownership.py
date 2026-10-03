@@ -20,8 +20,19 @@ nur als Text da, bis no-build.py es erzwang. Phase 8 des Testplans stand nur im
 Dokument, bis no-danger.py sie erzwang. Beides haelt, seit es nicht mehr auf
 Disziplin angewiesen ist.
 
-Registriert wird der Hook mit --agent <rolle> im Frontmatter des jeweiligen Agenten
-und mit --agent lead in .claude/settings.json.
+Registriert wird der Hook mit --agent <rolle> im Frontmatter des jeweiligen Agenten.
+
+NICHT in .claude/settings.json registrieren, auch nicht mit --agent lead. Gemessen am
+03.10.2026: Ein dort eingetragener Hook feuert AUCH innerhalb jeder Unteragenten-
+Sitzung, und die Nutzlast enthaelt kein Feld, das beide unterscheidet -- session_id
+und transcript_path sind identisch. Ein einziges Deny blockiert den Aufruf, also
+sperrte der Hook, der dem stm-developer die Hoheit ueber src/** sichern soll, genau
+ihn davon aus. Der erste Auftrag an ihn scheiterte daran.
+
+Fuer den Lead bleibt damit die Regel in CLAUDE.md, nicht der Zwang. Das ist eine
+bewusst benannte Luecke und keine vergessene: Erzwingen liesse sie sich nur ueber
+eine Verstaendigung der beiden Hook-Aufrufe ueber tool_use_id, und die haengt an
+einer Reihenfolge, die nicht zugesichert ist.
 
 Geprueft werden ZWEI Wege, denn der zweite ist der, der hier tatsaechlich benutzt
 wird: Write/Edit mit einem Dateipfad, und Bash -- die Agenten patchen durchgehend
@@ -146,6 +157,7 @@ def main():
 
     raw = sys.stdin.read()
     payload = json.loads(raw) if raw.strip() else {}
+
     tool = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {}) or {}
 
