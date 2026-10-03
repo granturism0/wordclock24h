@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-10-03 Gruppe B und die Knoepfe (PWA 1.4.77)
+
+Nur PWA geaendert, STM 3.2.10 und ESP 3.2.8 bleiben.
+
+### Massnahme 17 geschlossen — die Oberflaeche biegt nichts mehr still zurecht
+
+Neun Masken, zwoelf Felder. clampNumber ist ersatzlos entfallen. Der schlimmste
+Fall war saveDateTime: Dort hatte clampNumber RUECKFALLWERTE -- ein leeres
+Jahresfeld schrieb still 2026, Stunde 25 wurde 23, und die Uhr meldete
+"gespeichert". Das war keine Unschoenheit, sondern eine falsch gestellte Uhr
+mit Erfolgsmeldung.
+
+Die Klammerung im ESP bleibt: Sie ist das Netz fuer Legacy und direkte
+API-Aufrufe. Es ging darum, dass die Oberflaeche nicht mehr luegt.
+
+Gegengeprueft statt angenommen: Schieberegler koennen nach dem
+Value-Sanitization-Algorithmus von type="range" gar keinen Wert ausserhalb
+liefern, auch nicht bei programmatischer Zuweisung -- dort war nichts zu tun.
+
+### L43 — 46 von 99 Knoepfen waren hervorgehoben, jetzt 14
+
+Eine Hervorhebung, die fuer fast die Haelfte gilt, fuehrt nicht mehr. Der
+Nutzer hat es bemerkt, keine Pruefung.
+
+Die beiden Firmware-Updates sind jetzt BEIDE plain: Sie sind gleichen Gewichts
+und schliessen einander nicht aus, jede Wahl waere eine Behauptung gewesen.
+Damit widersprechen sich Fern- und Lokalkarte nicht mehr, was der eigentliche
+Befund war. Nebenbei zurueckgenommen: Die einzige Hervorhebung der Startansicht
+zeigte aus der PWA heraus auf die Legacy-Seite.
+
+### L59/L60 — "primary" hiess an zwei Stellen Verschiedenes
+
+setActionToggleButton setzte dieselbe Klasse fuer "eingeschaltet". In der
+RGBW-Karte konnten vier Schalter gleichzeitig leuchten wie eine Hauptaktion.
+Jetzt is-on plus aria-pressed -- der Zustand stand bisher nur in dataset.state
+und in der Farbe und war fuer Screenreader unsichtbar.
+
+Die Gestaltung haengt bewusst an BEIDEN Selektoren, Klasse und aria-pressed:
+Nur am Attribut waere classList.toggle("is-on") eine Klasse ohne Wirkung --
+genau der stille Zustand, der den Auftrag ausgeloest hat, nur gespiegelt.
+
+Gemessen: Rand is-on 5,02:1 gegen das Panel, zwischen Grundknopf (3,69:1) und
+primary (6,37:1). Der Zustandspunkt kommt auf 6,26:1 und traegt die
+Unterscheidung farbunabhaengig -- da oder nicht da statt Farbton.
+
+### Massnahme 18 — 85 statt 38 Fundstellen
+
+Zwoelf Literale waren Doppelungen bereits vorhandener Schluessel, die nur nie
+benutzt wurden. Vier Stellen bleiben bewusst: Datums- und Startzeitformate sind
+bereits zweisprachig und zeigen in englischer Oberflaeche kein Deutsch -- kein
+Defekt, nur an der Tabelle vorbei.
+
+### L62 — der Flash-Pfad lief an der Statuspruefung vorbei
+
+autoResetStm32AfterFlash benutzte rohes fetch. Gewonnen ist vor allem der
+Status: http_request_is_embedded_subresource() antwortet mit 403, und das galt
+vorher als Erfolg -- die PWA meldete "zurueckgesetzt", obwohl nichts geschah.
+
+### Werkzeug
+
+Neue Guardrail-Stufe: Klassen, die app.js setzt, fuer die es aber keine
+CSS-Regel gibt. Das ist die Gegenrichtung zu unused-css.mjs, und sie fehlte --
+L59 ist genau so durchgerutscht: Die Klasse war benutzt, nur wirkungslos.
+Gegenprobe gefahren, der erste Entwurf hatte einen Fehlalarm auf
+zusammengesetzte Namen ("is-" + tone), jetzt ausgenommen.
+
+quick-reference: styles.css in die Liste der Dateien mit gemischten
+Zeilenenden aufgenommen. Das Edit-Werkzeug hatte sie auf LF vereinheitlicht --
+0 statt 56 CR, Diff 89/56 statt der gemeinten 33 Zeilen.
+
 ## 2026-10-03 Gruppe C (ESP 3.2.8, PWA 1.4.76)
 
 Dreizehn Befunde geschlossen. STM unveraendert bei 3.2.10.

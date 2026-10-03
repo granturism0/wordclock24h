@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.76";
+const APP_VERSION = "1.4.77";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -550,6 +550,7 @@ const I18N = {
     "status.updated_at": "Aktualisiert {time}",
     "status.data_load_failed": "Daten konnten nicht geladen werden",
     "input.number_required": "Bitte einen Wert zwischen {min} und {max} eintragen. Ein leeres Feld wird nicht gespeichert.",
+    "input.number_range": "Der Wert {value} liegt ausserhalb des erlaubten Bereichs {min} bis {max}. Es wurde nichts gespeichert — bitte korrigiere die Eingabe.",
     "status.settings_parse_error": "Die Konfiguration des Geräts ist beschädigt und konnte nicht gelesen werden. Ein Anführungszeichen in Ort, Tickertext, AppID oder Update-Host ist die häufigste Ursache — korrigiere es über die Legacy-Oberfläche.",
     "overview.display_mode": "Display-Modus",
     "overview.brightness": "Helligkeit",
@@ -821,7 +822,87 @@ const I18N = {
     "common.loading_short": "wird geladen...",
     "common.reloading": "lädt neu...",
     "common.ready": "fertig",
-    "common.invalid_file_extension": "Ungültige Dateiendung"
+    "common.invalid_file_extension": "Ungültige Dateiendung",
+    "display.ambilight_state_saved": "Ambilight-Status gespeichert",
+    "display.ambilight_state_set_failed": "Ambilight-Status konnte nicht gesetzt werden",
+    "display.brightness_save_failed": "Helligkeit konnte nicht gespeichert werden",
+    "display.it_is_set_failed": "„ES IST“ konnte nicht gesetzt werden",
+    "display.preset_apply_failed": "Preset konnte nicht angewendet werden",
+    "display.mode_save_failed": "Display-Modus konnte nicht gespeichert werden",
+    "display.ticker_save_failed": "Ticker konnte nicht gespeichert werden",
+    "display.date_format_save_failed": "Datumsformat konnte nicht gespeichert werden",
+    "climate.auto_brightness_toggle_failed": "Automatische Helligkeit konnte nicht geschaltet werden",
+    "climate.api_key_save_failed": "API-Schlüssel konnte nicht gespeichert werden",
+    "climate.city_save_failed": "Ort konnte nicht gespeichert werden",
+    "climate.coordinates_save_failed": "Koordinaten konnten nicht gespeichert werden",
+    "climate.weather_request_failed": "Wetter konnte nicht angefordert werden",
+    "climate.forecast_request_failed": "Wettervorhersage konnte nicht angefordert werden",
+    "climate.rtc_correction_save_failed": "RTC-Korrektur konnte nicht gespeichert werden",
+    "climate.ds18xx_correction_save_failed": "DS18xx-Korrektur konnte nicht gespeichert werden",
+    "climate.temperature_display_failed": "Temperatur konnte nicht angezeigt werden",
+    "climate.temperature_display_started": "Temperaturanzeige ausgelöst",
+    "climate.ldr_min_set_failed": "LDR-Minimum konnte nicht gesetzt werden",
+    "climate.ldr_min_saved": "LDR-Minimum gespeichert",
+    "climate.ldr_max_set_failed": "LDR-Maximum konnte nicht gesetzt werden",
+    "climate.ldr_max_saved": "LDR-Maximum gespeichert",
+    "network.timeserver_save_failed": "Zeitserver konnte nicht gespeichert werden",
+    "network.timezone_save_failed": "Zeitzone konnte nicht gespeichert werden",
+    "network.summertime_set_failed": "Sommerzeit konnte nicht gesetzt werden",
+    "network.nettime_failed": "Netzzeit konnte nicht angefordert werden",
+    "network.nettime_requested": "Netzzeit angefordert",
+    "network.wps_failed": "WPS konnte nicht gestartet werden",
+    "network.wps_started": "WPS wurde gestartet",
+    "system.datetime_save_failed": "Datum und Uhrzeit konnten nicht gespeichert werden",
+    "system.learn_ir_failed": "IR-Lernmodus konnte nicht gestartet werden",
+    "system.learn_ir_started": "IR-Lernmodus gestartet",
+    "maintenance.update_host_save_failed": "Update-Host konnte nicht gespeichert werden",
+    "maintenance.update_path_save_failed": "Update-Pfad konnte nicht gespeichert werden",
+    "maintenance.format_fs_failed": "LittleFS konnte nicht formatiert werden",
+    "maintenance.preview_empty": "(leer)",
+    "maintenance.target_uploads_unsupported": "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.",
+    "maintenance.upload_file_done": "Datei wurde hochgeladen.",
+    "maintenance.upload_table_done": "Layout-Tabelle wurde hochgeladen.",
+    "maintenance.upload_display_done": "TFT-Display-Datei wurde hochgeladen.",
+    "animations.display_animation_save_failed": "Anzeigeanimation konnte nicht gespeichert werden",
+    "animations.color_animation_save_failed": "Farbanimation konnte nicht gespeichert werden",
+    "backup.file_selected": "Ausgewählt: {name}",
+    "backup.no_file_selected": "Noch keine Sicherungsdatei ausgewählt.",
+    "backup.importing": "importiert...",
+    "backup.checking_files": "Prüfe benötigte Dateien...",
+    "backup.restoring_assets": "Stelle Icon- und Overlay-Dateien wieder her...",
+    "backup.importing_timers": "Importiere Timer...",
+    "weather.locating_short": "ermittelt...",
+    "weather.geo_denied": "Standortfreigabe wurde abgelehnt. Näherungsstandort wird ermittelt...",
+    "weather.geo_unavailable": "Standort ist derzeit nicht verfügbar. Näherungsstandort wird ermittelt...",
+    "weather.geo_timeout": "Standortabfrage lief in ein Zeitlimit. Näherungsstandort wird ermittelt...",
+    "weather.geo_failed": "Standort konnte nicht gelesen werden. Näherungsstandort wird ermittelt...",
+    "display.led_note_debug_rgbw": "Debug Override aktiv. Farb-LED UI wird als RGBW angezeigt.",
+    "display.led_note_debug_rgb": "Debug Override aktiv. Farb-LED UI wird als RGB angezeigt.",
+    "display.led_note_rgbw": "RGBW-Hardware erkannt. RGB- und Weisskanal sind verfügbar.",
+    "display.led_note_tft": "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weisskanal bleibt ausgeblendet.",
+    "display.led_note_rgb": "RGB-Hardware erkannt. Der Weisskanal ist deshalb ausgeblendet.",
+    "display.led_note_none": "Keine unterstützte Farb-LED-Hardware erkannt. Farbsteuerung ist deshalb ausgeblendet.",
+    "display.led_label_none": "keine Farb-LEDs erkannt",
+    "maintenance.no_layout_tables": "keine Layout-Tabellen gefunden",
+    "common.unknown_error": "unbekannter Fehler",
+    "maintenance.local_esp_wrong_file": "Falsche ESP-Datei ausgewählt. Erwartet wird eine .bin-Datei.",
+    "maintenance.local_esp_upload_progress": "ESP-Firmware wird hochgeladen: {percent}%",
+    "maintenance.local_esp_upload_failed": "ESP-Firmware konnte nicht hochgeladen werden: {error}",
+    "maintenance.local_stm32_expected_fallback": "passende STM32-.hex-Datei",
+    "maintenance.local_stm32_wrong_file": "Falsche STM32-Datei ausgewählt. Erwartet wird {expected}.",
+    "maintenance.target_expected": "{target} erwartet",
+    "maintenance.target_uploading": "{target} wird hochgeladen: {name}",
+    "maintenance.target_uploaded_saving": "{target} wurde hochgeladen und wird jetzt gespeichert...",
+    "maintenance.target_upload_progress": "{target} wird hochgeladen: {percent}%",
+    "maintenance.remote_stm32_start_failed": "Remote STM32-Flash konnte nicht gestartet werden.",
+    "maintenance.stm32_flash_end_unclear": "STM32-Flash-Ende konnte nicht sicher erkannt werden.",
+    "maintenance.stm32_reset_after_flash": "STM32 wurde nach dem Flash automatisch zurückgesetzt",
+    "maintenance.reload_after_stm32_failed": "Daten konnten nach dem STM32-Update nicht neu geladen werden",
+    "maintenance.stm32_flash_done_confirming": "STM32-Flash abgeschlossen. Abschluss wird bestätigt...",
+    "common.toggle_failed": "Schalter konnte nicht gesetzt werden",
+    "common.action_failed": "Aktion konnte nicht ausgeführt werden",
+    "common.installing": "wird installiert...",
+    "common.uploading_percent": "lädt hoch... {percent}%"
   },
   en: {
     "app.title": "WordClock",
@@ -1360,6 +1441,7 @@ const I18N = {
     "status.updated_at": "Updated {time}",
     "status.data_load_failed": "Data could not be loaded",
     "input.number_required": "Please enter a value between {min} and {max}. An empty field is not saved.",
+    "input.number_range": "The value {value} is outside the allowed range {min} to {max}. Nothing was saved — please correct the entry.",
     "status.settings_parse_error": "The device configuration is damaged and could not be read. A quotation mark in city, ticker text, app ID or update host is the most common cause — fix it through the legacy web UI.",
     "overview.display_mode": "Display mode",
     "overview.brightness": "Brightness",
@@ -1631,7 +1713,87 @@ const I18N = {
     "common.loading_short": "loading...",
     "common.reloading": "reloading...",
     "common.ready": "done",
-    "common.invalid_file_extension": "Invalid file extension"
+    "common.invalid_file_extension": "Invalid file extension",
+    "display.ambilight_state_saved": "Ambilight state saved",
+    "display.ambilight_state_set_failed": "Ambilight state could not be set",
+    "display.brightness_save_failed": "Brightness could not be saved",
+    "display.it_is_set_failed": "“ES IST” could not be set",
+    "display.preset_apply_failed": "Preset could not be applied",
+    "display.mode_save_failed": "Display mode could not be saved",
+    "display.ticker_save_failed": "Ticker could not be saved",
+    "display.date_format_save_failed": "Date format could not be saved",
+    "climate.auto_brightness_toggle_failed": "Automatic brightness could not be switched",
+    "climate.api_key_save_failed": "API key could not be saved",
+    "climate.city_save_failed": "Location could not be saved",
+    "climate.coordinates_save_failed": "Coordinates could not be saved",
+    "climate.weather_request_failed": "Weather could not be requested",
+    "climate.forecast_request_failed": "Weather forecast could not be requested",
+    "climate.rtc_correction_save_failed": "RTC correction could not be saved",
+    "climate.ds18xx_correction_save_failed": "DS18xx correction could not be saved",
+    "climate.temperature_display_failed": "Temperature could not be shown",
+    "climate.temperature_display_started": "Temperature display triggered",
+    "climate.ldr_min_set_failed": "LDR minimum could not be set",
+    "climate.ldr_min_saved": "LDR minimum saved",
+    "climate.ldr_max_set_failed": "LDR maximum could not be set",
+    "climate.ldr_max_saved": "LDR maximum saved",
+    "network.timeserver_save_failed": "Time server could not be saved",
+    "network.timezone_save_failed": "Time zone could not be saved",
+    "network.summertime_set_failed": "Daylight saving time could not be set",
+    "network.nettime_failed": "Network time could not be requested",
+    "network.nettime_requested": "Network time requested",
+    "network.wps_failed": "WPS could not be started",
+    "network.wps_started": "WPS has been started",
+    "system.datetime_save_failed": "Date and time could not be saved",
+    "system.learn_ir_failed": "IR learning mode could not be started",
+    "system.learn_ir_started": "IR learning mode started",
+    "maintenance.update_host_save_failed": "Update host could not be saved",
+    "maintenance.update_path_save_failed": "Update path could not be saved",
+    "maintenance.format_fs_failed": "LittleFS could not be formatted",
+    "maintenance.preview_empty": "(empty)",
+    "maintenance.target_uploads_unsupported": "PWA target uploads are not supported by this firmware yet.",
+    "maintenance.upload_file_done": "The file has been uploaded.",
+    "maintenance.upload_table_done": "The layout table has been uploaded.",
+    "maintenance.upload_display_done": "The TFT display file has been uploaded.",
+    "animations.display_animation_save_failed": "Display animation could not be saved",
+    "animations.color_animation_save_failed": "Colour animation could not be saved",
+    "backup.file_selected": "Selected: {name}",
+    "backup.no_file_selected": "No backup file selected yet.",
+    "backup.importing": "importing...",
+    "backup.checking_files": "Checking required files...",
+    "backup.restoring_assets": "Restoring icon and overlay files...",
+    "backup.importing_timers": "Importing timers...",
+    "weather.locating_short": "locating...",
+    "weather.geo_denied": "Location access was denied. Determining the approximate location...",
+    "weather.geo_unavailable": "The location is currently unavailable. Determining the approximate location...",
+    "weather.geo_timeout": "The location request timed out. Determining the approximate location...",
+    "weather.geo_failed": "The location could not be read. Determining the approximate location...",
+    "display.led_note_debug_rgbw": "Debug override active. The colour LED UI is shown as RGBW.",
+    "display.led_note_debug_rgb": "Debug override active. The colour LED UI is shown as RGB.",
+    "display.led_note_rgbw": "RGBW hardware detected. RGB and white channel are available.",
+    "display.led_note_tft": "TFT hardware detected. TFT options are available, the white channel stays hidden.",
+    "display.led_note_rgb": "RGB hardware detected. The white channel is therefore hidden.",
+    "display.led_note_none": "No supported colour LED hardware detected. Colour control is therefore hidden.",
+    "display.led_label_none": "no colour LEDs detected",
+    "maintenance.no_layout_tables": "no layout tables found",
+    "common.unknown_error": "unknown error",
+    "maintenance.local_esp_wrong_file": "Wrong ESP file selected. A .bin file is expected.",
+    "maintenance.local_esp_upload_progress": "Uploading ESP firmware: {percent}%",
+    "maintenance.local_esp_upload_failed": "ESP firmware could not be uploaded: {error}",
+    "maintenance.local_stm32_expected_fallback": "a matching STM32 .hex file",
+    "maintenance.local_stm32_wrong_file": "Wrong STM32 file selected. Expected: {expected}.",
+    "maintenance.target_expected": "{target} expected",
+    "maintenance.target_uploading": "Uploading {target}: {name}",
+    "maintenance.target_uploaded_saving": "{target} has been uploaded and is now being saved...",
+    "maintenance.target_upload_progress": "Uploading {target}: {percent}%",
+    "maintenance.remote_stm32_start_failed": "The remote STM32 flash could not be started.",
+    "maintenance.stm32_flash_end_unclear": "The end of the STM32 flash could not be detected reliably.",
+    "maintenance.stm32_reset_after_flash": "The STM32 was reset automatically after the flash",
+    "maintenance.reload_after_stm32_failed": "Data could not be reloaded after the STM32 update",
+    "maintenance.stm32_flash_done_confirming": "STM32 flash finished. Confirming completion...",
+    "common.toggle_failed": "Switch could not be set",
+    "common.action_failed": "Action could not be performed",
+    "common.installing": "installing...",
+    "common.uploading_percent": "uploading... {percent}%"
   }
 };
 const LOCAL_APP_REQUIRED_ASSETS = [
@@ -2163,10 +2325,10 @@ bindElementEvents([
   ["datetime-save-button", "click", saveDateTime],
   ["learn-ir-button", "click", learnIrRemote],
   ["update-progress-frame", "load", handleProgressFrameLoad],
-  ["fs-upload-icon-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("icon"), "Datei wurde hochgeladen.")],
-  ["fs-upload-weather-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("weather"), "Datei wurde hochgeladen.")],
-  ["fs-upload-tables-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("tables"), "Layout-Tabelle wurde hochgeladen.")],
-  ["fs-upload-display-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("display"), "TFT-Display-Datei wurde hochgeladen.")]
+  ["fs-upload-icon-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("icon"), translate("maintenance.upload_file_done"))],
+  ["fs-upload-weather-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("weather"), translate("maintenance.upload_file_done"))],
+  ["fs-upload-tables-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("tables"), translate("maintenance.upload_table_done"))],
+  ["fs-upload-display-form", "submit", (event) => uploadFsTargetFile(event, getFsUploadUrl("display"), translate("maintenance.upload_display_done"))]
 ]);
 
 bindPrefixEvents(["display", "ambilight", "marker"], (prefix) => [
@@ -3302,10 +3464,10 @@ async function saveAmbilightOnlineState() {
       await loadData();
     } catch (_) {
     }
-    announceStatus("Ambilight-Status gespeichert", "ok");
+    announceStatus(translate("display.ambilight_state_saved"), "ok");
   } catch (error) {
     select.value = previous;
-    announceStatus("Ambilight-Status konnte nicht gesetzt werden", "error");
+    announceStatus(translate("display.ambilight_state_set_failed"), "error");
   } finally {
     select.disabled = false;
   }
@@ -3314,14 +3476,14 @@ async function saveAmbilightOnlineState() {
 async function saveBrightness() {
   const slider = document.getElementById("brightness-slider");
   const value = slider.value;
-  await runValueSave("brightness-save-button", getDisplayBrightnessSetUrl(), value, translate("display.save_brightness"), "Helligkeit konnte nicht gespeichert werden");
+  await runValueSave("brightness-save-button", getDisplayBrightnessSetUrl(), value, translate("display.save_brightness"), translate("display.brightness_save_failed"));
 }
 
 async function toggleAutoBrightness() {
   const button = document.getElementById("auto-brightness-button");
   await runStateToggleButton(button, getAutoBrightnessSetUrl(), {
     idleText: button.dataset.restoreText || translate("climate.auto_brightness"),
-    errorText: "Automatische Helligkeit konnte nicht geschaltet werden"
+    errorText: translate("climate.auto_brightness_toggle_failed")
   });
 }
 
@@ -3329,7 +3491,7 @@ async function togglePermanentItIs() {
   const button = document.getElementById("display-it-is-button");
   await runStateToggleButton(button, getDisplayItIsSetUrl(), {
     idleText: button.dataset.restoreText || translate("display.keep_it_is"),
-    errorText: "„ES IST“ konnte nicht gesetzt werden"
+    errorText: translate("display.it_is_set_failed")
   });
 }
 
@@ -3682,7 +3844,7 @@ function setSettingsBackupNote(message, tone) {
 function handleSettingsImportFileChange() {
   const input = document.getElementById("settings-import-file-input");
   const file = input && input.files && input.files[0];
-  setSettingsBackupNote(file ? "Ausgewählt: " + file.name : "Noch keine Sicherungsdatei ausgewählt.");
+  setSettingsBackupNote(file ? translateFormat("backup.file_selected", { name: file.name }) : translate("backup.no_file_selected"));
 }
 
 function collectUsedOverlayIconNames(items) {
@@ -4335,7 +4497,7 @@ async function importSettingsBackup() {
     return;
   }
 
-  beginButtonFeedback(button, "importiert...");
+  beginButtonFeedback(button, translate("backup.importing"));
 
   try {
     const importedState = await loadImportedBackupState(file);
@@ -5138,7 +5300,7 @@ async function restoreBackupOverlayAssets(assets, settings) {
     return;
   }
 
-  setSettingsBackupNote("Stelle Icon- und Overlay-Dateien wieder her...");
+  setSettingsBackupNote(translate("backup.restoring_assets"));
   const response = await apiFetch(getUpdateDownloadAssetsUrl());
   const result = await response.json().catch(() => ({}));
   if (!result || !result.ok) {
@@ -5159,7 +5321,7 @@ async function restoreBackupOverlayAssets(assets, settings) {
 }
 
 async function restoreBackupAssets(assets, settings) {
-  setSettingsBackupNote("Prüfe benötigte Dateien...");
+  setSettingsBackupNote(translate("backup.checking_files"));
   await restoreBackupLayoutTable(assets);
   await restoreBackupOverlayAssets(assets, settings || getCurrentSettingsSnapshot() || {});
 }
@@ -5575,7 +5737,7 @@ async function importTimerSettings(timers) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Timer...");
+  setSettingsBackupNote(translate("backup.importing_timers"));
 
   const importTimerGroup = async (endpoint, entries) => {
     const entryMap = new Map((entries || []).map((entry) => [Number(entry.idx || 0), entry]));
@@ -5840,7 +6002,7 @@ function renderDfplayerAlarmRowsFromMeta(alarms) {
           '</div>' +
         '</div>' +
         '<div class="profile-actions">' +
-          '<button class="button primary" type="button" data-alarm-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
+          '<button class="button" type="button" data-alarm-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
         '</div>' +
       "</section>"
     );
@@ -5865,7 +6027,7 @@ function renderAnimationProfilesFromMeta(items) {
         '<label class="checkbox-line"><input type="checkbox" id="an-fav-' + item.idx + '"' + ((item.flags & 0x02) ? " checked" : "") + '> ' + escapeHtml(translate("animations.favorite")) + '</label>' +
         '<div class="profile-actions">' +
           '<button class="button" type="button" data-an-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
-          '<button class="button primary" type="button" data-an-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
+          '<button class="button" type="button" data-an-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
@@ -5891,7 +6053,7 @@ function renderColorAnimationProfilesFromMeta(items) {
         '<input id="can-dec-' + item.idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(item.deceleration || 0)) + '">' +
         '<div class="profile-actions">' +
           '<button class="button" type="button" data-can-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
-          '<button class="button primary" type="button" data-can-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
+          '<button class="button" type="button" data-can-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
@@ -5924,7 +6086,7 @@ function renderAmbilightModeProfilesFromMeta(items) {
         '<label class="field"><span class="label">' + escapeHtml(translate("animations.delay")) + '</span><input id="alm-dec-' + item.idx + '" type="range" min="0" max="15" value="' + escapeHtml(String(item.deceleration || 0)) + '"></label>' +
         '<div class="hero-actions">' +
           '<button class="button" type="button" data-alm-default="' + item.idx + '">' + escapeHtml(translate("animations.default")) + '</button>' +
-          '<button class="button primary" type="button" data-alm-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
+          '<button class="button" type="button" data-alm-save="' + item.idx + '">' + escapeHtml(translate("animations.profile_save")) + '</button>' +
         "</div>" +
       "</div>" +
     "</section>"
@@ -5978,10 +6140,10 @@ function updateFsUploadTargets(settings) {
   updateUploadFormVisibility("fs-upload-weather-form", "fs-upload-weather-label", targets.weather);
   updateUploadFormVisibility("fs-upload-tables-form", "fs-upload-tables-label", targets.tables);
   updateUploadFormVisibility("fs-upload-display-form", "fs-upload-display-label", targets.display);
-  setUploadFormSupported("fs-upload-icon-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
-  setUploadFormSupported("fs-upload-weather-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
-  setUploadFormSupported("fs-upload-tables-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
-  setUploadFormSupported("fs-upload-display-form", uploadMeta.targetUploadsSupported, "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.");
+  setUploadFormSupported("fs-upload-icon-form", uploadMeta.targetUploadsSupported, translate("maintenance.target_uploads_unsupported"));
+  setUploadFormSupported("fs-upload-weather-form", uploadMeta.targetUploadsSupported, translate("maintenance.target_uploads_unsupported"));
+  setUploadFormSupported("fs-upload-tables-form", uploadMeta.targetUploadsSupported, translate("maintenance.target_uploads_unsupported"));
+  setUploadFormSupported("fs-upload-display-form", uploadMeta.targetUploadsSupported, translate("maintenance.target_uploads_unsupported"));
 }
 
 function updateUploadFormVisibility(formId, labelId, fileName) {
@@ -6188,7 +6350,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   tableField.classList.toggle("is-hidden", !serverFilesMeta.tableAvailable);
   tableSelect.innerHTML = tableFiles.length
     ? tableFiles.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === currentTable ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
-    : '<option value="">keine Layout-Tabellen gefunden</option>';
+    : '<option value="">' + escapeHtml(translate("maintenance.no_layout_tables")) + '</option>';
   tableButton.classList.toggle("is-hidden", !serverFilesMeta.tableActionSupported);
   assetsButton.classList.toggle("is-hidden", !serverFilesMeta.assetsActionSupported);
   appFilesButton.classList.toggle("is-hidden", !serverFilesMeta.appFilesActionSupported);
@@ -6684,7 +6846,7 @@ async function applyDimPresetAndSave(prefix) {
   try {
     await persistDimCurve(prefix, button, buttonText);
   } catch (error) {
-    announceStatus("Preset konnte nicht angewendet werden", "error");
+    announceStatus(translate("display.preset_apply_failed"), "error");
     finishButtonFeedback(button, buttonText, "error", translate("common.error"));
   }
 }
@@ -6746,7 +6908,7 @@ function renderOverlayRowsFromMeta(items) {
             '</div>' +
           '</div>' +
           '<div class="profile-actions overlay-actions">' +
-            '<button class="button primary" type="button" data-overlay-save="' + idx + '">' + escapeHtml(overlay.isNew ? translate("overlays.create") : translate("overlays.save")) + "</button>" +
+            '<button class="button" type="button" data-overlay-save="' + idx + '">' + escapeHtml(overlay.isNew ? translate("overlays.create") : translate("overlays.save")) + "</button>" +
             (overlay.isNew
               ? '<button class="button is-hidden" type="button" data-overlay-cancel="' + idx + '">' + escapeHtml(translate("overlays.cancel")) + '</button>'
               : '<button class="button" type="button" data-overlay-display="' + idx + '">' + escapeHtml(translate("overlays.display")) + '</button><button class="button" type="button" data-overlay-delete="' + idx + '">' + escapeHtml(translate("overlays.delete")) + '</button>') +
@@ -6807,7 +6969,7 @@ function renderTimerRowsFromMeta(items, isAmbilight) {
           '</div>' +
         '</div>' +
         '<div class="profile-actions">' +
-          '<button class="button primary" type="button" data-' + prefix + '-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
+          '<button class="button" type="button" data-' + prefix + '-save="' + idx + '">' + escapeHtml(translate("common.save")) + '</button>' +
           '<button class="button" type="button" data-' + prefix + '-clear="' + idx + '">' + escapeHtml(translate("timers.clear_slot")) + '</button>' +
         '</div>' +
       "</section>"
@@ -6853,7 +7015,14 @@ function setActionToggleButton(id, onText, offText, enabled, available) {
 
   button.dataset.state = enabled ? "on" : "off";
   button.textContent = enabled ? onText : offText;
-  button.classList.toggle("primary", enabled);
+
+  // Bewusst NICHT "primary": Seit Massnahme 10 ist "primary" sichtbar hervorgehoben und
+  // heisst "das ist die Hauptaktion dieser Karte". Ein Schalter, der nur seinen Zustand
+  // zeigt, ist keine Hauptaktion — in der RGBW-Karte leuchteten so bis zu vier Knoepfe
+  // gleichzeitig und die Karte hatte keine erkennbare Hauptaktion mehr. "is-on" traegt
+  // allein die Bedeutung "eingeschaltet". L43.
+  button.classList.toggle("is-on", enabled);
+  button.setAttribute("aria-pressed", enabled ? "true" : "false");
 
   // Nur Aufrufer, die die Bedienbarkeit kennen, duerfen sie setzen. Alle anderen
   // Schalter bleiben unberuehrt, sonst aktivierte dieser Zweig sie ungewollt.
@@ -6927,17 +7096,17 @@ function syncWhiteChannelLabel(prefix) {
 
 async function saveDisplayMode() {
   const value = document.getElementById("display-mode-select").value;
-  await runValueSave("display-mode-save-button", getDisplayModeSetUrl(), value, translate("display.save_mode"), "Display-Modus konnte nicht gespeichert werden");
+  await runValueSave("display-mode-save-button", getDisplayModeSetUrl(), value, translate("display.save_mode"), translate("display.mode_save_failed"));
 }
 
 async function saveTickerText() {
   const value = document.getElementById("ticker-text-input").value;
-  await runValueSave("ticker-save-button", getTickerSetUrl(), value, translate("display.save_ticker"), "Ticker konnte nicht gespeichert werden");
+  await runValueSave("ticker-save-button", getTickerSetUrl(), value, translate("display.save_ticker"), translate("display.ticker_save_failed"));
 }
 
 async function saveDateTickerFormat() {
   const value = document.getElementById("date-format-input").value;
-  await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, translate("display.save_date_format"), "Datumsformat konnte nicht gespeichert werden");
+  await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, translate("display.save_date_format"), translate("display.date_format_save_failed"));
 }
 
 async function saveTickerDeceleration() {
@@ -6948,7 +7117,7 @@ async function saveTickerDeceleration() {
     return;
   }
 
-  const value = Math.max(0, Math.min(255, number));
+  const value = number;
   input.value = String(value);
   await runValueSave("ticker-deceleration-save-button", getTickerDecelerationSetUrl(), value, translate("display.save_ticker_delay"), translate("display.ticker_delay_save_failed"));
 }
@@ -6975,26 +7144,26 @@ async function testDisplay() {
 
 async function saveWeatherAppId() {
   const value = document.getElementById("weather-appid-input").value || "";
-  await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, translate("climate.save_api_key"), "API-Schlüssel konnte nicht gespeichert werden");
+  await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, translate("climate.save_api_key"), translate("climate.api_key_save_failed"));
 }
 
 async function saveWeatherCity() {
   const value = document.getElementById("weather-city-input").value || "";
-  await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, translate("climate.save_city"), "Ort konnte nicht gespeichert werden");
+  await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, translate("climate.save_city"), translate("climate.city_save_failed"));
 }
 
 async function saveWeatherCoordinates() {
   const lon = document.getElementById("weather-lon-input").value || "";
   const lat = document.getElementById("weather-lat-input").value || "";
-  await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, translate("climate.save_coordinates"), "Koordinaten konnten nicht gespeichert werden");
+  await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, translate("climate.save_coordinates"), translate("climate.coordinates_save_failed"));
 }
 
 async function getWeatherNow() {
-  await runWeatherAction("weather-now-button", getWeatherNowUrl(), translate("climate.fetch_weather"), "Wetter konnte nicht angefordert werden");
+  await runWeatherAction("weather-now-button", getWeatherNowUrl(), translate("climate.fetch_weather"), translate("climate.weather_request_failed"));
 }
 
 async function getWeatherForecast() {
-  await runWeatherAction("weather-forecast-button", getWeatherForecastUrl(), translate("climate.fetch_forecast"), "Wettervorhersage konnte nicht angefordert werden");
+  await runWeatherAction("weather-forecast-button", getWeatherForecastUrl(), translate("climate.fetch_forecast"), translate("climate.forecast_request_failed"));
 }
 
 async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
@@ -7337,13 +7506,13 @@ function useCurrentWeatherLocation() {
     },
     (error) => {
       if (error && error.code === 1) {
-        useApproximateWeatherLocation("Standortfreigabe wurde abgelehnt. Näherungsstandort wird ermittelt...");
+        useApproximateWeatherLocation(translate("weather.geo_denied"));
       } else if (error && error.code === 2) {
-        useApproximateWeatherLocation("Standort ist derzeit nicht verfügbar. Näherungsstandort wird ermittelt...");
+        useApproximateWeatherLocation(translate("weather.geo_unavailable"));
       } else if (error && error.code === 3) {
-        useApproximateWeatherLocation("Standortabfrage lief in ein Zeitlimit. Näherungsstandort wird ermittelt...");
+        useApproximateWeatherLocation(translate("weather.geo_timeout"));
       } else {
-        useApproximateWeatherLocation("Standort konnte nicht gelesen werden. Näherungsstandort wird ermittelt...");
+        useApproximateWeatherLocation(translate("weather.geo_failed"));
       }
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
@@ -7354,7 +7523,7 @@ async function useApproximateWeatherLocation(initialMessage) {
   const button = document.getElementById("weather-current-location-button");
   const status = document.getElementById("weather-map-status");
 
-  beginButtonFeedback(button, "ermittelt...");
+  beginButtonFeedback(button, translate("weather.locating_short"));
   status.textContent = initialMessage || translate("weather.approx_location_start");
 
   try {
@@ -7500,7 +7669,7 @@ async function saveNetworkAp() {
 }
 
 async function saveTimeServer() {
-  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", translate("network.save_timeserver"), "Zeitserver konnte nicht gespeichert werden");
+  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", translate("network.save_timeserver"), translate("network.timeserver_save_failed"));
 }
 
 async function saveTimezone() {
@@ -7511,9 +7680,9 @@ async function saveTimezone() {
     return;
   }
 
-  const value = Math.max(-12, Math.min(14, number));
+  const value = number;
   input.value = String(value);
-  await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, translate("network.save_timezone"), "Zeitzone konnte nicht gespeichert werden", {
+  await runQuerySave("network-timezone-save-button", getNetworkTimezoneSetUrl(), { value }, translate("network.save_timezone"), translate("network.timezone_save_failed"), {
     request: async () => {
       await apiFetchValue(getNetworkTimezoneSetUrl(), value);
       await apiFetch(getNetworkGetTimeUrl());
@@ -7525,46 +7694,50 @@ async function toggleSummertime() {
   const button = document.getElementById("network-summertime-button");
   await runStateToggleButton(button, getNetworkSummertimeSetUrl(), {
     idleText: button.dataset.restoreText || translate("network.summertime"),
-    errorText: "Sommerzeit konnte nicht gesetzt werden",
+    errorText: translate("network.summertime_set_failed"),
     preserveCurrentText: true
   });
 }
 
 async function saveDateTime() {
-  const year = clampNumber(document.getElementById("datetime-year-input").value, 2000, 2999, 2026);
-  const month = clampNumber(document.getElementById("datetime-month-input").value, 1, 12, 1);
-  const day = clampNumber(document.getElementById("datetime-day-input").value, 1, 31, 1);
-  const hour = clampNumber(document.getElementById("datetime-hour-input").value, 0, 23, 0);
-  const minute = clampNumber(document.getElementById("datetime-minute-input").value, 0, 59, 0);
+  // Frueher clampNumber mit Rueckfallwerten: Eine Stunde 25 wurde still zu 23, ein
+  // leeres Jahresfeld zu 2026 — und die Uhr meldete "gespeichert". Jetzt werden alle
+  // fuenf Felder geprueft, bevor ueberhaupt gesendet wird. Massnahme 17.
+  const values = readNumberFieldsOrReport([
+    { name: "year", id: "datetime-year-input", min: 2000, max: 2999 },
+    { name: "month", id: "datetime-month-input", min: 1, max: 12 },
+    { name: "day", id: "datetime-day-input", min: 1, max: 31 },
+    { name: "hour", id: "datetime-hour-input", min: 0, max: 23 },
+    { name: "minute", id: "datetime-minute-input", min: 0, max: 59 }
+  ]);
 
-  document.getElementById("datetime-year-input").value = String(year);
-  document.getElementById("datetime-month-input").value = String(month);
-  document.getElementById("datetime-day-input").value = String(day);
-  document.getElementById("datetime-hour-input").value = String(hour);
-  document.getElementById("datetime-minute-input").value = String(minute);
+  if (!values) {
+    return;
+  }
 
-  await runQuerySave("datetime-save-button", getDateTimeSetUrl(), { year, month, day, hour, minute }, translate("system.datetime_save"), "Datum und Uhrzeit konnten nicht gespeichert werden");
+  const { year, month, day, hour, minute } = values;
+  await runQuerySave("datetime-save-button", getDateTimeSetUrl(), { year, month, day, hour, minute }, translate("system.datetime_save"), translate("system.datetime_save_failed"));
 }
 
 async function learnIrRemote() {
-  await runSimpleAction("learn-ir-button", getLearnIrUrl(), translate("system.learn_ir"), "IR-Lernmodus konnte nicht gestartet werden", "IR-Lernmodus gestartet");
+  await runSimpleAction("learn-ir-button", getLearnIrUrl(), translate("system.learn_ir"), translate("system.learn_ir_failed"), translate("system.learn_ir_started"));
 }
 
 async function getNetTime() {
-  await runSimpleAction("network-nettime-button", getNetworkGetTimeUrl(), translate("network.fetch_network_time"), "Netzzeit konnte nicht angefordert werden", "Netzzeit angefordert");
+  await runSimpleAction("network-nettime-button", getNetworkGetTimeUrl(), translate("network.fetch_network_time"), translate("network.nettime_failed"), translate("network.nettime_requested"));
 }
 
 async function runWps() {
-  await runSimpleAction("network-wps-button", getNetworkWpsUrl(), "WPS", "WPS konnte nicht gestartet werden", "WPS wurde gestartet");
+  await runSimpleAction("network-wps-button", getNetworkWpsUrl(), "WPS", translate("network.wps_failed"), translate("network.wps_started"));
 }
 
 async function saveUpdateHost() {
-  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", translate("maintenance.save_update_host"), "Update-Host konnte nicht gespeichert werden");
+  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", translate("maintenance.save_update_host"), translate("maintenance.update_host_save_failed"));
   await refreshUpdateServerAvailability();
 }
 
 async function saveUpdatePath() {
-  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", translate("maintenance.save_update_path"), "Update-Pfad konnte nicht gespeichert werden");
+  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", translate("maintenance.save_update_path"), translate("maintenance.update_path_save_failed"));
   await refreshUpdateServerAvailability();
 }
 
@@ -7591,7 +7764,7 @@ async function uploadLocalEspUpdate(event) {
   }
 
   if (!isBinFileName(file.name)) {
-    document.getElementById("local-update-note").textContent = "Falsche ESP-Datei ausgewählt. Erwartet wird eine .bin-Datei.";
+    document.getElementById("local-update-note").textContent = translate("maintenance.local_esp_wrong_file");
     announceStatus(translate("maintenance.local_esp_expected"), "error");
     finishButtonFeedback(button, translate("maintenance.local_esp_update"), "error", translate("common.error"));
     return;
@@ -7614,14 +7787,14 @@ async function uploadLocalEspUpdate(event) {
       (loaded, total) => {
         const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
         button.textContent = translate("common.uploading") + " " + percent + "%";
-        document.getElementById("local-update-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
-        document.getElementById("update-progress-note").textContent = "ESP-Firmware wird hochgeladen: " + percent + "%";
+        document.getElementById("local-update-note").textContent = translateFormat("maintenance.local_esp_upload_progress", { percent });
+        document.getElementById("update-progress-note").textContent = document.getElementById("local-update-note").textContent;
         document.getElementById("updated-at").textContent = document.getElementById("update-progress-note").textContent;
       }
     );
   } catch (error) {
     stopUpdateProgressPolling();
-    document.getElementById("local-update-note").textContent = "ESP-Firmware konnte nicht hochgeladen werden: " + (error.message || "unbekannter Fehler");
+    document.getElementById("local-update-note").textContent = translateFormat("maintenance.local_esp_upload_failed", { error: error.message || translate("common.unknown_error") });
     button.disabled = false;
     button.textContent = translate("maintenance.local_esp_update");
     // Wie in failStm32Update: mit 0 ms verschwindet die Meldung im selben Frame, in dem
@@ -7661,15 +7834,15 @@ async function uploadLocalStm32Update(event) {
   }
 
   if (!isMatchingLocalStm32File(file.name)) {
-    const expected = getExpectedLocalStm32Filename(getCurrentUpdateStatus()) || "passende STM32-.hex-Datei";
-    document.getElementById("local-update-note").textContent = "Falsche STM32-Datei ausgewählt. Erwartet wird " + expected + ".";
+    const expected = getExpectedLocalStm32Filename(getCurrentUpdateStatus()) || translate("maintenance.local_stm32_expected_fallback");
+    document.getElementById("local-update-note").textContent = translateFormat("maintenance.local_stm32_wrong_file", { expected });
     announceStatus(translate("maintenance.local_stm32_expected"), "error");
     finishButtonFeedback(button, translate("maintenance.local_stm32_update"), "error", translate("common.error"));
     return;
   }
 
   button.disabled = true;
-  button.textContent = "lädt hoch...";
+  button.textContent = translate("common.uploading");
   announceStatus(translate("maintenance.local_stm32_uploading"), "warn");
   document.getElementById("local-update-note").textContent = translate("maintenance.local_stm32_uploading");
 
@@ -8092,7 +8265,7 @@ async function runManagedRawUpload(options) {
     button.dataset.restoreText = button.textContent;
   }
 
-  beginButtonFeedback(button, "lädt hoch...");
+  beginButtonFeedback(button, translate("common.uploading"));
   setFsActionStatus(startStatusText);
   if (successAnnounceText) {
     announceStatus(startStatusText, "warn");
@@ -8103,12 +8276,12 @@ async function runManagedRawUpload(options) {
     file,
     (loaded, total) => {
       const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-      button.textContent = "lädt hoch... " + percent + "%";
+      button.textContent = translateFormat("common.uploading_percent", { percent });
       setFsActionStatus(onProgressText ? onProgressText(percent) : startStatusText);
     },
     () => {
       button.classList.add("is-busy");
-      button.textContent = "wird installiert...";
+      button.textContent = translate("common.installing");
       setFsActionStatus(installStatusText);
       if (typeof onInstalled === "function") {
         onInstalled();
@@ -8120,7 +8293,7 @@ async function runManagedRawUpload(options) {
   if (successAnnounceText) {
     announceStatus(successAnnounceText, "ok");
   }
-  finishButtonFeedback(button, idleText || getUploadActionButtonText(button, "Datei hochladen"), "success", successText || "hochgeladen");
+  finishButtonFeedback(button, idleText || getUploadActionButtonText(button, translate("common.file_upload")), "success", successText || translate("common.uploaded"));
 
   if (typeof onSuccess === "function") {
     await onSuccess();
@@ -9281,7 +9454,7 @@ async function uploadFsTargetFile(event, url, successMessage) {
       isTablesUploadUrl(url)
         ? translateFormat("maintenance.file_expected_pattern", { target: targetName, pattern: targetName.replace("local.txt", "*.txt") })
         : translateFormat("maintenance.file_expected_exact", { target: targetName });
-    announceStatus(targetName + " erwartet", "error");
+    announceStatus(translateFormat("maintenance.target_expected", { target: targetName }), "error");
     finishButtonFeedback(button, button.dataset.restoreText || translate("common.file_upload"), "error", translate("common.error"));
     return;
   }
@@ -9298,13 +9471,13 @@ async function uploadFsTargetFile(event, url, successMessage) {
       button,
       file,
       uploadUrl: buildUploadUrl(url, file.name),
-      startStatusText: targetName + " wird hochgeladen: " + file.name,
-      installStatusText: targetName + " wurde hochgeladen und wird jetzt gespeichert...",
+      startStatusText: translateFormat("maintenance.target_uploading", { target: targetName, name: file.name }),
+      installStatusText: translateFormat("maintenance.target_uploaded_saving", { target: targetName }),
       successStatusText: successMessage,
       successAnnounceText: successMessage,
       idleText: translate("common.file_upload"),
       successText: translate("common.uploaded"),
-      onProgressText: (percent) => targetName + " wird hochgeladen: " + percent + "%",
+      onProgressText: (percent) => translateFormat("maintenance.target_upload_progress", { target: targetName, percent }),
       onSuccess: async () => {
         await loadData();
       }
@@ -9474,11 +9647,11 @@ async function waitForStm32ResetAndReload(timeoutMs, initialDelayMs) {
 }
 
 async function resetEeprom() {
-  if (!window.confirm("EEPROM wirklich auf Werkseinstellungen zurücksetzen?")) {
+  if (!window.confirm(translate("maintenance.reset_eeprom_confirm_1"))) {
     return;
   }
 
-  if (!window.confirm("Wirklich alle EEPROM-Werte auf Werkseinstellungen zurücksetzen?")) {
+  if (!window.confirm(translate("maintenance.reset_eeprom_confirm_2"))) {
     return;
   }
 
@@ -9509,8 +9682,8 @@ async function formatLittleFs() {
       busyText: translate("common.running"),
       idleText: translate("maintenance.format_fs_button"),
       successText: translate("common.ready"),
-      errorText: "LittleFS konnte nicht formatiert werden",
-      successStatusText: "LittleFS wurde formatiert",
+      errorText: translate("maintenance.format_fs_failed"),
+      successStatusText: translate("maintenance.format_fs_done"),
       reloadDelayMs: 1200,
       request: () => apiFetch(getMaintenanceFormatFsUrl())
     }
@@ -9525,8 +9698,8 @@ async function formatLittleFsFromFiles() {
       busyText: translate("common.running"),
       idleText: translate("maintenance.format_fs_button"),
       successText: translate("common.ready"),
-      errorText: "LittleFS konnte nicht formatiert werden",
-      successStatusText: "LittleFS wurde formatiert",
+      errorText: translate("maintenance.format_fs_failed"),
+      successStatusText: translate("maintenance.format_fs_done"),
       reloadDelayMs: 1200,
       request: () => apiFetch(getMaintenanceFormatFsUrl())
     }
@@ -9544,9 +9717,9 @@ async function showFsFile(fileName) {
   try {
     const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
     const text = await response.text();
-    document.getElementById("fs-preview-content").textContent = text || "(leer)";
+    document.getElementById("fs-preview-content").textContent = text || translate("maintenance.preview_empty");
     setFsActionStatus(translateFormat("maintenance.fs_showing", { file: fileName }));
-    announceStatus(fileName + " geladen", "ok");
+    announceStatus(fileName + " " + translate("common.loaded"), "ok");
   } catch (error) {
     announceStatus(translate("maintenance.file_load_failed"), "error");
   }
@@ -9738,12 +9911,12 @@ function startStm32RemoteStreamingRequest(requestState) {
     stm32RemoteRequestInFlight = false;
 
     if (xhr.status < 200 || xhr.status >= 300) {
-      failStm32Update("Remote STM32-Flash konnte nicht gestartet werden.");
+      failStm32Update(translate("maintenance.remote_stm32_start_failed"));
       return;
     }
 
     if (stm32RemoteResultOkSeen && !stm32AutoResetStarted) {
-      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+      beginStm32AutoReset(translate("maintenance.stm32_flash_done_reset"));
       return;
     }
 
@@ -9753,14 +9926,14 @@ function startStm32RemoteStreamingRequest(requestState) {
     }
 
     if (!stm32AutoResetStarted) {
-      failStm32Update("STM32-Flash-Ende konnte nicht sicher erkannt werden.");
+      failStm32Update(translate("maintenance.stm32_flash_end_unclear"));
       return;
     }
   };
 
   xhr.onerror = () => {
     stm32RemoteRequestInFlight = false;
-    failStm32Update("Remote STM32-Flash konnte nicht gestartet werden.");
+    failStm32Update(translate("maintenance.remote_stm32_start_failed"));
   };
 
   xhr.send();
@@ -9822,7 +9995,7 @@ function applyStm32RemoteProgressEvent(event) {
     stm32RemoteResultOkSeen = true;
 
     if (!stm32AutoResetStarted && !stm32RemoteRequestInFlight) {
-      beginStm32AutoReset("STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.");
+      beginStm32AutoReset(translate("maintenance.stm32_flash_done_reset"));
     }
   }
 }
@@ -9937,13 +10110,19 @@ function beginStm32AutoReset(message) {
 
 async function autoResetStm32AfterFlash() {
   try {
-    await fetch(getMaintenanceResetStm32Url(), { cache: "no-store" });
+    // Rohes fetch() hatte hier weder Zeitgrenze noch Statuspruefung: Ein haengender
+    // ESP liess den Aufruf unbegrenzt offen, ein 403 aus der Subresource-Abwehr galt
+    // als Erfolg, und seit L39 waere auch ein {"ok":false} unbemerkt geblieben.
+    // apiFetch bringt alles drei mit. Bewusst OHNE "attempts": Der Endpunkt antwortet
+    // zuerst und setzt den STM32 erst danach zurueck — ein zweiter Anlauf traefe die
+    // Uhr mitten im Hochlauf. R2-4.
+    await apiFetch(getMaintenanceResetStm32Url());
     setStm32ProgressStage(6);
     document.getElementById("updated-at").textContent = translate("maintenance.stm32_auto_reset_wait");
     document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_auto_reset_running");
     await sleep(4000);
     setStm32ProgressStage(8);
-    document.getElementById("updated-at").textContent = "STM32 wurde nach dem Flash automatisch zurückgesetzt";
+    document.getElementById("updated-at").textContent = translate("maintenance.stm32_reset_after_flash");
     document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_flash_success");
     stopStm32Progress();
     resetProgressButton();
@@ -9952,10 +10131,10 @@ async function autoResetStm32AfterFlash() {
     try {
       await loadData();
     } catch (error) {
-      announceStatus("Daten konnten nach dem STM32-Update nicht neu geladen werden", "warn");
+      announceStatus(translate("maintenance.reload_after_stm32_failed"), "warn");
     }
   } catch (error) {
-    document.getElementById("update-progress-note").textContent = translate("maintenance.stm32_flash_auto_reset_failed");
+    document.getElementById("update-progress-note").textContent = describeApiError(error, translate("maintenance.stm32_flash_auto_reset_failed"));
     stopStm32Progress();
     stopUpdateProgressPolling();
     resetProgressButton();
@@ -10111,7 +10290,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
 
     if (reloadPage && Date.now() >= forcedReloadAt) {
       clearEspReloadWatchdog();
-      note.textContent = "Gerät sollte wieder bereit sein. App wird vorsorglich neu geladen.";
+      note.textContent = translate("maintenance.device_ready_reload");
       document.getElementById("updated-at").textContent = note.textContent;
       resetProgressButton();
       finishProgressUi(900);
@@ -10124,7 +10303,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
 
   if (reloadPage) {
     clearEspReloadWatchdog();
-    note.textContent = "Kein sicheres Reconnect-Signal erhalten. App wird vorsorglich neu geladen.";
+    note.textContent = translate("maintenance.no_reconnect_reload");
     document.getElementById("updated-at").textContent = note.textContent;
     resetProgressButton();
     finishProgressUi(900);
@@ -10132,7 +10311,7 @@ async function waitForDeviceReady(timeoutMs, initialDelayMs, readyMessage, reloa
     return;
   }
 
-  note.textContent = "ESP ist noch nicht wieder erreichbar. Bitte Seite bei Bedarf manuell neu laden.";
+  note.textContent = translate("maintenance.esp_not_ready");
   clearEspReloadWatchdog();
   resetProgressButton();
 }
@@ -10175,7 +10354,7 @@ function clearReloadQueryMarker() {
 }
 
 function manualReloadApp() {
-  if (hasUnsavedEdits && !window.confirm("Es gibt ungespeicherte Änderungen. App trotzdem neu laden?")) {
+  if (hasUnsavedEdits && !window.confirm(translate("maintenance.unsaved_reload_confirm"))) {
     return;
   }
 
@@ -10192,9 +10371,9 @@ function scheduleEspReloadWatchdog(delayMs) {
     const note = document.getElementById("update-progress-note");
 
     if (note) {
-      note.textContent = "Neuladen wird erzwungen, damit die aktualisierte App wieder angezeigt wird.";
+      note.textContent = translate("maintenance.forced_reload");
     }
-    document.getElementById("updated-at").textContent = note ? note.textContent : "App wird neu geladen.";
+    document.getElementById("updated-at").textContent = note ? note.textContent : translate("maintenance.reloading");
     resetProgressButton();
     finishProgressUi(300);
     window.setTimeout(reloadAppPage, 600);
@@ -10360,13 +10539,13 @@ function applyUpdateProgressStatus(progress) {
 
   if ((progress.state === "reset_wait" || progress.state === "done") && !stm32AutoResetStarted) {
     if (stm32RemoteRequestInFlight && progress.state === "reset_wait") {
-      note.textContent = progress.message || "STM32-Flash abgeschlossen. Abschluss wird bestätigt...";
+      note.textContent = progress.message || translate("maintenance.stm32_flash_done_confirming");
       return;
     }
 
     stm32AutoResetStarted = true;
     setStm32ProgressStage(5);
-    note.textContent = progress.message || "STM32-Flash abgeschlossen. STM32 wird jetzt automatisch zurückgesetzt.";
+    note.textContent = progress.message || translate("maintenance.stm32_flash_done_reset");
     autoResetStm32AfterFlash();
   }
 }
@@ -10660,11 +10839,11 @@ function hasStm32FlashFinished(text) {
 }
 
 async function saveRtcTemperatureCorrection() {
-  await saveTemperatureCorrection("temperature-rtc-correction-input", "temperature-rtc-correction-save-button", getTemperatureRtcCorrectionSetUrl(), "RTC-Korrektur speichern", "RTC-Korrektur konnte nicht gespeichert werden");
+  await saveTemperatureCorrection("temperature-rtc-correction-input", "temperature-rtc-correction-save-button", getTemperatureRtcCorrectionSetUrl(), translate("climate.save_rtc_correction"), translate("climate.rtc_correction_save_failed"));
 }
 
 async function saveDs18xxTemperatureCorrection() {
-  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", getTemperatureDs18xxCorrectionSetUrl(), translate("climate.save_ds18xx_correction"), "DS18xx-Korrektur konnte nicht gespeichert werden");
+  await saveTemperatureCorrection("temperature-ds18xx-correction-input", "temperature-ds18xx-correction-save-button", getTemperatureDs18xxCorrectionSetUrl(), translate("climate.save_ds18xx_correction"), translate("climate.ds18xx_correction_save_failed"));
 }
 
 async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText, errorText) {
@@ -10675,29 +10854,29 @@ async function saveTemperatureCorrection(inputId, buttonId, endpoint, buttonText
     return;
   }
 
-  const value = Math.max(-20, Math.min(20, number));
+  const value = number;
   input.value = String(value);
   await runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
 async function displayTemperatureNow() {
-  await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), translate("climate.show_temperature"), "Temperatur konnte nicht angezeigt werden", "Temperaturanzeige ausgelöst");
+  await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), translate("climate.show_temperature"), translate("climate.temperature_display_failed"), translate("climate.temperature_display_started"));
 }
 
 async function setLdrMinValue() {
-  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), translate("climate.set_min_ldr"), "LDR-Minimum konnte nicht gesetzt werden", "LDR-Minimum gespeichert");
+  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), translate("climate.set_min_ldr"), translate("climate.ldr_min_set_failed"), translate("climate.ldr_min_saved"));
 }
 
 async function setLdrMaxValue() {
-  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), translate("climate.set_max_ldr"), "LDR-Maximum konnte nicht gesetzt werden", "LDR-Maximum gespeichert");
+  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), translate("climate.set_max_ldr"), translate("climate.ldr_max_set_failed"), translate("climate.ldr_max_saved"));
 }
 
 async function saveAnimationMode() {
-  await runSelectSave("animation-mode-select", "animation-mode-save-button", getAnimationModeSetUrl(), translate("animations.save_display_animation"), "Anzeigeanimation konnte nicht gespeichert werden");
+  await runSelectSave("animation-mode-select", "animation-mode-save-button", getAnimationModeSetUrl(), translate("animations.save_display_animation"), translate("animations.display_animation_save_failed"));
 }
 
 async function saveColorAnimationMode() {
-  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", getColorAnimationModeSetUrl(), translate("animations.save_color_animation"), "Farbanimation konnte nicht gespeichert werden");
+  await runSelectSave("color-animation-mode-select", "color-animation-mode-save-button", getColorAnimationModeSetUrl(), translate("animations.save_color_animation"), translate("animations.color_animation_save_failed"));
 }
 
 async function runSelectSave(selectId, buttonId, endpoint, buttonText, errorText) {
@@ -10778,7 +10957,7 @@ async function persistDimCurve(prefix, button, buttonText) {
       return;
     }
 
-    const value = Math.max(0, Math.min(15, number));
+    const value = number;
     input.value = String(value);
     syncDimCurveValue(prefix, idx);
     values.push(value);
@@ -10937,7 +11116,7 @@ async function runStateToggleButton(button, endpoint, options) {
     busyText: translate("common.running"),
     idleText,
     successText,
-    errorText: options && options.errorText ? options.errorText : "Schalter konnte nicht gesetzt werden",
+    errorText: options && options.errorText ? options.errorText : translate("common.toggle_failed"),
     reload: true,
     preserveCurrentText: options && options.preserveCurrentText !== undefined ? options.preserveCurrentText : true
   });
@@ -10948,7 +11127,7 @@ async function runButtonRequest(button, options) {
     busyText = translate("common.running"),
     idleText = button && (button.dataset.restoreText || button.textContent) ? (button.dataset.restoreText || button.textContent) : "",
     successText = translate("common.started"),
-    errorText = "Aktion konnte nicht ausgeführt werden",
+    errorText = translate("common.action_failed"),
     successStatusText = "",
     reload = false,
     reloadDelayMs = 0,
@@ -11041,7 +11220,7 @@ async function saveAmbilightLeds() {
     return;
   }
 
-  const value = Math.max(0, Math.min(999, number));
+  const value = number;
   input.value = String(value);
   await runButtonRequestById("ambilight-leds-save-button", {
     busyText: translate("common.saving"),
@@ -11061,7 +11240,7 @@ async function saveAmbilightOffset() {
     return;
   }
 
-  const value = Math.max(0, Math.min(999, number));
+  const value = number;
   input.value = String(value);
   await runButtonRequestById("ambilight-offset-save-button", {
     busyText: translate("common.saving"),
@@ -11148,7 +11327,7 @@ async function saveDfplayerSpeakCycle() {
     return;
   }
 
-  const value = Math.max(0, Math.min(255, number));
+  const value = number;
   input.value = String(value);
   await runQueryButtonRequest(document.getElementById("dfplayer-speak-save-button"), {
     endpoint: getDfplayerSpeakCycleSetUrl(),
@@ -11183,8 +11362,16 @@ async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, 
 }
 
 async function playDfplayerTrack() {
-  const folder = Math.max(0, Math.min(255, Number(document.getElementById("dfplayer-folder-input").value || 0)));
-  const track = Math.max(0, Math.min(255, Number(document.getElementById("dfplayer-track-input").value || 0)));
+  const values = readNumberFieldsOrReport([
+    { name: "folder", id: "dfplayer-folder-input", min: 0, max: 255 },
+    { name: "track", id: "dfplayer-track-input", min: 0, max: 255 }
+  ]);
+
+  if (!values) {
+    return;
+  }
+
+  const { folder, track } = values;
   await runQueryButtonRequest(document.getElementById("dfplayer-play-button"), {
     endpoint: getDfplayerPlayUrl(),
     query: { folder, track },
@@ -11402,10 +11589,10 @@ async function saveAllTimerRows(isAmbilight) {
       await saveTimerRow(idx, isAmbilight, { reload: false });
     }
     await loadData();
-    announceStatus("Alle Timer wurden gespeichert", "ok");
+    announceStatus(translate("timers.saved_all"), "ok");
     finishButtonFeedback(button, originalText, "success", translate("common.saved"));
   } catch (error) {
-    announceStatus("Timer konnten nicht vollständig gespeichert werden", "error");
+    announceStatus(translate("timers.save_all_failed"), "error");
     finishButtonFeedback(button, originalText, "error", translate("common.error"));
   }
 }
@@ -11425,7 +11612,7 @@ async function toggleFlagButton(id, endpoint) {
     // Eigener Pfad neben runButtonRequest, deshalb braucht er dieselbe Behandlung:
     // sonst meldete gerade dieser Schalter eine Abweisung des Geraets nur als
     // allgemeinen Fehler. (Die hartcodierten Texte hier gehoeren zu Massnahme 18.)
-    announceStatus(describeApiError(error, "Schalter konnte nicht gesetzt werden"), "error");
+    announceStatus(describeApiError(error, translate("common.toggle_failed")), "error");
     finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "error", "Fehler", true);
   }
 }
@@ -12238,7 +12425,7 @@ function getLedCapabilities(config, debugOverrides) {
       whiteChannel: true,
       mode: "rgbw",
       label: "RGBW (Debug Override)",
-      note: "Debug Override aktiv. Farb-LED UI wird als RGBW angezeigt."
+      note: translate("display.led_note_debug_rgbw")
     };
   }
 
@@ -12248,7 +12435,7 @@ function getLedCapabilities(config, debugOverrides) {
       whiteChannel: false,
       mode: "rgb",
       label: "RGB (Debug Override)",
-      note: "Debug Override aktiv. Farb-LED UI wird als RGB angezeigt."
+      note: translate("display.led_note_debug_rgb")
       };
   }
 
@@ -12264,7 +12451,7 @@ function getLedCapabilities(config, debugOverrides) {
         whiteChannel: true,
         mode: "rgbw",
         label: displayInfo.label || "RGBW",
-        note: "RGBW-Hardware erkannt. RGB- und Weisskanal sind verfügbar."
+        note: translate("display.led_note_rgbw")
       };
     }
 
@@ -12275,8 +12462,8 @@ function getLedCapabilities(config, debugOverrides) {
         mode: whiteChannel ? "rgbw" : "rgb",
         label: displayInfo.label || (hasTft ? "TFT RGB" : "RGB"),
         note: hasTft
-          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weisskanal bleibt ausgeblendet."
-          : "RGB-Hardware erkannt. Der White-Channel ist daher ausgeblendet."
+          ? translate("display.led_note_tft")
+          : translate("display.led_note_rgb")
       };
     }
 
@@ -12285,8 +12472,8 @@ function getLedCapabilities(config, debugOverrides) {
         hasColor: false,
         whiteChannel: false,
         mode: "none",
-        label: displayInfo.label || "keine Farb-LEDs erkannt",
-        note: "Keine unterstützte Farb-LED-Hardware erkannt. Farbsteuerung ist deshalb ausgeblendet."
+        label: displayInfo.label || translate("display.led_label_none"),
+        note: translate("display.led_note_none")
       };
     }
   }
@@ -12300,7 +12487,7 @@ function getLedCapabilities(config, debugOverrides) {
         whiteChannel: true,
         mode: "rgbw",
         label: "RGBW",
-        note: "RGBW-Hardware erkannt. RGB- und Weisskanal sind verfügbar."
+        note: translate("display.led_note_rgbw")
       };
     case HW.LED_WS2812_GRB:
     case HW.LED_WS2812_RGB:
@@ -12313,16 +12500,16 @@ function getLedCapabilities(config, debugOverrides) {
         mode: "rgb",
         label: led === HW.LED_TFT_RGB ? "TFT RGB" : "RGB",
         note: led === HW.LED_TFT_RGB
-          ? "TFT-Hardware erkannt. TFT-Optionen sind verfügbar, der Weisskanal bleibt ausgeblendet."
-          : "RGB-Hardware erkannt. Der White-Channel ist daher ausgeblendet."
+          ? translate("display.led_note_tft")
+          : translate("display.led_note_rgb")
       };
     default:
       return {
         hasColor: false,
         whiteChannel: false,
         mode: "none",
-        label: "keine Farb-LEDs erkannt",
-        note: "Keine unterstützte Farb-LED-Hardware erkannt. Farbsteuerung ist deshalb ausgeblendet."
+        label: translate("display.led_label_none"),
+        note: translate("display.led_note_none")
       };
   }
 }
@@ -12921,7 +13108,7 @@ async function handleOverlayTypeChange(idx) {
     await ensureOverlayIconsLoaded(false);
     refreshOverlayIconSelect(idx);
   } catch (error) {
-    announceStatus("Icon-Liste konnte nicht geladen werden", "error");
+    announceStatus(translate("overlays.icon_list_failed"), "error");
   }
 }
 
@@ -12938,8 +13125,14 @@ function toggleHidden(id, hidden) {
 // mit {"ok":false}; die PWA zieht die Grenze nur frueher. Die Meldung nennt den
 // erlaubten Bereich, damit sie spaeter auch Massnahme 17 traegt. L29.
 //
-// Geclampt wird bewusst weiterhin an der Aufrufstelle: die Temperaturkorrektur rechnet
-// in halben Grad, ein Abrunden hier wuerde sie still zerstoeren.
+// Seit Massnahme 17 traegt sie ihn: Ein Wert ausserhalb des Bereichs wird hier
+// ebenfalls abgewiesen, statt an der Aufrufstelle still auf die Grenze gezogen zu
+// werden. Wer 16 in ein Feld mit Maximum 15 tippte, bekam "gespeichert" und hatte 15 —
+// die Oberflaeche log. Die Klammerung im ESP bleibt davon unberuehrt; sie ist das Netz
+// fuer die Legacy-Oberflaeche und fuer direkte API-Aufrufe.
+//
+// Gerundet wird hier bewusst NICHT: die Temperaturkorrektur rechnet in halben Grad,
+// ein Abrunden wuerde sie still zerstoeren. Geprueft wird nur die Lage im Bereich.
 function readNumberInputOrReport(input, min, max) {
   const raw = input && input.value !== null && input.value !== undefined ? String(input.value).trim() : "";
   const number = Number(raw);
@@ -12952,25 +13145,43 @@ function readNumberInputOrReport(input, min, max) {
     return null;
   }
 
+  if (number < min || number > max) {
+    announceStatus(translateFormat("input.number_range", { value: raw, min, max }), "error");
+    if (input && input.focus) {
+      input.focus();
+    }
+    return null;
+  }
+
   return number;
 }
 
-function clampNumber(value, min, max, fallback) {
-  // Number("") ist 0 und damit endlich — der Rueckfallwert griffe nie, und ein leer
-  // gelassenes Feld schriebe still eine 0 (leeres Helligkeitsfeld ⇒ Display dunkel,
-  // leeres LED-Feld ⇒ Kette aus). Leer heisst "kein Wert", nicht "null". L29.
-  if (value === null || value === undefined || String(value).trim() === "") {
-    return fallback;
+// Mehrere Zahlenfelder einer Maske zusammen einlesen. Abgebrochen wird beim ERSTEN
+// ungueltigen Feld, damit genau eine Meldung erscheint und der Fokus dort landet, wo
+// der Fehler steckt. Gesendet wird erst, wenn alle Felder gueltig sind — ein halb
+// geschriebener Zustand auf dem Geraet kann so gar nicht entstehen. Massnahme 17.
+function readNumberFieldsOrReport(fields) {
+  const result = {};
+
+  for (let idx = 0; idx < fields.length; idx += 1) {
+    const field = fields[idx];
+    const number = readNumberInputOrReport(document.getElementById(field.id), field.min, field.max);
+
+    if (number === null) {
+      return null;
+    }
+
+    result[field.name] = number;
   }
 
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return fallback;
-  }
-
-  return Math.max(min, Math.min(max, Math.trunc(number)));
+  return result;
 }
+
+// clampNumber() ist mit Massnahme 17 entfallen und wurde NICHT durch eine stillere
+// Variante ersetzt: Die Funktion hat Eingaben ausserhalb des Bereichs auf die Grenze
+// gezogen, und die Oberflaeche meldete danach "gespeichert". Wer einen Wert begrenzen
+// will, prueft ihn stattdessen mit readNumberInputOrReport() und weist ihn ab. Die
+// Klammerung im ESP bleibt als Netz fuer Legacy und direkte API-Aufrufe bestehen.
 
 function formatDateTimePreview(current) {
   if (!current.year || !current.month || !current.day) {

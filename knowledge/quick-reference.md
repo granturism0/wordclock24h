@@ -102,4 +102,7 @@ grep -c $'\r' <datei>                    # nachher
 
 Die Differenz muss der Zahl der **neu hinzugefügten** Zeilen entsprechen. Stimmt sie
 nicht, wurden unberührte Zeilen umgeschrieben. Betroffen sind in diesem Repo
-`vars.cpp`, `vars.h`, `http.cpp`, `src/vars/vars.c` und `src/main.c`.
+`vars.cpp`, `vars.h`, `http.cpp`, `src/vars/vars.c`, `src/main.c` und
+`ESP8266/ESP-uclock/data/app/styles.css` (56 CRLF-Zeilen). Bei der Stilvorlage trat es
+am 03.10.2026 auf: Nach einem `Edit` standen 0 CR statt 56, und der Diff zeigte
+`89 insertions, 56 deletions` statt der gemeinten 33 Zeilen.

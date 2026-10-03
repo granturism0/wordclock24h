@@ -150,7 +150,11 @@ for src in $GZ_SOURCES; do
 done
 
 # ------------------------------------------------------------ S6 CSS-Klassen
-step S6 "CSS-Klassen ohne Verwendung"
+step S6 "CSS-Klassen: Regel und Verwendung"
+# Gegenrichtung zu unused-css.mjs. Mit L59 stellte app.js sieben Schalter auf eine
+# Klasse um, die es im Stylesheet nicht gab -- sie zeigten ihren Ein-Zustand gar
+# nicht mehr an, und keine Stufe hat es gemeldet. Die Klasse war ja benutzt.
+node tools/checks/css-ohne-regel.mjs "$APP/app.js" "$APP/styles.css" || WARN=$((WARN+1))
 node tools/checks/unused-css.mjs "$APP/styles.css" "$APP/index.html" "$APP/app.js"
 
 # ------------------------------------------- S7 Lint gegen quick-reference.md

@@ -51,7 +51,7 @@
         </div>
         <div id="layout-table-warning-global" class="module-warning is-hidden" role="status"></div>
         <div class="hero-actions">
-          <a id="legacy-entry-link" class="button primary" href="/legacy" target="_blank" rel="noopener" data-i18n="hero.legacy_button">Legacy-Seite</a>
+          <a id="legacy-entry-link" class="button" href="/legacy" target="_blank" rel="noopener" data-i18n="hero.legacy_button">Legacy-Seite</a>
           <button id="reload-button" class="button" type="button" data-i18n="hero.reload_button">Neu laden</button>
         </div>
       </div>
@@ -100,7 +100,7 @@
           </div>
           <div class="hero-actions">
             <button id="display-toggle-button" class="button primary" type="button" data-i18n="main.display_toggle">Display umschalten</button>
-            <button id="ambilight-toggle-button" class="button primary" type="button" data-i18n="main.ambilight_toggle">Ambilight umschalten</button>
+            <button id="ambilight-toggle-button" class="button" type="button" data-i18n="main.ambilight_toggle">Ambilight umschalten</button>
           </div>
           <div class="wordclock-panel">
             <div id="wordclock-corners" class="wordclock-corners is-hidden" aria-label="Minuten-Ecken">
@@ -272,10 +272,10 @@
                  "0.europe.pool.ntp.org" eintippen, wurde still abgeschnitten, und die
                  Zeitsynchronisation scheiterte danach stumm (BEFUNDE.md, L23). -->
             <input id="network-timeserver-input" type="text" maxlength="16" placeholder="pool.ntp.org"></label>
-            <button id="network-timeserver-save-button" class="button primary" type="button" data-i18n="network.save_timeserver">Zeitserver speichern</button>
+            <button id="network-timeserver-save-button" class="button" type="button" data-i18n="network.save_timeserver">Zeitserver speichern</button>
             <div class="time-grid">
               <label class="field"><span class="label" data-i18n="network.timezone">Zeitzone (GMT +/-)</span><input id="network-timezone-input" type="number" min="-12" max="14" step="1" inputmode="numeric"></label>
-              <button id="network-timezone-save-button" class="button primary" type="button" data-i18n="network.save_timezone">Zeitzone speichern</button>
+              <button id="network-timezone-save-button" class="button" type="button" data-i18n="network.save_timezone">Zeitzone speichern</button>
             </div>
             <div class="hero-actions">
               <button id="network-summertime-button" class="button" type="button" data-i18n="network.summertime">Sommerzeit berücksichtigen</button>
@@ -297,16 +297,16 @@
           <div class="panel-head"><div><p class="eyebrow" data-i18n="climate.weather_eyebrow">Wetter</p><h2 data-i18n="climate.weather_title">Wetter und Standort</h2></div></div>
           <div class="control-stack">
             <label class="field"><span class="label" data-i18n="climate.api_key">API-Schlüssel</span><input id="weather-appid-input" type="text" maxlength="32" placeholder="OpenWeather APPID"></label>
-            <button id="weather-appid-save-button" class="button primary" type="button" data-i18n="climate.save_api_key">API-Schlüssel speichern</button>
+            <button id="weather-appid-save-button" class="button" type="button" data-i18n="climate.save_api_key">API-Schlüssel speichern</button>
             <div class="split-card-grid">
               <section class="profile-card">
                 <div class="panel-head compact"><div><span class="label" data-i18n="climate.choose_location">Standort wählen</span></div></div>
                 <label class="field"><span class="label" data-i18n="climate.city">Ort</span><input id="weather-city-input" type="text" maxlength="32" placeholder="Zürich"></label>
-                <button id="weather-city-save-button" class="button primary" type="button" data-i18n="climate.save_city">Ort speichern</button>
+                <button id="weather-city-save-button" class="button" type="button" data-i18n="climate.save_city">Ort speichern</button>
                 <div class="weather-coordinate-grid">
                   <label class="field"><span class="label" data-i18n="climate.longitude">Längengrad</span><input id="weather-lon-input" type="text" maxlength="8" placeholder="8.54"></label>
                   <label class="field"><span class="label" data-i18n="climate.latitude">Breitengrad</span><input id="weather-lat-input" type="text" maxlength="8" placeholder="47.37"></label>
-                  <button id="weather-coordinates-save-button" class="button primary" type="button" data-i18n="climate.save_coordinates">Koordinaten speichern</button>
+                  <button id="weather-coordinates-save-button" class="button" type="button" data-i18n="climate.save_coordinates">Koordinaten speichern</button>
                 </div>
                 <div class="profile-actions">
                   <button id="weather-map-button" class="button" type="button" data-i18n="climate.pick_on_map">Ort auf Karte wählen</button>
@@ -330,9 +330,9 @@
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
             <label class="field"><span class="label" data-i18n="climate.ds18xx_correction">DS18xx-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
-            <button id="temperature-ds18xx-correction-save-button" class="button primary" type="button" data-i18n="climate.save_ds18xx_correction">DS18xx-Korrektur speichern</button>
+            <button id="temperature-ds18xx-correction-save-button" class="button" type="button" data-i18n="climate.save_ds18xx_correction">DS18xx-Korrektur speichern</button>
             <label class="field"><span class="label" data-i18n="climate.rtc_correction">RTC-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
-            <button id="temperature-rtc-correction-save-button" class="button primary" type="button" data-i18n="climate.save_rtc_correction">RTC-Korrektur speichern</button>
+            <button id="temperature-rtc-correction-save-button" class="button" type="button" data-i18n="climate.save_rtc_correction">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button" data-i18n="climate.show_temperature">Temperatur anzeigen</button>
           </div>
         </section>
@@ -372,7 +372,7 @@
               </div>
               <input id="brightness-slider" type="range" min="0" max="15" value="0">
               <div class="profile-actions">
-                <button id="brightness-save-button" class="button primary" type="button" data-i18n="display.save_brightness">Helligkeit speichern</button>
+                <button id="brightness-save-button" class="button" type="button" data-i18n="display.save_brightness">Helligkeit speichern</button>
               </div>
             </section>
             <section id="display-color-card" class="color-card">
@@ -383,17 +383,17 @@
                 <div class="slider-row"><span class="label" data-i18n="display.white_channel">Weisskanal</span><strong id="display-color-white-value" class="value-pill">0</strong></div>
                 <input id="display-color-white" type="range" min="0" max="63" value="0">
               </label>
-              <button id="display-color-save-button" class="button primary" type="button" data-i18n="display.save_color">Display-Farbe speichern</button>
+              <button id="display-color-save-button" class="button" type="button" data-i18n="display.save_color">Display-Farbe speichern</button>
             </section>
             <label class="field"><span class="label" data-i18n="display.mode">Display-Modus</span><select id="display-mode-select"></select></label>
-            <button id="display-mode-save-button" class="button primary" type="button" data-i18n="display.save_mode">Display-Modus speichern</button>
+            <button id="display-mode-save-button" class="button" type="button" data-i18n="display.save_mode">Display-Modus speichern</button>
             <div class="hero-actions"><button id="display-it-is-button" class="button" type="button" data-i18n="display.keep_it_is">„ES IST“ dauerhaft anzeigen</button></div>
             <label class="field"><span class="label" data-i18n="display.ticker_text">Ticker-Text</span><input id="ticker-text-input" type="text" maxlength="32" data-i18n-placeholder="display.ticker_placeholder" placeholder="WordClock bereit"></label>
-            <button id="ticker-save-button" class="button primary" type="button" data-i18n="display.save_ticker">Ticker speichern</button>
+            <button id="ticker-save-button" class="button" type="button" data-i18n="display.save_ticker">Ticker speichern</button>
             <label class="field"><span class="label" data-i18n="display.date_format">Datumsformat im Ticker</span><input id="date-format-input" type="text" maxlength="5" placeholder="%d.%m"></label>
-              <button id="date-format-save-button" class="button primary" type="button" data-i18n="display.save_date_format">Datumsformat speichern</button>
+              <button id="date-format-save-button" class="button" type="button" data-i18n="display.save_date_format">Datumsformat speichern</button>
               <label class="field"><span class="label" data-i18n="display.ticker_delay">Ticker-Verzögerung</span><input id="ticker-deceleration-input" type="number" min="0" max="255" step="1" inputmode="numeric"></label>
-              <button id="ticker-deceleration-save-button" class="button primary" type="button" data-i18n="display.save_ticker_delay">Ticker-Verzögerung speichern</button>
+              <button id="ticker-deceleration-save-button" class="button" type="button" data-i18n="display.save_ticker_delay">Ticker-Verzögerung speichern</button>
               <section class="profile-card">
                 <div class="panel-head compact"><div><span class="label" data-i18n="display.diagnostics">Diagnose</span></div></div>
                 <p class="hint" data-i18n="display.diagnostics_hint">Temporärer LED- und Farbtest für die reine Funktionsprüfung des Displays.</p>
@@ -447,11 +447,11 @@
           <div class="animation-current-grid">
             <div class="animation-current-row">
               <label class="field"><span class="label" data-i18n="animations.display_animation">Anzeigeanimation</span><select id="animation-mode-select"></select></label>
-              <button id="animation-mode-save-button" class="button primary" type="button" data-i18n="animations.save_display_animation">Anzeigeanimation speichern</button>
+              <button id="animation-mode-save-button" class="button" type="button" data-i18n="animations.save_display_animation">Anzeigeanimation speichern</button>
             </div>
             <div class="animation-current-row">
               <label class="field"><span class="label" data-i18n="animations.color_animation">Farbanimation</span><select id="color-animation-mode-select"></select></label>
-              <button id="color-animation-mode-save-button" class="button primary" type="button" data-i18n="animations.save_color_animation">Farbanimation speichern</button>
+              <button id="color-animation-mode-save-button" class="button" type="button" data-i18n="animations.save_color_animation">Farbanimation speichern</button>
             </div>
           </div>
         </section>
@@ -497,19 +497,19 @@
               </div>
               <input id="ambilight-brightness-slider" type="range" min="0" max="15" value="0">
               <div class="profile-actions">
-                <button id="ambilight-brightness-save-button" class="button primary" type="button" data-i18n="display.save_ambilight_brightness">Ambilight-Helligkeit speichern</button>
+                <button id="ambilight-brightness-save-button" class="button" type="button" data-i18n="display.save_ambilight_brightness">Ambilight-Helligkeit speichern</button>
               </div>
             </section>
             <label class="field"><span class="label" data-i18n="display.ambilight_mode">Ambilight-Modus</span><select id="ambilight-mode-select"></select></label>
-            <button id="ambilight-mode-save-button" class="button primary" type="button" data-i18n="display.save_ambilight_mode">Ambilight-Modus speichern</button>
+            <button id="ambilight-mode-save-button" class="button" type="button" data-i18n="display.save_ambilight_mode">Ambilight-Modus speichern</button>
             <div id="ambilight-profile-panel" class="control-stack">
               <div class="panel-head compact"><div><span class="label" data-i18n="display.ambilight_mode_profiles">Modus-Profile</span></div></div>
               <div id="ambilight-profile-list" class="control-stack"></div>
             </div>
             <label class="field"><span class="label" data-i18n="display.ambilight_leds">Ambilight-LEDs</span><input id="ambilight-leds-input" type="number" min="0" max="999" step="1" inputmode="numeric"></label>
-            <button id="ambilight-leds-save-button" class="button primary" type="button" data-i18n="display.save_ambilight_leds">LED-Anzahl speichern</button>
+            <button id="ambilight-leds-save-button" class="button" type="button" data-i18n="display.save_ambilight_leds">LED-Anzahl speichern</button>
             <label class="field"><span class="label" data-i18n="display.ambilight_offset">Offset bei Sekunde 0</span><input id="ambilight-offset-input" type="number" min="0" max="999" step="1" inputmode="numeric"></label>
-            <button id="ambilight-offset-save-button" class="button primary" type="button" data-i18n="display.save_ambilight_offset">Offset speichern</button>
+            <button id="ambilight-offset-save-button" class="button" type="button" data-i18n="display.save_ambilight_offset">Offset speichern</button>
           </div>
         </section>
 
@@ -529,7 +529,7 @@
                 <div class="slider-row"><span class="label" data-i18n="display.white_channel">Weisskanal</span><strong id="ambilight-color-white-value" class="value-pill">0</strong></div>
                 <input id="ambilight-color-white" type="range" min="0" max="63" value="0">
               </label>
-              <button id="ambilight-color-save-button" class="button primary" type="button" data-i18n="display.save_ambilight_color">Ambilight-Farbe speichern</button>
+              <button id="ambilight-color-save-button" class="button" type="button" data-i18n="display.save_ambilight_color">Ambilight-Farbe speichern</button>
             </section>
             <section id="marker-color-card" class="color-card">
               <div class="panel-head compact"><div><span class="label" data-i18n="display.marker_color">Marker-Farbe</span><strong id="marker-color-preview" class="color-preview"></strong></div></div>
@@ -538,7 +538,7 @@
                 <div class="slider-row"><span class="label" data-i18n="display.white_channel">Weisskanal</span><strong id="marker-color-white-value" class="value-pill">0</strong></div>
                 <input id="marker-color-white" type="range" min="0" max="63" value="0">
               </label>
-              <button id="marker-color-save-button" class="button primary" type="button" data-i18n="display.save_marker_color">Marker-Farbe speichern</button>
+              <button id="marker-color-save-button" class="button" type="button" data-i18n="display.save_marker_color">Marker-Farbe speichern</button>
             </section>
           </div>
         </section>
@@ -605,11 +605,11 @@
               </div>
               <input id="dfplayer-volume-slider" type="range" min="0" max="30" value="0">
               <div class="profile-actions">
-                <button id="dfplayer-volume-save-button" class="button primary" type="button" data-i18n="dfplayer.volume_save">Lautstärke speichern</button>
+                <button id="dfplayer-volume-save-button" class="button" type="button" data-i18n="dfplayer.volume_save">Lautstärke speichern</button>
               </div>
             </section>
             <label class="field"><span class="label" data-i18n="dfplayer.mode">Modus</span><select id="dfplayer-mode-select"><option value="0" data-i18n="dfplayer.mode_none">Keiner</option><option value="1" data-i18n="dfplayer.mode_bell">Glocke</option><option value="2" data-i18n="dfplayer.mode_speech">Sprache</option></select></label>
-            <button id="dfplayer-mode-save-button" class="button primary" type="button" data-i18n="dfplayer.mode_save">Modus speichern</button>
+            <button id="dfplayer-mode-save-button" class="button" type="button" data-i18n="dfplayer.mode_save">Modus speichern</button>
             <div id="dfplayer-bell-section" class="form-section">
               <p class="section-label" data-i18n="dfplayer.bell_times">Glockenzeiten</p>
               <div class="chip-row">
@@ -667,9 +667,9 @@
               <section class="profile-card">
                 <div class="panel-head compact"><div><span class="label" data-i18n="maintenance.server">Server</span></div></div>
                 <label class="field"><span class="label" data-i18n="maintenance.update_host">Update-Host</span><input id="update-host-input" type="text" maxlength="63" placeholder="uclock.de"></label>
-                <button id="update-host-save-button" class="button primary" type="button" data-i18n="maintenance.save_update_host">Update-Host speichern</button>
+                <button id="update-host-save-button" class="button" type="button" data-i18n="maintenance.save_update_host">Update-Host speichern</button>
                 <label class="field"><span class="label" data-i18n="maintenance.update_path">Update-Pfad</span><input id="update-path-input" type="text" maxlength="63" placeholder="update"></label>
-                <button id="update-path-save-button" class="button primary" type="button" data-i18n="maintenance.save_update_path">Update-Pfad speichern</button>
+                <button id="update-path-save-button" class="button" type="button" data-i18n="maintenance.save_update_path">Update-Pfad speichern</button>
                 <div class="panel-head compact"><div><span class="label" data-i18n="maintenance.server_selection">Server-Auswahl</span></div></div>
                 <label class="field"><span class="label" data-i18n="maintenance.stm32_server_firmware">STM32-Firmware vom Server</span><select id="update-stm32-select"><option value="" data-i18n="common.loading_short">wird geladen...</option></select></label>
                 <label id="update-table-field" class="field"><span class="label" data-i18n="maintenance.layout_server_table">Layout-Tabelle vom Server</span><select id="update-table-select"><option value="" data-i18n="common.loading_short">wird geladen...</option></select></label>
@@ -696,7 +696,7 @@
           </div>
           <div class="control-stack">
             <div class="hero-actions">
-              <button id="update-esp-button" class="button primary" type="button" data-i18n="maintenance.update_esp">ESP-Firmware aktualisieren</button>
+              <button id="update-esp-button" class="button" type="button" data-i18n="maintenance.update_esp">ESP-Firmware aktualisieren</button>
               <button id="update-stm32-button" class="button" type="button" data-i18n="maintenance.flash_stm32">STM32 flashen</button>
             </div>
             <div id="update-server-files-block" class="control-stack">
@@ -704,7 +704,7 @@
               <div class="hero-actions compact-actions">
                 <button id="update-table-button" class="button" type="button" data-i18n="maintenance.load_layout_table">Layout-Tabelle laden</button>
                 <button id="update-assets-button" class="button" type="button" data-i18n="maintenance.load_icon_files">Icon-Dateien laden</button>
-                <button id="update-app-files-button" class="button primary" type="button" data-i18n="maintenance.load_app_files">App-Dateien laden</button>
+                <button id="update-app-files-button" class="button" type="button" data-i18n="maintenance.load_app_files">App-Dateien laden</button>
               </div>
             </div>
             <div id="update-progress-shell" class="control-stack is-hidden">
@@ -794,11 +794,11 @@
             <p id="local-update-note" class="hint" data-i18n="maintenance.local_update_preparing">Lokal-Update wird vorbereitet...</p>
             <form id="local-update-esp-form" class="local-update-form">
               <label class="field"><span class="label" data-i18n="maintenance.local_esp_file">ESP-Firmwaredatei (.bin)</span><input id="local-update-esp-file-input" type="file" accept=".bin" required></label>
-              <button id="local-update-esp-submit-button" class="button primary" type="submit" data-i18n="maintenance.local_esp_update">ESP lokal aktualisieren</button>
+              <button id="local-update-esp-submit-button" class="button" type="submit" data-i18n="maintenance.local_esp_update">ESP lokal aktualisieren</button>
             </form>
             <form id="local-update-stm32-form" class="local-update-form">
               <label class="field"><span class="label" data-i18n="maintenance.local_stm32_file">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex" required></label>
-              <button id="local-update-stm32-submit-button" class="button primary" type="submit" data-i18n="maintenance.local_stm32_update">STM32 lokal aktualisieren</button>
+              <button id="local-update-stm32-submit-button" class="button" type="submit" data-i18n="maintenance.local_stm32_update">STM32 lokal aktualisieren</button>
             </form>
           </div>
         </section>
@@ -853,7 +853,7 @@
             <span class="label" data-i18n="weather.search_place">Ort suchen</span>
             <input id="weather-map-search-input" type="text" maxlength="64" data-i18n-placeholder="weather.search_placeholder" placeholder="Zürich, Schweiz">
           </label>
-          <button id="weather-map-search-button" class="button primary" type="button" data-i18n="weather.search_button">Suchen</button>
+          <button id="weather-map-search-button" class="button" type="button" data-i18n="weather.search_button">Suchen</button>
         </div>
 
         <div class="hero-actions">

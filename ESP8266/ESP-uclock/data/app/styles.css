@@ -202,6 +202,39 @@ h2 {
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 
+/* Eingeschalteter Schalter. Bis L59 trug "primary" diese Bedeutung mit, und in der
+   RGBW-Karte leuchteten dadurch vier Knoepfe wie vier Hauptaktionen. "is-on" ist
+   bewusst SCHWAECHER als .button.primary: Fuellung 0.30/0.24 statt 0.46/0.36, kein
+   Leuchtring. Gemessen gegen die Panelflaeche #0a1422 ergibt das die Rangfolge
+   Grundknopf 1,52:1 < eingeschaltet 1,82:1 < Hauptaktion 2,64:1.
+   Fuer den Rand gilt dieselbe Rangfolge: 3,69:1 < 5,02:1 < 6,37:1, alle ueber den
+   3:1 aus WCAG 1.4.11.
+   Die Regel steht VOR .button.primary, damit primary bei beiden Klassen gewinnt, und
+   vor der Deaktiviert-Regel, damit diese ihrerseits beide ueberschreibt. */
+.button.is-on,
+.button[aria-pressed="true"] {
+  background: linear-gradient(180deg, rgba(143, 211, 255, 0.30), rgba(78, 180, 255, 0.24));
+  border-color: rgba(143, 211, 255, 0.62);
+  font-weight: 600;
+}
+
+/* Zweites Merkmal neben der Farbe. Vier gleichzeitig eingeschaltete Schalter in der
+   RGBW-Karte waeren sonst nur eine etwas hellere Flaeche; der Punkt ist auch bei
+   Farbenblindheit und in Graustufen entweder da oder nicht da. Leerer content, damit
+   Screenreader nichts vorlesen -- den Zustand traegt aria-pressed.
+   Punkt #8fd3ff gegen die Fuellung des eingeschalteten Knopfes: 6,26:1. */
+.button.is-on::before,
+.button[aria-pressed="true"]::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-right: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(5, 9, 19, 0.55);
+}
+
 /* Vorher deklarierte .button.primary exakt dieselben Werte wie .button -- die Klasse
    lag auf rund vierzig Schaltflaechen und tat nichts. In Bereichen mit sechs bis acht
    gleich aussehenden Pills fehlte damit jede Fuehrung. */
