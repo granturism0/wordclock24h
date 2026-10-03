@@ -2910,6 +2910,13 @@ do_play_dfplayer (uint_fast16_t cur_minute)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Takt und Schwelle fuer das Senden des LDR-Rohwertes an den ESP (L69)
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define LDR_RAW_SEND_DELTA          4                                   // Schwelle: darunter liegt das ADC-Rauschen, eine Handbewegung weit darueber
+#define LDR_RAW_SEND_HOLD_POLLS     8                                   // 8 Pollzyklen a 250 ms = hoechstens alle 2 s ein Kommando ueber die Bruecke
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * main function
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2917,6 +2924,7 @@ int
 main (void)
 {
     static uint_fast16_t    last_ldr_raw_value          = 0xFFFF;
+    static uint_fast8_t     ldr_raw_send_hold           = 0;                // Sperrzaehler: Pollzyklen bis zum naechsten erlaubten Senden
     uint_fast8_t            esp8266_is_up               = 0;
     IRMP_DATA               irmp_data;
     uint32_t                stop_time;
@@ -3261,31 +3269,45 @@ main (void)
         if (display.animation_stop_flag &&                                                                  // no animation running
             show_icon_stop_time == 0 &&                                                                     // no temperature display
             ! display.do_display_icon &&                                                                    // no icon display
-            display.automatic_brightness &&                                                                 // automatic brightness
             ldr_poll_brightness ())                                                                         // read LDR brightness
         {
             ldr_raw_value = ldr.ldr_raw_value;
 
-            if (ldr_raw_value + 16 < last_ldr_raw_value || ldr_raw_value > last_ldr_raw_value + 16)         // difference greater than 16
+            /* Der Rohwert geht unabhaengig von der Automatik raus. Frueher hing er mit am
+             * display.automatic_brightness oben, dadurch zeigte die Kalibrierseite dauerhaft 0 --
+             * also genau dann nichts, wenn der Nutzer Minimum und Maximum einstellt (L69).
+             *
+             * Gesendet wird hoechstens alle LDR_RAW_SEND_HOLD_POLLS Durchlaeufe, denn
+             * var_send_buf() wartet auf die Quittung des ESP; anhaltende Bruecken- und
+             * Requestlast ist der Verdacht aus L25. Der Takt ist kein neuer: er haengt am
+             * vorhandenen Pollzyklus von 250 ms.
+             */
+            if (ldr_raw_send_hold > 0)                                                                      // Sendesperre laeuft noch?
+            {
+                ldr_raw_send_hold--;                                                                        // ja, nur herunterzaehlen
+            }
+            else if (esp8266.is_online &&
+                     (ldr_raw_value + LDR_RAW_SEND_DELTA < last_ldr_raw_value ||
+                      ldr_raw_value > last_ldr_raw_value + LDR_RAW_SEND_DELTA))                             // nennenswerte Aenderung?
             {
                 debug_log_printf ("ldr: old raw brightnes: %d new raw brightness: %d\r\n", last_ldr_raw_value, ldr_raw_value);
                 last_ldr_raw_value = ldr_raw_value;
-
-                if (esp8266.is_online)
-                {
-                    var_send_ldr_raw_value ();
-                }
+                ldr_raw_send_hold  = LDR_RAW_SEND_HOLD_POLLS;                                               // fruehestens in 2 s wieder
+                var_send_ldr_raw_value ();
             }
 
-            ldr_value = ldr.ldr_value;                                                                      // ldr_value is 0...31
-
-            if (ldr_value + 1 < last_ldr_value || ldr_value > last_ldr_value + 1)                           // difference greater than 2
+            if (display.automatic_brightness)                                                               // Helligkeit nur bei aktiver Automatik nachfuehren
             {
-                last_ldr_value = ldr_value;                                                                 // store value 0...31
-                ldr_value /= 2;                                                                             // set ldr_value to 0...15
-                debug_log_printf ("ldr: old brightnes: %d new brightness: %d\r\n", last_ldr_value / 2, ldr_value);
-                display_set_display_brightness (ldr_value, FALSE, FALSE);
-                display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_NO_ANIMATION;
+                ldr_value = ldr.ldr_value;                                                                  // ldr_value is 0...31
+
+                if (ldr_value + 1 < last_ldr_value || ldr_value > last_ldr_value + 1)                       // difference greater than 2
+                {
+                    last_ldr_value = ldr_value;                                                             // store value 0...31
+                    ldr_value /= 2;                                                                         // set ldr_value to 0...15
+                    debug_log_printf ("ldr: old brightnes: %d new brightness: %d\r\n", last_ldr_value / 2, ldr_value);
+                    display_set_display_brightness (ldr_value, FALSE, FALSE);
+                    display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_NO_ANIMATION;
+                }
             }
         }
 
@@ -3368,7 +3390,7 @@ main (void)
             ds3231_flag = 0;
         }
 
-        if (display.animation_stop_flag && ! display.do_display_icon && display.automatic_brightness && ldr_conversion_flag)
+        if (display.animation_stop_flag && ! display.do_display_icon && ldr_conversion_flag)                // auch ohne Automatik messen, siehe L69
         {
             ldr_start_conversion ();
             ldr_conversion_flag = 0;

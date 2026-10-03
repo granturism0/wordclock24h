@@ -172,6 +172,7 @@ static int      http_response_len = 0;
 static void             http_json_ok ();
 static void             http_json_error (unsigned int error_code, const char * detail);
 static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
+static uint_fast8_t     http_get_opt_int_param (const char * name, int * valuep, int lo, int hi);
 static uint_fast8_t     http_get_string_param (const char * name, char ** valuep);
 static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
@@ -8596,12 +8597,35 @@ http_api_temperature_display ()
     return 0;
 }
 
+/* Beide Korrektur-Endpunkte sind bis auf die beiden Variablen gleich. Sie benutzten
+ * bis hierher blankes atoi: "?value=" ohne Inhalt wurde zu 0, die Antwort war
+ * {"ok":true} - und eine eingemessene Kalibrierung war weg (L67). Dieselbe Klasse
+ * wie L29/L48/L49, diese beiden waren dort uebersehen worden.
+ *
+ * Ausserhalb von -20..20 wird jetzt abgewiesen statt stillschweigend geklammert:
+ * Wer 50 eintippt, hat sich vertan und soll es erfahren.
+ */
 static int
-http_api_temperature_rtc_correction_set ()
+http_api_temperature_correction_set (NUM_VARIABLE index_var, NUM_VARIABLE correction_var)
 {
-    int temp_index = (int) get_numvar (RTC_TEMP_INDEX_NUM_VAR);
-    int old_correction = (int) http_decode_temp_correction (get_numvar (RTC_TEMP_CORRECTION_NUM_VAR));
-    int temp_corr = http_clamp_temp_correction (atoi (http_get_param ("value")));
+    int temp_index;
+    int old_correction;
+    int temp_corr;
+
+    if (! http_get_int_param ("value", &temp_corr))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
+
+    if (temp_corr != http_clamp_temp_correction (temp_corr))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "correction out of range (-20..20)");
+        return 0;
+    }
+
+    temp_index = (int) get_numvar (index_var);
+    old_correction = (int) http_decode_temp_correction (get_numvar (correction_var));
 
     temp_index -= (temp_corr - old_correction);
 
@@ -8614,42 +8638,24 @@ http_api_temperature_rtc_correction_set ()
         temp_index = 255;
     }
 
-    numvars[RTC_TEMP_INDEX_NUM_VAR] = temp_index;
-    set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temp_corr));
+    numvars[index_var] = temp_index;
+    set_numvar (correction_var, http_encode_temp_correction (temp_corr));
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    http_json_ok ();
 
     return 0;
 }
 
 static int
+http_api_temperature_rtc_correction_set ()
+{
+    return http_api_temperature_correction_set (RTC_TEMP_INDEX_NUM_VAR, RTC_TEMP_CORRECTION_NUM_VAR);
+}
+
+static int
 http_api_temperature_ds18xx_correction_set ()
 {
-    int temp_index = (int) get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
-    int old_correction = (int) http_decode_temp_correction (get_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR));
-    int temp_corr = http_clamp_temp_correction (atoi (http_get_param ("value")));
-
-    temp_index -= (temp_corr - old_correction);
-
-    if (temp_index < 0)
-    {
-        temp_index = 0;
-    }
-    else if (temp_index > 255)
-    {
-        temp_index = 255;
-    }
-
-    numvars[DS18XX_TEMP_INDEX_NUM_VAR] = temp_index;
-    set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temp_corr));
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
-
-    return 0;
+    return http_api_temperature_correction_set (DS18XX_TEMP_INDEX_NUM_VAR, DS18XX_TEMP_CORRECTION_NUM_VAR);
 }
 
 static int
@@ -8664,18 +8670,63 @@ http_api_ldr_min_set ()
     return 0;
 }
 
+/* Der ADC des STM ist 12 bit. Nach unten wurde geklammert, nach oben gar nicht:
+ * ldr_max_value_set?value=99999 wurde angenommen (L68).
+ */
+#define HTTP_LDR_MAX_ADC_VALUE                  4095
+
+/* Minimum und Maximum werden ohne Reihenfolgepruefung gesetzt; am Geraet stand
+ * numvar17=14 ueber numvar18=12. ldr_poll_brightness (src/ldr/ldr.c:64) prueft
+ * "ldr_max_value > ldr_min_value" und ueberspringt die Umrechnung sonst komplett -
+ * die automatische Helligkeit steht dann dauerhaft auf Maximum, ohne Hinweis (L68).
+ *
+ * Abgewiesen wird die Verdrehung hier bewusst NICHT. Die beiden Messknoepfe der PWA
+ * gehen ueber ldr_min_set/ldr_max_set als RPC direkt an den STM und erzeugen dieselbe
+ * Verdrehung, ohne hier vorbeizukommen - eine Sperre nur im Wertsetzer wuerde also
+ * nicht schuetzen, sondern nur den Weg zurueck verbauen und eine Sicherungsrueckgabe
+ * auf halbem Weg abbrechen lassen. Stattdessen meldet die Antwort den Zustand mit;
+ * "ok" bleibt true, unbekannte Felder stoeren die PWA nicht.
+ */
+static void
+http_ldr_json_ok ()
+{
+    unsigned int ldr_min = get_numvar (LDR_MIN_VALUE_NUM_VAR);
+    unsigned int ldr_max = get_numvar (LDR_MAX_VALUE_NUM_VAR);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true"));
+
+    if (ldr_max <= ldr_min)
+    {
+        http_send (FS(",\"warning\":\"ldr_min_value >= ldr_max_value, automatic brightness inactive\""));
+    }
+
+    http_send (FS("}"));
+    http_flush ();
+}
+
 static int
 http_api_ldr_min_value_set ()
 {
-    int value = atoi (http_get_param ("value"));
+    int value;
 
-    if (value < 0)
+    /* Beim L29-Fix uebersehen: "?value=" leer wurde zu 0 und hat die eingemessene
+     * Untergrenze geloescht - mit Erfolgsmeldung (L67).
+     */
+    if (! http_get_int_param ("value", &value))
     {
-        value = 0;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
+
+    if (value < 0 || value > HTTP_LDR_MAX_ADC_VALUE)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..4095)");
+        return 0;
     }
 
     set_numvar (LDR_MIN_VALUE_NUM_VAR, value);
-    http_json_ok ();
+    http_ldr_json_ok ();
 
     return 0;
 }
@@ -8695,15 +8746,23 @@ http_api_ldr_max_set ()
 static int
 http_api_ldr_max_value_set ()
 {
-    int value = atoi (http_get_param ("value"));
+    int value;
 
-    if (value < 0)
+    /* Gegenstueck zu ldr_min_value_set, siehe dort (L67/L68). */
+    if (! http_get_int_param ("value", &value))
     {
-        value = 0;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
+    }
+
+    if (value < 0 || value > HTTP_LDR_MAX_ADC_VALUE)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..4095)");
+        return 0;
     }
 
     set_numvar (LDR_MAX_VALUE_NUM_VAR, value);
-    http_json_ok ();
+    http_ldr_json_ok ();
 
     return 0;
 }
@@ -9301,6 +9360,36 @@ http_get_int_param (const char * name, int * valuep)
     return 1;
 }
 
+/* Fuer Felder, deren Fehlen absichtlich einen Rueckfallwert bedeutet - interval,
+ * duration, month, day und days des Overlays. Fehlt der Parameter, bleibt *valuep
+ * unberuehrt und der Aufrufer behaelt seinen Vorgabewert. Ist er da, muss er eine
+ * Zahl im Bereich sein; "abc" oder 300 gelten als Fehler statt still als 0 bzw. als
+ * auf zwei Hexziffern verkuerzter Wert (L66).
+ */
+static uint_fast8_t
+http_get_opt_int_param (const char * name, int * valuep, int lo, int hi)
+{
+    char *  value = http_get_param (name);
+    char *  endp;
+    long    parsed;
+
+    if (! value || ! *value)
+    {
+        return 1;
+    }
+
+    parsed = strtol (value, &endp, 10);
+
+    if (endp == value || *endp || parsed < (long) lo || parsed > (long) hi)
+    {
+        return 0;
+    }
+
+    *valuep = (int) parsed;
+
+    return 1;
+}
+
 /* Gegenstueck zu http_get_int_param fuer Textfelder: "leer" hiess bisher "loeschen",
  * und ein leeres Zeitserver- oder AppID-Feld hat der Uhr mit gruenem "Gespeichert" die
  * Zeitquelle bzw. das Wetter genommen (L48). "Fehlt" und "leer" sind hier nicht zu
@@ -9813,8 +9902,16 @@ http_api_dfplayer_alarm_set ()
 static int
 http_api_overlay_set ()
 {
-    int idx;
-    int n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    int     idx;
+    int     n_overlays = (int) get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    int     type;
+    int     date_code;
+    int     interval = 5;
+    int     duration = 5;
+    int     month = 0;
+    int     day = 0;
+    int     days = 1;
+    char *  text;
 
     if (! http_get_int_param ("idx", &idx))
     {
@@ -9822,123 +9919,161 @@ http_api_overlay_set ()
         return 0;
     }
 
-    /* type und date_code haben keinen sinnvollen Rueckfallwert: Fehlen sie, wurde das
-     * Overlay bisher still auf Typ 0 und Datumscode 0 umgestellt (L29). interval,
-     * duration, month, day und days behalten dagegen ihre vorhandenen Rueckfallwerte -
-     * die sind absichtlich so gesetzt.
+    /* Bisher kam hier {"ok":true} heraus, obwohl nichts geschrieben wurde: ein idx
+     * ausserhalb des Bereichs oder jenseits der belegten Overlays fiel stumm durch,
+     * und die Oberflaeche zeigte danach ein Overlay, das im Geraet nicht existiert
+     * (Fehlerklasse von L30). idx == n_overlays haengt ein neues Overlay an.
      */
-    if (http_get_param ("type")[0] == '\0' || http_get_param ("date_code")[0] == '\0')
+    if (idx < 0 || idx >= MAX_OVERLAYS || idx > n_overlays)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "overlay index out of range or not in use");
+        return 0;
+    }
+
+    /* Alles wird VOR der ersten Zuweisung geprueft. Sonst waechst bei einem Anhaenge-
+     * Aufruf erst n_overlays, und die Abweisung danach hinterlaesst ein leeres Overlay
+     * in der Liste.
+     *
+     * type und date_code haben keinen sinnvollen Rueckfallwert: Fehlen sie, wurde das
+     * Overlay bisher still auf Typ 0 und Datumscode 0 umgestellt (L29).
+     */
+    if (! http_get_int_param ("type", &type) || ! http_get_int_param ("date_code", &date_code))
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "type and date_code required");
         return 0;
     }
 
-    if (idx >= 0 && idx < MAX_OVERLAYS)
+    /* Definiert sind 0..10, angenommen wurde bisher alles bis 255 (L73). */
+    if (type < OVERLAY_TYPE_NONE || type > OVERLAY_TYPE_TEMPERATURE_DIGITS)
     {
-        if (idx == n_overlays && n_overlays < MAX_OVERLAYS)
-        {
-            n_overlays++;
-            set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays);
-        }
-
-        if (idx < n_overlays)
-        {
-            uint_fast8_t val;
-            uint_fast8_t valmm;
-            uint_fast8_t valdd;
-            char * text;
-
-            if (http_get_on_off_value ("active", 0))
-            {
-                overlays[idx].flags |= OVERLAY_FLAG_ACTIVE;
-            }
-            else
-            {
-                overlays[idx].flags &= ~OVERLAY_FLAG_ACTIVE;
-            }
-
-            overlays[idx].type = atoi (http_get_param ("type"));
-            val = atoi (http_get_param ("interval"));
-
-            if (val == 0)
-            {
-                val = 5;
-            }
-
-            overlays[idx].interval = val;
-
-            val = atoi (http_get_param ("duration"));
-
-            if (val < 5)
-            {
-                val = 5;
-            }
-            else if (val > 9)
-            {
-                val = 9;
-            }
-
-            overlays[idx].duration = val;
-            overlays[idx].date_code = atoi (http_get_param ("date_code"));
-
-            valmm = atoi (http_get_param ("month"));
-            valdd = atoi (http_get_param ("day"));
-
-            if (valmm < 1 || valmm > 12 || valdd < 1 || valdd > 31)
-            {
-                overlays[idx].date_start = 0;
-            }
-            else
-            {
-                overlays[idx].date_start  = (valmm << 8) | valdd;
-            }
-
-            val = atoi (http_get_param ("days"));
-
-            if (val < 1)
-            {
-                val = 1;
-            }
-
-            overlays[idx].days = val;
-
-            text = http_get_param ("value");
-
-            if (text)
-            {
-                /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
-                 * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46).
-                 */
-                utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
-            }
-
-            set_overlay_var (idx);
-
-            http_json_ok ();
-
-            return 0;
-        }
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "type out of range (0..10)");
+        return 0;
     }
 
-    /* Bisher kam hier {"ok":true} heraus, obwohl nichts geschrieben wurde: ein idx
-     * ausserhalb des Bereichs oder jenseits der belegten Overlays fiel stumm durch,
-     * und die Oberflaeche zeigte danach ein Overlay, das im Geraet nicht existiert
-     * (Fehlerklasse von L30).
+    /* date_code hatte gar keine Bereichspruefung. 300 ging als "12c" an den STM, der
+     * davon die ersten zwei Ziffern las und "invalid date_code: 18" meldete (L66).
      */
-    http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "overlay index out of range or not in use");
+    if (date_code < OVERLAY_DATE_CODE_NONE || date_code > OVERLAY_DATE_CODE_ADVENT4)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "date_code out of range (0..6)");
+        return 0;
+    }
+
+    /* interval, duration, month, day und days behalten ihre Rueckfallwerte, wenn sie
+     * fehlen - das ist Absicht (L29). Ein VORHANDENER Wert muss aber in den Bereich
+     * passen, den der STM mit fester Breite liest (L66).
+     */
+    if (! http_get_opt_int_param ("interval", &interval, 0, 255) ||
+        ! http_get_opt_int_param ("duration", &duration, 0, 255) ||
+        ! http_get_opt_int_param ("month", &month, 0, 12) ||
+        ! http_get_opt_int_param ("day", &day, 0, 31) ||
+        ! http_get_opt_int_param ("days", &days, 0, 255))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "interval, duration, month, day or days out of range");
+        return 0;
+    }
+
+    if (interval == 0)
+    {
+        interval = 5;
+    }
+
+    if (duration < 5)
+    {
+        duration = 5;
+    }
+    else if (duration > 9)
+    {
+        duration = 9;
+    }
+
+    if (days < 1)
+    {
+        days = 1;
+    }
+
+    if (idx == n_overlays)
+    {
+        n_overlays++;
+        set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays);
+    }
+
+    if (http_get_on_off_value ("active", 0))
+    {
+        overlays[idx].flags |= OVERLAY_FLAG_ACTIVE;
+    }
+    else
+    {
+        overlays[idx].flags &= ~OVERLAY_FLAG_ACTIVE;
+    }
+
+    overlays[idx].type      = type;
+    overlays[idx].interval  = interval;
+    overlays[idx].duration  = duration;
+    overlays[idx].date_code = date_code;
+    overlays[idx].days      = days;
+
+    if (month < 1 || day < 1)
+    {
+        overlays[idx].date_start = 0;
+    }
+    else
+    {
+        overlays[idx].date_start = (month << 8) | day;
+    }
+
+    text = http_get_param ("value");
+
+    if (text)
+    {
+        /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
+         * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46).
+         */
+        utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
+    }
+
+    set_overlay_var (idx);
+
+    http_json_ok ();
 
     return 0;
+}
+
+/* idx war optional und wurde per atoi zu 0, die Antwort war trotzdem {"ok":true}:
+ * overlay_display ohne idx zeigte das erste Overlay, overlay_delete ohne idx hat es
+ * geloescht, und ein unsinniger idx meldete Erfolg und tat nichts (L70).
+ */
+static uint_fast8_t
+http_get_overlay_idx_param (int * idxp)
+{
+    int n_overlays = (int) get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    if (! http_get_int_param ("idx", idxp))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx missing or not numeric");
+        return 0;
+    }
+
+    if (*idxp < 0 || *idxp >= n_overlays)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "overlay index out of range or not in use");
+        return 0;
+    }
+
+    return 1;
 }
 
 static int
 http_api_overlay_display ()
 {
-    int idx = atoi (http_get_param ("idx"));
+    int idx;
 
-    if (idx >= 0 && idx < get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR))
+    if (! http_get_overlay_idx_param (&idx))
     {
-        set_numvar (DISPLAY_OVERLAY_NUM_VAR, idx);
+        return 0;
     }
+
+    set_numvar (DISPLAY_OVERLAY_NUM_VAR, idx);
 
     http_json_ok ();
 
@@ -9948,25 +10083,97 @@ http_api_overlay_display ()
 static int
 http_api_overlay_delete ()
 {
-    int idx = atoi (http_get_param ("idx"));
-    int n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    int idx;
+    int n_overlays;
     int i;
 
-    if (idx >= 0 && idx < n_overlays)
+    if (! http_get_overlay_idx_param (&idx))
     {
-        for (i = idx; i < n_overlays - 1; i++)
-        {
-            overlays[i] = overlays[i + 1];
-            set_overlay_var (i);
-        }
-
-        if (n_overlays > 0)
-        {
-            memset (&overlays[n_overlays - 1], 0, sizeof (OVERLAY));
-            set_overlay_var (n_overlays - 1);
-            set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays - 1);
-        }
+        return 0;
     }
+
+    n_overlays = (int) get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    for (i = idx; i < n_overlays - 1; i++)
+    {
+        overlays[i] = overlays[i + 1];
+        set_overlay_var (i);
+    }
+
+    memset (&overlays[n_overlays - 1], 0, sizeof (OVERLAY));
+    set_overlay_var (n_overlays - 1);
+    set_numvar (OVERLAY_N_OVERLAYS_NUM_VAR, n_overlays - 1);
+
+    http_json_ok ();
+
+    return 0;
+}
+
+/* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen.
+ * Die Masken haben 3 Bit, also 0..7 - belegt sind aber nur So..Sa, also 0..6.
+ */
+#define HTTP_MAX_WEEKDAY                        6
+
+/* Beide Timer-Endpunkte unterscheiden sich nur in is_ambilight. Vorher war jeder
+ * Parameter optional und wurde per atoi zu 0 (L70/L71):
+ *   - ohne idx ueberschrieb der Aufruf still den ersten Timer
+ *   - ohne hour/minute entstand ein aktiver Timer auf 00:00
+ *   - hour=99&minute=99 ergab minutes=6039; ein Tag hat 1440, der Timer konnte nie
+ *     ausloesen und stand trotzdem als aktiv in der Liste
+ *   - from=9 wurde ungeprueft auf 3 Bit maskiert und damit zu Montag
+ */
+static int
+http_api_timer_set_common (uint_fast8_t is_ambilight)
+{
+    int             idx;
+    int             from_day;
+    int             to_day;
+    int             hour;
+    int             minute;
+    uint_fast8_t    flags = 0;
+
+    if (! http_get_int_param ("idx", &idx) ||
+        ! http_get_int_param ("from", &from_day) ||
+        ! http_get_int_param ("to", &to_day) ||
+        ! http_get_int_param ("hour", &hour) ||
+        ! http_get_int_param ("minute", &minute))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx, from, to, hour and minute required");
+        return 0;
+    }
+
+    if (idx < 0 || idx >= MAX_NIGHT_TIME_VARIABLES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "timer index out of range");
+        return 0;
+    }
+
+    if (from_day < 0 || from_day > HTTP_MAX_WEEKDAY || to_day < 0 || to_day > HTTP_MAX_WEEKDAY)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "from and to out of range (0..6)");
+        return 0;
+    }
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour out of range (0..23) or minute out of range (0..59)");
+        return 0;
+    }
+
+    if (http_get_on_off_value ("active", 0))
+    {
+        flags |= NIGHT_TIME_FLAG_ACTIVE;
+    }
+
+    if (http_get_on_off_value ("switch_on", 0))
+    {
+        flags |= NIGHT_TIME_FLAG_SWITCH_ON;
+    }
+
+    flags |= NIGHT_TIME_FROM_DAY_MASK & (from_day << 3);
+    flags |= NIGHT_TIME_TO_DAY_MASK & to_day;
+
+    set_night_time_var (is_ambilight, (NIGHT_TIME_VARIABLE) idx, (uint_fast16_t) (hour * 60 + minute), flags);
 
     http_json_ok ();
 
@@ -9976,67 +10183,13 @@ http_api_overlay_delete ()
 static int
 http_api_timer_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
-
-    if (idx >= 0 && idx < MAX_NIGHT_TIME_VARIABLES)
-    {
-        uint_fast8_t flags = 0;
-        uint_fast8_t from_day = atoi (http_get_param ("from"));
-        uint_fast8_t to_day = atoi (http_get_param ("to"));
-        uint_fast16_t minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
-
-        if (http_get_on_off_value ("active", 0))
-        {
-            flags |= NIGHT_TIME_FLAG_ACTIVE;
-        }
-
-        if (http_get_on_off_value ("switch_on", 0))
-        {
-            flags |= NIGHT_TIME_FLAG_SWITCH_ON;
-        }
-
-        flags |= NIGHT_TIME_FROM_DAY_MASK & (from_day << 3);
-        flags |= NIGHT_TIME_TO_DAY_MASK & to_day;
-
-        set_night_time_var (0, (NIGHT_TIME_VARIABLE) idx, minutes, flags);
-    }
-
-    http_json_ok ();
-
-    return 0;
+    return http_api_timer_set_common (0);
 }
 
 static int
 http_api_ambilight_timer_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
-
-    if (idx >= 0 && idx < MAX_NIGHT_TIME_VARIABLES)
-    {
-        uint_fast8_t flags = 0;
-        uint_fast8_t from_day = atoi (http_get_param ("from"));
-        uint_fast8_t to_day = atoi (http_get_param ("to"));
-        uint_fast16_t minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
-
-        if (http_get_on_off_value ("active", 0))
-        {
-            flags |= NIGHT_TIME_FLAG_ACTIVE;
-        }
-
-        if (http_get_on_off_value ("switch_on", 0))
-        {
-            flags |= NIGHT_TIME_FLAG_SWITCH_ON;
-        }
-
-        flags |= NIGHT_TIME_FROM_DAY_MASK & (from_day << 3);
-        flags |= NIGHT_TIME_TO_DAY_MASK & to_day;
-
-        set_night_time_var (1, (NIGHT_TIME_VARIABLE) idx, minutes, flags);
-    }
-
-    http_json_ok ();
-
-    return 0;
+    return http_api_timer_set_common (1);
 }
 
 static int

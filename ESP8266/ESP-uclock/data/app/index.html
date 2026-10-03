@@ -863,18 +863,23 @@
         <div id="weather-map" class="map-canvas" data-i18n-aria-label="weather.map_aria" aria-label="Standortkarte"></div>
         <p id="weather-map-status" class="hint" data-i18n="weather.waiting_for_map">Warte auf Karte...</p>
 
+        <!-- 32/8/8, nicht 64/16/16: Das Gerät speichert MAX_WEATHER_CITY_LEN 32,
+             MAX_WEATHER_LON_LEN 8 und MAX_WEATHER_LAT_LEN 8 (ESP vars.h). Die Felder
+             im Klimabereich sind bereits so begrenzt, nur dieses Modal wich ab. Am
+             Gerät belegt: 65 Zeichen Ort wurden auf 32 gekürzt, lon=-123.4567 auf
+             "-123.456" (BEFUNDE.md, L74). -->
         <div class="time-grid">
           <label class="field">
             <span class="label" data-i18n="weather.place">Ort</span>
-            <input id="weather-map-city-input" type="text" maxlength="64" data-i18n-placeholder="weather.place_placeholder" placeholder="Wird aus Suche oder Karte übernommen">
+            <input id="weather-map-city-input" type="text" maxlength="32" data-i18n-placeholder="weather.place_placeholder" placeholder="Wird aus Suche oder Karte übernommen">
           </label>
           <label class="field">
             <span class="label" data-i18n="climate.longitude">Längengrad</span>
-            <input id="weather-map-lon-input" type="text" maxlength="16" placeholder="8.5400">
+            <input id="weather-map-lon-input" type="text" maxlength="8" placeholder="8.5400">
           </label>
           <label class="field">
             <span class="label" data-i18n="climate.latitude">Breitengrad</span>
-            <input id="weather-map-lat-input" type="text" maxlength="16" placeholder="47.3700">
+            <input id="weather-map-lat-input" type="text" maxlength="8" placeholder="47.3700">
           </label>
         </div>
 

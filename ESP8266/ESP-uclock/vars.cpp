@@ -639,17 +639,28 @@ set_ambilight_mode_flags (AMBILIGHT_MODE_VARIABLE var, uint_fast8_t flags)
     return rtc;
 }
 
+/* %02x ist eine MINDESTbreite, keine Hoechstbreite. Der STM liest dagegen mit FESTER
+ * Breite (htoi (parameters, 2), src/main.c:2405-2455): Ein Wert ueber 255 erzeugt drei
+ * Hexziffern, und der STM nimmt davon nur die ersten beiden. date_code=300 wurde so zu
+ * "12c" und kam als 0x12 = 18 an - der STM meldete "invalid date_code: 18" (L66).
+ * Jeder andere Mehrbyte-Sender in dieser Datei maskiert laengst (set_night_time_var,
+ * set_numvar, set_num8_array); hier fehlte die Maske als einzige.
+ *
+ * Die Maske ist nur das Netz. Geprueft wird im Endpunkt (http_api_overlay_set), denn
+ * eine Maske allein wuerde aus 300 still eine 44 machen und damit etwas anderes
+ * speichern, als der Aufrufer wollte.
+ */
 unsigned int
 set_overlay_var (uint_fast8_t idx)
 {
-    Serial.printf ("CMD OT%02x%02x\r\n", idx, overlays[idx].type);
-    Serial.printf ("CMD OI%02x%02x\r\n", idx, overlays[idx].interval);
-    Serial.printf ("CMD OD%02x%02x\r\n", idx, overlays[idx].duration);
-    Serial.printf ("CMD OC%02x%02x\r\n", idx, overlays[idx].date_code);
-    Serial.printf ("CMD OS%02x%04x\r\n", idx, overlays[idx].date_start);
-    Serial.printf ("CMD OY%02x%02x\r\n", idx, overlays[idx].days);
-    Serial.printf ("CMD ON%02x%s\r\n",   idx, overlays[idx].text);
-    Serial.printf ("CMD OF%02x%02x\r\n", idx, overlays[idx].flags);
+    Serial.printf ("CMD OT%02x%02x\r\n", idx & 0xFF, overlays[idx].type & 0xFF);
+    Serial.printf ("CMD OI%02x%02x\r\n", idx & 0xFF, overlays[idx].interval & 0xFF);
+    Serial.printf ("CMD OD%02x%02x\r\n", idx & 0xFF, overlays[idx].duration & 0xFF);
+    Serial.printf ("CMD OC%02x%02x\r\n", idx & 0xFF, overlays[idx].date_code & 0xFF);
+    Serial.printf ("CMD OS%02x%04x\r\n", idx & 0xFF, overlays[idx].date_start & 0xFFFF);
+    Serial.printf ("CMD OY%02x%02x\r\n", idx & 0xFF, overlays[idx].days & 0xFF);
+    Serial.printf ("CMD ON%02x%s\r\n",   idx & 0xFF, overlays[idx].text);
+    Serial.printf ("CMD OF%02x%02x\r\n", idx & 0xFF, overlays[idx].flags & 0xFF);
     Serial.flush ();
 
     return 1;

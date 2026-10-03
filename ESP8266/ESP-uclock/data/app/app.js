@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.77";
+const APP_VERSION = "1.4.78";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -355,6 +355,7 @@ const I18N = {
     "timers.clear_slot": "Slot leeren",
     "timers.main_eyebrow": "Timer",
     "timers.main_title": "Zeiten",
+    "timers.conflict_hint": "Gleiche Zeit wie {others}, an mindestens einem gemeinsamen Wochentag. Die Uhr prüft die Slots aufsteigend und hält beim ersten Treffer an — Slot {winner} greift zuerst.",
     "dfplayer.volume": "Lautstärke",
     "dfplayer.volume_save": "Lautstärke speichern",
     "dfplayer.volume_save_failed": "DFPlayer-Lautstärke konnte nicht gespeichert werden",
@@ -654,6 +655,9 @@ const I18N = {
     "backup.field.date_ticker_format": "Datumsformat des Tickers",
     "backup.field.update_host": "Update-Host",
     "backup.field.update_path": "Update-Pfad",
+    "backup.field.rtc_temp_correction": "Temperaturkorrektur der RTC",
+    "backup.field.ds18xx_temp_correction": "Temperaturkorrektur des DS18xx",
+    "backup.import_adjusted_fields": "Aus der Sicherung übernommen, aber in den erlaubten Bereich gebracht: {fields}. Die Sicherung enthielt diese Werte ausserhalb der Grenzen — sieh sie dir an.",
     "weather.map_loading": "Kartendienst wird geladen...",
     "weather.map_load_failed": "Kartendienst konnte nicht geladen werden.",
     "weather.map_hint": "Tippe auf die Karte oder suche einen Ort.",
@@ -675,6 +679,7 @@ const I18N = {
     "weather.location_unavailable": "Standort konnte auch näherungsweise nicht ermittelt werden.",
     "weather.map_applied": "Standort aus Karte übernommen.",
     "weather.reverse_failed": "Koordinaten gesetzt. Ortsname konnte nicht aufgelöst werden.",
+    "weather.city_shortened": "Der Ortsname ist länger, als die Uhr speichern kann. Gekürzt auf: {city}",
     "weather.map_preview": "Aus Karte gewählt: {city} | {lon} / {lat}",
     "weather.apply_map_busy": "übernimmt...",
     "weather.apply_map_idle": "In Wetter übernehmen",
@@ -788,6 +793,7 @@ const I18N = {
     "api.error.2": "Der Wert liegt ausserhalb des erlaubten Bereichs. Es wurde nichts gespeichert.",
     "api.error.3": "Der Schlüssel ist zu kurz — mindestens 10 Zeichen. Es wurde nichts gespeichert.",
     "api.error.4": "Datum oder Uhrzeit sind ungültig. Die Uhr wurde nicht gestellt.",
+    "api.warning.ldr_min_max": "Der Minimalwert der automatischen Helligkeit liegt nicht unter dem Maximalwert. Solange das so bleibt, regelt die Uhr die Helligkeit gar nicht — und meldet dazu nichts weiter. Setz das Minimum unter das Maximum.",
     "api.error.5": "Dafür fehlen noch Angaben: Trage unter Klima den Wetter-API-Schlüssel ein und dazu entweder einen Ort oder ein vollständiges Koordinatenpaar. Im eigenen Accesspoint hat die Uhr keinen Weg ins Internet.",
     "common.saving": "speichert...",
     "common.loading": "lädt...",
@@ -1246,6 +1252,7 @@ const I18N = {
     "timers.clear_slot": "Clear slot",
     "timers.main_eyebrow": "Timers",
     "timers.main_title": "Schedules",
+    "timers.conflict_hint": "Same time as {others}, on at least one shared weekday. The clock scans the slots in ascending order and stops at the first match, so slot {winner} takes effect.",
     "dfplayer.volume": "Volume",
     "dfplayer.volume_save": "Save volume",
     "dfplayer.volume_save_failed": "DFPlayer volume could not be saved",
@@ -1545,6 +1552,9 @@ const I18N = {
     "backup.field.date_ticker_format": "date format of the ticker",
     "backup.field.update_host": "update host",
     "backup.field.update_path": "update path",
+    "backup.field.rtc_temp_correction": "RTC temperature correction",
+    "backup.field.ds18xx_temp_correction": "DS18xx temperature correction",
+    "backup.import_adjusted_fields": "Taken from the backup but moved into the allowed range: {fields}. The backup held these values out of range — please review them.",
     "weather.map_loading": "Loading map service...",
     "weather.map_load_failed": "Map service could not be loaded.",
     "weather.map_hint": "Tap the map or search for a place.",
@@ -1566,6 +1576,7 @@ const I18N = {
     "weather.location_unavailable": "Even an approximate location could not be determined.",
     "weather.map_applied": "Location taken from map.",
     "weather.reverse_failed": "Coordinates set. Place name could not be resolved.",
+    "weather.city_shortened": "The place name is longer than the clock can store. Shortened to: {city}",
     "weather.map_preview": "Chosen from map: {city} | {lon} / {lat}",
     "weather.apply_map_busy": "applying...",
     "weather.apply_map_idle": "Apply to weather",
@@ -1679,6 +1690,7 @@ const I18N = {
     "api.error.2": "The value is outside the allowed range. Nothing was saved.",
     "api.error.3": "The key is too short — at least 10 characters. Nothing was saved.",
     "api.error.4": "Date or time is invalid. The clock was not set.",
+    "api.warning.ldr_min_max": "The minimum for automatic brightness is not below the maximum. As long as that is the case the clock does not adjust brightness at all, and reports nothing further about it. Set the minimum below the maximum.",
     "api.error.5": "Some details are still missing: under Climate, enter the weather API key plus either a city or a complete pair of coordinates. In access point mode the clock has no route to the internet.",
     "common.saving": "saving...",
     "common.loading": "loading...",
@@ -2672,7 +2684,8 @@ async function apiFetch(url, options) {
   // den Nutzer an: Das Geraet hatte nichts geschrieben. Seit das Geraet eine Menge
   // Eingaben abweist statt sie still zurechtzubiegen, waere das die schlimmere
   // Variante des Fehlers gewesen, den wir gerade beheben.
-  const apiError = await readApiErrorFromResponse(response);
+  const payload = await readApiPayloadFromResponse(response);
+  const apiError = readApiErrorFromPayload(payload);
 
   if (apiError) {
     const error = new Error("api-" + apiError.code);
@@ -2681,6 +2694,11 @@ async function apiFetch(url, options) {
     throw error;
   }
 
+  // Eine Antwort darf ok:true sein und trotzdem eine Warnung tragen: gespeichert, aber
+  // wirkungslos. ok bleibt absichtlich true, damit kein Aufrufer und kein Import
+  // bricht -- sichtbar wird die Warnung nur, wenn die PWA das Feld liest. L68.
+  reportApiWarning(readApiWarningFromPayload(payload));
+
   if (settingsImportInProgress) {
     await sleep(180);
   }
@@ -2688,10 +2706,11 @@ async function apiFetch(url, options) {
   return response;
 }
 
-// Liest die Fehlerkennung aus der Antwort, OHNE sie dem Aufrufer wegzunehmen.
-// response.clone() ist hier Pflicht: Der Rumpf laesst sich nur einmal lesen, und
-// mehrere Aufrufer rufen danach .json() oder .text() auf.
-async function readApiErrorFromResponse(response) {
+// Liest den Antwortrumpf EINMAL, OHNE ihn dem Aufrufer wegzunehmen. response.clone()
+// ist hier Pflicht: Der Rumpf lässt sich nur einmal lesen, und mehrere Aufrufer rufen
+// danach .json() oder .text() auf. Fehlerkennung und Warnung werden aus demselben
+// Rumpf abgeleitet, damit nicht zweimal geparst wird.
+async function readApiPayloadFromResponse(response) {
   const contentType = String(response.headers && response.headers.get("content-type") || "");
 
   // display_power und ambilight_power antworten mit reinem Text ("on"/"off").
@@ -2699,21 +2718,72 @@ async function readApiErrorFromResponse(response) {
     return null;
   }
 
-  let payload;
-
   try {
-    payload = await response.clone().json();
+    return await response.clone().json();
   } catch (_) {
     // Ein unparsbarer Rumpf ist kein Fehler DIESER Pruefung. Wer den Inhalt
     // wirklich braucht, scheitert gleich selbst und mit besserer Meldung.
     return null;
   }
+}
 
+function readApiErrorFromPayload(payload) {
   if (!payload || payload.ok !== false) {
     return null;
   }
 
   return { code: Number(payload.error || 0), detail: String(payload.detail || "") };
+}
+
+function readApiWarningFromPayload(payload) {
+  if (!payload || payload.warning === undefined || payload.warning === null) {
+    return "";
+  }
+
+  return String(payload.warning).trim();
+}
+
+// Die Warnungstexte des Geräts sind englisch, weil die Legacy-Oberfläche es ist.
+// Übersetzt wird deshalb über eine Zuordnung, nicht über den Text selbst. Ein
+// künftiger Endpunkt mit Warnung braucht hier nur einen Eintrag; kennt die Tabelle
+// den Text nicht, erscheint der Originaltext, aber er erscheint.
+const API_WARNING_KEYS = {
+  "ldr_min_value >= ldr_max_value, automatic brightness inactive": "api.warning.ldr_min_max"
+};
+
+let lastApiWarningText = "";
+let lastApiWarningAt = 0;
+
+function describeApiWarning(warning) {
+  const key = API_WARNING_KEYS[warning];
+
+  if (!key) {
+    return warning;
+  }
+
+  const translated = translate(key);
+
+  return translated && translated !== key ? translated : warning;
+}
+
+function reportApiWarning(warning) {
+  if (!warning) {
+    return;
+  }
+
+  const now = Date.now();
+
+  // Der Backup-Import schreibt dieselbe Einstellung mehrfach, und die Messknöpfe
+  // setzen Minimum und Maximum nacheinander. Ohne diese Sperre stuende dieselbe
+  // Warnung mehrfach hintereinander im Banner und verdraengte sich selbst.
+  if (warning === lastApiWarningText && now - lastApiWarningAt < 10000) {
+    return;
+  }
+
+  lastApiWarningText = warning;
+  lastApiWarningAt = now;
+  console.warn("Das Gerät meldet eine Warnung: " + warning);
+  announceStatus(describeApiWarning(warning), "warn");
 }
 
 // Die Fehlertexte des Geraets sind englisch, weil die Legacy-Oberflaeche es ist.
@@ -4527,6 +4597,7 @@ async function applySettingsBackup(backup) {
     : buildImportedBackupState(backup);
 
   resetSkippedImportFields();
+  resetAdjustedImportFields();
   settingsImportInProgress = true;
   try {
     await runImportWorkflow(importedState.executionState);
@@ -4767,14 +4838,20 @@ function buildImportRestartPlan(executionState) {
   };
 }
 
-function appendSkippedImportHint(message) {
-  const summary = getSkippedImportFieldsSummary();
+// Beide Listen landen im selben Hinweis: Übersprungenes zuerst, Zurechtgebogenes
+// danach. Der Nutzer soll nach einem Import an genau einer Stelle sehen, was nicht so
+// übernommen wurde, wie es in der Datei stand.
+function getImportNoticeSummary() {
+  return [getSkippedImportFieldsSummary(), getAdjustedImportFieldsSummary()].filter(Boolean).join(" ");
+}
+
+function appendImportNoticeHint(message) {
+  const summary = getImportNoticeSummary();
   return summary ? message + " " + summary : message;
 }
 
 async function finalizeImportRestartAndReload(restartPlan) {
   const climate = restartPlan && restartPlan.climate ? restartPlan.climate : null;
-  const skipped = getSkippedImportFieldsSummary();
 
   setSettingsBackupNote(translate("backup.import_restart_now"));
   announceStatus(translate("backup.import_restart"), "warn");
@@ -4786,15 +4863,20 @@ async function finalizeImportRestartAndReload(restartPlan) {
     }
     setSettingsBackupNote(translate("backup.import_restart_reload_data"));
     await loadData();
-    setSettingsBackupNote(appendSkippedImportHint(translate("backup.import_done_reload")), skipped ? "warn" : "success");
-    announceStatus(skipped || translate("backup.import_reload"), skipped ? "warn" : "ok");
+    // Erst hier abgefragt, nicht am Funktionsanfang: Die Persistenz der
+    // Temperaturkorrektur oben kann selbst noch einen zurechtgebogenen Wert melden,
+    // und mit einem vorab festgehaltenen Zwischenstand hätte der Hinweis gefehlt.
+    const notice = getImportNoticeSummary();
+    setSettingsBackupNote(appendImportNoticeHint(translate("backup.import_done_reload")), notice ? "warn" : "success");
+    announceStatus(notice || translate("backup.import_reload"), notice ? "warn" : "ok");
   } catch (error) {
-    setSettingsBackupNote(appendSkippedImportHint(translate("backup.import_restart_refreshing")), skipped ? "warn" : "success");
-    announceStatus(skipped || translate("backup.import_reconnect"), skipped ? "warn" : "ok");
+    const notice = getImportNoticeSummary();
+    setSettingsBackupNote(appendImportNoticeHint(translate("backup.import_restart_refreshing")), notice ? "warn" : "success");
+    announceStatus(notice || translate("backup.import_reconnect"), notice ? "warn" : "ok");
   }
-  // Wurde etwas übersprungen, bleibt der Hinweis länger stehen -- nach dem Neuladen
-  // der App ist er weg, und 1,2 s reichen nicht zum Lesen.
-  setTimeout(reloadAppPage, skipped ? 6000 : 1200);
+  // Wurde etwas übersprungen oder zurechtgebogen, bleibt der Hinweis länger stehen --
+  // nach dem Neuladen der App ist er weg, und 1,2 s reichen nicht zum Lesen.
+  setTimeout(reloadAppPage, getImportNoticeSummary() ? 6000 : 1200);
 }
 
 function buildPrimaryImportStages(executionState) {
@@ -5381,6 +5463,60 @@ function getSkippedImportFieldsSummary() {
   });
 }
 
+// Zweite Liste neben den übersprungenen Feldern, bewusst nicht dieselbe: Die beiden
+// Meldungen sagen Gegenteiliges. "Übersprungen" heisst "nicht geschrieben, auf der Uhr
+// unverändert", "zurechtgebogen" heisst "geschrieben, aber anders als in der Datei".
+// In einer gemeinsamen Liste wäre der Satz für eine der beiden Hälften falsch. Die
+// Mechanik drumherum — zurücksetzen, Zusammenfassung, Warnfarbe, längere Standzeit —
+// bleibt dagegen gemeinsam, damit nur eine Stelle über das Aussehen entscheidet. L65.
+const adjustedImportFieldEntries = new Map();
+
+function resetAdjustedImportFields() {
+  adjustedImportFieldEntries.clear();
+}
+
+function noteAdjustedImportField(labelKey, originalValue, usedValue) {
+  if (!labelKey || adjustedImportFieldEntries.has(labelKey)) {
+    return;
+  }
+
+  adjustedImportFieldEntries.set(labelKey, { original: originalValue, used: usedValue });
+  console.warn("Import: Wert aus der Sicherung ausserhalb des gültigen Bereichs: " +
+    labelKey + " " + String(originalValue) + " -> " + String(usedValue));
+}
+
+function getAdjustedImportFieldsSummary() {
+  if (!adjustedImportFieldEntries.size) {
+    return "";
+  }
+
+  const fields = [...adjustedImportFieldEntries.entries()].map(([key, entry]) => (
+    translate(key) + " (" + String(entry.original) + " → " + String(entry.used) + ")"
+  ));
+
+  return translateFormat("backup.import_adjusted_fields", { fields: fields.join(", ") });
+}
+
+// Ein Wert aus einer Sicherungsdatei ist kein Formularfeld: Es tippt niemand, und ein
+// Abbruch mitten im Import wäre nach L57 der gefährlichere Zustand. Die Stufe läuft
+// deshalb weiter und der Wert wird geklammert — aber nicht mehr stillschweigend.
+function readClampedImportNumber(value, min, max, labelKey) {
+  const number = Number(value || 0);
+
+  if (!Number.isFinite(number)) {
+    noteAdjustedImportField(labelKey, value, 0);
+    return 0;
+  }
+
+  const clamped = Math.max(min, Math.min(max, number));
+
+  if (clamped !== number) {
+    noteAdjustedImportField(labelKey, number, clamped);
+  }
+
+  return clamped;
+}
+
 function normalizeImportText(value) {
   return value === undefined || value === null ? "" : String(value).trim();
 }
@@ -5546,9 +5682,9 @@ async function importSensorCorrectionSettings(climate) {
   }
 
   setSettingsBackupNote("Importiere Sensor-Korrekturen...");
-  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), readClampedImportNumber(climate.rtc_temp_correction, -20, 20, "backup.field.rtc_temp_correction"));
   await sleep(400);
-  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.ds18xx_temp_correction || 0))));
+  await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), readClampedImportNumber(climate.ds18xx_temp_correction, -20, 20, "backup.field.ds18xx_temp_correction"));
   await sleep(400);
 }
 
@@ -5557,7 +5693,7 @@ async function importRtcCorrectionSetting(climate) {
     return;
   }
 
-  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0))));
+  await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), readClampedImportNumber(climate.rtc_temp_correction, -20, 20, "backup.field.rtc_temp_correction"));
 }
 
 async function finalizeTemperatureCorrectionPersistence(climate) {
@@ -5565,8 +5701,8 @@ async function finalizeTemperatureCorrectionPersistence(climate) {
     return;
   }
 
-  const rtcCorrection = Math.max(-20, Math.min(20, Number(climate.rtc_temp_correction || 0)));
-  const ds18xxCorrection = Math.max(-20, Math.min(20, Number(climate.ds18xx_temp_correction || 0)));
+  const rtcCorrection = readClampedImportNumber(climate.rtc_temp_correction, -20, 20, "backup.field.rtc_temp_correction");
+  const ds18xxCorrection = readClampedImportNumber(climate.ds18xx_temp_correction, -20, 20, "backup.field.ds18xx_temp_correction");
   setSettingsBackupNote(translate("backup.import_sensor_persist_final"));
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), rtcCorrection);
   await sleep(500);
@@ -5690,10 +5826,33 @@ async function importOverlaySettings(overlays) {
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
   const failedDeletes = [];
 
-  for (let idx = 31; idx >= 0; idx -= 1) {
+  // Gelöscht wird nur so weit, wie das Gerät tatsächlich belegt ist. Der frühere Lauf
+  // über alle 32 Plätze lebte davon, dass overlay_delete für einen unbelegten Platz
+  // still {"ok":true} meldete. Seit L70 weist der ESP ungültige Indizes mit Kennung 2
+  // ab, apiFetch wirft darauf, und bei drei Overlays hätte der Import 29 Fehlschläge
+  // gemeldet, obwohl alles richtig lief.
+  //
+  // Der stärkere Grund ist aber die Last: Jedes Löschen ist ein Kommando an den STM.
+  // 32 am Stück sind rund 8,6 s Hauptloop-Stillstand, bei drei belegten Plätzen bleiben
+  // davon drei Kommandos übrig. "Lösche etwas, das es nicht gibt" ist keine sinnvolle
+  // Anfrage -- und absteigend bleibt jeder Index gültig, weil der ESP nach dem Löschen
+  // nach unten zusammenschiebt.
+  const snapshot = getCurrentSettingsSnapshot();
+  const knownOverlayCount = snapshot && snapshot.numvars
+    ? Number(snapshot.numvars[NUM.OVERLAY_N_OVERLAYS] || 0)
+    : 32;
+
+  for (let idx = knownOverlayCount - 1; idx >= 0; idx -= 1) {
     try {
       await apiFetchQuery(getOverlayDeleteUrl(), { idx });
     } catch (error) {
+      // Kennung 2 heisst "diesen Platz gibt es nicht". Ist der Zählerstand oben zu
+      // hoch gewesen -- etwa ohne frischen Snapshot --, ist das kein Fehlschlag,
+      // sondern das erwartete Ende der Liste.
+      if (error && error.apiErrorCode === 2) {
+        continue;
+      }
+
       // Der Import läuft bewusst weiter, sonst bleibt das Gerät halb geleert zurück.
       // Ein fehlgeschlagenes Löschen ist aber nicht folgenlos: die Schreibschleife
       // unten beschreibt nur die Plätze 0..items.length-1, alles darüber behält
@@ -6941,8 +7100,85 @@ function renderTimerRows(settings, isAmbilight) {
   renderTimerRowsFromMeta(getTimerUiMeta(settings, isAmbilight).items, isAmbilight);
 }
 
+const TIMER_FLAG_ACTIVE = 0x80;
+const TIMER_FLAG_FROM_DAY = 0x38;
+const TIMER_FLAG_TO_DAY = 0x07;
+
+// Die Uhr löst den Tagesbereich nach drei Regeln auf (night.c:166-180): gleicher Von-
+// und Bis-Tag meint genau diesen einen Tag, von < bis meint die Spanne, von > bis
+// meint die Spanne über den Sonntag hinweg.
+function getTimerWeekdays(flags) {
+  const fromDay = (flags & TIMER_FLAG_FROM_DAY) >> 3;
+  const toDay = flags & TIMER_FLAG_TO_DAY;
+  const days = [];
+
+  for (let wday = 0; wday <= 6; wday += 1) {
+    const matches = fromDay === toDay
+      ? wday === fromDay
+      : (fromDay < toDay ? (wday >= fromDay && wday <= toDay) : !(wday > toDay && wday < fromDay));
+
+    if (matches) {
+      days.push(wday);
+    }
+  }
+
+  return days;
+}
+
+// Zwei aktive Timer auf derselben Minute sind nicht falsch, nur unklar: Die Uhr prüft
+// die Slots aufsteigend und hält beim ersten Treffer an (night.c:153-188), der
+// niedrigere Index greift also zuerst. Deshalb ein Hinweis und kein Verbot — der
+// Nutzer soll nur wissen, welcher gewinnt. L72.
+//
+// Verglichen werden nicht nur deckungsgleiche Tagesbereiche: "Mo-Fr" und "Mi-Mi"
+// treffen sich am Mittwoch genauso, und dort sieht man es noch schlechter. Geprüft
+// wird deshalb auf Überschneidung der aufgelösten Tagesmengen.
+function findTimerConflicts(items) {
+  const conflicts = new Map();
+  const active = (items || []).filter((item) => (item.flags & TIMER_FLAG_ACTIVE));
+
+  for (let first = 0; first < active.length; first += 1) {
+    for (let second = first + 1; second < active.length; second += 1) {
+      if ((active[first].minutes || 0) !== (active[second].minutes || 0)) {
+        continue;
+      }
+
+      const daysOfFirst = getTimerWeekdays(active[first].flags);
+      const daysOfSecond = getTimerWeekdays(active[second].flags);
+
+      if (!daysOfFirst.some((day) => daysOfSecond.includes(day))) {
+        continue;
+      }
+
+      for (const pair of [[active[first], active[second]], [active[second], active[first]]]) {
+        const partners = conflicts.get(pair[0].idx) || [];
+        partners.push(pair[1].idx);
+        conflicts.set(pair[0].idx, partners);
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+// Gibt reinen Text zurück, kein Markup: Die Einsetzstelle escaped, und dort gehört
+// es auch hin. Eine Funktion, die fertiges HTML liefert, nimmt der Prüfung S7 die
+// Möglichkeit, zwischen sauber und ungefiltert zu unterscheiden.
+function buildTimerConflictText(idx, partners) {
+  if (!partners || !partners.length) {
+    return "";
+  }
+
+  const slotLabel = translate("timers.slot");
+  const others = partners.slice().sort((a, b) => a - b).map((partner) => slotLabel + " " + partner).join(", ");
+  const winner = Math.min(idx, ...partners);
+
+  return translateFormat("timers.conflict_hint", { others, winner });
+}
+
 function renderTimerRowsFromMeta(items, isAmbilight) {
   const root = document.getElementById(isAmbilight ? "ambilight-timer-list" : "timer-list");
+  const conflicts = findTimerConflicts(items);
 
   root.innerHTML = items.map((item) => {
     const idx = item.idx;
@@ -6952,10 +7188,12 @@ function renderTimerRowsFromMeta(items, isAmbilight) {
     const active = (item.flags & 0x80) ? "checked" : "";
     const switchOn = (item.flags & 0x40) ? "checked" : "";
     const prefix = isAmbilight ? "at" : "t";
+    const conflictText = buildTimerConflictText(idx, conflicts.get(idx));
 
     return (
       '<section class="alarm-card">' +
         '<div class="card-headline"><div><span class="label">' + escapeHtml(translate("timers.slot")) + ' ' + escapeHtml(String(idx)) + '</span><p class="card-subline">' + escapeHtml(isAmbilight ? translate("timers.ambilight_slot_subline") : translate("timers.slot_subline")) + '</p></div></div>' +
+        (conflictText ? '<p class="module-warning">' + escapeHtml(conflictText) + "</p>" : "") +
         '<div class="chip-row">' +
           '<label class="chip-toggle"><input type="checkbox" id="' + prefix + '-active-' + idx + '" ' + active + '> ' + escapeHtml(translate("common.active")) + '</label>' +
           '<label class="field timer-action-field"><span class="label">' + escapeHtml(translate("timers.action")) + '</span><select id="' + prefix + '-action-' + idx + '"><option value="on"' + ((item.flags & 0x40) ? ' selected' : '') + '>' + escapeHtml(translate("timers.switch_on")) + '</option><option value="off"' + (!(item.flags & 0x40) ? ' selected' : '') + '>' + escapeHtml(translate("timers.switch_off")) + '</option></select></label>' +
@@ -7395,9 +7633,9 @@ function syncWeatherMapFromInputs() {
   const lon = Number(document.getElementById("weather-lon-input").value);
   const city = document.getElementById("weather-city-input").value || "";
 
-  document.getElementById("weather-map-city-input").value = city;
-  document.getElementById("weather-map-lon-input").value = Number.isFinite(lon) ? lon.toFixed(4) : "";
-  document.getElementById("weather-map-lat-input").value = Number.isFinite(lat) ? lat.toFixed(4) : "";
+  document.getElementById("weather-map-city-input").value = formatWeatherCityName(city);
+  document.getElementById("weather-map-lon-input").value = formatWeatherCoordinate(lon);
+  document.getElementById("weather-map-lat-input").value = formatWeatherCoordinate(lat);
 
   if (weatherMap && Number.isFinite(lat) && Number.isFinite(lon)) {
     setWeatherMapSelection(lat, lon, city);
@@ -7405,22 +7643,121 @@ function syncWeatherMapFromInputs() {
   }
 }
 
+// Das Gerät speichert Längen- und Breitengrad in je acht Zeichen und den Ort in
+// 32 Byte (MAX_WEATHER_LON_LEN, MAX_WEATHER_LAT_LEN, MAX_WEATHER_CITY_LEN in vars.h).
+// Das maxlength der Felder greift nur beim Tippen: Eine programmatische Zuweisung
+// bleibt vollständig stehen, tooLong ist dabei false, und erst das Gerät schneidet
+// hart ab. Aus "-123.4567" wurde dort "-123.456". L74.
+const WEATHER_COORDINATE_MAX_CHARS = 8;
+const WEATHER_CITY_MAX_BYTES = 32;
+
+// Lieber eine Nachkommastelle weniger als eine abgeschnittene Zahl: Bei einem
+// dreistelligen negativen Grad braucht toFixed(4) neun Zeichen, toFixed(3) acht.
+// Auf drei Stellen GERUNDET liegt der Punkt zudem näher am Ziel als auf drei Stellen
+// abgeschnitten, der Fehler wird also kleiner als der bisherige.
+function formatWeatherCoordinate(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+
+  for (let digits = 4; digits >= 0; digits -= 1) {
+    const text = number.toFixed(digits);
+
+    if (text.length <= WEATHER_COORDINATE_MAX_CHARS) {
+      return text;
+    }
+  }
+
+  // Nur für Werte ausserhalb des Gradbereichs erreichbar. Dann lieber eine zu lange
+  // Zahl, die das Gerät abweist, als eine stillschweigend verbogene.
+  return number.toFixed(0);
+}
+
+// Leaflet liefert beim Schieben über den Kartenrand hinaus Längengrade ausserhalb von
+// -180..180 (zweite Weltkopie: 540 statt 180). Das ist derselbe Punkt auf der Erde,
+// nur eine andere Zahl — und eine, die nie in acht Zeichen passt.
+function wrapLongitude(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return number;
+  }
+
+  return ((((number + 180) % 360) + 360) % 360) - 180;
+}
+
+function utf8ByteLengthOfCodePoint(codePoint) {
+  if (codePoint < 0x80) {
+    return 1;
+  }
+
+  if (codePoint < 0x800) {
+    return 2;
+  }
+
+  if (codePoint < 0x10000) {
+    return 3;
+  }
+
+  return 4;
+}
+
+// Kürzt auf eine vollständige Zeichengrenze. Ein halbes Mehrbyte-Zeichen am Ende wäre
+// genau L46, nur auf der PWA-Seite. Die for...of-Schleife läuft über Codepoints, ein
+// Ersatzzeichenpaar bleibt deshalb zusammen.
+function truncateToUtf8Bytes(text, maxBytes) {
+  const value = text === undefined || text === null ? "" : String(text);
+  let result = "";
+  let used = 0;
+
+  for (const character of value) {
+    const size = utf8ByteLengthOfCodePoint(character.codePointAt(0));
+
+    if (used + size > maxBytes) {
+      return result;
+    }
+
+    result += character;
+    used += size;
+  }
+
+  return result;
+}
+
+function formatWeatherCityName(city) {
+  return truncateToUtf8Bytes(city, WEATHER_CITY_MAX_BYTES);
+}
+
 function setWeatherMapSelection(lat, lon, city) {
   if (!weatherMap || !window.L) {
     return;
   }
 
-  const roundedLat = Number(lat);
-  const roundedLon = Number(lon);
+  const latText = formatWeatherCoordinate(lat);
+  const lonText = formatWeatherCoordinate(wrapLongitude(lon));
+
+  // Ohne gültige Koordinate gibt es nichts zu setzen. Vorher lief hier ein NaN bis in
+  // den Marker und in die Eingabefelder.
+  if (!latText || !lonText) {
+    return;
+  }
+
+  // Marker und gespeicherter Wert müssen denselben Punkt meinen, sonst steht die Nadel
+  // woanders als das, was die Uhr bekommt.
+  const roundedLat = Number(latText);
+  const roundedLon = Number(lonText);
+  const boundedCity = formatWeatherCityName(city);
   selectedWeatherLocation = {
-    city: city || "",
+    city: boundedCity,
     lat: roundedLat,
     lon: roundedLon
   };
 
-  document.getElementById("weather-map-city-input").value = city || "";
-  document.getElementById("weather-map-lat-input").value = roundedLat.toFixed(4);
-  document.getElementById("weather-map-lon-input").value = roundedLon.toFixed(4);
+  document.getElementById("weather-map-city-input").value = boundedCity;
+  document.getElementById("weather-map-lat-input").value = latText;
+  document.getElementById("weather-map-lon-input").value = lonText;
 
   if (!weatherMarker) {
     weatherMarker = window.L.marker([roundedLat, roundedLon], { draggable: true }).addTo(weatherMap);
@@ -7567,11 +7904,18 @@ async function reverseLookupWeatherLocation(lat, lon) {
     const address = result.address || {};
     const city = address.city || address.town || address.village || address.hamlet || result.display_name || "";
 
-    document.getElementById("weather-map-city-input").value = city;
+    // display_name von Nominatim ist die volle Adresskette und reisst die 32 Byte des
+    // Geräts regelmässig. Hier wird auf einer Zeichengrenze gekürzt — und gesagt, dass
+    // gekürzt wurde. Einen stillschweigend verkleinerten Ortsnamen sucht sonst niemand.
+    const boundedCity = formatWeatherCityName(city);
+
+    document.getElementById("weather-map-city-input").value = boundedCity;
     if (selectedWeatherLocation) {
-      selectedWeatherLocation.city = city;
+      selectedWeatherLocation.city = boundedCity;
     }
-    status.textContent = translate("weather.map_applied");
+    status.textContent = boundedCity === city
+      ? translate("weather.map_applied")
+      : translateFormat("weather.city_shortened", { city: boundedCity });
   } catch (error) {
     status.textContent = translate("weather.reverse_failed");
   }

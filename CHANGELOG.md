@@ -1,5 +1,78 @@
 # Changelog
 
+## 2026-10-03 Befunde aus Testdurchlauf 3 (STM 3.2.11, ESP 3.2.9, PWA 1.4.78)
+
+Alle drei Komponenten. Der dritte Testdurchlauf hat 137 Pruefungen gefahren,
+105 bestanden und 18 Befunde geliefert; die schwersten sind behoben.
+
+### L66 — Overlay-Werte ueber 255 verfaelschten das Protokoll
+
+set_overlay_var() formatierte vier Felder mit %02x. Das ist eine MINDESTbreite,
+der STM liest aber mit FESTER Breite. Ein Wert ueber 255 erzeugt drei
+Hexziffern, und der STM nimmt nur die ersten beiden.
+
+Am Geraet belegt: date_code=300 -> ESP zeigt "300", der STM meldet "invalid
+date_code: 18" -- und 18 ist 0x12, die ersten zwei Ziffern von "12c". PWA,
+settings_xml und die Sicherungsdatei zeigten einen Wert, den die Uhr nicht
+benutzt.
+
+Was es zum Befund und nicht zur Vermutung machte: Jeder andere Mehrbyte-Sender
+in derselben Datei maskiert mit & 0xFF. Der Overlay-Sender war der einzige ohne.
+
+Jetzt Maske UND Pruefung im Endpunkt. Der Umbau war noetig, nicht kosmetisch:
+Bisher wuchs bei einem Anhaenge-Aufruf erst die Overlay-Zahl, eine Abweisung
+danach haette ein leeres Overlay in der Liste hinterlassen.
+
+### L70 — vier Endpunkte mit Vorgabeindex 0
+
+overlay_display, overlay_delete, timer_set und ambilight_timer_set lasen
+atoi(http_get_param("idx")). Ein FEHLENDER Parameter ist 0 -- und 0 ist ein
+gueltiger Index. overlay_delete ohne idx haette das erste Overlay geloescht,
+timer_set ohne idx den ersten Timer ueberschrieben.
+
+Der Testagent hat diese beiden Varianten bewusst NICHT gesendet und den
+Codepfad am gefahrlosen Zwilling belegt. Kein Hook haette ihn aufgehalten --
+no-danger.py kennt diese Endpunkte nicht.
+
+### L69 — der LDR-Rohwert wurde nie gemessen, nicht nur nie gesendet
+
+Mein Befund nannte den fehlenden Sendeaufruf. Das war die zweite Haelfte: Ohne
+aktive Automatik wurde gar keine ADC-Wandlung gestartet, der Wert stand auf
+seinem Initialwert 0. Haette man nur den Sendeaufruf herausgezogen, waere
+weiterhin konstant 0 gesendet worden -- also schlechter als vorher, weil der
+Fehler dann plausibel ausgesehen haette.
+
+Statt der Schwelle 16 bremst jetzt ein Sperrzaehler auf hoechstens alle 2 s;
+die Schwelle sinkt auf 4, weil 16 auf einer 12-Bit-Skala bei einem Arbeitspunkt
+von 12 bis 14 nicht konservativ ist, sondern blind. Der Schlimmstfall sinkt
+dabei von vier Sendungen je Sekunde auf eine halbe.
+
+### Ein zweiter Rollout-Blocker, wieder vom umsetzenden Agenten gemeldet
+
+Die neue Indexpruefung haette den Backup-Import 29 Fehlschlaege melden lassen,
+obwohl alles korrekt laeuft: importOverlaySettings loeschte alle 32 Plaetze,
+und die unbelegten antworteten bisher still mit ok:true. Behoben, aber mit
+einer besseren Begruendung als meiner: 32 Kommandos sind rund 8,6 s
+Hauptloop-Stillstand. Die Fehlermeldung verschwindet als Nebenwirkung.
+
+### Weiter
+
+L67 vier Setter mit blankem atoi · L68 LDR-Obergrenze, und bei Minimum ueber
+Maximum eine Warnung in der Antwort statt stummen Ausfalls -- bewusst keine
+Abweisung, weil die Messknoepfe andere Endpunkte rufen und eine Sperre den
+realen Entstehungsweg gar nicht getroffen haette · L71 Timer-Bereichspruefung
+· L72 Konflikthinweis, weiter gefasst als beauftragt: Ueberschneidung statt
+Gleichheit der Tagesmengen · L73 Overlay-Typ auf 0..10 · L74 Koordinaten
+passen jetzt in acht Zeichen, mit Normalisierung fuer Leaflets zweite
+Weltkopie · L65 der Import meldet, was er zurechtgebogen hat.
+
+### Neu gefunden und offen
+
+L75 stm32_log ist waehrend LED-Aktivitaet nach 1,2 s voll -- 500-mal die
+Ruherate, das verstaerkt Massnahme 13 erheblich. L77 der gesendete LDR-Rohwert
+ist geklammert, der kalibrierte nicht. L78 dfplayer_alarm_set hat L70 und L71
+vollstaendig. L79 das Legacy-Overlay-Formular ebenso.
+
 ## 2026-10-03 Gruppe B und die Knoepfe (PWA 1.4.77)
 
 Nur PWA geaendert, STM 3.2.10 und ESP 3.2.8 bleiben.
