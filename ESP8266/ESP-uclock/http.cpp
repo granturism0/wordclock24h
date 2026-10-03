@@ -330,7 +330,28 @@ static int              http_api_live_display_color ();
 static const char *     http_get_configured_icon_filename (void);
 static const char *     http_get_configured_weather_filename (void);
 static const char *     http_find_existing_filename (const char * preferred, const char * const * candidates, size_t candidate_count);
-static String           sanitize_json_string (const String& str);
+/* Maskierung ohne Haufen (BEFUNDE.md L175)
+ *
+ * sanitize_xml_string () und sanitize_json_string () bauten ihr Ergebnis ZEICHENWEISE
+ * als String auf. Jedes Zeichen konnte eine Neuzuteilung ausloesen - String::changeBuffer ()
+ * rundet auf 16-Byte-Schritte auf (WString.cpp), ein Wert von 63 Zeichen laeuft also
+ * durch rund vier bis zwoelf realloc (). Das kostet kaum Gesamtspeicher, aber es
+ * HINTERLAESST LUECKEN, und genau die sind das Problem: Gemessen ueber 25 Minuten
+ * Betrieb faellt der groesste zusammenhaengende Block um 44 Prozent (5'800 auf 3'264),
+ * waehrend die freie Gesamtmenge fast gleich bleibt. Die gescheiterten Anforderungen
+ * aus L174 lauteten auf 880 und 960 Byte - in 5'800 passen die muehelos.
+ *
+ * Ersatz: ein Maskierer, der in einen Puffer des AUFRUFERS schreibt, und ein
+ * Stroemer darueber, der den Text in Stuecken durch http_send () schiebt. Beide
+ * fassen den Haufen nicht an. Die Ausgabe ist Byte fuer Byte dieselbe wie vorher.
+ */
+#define HTTP_ESCAPE_XML         0                       // wie sanitize_xml_string (): & < > " ' als Entity, ungueltiges UTF-8 als '?'
+#define HTTP_ESCAPE_JSON        1                       // wie sanitize_json_string (): \\ " \r \n \t mit Rueckstrich maskiert
+#define HTTP_ESCAPE_SCAN        2                       // XML-Entities INNERHALB von JSON, wie /api/network_scan es seit jeher liefert
+
+static void             http_send_escaped (const char * s, uint_fast8_t mode);
+static void             http_send_json_escaped (const char * s);
+static void             http_send_xml_escaped (const char * s);
 static void             update_progress_stream_emit (const char * event_name);
 static void             update_progress_stream_start (void);
 static void             update_progress_stream_finish (void);
@@ -522,15 +543,15 @@ update_progress_stream_emit (const char * event_name)
     }
 
     http_send (FS("{\"ok\":true,\"event\":\""));
-    http_send (sanitize_json_string (event_name ? event_name : "progress").c_str ());
+    http_send_json_escaped (event_name ? event_name : "progress");
     http_send (FS("\",\"active\":"));
     http_send (update_progress.active ? "true" : "false");
     http_send (FS(",\"type\":\""));
-    http_send (sanitize_json_string (update_progress.type).c_str ());
+    http_send_json_escaped (update_progress.type);
     http_send (FS("\",\"state\":\""));
-    http_send (sanitize_json_string (update_progress.state).c_str ());
+    http_send_json_escaped (update_progress.state);
     http_send (FS("\",\"message\":\""));
-    http_send (sanitize_json_string (update_progress.message).c_str ());
+    http_send_json_escaped (update_progress.message);
     http_send (FS("\",\"progress_current\":"));
     sprintf (buf, "%u", (unsigned) update_progress.progress_current);
     http_send (buf);
@@ -866,7 +887,7 @@ http_json_send_string_field (const char * key, const char * value)
 {
     http_json_send_field_prefix (key);
     http_send (FS("\""));
-    http_send (sanitize_json_string (value ? value : "").c_str ());
+    http_send_json_escaped (value ? value : "");
     http_send (FS("\""));
 }
 
@@ -1240,41 +1261,14 @@ http_send (String s)
     http_send (s.c_str());
 }
 
+/* Ein Zeichen je http_send () war nicht nur langsam, sondern legte fuer jede
+ * Maskierung ueber FS() ein String-Objekt an. Jetzt laeuft alles ueber denselben
+ * Stroemer wie die XML-Seite; die Ausgabe ist unveraendert.
+ */
 static void
 http_send_json_escaped (const char * s)
 {
-    while (s && *s)
-    {
-        char ch = *s++;
-
-        switch (ch)
-        {
-            case '\\':
-                http_send (FS("\\\\"));
-                break;
-            case '"':
-                http_send (FS("\\\""));
-                break;
-            case '\r':
-                http_send (FS("\\r"));
-                break;
-            case '\n':
-                http_send (FS("\\n"));
-                break;
-            case '\t':
-                http_send (FS("\\t"));
-                break;
-            default:
-            {
-                char buffer[2];
-
-                buffer[0] = ch;
-                buffer[1] = '\0';
-                http_send (buffer);
-                break;
-            }
-        }
-    }
+    http_send_escaped (s, HTTP_ESCAPE_JSON);
 }
 
 static const char *
@@ -7350,9 +7344,8 @@ http_update (void)
  * Setter, etwa SSIDs aus dem WLAN-Scan.
  */
 static unsigned int
-utf8_sequence_len (const String& str, unsigned int pos)
+utf8_sequence_len (const char * str, unsigned int len, unsigned int pos)
 {
-    unsigned int   len = str.length ();
     unsigned char  c0 = (unsigned char) str[pos];
     unsigned int   need;
     unsigned char  c1_min = 0x80;
@@ -7416,102 +7409,184 @@ utf8_sequence_len (const String& str, unsigned int pos)
     return need;
 }
 
-String
-sanitize_xml_string(const String& str)
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * http_escape_text () - Fremdtext maskiert in einen Puffer schreiben, ganz ohne String
+ *
+ * Das Ergebnis landet in einem Puffer des Aufrufers, der auf dem Stack liegen darf -
+ * keine einzige Anforderung am Haufen. Das ersetzt sanitize_xml_string () und
+ * sanitize_json_string (), die ihr Ergebnis zeichenweise als String aufbauten und damit
+ * den groessten zusammenhaengenden Block zerlegten (BEFUNDE.md L175).
+ *
+ * DREI MODI, weil es in dieser Datei drei verschiedene Ziele gibt:
+ *
+ * HTTP_ESCAPE_XML    Zeichen fuer Zeichen identisch zu sanitize_xml_string ():
+ *                    & < > " ' werden Entities, ungueltige UTF-8-Folgen und in XML 1.0
+ *                    verbotene Steuerzeichen werden '?'. \t \n \r bleiben stehen.
+ * HTTP_ESCAPE_JSON   Zeichen fuer Zeichen identisch zu sanitize_json_string ():
+ *                    \\ " \r \n \t werden mit Rueckstrich maskiert, alles andere bleibt
+ *                    roh. Bewusst OHNE UTF-8-Pruefung - die Ausgabe soll sich an den
+ *                    bestehenden Aufrufstellen nicht aendern.
+ * HTTP_ESCAPE_SCAN   Die Mischform, die /api/network_scan seit jeher liefert: XML-
+ *                    Entities innerhalb eines JSON-Strings. Dazu zwei Ergaenzungen, die
+ *                    nur dort greifen, wo die Antwort bisher ohnehin unbrauchbar war -
+ *                    der Rueckstrich wird als \\ maskiert (eine SSID mit Rueckstrich
+ *                    liefert sonst ungueltiges JSON, und die PWA verliert die KOMPLETTE
+ *                    Netzliste), und Steuerzeichen werden ausnahmslos '?', auch \t \n \r,
+ *                    die ein JSON-String roh nicht erlaubt.
+ *
+ * Rueckgabewert ist die Zahl der geschriebenen Zeichen ohne die Null. Passt eine
+ * Maskierung oder eine UTF-8-Folge nicht mehr vollstaendig in den Puffer, bricht die
+ * Schleife VOR ihr ab - eine halbe Entity waere schlimmer als ein kuerzerer Name. Wie
+ * viele QUELLzeichen dabei verbraucht wurden, meldet *src_used; darauf setzt
+ * http_send_escaped () auf, um beliebig lange Texte in Stuecken zu stroemen.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static size_t
+http_escape_text (const char * src, unsigned int src_len, char * out, size_t out_len, uint_fast8_t mode, unsigned int * src_used)
 {
-    String result;
-    for (unsigned int i = 0; i < str.length(); i++)
+    unsigned int    i = 0;
+    size_t          o = 0;
+
+    if (! out || out_len == 0)
     {
-        unsigned char uc = (unsigned char) str[i];
-
-        if (uc >= 0x80)
+        if (src_used)
         {
-            unsigned int seq = utf8_sequence_len (str, i);
-
-            if (seq)
-            {
-                while (seq--)
-                {
-                    result += str[i++];
-                }
-
-                i--;                                                                // die Schleife zaehlt selbst weiter
-            }
-            else
-            {
-                result += '?';                                                      // ungueltige Sequenz sichtbar ersetzen statt durchreichen (L46)
-            }
-
-            continue;
+            *src_used = 0;
         }
 
-        if (uc < 0x20 && uc != '\t' && uc != '\n' && uc != '\r')                    // in XML 1.0 verbotene Steuerzeichen
+        return 0;
+    }
+
+    while (src && i < src_len)
+    {
+        unsigned char   uc  = (unsigned char) src[i];
+        const char *    esc = (const char *) 0;
+        unsigned int    seq = 1;
+
+        if (mode == HTTP_ESCAPE_JSON)
         {
-            result += '?';
-            continue;
+            switch (uc)
+            {
+                case '\\': esc = "\\\\"; break;
+                case '"':  esc = "\\\""; break;
+                case '\r': esc = "\\r";  break;
+                case '\n': esc = "\\n";  break;
+                case '\t': esc = "\\t";  break;
+                default:   break;
+            }
+        }
+        else if (uc >= 0x80)
+        {
+            seq = utf8_sequence_len (src, src_len, i);
+
+            if (! seq)
+            {
+                esc = "?";                                                          // ungueltige Sequenz sichtbar ersetzen statt durchreichen (L46)
+                seq = 1;
+            }
+        }
+        else if (uc < 0x20 && (mode == HTTP_ESCAPE_SCAN || (uc != '\t' && uc != '\n' && uc != '\r')))
+        {
+            esc = "?";                                                              // in XML 1.0 verbotene Steuerzeichen; im SCAN-Modus ausnahmslos alle
+        }
+        else
+        {
+            switch (uc)
+            {
+                case '&':  esc = "&amp;";  break;
+                case '<':  esc = "&lt;";   break;
+                case '>':  esc = "&gt;";   break;
+                case '"':  esc = "&quot;"; break;
+                case '\'': esc = "&apos;"; break;
+                case '\\':
+                    if (mode == HTTP_ESCAPE_SCAN)
+                    {
+                        esc = "\\\\";
+                    }
+                    break;
+                default:   break;
+            }
         }
 
-        switch (str[i])
+        if (esc)
         {
-        case '&':
-            result += "&amp;";
-            break;
-        case '<':
-            result += "&lt;";
-            break;
-        case '>':
-            result += "&gt;";
-            break;
-        case '"':
-            /* Jede Zeichenkette landet in einem "-begrenzten XML-Attribut. Ohne diese
-             * beiden Faelle zerlegt ein einziges Anfuehrungszeichen in Ort, Tickertext,
-             * Wetter-AppID oder Update-Host die settings_xml, und die PWA verliert alle
-             * nachfolgenden Werte ohne Fehlermeldung (L26).
-             */
-            result += "&quot;";
-            break;
-        case '\'':
-            result += "&apos;";
-            break;
-        default:
-            result += str[i];
-            break;
+            size_t esc_len = strlen (esc);
+
+            if (o + esc_len >= out_len)
+            {
+                break;
+            }
+
+            memcpy (out + o, esc, esc_len);
+            o += esc_len;
+            i++;
+        }
+        else
+        {
+            if (o + seq >= out_len)
+            {
+                break;
+            }
+
+            memcpy (out + o, src + i, seq);
+            o += seq;
+            i += seq;
         }
     }
-    return result;
+
+    out[o] = '\0';
+
+    if (src_used)
+    {
+        *src_used = i;                                                              // wie viele QUELLzeichen verbraucht wurden
+    }
+
+    return o;
 }
 
-String
-sanitize_json_string (const String& str)
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * http_send_escaped () - Fremdtext maskiert in die laufende Antwort stroemen, ohne Haufen
+ *
+ * Ersetzt das Muster "http_send (sanitize_xxx_string (x).c_str ())", das an 28 Stellen
+ * stand. Der Puffer liegt auf dem Stack und wird stueckweise geleert; eine Maskierung
+ * oder eine UTF-8-Folge wird nie zerschnitten, weil http_escape_text () vor einer nicht
+ * mehr passenden Folge abbricht und meldet, wie weit es gekommen ist.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+http_send_escaped (const char * s, uint_fast8_t mode)
 {
-    String result;
+    char            buf[136];                                                       // laengste Maskierung 6 Byte, laengste UTF-8-Folge 4
+    unsigned int    len;
+    unsigned int    pos = 0;
 
-    for (unsigned int i = 0; i < str.length (); i++)
+    if (! s)
     {
-        switch (str[i])
-        {
-            case '\\':
-                result += "\\\\";
-                break;
-            case '"':
-                result += "\\\"";
-                break;
-            case '\r':
-                result += "\\r";
-                break;
-            case '\n':
-                result += "\\n";
-                break;
-            case '\t':
-                result += "\\t";
-                break;
-            default:
-                result += str[i];
-                break;
-        }
+        return;
     }
 
-    return result;
+    len = (unsigned int) strlen (s);
+
+    while (pos < len)
+    {
+        unsigned int    used = 0;
+
+        http_escape_text (s + pos, len - pos, buf, sizeof (buf), mode, &used);
+        http_send (buf);
+
+        if (! used)
+        {
+            break;                                                                  // kann nicht vorkommen, verhindert aber jede Endlosschleife
+        }
+
+        pos += used;
+    }
+}
+
+static void
+http_send_xml_escaped (const char * s)
+{
+    http_send_escaped (s, HTTP_ESCAPE_XML);
 }
 
 /* Rueckgabewert: > 0 heisst, der Server hat vollstaendig geantwortet; <= 0 heisst
@@ -7775,8 +7850,15 @@ http_send_settings_xml (const char * header)
     // string vars
     for (i = 0; i < MAX_STR_VARIABLES; i++)
     {
-        sprintf(buff, FS("<strvar idx=\"%d\" value=\"%s\" />"), i, sanitize_xml_string(strvars[i].str).c_str());
+        /* Der maskierte Wert wird GESTROEMT statt in buff formatiert (L175). Das spart
+          * nicht nur den String, es beseitigt auch einen stillen Ueberlauf: Ein Wert von
+          * 63 Zeichen - update_host, update_path, reset_cause - wird im schlimmsten Fall
+          * zu 378 Zeichen maskiert und passte nie in buff[255].
+          */
+        snprintf(buff, sizeof (buff), FS("<strvar idx=\"%d\" value=\""), i);
         http_send(buff);
+        http_send_xml_escaped(strvars[i].str);
+        http_send(FS("\" />"));
     }
 
     // tm vars
@@ -7822,16 +7904,19 @@ http_send_settings_xml (const char * header)
     // display modes
     for (ui = 0; ui < display_modes_count; ui++)
     {
-        sprintf(buff, FS("<dispmode idx=\"%d\" name=\"%s\" />"), ui, sanitize_xml_string(tbl_modes[ui].description).c_str());
+        snprintf(buff, sizeof (buff), FS("<dispmode idx=\"%d\" name=\""), ui);
         http_send(buff);
+        http_send_xml_escaped(tbl_modes[ui].description);
+        http_send(FS("\" />"));
     }
 
     // display animations
     for (i = 0; i < max_display_animation_variables; i++)
     {
-        sprintf(buff, FS("<dispanim idx=\"%d\" name=\"%s\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
-            i,
-            sanitize_xml_string(displayanimationvars[i].name).c_str(),
+        snprintf(buff, sizeof (buff), FS("<dispanim idx=\"%d\" name=\""), i);
+        http_send(buff);
+        http_send_xml_escaped(displayanimationvars[i].name);
+        snprintf(buff, sizeof (buff), FS("\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
             displayanimationvars[i].deceleration,
             displayanimationvars[i].default_deceleration,
             displayanimationvars[i].flags);
@@ -7841,9 +7926,10 @@ http_send_settings_xml (const char * header)
     // color animations
     for (i = 0; i < MAX_COLOR_ANIMATION_VARIABLES; i++)
     {
-        sprintf(buff, FS("<coloranim idx=\"%d\" name=\"%s\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
-            i,
-            sanitize_xml_string(coloranimationvars[i].name).c_str(),
+        snprintf(buff, sizeof (buff), FS("<coloranim idx=\"%d\" name=\""), i);
+        http_send(buff);
+        http_send_xml_escaped(coloranimationvars[i].name);
+        snprintf(buff, sizeof (buff), FS("\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
             coloranimationvars[i].deceleration,
             coloranimationvars[i].default_deceleration,
             coloranimationvars[i].flags);
@@ -7853,9 +7939,10 @@ http_send_settings_xml (const char * header)
     // ambilight modes
     for (i = 0; i < MAX_AMBILIGHT_MODE_VARIABLES; i++)
     {
-        sprintf(buff, FS("<almode idx=\"%d\" name=\"%s\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
-            i,
-            sanitize_xml_string(ambilightmodevars[i].name).c_str(),
+        snprintf(buff, sizeof (buff), FS("<almode idx=\"%d\" name=\""), i);
+        http_send(buff);
+        http_send_xml_escaped(ambilightmodevars[i].name);
+        snprintf(buff, sizeof (buff), FS("\" dcl=\"%d\" def_dcl=\"%d\" flags=\"%d\"/>"),
             ambilightmodevars[i].deceleration,
             ambilightmodevars[i].default_deceleration,
             ambilightmodevars[i].flags);
@@ -7886,7 +7973,7 @@ http_send_settings_xml (const char * header)
     // overlays
     for (i = 0; i < MAX_OVERLAYS; i++)
     {
-        sprintf(buff, FS("<overlay idx=\"%d\" type=\"%d\" interval=\"%d\" duration=\"%d\" date_code=\"%d\" date_start=\"%d\" days=\"%d\" flags=\"%d\" text=\"%s\"/>"),
+        snprintf(buff, sizeof (buff), FS("<overlay idx=\"%d\" type=\"%d\" interval=\"%d\" duration=\"%d\" date_code=\"%d\" date_start=\"%d\" days=\"%d\" flags=\"%d\" text=\""),
             i,
             overlays[i].type,
             overlays[i].interval,
@@ -7894,9 +7981,10 @@ http_send_settings_xml (const char * header)
             overlays[i].date_code,
             overlays[i].date_start,
             overlays[i].days,
-            overlays[i].flags,
-            sanitize_xml_string(overlays[i].text).c_str());
+            overlays[i].flags);
         http_send(buff);
+        http_send_xml_escaped(overlays[i].text);
+        http_send(FS("\"/>"));
     }
 
     http_send(FS("</settings>"));
@@ -8375,43 +8463,104 @@ http_api_weather_get_forecast ()
     return http_api_weather_request (GET_WEATHER_FC_RPC_VAR);
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * /api/network_scan - Liste der sichtbaren WLAN-Netze (BEFUNDE.md L174)
+ *
+ * Hier stand der WLAN-Scan MITTEN IN DER LAUFENDEN ANTWORT: Kopfzeilen und die ersten
+ * Felder waren schon hinaus, erst danach kam WiFi.scanNetworks (). Das ist der
+ * unguenstigste denkbare Zeitpunkt - lwIP haelt in dem Moment die Sendepuffer der
+ * begonnenen Antwort, waehrend der Scan seine Ergebnisliste am Haufen anlegt. Am
+ * 04.10.2026 endete das in einem OOM-Abbruch: 6'016 Byte frei, groesster Block 5'752,
+ * fehlgeschlagene Anforderung 960.
+ *
+ * Drei Aenderungen, alle ohne zusaetzlichen Speicherbedarf:
+ *
+ * 1. Der Scan laeuft VOR dem ersten http_send (). Dann steht ihm der volle Haufen zur
+ *    Verfuegung, und scheitert er trotzdem, ist noch keine Antwort angefangen.
+ * 2. KEIN String mehr je Netz. Bisher entstanden zwei: WiFi.SSID (idx) liefert einen,
+ *    sanitize_xml_string () baut daraus zeichenweise einen zweiten. Bei zwanzig Netzen
+ *    summiert sich das mitten in der Antwort. Stattdessen WiFi.getScanInfoByIndex (),
+ *    das einen Zeiger auf den vorhandenen Eintrag liefert, und http_escape_text () in
+ *    einen Puffer auf dem Stack. Je Netz genau ein http_send ().
+ * 3. OBERGRENZE. Ohne sie haengt die Groesse der Antwort davon ab, wie viele Netze
+ *    zufaellig in der Luft sind - keine Eigenschaft, die man steuern kann. Die Grenze
+ *    begrenzt die AUSGABE; was der Scan selbst belegt, bestimmt weiterhin das SDK.
+ *    Deshalb wird die Ergebnisliste am Ende ausdruecklich mit scanDelete () freigegeben,
+ *    statt bis zum naechsten Scan liegen zu bleiben.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_MAX_SCAN_NETWORKS      24                          // Obergrenze fuer die ausgegebene Netzliste
+
 static int
 http_api_network_scan ()
 {
-    int networks;
-    int idx;
+    char    buf[232];                                           // 32 Zeichen SSID, je bis 6 Byte maskiert, plus Rahmen
+    char    ssid[33];                                           // bss_info.ssid ist 32 Byte und nicht zwingend nullterminiert
+    int     networks;
+    int     idx;
+    int     first = 1;
+
+    networks = WiFi.scanNetworks ();                            // (1) vor der ersten Ausgabe, bei vollem Haufen
+
+    if (networks < 0)                                           // WIFI_SCAN_FAILED / WIFI_SCAN_RUNNING
+    {
+        networks = 0;
+    }
+
+    if (networks > HTTP_MAX_SCAN_NETWORKS)
+    {
+        networks = HTTP_MAX_SCAN_NETWORKS;                      // (3)
+    }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ssid\":\""));
-    http_send (sanitize_xml_string(wifi_ssid).c_str());
+    http_escape_text (wifi_ssid, (unsigned int) strlen (wifi_ssid), buf, sizeof (buf), HTTP_ESCAPE_SCAN, (unsigned int *) 0);
+    http_send (buf);
     http_send (FS("\",\"ip\":\""));
-    http_send (sanitize_xml_string(wifi_ip_address).c_str());
+    http_escape_text (wifi_ip_address, (unsigned int) strlen (wifi_ip_address), buf, sizeof (buf), HTTP_ESCAPE_SCAN, (unsigned int *) 0);
+    http_send (buf);
     http_send (FS("\",\"mode\":\""));
     http_send (wifi_ap_mode ? "ap" : "client");
     http_send (FS("\",\"networks\":["));
 
-    networks = WiFi.scanNetworks();
-
     for (idx = 0; idx < networks; idx++)
     {
-        if (idx)
+        const bss_info *    info = WiFi.getScanInfoByIndex (idx);
+        size_t              n;
+
+        if (! info)
         {
-            http_send (FS(","));
+            continue;                                           // Liste wurde zwischendurch verworfen
         }
+
+        memcpy (ssid, info->ssid, sizeof (info->ssid));
+        ssid[sizeof (info->ssid)] = '\0';
 
         /* Derselbe Name kommt je Accesspoint und Kanal mehrfach. Ohne Feldstaerke kann
          * die PWA beim Entfernen der Dubletten nur den ersten Treffer behalten, nicht
          * den besten (L41). Sie nimmt beide Formen entgegen: blosser Name oder Objekt.
          */
-        http_send (FS("{\"ssid\":\""));
-        http_send (sanitize_xml_string(WiFi.SSID(idx)).c_str());
-        http_send (FS("\",\"rssi\":"));
-        http_send (String ((int) WiFi.RSSI(idx)).c_str ());
-        http_send (FS("}"));
+        n = 0;
+
+        if (! first)
+        {
+            buf[n++] = ',';
+        }
+
+        first = 0;
+
+        memcpy (buf + n, "{\"ssid\":\"", 9);
+        n += 9;
+        n += http_escape_text (ssid, (unsigned int) strlen (ssid), buf + n, sizeof (buf) - n, HTTP_ESCAPE_SCAN, (unsigned int *) 0);
+        snprintf (buf + n, sizeof (buf) - n, "\",\"rssi\":%d}", (int) info->rssi);
+
+        http_send (buf);                                        // (2) genau ein Aufruf je Netz, kein String
     }
 
     http_send (FS("]}"));
     http_flush ();
+
+    WiFi.scanDelete ();                                         // Ergebnisliste sofort freigeben, nicht erst beim naechsten Scan
 
     return 0;
 }
@@ -8518,13 +8667,13 @@ http_api_eeprom_settings ()
 {
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"ssid\":\""));
-    http_send (sanitize_json_string (eeprom_ssid).c_str ());
+    http_send_json_escaped (eeprom_ssid);
     http_send (FS("\",\"key\":\""));
-    http_send (sanitize_json_string (eeprom_ssidkey).c_str ());
+    http_send_json_escaped (eeprom_ssidkey);
     http_send (FS("\",\"ap_ssid\":\""));
-    http_send (sanitize_json_string (eeprom_ap_ssid).c_str ());
+    http_send_json_escaped (eeprom_ap_ssid);
     http_send (FS("\",\"ap_key\":\""));
-    http_send (sanitize_json_string (eeprom_ap_ssidkey).c_str ());
+    http_send_json_escaped (eeprom_ap_ssidkey);
     http_send (FS("\",\"flags\":"));
     http_send (eeprom_flags ? "1" : "0");
     http_send (FS(",\"boot_as_ap\":"));
@@ -10000,7 +10149,7 @@ http_json_error (unsigned int error_code, const char * detail)
     http_send (FS("{\"ok\":false,\"error\":"));
     http_send (String (error_code).c_str ());
     http_send (FS(",\"detail\":\""));
-    http_send (sanitize_json_string (detail ? detail : "").c_str ());
+    http_send_json_escaped (detail ? detail : "");
     http_send (FS("\"}"));
     http_flush ();
 }
@@ -10915,7 +11064,7 @@ http_api_overlay_icons ()
                 }
 
                 http_send (FS("\""));
-                http_send (sanitize_json_string(icon_name).c_str());
+                http_send_json_escaped (icon_name);
                 http_send (FS("\""));
                 first = 0;
 
@@ -11013,7 +11162,7 @@ http_api_fs_list ()
 
         sprintf (sizebuf, "%d", f ? f.size () : 0);
         http_send (FS("{\"name\":\""));
-        http_send (sanitize_json_string (dir.fileName ()).c_str ());
+        http_send_json_escaped (dir.fileName ().c_str ());
         http_send (FS("\",\"size\":"));
         http_send (sizebuf);
         http_send (FS("}"));
@@ -11620,7 +11769,7 @@ http_api_update_status ()
                     }
 
                     http_send (FS("\""));
-                    http_send (sanitize_json_string (fname).c_str ());
+                    http_send_json_escaped (fname);
                     http_send (FS("\""));
                     first = 0;
                 }
@@ -11645,11 +11794,11 @@ http_api_update_progress ()
     http_send (FS("{\"ok\":true,\"active\":"));
     http_send (update_progress.active ? "true" : "false");
     http_send (FS(",\"type\":\""));
-    http_send (sanitize_json_string (update_progress.type).c_str ());
+    http_send_json_escaped (update_progress.type);
     http_send (FS("\",\"state\":\""));
-    http_send (sanitize_json_string (update_progress.state).c_str ());
+    http_send_json_escaped (update_progress.state);
     http_send (FS("\",\"message\":\""));
-    http_send (sanitize_json_string (update_progress.message).c_str ());
+    http_send_json_escaped (update_progress.message);
     http_send (FS("\",\"progress_current\":"));
     sprintf (buf, "%u", (unsigned) update_progress.progress_current);
     http_send (buf);
@@ -11857,7 +12006,7 @@ http_api_update_table_files ()
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"current_table\":\""));
-    http_send (sanitize_json_string (current_tables ? current_tables : "").c_str ());
+    http_send_json_escaped (current_tables ? current_tables : "");
     http_send (FS("\",\"table_files\":["));
 
     if (tables_filter)
@@ -11896,7 +12045,7 @@ http_api_update_table_files ()
                         }
 
                         http_send (FS("\""));
-                        http_send (sanitize_json_string (fname).c_str ());
+                        http_send_json_escaped (fname);
                         http_send (FS("\""));
                         first = 0;
                     }
@@ -12052,7 +12201,7 @@ http_api_remote_stm32_flash_send_result (uint_fast8_t ok, uint32_t error_code, u
             http_send (FS(",\"error\":"));
             http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
             http_send (FS(",\"message\":\""));
-            http_send (sanitize_json_string (update_progress.message).c_str ());
+            http_send_json_escaped (update_progress.message);
             http_send (FS("\""));
         }
 
@@ -12071,7 +12220,7 @@ http_api_remote_stm32_flash_send_result (uint_fast8_t ok, uint32_t error_code, u
         http_send (FS(",\"error\":"));
         http_send (String (error_code ? error_code : update_progress.error_code).c_str ());
         http_send (FS(",\"message\":\""));
-        http_send (sanitize_json_string (update_progress.message).c_str ());
+        http_send_json_escaped (update_progress.message);
         http_send (FS("\""));
     }
 
@@ -12274,7 +12423,7 @@ http_api_local_esp_update ()
     }
     char detailbuf[192];
     sprintf (detailbuf, "len=%u max=%u skip=%u first=%s begin=%u written=%u progress=%u remaining=%u stream=%u end=%u", (unsigned) content_length, (unsigned) max_sketch_space, (unsigned) skipped, chunkbuf_len ? chunkbuf : "--", begin_ok, (unsigned) bytes_written, (unsigned) progress_before_end, (unsigned) remaining_before_end, stream_ok, end_ok);
-    http_send (sanitize_json_string (detailbuf).c_str ());
+    http_send_json_escaped (detailbuf);
     http_send (FS("\""));
     http_send (FS("}"));
     http_flush ();

@@ -34,6 +34,28 @@ Betrifft direkt `display.c` (Display-Zustandsmaschine) und `ds18xx.c`/`tempsenso
 
 ## ESP8266 (`ESP8266/ESP-uclock/*.cpp`, `*.ino`)
 
+### Jede neue `static`-Funktion in der `.ino` braucht einen eigenen Prototyp
+
+`arduino-cli` erzeugt für jede Funktion in einer `.ino`-Datei selbst einen Prototyp —
+**ohne `static`**. Ist die Definition `static`, bricht der Bau ab:
+
+```
+error: 'void xyz()' was declared 'extern' and later 'static' [-fpermissive]
+```
+
+Nachzulesen im erzeugten Zwischenstand unter `build/esp8266/sketch/ESP-uclock.ino.cpp`.
+Ein **handgeschriebener** Prototyp unterdrückt die Erzeugung — deshalb tragen `icon_info`
+und `resolve_icon_asset_filename` einen, und deshalb brach `esp_heap_log()` am 04.10.2026
+den Build (L177).
+
+**Steht die Funktion in einem `#if`-Block, gehört der Prototyp in denselben Block.** Ihn
+nach oben zu den anderen zu stellen scheitert, wenn das `#define` erst weiter unten steht:
+Die Bedingung ist oben noch 0, der Prototyp entfällt, der Fehler kommt zurück.
+
+Derzeit haben **2 von 2** `static`-Funktionen der `.ino` einen Prototyp. Die nächste ohne
+bricht den Bau wieder.
+
+
 | Ich sehe… | Ich tue… | Schweregrad |
 |---|---|---|
 | Neue unbedingte Debugausgabe pro HTTP-Request auf die STM-UART | Unterdrücken oder bedingt machen. Der RX-Ring des STM ist 256 Byte und verwirft bei Überlauf **still** (`uart-driver.h:698`, kein `else`-Zweig) | Kritisch |

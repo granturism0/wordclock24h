@@ -18,6 +18,11 @@
  *                         Form "while (len > 0)" muss deshalb bei < 0 abbrechen.
  * httpclient_read_line () liefert aus demselben Grund -1 statt einer Zeilenlaenge.
  * Ein unveraendertes *lenp > 0 nach dem Abruf heisst: unvollstaendig geladen.
+ *
+ * ABER: "Abbruch der Gegenstelle" wird NICHT mehr allein an client.connected ()
+ * festgemacht. Das meldete false, waehrend noch Daten unterwegs waren, und schnitt
+ * jede Antwort nach dem ersten TCP-Segment ab (L173). Begruendung und Messung stehen
+ * im Kopf von httpclient_wait_for_data ().
  */
 extern int    httpclient (const char *, const char *, const char *);
 extern int    httpclient_read (int *);

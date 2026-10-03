@@ -69,7 +69,15 @@
 
 
 #define CMD_BUFFER_SIZE     128                                             // maximum size of command buffer
-#define STM32_LOG_LINES     64
+/* 32 statt 64 Zeilen: spart 3'872 Byte im statischen Bereich (BEFUNDE.md L175/L176).
+ * Der freie Haufen ist nicht das Problem, der GROESSTE ZUSAMMENHAENGENDE BLOCK ist es -
+ * er faellt im Betrieb um rund 44 Prozent. Was hier an BSS frei wird, steht dem Haufen
+ * dauerhaft zur Verfuegung. Die ZEILENLAENGE bleibt bei 120: unsere Diagnosezeile ist
+ * 118 Zeichen lang, dort waere nichts zu holen, ohne das aussagekraeftigste Protokoll
+ * zu beschneiden. Die 32 sind ausdruecklich gewaehlt und nicht 24 - die Rueckschau
+ * wird gerade gebraucht.
+ */
+#define STM32_LOG_LINES     32
 #define STM32_LOG_LINE_LEN  120
 #define LOG_TRUNC_MARK      '~'                                             // Zeilenende-Marke: Text wurde gekuerzt
 
@@ -406,6 +414,62 @@ icon_info (const char * fname, const char * name)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * BEFRISTETE DIAGNOSEHILFE ZU L175 - DER RUECKBAU GEHOERT ZUR MASSNAHME (Katalog C9c4)
+ *
+ * free_heap und max_free_block stehen zwar in /api/device_ready, aber NUR AUF ABRUF:
+ * Wer nicht gerade fragt, sieht nichts, und nach einem Absturz ist der Zustand davor
+ * verloren. L175 - der groesste zusammenhaengende Block faellt im Betrieb um 44 Prozent -
+ * wurde ueberhaupt nur gefunden, weil zufaellig vor und nach einem Neustart gemessen
+ * wurde. Diese Zeile schliesst genau diese Luecke.
+ *
+ * Sie traegt das Praefix "- ", das der STM als ESP8266_DEBUGMSG erkennt
+ * (src/esp8266/esp8266.c:332). Damit landet sie im STM32-Logbuch und ist ueber
+ * /api/stm32_log auch im Nachhinein lesbar - das ist der ganze Zweck.
+ *
+ * Kosten: rund 26 Byte je Minute, also 0,4 Byte/s auf einer Bruecke mit 37 bis 80
+ * Byte/s Grundlast (L141). Vernachlaessigbar - ABER NUR, SOLANGE SIE GEBRAUCHT WIRD.
+ *
+ * WEG DAMIT, sobald die Fragmentierung behoben und ueber mehrere Tage bestaetigt ist:
+ * ESP_HEAP_LOG auf 0 setzen oder den Block ganz entfernen. Steht sie ungeprueft weiter
+ * hier, traegt sie zu genau der Bruecken- und Speicherlast bei, die wir gerade senken -
+ * dasselbe Muster wie "- new client", das jahrelang mitlief, bis es jemandem auffiel.
+ *
+ * Serial.print () auf eine Zahl baut KEIN String-Objekt (Print::printNumber arbeitet
+ * auf dem Stack). Die Messzeile darf den Haufen nicht anfassen, sonst misst sie sich
+ * selbst.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define ESP_HEAP_LOG                1                                       // 0 = aus. Rueckbau zu L175, siehe oben
+#define ESP_HEAP_LOG_INTERVAL       60000UL                                 // msec
+
+#if ESP_HEAP_LOG
+// Lokaler Prototyp, zwingend: arduino-cli erzeugt fuer jede .ino-Funktion ohne eigenen
+// Prototyp selbst einen - und zwar OHNE static (ESP-uclock.ino.cpp). "extern deklariert,
+// spaeter static" ist ein Fehler, der Bau bricht ab. Er muss HIER stehen und nicht oben
+// bei icon_info: ESP_HEAP_LOG wird erst in Zeile 442 definiert, dort waere #if noch 0.
+static void           esp_heap_log (void);
+
+static void
+esp_heap_log (void)
+{
+    static unsigned long    last_millis = 0;
+    static uint_fast8_t     pending     = 1;                                // die erste Zeile sofort, nicht erst nach einer Minute
+
+    if (pending || (millis () - last_millis) >= ESP_HEAP_LOG_INTERVAL)      // Differenzbildung ist ueberlaufsicher
+    {
+        pending     = 0;
+        last_millis = millis ();
+
+        Serial.print ("- heap free=");
+        Serial.print ((unsigned long) ESP.getFreeHeap ());
+        Serial.print (" max=");
+        Serial.println ((unsigned long) ESP.getMaxFreeBlockSize ());
+        Serial.flush ();
+    }
+}
+#endif
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * main loop
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -420,6 +484,10 @@ loop()
     http_server_loop ();
     udp_server_loop ();
     ntp_poll_time ();                                                       // poll NTP
+
+#if ESP_HEAP_LOG
+    esp_heap_log ();                                                    // befristet, siehe Kommentar oben (L175/L177)
+#endif
 
     while (Serial.available())
     {

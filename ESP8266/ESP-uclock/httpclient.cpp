@@ -16,7 +16,7 @@
 static WiFiClient      client;
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
- * Warten auf Daten der Gegenstelle - mit Abbruchbedingung (BEFUNDE.md L152)
+ * Warten auf Daten der Gegenstelle - mit Abbruchbedingung (BEFUNDE.md L152, L173)
  *
  * Vorher stand an beiden Lesestellen "while (! client.available()) { ; }" ohne jede
  * Abbruchbedingung. Dass das NICHT in einem Watchdog-Reset endet, macht es schlimmer
@@ -28,13 +28,39 @@ static WiFiClient      client;
  * einmal neu. Ein zusaetzliches yield () haette daran nichts geaendert; noetig ist eine
  * Zeitgrenze mit definiertem Rueckgabewert.
  *
- * client.connected () ist die richtige zweite Bedingung und nicht zu scharf: Der Core
- * liefert true, solange noch gepufferte Daten anstehen, auch wenn die Gegenstelle
- * bereits geschlossen hat (WiFiClient.cpp:332). Erst wenn nichts mehr da ist UND die
- * Verbindung weg ist, bricht die Schleife ab.
+ * HIER STAND EINE FALSCHE BEGRUENDUNG, und genau sie hat L173 verursacht. Sie lautete:
+ * "client.connected () liefert true, solange noch gepufferte Daten anstehen, auch wenn
+ * die Gegenstelle bereits geschlossen hat (WiFiClient.cpp:332)". Das stimmt nicht.
+ * WiFiClient::connected () fragt ZUERST ClientContext::state () ab und kehrt bei CLOSED
+ * sofort mit 0 zurueck (WiFiClient.cpp:329) - und ClientContext::state () meldet CLOSED
+ * auch fuer CLOSE_WAIT und CLOSING (ClientContext.h:365). Das "|| available ()" in Zeile
+ * 332 wird also in genau dem Fall nie erreicht, fuer den es hier zitiert wurde.
+ *
+ * Am Geraet gemessen (04.10.2026): Der Abbruch traf reproduzierbar nach exakt 536
+ * empfangenen Byte, also nach genau EINEM TCP-Segment (TCP_MSS = 536 in der Bauvariante
+ * ip=lm2f). Gegen zwei Server mit verschiedenen Kopflaengen dieselbe Summe: 248 + 288
+ * und 354 + 182. Der Abbruch kam SOFORT - die abgeschnittenen Abrufe waren genauso
+ * schnell wie die vollstaendigen, die Zeitgrenze war also nicht beteiligt. Betroffen war
+ * der Legacy-Pfad genauso wie /api/update_status, weil beide dieselbe Leseschleife
+ * benutzen.
+ *
+ * Dass die fehlenden Byte trotzdem noch kommen, ist ebenfalls belegt: Bis ESP 3.2.16
+ * wartete genau diese Stelle unbegrenzt und lieferte die Datei IMMER vollstaendig.
+ * connected () ist hier also kein verlaessliches "es kommt nichts mehr", sondern ein
+ * Zwischenzustand.
+ *
+ * Deshalb beendet connected () == false die Schleife nicht mehr sofort, sondern eroeffnet
+ * ein NACHLAUFFENSTER: Es wird weiter auf Daten geprueft, bis das Budget aufgebraucht
+ * ist. Das Budget gilt FUER DEN GANZEN ABRUF und nicht je Zeichen - sonst koennten 432
+ * Restbyte im schlimmsten Fall 432 Fenster kosten. Beim regulaeren Ende eines Abrufs
+ * kostet es nichts, weil der Aufrufer dann bei len == 0 aufhoert und gar nicht mehr
+ * wartet; bezahlt wird es nur von Abrufen, die tatsaechlich abreissen.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 #define HTTPCLIENT_READ_TIMEOUT     5000                        // msec, Vorbild: READ_BODY_TIMEOUT in http.cpp
+#define HTTPCLIENT_PEER_GONE_GRACE   300                        // msec Nachlauf JE ABRUF, wenn connected () schon false meldet
+
+static unsigned int     httpclient_grace_left = 0;              // Rest des Nachlaufbudgets, von httpclient () je Abruf gesetzt
 
 static bool
 httpclient_wait_for_data (void)
@@ -43,14 +69,19 @@ httpclient_wait_for_data (void)
 
     while (! client.available ())
     {
-        if (! client.connected ())
-        {
-            return false;                                       // Gegenstelle weg und Puffer leer
-        }
-
         if ((millis () - start_millis) >= HTTPCLIENT_READ_TIMEOUT)
         {
             return false;                                       // Zeitgrenze, Differenzbildung ist ueberlaufsicher
+        }
+
+        if (! client.connected ())
+        {
+            if (httpclient_grace_left == 0)
+            {
+                return false;                                   // Nachlauf aufgebraucht: jetzt kommt wirklich nichts mehr
+            }
+
+            httpclient_grace_left--;                            // ein Schritt je delay (1) unten
         }
 
         delay (1);
@@ -136,6 +167,8 @@ httpclient (const char * host, const char * path, const char * file)
     {
         return -1;
     }
+
+    httpclient_grace_left = HTTPCLIENT_PEER_GONE_GRACE;                             // Nachlaufbudget gilt je Abruf (L173)
 
     client.print (String("GET ") + "/" + path + "/" + file + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
 
