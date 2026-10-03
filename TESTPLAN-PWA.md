@@ -21,7 +21,7 @@ Schritt dieses Plans:
    Durchlauf in der Mitte ab, steht die Uhr trotzdem nahe am Ausgangszustand.
 3. **Der Beweis ist der Abschlussvergleich** (Phase 9), nicht das Gefühl, alles
    zurückgesetzt zu haben.
-4. **Sieben Funktionen werden nicht scharf ausgeführt.** Welche und warum: Phase 8.
+4. **Zehn Funktionen werden nicht scharf ausgeführt.** Welche und warum: Phase 8.
    Dazu gehören **WLAN-SSID und -Schlüssel**: Sie zu schreiben hiesse, die Verbindung
    zu kappen, über die geprüft wird.
 
@@ -282,13 +282,103 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 **Schritt 3 ist der Kern.** Eine Schaltfläche, die „Gespeichert" meldet, beweist
 nichts — die PWA kennt den Erfolg nur vom HTTP-Status. Geprüft wird am Rohwert.
 
+### 6.0a Jede Prüfung hat eine Kennung
+
+Die Abschnitte 6.0 bis 6.9 führen die schreibenden Prüfungen **einzeln auf**, mit
+fortlaufender Kennung `S1` bis `S114` über alle Module hinweg. Vorher stand hier
+Fliesstext: Abschnitt 6.4 nannte dreizehn Einstellungen in einem einzigen Satz. Daraus
+liess sich keine Checkliste bilden, und **es fiel niemandem auf, wenn zwei davon
+ausgelassen wurden.**
+
+Die Folge ist gemessen. Der Durchlauf vom 03.10.2026 meldete 22 Prüfungen. Von den
+damals **42 benannten** Prüfungen dieses Plans hat er genau **eine** gefahren (B16);
+die übrigen 21 hatte er selbst erfunden und selbst benannt. Was nicht im Plan steht,
+kann nicht fehlen — und was selbst benannt wird, lässt sich zwischen zwei Durchläufen
+nicht vergleichen.
+
+Die Liste der Einstellungen ist **aus dem Quelltext abgeleitet**, nicht aus der
+früheren Prosa: aus den `*_set`-Endpunkten in `ESP8266/ESP-uclock/http.cpp` (das ist
+die vollständige Liste dessen, was überhaupt schreibbar ist), aus den Aufrufstellen in
+`ESP8266/ESP-uclock/data/app/app.js` (das ist die Teilmenge, die die Oberfläche
+erreicht) und aus `ESP8266/ESP-uclock/vars.h` (das sind die Variablen, in denen die
+Werte landen).
+
+### 6.0b Das Soll steht am Rohwert, nicht an der Oberfläche
+
+Die Spalte **Soll** nennt das Feld im Rohabzug in genau der Schreibweise, die
+`./tools/diff-snapshot.sh` ausgibt — `numvar[idx=6].value`, `strvar[idx=4].value`,
+`dspcolor[idx=0].white`, `nighttime[idx=2].minutes` und so fort. Damit ist ein
+Prüfergebnis belegbar, ohne dass jemand eine Variablennummer von Hand nachschlagen
+muss, und es ist zwischen zwei Durchläufen vergleichbar.
+
+Die Indizes stammen aus den Aufzählungen in `ESP8266/ESP-uclock/vars.h`. Ändert sich
+dort die Reihenfolge, verschieben sich die Nummern — dann ist diese Tabelle
+nachzuziehen. Zur Sicherheit steht neben jeder Nummer der symbolische Name.
+
+### 6.0c Die Abdeckung ist zu melden
+
+Am Ende eines Durchlaufs gehört **eine Zahl** in den Bericht:
+
+```
+Phase 3: von 114 benannten Prüfungen X gefahren, Y ausgelassen.
+Je ausgelassener Prüfung: Kennung und Grund.
+```
+
+Ohne diese Zahl sieht ein Bericht über 22 Prüfungen genauso vollständig aus wie einer
+über 114. **Ein Durchlauf ohne Abdeckungszahl gilt als nicht abgeschlossen**, auch wenn
+jede einzelne gemeldete Prüfung bestanden hat.
+
+Gültige Gründe für ein Auslassen sind: Hardware nicht vorhanden (Modul als „nicht
+prüfbar" protokolliert), Freigabe des Nutzers fehlt, oder die Prüfung steht in Phase 8.
+„Keine Zeit mehr" ist ebenfalls ein gültiger Grund — aber er muss dastehen.
+
+### 6.0d Abbrechen ja, aufgeben nein
+
+Am 03.10.2026 hat ein Testagent Phase 3 abgebrochen, weil der Rohabzug den
+Gerätezustand nicht mehr abbildete (L103): Nach einem ESP-Neustart standen dort
+Helligkeit 0 und Zeitzone 0, während die Uhr richtig lief. Ein regelkonformes
+„Ausgangswert zurückschreiben" hätte die Uhr dauerhaft dunkel gestellt, und die
+Gegenprobe hätte es nicht gefunden, weil sie denselben kaputten Zwischenstand liest.
+
+**Die Entscheidung war richtig und bleibt richtig.** Wer bemerkt, dass der Rohabzug
+nicht mehr stimmt, hört sofort auf zu schreiben.
+
+**Was fehlte, war der zweite Teil.** Der Durchlauf endete damit, obwohl der Zustand
+reparierbar war — ein STM-Reset hätte genügt. Deshalb gilt ab jetzt:
+
+1. **Melden.** Zustand beschreiben, Beleg nennen (welches Feld weicht wovon ab).
+2. **Reparieren lassen.** Die Reparatur macht der Nutzer oder der Lead, nicht der
+   prüfende Agent.
+3. **Nachweisen, dass der Abzug wieder trägt.** Neuer Rohabzug, Vergleich gegen die
+   Referenz aus Phase 1.
+4. **Fortsetzen**, bei der Kennung, an der abgebrochen wurde.
+5. Im Bericht steht die Unterbrechung als eigene Zeile, mit Dauer und Grund.
+
+Ein Abbruch ist ein Zwischenstand, kein Ende. Nur wenn eine der Abbruchbedingungen aus
+Kapitel 15 greift, ist der Durchlauf wirklich beendet.
+
+### 6.0 `main`
+
+Das Modul hat zwei Schaltflächen und stand bisher in keinem Abschnitt dieses Plans.
+Die beiden Hauptschalter der Uhr liegen hier, nicht im Modul `display`.
+
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S1** | Display ein- und ausschalten (`display_power_set?value=on\|off`) | S | `numvar[idx=3].value` (`DISPLAY_POWER`) steht auf `1` bzw. `0` | Sofort am Display sichtbar. Zuletzt prüfen und sofort zurücknehmen — eine dunkle Uhr fällt im Wohnraum auf |
+| **S2** | Ambilight ein- und ausschalten (`ambilight_power_set?value=on\|off`) | S | `numvar[idx=30].value` (`DISPLAY_AMBILIGHT_POWER`) steht auf `1` bzw. `0` | An dieser Uhr ohne sichtbare Wirkung (L11) — nur am Rohwert prüfbar |
+
 ### 6.1 `system`
 
-Gerätezeit setzen (Tag, Monat, Jahr, Stunde, Minute), Zeit vom Netz holen,
-Debug-Ansichten umschalten, Logbuch leeren. **Zeit setzen ist Klasse S**, aber eine
-falsche Zeit fällt sofort auf dem Display auf — zuletzt prüfen und sofort korrigieren.
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S3** | Gerätezeit setzen (`datetime_set?year=&month=&day=&hour=&minute=`) | S | `tmvar[idx=0].year/month/day/hour/minute` tragen die gesetzten Werte | Der Parameter heisst `minute`, nicht `min` — die Legacy-Seite benutzt `min`. **Zuletzt prüfen und sofort korrigieren**, eine falsche Zeit fällt auf dem Display auf |
+| **S4** | 31. Februar setzen | S | Antwort `error_code=4` (`INVALID_DATE`), `tmvar[idx=0]` **unverändert** | Schaltjahr mitprüfen: 29.02. eines Schaltjahrs muss angenommen werden |
+| **S5** | `datetime_set` ohne `minute` | S | Antwort `error_code=1` (`MISSING_VALUE`), `tmvar[idx=0]` unverändert | Jedes Feld ist Pflicht; ein fehlendes darf nicht zu `0` werden |
+| **S6** | Zeit vom Netz holen (`network_get_time`) | S | `tmvar[idx=0]` stimmt binnen 10 s auf ±2 s mit der eigenen Uhr überein | Schlägt fehl, wenn der Zeitserver aus S9 unbrauchbar ist — Reihenfolge beachten |
+| **S7** | Logbuch leeren (`stm32_log_clear`) | S | `/api/stm32_log` meldet unmittelbar danach ein kleineres `count` als davor; die nächste Zeile trägt eine lückenlos fortgesetzte Folgenummer | Der Ring füllt sich sofort weiter, `count=0` ist deshalb **kein** zulässiges Soll |
+| **S8** | Debug-Ansichten umschalten (vier Auswahlfelder, Anwenden, Zurücksetzen) | S | Rohabzug vor und nach dem Umschalten **feldgleich** | **Kein Endpunkt dahinter** — die Umschaltung wirkt nur lokal in der Oberfläche. Genau das ist das Soll: Sie darf am Gerät nichts ändern |
 
-### 6.2 `network` — teils Klasse N, teils gar nicht
+### 6.2 `network`
 
 **SSID und WLAN-Schlüssel werden nicht geschrieben. Punkt.**
 
@@ -300,116 +390,198 @@ bis jemand physisch an das Gerät geht. Ein Testplan, der sich dafür auf „Rü
 vorbereitet" verlässt, setzt die Erreichbarkeit aufs Spiel, um die Erreichbarkeit zu
 prüfen. Das ist kein akzeptabler Tausch.
 
-Dasselbe gilt für **WPS**: Der Vorgang kann die gespeicherten Zugangsdaten ersetzen,
-ohne dass die PWA das Ergebnis kontrolliert.
-
-Beide stehen deshalb in **Phase 8**, nicht hier.
-
-| Was | Klasse | Besonderheit |
-|---|---|---|
-| WLAN-Suche (`network_scan`) | **L** | Liefert die Liste? Wie reagiert sie, wenn keine Netze gefunden werden? Rein lesend, gefahrlos |
-| **WLAN-SSID und -Schlüssel setzen** | **G** | **Nicht ausführen** — Phase 8 |
-| **WPS** | **G** | **Nicht ausführen** — Phase 8 |
-| **AP-SSID und AP-Schlüssel** (`network_ap_set`) | **G** | **Nicht ausführen** — Phase 8. *Diese Zeile stand bis zum 02.10.2026 als „Klasse N, daher prüfbar" hier. Das war falsch:* `http_api_network_ap_set` setzt `EEPROM_FLAG_BOOT_AS_AP`, schreibt das EEPROM und ruft **sofort** `wifi_ap()`. Die Uhr ist damit aus dem WLAN und kommt auch beim nächsten Start als Zugangspunkt hoch — genau die Wirkung, die dieser Plan für `boot_as_ap` ausschliesst. Der erste Testdurchlauf hat den Widerspruch gefunden, weil der Agent die Prüfung von sich aus verweigert hat. Dass er das musste, war die Lücke |
-| „Als Zugangspunkt starten" (`boot_as_ap`) | **G** | **Nicht setzen.** Beim nächsten Neustart wäre die Uhr nicht mehr im WLAN |
-| Zeitserver | N | Eingabefeld **32** Zeichen, ESP speichert **16** (`MAX_TIMESERVER_NAME_LEN`). **Erwarteter Befund:** stille Kürzung |
-| Zeitzone, Sommerzeit | S | Bereich −12..14, wirkt auf die Anzeige, sofort rücknehmbar |
-| Zeit vom Netz holen | S | prüft, ob der Zeitserver erreichbar ist |
+Dasselbe gilt für **WPS**, für **AP-SSID und AP-Schlüssel** (`network_ap_set` setzt
+`EEPROM_FLAG_BOOT_AS_AP`, schreibt das EEPROM und ruft **sofort** `wifi_ap()`), für
+**„Als Zugangspunkt starten"** und für `eeprom_settings_set`. Alle fünf stehen in
+**Phase 8**.
 
 **Was die SSID-Prüfung ersetzt:** Dass der Weg grundsätzlich funktioniert, ist dadurch
 belegt, dass die Uhr **jetzt** im WLAN ist — die Funktion ist in Benutzung. Geprüft
-wird deshalb nur, was ohne Schreiben geht: Liefert die Suche Treffer, erscheint die
-aktuelle SSID darin, zeigt die Oberfläche den Verbindungszustand richtig an.
+wird lesend in Phase 2: Liefert `network_scan` Treffer, erscheint die aktive SSID
+darin, zeigt die Oberfläche den Verbindungszustand richtig an.
 
-**Eine Einschränkung, die dabei auffällt:** Die SSID ist nur aus der Trefferliste
-wählbar (`network-ssid-select`), nicht frei eingebbar. Ein **verstecktes** Netz lässt
-sich über die PWA nicht konfigurieren. Als Befund protokollieren, nicht als Fehler des
-Durchlaufs.
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S9** | Zeitserver setzen (`network_timeserver_set?value=`) | N | `strvar[idx=4].value` (`TIMESERVER`) trägt den gesetzten Namen | Trifft den Zeitabgleich, nicht die Verbindung — deshalb N und nicht G |
+| **S10** | Zeitserver mit 17 Zeichen | N | `strvar[idx=4].value` ist auf **16 Zeichen** gekürzt | **Erwarteter Befund:** Das Eingabefeld erlaubt 32, `MAX_TIMESERVER_NAME_LEN` ist 16. Stille Kürzung ohne Meldung. Festhalten, nicht als Fehler des Durchlaufs werten |
+| **S11** | Zeitzone setzen (`network_timezone_set?value=`) | S | `numvar[idx=19].value` (`TIMEZONE`) = Betrag der Zeitzone, bei negativen Werten zusätzlich Bit `0x100`, Sommerzeitbit `0x200` **unverändert** | MEZ mit Sommerzeit ergibt `513`. Wirkt sofort auf die Anzeige |
+| **S12** | Zeitzone `15` und `-13` setzen | S | Antwort `error_code=2` (`OUT_OF_RANGE`), `numvar[idx=19].value` unverändert | Die Grenze prüft der ESP selbst (L28), nicht nur die Oberfläche |
+| **S13** | Sommerzeit umschalten (`network_summertime_set?value=on\|off`) | S | Bit `0x200` in `numvar[idx=19].value` gesetzt bzw. gelöscht, die unteren Bits unverändert | Gegenprobe **ohne** `value`: Der Wert muss stehen bleiben. Ein fehlender Parameter hat die Sommerzeit früher abgeschaltet und Erfolg gemeldet (L47) |
 
 ### 6.3 `climate`
 
-Wetter-AppID, Ort, Längen- und Breitengrad, Kartenauswahl (Modal), Wetter jetzt und
-Vorhersage abrufen, Temperaturkorrekturen (−20..20), LDR-Minimum und -Maximum,
-Temperatur anzeigen.
-
 **`weather_get_now` und `weather_get_forecast` sind nicht rein lesend** (L54). Sie
 lösen eine Anzeige auf dem Display aus und melden anschliessend bedingungslos
-`{"ok":true}` — auch wenn AppID oder Ort unbrauchbar sind. Für den Durchlauf heisst
-das: Klasse S, nicht L, und ein `ok:true` ist dort **kein** Beleg dafür, dass Daten
-angekommen sind.
+`{"ok":true}` — auch wenn AppID oder Ort unbrauchbar sind. Ein `ok:true` ist dort
+**kein** Beleg dafür, dass Daten angekommen sind.
 
-Das **Kartenmodal** ist ein eigener Prüfgegenstand: Suche, Klick auf die Karte,
-aktueller Standort, Übernahme in die Felder, Escape, Klick auf den Hintergrund,
-Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext — über
+Das **Kartenmodal** ist ein eigener Prüfgegenstand ohne eigenen Endpunkt: Suche, Klick
+auf die Karte, aktueller Standort, Übernahme in die Felder, Escape, Klick auf den
+Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext — über
 `http://` schlägt er fehl, und das ist **erwartetes** Verhalten.
+
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S14** | Wetter-AppID setzen (`weather_appid_set?value=`) | S | `strvar[idx=5].value` (`WEATHER_APPID`) trägt den Wert, Grenze 32 | Leerer Wert wird mit `error_code=1` abgewiesen |
+| **S15** | Ort setzen (`weather_city_set?value=`) | S | `strvar[idx=6].value` (`WEATHER_CITY`), Grenze 32 | |
+| **S16** | Koordinaten setzen (`weather_coordinates_set?lon=&lat=`) | S | `strvar[idx=7].value` (`WEATHER_LON`) und `strvar[idx=8].value` (`WEATHER_LAT`), je Grenze 8 | Nur eines von beiden gesetzt ⇒ `error_code=1` |
+| **S17** | Ort leeren, während keine Koordinaten stehen | S | `error_code=1`, `strvar[idx=6].value` unverändert | Ort und Koordinaten sind Alternativen; die letzte Angabe darf nicht wegfallen |
+| **S18** | Wetter jetzt abrufen (`weather_get_now`) | S | Am Display erscheint die Wetterzeile; der Ticker läuft danach wieder an | **Nicht L.** `{"ok":true}` kommt auch bei unbrauchbarer AppID (L54) — Beleg ist die Anzeige, nicht die Antwort |
+| **S19** | Vorhersage abrufen (`weather_get_forecast`) | S | wie S18 | |
+| **S20** | DS18xx-Korrektur setzen (`temperature_ds18xx_correction_set?value=`) | S | `numvar[idx=24].value` (`DS18XX_TEMP_CORRECTION`) trägt den Wert | Bereich −20..20 in halben Grad |
+| **S21** | RTC-Korrektur setzen (`temperature_rtc_correction_set?value=`) | S | `numvar[idx=22].value` (`RTC_TEMP_CORRECTION`) | |
+| **S22** | Korrektur `21` und `-21` setzen | S | `error_code=2`, beide Variablen unverändert | |
+| **S23** | Temperatur anzeigen (`temperature_display`) | S | Die Temperatur erscheint auf dem Display | Zeigt der Sensor `127.5`, ist das **keine Messung**, sondern der STM-Fehlerwert `255` |
+| **S24** | Automatische Helligkeit umschalten (`auto_brightness_set?value=on\|off`) | S | `numvar[idx=8].value` (`DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE`) 1 bzw. 0 | **Das Bedienelement liegt im Modul `climate`, nicht in `display`** — es steht im LDR-Bereich. Solange es an ist, überschreibt der LDR die Helligkeit aus S29 |
+| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`) | Fernauslösung eines STM-Kommandos; der Rohwert schwankt, deshalb unmittelbar vorher ablesen |
+| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend | |
+| **S27** | LDR-Grenzen numerisch setzen (`ldr_min_value_set`, `ldr_max_value_set`, je 0..4095) | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf |
+| **S28** | LDR-Grenze `4096` setzen | S | `error_code=2`, Variable unverändert | Früher angenommen (L67/L68) |
 
 ### 6.4 `display`
 
-Ein- und Ausschalten, Modus, RGBW-Umschaltung, Helligkeit (0..15), automatische
-Helligkeit, „ES IST" dauerhaft, Tickertext (32 Zeichen), Datumsformat (5 Zeichen),
-Tickerverzögerung (0..255), Farbe inklusive Weisskanal (0..63), Dimmkurve, Sekunden-
-und Markierungsoptionen, TFT-Flags.
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S29** | Helligkeit setzen (`display_brightness_set?value=`, 0..15) | S | `numvar[idx=6].value` (`DISPLAY_BRIGHTNESS`) trägt den Wert, Antwort enthält `display_brightness` mit demselben Wert | Vorher S24 ausschalten, sonst stellt der LDR den Wert gleich wieder um |
+| **S30** | Helligkeit `16` setzen | S | Antwort meldet `display_brightness: 15`, `numvar[idx=6].value` = 15 | **Erwarteter Befund:** Der ESP **klemmt** still statt abzuweisen. Festhalten, dass es klemmt — das ist Massnahme 17 |
+| **S31** | `display_brightness_set` ohne `value` | S | `error_code=1`, `numvar[idx=6].value` unverändert | Leer darf nicht `0` heissen — das stellt die Uhr dunkel (L29) |
+| **S32** | Display-Modus wählen (`display_mode_set?value=`) | S | `numvar[idx=4].value` (`DISPLAY_MODE`) trägt den Index, Antwort enthält `display_mode` | Die Obergrenze hängt an der geladenen Layout-Tabelle, nicht an einer festen Zahl |
+| **S33** | Display-Modus oberhalb der Modusliste setzen | S | Antwort meldet den höchsten gültigen Index, `numvar[idx=4].value` entsprechend | Klemmt still, wie S30 |
+| **S34** | Display-Farbe setzen (`display_color_set?red=&green=&blue=`, je 0..63) | S | `dspcolor[idx=0].red/green/blue` tragen die Werte | Sofort am Display sichtbar. Fehlende Anteile behalten ihren alten Wert (L37) |
+| **S35** | Weisskanal setzen (`display_color_set?white=`, 0..63) | S | `dspcolor[idx=0].white` trägt den Wert | **Nur wenn `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) auf 1 steht.** Sonst setzt der ESP `white` bedingungslos auf 0 — dann als „nicht prüfbar" protokollieren |
+| **S36** | `display_color_set` ohne jeden Farbanteil | S | `error_code=1`, `dspcolor[idx=0]` unverändert | Verhindert einen EEPROM-Schreibzyklus ohne Inhalt |
+| **S37** | „ES IST" dauerhaft umschalten (`display_it_is_set?value=on\|off`) | S | Bit `0x01` in `numvar[idx=7].value` (`DISPLAY_FLAGS`) gesetzt bzw. gelöscht, **die übrigen Bits unverändert** | Vier Schalter teilen sich diese eine Variable — die Gegenprobe gehört auf das Bit, nicht auf den Zahlenwert |
+| **S38** | Tickertext setzen (`ticker_set?value=`, 32 Zeichen) | S | `strvar[idx=0].value` (`TICKER_TEXT`) trägt den Text | Umlaute und Sonderzeichen mitprüfen: Gekürzt wird nach **Bytes**, nicht nach Zeichen (L46) |
+| **S39** | Tickertext leeren | S | `strvar[idx=0].value` ist leer | **Bewusste Ausnahme:** Der leere Text ist zulässig und der einzige Weg, den Ticker abzuschalten. Hier darf **keine** Fehlermeldung kommen |
+| **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error_code=1`. Gegenprobe am Display: `%d.%m` muss das Datum ergeben |
+| **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | Wert `256` klemmt still auf 255 — wie S30 festhalten |
+| **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error_code=1` |
+| **S43** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=0][idx=0..15].value` entsprechen der gewählten Vorgabe | Schreibt sechzehn Werte auf einmal — **Ausgangskurve vorher vollständig notieren**, sonst ist sie nicht rücknehmbar |
+| **S44** | TFT-Flags setzen (`tft_flags_set?rgb=&hflip=&vflip=`) | S | `numvar[idx=5].value` (`SSD1963_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | **Abweichend von allen anderen Schaltern:** Der Handler baut die Flags von `0` auf. Ein **nicht** gesendeter Parameter **löscht** das Flag. Ohne TFT als „nicht prüfbar" protokollieren |
+| **S45** | RGBW-Umschaltung (`display_use_rgbw_set?value=on\|off`) | S | `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) 1 bzw. 0 | **Kein Bedienelement in der Oberfläche** — nur über den Backup-Import erreichbar. Prüfung per direktem Aufruf. Ändert die Wirkung von S35 |
 
-**Der Display-Test ist Klasse G — siehe Phase 8.**
+**Der Displaytest (`test_display`) ist Klasse G — siehe Phase 8.**
 
 ### 6.5 `animations`
 
-Animationsmodus, Farbanimationsmodus, Profile, Profilvorgaben zurücksetzen. Die
-Profilvorgabe ist unumkehrbar für dieses Profil — Ausgangswerte vorher aus dem
-Rohabzug notieren.
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S46** | Anzeigeanimation wählen (`animation_mode_set?value=`) | S | `numvar[idx=10].value` (`ANIMATION_MODE`) trägt den Index | Nicht-numerischer Wert ⇒ `error_code=1`, früher wurde `"abc"` zu 0 (L49) |
+| **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) | Solange eine Farbanimation läuft, ist die Display-Farbe aus S34 wirkungslos |
+| **S48** | Verzögerung eines Anzeigeprofils setzen (`animation_profile_set?idx=&deceleration=`, 1..15) | S | `dispanim[idx=N].dcl` trägt den Wert | Mindestens zwei verschiedene Profile prüfen |
+| **S49** | Profil als Favorit markieren (`animation_profile_set?...&favourite=on`) | S | Bit `0x02` in `dispanim[idx=N].flags` gesetzt bzw. gelöscht | Das Flag wird aus demselben Aufruf mitgeschrieben — ohne `favourite` wird es **gelöscht** |
+| **S50** | Verzögerung `0` und `16` setzen | S | `error_code=2`, `dispanim[idx=N].dcl` unverändert | Gültig ist 1..15, nicht 0..15 |
+| **S51** | Profilvorgabe zurücksetzen (`animation_profile_default?idx=`) | S | `dispanim[idx=N].dcl` gleicht `dispanim[idx=N].def_dcl` | **Unumkehrbar für dieses Profil** — den Ausgangswert vorher aus dem Rohabzug notieren |
+| **S52** | Verzögerung eines Farbprofils setzen (`color_animation_profile_set?idx=&deceleration=`) | S | `coloranim[idx=N].dcl` trägt den Wert | |
+| **S53** | Farbprofilvorgabe zurücksetzen (`color_animation_profile_default?idx=`) | S | `coloranim[idx=N].dcl` gleicht `coloranim[idx=N].def_dcl` | wie S51 |
 
 ### 6.6 `ambilight`
 
-Online, Ein/Aus, Modus, LED-Zahl (0..999), Versatz (0..999), Helligkeit,
-Ambilight-Farbe und Markierungsfarbe mit Weisskanal, Synchronisation mit dem Display,
-Dimmkurve, Profile.
-
 **Zu beachten (L11):** Am LED-Board dieser Uhr ist kein Ambilight-Ausgang
 herausgeführt. Einstellungen lassen sich speichern, bleiben aber ohne sichtbare
-Wirkung. Das ist **kein Fehler** — als „nicht sichtbar prüfbar" protokollieren.
+Wirkung. Das ist **kein Fehler** — Schritt 4 des Prüfmusters entfällt und wird als
+„nicht sichtbar prüfbar" protokolliert, nicht als „bestanden".
+
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S54** | Ambilight-Erkennung umschalten (`ambilight_online_set?value=on\|off`) | S | `numvar[idx=9].value` (`AMBILIGHT_IS_UP`) 1 bzw. 0 | Steuert, ob die Oberfläche das Modul überhaupt zeigt — bei `off` verschwindet das Panel |
+| **S55** | Helligkeit setzen (`ambilight_brightness_set?value=`, 0..15) | S | `numvar[idx=14].value` (`AMBILIGHT_BRIGHTNESS`) | |
+| **S56** | Modus wählen (`ambilight_mode_set?value=`, 0..4) | S | `numvar[idx=11].value` (`AMBILIGHT_MODE`) | Fünf Modi: Normal, Uhr, Uhr 2, Regenbogen, Tageslicht |
+| **S57** | LED-Zahl setzen (`ambilight_leds_set?value=`, 0..999) | S | `numvar[idx=12].value` (`AMBILIGHT_LEDS`) | |
+| **S58** | LED-Zahl `1000` setzen | S | `numvar[idx=12].value` = 999 | Klemmt still — wie S30 festhalten |
+| **S59** | Versatz setzen (`ambilight_offset_set?value=`, 0..999) | S | `numvar[idx=13].value` (`AMBILIGHT_OFFSET`) | |
+| **S60** | Ambilight-Farbe setzen (`ambilight_color_set?red=&green=&blue=&white=`) | S | `dspcolor[idx=1].red/green/blue/white` | Weisskanal nur bei RGBW, siehe S35 |
+| **S61** | Markierungsfarbe setzen (`marker_color_set?...`) | S | `dspcolor[idx=2].red/green/blue/white` | |
+| **S62** | Mit dem Display synchronisieren (`sync_ambilight_set?value=on\|off`) | S | Bit `0x02` in `numvar[idx=7].value` (`DISPLAY_FLAGS`) | Dieselbe Variable wie S37 — Gegenprobe auf das Bit |
+| **S63** | Markierungen synchronisieren (`sync_markers_set?value=on\|off`) | S | Bit `0x04` in `numvar[idx=7].value` | |
+| **S64** | Sekunden überblenden (`fade_clock_seconds_set?value=on\|off`) | S | Bit `0x08` in `numvar[idx=7].value` | |
+| **S65** | Sekundenmarkierung (`ambilight_markers_set?value=on\|off`) | S | Bit `0x02` in `almode[idx=1].flags` (`CLOCK_AMBILIGHT_MODE`) | Einziger Schalter dieser Gruppe, der **nicht** in `DISPLAY_FLAGS` landet, sondern im Uhr-Modus des Ambilights |
+| **S66** | Dimmkurve von Hand ändern (`ambilight_dim_level_set?idx=&value=`) | S | `num8array[var=1][idx=N].value` | wie S42 |
+| **S67** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=1][idx=0..15].value` | wie S43 — Ausgangskurve vorher vollständig notieren |
+| **S68** | Verzögerung eines Ambilight-Profils (`ambilight_mode_profile_set?idx=&deceleration=`, 0..15) | S | `almode[idx=N].dcl` | Hier ist **0 gültig**, anders als bei S48 |
+| **S69** | Ambilight-Profilvorgabe zurücksetzen (`ambilight_mode_profile_default?idx=`) | S | `almode[idx=N].dcl` gleicht `almode[idx=N].def_dcl` | unumkehrbar, wie S51 |
 
 ### 6.7 `overlays` und `timers` — die beiden dynamischen Module
 
 Hier liegt die grösste Lücke einer oberflächlichen Prüfung: **null statische
-Bedienelemente.** Zu prüfen:
+Bedienelemente.** Beide Module bauen ihre Oberfläche zur Laufzeit. Eine Prüfung, die
+nur das Markup abläuft, übersieht sie vollständig.
 
-- Overlay anlegen, Typ wechseln (Icon / Text / MP3 — die Felder werden je Typ ein- und
-  ausgeblendet), Wert setzen, speichern, anzeigen, löschen
-- Alle sieben Icons aus `overlay_icons` durchschalten
-- Mehrere Overlays gleichzeitig, Reihenfolge, Grenze der Anzahl
-- Timer für Display und Ambilight: setzen, überlappende Zeiten, Mitternachtsübergang
-  (22:00 bis 06:00), Start gleich Ende
-- Löschen des letzten Eintrags
+**Beide sind bis heute ungeprüft.** Der erste Durchlauf (02.10.2026) endete vorher am
+Hänger, der zweite (03.10.2026) am Watchdog-Reset aus L45, der dritte am
+Variablenverlust aus L103.
+
+**Aufräumen nach dem Mitschnitt, nicht nach der Planung.** Jeder Index, an den ein
+Aufruf ging, wird zurückgesetzt — auch der eines abgewiesenen Aufrufs. Im Durchlauf
+vom 03.10.2026 blieb Timer-Slot 5 als aktiver Timer auf 00:00 stehen und hätte die Uhr
+jede Nacht zusätzlich ausgeschaltet (L81).
+
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S70** | Overlay anlegen (`overlay_set?idx=<n_overlays>&type=&date_code=`) | S | `numvar[idx=46].value` (`OVERLAY_N_OVERLAYS`) um 1 höher, `overlay[idx=N].type` trägt den Typ | Ein neues Overlay entsteht nur, wenn `idx` **genau** dem bisherigen Zählerstand entspricht |
+| **S71** | Jeden Overlay-Typ durchschalten (`type=0..10`) | S | `overlay[idx=N].type` trägt jeden Wert | **Elf Typen**, nicht drei: keiner, Icon, Datum, Temperatur, Wettericon, Wetter, Ticker, MP3, Vorhersage-Icon, Vorhersage, Temperatur als Ziffern. `type=11` ⇒ `error_code=2` |
+| **S72** | Icon-Overlay mit jedem vom Gerät gemeldeten Icon | S | `overlay[idx=N].text` trägt den Iconnamen | Die Liste kommt aus `/api/overlay_icons` und hängt an der hochgeladenen Icondatei — **nicht auf eine feste Anzahl festlegen**, sondern die gemeldete Liste vollständig durchgehen |
+| **S73** | Text- und Ticker-Overlay (`value=`, 32 Zeichen) | S | `overlay[idx=N].text` trägt den Text, nach **Bytes** gekürzt | Umlaute mitprüfen (L46) |
+| **S74** | MP3-Overlay | S | `overlay[idx=N].type` = 7, Ton hörbar | Ohne DFPlayer als „nicht prüfbar" protokollieren |
+| **S75** | Datumscode durchschalten (`date_code=0..6`) | S | `overlay[idx=N].date_code` trägt den Wert | Sieben Codes: keiner, Rosenmontag, Ostern, Advent 1 bis 4. `date_code=7` ⇒ `error_code=2` |
+| **S76** | Klemmungen prüfen: `interval=0`, `duration=3`, `duration=10`, `days=0` | S | `overlay[idx=N].interval`=5, `.duration`=5 bzw. 9, `.days`=1 | Diese vier Werte werden **still zurechtgebogen**, nicht abgewiesen. Festhalten |
+| **S77** | Startdatum setzen (`month=&day=`) | S | `overlay[idx=N].date_start` = `month*256 + day`; bei `month=0` oder `day=0` ist `date_start` = 0 | `month=13` oder `day=32` ⇒ `error_code=2` |
+| **S78** | Overlay aktiv schalten (`active=on\|off`) | S | Bit `0x01` in `overlay[idx=N].flags` | Ohne `active` wird das Flag **gelöscht** |
+| **S79** | Overlay anzeigen (`overlay_display?idx=`) | S | `numvar[idx=45].value` (`DISPLAY_OVERLAY`) trägt den Index, Overlay erscheint am Display | |
+| **S80** | Overlay löschen (`overlay_delete?idx=`) | S | `numvar[idx=46].value` um 1 kleiner, die folgenden Einträge rücken auf | **Letzten Eintrag eigens prüfen** — und den ersten, wenn mehrere stehen |
+| **S81** | `overlay_display` und `overlay_delete` **ohne** `idx` | S | Beide `error_code=1`, `numvar[idx=46].value` unverändert | Früher zeigte beziehungsweise **löschte** das den ersten Eintrag und meldete Erfolg (L70) |
+| **S82** | Display-Timer setzen (`timer_set?idx=&from=&to=&hour=&minute=&active=&switch_on=`) | S | `nighttime[idx=N].minutes` = `hour*60+minute`, Bit `0x80` (aktiv) und `0x40` (einschalten) in `.flags`, Wochentage in den unteren Bits | **Acht Slots** (0..7). Ein aktiver Testtimer schaltet die Uhr im Wohnraum — Zeiten weit vom aktuellen Zeitpunkt wählen |
+| **S83** | Ambilight-Timer setzen (`ambilight_timer_set?...`) | S | `ambinighttime[idx=N].minutes` und `.flags` entsprechend | Gleiche Prüfung, eigener Variablensatz |
+| **S84** | Timer-Grenzfälle: `idx=8`, `from=7`, `hour=24`, `minute=60` | S | Jeweils `error_code=2`, der Slot unverändert | Diese vier wurden früher angenommen (L71) |
+| **S85** | Mitternachtsübergang und Start gleich Ende | S | Ein Paar 22:00 ein / 06:00 aus steht als zwei Einträge im Abzug und schaltet über die Nacht hinweg richtig | Braucht entweder Geduld oder eine verschobene Gerätezeit — in beiden Fällen **nach S3** einplanen und danach wieder korrigieren |
 
 ### 6.8 `dfplayer`
 
-Lautstärke (0..30), Modus, Glockenflags, Sprechzyklus (0..255), Stille von/bis,
-Alarme, Ordner und Titel (je 0..255), Abspielen.
-
 Ohne angeschlossenes Modul meldet die PWA „offline" und blendet das Panel aus — dann
-als „nicht prüfbar" protokollieren.
+sind S86 bis S96 als „nicht prüfbar" zu protokollieren, nicht als „bestanden".
+
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S86** | Lautstärke setzen (`dfplayer_volume_set?value=`, 0..30) | S | `numvar[idx=34].value` (`DFPLAYER_VOLUME`), Antwort enthält `dfplayer_volume` | Hörbare Gegenprobe über S96 |
+| **S87** | Lautstärke `31` setzen | S | Antwort meldet `30`, `numvar[idx=34].value` = 30 | Klemmt still |
+| **S88** | Modus wählen (`dfplayer_mode_set?value=`, 0..2) | S | `numvar[idx=37].value` (`DFPLAYER_MODE`): 0 aus, 1 Glocke, 2 Zeitansage | Fehlender Wert ⇒ `error_code=1`; leer hätte den Ton ganz abgeschaltet (L29) |
+| **S89** | Glockenflags setzen (`dfplayer_bell_flags_set?m15=&m30=&m45=`) | S | `numvar[idx=38].value` (`DFPLAYER_BELL_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | |
+| **S90** | Glockenflags mit nur **einem** gesendeten Parameter | S | Die beiden nicht gesendeten Bits sind **gelöscht** | Wie S44 baut der Handler die Flags von `0` auf. Die Oberfläche sendet immer alle drei — ein direkter Aufruf nicht |
+| **S91** | Sprechzyklus setzen (`dfplayer_speak_cycle_set?value=`, 0..255) | S | `numvar[idx=39].value` (`DFPLAYER_SPEAK_CYCLE`) | |
+| **S92** | Stille ab setzen (`dfplayer_silence_start_set?hour=&minute=`) | S | `numvar[idx=35].value` (`DFPLAYER_SILENCE_START`) = `hour*60+minute` | |
+| **S93** | Stille bis setzen (`dfplayer_silence_stop_set?hour=&minute=`) | S | `numvar[idx=36].value` (`DFPLAYER_SILENCE_STOP`) | |
+| **S94** | Stille mit `hour=24` oder `minute=60` | S | `error_code=2`, Variable unverändert | |
+| **S95** | Alarm setzen (`dfplayer_alarm_set?idx=&active=&from=&to=&hour=&minute=`) | S | `alarmtime[idx=N].minutes` = `hour*60+minute`, Bit `0x80` in `.flags` | **Acht Slots.** Aufräumen nach Mitschnitt, nicht nach Planung — ein stehengebliebener Alarm weckt den Nutzer |
+| **S96** | Titel abspielen (`dfplayer_play?folder=&track=`, je 0..255) | S | `numvar[idx=44].value` (`DFPLAYER_PLAY_FOLDER_TRACK`) = `folder*256 + track`, Ton hörbar | Lautstärke vorher auf einen erträglichen Wert stellen |
 
 ### 6.9 `maintenance`
 
 Der grösste Bereich: 24 Schaltflächen, 14 Felder, 8 Dateiauswahlfelder.
 
-| Gruppe | Klasse |
-|---|---|
-| Quelle und Versionen (`update_host` 63, `update_path` 63) | S |
-| Vom Server laden: Tabellen, Assets | S |
-| ESP-Firmware aktualisieren | **R** |
-| STM32 flashen (remote und lokal) | **R** |
-| ESP neu starten, STM zurücksetzen | **R** |
-| Lokale Uploads: Display-, Icon-, Wetter-, Tabellendatei, App-Dateien | S, aber grössenkritisch |
-| Dateiliste, Datei löschen | **G** |
-| EEPROM zurücksetzen, Dateisystem formatieren | **G** |
-| Sicherung exportieren und importieren | **Phase 5** |
+Was hier **nicht** steht, weil es in Phase 8 steht: `maintenance_reset_eeprom`,
+`maintenance_format_fs`, `fs_remove`, `eeprom_settings_set`. Was in Phase 5 steht:
+Sicherung exportieren und importieren.
 
-Für die **Uploads** gilt eine eigene Prüfreihe: leere Datei, Datei mit falschem Typ,
-Datei grösser als der freie Platz im LittleFS, Abbruch mitten in der Übertragung.
-Gerade die leere Datei ist hier historisch belegt gefährlich — eine leere `.gz` erzeugt
-einen weissen Bildschirm. ESP-seitig ist das seit der Prüfung auf Dateigrösse > 0
-abgefangen, **PWA-seitig steht die Prüfung noch aus** (Massnahme 7). Erwarteter Befund.
+| Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
+|---|---|---|---|---|
+| **S97** | Update-Host setzen (`update_host_set?value=`, 63 Zeichen) | S | `strvar[idx=9].value` (`UPDATE_HOST`) trägt den Wert | **Danach sofort gegen `DEVICE_UPDATE_HOST` aus `tools/device.conf` prüfen.** Ein falscher Host holt beim nächsten Update fremde Firmware, ohne Fehlermeldung (L42) |
+| **S98** | Update-Pfad setzen (`update_path_set?value=`, 63 Zeichen) | S | `strvar[idx=10].value` (`UPDATE_PATH`) | wie S97 |
+| **S99** | Update-Host mit 64 Zeichen | S | `strvar[idx=9].value` ist auf 63 gekürzt | Leerer Wert ⇒ `error_code=1` |
+| **S100** | Tabellendatei vom Server laden (`update_download_table`) | S | Die Datei erscheint in `/api/fs_list` mit Grösse > 0, danach stehen in `settings_xml` neue `dispmode`-Einträge | Wechselt das Layout der Uhr — **Ausgangstabelle vorher aus `/api/update_status` notieren** |
+| **S101** | Icon- und Wetterdatei vom Server laden (`update_download_assets`) | S | Beide Dateien in `/api/fs_list` mit Grösse > 0 | Der Endpunkt meldet `{"ok":true}` auch dann, wenn er nur einen Teil geladen hat — Beleg ist die Dateiliste |
+| **S102** | Tabellendatei lokal hochladen (`fs_upload_tables`) | S | Datei in `/api/fs_list`, Grösse gleich der lokalen Datei | |
+| **S103** | Icondatei lokal hochladen (`fs_upload_icon`) | S | wie S102 | |
+| **S104** | Wetterdatei lokal hochladen (`fs_upload_weather`) | S | wie S102 | |
+| **S105** | Displaydatei lokal hochladen (`fs_upload_display`) | S | wie S102 | |
+| **S106** | App-Dateien hochladen (`app_file_upload`) | S | `./tools/install-app.sh --check` meldet alle Dateien der Weissliste mit Grösse > 0 | Die PWA überschreibt sich selbst. Danach Seite neu laden und prüfen, dass sie noch startet |
+| **S107** | **Leere Datei** hochladen | S | Der ESP weist sie ab, die bestehende Datei bleibt unverändert | **Erwarteter Befund:** ESP-seitig abgefangen (Prüfung auf Grösse > 0), **PWA-seitig steht die Prüfung noch aus** (Massnahme 7). Eine leere `.gz` hat schon einmal einen weissen Bildschirm erzeugt |
+| **S108** | Dateiliste und Speicherstand (`fs_list`, `fs_info`) | L | Jede Datei der Weissliste erscheint mit Grösse > 0; der freie Platz ist grösser als die grösste geplante Hochladedatei | Lesend — gehört eigentlich in Phase 2, steht hier als **Vorbedingung** für S102 bis S107 |
+| **S109** | Datei anzeigen (`fs_show?filename=`) | L | Der Inhalt erscheint in der Vorschau, lange Zeilen brechen um | Lesend |
+| **S110** | ESP-Firmware aktualisieren (`remote_esp_update`) | **R** | Nach dem Wiederanlauf meldet `/api/update_status` die neue ESP-Version | **Danach zwingend:** `./tools/install-app.sh --check`, `./tools/smoke-device.sh` und die Prüfung der Update-Quelle (S97/S98). Ein ESP-Neustart hinterlässt den Variablensatz unvollständig (L42, L103) |
+| **S111** | STM32 flashen über den Server (`remote_stm32_flash`) | **R** | `/api/update_status` meldet die neue STM-Version | **Nicht von Hand aufrufen** — `./tools/flash-stm.sh` benutzen (DIR-010). `filename` ist Pflicht, und bei `HARDWARE_CONFIGURATION` = 65535 weist der ESP jeden Namen ab |
+| **S112** | STM32 lokal flashen (`local_stm32_flash`) | **R** | wie S111 | Gleiche Fallen, zusätzlich die Dateigrösse der hochgeladenen Binärdatei |
+| **S113** | ESP neu starten (`local_esp_restart`) | **R** | Das Gerät ist binnen 30 s wieder erreichbar, `reconnect_probe` antwortet | **Danach den Variablensatz prüfen** — genau hier tritt L103 auf |
+| **S114** | STM zurücksetzen (`maintenance_reset_stm32`) | **R** | Die Uhr zeigt die Startsequenz, danach ist `numvar[idx=29].value` (`HARDWARE_CONFIGURATION`) wieder ungleich 65535 | Das ist zugleich die **Reparatur** für den Zustand aus 6.0d |
 
 ---
 
@@ -606,7 +778,7 @@ ausschliesslich über die Tastatur, Durchgang mit einem Screenreader.
 
 ## 11. Phase 8 — Die Funktionen, die nicht scharf ausgeführt werden
 
-**Sieben Funktionen werden bewusst nicht regulär ausgelöst.** Für jede gibt es eine
+**Zehn Funktionen werden bewusst nicht regulär ausgelöst.** Für jede gibt es eine
 Ersatzprüfung, die nachweist, dass der Weg funktioniert, ohne den Schaden zu riskieren.
 
 | Funktion | Warum nicht | Ersatzprüfung |
@@ -618,10 +790,18 @@ Ersatzprüfung, die nachweist, dass der Weg funktioniert, ohne den Schaden zu ri
 | `learn_ir` | Blockiert unbegrenzt, bis ein IR-Code kommt. Angelernte Codes sind **in keiner Sicherung** enthalten | Erreichbarkeit des Endpunkts prüfen, Dialog öffnen und abbrechen |
 | `maintenance_reset_eeprom` | Setzt alle Geräteeinstellungen zurück. Wiederherstellbar über B5 — aber IR-Codes nicht | Nur ganz am Ende, nach bestätigt funktionierendem Restore, und nur wenn der Nutzer das IR-Anlernen in Kauf nimmt |
 | `maintenance_format_fs` | Löscht die PWA vom Gerät. Danach ist die Oberfläche weg, mit der man sie hochladen würde | **Gar nicht.** Geprüft wird nur, dass der Endpunkt eingebettete Aufrufe mit 403 abweist — das tut der Smoketest bereits |
+| `eeprom_settings_set` | Schreibt SSID, WLAN-Schlüssel, AP-Zugangsdaten und das Flag „als Zugangspunkt starten" in einem einzigen Aufruf. Ein leeres Feld heisst seit ESP 3.2.5 zwar „nicht ändern", aber ein gesetztes `boot_as_ap=on` genügt, um die Uhr beim nächsten Start aus dem WLAN zu nehmen — derselbe Weg, der das Gerät schon einmal ohne WLAN, ohne AP und ohne Webserver zurückgelassen hätte | Der Endpunkt wird im Durchlauf **ausschliesslich** über den Backup-Import berührt, in B5, B7 und B12, und nur mit der eigenen, unmittelbar vorher erzeugten Sicherung. Ein direkter Aufruf aus Phase 3 heraus findet nicht statt |
+| **Tetris** (UDP-Kommando) | **Null** `watchdog_reload()` im ganzen Modul, und der Hauptloop ist währenddessen blockiert. Ein Tetromino fällt über rund 11 Zeilen in etwa 5,5 s; nach rund **3,6 Steinen** ist das 20-s-Fenster um, und seit 3.2.8 läuft der Watchdog wirklich. Der Reset ist damit nicht wahrscheinlich, sondern sicher (L106) | **Nicht starten.** Geprüft wird nur, dass das Modul vorhanden ist. Wer es trotzdem anfassen will, braucht ein vorbereitetes `GTq` **innerhalb von 20 Sekunden** nach dem Start — ohne diese Vorbereitung bleibt es beim Reset |
+| **Snake** (UDP-Kommando) | Gleichartig gebaut wie Tetris, ebenfalls ohne eine einzige Watchdog-Bedienung (L106) | wie Tetris |
 
 **Zusätzlich gilt:** `GET /?a` (Parameter ohne `=`) hat den ESP früher zum Absturz
 gebracht. Der Smoketest sendet das bewusst und prüft, dass die Uhr weiterlebt. Von Hand
 ist es **nicht** zu wiederholen.
+
+**Zwei dieser zehn fängt kein Hook ab.** `tools/hooks/no-danger.py` weist die
+gefährlichen **HTTP**-Endpunkte ab, bevor ein Agent sie erreicht. Tetris und Snake
+laufen über **UDP** — der Filter sieht sie nicht. Für sie gibt es nur diese Zeile im
+Plan und die Disziplin, sie zu lesen.
 
 ---
 
@@ -658,7 +838,7 @@ das kein neuer Erkenntnisgewinn, sondern eine Bestätigung des Katalogs:
 | Kein Hinweis bei unsicherem Kontext | R2-10 |
 | Leere Datei beim App-Upload wird PWA-seitig nicht abgefangen | Massnahme 7 |
 | Zeitserver wird bei über 16 Zeichen still gekürzt | **neu** — UI erlaubt 32, ESP speichert 16 |
-| Verstecktes WLAN ist über die PWA nicht konfigurierbar | **neu** — SSID nur aus der Trefferliste wählbar |
+| Verstecktes WLAN lässt sich eintragen, erscheint aber nie in der Trefferliste | L24 — das freie Feld `network-ssid-manual-input` hat Vorrang vor der Auswahl. *Diese Zeile las sich bis zum 03.10.2026 als „nicht konfigurierbar"; seit L24 stimmt das nicht mehr* |
 | Fehlgeschlagener Flash ist nur einen Frame lang sichtbar | R2-5 |
 
 **Alles andere wäre neu** — und gehört als `L`-Befund in `BEFUNDE.md`.
