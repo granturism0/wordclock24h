@@ -52,4 +52,8 @@ extern void sk6812_refresh (uint_fast16_t);
 extern void sk6812_set_led (uint_fast16_t, SK6812_RGBW *);
 extern void sk6812_set_all_leds (SK6812_RGBW *, uint_fast16_t, uint_fast8_t);
 
+/* diagnostic counters, see specs/beobachtbarkeit - both saturate instead of wrapping around */
+extern uint32_t sk6812_get_refresh_cnt (void);
+extern uint16_t sk6812_get_dma_wait_cnt (void);
+
 #endif

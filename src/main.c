@@ -358,12 +358,25 @@
 #include "touch.h"
 #include "main.h"
 
+#undef  UART_PREFIX                                                     // log.h hat UART_PREFIX zuletzt auf "log" gesetzt
+#define UART_PREFIX                 esp8266                             // macht esp8266_uart_rxmax/-rxdrops/-rxore fuer die Diagnosezeile sichtbar
+#include "uart.h"                                                       // absichtlich ohne Include-Guard, je Praefix neu einbindbar
+
 #define DEFAULT_UPDATE_HOST         "uclock.de"
 #define DEFAULT_UPDATE_PATH         "update"
 #define DEFAULT_OBSERVE_SUMMERTIME  1
 
 #define STATUS_LED_FLASH_TIME       50                                  // status LED: time of flash
 #define MAX_DATE_TICKER_LEN         32                                  // date ticker overlay: buffer len
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * DIAGNOSE, siehe specs/beobachtbarkeit: Takt und Rueckfall-Schwelle der Diagnosezeile am Kopf des Hauptloops
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define DIAG_INTERVAL_SEC           10                                  // Takt der Diagnosezeile in Sekunden
+#define DIAG_INTERVAL_TICKS         (DIAG_INTERVAL_SEC * F_INTERRUPTS)  // Makro: wird erst im Hauptloop expandiert, F_INTERRUPTS kommt aus irmpconfig.h
+#define DIAG_LOOP_BUDGET_START      1000000UL                           // Rueckfall-Schwelle, solange noch keine regulaere Zeile kalibriert hat
+#define DIAG_LOOP_BUDGET_MIN        1000UL                              // Untergrenze der selbstkalibrierten Schwelle
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * global public variables
@@ -637,6 +650,7 @@ static volatile uint_fast8_t    read_rtc_temperature_flag   = 0;        // flag:
 static volatile uint_fast8_t    show_time_flag              = 0;        // flag: update time on display, set every full minute
 static volatile uint_fast8_t    half_minute_flag            = 0;        // flag: it is hh:mm:30
 volatile uint32_t               uptime                      = 0;        // uptime in seconds
+static volatile uint32_t        diag_tick_cnt               = 0;        // DIAGNOSE: zaehlt JEDEN Zeitgeber-Interrupt, nicht die Sekunden
 #if 0
 static volatile uint_fast8_t    wday                        = 0;        // current weekday, 0=Sunday
 static volatile uint_fast16_t   year                        = 0;        // current year;
@@ -797,6 +811,8 @@ TIM2_IRQHandler (void)
 #endif
 
     TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+
+    diag_tick_cnt++;                                                    // DIAGNOSE: nur Inkrement, kein Vergleich, kein Aufruf, kein Log
 
     (void) irmp_ISR ();                                                 // call irmp ISR
 
@@ -3355,6 +3371,84 @@ main (void)
     while (1)
     {
         watchdog_reload ();
+
+        /*---------------------------------------------------------------------------------------------------------------------------------
+         * DIAGNOSE (specs/beobachtbarkeit): eine Zeile je Takt, am KOPF des Loops - nicht in einem flaggesteuerten Zweig,
+         * denn genau dieser Zweig ist der Verdaechtige (haenger-2026-09-30.md).
+         *
+         *   l steigt, t steigt, u steigt  -> Zeitbasis lebt, der Ausfall liegt hinter den Flags
+         *   l steigt, t steigt, u steht   -> die ISR laeuft, ihr Sekundenzweig nicht
+         *   l steigt, t steht             -> die Zeitgeber-ISR selbst kommt nicht mehr dran
+         *   keine Zeile                   -> Loop steht oder die Bruecke sendet nicht mehr; sichtbar an der Luecke in der Folgenummer
+         *
+         * Die drei Empfangsfelder messen DREI VERSCHIEDENE Dinge und duerfen nicht gegeneinander ausgespielt werden:
+         *
+         *   rx=<hoechststand>/<groesse>  der Grund, warum d=0 ueberhaupt etwas aussagt. Stuenden rx und d beide auf 0,
+         *                                haette die Messung nicht stattgefunden. rx=250/256 d=0 ist dagegen eine echte Aussage.
+         *   d=<verwuerfe>                Ueberlauf des SOFTWARE-Rings: die ISR lief, nur hat niemand rechtzeitig abgeholt.
+         *                                d=0 heisst "der Ring hat nichts verworfen", NICHT "es ging kein Zeichen verloren".
+         *   o=<overrun>                  Hardware-Ueberlauf des USART: die ISR selbst kam zu spaet, das Zeichen war schon im
+         *                                Schieberegister ueberschrieben - genau der Zustand, den dieses Paket untersucht.
+         *                                UNTERGRENZE: ein gesetztes ORE-Flag kann fuer mehrere verlorene Zeichen stehen.
+         *
+         * <groesse> liest der Treiber selbst aus (esp8266_uart_rxbuflen), es gibt hier keine zweite Kopie von UART_RXBUFLEN:
+         * die ist je UART verschieden, dfplayer-uart.c setzt 32 statt 256.
+         *
+         * Maximale Laenge der Zeile: 102 Zeichen, Grenze 119 (120 des ESP-Rings minus Kappungsmarke). Wer ein Feld ergaenzt, rechnet neu.
+         *---------------------------------------------------------------------------------------------------------------------------------
+         */
+        static uint32_t     diag_seq            = 0;                                    // Folgenummer: eine Luecke im Ring ist sonst nicht von Ruhe zu unterscheiden
+        static uint32_t     diag_loop_cnt       = 0;                                    // Hauptloop-Durchlaeufe seit dem Start
+        static uint32_t     diag_last_tick      = 0;                                    // Stand von diag_tick_cnt bei der letzten Zeile
+        static uint32_t     diag_last_loop      = 0;                                    // Stand von diag_loop_cnt bei der letzten Zeile
+        static uint32_t     diag_loop_budget    = DIAG_LOOP_BUDGET_START;               // Rueckfall-Schwelle, nach der ersten regulaeren Zeile selbstkalibriert
+        static uint_fast8_t diag_armed          = 0;                                    // Nullpunkt gesetzt?
+        uint32_t            diag_tick_now       = diag_tick_cnt;                        // volatile genau einmal lesen
+        uint32_t            diag_tick_delta;
+        uint32_t            diag_loop_delta;
+        uint_fast8_t        diag_regular;
+
+        diag_loop_cnt++;
+
+        if (! diag_armed)                                                               // erste Runde: Nullpunkt setzen, sonst kalibrierte die erste Zeile auf einen einzigen Durchlauf
+        {
+            diag_armed      = 1;
+            diag_last_tick  = diag_tick_now;
+            diag_last_loop  = diag_loop_cnt;
+        }
+
+        diag_tick_delta = diag_tick_now - diag_last_tick;                               // vorzeichenlos: ein Umlauf von diag_tick_cnt stoert die Differenz nicht
+        diag_loop_delta = diag_loop_cnt - diag_last_loop;
+        diag_regular    = (diag_tick_delta >= DIAG_INTERVAL_TICKS) ? 1 : 0;             // regulaerer Takt ueber die Zeitgeber-ISR
+
+        if (diag_regular || diag_loop_delta > diag_loop_budget)                         // zweiter Ausloeser: haengt weder an uptime noch an der ISR
+        {
+            if (diag_regular)                                                           // nur der regulaere Takt kalibriert - der Rueckfall zoege die Schwelle sonst nach unten
+            {
+                diag_loop_budget = 4 * diag_loop_delta;                                 // Vierfaches des Zehn-Sekunden-Pensums: kann per Konstruktion nicht fluten
+
+                if (diag_loop_budget < DIAG_LOOP_BUDGET_MIN)
+                {
+                    diag_loop_budget = DIAG_LOOP_BUDGET_MIN;
+                }
+            }
+
+            diag_last_tick = diag_tick_now;
+            diag_last_loop = diag_loop_cnt;
+            diag_seq++;
+
+            log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u\r\n",
+                        (unsigned long) diag_seq,
+                        (unsigned long) diag_loop_cnt,
+                        (unsigned long) diag_tick_now,
+                        (unsigned long) uptime,
+                        (unsigned long) led_get_refresh_cnt (),
+                        (unsigned int)  led_get_dma_wait_cnt (),
+                        (unsigned int)  esp8266_uart_rxmax (),
+                        (unsigned int)  esp8266_uart_rxbuflen (),
+                        (unsigned int)  esp8266_uart_rxdrops (),
+                        (unsigned int)  esp8266_uart_rxore ());
+        }
 
         static uint_fast8_t icon_freeze_state = 0;                                      // DIAGNOSIS ONLY: do_display_icon freeze, see specs/bundle-guardrails-icon
         uint_fast8_t icon_freeze_now = (display.do_display_icon && ! display.display_power_is_on) ? 1 : 0;

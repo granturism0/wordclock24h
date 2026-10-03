@@ -71,6 +71,7 @@
 #define CMD_BUFFER_SIZE     128                                             // maximum size of command buffer
 #define STM32_LOG_LINES     64
 #define STM32_LOG_LINE_LEN  120
+#define LOG_TRUNC_MARK      '~'                                             // Zeilenende-Marke: Text wurde gekuerzt
 
 static void           icon_info (const char * fname, const char * name);
 static const char *   resolve_icon_asset_filename (const char * fname);
@@ -89,6 +90,11 @@ stm32_log_append (const char * line)
 
     strncpy (stm32_log_lines[stm32_log_next_idx], line, STM32_LOG_LINE_LEN);
     stm32_log_lines[stm32_log_next_idx][STM32_LOG_LINE_LEN] = '\0';
+
+    if (strlen (line) > STM32_LOG_LINE_LEN)                                 // gekuerzt? Marke statt letztem Zeichen,
+    {                                                                       // sonst sieht die Zeile vollstaendig aus
+        stm32_log_lines[stm32_log_next_idx][STM32_LOG_LINE_LEN - 1] = LOG_TRUNC_MARK;
+    }
 
     stm32_log_next_idx = (stm32_log_next_idx + 1) % STM32_LOG_LINES;
 
@@ -408,6 +414,7 @@ loop()
 {
     static char cmd_buffer[CMD_BUFFER_SIZE];
     static int  cmd_len = 0;
+    static int  cmd_trunc = 0;                                              // Zeile war laenger als der Puffer
 
     wifi_check_if_started ();
     http_server_loop ();
@@ -420,6 +427,11 @@ loop()
     
         if (ch == '\n')
         {
+            if (cmd_trunc && cmd_len > 0)                                   // gekuerzt? Marke statt letztem Zeichen,
+            {                                                               // sonst sieht die Zeile vollstaendig aus
+                cmd_buffer[cmd_len - 1] = LOG_TRUNC_MARK;
+            }
+
             cmd_buffer[cmd_len] = '\0';
 
             if (! strncmp (cmd_buffer, "var ", 4))
@@ -1140,6 +1152,7 @@ loop()
 
             cmd_buffer[0] = '\0';
             cmd_len = 0;
+            cmd_trunc = 0;
         }
         else
         {
@@ -1148,6 +1161,10 @@ loop()
                 if (cmd_len < CMD_BUFFER_SIZE - 1)
                 {
                     cmd_buffer[cmd_len++] = ch;
+                }
+                else
+                {
+                    cmd_trunc = 1;                                          // Zeichen faellt weg, Marke folgt am Zeilenende
                 }
             }
         }

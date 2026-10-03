@@ -143,6 +143,79 @@ code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' \
   -H "Sec-Fetch-Dest: image" "$U/api/maintenance_reset_stm32" 2>/dev/null)
 [ "$code" = "403" ] && pass "Wartung weist <img> ab" "HTTP 403" || fail "Wartung weist <img> ab" "HTTP $code"
 
+# ------------------------------------- Diagnosezeile vorhanden und lueckenlos
+#
+# Die Zeile ist das Messinstrument des Beobachtbarkeits-Pakets. Sie zu pruefen heisst
+# hier zweierlei, und der zweite Teil ist der wichtigere:
+#
+#   1. Sie ist ueberhaupt da. Fehlt sie, laeuft eine Firmware ohne das Instrument --
+#      und niemand merkt es, weil ein leeres Logbuch genauso aussieht wie ein ruhiges.
+#   2. Ihre FOLGENUMMERN sind lueckenlos. Genau dafuer traegt sie eine: Ein
+#      ueberschriebener Ring liest sich sonst wie "es war ruhig". Eine Luecke bedeutet,
+#      dass der Ring zwischen zwei Zeilen umgelaufen ist -- also dass etwas den Ring
+#      geflutet hat, und das ist der Zustand, den das ganze Paket beseitigen sollte.
+#
+# Rein lesend (DIR-008).
+# Gefordert wird die Zeile erst ab der Firmware, die sie einfuehrt. Sonst schlaegt der
+# Smoketest auf jedem aelteren Stand fehl -- etwa nach einem bewussten Rueckschritt --
+# und waere dort unbrauchbar statt streng. Fehlt sie auf einer NEUEN Firmware, ist das
+# dagegen ein echter Fehlschlag: Dann laeuft ein Fabrikat ohne sein Messinstrument.
+DIAG_SINCE_STM=3.2.14
+
+diag=$(curl -s -m "$TIMEOUT" "$U/api/stm32_log" 2>/dev/null)
+if [ -z "$diag" ]; then
+  fail "Diagnosezeile" "stm32_log nicht lesbar"
+else
+  DIAG="$diag" STM="$stm" SINCE="$DIAG_SINCE_STM" python3 - <<'PY'
+import json, os, re, sys
+
+def lines(raw):
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return []
+    if isinstance(d, dict):
+        for key in ("lines", "log", "stm32_log"):
+            if key in d:
+                d = d[key]; break
+    return [str(x) for x in d] if isinstance(d, list) else []
+
+seqs = [int(m.group(1))
+        for z in lines(os.environ["DIAG"])
+        if (m := re.search(r"\bdiag\s+(\d+)\b", z))]
+
+def ver(s):
+    try:
+        return tuple(int(x) for x in s.strip().split("."))
+    except ValueError:
+        return ()
+
+stm, since = ver(os.environ.get("STM", "")), ver(os.environ["SINCE"])
+
+if not seqs:
+    if stm and since and stm < since:
+        print(f"  INFO  Diagnosezeile                      keine — STM {os.environ['STM']} ist "
+              f"aelter als {os.environ['SINCE']}, das ist erwartet")
+        sys.exit(0)
+    print(f"  FAIL  Diagnosezeile                      keine im Ring, aber STM "
+          f"{os.environ.get('STM','?')} sollte sie haben (Fabrikat ohne Messinstrument)")
+    sys.exit(3)
+
+luecken = [(a, b) for a, b in zip(seqs, seqs[1:]) if b != a + 1]
+if luecken:
+    a, b = luecken[0]
+    print(f"  FAIL  Diagnosezeile                      {len(seqs)} Zeilen, Luecke {a} -> {b}"
+          f" (Ring umgelaufen, etwas flutet ihn)")
+    sys.exit(3)
+
+print(f"  OK    Diagnosezeile                      {len(seqs)} Zeilen, Folgenummern lueckenlos")
+PY
+  case "$?" in
+    0) OK=$((OK+1));;
+    *) FAIL=$((FAIL+1));;
+  esac
+fi
+
 # ------------------------------------------------------------------------ Fazit
 printf '\n=== %d bestanden, %d fehlgeschlagen ===\n' "$OK" "$FAIL"
 [ "$FAIL" -gt 0 ] && exit 1

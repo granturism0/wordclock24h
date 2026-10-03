@@ -1,5 +1,102 @@
 # Changelog
 
+## 2026-10-03 Die Uhr beobachtbar machen (STM 3.2.14, ESP 3.2.12)
+
+STM und ESP, die PWA unverändert. Das Paket löst nichts — es schafft die Mittel,
+mit denen sich das ungelöste Hauptproblem überhaupt untersuchen lässt.
+
+### Warum es nötig war
+
+Die sporadischen Hänger auf dem F411 sind seit Monaten offen. Der Mitschnitt vom
+30.09.2026 hat die Blockade-Spur ausgeschlossen: kein Watchdog-Reset über 18
+Minuten, der Hauptloop lief, ausgefallen war nur der zeitgesteuerte Zweig. Die
+Frage lautet seither: Was macht den periodischen Zweig unerreichbar, während der
+Rest weiterläuft?
+
+Diese Frage war mit den vorhandenen Mitteln nicht zu beantworten — und das lag
+nicht am Problem, sondern an den Werkzeugen.
+
+**Der Logring hielt unter LED-Last 1,2 Sekunden**, während die Oberfläche ihn alle
+2,5 Sekunden abfragt. Er lief zwischen zwei Abfragen zweimal um. Ein Vorfall unter
+Last konnte nicht zufällig verpasst werden — er **musste** verpasst werden.
+
+Am Gerät gemessen: **96 Prozent** aller Ringzeilen stammten aus zwei Logaufrufen
+im LED-Refresh. Sie sind entfernt und durch Zähler ersetzt, die die neue
+Diagnosezeile mitträgt. Die dritte Zeile im selben Modul bleibt: Sie feuert
+höchstens einmal je Sekunde und ist das Widerlegungsinstrument für einen der
+offenen Gerätetests.
+
+### Die Diagnosezeile
+
+```
+diag 7 l=482913 t=1051050 u=70 r=1402 w=0 rx=37/256 d=0 o=0
+```
+
+Sie zerlegt die offene Frage in unterscheidbare Fälle: Hauptloop-Durchläufe,
+Zeitgeber-Interrupts und Betriebszeit. Steigen die ersten beiden, während die
+dritte steht, lebt die Zeitbasis und der Sekundenzweig nicht. Steht der zweite,
+ist die Unterbrechung selbst tot.
+
+**Ihr Auslöser hängt bewusst nicht an der Betriebszeit** — die kommt aus genau der
+Unterbrechung, die im beobachteten Hänger ausfiel. Eine Zeile, die im Fehlerfall
+aufhört zu erscheinen, misst nichts, sie bestätigt nur ihr eigenes Schweigen. Der
+zweite Auslöser zählt deshalb Hauptloop-Durchläufe und kalibriert sich selbst.
+
+Die Folgenummer ist kein Schmuck: Ohne sie liest sich ein überschriebener Ring wie
+„es war ruhig". Der Smoketest prüft die Nummern auf Lückenlosigkeit.
+
+### Der blinde Fleck der Kommandobrücke
+
+Der Empfangsring verwarf bei Überlauf **spurlos** — kein Zähler, kein Flag, kein
+Log. Jetzt werden Verwürfe und höchster Füllstand geführt. Beide auf null gilt
+ausdrücklich als **nicht bestandene** Messung: Ein Zähler, der nie etwas sieht,
+ist von einem, der nicht zählt, sonst nicht zu unterscheiden.
+
+Dabei kam heraus, dass der gemessene Verlustpfad der unwahrscheinlichere ist. Der
+Hardware-Überlauf des Sendebausteins wurde nirgends abgefragt — und beim Lesen
+still gelöscht. Wird die Unterbrechung selbst verzögert, also genau im
+untersuchten Zustand, geht das Zeichen schon dort verloren. Auch das wird jetzt
+gezählt.
+
+Die naheliegende Abfrage dafür wäre falsch gewesen, und zwar auf die stille Art:
+Die Bibliotheksfunktion prüft zusätzlich ein Freigabebit, das in diesem Projekt
+nie gesetzt wird. Sie hätte **immer** „kein Überlauf" gemeldet — ein Zähler, der
+strukturell nie auslöst und dafür eine beruhigende Null liefert.
+
+### Watchdog im Startpfad
+
+`var_send_all_variables()` sendet rund 194 Kommandos mit je bis zu drei Sekunden
+Wartezeit, ohne den Watchdog zu bedienen — im selben Startabschnitt, bei dem der
+F411 hängt.
+
+Ein Reload an dieser Stelle war bisher ausdrücklich ausgeschlossen, mit gutem
+Grund: Der daraus folgende Reset hat die Uhr am 02.10.2026 nach sieben Sekunden
+wieder ins Leben gebracht. Der Einwand bleibt richtig — er trifft nur den
+*bedingungslosen* Reload.
+
+Jetzt wird der Watchdog **nur nach eingetroffener Quittung** bedient. Antwortende
+Brücke: Der lange Startpfad läuft durch. Tote Brücke: Reset wie bisher, die
+Selbstheilung bleibt. Der Reload belohnt Fortschritt, nicht Warten.
+
+### Diagnosebau
+
+`-DWORDCLOCK_DEBUG=ON` schaltet die 172 abgeschalteten Logaufrufe scharf. Das war
+vorher **gar nicht möglich** — die naheliegende Übergabe wirkte nicht, weil die
+Variable beim Parsen der Zielbeschreibung überschrieben wird. Am Fabrikat
+gemessen: byteidentisch.
+
+Vorgabe bleibt `aus`, aus zwei Gründen, die bei der Option stehen: Die Zeilen gehen
+blockierend über dieselbe Leitung, die zum STM führt — und ein Diagnosebau
+schreibt Geheimnisse im Klartext in einen Ring, der ohne Anmeldung aus dem ganzen
+Netz lesbar ist.
+
+### Was dabei nebenbei sichtbar wurde
+
+Lange Logzeilen wurden **zweistufig still gekappt** — der STM kann 255 Zeichen
+senden, die Brücke nimmt 123, der Ring hält 120. Betroffen waren gerade die
+aussagekräftigen Zeilen. Eine gekappte Zeile trägt jetzt eine Marke; behoben ist
+der Verlust damit nicht, nur erkennbar.
+
 ## 2026-10-03 Aufräumen nach F1 (STM 3.2.13, ESP 3.2.11, PWA 1.4.81)
 
 Alle drei Komponenten. Angetreten als Hygiene-Paket — vier latente Befunde, die

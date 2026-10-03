@@ -53,6 +53,7 @@ static void
 var_send_buf (char * buf)
 {
     uint32_t        start_uptime;
+    uint_fast8_t    got_ack;                                    // Quittung der Bruecke eingetroffen?
 
     esp8266_uart_puts ("var ");
     esp8266_uart_puts (buf);
@@ -79,24 +80,63 @@ var_send_buf (char * buf)
     var_send_nested = 1;
     var_send_busy = 1;
     start_uptime = uptime;
+    got_ack = 0;
 
     /* Frueher stand hier eine Schleife ohne jede Abbruchbedingung. Blieb die Quittung
      * aus, kehrte der Aufrufer nie zurueck. Am 30.09.2026 zweimal reproduziert: Die
      * Uhr blieb mitten in set_display_power() stehen und lief bis zum manuellen Reset
      * nicht weiter.
+     *
+     * Die Abbruchbedingung stand seither im Schleifenkopf und steht jetzt im Rumpf: Nur
+     * so ist nach der Schleife unterscheidbar, WARUM sie verlassen wurde -- mit Quittung
+     * oder nach Zeitueberschreitung. Diese Unterscheidung traegt den Reload unten.
      */
-    while (schedule_esp8266_messages () != ESP8266_OK)
+    while (1)
     {
+        if (schedule_esp8266_messages () == ESP8266_OK)
+        {
+            got_ack = 1;                                        // Bruecke hat geantwortet
+            break;
+        }
+
         if (uptime - start_uptime >= VAR_SEND_TIMEOUT_SEC)
         {
             log_printf ("var_send_buf: keine Quittung nach %ds, weiter ohne: %s\r\n",
                         VAR_SEND_TIMEOUT_SEC, buf);
-            break;
+            break;                                              // got_ack bleibt 0
         }
     }
 
     var_send_busy = 0;
     var_send_nested = 0;
+
+    /* Watchdog NUR bei eingetroffener Quittung bedienen, niemals nach dem Timeout.
+     *
+     * var_send_all_variables() sendet rund 194 Kommandos (ueber 450 mit vollen Overlays),
+     * jedes bis zu VAR_SEND_TIMEOUT_SEC lang blockierend, und im ganzen Pfad stand bisher
+     * kein einziger watchdog_reload() (BEFUNDE.md, L85). Antwortet die Bruecke langsam,
+     * aber sie antwortet, setzt der Watchdog mitten im Vollabgleich zurueck, obwohl nichts
+     * kaputt ist -- der ESP behaelt dann einen halben Variablensatz.
+     *
+     * Bedingungslos darf der Reload aber NICHT stehen: Bei toter Bruecke ist der
+     * Watchdog-Reset die einzige Selbstheilung. Am 02.10.2026 hat er die Uhr nach sieben
+     * Sekunden wieder ins Leben gebracht (L25). Ein Reload nach dem Timeout machte daraus
+     * wieder ein stilles Steckenbleiben.
+     *
+     * Deshalb belohnt der Reload Fortschritt, nicht Warten: got_ack wird ausschliesslich
+     * im ESP8266_OK-Zweig gesetzt, der Timeout-Zweig laesst es auf 0. ESP8266_OK entsteht
+     * nur aus einer tatsaechlich empfangenen Zeile der Bruecke ("." oder "OK",
+     * esp8266.c:227 und :301) -- bei toter Bruecke bleibt es also unveraendert beim Reset
+     * nach rund sieben Kommandos.
+     *
+     * Der verschachtelte Fall erreicht diese Stelle gar nicht: Er kehrt oben bei
+     * var_send_nested zurueck, hat also nie gewartet. Ein Reload dort waere keiner
+     * "nach Quittung", sondern einer ohne jede Aussage; der aeussere Aufruf erledigt ihn.
+     */
+    if (got_ack)
+    {
+        watchdog_reload ();
+    }
 }
 
 static void

@@ -95,6 +95,8 @@ typedef struct                                                          // displ
 #define led_refresh         sk6812_refresh
 #define led_set_led         sk6812_set_led
 #define led_set_all_leds    sk6812_set_all_leds
+#define led_get_refresh_cnt sk6812_get_refresh_cnt                    // DIAGNOSE: Zaehler fuer die Diagnosezeile in main.c
+#define led_get_dma_wait_cnt sk6812_get_dma_wait_cnt
 
 #elif DSP_USE_TFTLED_RGB == 1
 #include "tftled.h"
@@ -106,6 +108,11 @@ typedef struct                                                          // displ
 
 #else
 #error DSP_USE_xxx not defined
+#endif
+
+#ifndef led_get_refresh_cnt                                             // nur der SK6812-Treiber zaehlt Refreshes und DMA-Wartefaelle
+#define led_get_refresh_cnt()   ((uint32_t) 0)                          // andere Treiber: die Diagnosezeile zeigt dort 0, statt nicht zu uebersetzen
+#define led_get_dma_wait_cnt()  ((uint16_t) 0)
 #endif
 
 #if DSP_USE_SK6812_RGBW == 1

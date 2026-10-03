@@ -127,6 +127,18 @@ static SK6812_RGBW                  rgbw_buf[2][SK6812_MAX_LEDS];               
 static volatile uint_fast8_t        current_rgbw_buf_idx;                                       // current rgbw buffer index
 static uint_fast8_t                 next_rgbw_buf_idx;                                          // next rgbw buffer index
 
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * diagnostic counters (specs/beobachtbarkeit, task 2)
+ *
+ * They replace the two unconditional log_printf() calls that used to run on every refresh. Under LED load those two lines filled
+ * the 64 line log ring of the ESP within 1.2 s while the PWA reads it only every 2500 ms, so an incident could not be observed.
+ * Both counters SATURATE instead of wrapping around: a counter that falls back to 0 reads like "nothing happened".
+ * Not volatile on purpose - they are written in sk6812_refresh() only, which runs in main loop context, never in an ISR.
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t                     sk6812_refresh_cnt;                                         // calls of sk6812_refresh(), saturates at 0xFFFFFFFF
+static uint16_t                     sk6812_dma_wait_cnt;                                        // DMA wait reports, saturates at 65535
+
 #if defined (STM32F4XX)                                                                         // STM32F4xx
 typedef uint16_t                    DMA_BUFFER_TYPE;                                            // 16bit DMA buffer, must be aligned to 16 bit
 #else                                                                                           // STM32F10x
@@ -450,6 +462,11 @@ sk6812_refresh (uint_fast16_t n_leds)
     uint32_t        wait_start = uptime;
     uint32_t        last_wait_log = wait_start;
 
+    if (sk6812_refresh_cnt < 0xFFFFFFFFUL)                                          // count every entry, saturating
+    {
+        sk6812_refresh_cnt++;
+    }
+
     while (sk6812_dma_status != 0)
     {
         if (uptime != last_wait_log)
@@ -460,6 +477,11 @@ sk6812_refresh (uint_fast16_t n_leds)
 
             if (waited > 0)
             {
+                if (sk6812_dma_wait_cnt < 0xFFFFU)                                  // same condition as the waiting log below, saturating
+                {
+                    sk6812_dma_wait_cnt++;
+                }
+
                 log_printf ("sk6812_refresh: waiting %lus dma=%lu leds=%u pos=%u off=%u pause=%u last_start=%lus last_done=%lus\r\n",
                             waited,
                             (unsigned long) sk6812_dma_status,
@@ -472,8 +494,6 @@ sk6812_refresh (uint_fast16_t n_leds)
             }
         }
     }
-
-    log_printf ("sk6812_refresh: start leds=%u nextbuf=%u\r\n", n_leds, next_rgbw_buf_idx);
 
     current_rgbw_buf_idx    = next_rgbw_buf_idx;
     next_rgbw_buf_idx       = next_rgbw_buf_idx ? 0 : 1;
@@ -491,12 +511,26 @@ sk6812_refresh (uint_fast16_t n_leds)
     {
         rgbw_buf[next_rgbw_buf_idx][i] = rgbw_buf[current_rgbw_buf_idx][i];
     }
+}
 
-    log_printf ("sk6812_refresh: dma started leds=%u pause=%u buf=%u\r\n",
-                n_leds,
-                current_data_pause_len,
-                current_rgbw_buf_idx);
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * read the number of sk6812_refresh() calls, saturated at 0xFFFFFFFF
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint32_t
+sk6812_get_refresh_cnt (void)
+{
+    return sk6812_refresh_cnt;
+}
 
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * read the number of DMA wait reports, saturated at 65535
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint16_t
+sk6812_get_dma_wait_cnt (void)
+{
+    return sk6812_dma_wait_cnt;
 }
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------------

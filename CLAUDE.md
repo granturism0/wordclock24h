@@ -276,6 +276,24 @@ Dokumentation blockiert, wird umgangen statt befolgt.
 | `release-engineer` | `Makefile`, `cmake/**`, die vier Versionsdateien |
 | Lead | `tools/**`, `.claude/**`, Doku, Build, Rollout |
 
+### R3b — Dateibesitz ist nicht Reihenfolge
+
+R3 regelt, **wer** eine Datei schreibt. Es regelt nicht, **wann**. Eine Spec, die
+Task 3 von Task 2 abhängig macht und einen Gerätetest dazwischenlegt, meint genau
+diese Reihenfolge — auch wenn die Dateien disjunkt sind und der Hook beide
+durchlässt.
+
+Am 03.10.2026 hat der Lead Task 2 und Task 3 des Beobachtbarkeits-Pakets parallel
+gestartet, weil beide verschiedene Dateien berührten. Zwischen ihnen stand in
+`tasks.md` eine Flash-Runde, die eine Änderung **isoliert** nachweisen sollte:
+„Geht sie daneben, ist die Ursache eindeutig." Diese Zusage war danach nicht mehr
+einlösbar. Aufgefallen ist es dem umsetzenden Agenten, der fremde Zeitstempel im
+Baum sah — nicht dem Lead, der die Reihenfolge zu verantworten hatte.
+
+**Vor dem Parallelisieren die Abhängigkeitsspalte der Spec lesen, nicht nur die
+Besitzspalte.** Zwei Agenten derselben Rolle gleichzeitig sind erlaubt; zwei Tasks
+mit einer Abhängigkeit dazwischen nicht.
+
 ## R4 — Versionsnummern und `CACHE_NAME` bumpt nur der Lead
 
 Vier Stellen (Tabelle oben) müssen zueinander passen. Teammates bumpen nichts;

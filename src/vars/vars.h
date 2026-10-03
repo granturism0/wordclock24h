@@ -277,7 +277,12 @@ extern void         var_send_use_rgbw (void);
 
 /* Ein einzelner IR-Code, Kommando I<idx:2><protocol:2><addr:4><cmd:4>. Getaktet wird der
  * Abzug im Hauptloop von main.c -- ein Kommando je Durchlauf, nie als Schleife. Absichtlich
- * NICHT Teil von var_send_all_variables(): dieser Pfad hat keinen watchdog_reload() (L85).
+ * NICHT Teil von var_send_all_variables(). Grund ist die Taktung, nicht der Watchdog:
+ * Zwischen zwei Kommandos liegt hier der regulaere Reload am Kopf des Hauptloops, der Abzug
+ * friert die Uhr also nicht ein. Eingereiht waeren es zwanzig weitere quittungspflichtige
+ * Kommandos im Startpfad (L85) -- genau dem, bei dem der F411 "bei Anzeige von IP" haengt.
+ * Seit Task 5 wird var_send_buf() zwar bedient, aber nur bei antwortender Bruecke; bei toter
+ * Bruecke bleibt es beim Reset, und zwanzig Kommandos mehr verlaengerten genau diesen Pfad.
  */
 extern void         var_send_ir_code (uint_fast8_t);
 

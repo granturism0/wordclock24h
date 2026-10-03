@@ -159,8 +159,37 @@ node tools/checks/unused-css.mjs "$APP/styles.css" "$APP/index.html" "$APP/app.j
 
 # ------------------------------------------- S7 Lint gegen quick-reference.md
 step S7 "Muster aus knowledge/quick-reference.md"
+# Bestandswache, nicht Nullforderung. Zwei der urspruenglich drei Zeilen fuellten den
+# 64-Zeilen-Ring bei jedem Refresh -- unter LED-Last war er nach 1,2 s voll, waehrend
+# die PWA nur alle 2500 ms abfragt (BEFUNDE.md, L75). Am Geraet gemessen: 96 % aller
+# Ringzeilen waren diese beiden. Sie sind entfernt und durch Zaehler ersetzt.
+#
+# Die EINE verbliebene Zeile (sk6812.c:463) bleibt mit Absicht: Sie feuert hoechstens
+# einmal je Sekunde und nur, wenn der DMA wartet -- sie ist das Widerlegungsinstrument
+# fuer Geraetetest M3 (REVIEW.md:147). Eine Stufe, die sie dauerhaft anmahnt, wuerde
+# frueher oder spaeter dazu fuehren, dass jemand sie entfernt.
+# Geprueft werden BEIDE Richtungen, und die zweite ist die wichtigere.
+#
+# Eine reine Zaehlung "erwartet: 1" war der erste Entwurf und hat eine Luecke: Wer die
+# Warteschleifen-Meldung entfernt und dafuer eine neue unbedingte Zeile einbaut, kommt
+# wieder auf 1 und besteht. Deshalb wird die eine erlaubte Zeile NAMENTLICH ausgenommen
+# und ihr Vorhandensein eigens geprueft. Aufgefallen ist die Luecke dem Agenten, der
+# Task 2 umgesetzt hat -- an meiner eigenen Fassung.
 n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null); n=${n:-0}
-[ "$n" -gt 0 ] && warn "sk6812.c: $n unbedingte log_printf im Refresh-Pfad — REVIEW.md Massnahme 13, eigener Schritt nach der icon_freeze-Messung" || ok "sk6812.c: kein unbedingtes log_printf"
+w=$($GREP -c '^\s*log_printf ("sk6812_refresh: waiting' src/sk6812/sk6812.c 2>/dev/null); w=${w:-0}
+if [ "$((n - w))" -gt 0 ]; then
+  warn "sk6812.c: $((n - w)) unbedingte log_printf im Refresh-Pfad — fuellen den 64-Zeilen-Ring (L75)"
+else
+  ok "sk6812.c: kein unbedingtes log_printf im Refresh-Pfad"
+fi
+# Die Warteschleifen-Meldung MUSS bleiben: Sie feuert hoechstens einmal je Sekunde und
+# nur bei wartendem DMA -- sie ist das Widerlegungsinstrument fuer Geraetetest M3
+# (REVIEW.md:147). Ohne diese Haelfte der Pruefung bestuende "alle drei entfernt".
+if [ "$w" -eq 1 ]; then
+  ok "sk6812.c: Warteschleifen-Meldung vorhanden (M3-Instrument)"
+else
+  warn "sk6812.c: Warteschleifen-Meldung fehlt ($w statt 1) — Geraetetest M3 hat sein Instrument verloren"
+fi
 # Diese Stufe zaehlte frueher nur in src/main.c und meldete deshalb dauerhaft
 # "nur 1 Aufrufstelle", obwohl display_test() seit 3.2.8 zwei eigene hat. Ein
 # Dauer-Falschbefund ist schlimmer als keine Pruefung -- man liest ihn irgendwann
@@ -169,20 +198,37 @@ n=$($GREP -c '^\s*log_printf' src/sk6812/sk6812.c 2>/dev/null); n=${n:-0}
 # gibt gar nichts aus. Nicht "0 Treffer", sondern "nicht gelesen".
 #
 # Die Aussage hat sich dabei umgedreht. Massnahme 1 ist fuer die Schleifen ohne
-# Abbruchbedingung erledigt (display_test, remote_ir_learn). var_send_buf() bekommt
-# BEWUSST keinen Reload: Dort gibt es seit 3.2.8 einen 3-s-Abbruch, und der daraus
-# folgende Watchdog-Reset hat die Uhr am 02.10.2026 nach sieben Sekunden wieder ins
-# Leben gebracht (L25). Ein Reload an dieser Stelle wuerde daraus wieder ein stilles
-# Steckenbleiben machen. Die Stufe bewacht deshalb jetzt den Bestand: Faellt die Zahl
-# unter vier, ist ein Fix verlorengegangen.
-# 6 seit 03.10.2026: Hauptloop, remote_ir_learn, display_test (2) und neu die
-# Ticker-Warteschleife (2). Die Zahl veraltet still, wenn sie beim Nachruesten
-# vergessen wird -- der Schutz griffe dann erst, wenn mehrere Stellen fehlen.
-WD_EXPECTED=6
+# Abbruchbedingung erledigt (display_test, remote_ir_learn). Die Stufe bewacht den
+# Bestand: Faellt die Zahl, ist ein Fix verlorengegangen.
+#
+# ZU var_send_buf() STAND HIER BIS ZUM 03.10.2026 "bekommt BEWUSST keinen Reload".
+# Der Einwand war richtig und bleibt es -- nur traf er den BEDINGUNGSLOSEN Reload:
+# Dort gibt es seit 3.2.8 einen 3-s-Abbruch, und der daraus folgende Watchdog-Reset
+# hat die Uhr am 02.10.2026 nach sieben Sekunden wieder ins Leben gebracht (L25).
+# Ein Reload bei jedem Durchlauf haette daraus wieder ein stilles Steckenbleiben
+# gemacht.
+#
+# Seit 03.10.2026 steht dort ein Reload, der NUR nach eingetroffener Quittung
+# ausloest. Er belohnt Fortschritt, nicht Warten:
+#
+#   antwortende Bruecke -> Watchdog bedient, der lange Startpfad laeuft durch
+#                          (var_send_all_variables: ~194 Kommandos, L85)
+#   tote Bruecke        -> kein Reload, Reset nach rund sieben Kommandos wie bisher,
+#                          die Selbstheilung aus L25 bleibt unangetastet
+#
+# Belegt und nicht nur beabsichtigt: ESP8266_OK entsteht ausschliesslich in
+# esp8266.c:227 und :301, beide setzen empfangene Bytes bis zum '\n' voraus. Eine
+# tote Bruecke kann die Bedingung nicht erfuellen.
+#
+# 7 seit 03.10.2026: Hauptloop, remote_ir_learn, display_test (2), Ticker-
+# Warteschleife (2) und var_send_buf (nach Quittung). Die Zahl veraltet still, wenn
+# sie beim Nachruesten vergessen wird -- der Schutz griffe dann erst, wenn mehrere
+# Stellen fehlen.
+WD_EXPECTED=7
 n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
 n=${n:-0}
 if [ "$n" -lt "$WD_EXPECTED" ]; then
-  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x)"
+  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x, var_send_buf nach Quittung)"
 else
   ok "watchdog_reload(): $n Aufrufstellen, Bestand vollstaendig"
 fi

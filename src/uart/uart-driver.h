@@ -80,6 +80,9 @@ static volatile uint8_t             uart_txbuf[UART_TXBUFLEN];                  
 static volatile uint_fast16_t       uart_txsize = 0;                            // tx size
 static volatile uint8_t             uart_rxbuf[UART_RXBUFLEN];                  // rx ringbuffer
 static volatile uint_fast16_t       uart_rxsize = 0;                            // rx size
+static volatile uint_fast16_t       uart_rxmax = 0;                             // rx high water mark: hoechster je erreichter Fuellstand
+static volatile uint16_t            uart_rxdrops = 0;                           // rx drops: saettigender Zaehler verworfener Zeichen
+static volatile uint16_t            uart_rxore = 0;                             // rx overrun: saettigender Zaehler der Hardware-Ueberlaeufe
 
 /*---------------------------------------------------------------------------------------------------------------------------------------------------
  * Possible UARTs of STM32F4xx:
@@ -432,6 +435,10 @@ static volatile uint_fast16_t       uart_rxsize = 0;                            
 #define UART_PREFIX_GETC            UART_CONCAT(UART_PREFIX, _uart_getc)
 #define UART_PREFIX_POLL            UART_CONCAT(UART_PREFIX, _uart_poll)
 #define UART_PREFIX_RSIZE           UART_CONCAT(UART_PREFIX, _uart_rsize)
+#define UART_PREFIX_RXMAX           UART_CONCAT(UART_PREFIX, _uart_rxmax)
+#define UART_PREFIX_RXDROPS         UART_CONCAT(UART_PREFIX, _uart_rxdrops)
+#define UART_PREFIX_RXORE           UART_CONCAT(UART_PREFIX, _uart_rxore)
+#define UART_PREFIX_RXBUFLEN        UART_CONCAT(UART_PREFIX, _uart_rxbuflen)
 #define UART_PREFIX_FLUSH           UART_CONCAT(UART_PREFIX, _uart_flush)
 
 /*---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -664,6 +671,68 @@ UART_PREFIX_RSIZE (void)
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------------------------------
+ * uart_rxmax() - hoechster je erreichter Fuellstand des RX-Ringpuffers
+ *
+ * Haelt die Aussage "0 Verwuerfe" ueberhaupt erst aus: Steht dieser Wert ueber 0, war der Zaehlpfad aktiv.
+ * Stehen rxmax und rxdrops beide auf 0, wurde nicht gemessen - das ist kein Gutfall, sondern ein Ausfall.
+ * Der Wert ist bauartbedingt durch UART_RXBUFLEN begrenzt und kann deshalb nicht ueberlaufen.
+ *---------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+UART_PREFIX_RXMAX (void)
+{
+    return uart_rxmax;
+}
+
+/*---------------------------------------------------------------------------------------------------------------------------------------------------
+ * uart_rxdrops() - Zahl der im RX-Ringpuffer verworfenen Zeichen
+ *
+ * Saettigend bei 0xFFFF: ein Zaehler, der auf 0 zurueckspringt, sieht aus wie "nichts passiert".
+ *---------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+UART_PREFIX_RXDROPS (void)
+{
+    return uart_rxdrops;
+}
+
+/*---------------------------------------------------------------------------------------------------------------------------------------------------
+ * uart_rxore() - Zahl der Empfangsereignisse mit gesetztem Overrun-Flag (ORE)
+ *
+ * Ergaenzt uart_rxdrops() um den zweiten, bisher voellig unsichtbaren Verlustpfad: uart_rxdrops zaehlt nur
+ * Ueberlaeufe des SOFTWARE-Ringpuffers. Kommt die ISR selbst zu spaet, geht das Zeichen bereits im
+ * Schieberegister der Hardware verloren und erreicht den Ring nie - genau der Fall bei blockiertem Hauptloop.
+ *
+ * Der Wert ist eine UNTERGRENZE der verlorenen Zeichen: Ein einziges gesetztes ORE-Flag kann fuer mehrere
+ * durchgerauschte Zeichen stehen. "o=0" heisst also "kein Hardware-Ueberlauf bemerkt", nicht "genau null
+ * Zeichen verloren". Saettigend bei 0xFFFF.
+ *---------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+UART_PREFIX_RXORE (void)
+{
+    return uart_rxore;
+}
+
+/*---------------------------------------------------------------------------------------------------------------------------------------------------
+ * uart_rxbuflen() - Groesse des RX-Ringpuffers in Byte
+ *
+ * Gibt es nur, damit der Bezugswert zu uart_rxmax() aus DERSELBEN Quelle kommt wie der Messwert.
+ * UART_RXBUFLEN wird je Instanz in der einbindenden .c-Datei gesetzt (esp8266-uart.c, log-uart.c,
+ * dfplayer-uart.c) und ist von aussen nicht sichtbar. Wer die Zahl dort abschreibt, baut eine zweite
+ * Wahrheit: Nach einer Vergroesserung des Rings meldete eine Anzeige "300/256" - und das liest sich
+ * wie ein Messfehler, nicht wie eine veraltete Konstante.
+ *
+ * Konstant und ohne Nebenwirkung. Wenn der Compiler den Aufruf wegoptimiert, ist das der Zweck.
+ *---------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+UART_PREFIX_RXBUFLEN (void)
+{
+    return UART_RXBUFLEN;
+}
+
+/*---------------------------------------------------------------------------------------------------------------------------------------------------
  * uart_flush ()
  *---------------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -691,7 +760,35 @@ void UART_IRQ_HANDLER (void)
     if (USART_GetITStatus (UART_NAME, USART_IT_RXNE) != RESET)
     {
         USART_ClearITPendingBit (UART_NAME, USART_IT_RXNE);
-        value = USART_ReceiveData (UART_NAME);
+
+        // ORE MUSS vor USART_ReceiveData() abgefragt werden. Das Flag wird geloescht durch die Folge
+        // "SR lesen, dann DR lesen": Teil eins hat USART_GetITStatus() oben erledigt, Teil zwei
+        // erledigt USART_ReceiveData() zwei Zeilen weiter unten - und zwar STILL, ohne jede Spur.
+        // Wer das Flag nicht hier festhaelt, kann es danach nirgends mehr erfahren.
+        //
+        // Warum die Stelle NACH USART_ClearITPendingBit() trotzdem sicher ist: Die Funktion
+        // SCHREIBT nur (USARTx->SR = ~itmask), sie liest SR nicht. ORE ist in SR read-only und
+        // allein ueber die Lesefolge loeschbar - ein Schreibzugriff kann es nicht zuruecksetzen.
+        // Diese Platzierung kostet im Normalpfad zwei Befehle weniger als die ganz am Zweiganfang,
+        // weil GCC die Datenblockadresse dort ueber die beiden bl-Aufrufe auf den Stack retten muss.
+        //
+        // Direkter Registerzugriff statt SPL, aus zwei Gruenden:
+        //   1. USART_GetITStatus(UART_NAME, USART_IT_ORE) waere FALSCH. USART_IT_ORE ist auf
+        //      USART_IT_ORE_ER abgebildet, und GetITStatus prueft dabei zusaetzlich das EIE-Bit
+        //      in CR3. Das wird hier nie gesetzt (uart_init aktiviert nur RXNEIE), die Abfrage
+        //      lieferte also IMMER RESET - auch bei gesetztem Flag. Der Zaehler bliebe still
+        //      auf 0, und das waere genau der stille Fehlschlag, den er aufdecken soll.
+        //   2. USART_GetFlagStatus() ist ein echter Funktionsaufruf, nicht inline (kein LTO, am
+        //      Disassembly geprueft). In der ISR: ldr/ldrh/tst/branch statt bl samt Prolog.
+        if ((UART_NAME->SR & USART_FLAG_ORE) != 0)                          // Hardware-Ueberlauf?
+        {                                                                   // ja, mindestens ein Zeichen ging im Schieberegister verloren
+            if (uart_rxore < 0xFFFF)                                        // saettigend, kein Ueberlauf auf 0
+            {
+                uart_rxore++;                                               // kein Log, kein Aufruf: ISR
+            }
+        }
+
+        value = USART_ReceiveData (UART_NAME);                              // loescht ORE mit, siehe oben
 
         ch = value & 0xFF;
 
@@ -705,6 +802,18 @@ void UART_IRQ_HANDLER (void)
             }
 
             uart_rxsize++;                                                      // increment used size
+
+            if (uart_rxsize > uart_rxmax)                                       // neuer Hoechststand?
+            {                                                                   // ja
+                uart_rxmax = uart_rxsize;                                       // merken, begrenzt durch UART_RXBUFLEN
+            }
+        }
+        else
+        {                                                                       // Ringpuffer voll: Zeichen geht verloren
+            if (uart_rxdrops < 0xFFFF)                                          // saettigend, kein Ueberlauf auf 0
+            {
+                uart_rxdrops++;                                                 // Verwurf zaehlen - kein Log, kein Aufruf: ISR
+            }
         }
     }
 

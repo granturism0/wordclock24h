@@ -13,6 +13,31 @@ set(CMAKE_C_FLAGS_RELEASE "" CACHE STRING "" FORCE)
 set(CMAKE_ASM_FLAGS_RELEASE "" CACHE STRING "" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS_RELEASE "" CACHE STRING "" FORCE)
 
+# Diagnosebau: schaltet die 172 debug_log_*-Aufrufe scharf (src/log/log.h:23-31).
+#
+# Bis zum 03.10.2026 liess sich DEBUG ueberhaupt nicht setzen. Naheliegend waere
+# -DTGT_COMPILE_DEFINITIONS=DEBUG gewesen, aber das wirkt nicht: Die Variable ist
+# keine freie, sondern das von cmake_parse_arguments(TGT ...) geparste Argument
+# COMPILE_DEFINITIONS des jeweiligen wordclock_add_target()-Aufrufs und wird beim
+# Parsen ueberschrieben. Am Fabrikat gemessen: byteidentisch, -DDEBUG kam nie beim
+# Compiler an. Einen Diagnosebau bekam man nur, indem man die Definitionsliste von
+# Hand editierte.
+#
+#   cmake -S . -B build/stm-debug -DWORDCLOCK_DEBUG=ON ...
+#
+# ZWEI WARNUNGEN, und beide sind der Grund fuer die Vorgabe OFF:
+#
+#   1. Die Zeilen gehen blockierend ueber dieselbe UART, die zum STM fuehrt
+#      (log.c:27-34). Ein Diagnosebau ist langsamer als ein Normalbau, und er
+#      fuellt den 64-Zeilen-Ring um ein Vielfaches schneller -- unter LED-Last
+#      reicht der schon im Normalbau nur rund 1,2 s (BEFUNDE.md, L75).
+#
+#   2. Ein Diagnosebau schreibt Geheimnisse im Klartext in den Ring, etwa
+#      "cmd: set weather appid = '...'" (main.c:2199). /api/stm32_log ist ohne
+#      Anmeldung aus dem ganzen LAN lesbar. Ein solches Fabrikat gehoert auf den
+#      Basteltisch, nicht in den Dauerbetrieb.
+option(WORDCLOCK_DEBUG "Diagnosebau: debug_log_* scharf schalten (siehe Warnungen oben)" OFF)
+
 function(embitz_collect_sources EBP_FILE OUT_VAR)
   get_filename_component(EBP_DIR "${EBP_FILE}" DIRECTORY)
   file(STRINGS "${EBP_FILE}" UNIT_LINES REGEX "<Unit filename=")
@@ -68,6 +93,7 @@ function(wordclock_add_target TARGET_NAME)
   target_compile_definitions(${TARGET_NAME} PRIVATE
     ${TGT_COMPILE_DEFINITIONS}
     DSP_USE_LED=SK6812_RGBW_LED
+    $<$<BOOL:${WORDCLOCK_DEBUG}>:DEBUG>
   )
 
   target_compile_options(${TARGET_NAME} PRIVATE
