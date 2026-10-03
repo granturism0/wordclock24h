@@ -41,6 +41,21 @@ ASSETS="app/index.html app/styles.css app/layout-previews.json \
         app/icons/icon-180.png app/icons/icon-mask.png \
         app/manifest.webmanifest app/app.js app/sw.js"
 
+# Die Sprachdateien kommen aus dem Verzeichnis, nicht aus der Liste oben. Grund wie im
+# Makefile bei GZIP_SOURCES: Jede neue Sprache ist eine eigene Datei, und eine feste
+# Liste muesste dreimal nachgezogen werden (hier, Makefile, deploy.sh). Wer eine davon
+# vergisst, merkt es erst am Geraet -- die Sprache bleibt dann stumm, weil der ESP
+# ausschliesslich nach dem abgeflachten .gz-Namen sucht und APP_INSTALL_ASSETS eine
+# Weissliste ist (BEFUNDE.md L21, am 29.04.2026 genau so passiert).
+#
+# ACHTUNG: Der ESP muss den Namen in APP_INSTALL_ASSETS fuehren, sonst weist er den
+# Upload mit error_code 1 ab. Die Reihenfolge Rollout -> ESP-Flash -> install-app.sh
+# ist deshalb nicht vertauschbar.
+for f in "$D"/i18n/*.json; do
+  [ -e "$f" ] || continue
+  ASSETS="$ASSETS app/i18n/$(basename "$f")"
+done
+
 device_version() {
   curl -s --compressed -m 20 "$U/app/app.js" 2>/dev/null \
     | grep -o 'const APP_VERSION = "[^"]*"' | head -1 | sed 's/.*"\(.*\)"/\1/'

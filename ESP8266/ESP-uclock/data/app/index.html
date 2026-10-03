@@ -45,8 +45,8 @@
         <div class="language-switch">
           <label for="language-select" class="label" data-i18n="hero.language_label">Sprache</label>
           <select id="language-select" aria-label="Sprache" data-i18n-aria-label="hero.language_label">
-            <option value="de" data-i18n="language.de">Deutsch</option>
-            <option value="en" data-i18n="language.en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
           </select>
         </div>
         <div id="layout-table-warning-global" class="module-warning is-hidden" role="status"></div>
@@ -329,9 +329,9 @@
           <div class="panel-head"><div><p class="eyebrow" data-i18n="climate.temperature_eyebrow">Temperatur</p><h2 data-i18n="climate.temperature_title">Sensoren und Korrektur</h2></div></div>
           <div class="control-stack">
             <div id="temperature-list" class="info-list"></div>
-            <label class="field"><span class="label" data-i18n="climate.ds18xx_correction">DS18xx-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label" data-i18n="climate.ds18xx_correction">DS18xx-Korrektur (-20 bis +20 Schritte zu je 0,5 °C, also höchstens ±10 °C)</span><input id="temperature-ds18xx-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-ds18xx-correction-save-button" class="button" type="button" data-i18n="climate.save_ds18xx_correction">DS18xx-Korrektur speichern</button>
-            <label class="field"><span class="label" data-i18n="climate.rtc_correction">RTC-Korrektur (-20 bis +20 in 0,5 °C Schritten)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
+            <label class="field"><span class="label" data-i18n="climate.rtc_correction">RTC-Korrektur (-20 bis +20 Schritte zu je 0,5 °C, also höchstens ±10 °C)</span><input id="temperature-rtc-correction-input" type="number" min="-20" max="20" step="1" inputmode="numeric"></label>
             <button id="temperature-rtc-correction-save-button" class="button" type="button" data-i18n="climate.save_rtc_correction">RTC-Korrektur speichern</button>
             <button id="temperature-display-button" class="button" type="button" data-i18n="climate.show_temperature">Temperatur anzeigen</button>
           </div>

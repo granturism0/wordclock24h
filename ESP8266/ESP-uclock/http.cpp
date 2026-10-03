@@ -1878,8 +1878,9 @@ http_app (const char * path)
      * "is_pwa_index && ! app_complete" und "! is_pwa_index || app_complete" gelesen -
      * bei is_pwa_index == 0 entscheidet in beiden Faellen bereits der erste Operand,
      * der Startwert false aendert dort also nichts. Fuer /app/app.js entfallen damit
-     * ein LittleFS-Mount, zwoelf Dateipruefungen und ein Unmount, deren Ergebnis
-     * weggeworfen wurde - unmittelbar vor der grossen Uebertragung (L129 d). Am
+     * ein LittleFS-Mount, eine Dateipruefung je Weisslisteneintrag und ein Unmount,
+     * deren Ergebnis weggeworfen wurde - unmittelbar vor der grossen
+     * Uebertragung (L129 d). Am
      * Geraet gemessen vergehen 239 ms zwischen dem ACK der Anfrage und dem ersten
      * Datenpaket, 18 % der Gesamtzeit (L131).
      */

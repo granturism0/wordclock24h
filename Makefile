@@ -19,7 +19,11 @@ ESP_WARNINGS ?= none
 APP_VERSION_SOURCE ?= ESP8266/ESP-uclock/data/app/app.js
 APP_VERSION_FILE ?= $(ESP_BUILD_DIR)/app-version.txt
 APP_DIR ?= ESP8266/ESP-uclock/data/app
-GZIP_SOURCES ?= $(APP_DIR)/app.js $(APP_DIR)/styles.css $(APP_DIR)/index.html $(APP_DIR)/sw.js $(APP_DIR)/manifest.webmanifest $(APP_DIR)/layout-previews.json $(APP_DIR)/icons/icon-192.svg $(APP_DIR)/icons/icon-512.svg $(APP_DIR)/icons/icon-192.png $(APP_DIR)/icons/icon-512.png $(APP_DIR)/icons/icon-180.png $(APP_DIR)/icons/icon-mask.png
+# Die Sprachdateien stehen als Platzhalter, nicht einzeln: Seit der Auslagerung (B15)
+# ist jede zusaetzliche Sprache eine eigene i18n/<code>.json. Eine feste Liste muesste
+# bei jeder neuen Sprache angefasst werden -- und wer sie vergisst, merkt es erst am
+# Geraet, weil die Datei dann ungepackt bleibt und der ESP nur .gz ausliefert.
+GZIP_SOURCES ?= $(APP_DIR)/app.js $(APP_DIR)/styles.css $(APP_DIR)/index.html $(APP_DIR)/sw.js $(APP_DIR)/manifest.webmanifest $(APP_DIR)/layout-previews.json $(wildcard $(APP_DIR)/i18n/*.json) $(APP_DIR)/icons/icon-192.svg $(APP_DIR)/icons/icon-512.svg $(APP_DIR)/icons/icon-192.png $(APP_DIR)/icons/icon-512.png $(APP_DIR)/icons/icon-180.png $(APP_DIR)/icons/icon-mask.png
 RELEASE_DIR ?= build/releases
 # Sekundengenau statt minutengenau: Das Release-Ziel macht ein "rm -f" auf diesen
 # Namen. Zwei Builds in derselben Minute haben sich vorher KOMMENTARLOS

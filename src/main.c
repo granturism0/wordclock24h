@@ -3408,18 +3408,19 @@ main (void)
          *                               die Deutung ihres Standes steht bei ihrer Definition in vars.c (specs/bruecke, Design 3).
          *                               Im Ruhebetrieb bleibt das Feld auf v=0/0; tut es das nicht, kommt die Punkt-Quittung nicht an.
          *
-         * Maximale Laenge der Zeile: 116 Zeichen, Grenze 119 (120 des ESP-Rings minus Kappungsmarke). Rest: 3 Zeichen - das ist kein Feld mehr.
+         * Maximale Laenge der Zeile: 118 Zeichen, Grenze 119 (120 des ESP-Rings minus Kappungsmarke). Rest: 1 Zeichen - die Zeile ist voll.
          * Nachgerechnet, nicht uebernommen:
          *
          *   "diag " 5 + seq 10 + " l=" 3 + loop 10 + " t=" 3 + tick 10 + " u=" 3 + uptime 10            =  54
-         *   + " r=" 3 + refresh 10 + " w=" 3 + dmawait 5 + " rx=" 4 + rxmax 3 + "/" 1 + rxbuflen 3      =  86
-         *   + " d=" 3 + drops 5 + " o=" 3 + ore 5                                                       = 102
-         *   + " v=" 3 + timeouts 5 + "/" 1 + verschachtelt 5                                            = 116
+         *   + " r=" 3 + refresh 10 + " w=" 3 + dmawait 5 + " rx=" 4 + rxmax 4 + "/" 1 + rxbuflen 4      =  88
+         *   + " d=" 3 + drops 5 + " o=" 3 + ore 5                                                       = 104
+         *   + " v=" 3 + timeouts 5 + "/" 1 + verschachtelt 5                                            = 118
          *
-         * Die 102 des Bestands gehen nur auf, weil rx= zwei DREIstellige Werte traegt: UART_RXBUFLEN ist 256 (esp8266-uart.c:69), nicht
-         * fuenfstellig. Wer das Format anfasst, rechnet neu. Wer mehr Platz braucht, weitet die Ringzeile des ESP von 120 auf 136
-         * (CMD_BUFFER_SIZE 128 -> 144) - das kostet 64 x 16 = 1024 Byte DRAM von rund 12400 freien, einen ESP-Flash und einen zweiten
-         * Besitzer. Es gehoert damit nicht in dieses Paket.
+         * Bis zum 03.10.2026 waren es 116: rx= trug damals zwei DREIstellige Werte, weil UART_RXBUFLEN 256 war. Seit der Ring auf 1024
+         * steht (esp8266-uart.c), sind beide VIERstellig, und die Zeile ist bis auf ein Zeichen voll. KEIN Feld passt mehr dazu, und
+         * auch keine weitere Stelle in einem bestehenden: Wer den Ring noch einmal vergroessert, muss zuerst Platz schaffen. Der Weg
+         * dazu ist die Ringzeile des ESP von 120 auf 136 zu weiten (CMD_BUFFER_SIZE 128 -> 144) - das kostet 64 x 16 = 1024 Byte DRAM
+         * von rund 12400 freien, einen ESP-Flash und einen zweiten Besitzer. Wer das Format anfasst, rechnet neu.
          *---------------------------------------------------------------------------------------------------------------------------------
          */
         static uint32_t     diag_seq            = 0;                                    // Folgenummer: eine Luecke im Ring ist sonst nicht von Ruhe zu unterscheiden
@@ -3676,8 +3677,8 @@ main (void)
                 gmain.minute  = gmain.tm.tm_min;
                 gmain.second  = gmain.tm.tm_sec;
 
-                log_printf ("read rtc: %s %4d-%02d-%02d %02d:%02d:%02d\r\n",
-                            wdays_en[gmain.tm.tm_wday], gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
+                log_printf ("read rtc: %4d-%02d-%02d %02d:%02d:%02d\r\n",
+                            gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
                             gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
             }
 
@@ -3758,7 +3759,7 @@ main (void)
 #endif
             }
 
-            log_printf ("show_time: display_clock_flag=0x%02x power=%d ambi=%d hour=%02d minute=%02d\r\n",
+            log_printf ("show_time: flags=0x%02x p=%d a=%d %02d:%02d\r\n",
                         display_clock_flag,
                         display.display_power_is_on,
                         display.ambilight_power_is_on,
@@ -4107,23 +4108,28 @@ main (void)
             }
             else
             {
-                log_printf ("main: call display_clock time flags=0x%02x power=%d ambi=%d\r\n",
-                            display_clock_flag,
-                            display.display_power_is_on,
-                            display.ambilight_power_is_on);
+                /* Zwei Zeilen a rund 70 Byte um JEDEN display_clock()-Aufruf, und der Zweig laeuft
+                 * nicht nur zum Minutenwechsel, sondern bei jedem gesetzten display_clock_flag --
+                 * beim Speichern der Dimmkurve sind das 16 Aufrufe am Stueck. Jede Logzeile geht
+                 * ueber log_vprintf() auch auf die ESP-Bruecke und verzoegert dort das Abholen
+                 * (BEFUNDE.md, L144). Gekuerzt auf das, was gelesen wird; power und ambi stehen
+                 * nur noch in der Rueckkehrzeile, weil sie sich allenfalls DORT geaendert haben.
+                 *
+                 * Beide Marker bleiben WORTGLEICH erhalten: tools/logger/README.md deutet die
+                 * Luecke zwischen "main: call display_clock" und "main: display_clock returned"
+                 * als ueberstandene Blockade. Wer sie kuerzt, nimmt dem Werkzeug seine Aussage.
+                 */
+                log_printf ("main: call display_clock flags=0x%02x\r\n", display_clock_flag);
                 display_clock (gmain.hour, gmain.minute, display_clock_flag);           // show new time
-                log_printf ("main: display_clock returned time flags=0x%02x power=%d ambi=%d\r\n",
+                log_printf ("main: display_clock returned flags=0x%02x p=%d a=%d\r\n",
                             display_clock_flag,
                             display.display_power_is_on,
                             display.ambilight_power_is_on);
             }
 #else
-            log_printf ("main: call display_clock time flags=0x%02x power=%d ambi=%d\r\n",
-                        display_clock_flag,
-                        display.display_power_is_on,
-                        display.ambilight_power_is_on);
+            log_printf ("main: call display_clock flags=0x%02x\r\n", display_clock_flag);
             display_clock (gmain.hour, gmain.minute, display_clock_flag);               // show new time
-            log_printf ("main: display_clock returned time flags=0x%02x power=%d ambi=%d\r\n",
+            log_printf ("main: display_clock returned flags=0x%02x p=%d a=%d\r\n",
                         display_clock_flag,
                         display.display_power_is_on,
                         display.ambilight_power_is_on);

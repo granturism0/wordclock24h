@@ -38,6 +38,39 @@ set(CMAKE_EXE_LINKER_FLAGS_RELEASE "" CACHE STRING "" FORCE)
 #      Basteltisch, nicht in den Dauerbetrieb.
 option(WORDCLOCK_DEBUG "Diagnosebau: debug_log_* scharf schalten (siehe Warnungen oben)" OFF)
 
+# Link Time Optimization, fuer BEIDE Ziele. Gemessen am 04.10.2026, Release-Bau,
+# arm-none-eabi-gcc, gegen denselben Stand ohne LTO:
+#
+#   F103   -4'352 Byte Flash  = 6,63 %   |  RAM -316 Byte
+#   F411   -4'352 Byte Flash  = 6,73 %   |  RAM -316 Byte
+#   neue Codewarnungen: keine
+#
+# Der F103 ist der Grund. Sein stm32f103c8 hat 65'536 Byte Flash, und der Bau war
+# ohne LTO am Link gescheitert -- nicht knapp, sondern gar nicht. Die 4'352 Byte
+# sind hier kein Komfortgewinn, sondern die Differenz zwischen "linkt" und
+# "linkt nicht". Entsprechend ist das keine Option, die man bei Bedarf abschaltet:
+# Wer sie entfernt, bekommt den F103 nicht mehr gebaut.
+#
+# WARUM "=4" UND NICHT BLANK -- das ist kein Geschmack, sondern eine Messung:
+#
+# Blankes -flto laesst gcc die Zahl der Link-Jobs selbst bestimmen. Findet der
+# Treiber keine brauchbare Vorgabe, faellt er zurueck und schreibt dabei
+#
+#     lto-wrapper: warning: using serial compilation of N LTRANS jobs
+#
+# auf stderr. Das Fabrikat ist byteidentisch -- am Hex nachgemessen, die Meldung
+# kostet kein Byte. Sie kostet etwas anderes: Guardrail-Stufe S4 zaehlt stumpf
+# 'grep -c "warning:"' ueber das Bauprotokoll und fuehrt den Bestand als feste
+# Zahl. Jede Treibermeldung, die keine Codewarnung ist, verschiebt diesen Bestand
+# und macht die Stufe genau so lange unbrauchbar, bis jemand die Zahl von Hand
+# nachzieht -- also bis zum naechsten Mal. Eine Schwelle, die aus einem anderen
+# Grund wandert als dem, den sie ueberwachen soll, wird irgendwann hochgesetzt
+# statt gelesen.
+#
+# "=4" gibt die Zahl vor, der Rueckfall entfaellt, die Meldung entfaellt, der
+# Bestand bleibt bei 18. Die 4 passt zu den "-j4" der Build-Ziele im Makefile.
+set(WORDCLOCK_LTO_FLAG -flto=4)
+
 function(embitz_collect_sources EBP_FILE OUT_VAR)
   get_filename_component(EBP_DIR "${EBP_FILE}" DIRECTORY)
   file(STRINGS "${EBP_FILE}" UNIT_LINES REGEX "<Unit filename=")
@@ -112,6 +145,9 @@ function(wordclock_add_target TARGET_NAME)
     -Wunused-value
     $<$<COMPILE_LANGUAGE:ASM>:-Wa,--no-warn>
     $<$<COMPILE_LANGUAGE:C>:-std=gnu11>
+    # LTO nur fuer C. Die Startup-Dateien sind Assembler; -flto hat dort nichts
+    # zu optimieren und der Assembler-Treiber reicht es nur durch.
+    $<$<COMPILE_LANGUAGE:C>:${WORDCLOCK_LTO_FLAG}>
     $<$<CONFIG:Debug>:-O0>
     $<$<CONFIG:Debug>:-g3>
     $<$<CONFIG:Release>:-Os>
@@ -132,6 +168,11 @@ function(wordclock_add_target TARGET_NAME)
   target_link_options(${TARGET_NAME} PRIVATE
     -mthumb
     -mcpu=${TGT_CPU}
+    # LTO muss beim Link noch einmal stehen: Die eigentliche Optimierung ueber
+    # Uebersetzungseinheiten hinweg macht der lto-wrapper erst hier. Fehlt das
+    # Flag, liegen die LTO-Objekte zwar vor, werden aber nur noch zusammengefasst
+    # -- und der F103 linkt wieder nicht.
+    ${WORDCLOCK_LTO_FLAG}
     -T${TGT_LINKER_SCRIPT}
     --specs=nano.specs
     -Wl,--gc-sections

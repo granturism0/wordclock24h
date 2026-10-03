@@ -76,6 +76,19 @@
 
 #include "uart.h"
 
+/* RINGINDIZES: uint_fast16_t, nicht uint_fast8_t.
+ *
+ * Die vier Lauf-Indizes (uart_txstop, uart_txstart, uart_rxstart, uart_rxstop) sind static und
+ * liegen bei ihren Funktionen weiter unten. Sie waren bis zum 03.10.2026 uint_fast8_t -- und
+ * das ging gut, solange keine Puffergroesse ueber 256 lag: Bei genau 256 faellt der natuerliche
+ * Ueberlauf eines 8-Bit-Typs mit dem Ruecksetzen auf 0 zusammen. Die Zuordnung "genau diese
+ * Groesse ist unauffaellig" ist nirgends sichtbar und haelt nur, solange niemand den Puffer
+ * vergroessert; esp8266-uart.c steht seit 03.10.2026 auf 1024.
+ *
+ * uint_fast8_t ist auf dieser Toolchain ohnehin 32 Bit breit, der Fehler waere hier also nicht
+ * eingetreten -- aber das ist eine Eigenschaft der Toolchain und keine des Programms. Der
+ * Standard laesst 8 Bit ausdruecklich zu.
+ */
 static volatile uint8_t             uart_txbuf[UART_TXBUFLEN];                  // tx ringbuffer
 static volatile uint_fast16_t       uart_txsize = 0;                            // tx size
 static volatile uint8_t             uart_rxbuf[UART_RXBUFLEN];                  // rx ringbuffer
@@ -543,7 +556,7 @@ UART_PREFIX_INIT (uint32_t baudrate)
 void
 UART_PREFIX_PUTC (uint_fast8_t ch)
 {
-    static uint_fast8_t uart_txstop  = 0;                                       // tail
+    static uint_fast16_t uart_txstop  = 0;                                      // tail, siehe RINGINDIZES oben
 
     while (uart_txsize >= UART_TXBUFLEN)                                        // buffer full?
     {                                                                           // yes
@@ -607,7 +620,7 @@ UART_PREFIX_CHAR_AVAILABLE (void)
 uint_fast8_t
 UART_PREFIX_GETC (void)
 {
-    static uint_fast8_t  uart_rxstart = 0;                                      // head
+    static uint_fast16_t uart_rxstart = 0;                                      // head, siehe RINGINDIZES oben
     uint_fast8_t         ch;
 
     while (uart_rxsize == 0)                                                    // rx buffer empty?
@@ -636,7 +649,7 @@ UART_PREFIX_GETC (void)
 uint_fast8_t
 UART_PREFIX_POLL (uint_fast8_t * chp)
 {
-    static uint_fast8_t uart_rxstart = 0;                                       // head
+    static uint_fast16_t uart_rxstart = 0;                                      // head, siehe RINGINDIZES oben
     uint_fast8_t        ch;
 
     if (uart_rxsize == 0)                                                       // rx buffer empty?
@@ -753,7 +766,7 @@ void UART_IRQ_HANDLER (void);
 
 void UART_IRQ_HANDLER (void)
 {
-    static uint_fast8_t     uart_rxstop  = 0;                                   // tail
+    static uint_fast16_t    uart_rxstop  = 0;                                   // tail, siehe RINGINDIZES oben
     uint16_t                value;
     uint_fast8_t            ch;
 
@@ -819,7 +832,7 @@ void UART_IRQ_HANDLER (void)
 
     if (USART_GetITStatus (UART_NAME, USART_IT_TXE) != RESET)
     {
-        static uint_fast8_t  uart_txstart = 0;                                  // head
+        static uint_fast16_t uart_txstart = 0;                                  // head, siehe RINGINDIZES oben
 
         USART_ClearITPendingBit (UART_NAME, USART_IT_TXE);
 

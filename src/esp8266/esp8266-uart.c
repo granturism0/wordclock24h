@@ -66,6 +66,23 @@
 #endif
 
 #define UART_TXBUFLEN           128                     // ringbuffer size for UART TX
-#define UART_RXBUFLEN           256                     // ringbuffer size for UART RX
+
+/* 1024 statt 256 seit dem 03.10.2026.
+ *
+ * 256 Byte sind bei 115200 Baud nach 22,2 ms voll. So lange darf der Hauptloop nicht
+ * blockieren, und er tut es regelmaessig -- ein einziger EEPROM-Schreibzugriff kostet rund
+ * 16 ms (BEFUNDE.md, L144: Einbruch der Loopdurchlaeufe auf 58 % ueber rund 4,25 s, dabei
+ * 702 verworfene Zeichen). Was ueberlaeuft, verwirft die ISR still.
+ *
+ * 1024 Byte decken rund 89 ms Blockade. Das ist keine Loesung der Blockaden -- die werden
+ * getrennt angegangen --, sondern der Puffer dafuer, dass eine davon doch einmal laenger
+ * dauert. Kosten: 768 Byte RAM, frei sind rund 9'660 B auf dem F103 und rund 117 kB auf dem
+ * F411.
+ *
+ * ACHTUNG: Ueber 256 hinaus muessen die Ringindizes in uart-driver.h breiter als 8 Bit sein.
+ * Bei genau 256 faellt der Ueberlauf eines 8-Bit-Index mit dem Ruecksetzen auf 0 zusammen --
+ * darauf darf sich eine groessere Puffergroesse nicht verlassen. Siehe RINGINDIZES dort.
+ */
+#define UART_RXBUFLEN           1024                    // ringbuffer size for UART RX
 
 #include "uart-driver.h"

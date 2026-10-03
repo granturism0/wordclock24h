@@ -26,6 +26,58 @@ TABLES_GLOBALS      tables;
 static uint_fast8_t wp_count;
 static uint_fast8_t current_mode;
 
+/* Fortschrittsmarke des Tabellentransfers.
+ *
+ * Erhoeht wird sie von jeder angenommenen Tabellenzeile -- tabillu, tabh, tabm und tabt. Sie
+ * zaehlt nichts Fachliches, sie beantwortet eine einzige Frage fuer den Warter in
+ * display_set_display_mode(): Kommt die Kette noch voran, oder steht sie?
+ *
+ * Gebraucht wird das, weil die Kette JEDE Zeile einzeln anfordert: Jede empfangene Zeile
+ * fordert die naechste an. Geht eine verloren, fordert niemand mehr etwas an, und der Transfer
+ * steht still, ohne dass es jemand merkt (BEFUNDE.md, L146). Eine feste Gesamtzeit als
+ * Abbruchbedingung muesste den langsamsten denkbaren Transfer abdecken und waere damit fuer den
+ * Stillstandsfall unbrauchbar lang. Der Stillstand selbst ist das Signal.
+ *
+ * Umlaufend und ohne Bedeutung des Absolutwerts: Verglichen wird nur auf Ungleichheit.
+ */
+static uint_fast16_t tables_rx_cnt;
+
+uint_fast16_t
+tables_progress (void)
+{
+    return tables_rx_cnt;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * tables_idx_ok () - Indexpruefung fuer die empfangenen Tabellenzeilen
+ *
+ * Gemeinsame Pruefhilfe fuer tabillu, tabt, tabh und tabm. Die Schutzwirkung aus BEFUNDE.md L145
+ * ist unveraendert: gleiche Bedingung, gleicher Abbruch, gleiche Diagnosezeile. Geaendert hat
+ * sich nur, dass Pruefcode und Formatzeichenkette genau einmal im Flash liegen statt vier- bzw.
+ * fuenfmal -- der F103 stand mit den Inline-Pruefungen 168 Byte ueber der Flashgrenze
+ * (BEFUNDE.md, L165).
+ *
+ * Die Meldung ist aus demselben Grund kurz: Jede Zeichenkette kostet Flash. "tabh idx 200>12"
+ * nennt Quelle, Wert und Grenze und sagt beim Debuggen damit alles, was der ganze Satz sagte.
+ *
+ * noinline ist Absicht und kein Stilmittel: Ohne das Attribut kopiert der Optimierer die
+ * Funktion an jede Aufrufstelle zurueck, und die Ersparnis ist weg.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static __attribute__((noinline)) uint_fast8_t
+tables_idx_ok (uint_fast8_t idx, uint_fast8_t limit, const char * was)
+{
+    uint_fast8_t    ok = 1;
+
+    if (idx >= limit)
+    {
+        log_printf ("%s idx %u>%u\r\n", was, (unsigned int) idx, (unsigned int) limit);
+        ok = 0;
+    }
+
+    return ok;
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * tables_init () - initialize tables
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -88,28 +140,71 @@ tables_tabinfo (char * info)
 
         if (wp_count < WP_COUNT)
         {
-            tables.version_magic    = htoi (info, 2);                                           // old: tables.it_is[0]
+            uint_fast8_t    version_magic;
+            uint_fast8_t    version;
+            uint_fast8_t    modes_count;
+            uint_fast8_t    hour_count;
+            uint_fast8_t    max_hour_words;
+            uint_fast8_t    minute_count;
+            uint_fast8_t    max_minute_words;
+
+            /* Erst lesen, dann pruefen, dann uebernehmen -- nicht umgekehrt.
+             *
+             * Diese vier Werte sind die SCHLEIFENGRENZEN der Schreibzugriffe in tables_tabh(),
+             * tables_tabm() und tables_tabt(). Bis zum 03.10.2026 wurden sie ungeprueft aus der
+             * empfangenen Zeile uebernommen; wp_count war die einzige gepruefte Groesse
+             * (BEFUNDE.md, L145). Ein einziges verlorenes Zeichen verschiebt alle Felder dieser
+             * Zeile, und aus zwei Hexziffern wird ein Wert bis 255 -- bei hour_count waeren das
+             * 255 statt 12 oder 24 Zeilen a MAX_HOUR_WORDS Byte neben das Array.
+             *
+             * Haetten sie bereits in tables.* gestanden, waeren sie auch nach dem Abbruch noch
+             * als Schleifengrenze wirksam: tables.complete schuetzt tables_fill_words(), aber
+             * nicht eine spaeter doch noch eintreffende tabh-Zeile.
+             */
+            version_magic           = htoi (info, 2);                                           // old: tables.it_is[0]
             info += 2;
 
-            tables.version          = htoi (info, 2);                                           // old: tables.it_is[1]
+            version                 = htoi (info, 2);                                           // old: tables.it_is[1]
             info += 2;
 
-            tables.modes_count      = htoi (info, 2);
+            modes_count             = htoi (info, 2);
             info += 2;
 
-            tables.hour_count       = htoi (info, 2);
+            hour_count              = htoi (info, 2);
             info += 2;
 
-            tables.max_hour_words   = htoi (info, 2);
+            max_hour_words          = htoi (info, 2);
             info += 2;
 
-            tables.minute_count     = htoi (info, 2);
+            minute_count            = htoi (info, 2);
             info += 2;
 
-            tables.max_minute_words = htoi (info, 2);
+            max_minute_words        = htoi (info, 2);
             info += 2;
 
-            esp8266_send_cmd ("tabillu", "0", 1);
+            if (hour_count <= HOUR_COUNT && max_hour_words <= MAX_HOUR_WORDS &&
+                minute_count <= MINUTE_COUNT && max_minute_words <= MAX_MINUTE_WORDS)
+            {
+                tables.version_magic    = version_magic;
+                tables.version          = version;
+                tables.modes_count      = modes_count;
+                tables.hour_count       = hour_count;
+                tables.max_hour_words   = max_hour_words;
+                tables.minute_count     = minute_count;
+                tables.max_minute_words = max_minute_words;
+
+                esp8266_send_cmd ("tabillu", "0", 1);
+            }
+            else
+            {
+                /* Kein erneutes Anfordern: Eine Zeile, die hier scheitert, kann auch dauerhaft
+                 * falsch sein -- etwa ein 24-Stunden-Layout gegen einen 12-Stunden-Build. Ein
+                 * Neuversuch liefe dann endlos. Den Neuanstoss macht der Warter in
+                 * display_set_display_mode(), begrenzt und mit Zeitlimit.
+                 */
+                log_printf ("tabinfo out of range: h=%d/%d m=%d/%d\r\n",
+                            hour_count, max_hour_words, minute_count, max_minute_words);
+            }
         }
         else
         {
@@ -133,6 +228,12 @@ tables_tabillu (char * illu)
 
     idx = htoi (illu, 2);
     illu += 2;
+
+    if (! tables_idx_ok (idx, wp_count, "tabillu"))                 // Index aus zwei Hexziffern: 0..255 gegen WP_COUNT = 128
+    {
+        return;                                                     // Kette steht -- siehe tables_tabinfo()
+    }
+
     tables.illumination[idx].row = htoi (illu, 2);
     illu += 2;
     tables.illumination[idx].col = htoi (illu, 2);
@@ -140,6 +241,7 @@ tables_tabillu (char * illu)
     tables.illumination[idx].len = htoi (illu, 2);
     illu += 2;
 
+    tables_rx_cnt++;
     idx++;
 
     if (idx < wp_count)
@@ -180,6 +282,11 @@ tables_tabt (char * tabt)
     idx = htoi (tabt, 2);
     tabt += 2;
 
+    if (! tables_idx_ok (idx, tables.minute_count, "tabt"))         // dieselbe Grenze wie tables.minutes: MINUTE_COUNT
+    {
+        return;
+    }
+
     tables.temperature[idx].flags = htoi (tabt, 2);
     tabt += 2;
 
@@ -194,6 +301,7 @@ tables_tabt (char * tabt)
         }
     }
 
+    tables_rx_cnt++;
     idx++;
 
     if (idx < tables.minute_count)
@@ -223,6 +331,11 @@ tables_tabh (char * tabh)
     idx = htoi (tabh, 2);
     tabh += 2;
 
+    if (! tables_idx_ok (idx, tables.hour_count, "tabh"))                                   // 0..255 gegen HOUR_COUNT
+    {
+        return;
+    }
+
     if (tables.version_magic != TABLES_VERSION_MAGIC)                                       // old tables version
     {                                                                                       // insert IT and IS
         if (tables.version_magic > 0)
@@ -243,12 +356,18 @@ tables_tabh (char * tabh)
         tables.hours[idx][k] = htoi (tabh, 2);
         tabh += 2;
 
-        if (tables.hours[k] == 0)
+        /* Bis zum 03.10.2026 stand hier tables.hours[k] -- das ist die ADRESSE der Zeile k,
+         * nie null, der break griff also nie (BEFUNDE.md, L145, Nebenbefund). Gelesen wurde
+         * dadurch bis max_hour_words statt bis zum Endetoken; geschrieben wurde innerhalb der
+         * Zeile, der Fehler blieb deshalb folgenlos bis auf die ueberzaehligen Hexziffern.
+         */
+        if (tables.hours[idx][k] == 0)
         {
             break;
         }
     }
 
+    tables_rx_cnt++;
     idx++;
 
     if (idx < tables.hour_count)
@@ -277,6 +396,11 @@ tables_tabm (char * tabm)
     idx = htoi (tabm, 2);
     tabm += 2;
 
+    if (! tables_idx_ok (idx, tables.minute_count, "tabm"))         // 0..255 gegen MINUTE_COUNT
+    {
+        return;
+    }
+
     tables.minutes[idx].flags = htoi (tabm, 2);
     tabm += 2;
 
@@ -291,6 +415,7 @@ tables_tabm (char * tabm)
         }
     }
 
+    tables_rx_cnt++;
     idx++;
 
     if (idx < tables.minute_count)
@@ -301,9 +426,16 @@ tables_tabm (char * tabm)
     else
     {
         if (tables.version_magic != TABLES_VERSION_MAGIC)                                           // old tables version
-        {
-            tables.illumination[tables.version_magic].len   |= ILLUMINATION_FLAG_IT_IS;             // convert to newer version
-            tables.illumination[tables.version].len         |= ILLUMINATION_FLAG_IT_IS;
+        {                                                                                           // version_magic und version sind in diesem
+            if (tables.version_magic < WP_COUNT)                                                    // Zweig Wortindizes aus tabinfo, also 0..255
+            {
+                tables.illumination[tables.version_magic].len |= ILLUMINATION_FLAG_IT_IS;           // convert to newer version
+            }
+
+            if (tables.version < WP_COUNT)
+            {
+                tables.illumination[tables.version].len |= ILLUMINATION_FLAG_IT_IS;
+            }
         }
 
         log_message ("tables complete");

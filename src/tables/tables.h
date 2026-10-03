@@ -83,6 +83,7 @@ extern TABLES_GLOBALS       tables;
 
 extern void                 tables_init (void);
 extern void                 tables_get (uint_fast8_t);
+extern uint_fast16_t        tables_progress (void);                 // Fortschrittsmarke des Transfers, siehe tables.c
 extern void                 tables_tabinfo (char *);
 extern void                 tables_tabillu (char *);
 #if WCLOCK24H == 1

@@ -200,7 +200,15 @@ esp8266_get_message (void)
     uint_fast8_t        rtc = ESP8266_TIMEOUT;
 
     log_flush ();
-    esp8266_uart_flush ();
+
+    /* Hier stand esp8266_uart_flush (). Die ABHOLfunktion wartete als Erstes darauf, dass der
+     * SENDEpuffer leer ist -- und blockierte damit genau das Abholen, dessen Ausbleiben den
+     * Empfangsring ueberlaufen laesst. Je mehr der STM loggt, desto spaeter liest er; das ist
+     * eine Mitkopplung, keine Absicherung (BEFUNDE.md, L144).
+     *
+     * Das Senden braucht den Flush hier nicht: esp8266_send_cmd(), esp8266_send_data() und
+     * var_send_buf() flushen jeweils selbst, nachdem sie ihr Kommando abgelegt haben.
+     */
 
     if (esp8266_uart_char_available ())
     {
@@ -587,7 +595,21 @@ esp8266_send_log_line (const char * line)
     }
 
     esp8266_uart_puts ("\r\n");
-    esp8266_uart_flush ();
+
+    /* Kein esp8266_uart_flush() mehr. Die Logspiegelung ist der haeufigste Sender auf dieser
+     * Leitung, und der Flush wartete, bis das LETZTE Zeichen draussen war -- bei 115200 Baud
+     * rund 0,09 ms je Zeichen, bei einer 70-Byte-Zeile also rund 6 ms Hauptloop-Stillstand fuer
+     * eine Diagnoseausgabe. In dieser Zeit holt niemand vom ESP ab, und der Empfangsring
+     * verwirft bei Ueberlauf still (BEFUNDE.md, L144).
+     *
+     * Nichts geht dadurch verloren: Die TXE-ISR leert den Ring selbstaendig, und uart_putc()
+     * uebt bei vollem Ring von sich aus Gegendruck (uart-driver.h). Das Warten wird damit von
+     * "immer" auf "nur wenn der Ring wirklich voll ist" zurueckgenommen.
+     *
+     * Zusatznutzen auf dem Fehlerpfad: fault_reset() (main.c) schaltet die Interrupts AB und
+     * protokolliert danach ueber log_printf(). Der Flush hier haette dort auf eine ISR gewartet,
+     * die nicht mehr laeuft.
+     */
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
@@ -682,6 +704,13 @@ void
 esp8266_flash (void)
 {
     uint_fast8_t    ch;
+
+    /* Der einzige Flush, der auf diesem Pfad bleiben muss. Was hier noch im TX-Ring steht,
+     * gehoert zur bisherigen Kommandobruecke; gleich darunter wird der UART neu aufgesetzt und
+     * danach ist diese Leitung eine reine Durchreiche zum Flashwerkzeug. Was jetzt nicht draussen
+     * ist, mischt sich sonst in den Flashverkehr.
+     */
+    esp8266_uart_flush ();
 
     log_init (115200);
     esp8266_gpio_init ();

@@ -3926,6 +3926,54 @@ display_save_dimmed_ambilight_colors (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * save a single dimmed display color
+ *
+ * Geschrieben wird genau das eine Byte an EEPROM_DATA_OFFSET_DIMMED_DISPLAY_COLORS + idx, nicht
+ * die ganze Kurve. Dasselbe Vorgehen und dieselbe Begruendung wie bei den IR-Codes
+ * (remote-ir.c:280-284): Ein Byte kostet rund 16 ms Busy-Wait, die 16 Byte der Kurve kosten
+ * rund 240 ms -- und waehrend dieser Zeit laeuft schedule_esp8266_messages() nicht, waehrend
+ * der Empfangsring der Bruecke nach 89 ms voll ist (1024 Byte seit dem 03.10.2026, davor 256
+ * Byte und 22,2 ms) und still verwirft.
+ *
+ * Die PWA sendet beim Speichern der Dimmkurve 16 Kommandos am Stueck. Jedes schrieb bisher die
+ * GANZE Kurve: 16 x 240 ms = rund 3,84 s Hauptloop-Stillstand fuer 16 geaenderte Byte. Jetzt
+ * sind es 16 x 16 ms, zusammen rund 0,25 s -- und mit dem Aenderungsvergleich in eeprom_write()
+ * faellt davon alles weg, was sich nicht wirklich geaendert hat.
+ *
+ * Die Indexpruefung ist die zweite Verteidigungslinie: Der Aufrufer in main.c prueft heute
+ * selbst (n < sizeof (display.dimmed_display_colors)), ein kuenftiger zweiter haette diese
+ * Pruefung nicht, und die Schreibadresse im EEPROM haengt direkt an idx.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_save_dimmed_display_color (uint_fast8_t idx)
+{
+    if (idx <= MAX_BRIGHTNESS)
+    {
+        uint8_t dimmed_display_color8 = display.dimmed_display_colors[idx];
+
+        eep_write (EEPROM_DATA_OFFSET_DIMMED_DISPLAY_COLORS + idx, &dimmed_display_color8, sizeof (uint8_t));
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * save a single dimmed ambilight color
+ *
+ * Siehe display_save_dimmed_display_color().
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_save_dimmed_ambilight_color (uint_fast8_t idx)
+{
+    if (idx <= MAX_BRIGHTNESS)
+    {
+        uint8_t dimmed_ambilight_color8 = display.dimmed_ambilight_colors[idx];
+
+        eep_write (EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS + idx, &dimmed_ambilight_color8, sizeof (uint8_t));
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * set dimmed display color
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -3938,7 +3986,7 @@ display_set_dimmed_display_color (uint_fast8_t idx, uint_fast8_t val)
     }
 
     display.dimmed_display_colors[idx] = val;
-    display_save_dimmed_display_colors ();
+    display_save_dimmed_display_color (idx);
     display_calc_dimmed_display_colors ();
     return val;
 }
@@ -3956,7 +4004,7 @@ display_set_dimmed_ambilight_color (uint_fast8_t idx, uint_fast8_t val)
     }
 
     display.dimmed_ambilight_colors[idx] = val;
-    display_save_dimmed_ambilight_colors ();
+    display_save_dimmed_ambilight_color (idx);
     display_calc_dimmed_ambilight_colors ();
     return val;
 }
@@ -4149,6 +4197,94 @@ display_set_ambilight_led_offset (uint_fast8_t new_led_offset)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * auf das Ende des Tabellentransfers warten
+ *
+ * Hier stand bis zum 03.10.2026:
+ *
+ *     do { schedule_esp8266_messages (); } while (! tables.complete);
+ *
+ * Ohne Abbruchbedingung und ohne watchdog_reload(). tables.complete wird nur gesetzt, wenn die
+ * Transferkette VOLLSTAENDIG durchlaeuft (tables.c): jede empfangene Zeile fordert die naechste
+ * an. Geht eine verloren, fordert niemand mehr etwas an -- die Schleife lief dann unbegrenzt
+ * und der Watchdog raeumte nach 20 s ab, bei JEDEM Displaymoduswechsel, aus laufendem Betrieb
+ * heraus sichtbar als Neustart der Uhr (BEFUNDE.md, L146). Dass die Bruecke Zeichen verliert,
+ * ist belegt (L144: 702 auf einmal); ausschliessen laesst es sich nicht, weil die Platine
+ * zwischen STM und ESP nur RXD und TXD fuehrt und keine Flusskontrolle hergibt
+ * (HARDWARE.md:36, 86).
+ *
+ * Drei Grenzen, jede gegen einen anderen Fall:
+ *
+ *   STALL_SEC   kein Fortschritt mehr. DAS ist der Verlustfall. Gemessen wird nicht die
+ *               Gesamtdauer -- die muesste den langsamsten denkbaren Transfer abdecken und
+ *               waere als Stillstandsmerkmal unbrauchbar lang --, sondern der Stillstand
+ *               selbst, ueber tables_progress().
+ *   TOTAL_SEC   die Bruecke antwortet, aber beliebig langsam. Ohne diese Grenze haelt
+ *               Fortschritt im Schneckentempo den Hauptloop unbegrenzt an.
+ *   ATTEMPTS    wie oft die Kette nach einem Stillstand neu angestossen wird. Ein Verlust ist
+ *               zufaellig, ein Neuversuch hat deshalb gute Aussicht; ein dauerhaft falsches
+ *               Layout haette sie nicht, und genau dagegen steht die Obergrenze.
+ *
+ * Schlechtester Fall: TOTAL_SEC Blockade, danach Rueckkehr mit unvollstaendigen Tabellen.
+ * tables_fill_words() liefert dann 0 und die Anzeige bleibt leer, bis der naechste
+ * Moduswechsel oder ein Reset den Transfer erneut anstoesst. Das ist die bewusste Abwaegung
+ * gegen den bisherigen Zustand: ein sicherer Reset der laufenden Uhr.
+ *
+ * Der watchdog_reload() hier ist KEIN Ersatz fuer die Abbruchbedingung, sondern deren
+ * Begleitung -- er deckt den Fall ab, dass im selben Hauptloop-Durchlauf vor dieser Schleife
+ * schon Zeit verbraucht wurde (display_save_display_mode() schreibt EEPROM). Ohne die
+ * Abbruchbedingung waere er der falsche Hebel und machte aus einem Reset eine unbegrenzte
+ * Blockade (BEFUNDE.md, L56) -- mit ihr ist die Blockade durch TOTAL_SEC gedeckelt.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define TABLES_WAIT_STALL_SEC       3                               // ohne Fortschritt
+#define TABLES_WAIT_TOTAL_SEC       15                              // insgesamt, deutlich unter den 20 s des Watchdogs
+#define TABLES_WAIT_ATTEMPTS        3                               // Erstversuch plus zwei Neuanstoesse
+
+static uint_fast8_t
+display_wait_for_tables (uint_fast8_t mode)
+{
+    uint32_t        t_start     = uptime;
+    uint32_t        t_stall     = uptime;
+    uint_fast16_t   progress    = tables_progress ();
+    uint_fast8_t    attempts    = 1;
+
+    while (! tables.complete)
+    {
+        schedule_esp8266_messages ();
+        watchdog_reload ();
+
+        if (tables_progress () != progress)                         // Kette kommt voran
+        {
+            progress = tables_progress ();
+            t_stall  = uptime;
+        }
+        else if (uptime - t_stall >= TABLES_WAIT_STALL_SEC)         // Kette steht
+        {
+            if (attempts >= TABLES_WAIT_ATTEMPTS)
+            {
+                break;
+            }
+
+            attempts++;
+            t_stall = uptime;
+            tables_get (mode);                                      // Kette neu anstossen
+        }
+
+        if (uptime - t_start >= TABLES_WAIT_TOTAL_SEC)
+        {
+            break;
+        }
+    }
+
+    if (! tables.complete)
+    {
+        log_printf ("tables incomplete after %d attempts\r\n", attempts);
+    }
+
+    return tables.complete;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * set display mode
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -4169,12 +4305,7 @@ display_set_display_mode (uint_fast8_t new_mode, uint_fast8_t do_sync)
 
             display_save_display_mode ();
             tables_get (display.display_mode);
-
-            do
-            {
-                schedule_esp8266_messages ();
-            } while (! tables.complete);
-
+            display_wait_for_tables (display.display_mode);
         }
     }
     return display.display_mode;

@@ -177,26 +177,57 @@ eeprom_read (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
  * write EEPROM
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * Ein Byte, das schon so im EEPROM steht, wird nicht geschrieben.
+ *
+ * Der teure Teil ist nicht der I2C-Verkehr, sondern eeprom_waitstates(): EEPROM_WAITSTATES = 15,
+ * also rund 15 ms Busy-Wait je geschriebenem Byte, in denen der Hauptloop steht und niemand den
+ * Empfangsring der ESP-Bruecke leert. Der Ring fasste zur Zeit dieser Messung 256 Byte und war
+ * damit nach 22,2 ms voll; was danach kommt, verwirft die ISR still (BEFUNDE.md, L144: 702 Zeichen auf
+ * einmal, dazu ein Einbruch der Hauptloop-Durchlaeufe auf 58 % ueber rund 4,25 s).
+ *
+ * Ein Lesezugriff auf dasselbe Byte kostet rund 0,1 ms und hat keine Wartezeit. Der Normalfall
+ * der PWA ist "alles speichern, nichts hat sich geaendert" -- dort wird aus 240 ms fuer die
+ * Dimmkurve rund 2 ms und aus 960 ms fuer den Hostnamen rund 7 ms.
+ *
+ * Der Fehlerpfad bleibt unveraendert streng, und die Richtung ist mit Absicht gewaehlt:
+ * Scheitert das LESEN, wird geschrieben. Ein nicht lesbares Byte gilt nicht als gleich -- sonst
+ * meldete ein I2C-Fehler "gespeichert", ohne dass je etwas im EEPROM gelandet waere. Nur ein
+ * fehlgeschlagener SCHREIBzugriff bricht ab und liefert 0, wie bisher.
+ *
+ * Nebeneffekt, nicht Zweck: Das EEPROM hat eine endliche Zahl Schreibzyklen je Zelle.
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
 uint_fast8_t
 eeprom_write (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
 {
-    uint_fast8_t rtc;
+    uint_fast8_t rtc = 1;                                   // cnt == 0 ist kein Fehler; vorher war rtc hier uninitialisiert
 
     if (eeprom_is_up)
     {
         // we must write every single byte, because we have to wait 15ms every cycle
         while (cnt--)
         {
-            if (i2c_write (eeprom_addr, start_addr, 1, buffer, 1) == I2C_OK)
+            uint8_t current;
+
+            if (i2c_read (eeprom_addr, start_addr, 1, &current, 1) == I2C_OK && current == *buffer)
             {
-                rtc = 1;
+                rtc = 1;                                    // Byte steht bereits so im EEPROM: kein Schreibzyklus, keine 15 ms
             }
             else
             {
-                rtc = 0;
-                break;
+                if (i2c_write (eeprom_addr, start_addr, 1, buffer, 1) == I2C_OK)
+                {
+                    rtc = 1;
+                }
+                else
+                {
+                    rtc = 0;
+                    break;
+                }
+                eeprom_waitstates ();
             }
-            eeprom_waitstates ();
+
             start_addr++;
             buffer++;
         }

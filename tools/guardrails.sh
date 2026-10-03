@@ -233,11 +233,11 @@ fi
 # Warteschleife (2) und var_send_buf (nach Quittung und innerhalb des Budgets). Die Zahl veraltet still, wenn
 # sie beim Nachruesten vergessen wird -- der Schutz griffe dann erst, wenn mehrere
 # Stellen fehlen.
-WD_EXPECTED=7
+WD_EXPECTED=8
 n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
 n=${n:-0}
 if [ "$n" -lt "$WD_EXPECTED" ]; then
-  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x, var_send_buf nach Quittung)"
+  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x, var_send_buf nach Quittung, display_wait_for_tables)"
 else
   ok "watchdog_reload(): $n Aufrufstellen, Bestand vollstaendig"
 fi
@@ -332,7 +332,7 @@ if [ "$FULL" -eq 1 ]; then
   # Bestandswache statt Schwelle, dasselbe Mittel wie bei watchdog_reload in S7: Die
   # bekannten Warnungen sollen sichtbar bleiben, aber nur eine NEUE soll auffallen.
   # Wer eine behebt, senkt die Zahl hier mit -- sonst meldet die Stufe es.
-  STM_WARN_EXPECTED=19
+  STM_WARN_EXPECTED=18
   ESP_WARN_EXPECTED=0
   for t in f103 esp; do
     [ -f /tmp/guardrail-$t.log ] || continue

@@ -56,8 +56,16 @@ for f in $ARTIFACTS; do
   printf '  ok  %-52s %s Byte\n' "$(basename "$f")" "$(wc -c < "$f" | tr -d ' ')"
 done
 
+# Die Sprachdateien kommen aus dem Verzeichnis statt aus einer Liste -- siehe die
+# Begruendung im Makefile bei GZIP_SOURCES. Ohne das lieferte der Rollout eine neue
+# Sprache nicht aus, und der Fehler faellt erst am Geraet auf.
 GZ_SRC="app.js styles.css index.html sw.js manifest.webmanifest layout-previews.json"
-for b in $GZ_SRC; do
+I18N_SRC=""
+for f in "$APP"/i18n/*.json; do
+  [ -e "$f" ] || continue
+  I18N_SRC="$I18N_SRC i18n/$(basename "$f")"
+done
+for b in $GZ_SRC $I18N_SRC; do
   [ -f "$APP/$b.gz" ] || fail "fehlt: $APP/$b.gz — erst 'make app-gz'"
   [ -s "$APP/$b.gz" ] || fail "ist 0 Byte: $b.gz — das ergaebe einen Weisschirm auf dem Geraet"
   [ "$APP/$b" -nt "$APP/$b.gz" ] && fail "$b.gz ist aelter als die Quelle — erst 'make app-gz'"
@@ -90,7 +98,12 @@ echo "  ok  Verzeichnis vorhanden und beschreibbar"
 STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/app/icons"
 for f in $ARTIFACTS; do cp "$f" "$STAGE/"; done
-for b in $GZ_SRC; do cp "$APP/$b.gz" "$STAGE/app/"; done
+# mkdir -p je Zielordner: i18n/ existiert auf dem Server sonst nicht, und die
+# OTA-Nachinstallation findet die Datei dann nicht.
+for b in $GZ_SRC $I18N_SRC; do
+  mkdir -p "$STAGE/app/$(dirname "$b")"
+  cp "$APP/$b.gz" "$STAGE/app/$b.gz"
+done
 cp "$APP/icons/"*.gz "$STAGE/app/icons/"
 
 # tar statt rsync: das openrsync auf macOS honoriert -e nicht, die SSH-Optionen
