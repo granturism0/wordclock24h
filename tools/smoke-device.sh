@@ -220,4 +220,14 @@ fi
 printf '\n=== %d bestanden, %d fehlgeschlagen ===\n' "$OK" "$FAIL"
 [ "$FAIL" -gt 0 ] && exit 1
 echo "Geraet verhaelt sich wie erwartet."
+
+# DIR-012. Diese Zeile steht hier, weil sie genau dort gelesen wird, wo der Irrtum
+# entsteht: Wer "27/0 bestanden" sieht, haelt das Release fuer geprueft. Dieser Test
+# prueft, ob das Geraet LEBT -- nicht, ob es noch tut, was es soll. Ein Endpunkt, der
+# {"ok":true} meldet und nichts tut, besteht ihn (genau das war remote_stm32_flash
+# ohne filename). Am 03.10.2026 gingen drei Releases mit diesem Test allein hinaus.
+echo
+echo "  Das war der Smoketest, nicht der Test (DIR-012). Er sagt: das Geraet lebt."
+echo "  Ob es noch TUT, was es soll, sagt der Durchlauf nach TESTPLAN-PWA.md --"
+echo "  faellig vor jedem Release, das mehr als eine Komponente beruehrt."
 exit 0

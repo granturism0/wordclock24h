@@ -95,7 +95,37 @@ nichts; **niemals `--delete` ergänzen.**
 - `CHANGELOG.md` nachführen — ein Release gilt erst als fertig, wenn der Eintrag steht
   (DIR-006).
 - Sind Befunde geschlossen worden, den Stand in `BEFUNDE.md` nachziehen.
+- **Testen, bevor committet wird (DIR-012).** Siehe unten.
 - **Committen und taggen, sofort (DIR-011).** Siehe unten.
+
+### DIR-012 — der Smoketest ist nicht der Test
+
+`./tools/smoke-device.sh` prüft, ob das Gerät **lebt**: Erreichbarkeit, Versionen,
+Assets, Antwortformen. Er prüft **nicht**, ob die Uhr noch tut, was sie soll. Er
+ersetzt den Testdurchlauf nicht — er geht ihm voraus.
+
+**Fällig ist der `pwa-tester` vor jedem Release, das mehr als eine Komponente
+berührt**, und nach grösseren Umbauten an `app.js`, `http.cpp` oder der
+Display-Zustandsmaschine. Das steht so in `CLAUDE.md` und stand dort auch schon am
+03.10.2026 — befolgt wurde es trotzdem nicht: Drei Releases desselben Tages gingen
+mit Smoketest allein hinaus, und beim vierten hat der Nutzer gefragt, ob getestet
+wurde. Die Antwort war nein.
+
+**Woran man merkt, dass man gerade dabei ist, es zu überspringen:** Man schreibt
+„Smoketest 27/0" und meint damit „getestet". Oder man beantwortet eine Frage nach
+dem Verhalten aus dem **Quelltext** statt vom Gerät — am 03.10.2026 geschehen bei
+der Frage, ob Tetris nach einer Änderung am UDP-Dispatcher noch startet. Gelesen
+war es richtig; geprüft war es nicht.
+
+Zwei Dinge, die der Smoketest strukturell nicht sehen kann:
+
+- **Wirkung statt Erreichbarkeit.** Ein Endpunkt, der `{"ok":true}` meldet und
+  nichts tut, besteht ihn. Genau das war `remote_stm32_flash` ohne `filename`.
+- **Verhaltensänderungen.** Wer ein `break` setzt, ändert, was ein Paket auslöst.
+  Der Smoketest schickt keine UDP-Pakete und startet keine Spiele.
+
+Wird der Durchlauf bewusst ausgelassen — etwa weil nur Kommentare geändert wurden
+—, **gehört das in den Release-Bericht**, nicht ins Schweigen.
 
 ### DIR-011 — jedes Release wird einzeln committet und getaggt
 

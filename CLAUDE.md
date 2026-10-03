@@ -92,6 +92,14 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 - **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
   `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
+- **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
+  Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
+  `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr
+  als eine Komponente** berührt, läuft der `pwa-tester`. Das stand hier schon am
+  03.10.2026 und wurde trotzdem dreimal übersprungen; gefragt hat der Nutzer.
+  **Warnzeichen:** „Smoketest 27/0" zu schreiben und „getestet" zu meinen — oder
+  eine Frage nach dem Verhalten aus dem Quelltext zu beantworten statt vom Gerät.
+  Wird bewusst ausgelassen, gehört das in den Bericht. Einzelheiten im Skill `/release`.
 - **Jedes ausgerollte Release wird sofort committet und getaggt (DIR-011).** Nicht
   gesammelt, nicht „auf Nachfrage" — das gehört zum Rollout wie der Smoketest. Das
   Tag heisst `release/<stm>-<esp>-<app>` und trägt die Versionen **dieses** Commits.
