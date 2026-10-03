@@ -1,6 +1,20 @@
 # wordclock24h — Arbeits- und Koordinationsregeln
 
-Sprache: **Deutsch**, mit echten Umlauten — auch in der UI und in Commit-Messages.
+Sprache: **Deutsch**, Schweizer Schreibung (`ss` statt `ß`), mit **echten Umlauten** —
+in den Antworten an den Nutzer, in der UI der PWA und in Commit-Botschaften.
+
+**Eine Ausnahme, und sie ist technisch, nicht sprachlich:** Die C-Dateien unter
+`src/**` und `ESP8266/ESP-uclock/*.cpp` sind ASCII oder ISO-8859-1, nicht UTF-8.
+Dort gilt die Umschrift (`Geraet`, `waehrend`) — nicht weil die Sprache es verlangt,
+sondern weil ein Werkzeug, das ein `ä` in eine ISO-8859-1-Datei schreibt und dabei
+UTF-8 annimmt, die Datei beschädigt. Das ist hier bereits passiert.
+
+Wer in derselben Sitzung an beiden Welten arbeitet, trägt die Gewohnheit hinüber.
+Genau so kamen „Schluessel" und „ungueltig" in die deutschen Fehlertexte der PWA
+(`BEFUNDE.md`, L52). **Geprüft wird das jetzt** — `tools/checks/umlaute.mjs` in
+Stufe S8 meldet Umschrift in den deutschen PWA-Texten, anhand einer benannten Liste
+statt anhand der Buchstabenfolge: Sonst schlüge sie bei „aktuell", „Quelle",
+„Steuerung" und „zuerst" an, und eine Prüfung mit Fehlalarmen liest niemand mehr.
 
 Anrede: durchgehend **Du-Form**, niemals „Sie". Das gilt **in erster Linie für die
 Antworten an den Nutzer** — er wird geduzt. Ebenso für die UI-Texte der PWA, für

@@ -162,10 +162,17 @@ static int      http_response_len = 0;
 #define HTTP_API_ERROR_OUT_OF_RANGE                 2
 #define HTTP_API_ERROR_TOO_SHORT                    3
 #define HTTP_API_ERROR_INVALID_DATE                 4
+/* Nicht der Request ist falsch, sondern eine Voraussetzung am Geraet fehlt - etwa ein
+ * Wetterabruf ohne Schluessel (L54). Die PWA kennt die Kennung noch nicht und zeigt
+ * dann ihren eigenen Text samt "detail"; das ist richtiger als eine der vier
+ * vorhandenen Uebersetzungen, die alle von einem falschen Feld sprechen.
+ */
+#define HTTP_API_ERROR_NOT_CONFIGURED               5
 
 static void             http_json_ok ();
 static void             http_json_error (unsigned int error_code, const char * detail);
 static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
+static uint_fast8_t     http_get_string_param (const char * name, char ** valuep);
 static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
@@ -4450,8 +4457,10 @@ http_overlays (void)
             }
             else
             {
-                strncpy (overlays[oidx].text, http_get_param ("oname"), OVERLAY_MAX_TEXT_LEN);
-                overlays[oidx].text[OVERLAY_MAX_TEXT_LEN] = '\0';
+                /* Auch der Legacy-Weg darf kein halbes Zeichen hinterlassen - die
+                 * settings_xml liest die PWA, nicht Legacy (L46).
+                 */
+                utf8_copy_truncated (overlays[oidx].text, http_get_param ("oname"), OVERLAY_MAX_TEXT_LEN);
             }
 
             set_overlay_var (oidx);
@@ -7026,12 +7035,114 @@ http_update (void)
     return rtc;
 }
 
+/* Laenge einer gueltigen UTF-8-Sequenz an dieser Stelle, sonst 0. Strikt inklusive
+ * Ueberlang-, Surrogat- und Bereichspruefung: Ein halbes oder krummes Zeichen im
+ * Attributwert laesst den DOMParser der PWA scheitern, und danach ist der Wert ueber
+ * die PWA nicht mehr zu korrigieren (L46). Greift auch fuer Quellen ausserhalb der
+ * Setter, etwa SSIDs aus dem WLAN-Scan.
+ */
+static unsigned int
+utf8_sequence_len (const String& str, unsigned int pos)
+{
+    unsigned int   len = str.length ();
+    unsigned char  c0 = (unsigned char) str[pos];
+    unsigned int   need;
+    unsigned char  c1_min = 0x80;
+    unsigned char  c1_max = 0xBF;
+    unsigned int   i;
+
+    if (c0 < 0xC2)                                                                  // 0x80..0xC1: Folgebyte ohne Start oder ueberlang
+    {
+        return 0;
+    }
+    else if (c0 <= 0xDF)
+    {
+        need = 2;
+    }
+    else if (c0 <= 0xEF)
+    {
+        need = 3;
+
+        if (c0 == 0xE0)                                                             // ueberlange 3-Byte-Form
+        {
+            c1_min = 0xA0;
+        }
+        else if (c0 == 0xED)                                                        // UTF-16-Surrogate
+        {
+            c1_max = 0x9F;
+        }
+    }
+    else if (c0 <= 0xF4)
+    {
+        need = 4;
+
+        if (c0 == 0xF0)                                                             // ueberlange 4-Byte-Form
+        {
+            c1_min = 0x90;
+        }
+        else if (c0 == 0xF4)                                                        // oberhalb U+10FFFF
+        {
+            c1_max = 0x8F;
+        }
+    }
+    else
+    {
+        return 0;
+    }
+
+    if (pos + need > len)
+    {
+        return 0;
+    }
+
+    for (i = 1; i < need; i++)
+    {
+        unsigned char ci = (unsigned char) str[pos + i];
+
+        if (ci < ((i == 1) ? c1_min : 0x80) || ci > ((i == 1) ? c1_max : 0xBF))
+        {
+            return 0;
+        }
+    }
+
+    return need;
+}
+
 String
 sanitize_xml_string(const String& str)
 {
     String result;
     for (unsigned int i = 0; i < str.length(); i++)
     {
+        unsigned char uc = (unsigned char) str[i];
+
+        if (uc >= 0x80)
+        {
+            unsigned int seq = utf8_sequence_len (str, i);
+
+            if (seq)
+            {
+                while (seq--)
+                {
+                    result += str[i++];
+                }
+
+                i--;                                                                // die Schleife zaehlt selbst weiter
+            }
+            else
+            {
+                result += '?';                                                      // ungueltige Sequenz sichtbar ersetzen statt durchreichen (L46)
+            }
+
+            continue;
+        }
+
+        if (uc < 0x20 && uc != '\t' && uc != '\n' && uc != '\r')                    // in XML 1.0 verbotene Steuerzeichen
+        {
+            result += '?';
+            continue;
+        }
+
         switch (str[i])
         {
         case '&':
@@ -7596,11 +7707,13 @@ http_api_ticker_set ()
 {
     char * value = http_get_param ("value");
 
+    /* Bewusste Ausnahme von L48: Der leere Tickertext ist der Auslieferungszustand und
+     * zugleich der einzige Weg, den Ticker wieder abzuschalten - es gibt keinen
+     * getrennten Schalter. Eine Ablehnung des leeren Werts liesse ihn nie mehr loeschen.
+     */
     set_strvar (TICKER_TEXT_STR_VAR, value ? value : "");
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    http_json_ok ();
 
     return 0;
 }
@@ -7608,13 +7721,22 @@ http_api_ticker_set ()
 static int
 http_api_date_ticker_format_set ()
 {
-    char * value = http_get_param ("value");
+    char * value;
 
-    set_strvar (DATE_TICKER_FORMAT_VAR, value ? value : "");
+    /* Leer heisst hier nicht "kein Datum", sondern ein Formatstring ohne Platzhalter:
+     * Der Ticker laeuft durch und zeigt nichts. Ausgeloest wird die Datumsanzeige ueber
+     * einen Overlay-Eintrag bzw. eine RPC, nicht ueber dieses Feld - es ist also kein
+     * Abschalter, und die Vorgabe "D.M.Y" waere unwiederbringlich weg (L48).
+     */
+    if (! http_get_string_param ("value", &value))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    set_strvar (DATE_TICKER_FORMAT_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -7670,13 +7792,21 @@ http_api_test_display ()
 static int
 http_api_weather_appid_set ()
 {
-    char * value = http_get_param ("value");
+    char * value;
 
-    set_strvar (WEATHER_APPID_STR_VAR, value ? value : "");
+    /* Ein leerer Schluessel nimmt der Uhr das Wetter vollstaendig und wurde bisher mit
+     * Erfolg quittiert (L48). Zum Abschalten des Wetters gibt es den Weg ueber die
+     * Overlays; der Schluessel ist keine Ja/Nein-Einstellung.
+     */
+    if (! http_get_string_param ("value", &value))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    set_strvar (WEATHER_APPID_STR_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -7684,13 +7814,30 @@ http_api_weather_appid_set ()
 static int
 http_api_weather_city_set ()
 {
-    char * value = http_get_param ("value");
+    char *      value = http_get_param ("value");
+    STR_VAR *   lon_var = get_strvar (WEATHER_LON_STR_VAR);
+    STR_VAR *   lat_var = get_strvar (WEATHER_LAT_STR_VAR);
 
-    set_strvar (WEATHER_CITY_STR_VAR, value ? value : "");
+    /* Ort und Koordinaten sind Alternativen - der STM32 nimmt die Koordinaten, sobald
+     * beide gefuellt sind, sonst den Ort. Ein pauschales Verbot des leeren Werts (L48)
+     * wuerde den einmal gewaehlten Weg fuer immer festschreiben. Leer ist deshalb
+     * zulaessig, solange die andere Ortsangabe bestehen bleibt - nur der Fall "beides
+     * leer" nimmt der Uhr still das Wetter.
+     */
+    if (! value || ! *value)
+    {
+        if (! lon_var || ! *(lon_var->str) || ! lat_var || ! *(lat_var->str))
+        {
+            http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty and no coordinates configured");
+            return 0;
+        }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+        value = (char *) "";
+    }
+
+    set_strvar (WEATHER_CITY_STR_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -7698,8 +7845,9 @@ http_api_weather_city_set ()
 static int
 http_api_weather_coordinates_set ()
 {
-    char * lon = http_get_param ("lon");
-    char * lat = http_get_param ("lat");
+    char *      lon = http_get_param ("lon");
+    char *      lat = http_get_param ("lat");
+    STR_VAR *   city_var = get_strvar (WEATHER_CITY_STR_VAR);
 
     if (! lon)
     {
@@ -7711,15 +7859,76 @@ http_api_weather_coordinates_set ()
         lat = (char *) "";
     }
 
+    /* Nur eine der beiden Koordinaten zu setzen ergibt nie eine Abfrage: Der STM32
+     * verlangt beide und faellt sonst auf den Ort zurueck - der halbe Wert bliebe als
+     * stiller Ballast stehen (L48).
+     */
+    if ((*lon && ! *lat) || (! *lon && *lat))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "lon and lat required together");
+        return 0;
+    }
+
+    /* Leere Koordinaten sind der einzige Weg zurueck zur Ortsabfrage, denn der STM32
+     * bevorzugt die Koordinaten, sobald beide gefuellt sind. Sie sind deshalb erlaubt,
+     * solange ein Ort eingetragen bleibt (L48).
+     */
+    if (! *lon && ! *lat && (! city_var || ! *(city_var->str)))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "lon and lat missing or empty and no city configured");
+        return 0;
+    }
+
     strsubst (lon, ',', '.');
     strsubst (lat, ',', '.');
 
     set_strvar (WEATHER_LON_STR_VAR, lon);
     set_strvar (WEATHER_LAT_STR_VAR, lat);
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    http_json_ok ();
+
+    return 0;
+}
+
+/* Der Abruf selbst laeuft asynchron: Der ESP stoesst nur eine RPC am STM32 an, der
+ * fragt Sekunden spaeter ueber die UART die Wetterdaten an und zeigt sie an. Ob
+ * OpenWeatherMap die Anfrage beantwortet, ist zum Zeitpunkt der HTTP-Antwort also nicht
+ * feststellbar - ein ehrliches {"ok":true} gibt es hier nicht (L54).
+ * Feststellbar sind die Voraussetzungen: ohne Schluessel, ohne Ortsangabe oder ohne
+ * Verbindung ins Netz kann der Abruf gar nicht gelingen. Genau diese Faelle hat die
+ * Oberflaeche bisher als "abgerufen" gemeldet.
+ */
+static int
+http_api_weather_request (RPC_VARIABLE rpc_var)
+{
+    STR_VAR *   appid_var = get_strvar (WEATHER_APPID_STR_VAR);
+    STR_VAR *   city_var = get_strvar (WEATHER_CITY_STR_VAR);
+    STR_VAR *   lon_var = get_strvar (WEATHER_LON_STR_VAR);
+    STR_VAR *   lat_var = get_strvar (WEATHER_LAT_STR_VAR);
+    uint_fast8_t has_city = (city_var && *(city_var->str)) ? 1 : 0;
+    uint_fast8_t has_coordinates = (lon_var && *(lon_var->str) && lat_var && *(lat_var->str)) ? 1 : 0;
+
+    if (! appid_var || ! *(appid_var->str))
+    {
+        http_json_error (HTTP_API_ERROR_NOT_CONFIGURED, "weather appid not configured");
+        return 0;
+    }
+
+    if (! has_city && ! has_coordinates)
+    {
+        http_json_error (HTTP_API_ERROR_NOT_CONFIGURED, "neither city nor coordinates configured");
+        return 0;
+    }
+
+    if (wifi_ap_mode)                                                               // eigener Accesspoint, kein Weg ins Internet
+    {
+        http_json_error (HTTP_API_ERROR_NOT_CONFIGURED, "no internet connection in ap mode");
+        return 0;
+    }
+
+    rpc (rpc_var);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -7727,25 +7936,13 @@ http_api_weather_coordinates_set ()
 static int
 http_api_weather_get_now ()
 {
-    rpc (GET_WEATHER_RPC_VAR);
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
-
-    return 0;
+    return http_api_weather_request (GET_WEATHER_RPC_VAR);
 }
 
 static int
 http_api_weather_get_forecast ()
 {
-    rpc (GET_WEATHER_FC_RPC_VAR);
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
-
-    return 0;
+    return http_api_weather_request (GET_WEATHER_FC_RPC_VAR);
 }
 
 static int
@@ -7772,9 +7969,15 @@ http_api_network_scan ()
             http_send (FS(","));
         }
 
-        http_send (FS("\""));
+        /* Derselbe Name kommt je Accesspoint und Kanal mehrfach. Ohne Feldstaerke kann
+         * die PWA beim Entfernen der Dubletten nur den ersten Treffer behalten, nicht
+         * den besten (L41). Sie nimmt beide Formen entgegen: blosser Name oder Objekt.
+         */
+        http_send (FS("{\"ssid\":\""));
         http_send (sanitize_xml_string(WiFi.SSID(idx)).c_str());
-        http_send (FS("\""));
+        http_send (FS("\",\"rssi\":"));
+        http_send (String ((int) WiFi.RSSI(idx)).c_str ());
+        http_send (FS("}"));
     }
 
     http_send (FS("]}"));
@@ -7981,13 +8184,21 @@ http_api_eeprom_settings_set ()
 static int
 http_api_network_timeserver_set ()
 {
-    char * value = http_get_param ("value");
+    char * value;
 
-    set_strvar (TIMESERVER_STR_VAR, value ? value : "");
+    /* Ein leeres Zeitserverfeld nimmt der Uhr die Zeitquelle - und wurde mit gruenem
+     * "Gespeichert" quittiert (L48). Einen Nutzen hat der leere Wert nicht: Ohne
+     * Zeitserver laeuft die Uhr nur noch auf der RTC.
+     */
+    if (! http_get_string_param ("value", &value))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    set_strvar (TIMESERVER_STR_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8041,10 +8252,13 @@ http_api_network_timezone_set ()
 static int
 http_api_network_summertime_set ()
 {
-    char * value = http_get_param ("value");
     uint_fast16_t utz = get_numvar (TIMEZONE_NUM_VAR);
 
-    if (value && ! strcmp (value, "on"))
+    /* Einziger on/off-Setter mit bedingungslosem else: Ein fehlender Parameter hat die
+     * Sommerzeit abgeschaltet und Erfolg gemeldet - die Uhr ging danach eine Stunde
+     * falsch (L47). Alle uebrigen Setter lassen den aktuellen Wert stehen.
+     */
+    if (http_get_on_off_value ("value", (utz & 0x200) ? 1 : 0))
     {
         utz |= 0x200;
     }
@@ -8089,13 +8303,20 @@ http_api_network_wps ()
 static int
 http_api_update_host_set ()
 {
-    char * value = http_get_param ("value");
+    char * value;
 
-    set_strvar (UPDATE_HOST_VAR, value ? value : "");
+    /* Leerer Host heisst: kein Update mehr moeglich, und der Weg zurueck fuehrt nur
+     * ueber die Legacy-Oberflaeche. Dieselbe Luecke wie L42, nur von vorne (L48).
+     */
+    if (! http_get_string_param ("value", &value))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    set_strvar (UPDATE_HOST_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8103,13 +8324,20 @@ http_api_update_host_set ()
 static int
 http_api_update_path_set ()
 {
-    char * value = http_get_param ("value");
+    char * value;
 
-    set_strvar (UPDATE_PATH_VAR, value ? value : "");
+    /* Wie beim Host: ein leerer Pfad macht die Update-Quelle unbrauchbar und wurde als
+     * Erfolg gemeldet (L48, dieselbe Luecke wie L42).
+     */
+    if (! http_get_string_param ("value", &value))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    set_strvar (UPDATE_PATH_VAR, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8483,22 +8711,26 @@ http_api_ldr_max_value_set ()
 static int
 http_api_animation_mode_set ()
 {
-    int value = atoi (http_get_param ("value"));
+    int value;
 
-    if (value < 0)
+    /* Beim L29-Fix uebersehen: Ein leeres oder nicht numerisches Feld wurde zu 0 und
+     * schaltete die Animation ab - mit Erfolgsmeldung (L49).
+     */
+    if (! http_get_int_param ("value", &value))
     {
-        value = 0;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
     }
-    else if (value >= max_display_animation_variables)
+
+    if (value < 0 || value >= (int) max_display_animation_variables)
     {
-        value = max_display_animation_variables ? max_display_animation_variables - 1 : 0;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range");
+        return 0;
     }
 
     set_numvar (ANIMATION_MODE_NUM_VAR, value);
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    http_json_ok ();
 
     return 0;
 }
@@ -8506,22 +8738,24 @@ http_api_animation_mode_set ()
 static int
 http_api_color_animation_mode_set ()
 {
-    int value = atoi (http_get_param ("value"));
+    int value;
 
-    if (value < 0)
+    /* Wie animation_mode_set beim L29-Fix uebersehen: "abc" wurde zu 0 (L49). */
+    if (! http_get_int_param ("value", &value))
     {
-        value = 0;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or not numeric");
+        return 0;
     }
-    else if (value >= MAX_COLOR_ANIMATION_VARIABLES)
+
+    if (value < 0 || value >= MAX_COLOR_ANIMATION_VARIABLES)
     {
-        value = MAX_COLOR_ANIMATION_VARIABLES - 1;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range");
+        return 0;
     }
 
     set_numvar (COLOR_ANIMATION_MODE_NUM_VAR, value);
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    http_json_ok ();
 
     return 0;
 }
@@ -8581,18 +8815,41 @@ http_api_animation_profile_set ()
 static int
 http_api_animation_profile_default ()
 {
-    uint_fast8_t idx = atoi (http_get_param ("idx"));
+    int                 idx;
+    DISPLAY_ANIMATION * da;
 
-    if (idx < max_display_animation_variables)
+    /* Der blanke atoi machte aus einem fehlenden idx die 0 und setzte damit Profil 0
+     * zurueck, ein unzulaessiger idx meldete stillen Erfolg (L51, L40).
+     */
+    if (! http_get_int_param ("idx", &idx))
     {
-        DISPLAY_ANIMATION * da = get_display_animation_var (idx);
-        set_display_animation_deceleration (idx, da->default_deceleration);
-        set_display_animation_flags (idx, da->flags | ANIMATION_FLAG_FAVOURITE);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx required");
+        return 0;
     }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    if (idx < 0 || idx >= (int) max_display_animation_variables)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    da = get_display_animation_var ((uint_fast8_t) idx);
+
+    if (! da)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    /* Das Favoritenflag wird hier bewusst nicht mehr gesetzt (L51): Der ESP kennt nur
+     * default_deceleration als Vorgabe, einen Vorgabewert fuer die Flags gibt es in
+     * DISPLAY_ANIMATION nicht. Das bisherige "| ANIMATION_FLAG_FAVOURITE" hat aus einer
+     * Animation, die nie Favorit war - Profil 0 "None" etwa -, beim Zuruecksetzen einen
+     * Favoriten gemacht. Gesetzt und geloescht wird das Flag ueber animation_profile_set.
+     */
+    set_display_animation_deceleration ((uint_fast8_t) idx, da->default_deceleration);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8636,17 +8893,33 @@ http_api_color_animation_profile_set ()
 static int
 http_api_color_animation_profile_default ()
 {
-    COLOR_ANIMATION_VARIABLE idx = (COLOR_ANIMATION_VARIABLE) atoi (http_get_param ("idx"));
+    int                 idx;
+    COLOR_ANIMATION *   ca;
 
-    if (idx < MAX_COLOR_ANIMATION_VARIABLES)
+    /* Gleicher stiller idx-Pfad wie bei animation_profile_default (L51, L40). */
+    if (! http_get_int_param ("idx", &idx))
     {
-        COLOR_ANIMATION * ca = get_color_animation_var (idx);
-        set_color_animation_deceleration (idx, ca->default_deceleration);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx required");
+        return 0;
     }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    if (idx < 0 || idx >= MAX_COLOR_ANIMATION_VARIABLES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    ca = get_color_animation_var ((COLOR_ANIMATION_VARIABLE) idx);
+
+    if (! ca)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    set_color_animation_deceleration ((COLOR_ANIMATION_VARIABLE) idx, ca->default_deceleration);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8654,26 +8927,34 @@ http_api_color_animation_profile_default ()
 static int
 http_api_display_dim_level_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
-    int value = atoi (http_get_param ("value"));
+    int idx;
+    int value;
 
-    if (idx >= 0 && idx <= MAX_BRIGHTNESS)
+    /* Ein fehlender idx wurde ueber atoi("") zu 0 und schrieb damit auf die falsche
+     * Dimmstufe - mit Erfolgsmeldung (L50). Ein unzulaessiger idx tat gar nichts und
+     * meldete ebenfalls Erfolg (L40).
+     */
+    if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("value", &value))
     {
-        if (value < 0)
-        {
-            value = 0;
-        }
-        else if (value > 15)
-        {
-            value = 15;
-        }
-
-        set_num8_array (DISPLAY_DIMMED_DISPLAY_COLORS, idx, value);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx and value required");
+        return 0;
     }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    if (idx < 0 || idx > MAX_BRIGHTNESS)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    if (value < 0 || value > 15)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..15)");
+        return 0;
+    }
+
+    set_num8_array (DISPLAY_DIMMED_DISPLAY_COLORS, idx, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8681,26 +8962,33 @@ http_api_display_dim_level_set ()
 static int
 http_api_ambilight_dim_level_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
-    int value = atoi (http_get_param ("value"));
+    int idx;
+    int value;
 
-    if (idx >= 0 && idx <= MAX_BRIGHTNESS)
+    /* Wortgleich zu display_dim_level_set: fehlender idx traf Stufe 0 (L50),
+     * unzulaessiger idx meldete stillen Erfolg (L40).
+     */
+    if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("value", &value))
     {
-        if (value < 0)
-        {
-            value = 0;
-        }
-        else if (value > 15)
-        {
-            value = 15;
-        }
-
-        set_num8_array (DISPLAY_DIMMED_AMBILIGHT_COLORS, idx, value);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx and value required");
+        return 0;
     }
 
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
+    if (idx < 0 || idx > MAX_BRIGHTNESS)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    if (value < 0 || value > 15)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..15)");
+        return 0;
+    }
+
+    set_num8_array (DISPLAY_DIMMED_AMBILIGHT_COLORS, idx, value);
+
+    http_json_ok ();
 
     return 0;
 }
@@ -8926,17 +9214,33 @@ http_api_ambilight_mode_profile_set ()
 static int
 http_api_ambilight_mode_profile_default ()
 {
-    int idx = atoi (http_get_param ("idx"));
+    int                 idx;
+    AMBILIGHT_MODE *    am;
 
-    if (idx >= 0 && idx < MAX_AMBILIGHT_MODE_VARIABLES)
+    /* Dritter Fall derselben Machart wie L51/L40, in den Befunden nicht eigens genannt:
+     * fehlender idx traf ueber atoi("") Profil 0, unzulaessiger idx meldete Erfolg.
+     */
+    if (! http_get_int_param ("idx", &idx))
     {
-        AMBILIGHT_MODE * am = get_ambilight_mode_var ((AMBILIGHT_MODE_VARIABLE) idx);
-
-        if (am)
-        {
-            set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, am->default_deceleration);
-        }
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx required");
+        return 0;
     }
+
+    if (idx < 0 || idx >= MAX_AMBILIGHT_MODE_VARIABLES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    am = get_ambilight_mode_var ((AMBILIGHT_MODE_VARIABLE) idx);
+
+    if (! am)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        return 0;
+    }
+
+    set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, am->default_deceleration);
 
     http_json_ok ();
 
@@ -8997,6 +9301,27 @@ http_get_int_param (const char * name, int * valuep)
     return 1;
 }
 
+/* Gegenstueck zu http_get_int_param fuer Textfelder: "leer" hiess bisher "loeschen",
+ * und ein leeres Zeitserver- oder AppID-Feld hat der Uhr mit gruenem "Gespeichert" die
+ * Zeitquelle bzw. das Wetter genommen (L48). "Fehlt" und "leer" sind hier nicht zu
+ * trennen - http_get_param liefert fuer einen fehlenden Parameter denselben leeren
+ * String -, also gilt beides als Fehler.
+ */
+static uint_fast8_t
+http_get_string_param (const char * name, char ** valuep)
+{
+    char * value = http_get_param (name);
+
+    if (! value || ! *value)
+    {
+        return 0;
+    }
+
+    *valuep = value;
+
+    return 1;
+}
+
 /* Laenge eines Monats inklusive Schaltjahr. Ohne sie nimmt datetime_set den
  * 31. Februar widerspruchslos an (L32).
  */
@@ -9035,13 +9360,22 @@ http_get_on_off_value (const char * param, uint_fast8_t current_value)
     return current_value;
 }
 
+/* Gibt 1 zurueck, wenn der Farbanteil im Request stand, und laesst *valuep sonst
+ * unberuehrt. Das bisherige atoi (value ? value : "0") konnte "fehlt" nicht von "0"
+ * trennen: Ein Request ohne "white" hat den Weissanteil geloescht, ein Request nur mit
+ * "red" die Farbe bis auf Rot schwarz gemacht - jedesmal mit Erfolgsmeldung (L37).
+ */
 static uint_fast8_t
-http_get_color_component (const char * param)
+http_get_color_component (const char * param, uint8_t * valuep)
 {
-    char * value = http_get_param (param);
-    int    component = atoi (value ? value : "0");
+    int component;
 
-    if (component < 0)
+    if (! http_get_int_param (param, &component))
+    {
+        return 0;
+    }
+
+    if (component < 0)                                                              // Klammerung wie bisher, das ist Massnahme 17 und nicht dieser Schritt
     {
         component = 0;
     }
@@ -9050,19 +9384,42 @@ http_get_color_component (const char * param)
         component = 63;
     }
 
-    return component;
+    *valuep = (uint8_t) component;
+
+    return 1;
 }
 
 static int
 http_api_set_dsp_color (DSP_COLOR_VARIABLE var)
 {
-    DSP_COLORS   rgbw;
+    DSP_COLORS   rgbw = { 0, 0, 0, 0 };
     uint_fast8_t use_rgbw = get_numvar (DISPLAY_USE_RGBW_NUM_VAR);
+    uint_fast8_t found = 0;
 
-    rgbw.red     = http_get_color_component ("red");
-    rgbw.green   = http_get_color_component ("green");
-    rgbw.blue    = http_get_color_component ("blue");
-    rgbw.white   = use_rgbw ? http_get_color_component ("white") : 0;
+    /* Fehlende Anteile behalten den eingestellten Wert, statt auf 0 zu fallen (L37). */
+    get_dsp_color_var (var, &rgbw);
+
+    found |= http_get_color_component ("red", &rgbw.red);
+    found |= http_get_color_component ("green", &rgbw.green);
+    found |= http_get_color_component ("blue", &rgbw.blue);
+
+    if (use_rgbw)
+    {
+        found |= http_get_color_component ("white", &rgbw.white);
+    }
+    else
+    {
+        rgbw.white = 0;
+    }
+
+    /* Ohne einen einzigen Anteil gaebe es nichts zu schreiben - der Aufruf haette nur
+     * ein STM-Kommando samt EEPROM-Schreibzyklus gekostet und Erfolg gemeldet.
+     */
+    if (! found)
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "red, green or blue required");
+        return 0;
+    }
 
     set_dsp_color_var (var, &rgbw, use_rgbw);
     http_json_ok ();
@@ -9549,8 +9906,10 @@ http_api_overlay_set ()
 
             if (text)
             {
-                strncpy (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
-                overlays[idx].text[OVERLAY_MAX_TEXT_LEN] = '\0';
+                /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
+                 * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46).
+                 */
+                utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
             }
 
             set_overlay_var (idx);

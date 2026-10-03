@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-10-03 Gruppe C (ESP 3.2.8, PWA 1.4.76)
+
+Dreizehn Befunde geschlossen. STM unveraendert bei 3.2.10.
+
+### Der Rollout-Blocker kam vom umsetzenden Agenten, nicht aus dem Test
+
+Mit L48 weist der ESP leere Textfelder ab, und seit L39 wirft apiFetch bei
+ok:false. Der Backup-Import sendete aber bedingungslos "" -- ein Geraet ohne
+Wetter-AppID oder ohne Update-Host, beides ueblich, haette damit den Rest
+seiner Import-Stufe verloren. Der Import einer gueltigen Sicherung waere
+fehlgeschlagen: ausgerechnet die Funktion, die im Notfall die Uhr rettet.
+
+Gemeldet wurde das, BEVOR gebaut wurde. Behoben in L57: leere Werte werden
+uebersprungen statt gesendet, die Stufe gilt dabei nicht als gescheitert, und
+der Nutzer sieht am Ende, was uebersprungen wurde. Simulation ueber acht
+Faelle: vorher 6 Abbrueche, nachher 8 von 8 gruen.
+
+Nebenbefund derselben Form ausserhalb des Imports: applyWeatherMapSelection
+sendete den Ort VOR den Koordinaten. Ein Kartenpunkt ohne Namen traf damit als
+leerer Ort auf ein Geraet ohne Koordinaten, und die Koordinaten wurden nie
+gesetzt. Reihenfolge getauscht.
+
+### L46 — der Umlaut an der Byte-Grenze
+
+An beiden Enden. utf8_truncated_len() in vars.cpp, verwendet in set_strvar()
+und in beiden Overlay-Textkopien, die denselben Fehler hatten. Der STM bekommt
+jetzt den GEKUERZTEN Wert -- vorher schnitt er ungekuerzte Daten ein zweites
+Mal nach, also dasselbe halbe Zeichen erneut. Dazu sanitize_xml_string() als
+Netz fuer ungueltige UTF-8-Sequenzen und in XML verbotene Steuerzeichen.
+
+Die erste Fassung der Kuerzung war falsch: Die Rueckwaertspruefung & 0x80
+verwarf auch ein gueltiges Folgebyte und reproduzierte den Fehler bei exakt
+32 Byte. Richtig ist & 0xC0 == 0xC0. Gefunden durch neun durchgerechnete
+Faelle, nicht durch Zufall.
+
+### Zwei Entscheidungen, die ueber die Auftraege hinausgingen
+
+ticker_set bleibt leerbar -- der leere Ticker ist der Auslieferungszustand und
+der einzige Weg, ihn abzuschalten. Ort und Koordinaten sind Alternativen und
+duerfen leer werden, solange die andere Angabe bleibt; "beides leer" wird
+abgelehnt.
+
+Bei L51 ist das Favoriten-Flag ganz entfallen: Ein "auf Vorgabe zuruecksetzen"
+darf keinen Zustand erzeugen, der nie die Vorgabe war.
+
+### Weiter
+
+L37 fehlende Farbanteile bleiben stehen statt genullt zu werden · L40, L50,
+L51 fehlender idx ist Pflicht statt stiller 0 · L41 network_scan liefert rssi
+· L47 Sommerzeit-Setter · L49 zwei Animationssetter · L52 echte Umlaute, jetzt
+geprueft ueber tools/checks/umlaute.mjs in S8 · L54 Wetterabruf meldet nicht
+mehr Erfolg, wenn die Voraussetzungen fehlen (neue Kennung 5) · L55 der
+ESP-Versionsstring wird gefuellt -- zustaendig waere der STM gewesen, dessen
+var_send_esp8266_version() ein leerer Rumpf mit "nothing to do" ist.
+
+### L58 — eine Werkzeugfalle fuer die Wissensbasis
+
+Das Edit-Werkzeug schreibt Dateien mit dem DOMINANTEN Zeilenende zurueck.
+vars.cpp bekam dadurch 121 stille LF->CRLF-Aenderungen, http.cpp verlor sein
+einziges CR. quick-reference.md beschrieb das bisher nur fuer Python-Patches.
+Gegenpruefung jetzt dokumentiert: Die Differenz der CR-Zahl muss der Zahl der
+neu hinzugefuegten Zeilen entsprechen. Nachgerechnet: +68/+68, +6/+6, 0 Zeilen
+die sich nur im Zeilenende unterscheiden.
+
 ## 2026-10-03 Zwoelf Befunde aus dem zweiten Testdurchlauf (L45 bis L56)
 
 Reine Dokumentations- und Werkzeugaenderung ausser dem Ticker-Fix, der schon

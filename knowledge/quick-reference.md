@@ -82,3 +82,24 @@ Betrifft direkt `display.c` (Display-Zustandsmaschine) und `ds18xx.c`/`tempsenso
 | Geändertes Format der Versionszeilen | Zurücknehmen. Der Makefile liest sie per `grep`; das Release bricht sonst still | Kritisch |
 | `cat > datei` oder `Write` auf eine Datei, die ich nicht vorher gelesen habe | Erst lesen. Bei Konfigurationsdateien **anhängen statt ersetzen**. Ein `[ -f x ] && grep … \|\| echo "fehlt"` meldet auch dann „fehlt", wenn die Datei existiert und `grep` nur nichts findet | Kritisch |
 | Release ohne vorherigen vollständigen Build | Vollständig bauen, nicht nur `app-gz` | Hoch |
+
+## Das Edit-Werkzeug vereinheitlicht Zeilenenden — still
+
+**Kritisch.** Bisher stand hier nur die Falle für Python-Patches (Textmodus
+vereinheitlicht Zeilenenden, Kodierung je Datei prüfen). Das Edit-Werkzeug hat
+dieselbe: Es schreibt die Datei mit dem **dominanten** Zeilenende zurück.
+
+Am 03.10.2026 bekam `ESP8266/ESP-uclock/vars.cpp` (1066 CRLF, rund 120 LF) dadurch
+121 stille LF→CRLF-Änderungen, und `http.cpp` verlor sein einziges CR. Der Diff sah
+danach nach einem grossen Umbau aus, obwohl nur wenige Zeilen gemeint waren.
+
+**Nach jeder Bearbeitung einer Datei mit gemischten Zeilenenden gegenprüfen:**
+
+```
+git show HEAD:<datei> | grep -c $'\r'    # vorher
+grep -c $'\r' <datei>                    # nachher
+```
+
+Die Differenz muss der Zahl der **neu hinzugefügten** Zeilen entsprechen. Stimmt sie
+nicht, wurden unberührte Zeilen umgeschrieben. Betroffen sind in diesem Repo
+`vars.cpp`, `vars.h`, `http.cpp`, `src/vars/vars.c` und `src/main.c`.

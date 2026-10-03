@@ -12,6 +12,7 @@
 #include "Arduino.h"
 #include "base.h"
 #include "vars.h"
+#include "version.h"
 
 #define CMD_CODE_NUMERIC_VAR                            'N'                        // command:   numeric variable
 #define CMD_CODE_NUMERIC_ARRAY                          'n'                        // command:   numeric array
@@ -254,6 +255,60 @@ get_strvar (STR_VARIABLE var)
     return rtc;
 }
 
+/* Die Maximallaengen sind in BYTES angegeben, die Oberflaeche zaehlt aber ZEICHEN
+ * (maxlength="32"). Ein Text, der an der Grenze mitten in einem UTF-8-Mehrbytezeichen
+ * endet, hinterliess bisher ein halbes Zeichen im Wert - die settings_xml wurde damit
+ * unlesbar und der Wert ueber die PWA nicht mehr korrigierbar (L46).
+ * Deshalb: auf die naechste Zeichengrenze zurueckgehen und ein angefangenes Zeichen
+ * verwerfen. Liefert die Zahl der zu uebernehmenden Bytes.
+ */
+unsigned int
+utf8_truncated_len (const char * p, unsigned int maxlen)
+{
+    unsigned int len;
+    unsigned int cut;
+
+    if (! p)
+    {
+        return 0;
+    }
+
+    len = strlen (p);
+
+    if (len <= maxlen)
+    {
+        return len;
+    }
+
+    cut = maxlen;
+
+    while (cut > 0 && ((unsigned char) p[cut] & 0xC0) == 0x80)          // erstes verworfenes Byte ist Folgebyte
+    {
+        cut--;
+    }
+
+    if (cut > 0 && ((unsigned char) p[cut - 1] & 0xC0) == 0xC0)         // letztes behaltenes Byte ist ein Startbyte ohne Fortsetzung
+    {
+        cut--;
+    }
+
+    return cut;
+}
+
+/* Kopiert hoechstens maxlen Bytes und endet dabei immer auf einer Zeichengrenze (L46). */
+void
+utf8_copy_truncated (char * dst, const char * src, unsigned int maxlen)
+{
+    unsigned int len = utf8_truncated_len (src, maxlen);
+
+    if (len > 0)
+    {
+        memcpy (dst, src, len);
+    }
+
+    dst[len] = '\0';
+}
+
 unsigned int
 set_strvar (STR_VARIABLE var, const char * p)
 {
@@ -262,9 +317,11 @@ set_strvar (STR_VARIABLE var, const char * p)
     if (var < MAX_STR_VARIABLES)
     {
         memset (strvars[var].str, 0, strvars[var].maxlen + 1);
-        strncpy (strvars[var].str, p, strvars[var].maxlen);
-        strvars[var].str[strvars[var].maxlen] = '\0';
-        Serial.printf ("CMD S%02x%s\r\n", (int) var, p);
+        utf8_copy_truncated (strvars[var].str, p ? p : "", strvars[var].maxlen);
+        /* Der STM32 bekommt denselben gekuerzten Wert - sonst schneidet er mit seinen
+         * eigenen Grenzen erneut und erzeugt genau das halbe Zeichen wieder (L46).
+         */
+        Serial.printf ("CMD S%02x%s\r\n", (int) var, strvars[var].str);
         Serial.flush ();
         rtc =  1;
     }
@@ -1119,4 +1176,12 @@ vars_init (void)
 {
     numvars[HARDWARE_CONFIGURATION_NUM_VAR] = 0xFFFF;
     numvars[AMBILIGHT_IS_UP_NUM_VAR] = 1;
+
+    /* strvar 3 war in jedem Abzug leer: Der STM32 fuellt ihn nicht (var_send_esp8266_version
+     * ist leer) und weist ein Setzen als readonly zurueck - niemand war zustaendig (L55).
+     * Die eigene Version kennt nur der ESP, also fuellt er den Platz selbst. Bewusst ohne
+     * set_strvar, damit beim Start kein zusaetzliches CMD auf die STM-UART geht, das dort
+     * ohnehin nur eine readonly-Meldung ausloest.
+     */
+    utf8_copy_truncated (strvars[ESP8266_VERSION_STR_VAR].str, ESP_VERSION, strvars[ESP8266_VERSION_STR_VAR].maxlen);
 }

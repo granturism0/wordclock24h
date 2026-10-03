@@ -221,6 +221,12 @@ extern STR_VAR          strvars[MAX_STR_VARIABLES];
 extern STR_VAR *        get_strvar (STR_VARIABLE);
 extern unsigned int     set_strvar (STR_VARIABLE, const char *);
 
+/* Kuerzen auf Bytes bei einer Oberflaeche, die Zeichen zaehlt, hinterlaesst halbe
+ * UTF-8-Zeichen und zerlegt damit die settings_xml (L46).
+ */
+extern unsigned int     utf8_truncated_len (const char *, unsigned int);
+extern void             utf8_copy_truncated (char *, const char *, unsigned int);
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * tm variables:
  *-------------------------------------------------------------------------------------------------------------------------------------------

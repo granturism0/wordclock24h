@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.75";
+const APP_VERSION = "1.4.76";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -645,6 +645,14 @@ const I18N = {
     "backup.import_restart": "Import abgeschlossen. STM32 wird automatisch neu gestartet",
     "backup.import_reload": "Import abgeschlossen. App wird neu geladen",
     "backup.import_reconnect": "Import abgeschlossen. Verbindung wird nach dem Neustart erneut aufgebaut",
+    "backup.import_done_reload": "Import abgeschlossen. App wird neu geladen...",
+    "backup.import_skipped_fields": "Übersprungen, weil in der Sicherung leer: {fields}. Diese Werte sind auf der Uhr unverändert geblieben.",
+    "backup.field.timeserver": "Zeitserver",
+    "backup.field.weather_appid": "Wetter-API-Schlüssel",
+    "backup.field.weather_location": "Ort und Koordinaten für das Wetter",
+    "backup.field.date_ticker_format": "Datumsformat des Tickers",
+    "backup.field.update_host": "Update-Host",
+    "backup.field.update_path": "Update-Pfad",
     "weather.map_loading": "Kartendienst wird geladen...",
     "weather.map_load_failed": "Kartendienst konnte nicht geladen werden.",
     "weather.map_hint": "Tippe auf die Karte oder suche einen Ort.",
@@ -775,10 +783,11 @@ const I18N = {
     "debug.reset_short": "zurückgesetzt",
     "debug.reset_failed": "Overrides konnten nicht zurückgesetzt werden",
     "common.error": "Fehler",
-    "api.error.1": "Das Feld darf nicht leer sein und muss eine Zahl enthalten. Es wurde nichts gespeichert.",
+    "api.error.1": "Das Feld darf nicht leer sein. Zahlenfelder brauchen zusätzlich eine gültige Zahl. Es wurde nichts gespeichert.",
     "api.error.2": "Der Wert liegt ausserhalb des erlaubten Bereichs. Es wurde nichts gespeichert.",
-    "api.error.3": "Der Schluessel ist zu kurz — mindestens 10 Zeichen. Es wurde nichts gespeichert.",
-    "api.error.4": "Datum oder Uhrzeit sind ungueltig. Die Uhr wurde nicht gestellt.",
+    "api.error.3": "Der Schlüssel ist zu kurz — mindestens 10 Zeichen. Es wurde nichts gespeichert.",
+    "api.error.4": "Datum oder Uhrzeit sind ungültig. Die Uhr wurde nicht gestellt.",
+    "api.error.5": "Dafür fehlen noch Angaben: Trage unter Klima den Wetter-API-Schlüssel ein und dazu entweder einen Ort oder ein vollständiges Koordinatenpaar. Im eigenen Accesspoint hat die Uhr keinen Weg ins Internet.",
     "common.saving": "speichert...",
     "common.loading": "lädt...",
     "common.running": "läuft...",
@@ -1446,6 +1455,14 @@ const I18N = {
     "backup.import_restart": "Import finished. STM32 will restart automatically",
     "backup.import_reload": "Import finished. App will reload",
     "backup.import_reconnect": "Import finished. Connection will be restored after restart",
+    "backup.import_done_reload": "Import finished. App is reloading...",
+    "backup.import_skipped_fields": "Skipped because the backup holds no value: {fields}. These settings were left unchanged on the clock.",
+    "backup.field.timeserver": "time server",
+    "backup.field.weather_appid": "weather API key",
+    "backup.field.weather_location": "weather city and coordinates",
+    "backup.field.date_ticker_format": "date format of the ticker",
+    "backup.field.update_host": "update host",
+    "backup.field.update_path": "update path",
     "weather.map_loading": "Loading map service...",
     "weather.map_load_failed": "Map service could not be loaded.",
     "weather.map_hint": "Tap the map or search for a place.",
@@ -1576,10 +1593,11 @@ const I18N = {
     "debug.reset_short": "reset",
     "debug.reset_failed": "Overrides could not be reset",
     "common.error": "Error",
-    "api.error.1": "The field must not be empty and has to contain a number. Nothing was saved.",
+    "api.error.1": "The field must not be empty. Numeric fields additionally need a valid number. Nothing was saved.",
     "api.error.2": "The value is outside the allowed range. Nothing was saved.",
     "api.error.3": "The key is too short — at least 10 characters. Nothing was saved.",
     "api.error.4": "Date or time is invalid. The clock was not set.",
+    "api.error.5": "Some details are still missing: under Climate, enter the weather API key plus either a city or a complete pair of coordinates. In access point mode the clock has no route to the internet.",
     "common.saving": "saving...",
     "common.loading": "loading...",
     "common.running": "running...",
@@ -4346,6 +4364,7 @@ async function applySettingsBackup(backup) {
     ? backup
     : buildImportedBackupState(backup);
 
+  resetSkippedImportFields();
   settingsImportInProgress = true;
   try {
     await runImportWorkflow(importedState.executionState);
@@ -4361,7 +4380,7 @@ function networkImportNeedsRetry(network, settings, eepromSettings) {
 
   const current = getImportComparisonMeta(settings, eepromSettings).network;
 
-  return String(network.timeserver || "") !== String(current.timeserver || "") ||
+  return importOptionalFieldMismatch(network, current, ["timeserver"]) ||
     Number(network.timezone_offset || 0) !== Number(current.timezone_offset || 0) ||
     !!network.summertime !== !!current.summertime ||
     (!!(eepromSettings && eepromSettings.ok) && !!network.boot_as_ap !== !!current.boot_as_ap);
@@ -4586,8 +4605,14 @@ function buildImportRestartPlan(executionState) {
   };
 }
 
+function appendSkippedImportHint(message) {
+  const summary = getSkippedImportFieldsSummary();
+  return summary ? message + " " + summary : message;
+}
+
 async function finalizeImportRestartAndReload(restartPlan) {
   const climate = restartPlan && restartPlan.climate ? restartPlan.climate : null;
+  const skipped = getSkippedImportFieldsSummary();
 
   setSettingsBackupNote(translate("backup.import_restart_now"));
   announceStatus(translate("backup.import_restart"), "warn");
@@ -4599,13 +4624,15 @@ async function finalizeImportRestartAndReload(restartPlan) {
     }
     setSettingsBackupNote(translate("backup.import_restart_reload_data"));
     await loadData();
-    setSettingsBackupNote("Import abgeschlossen. App wird neu geladen...", "success");
-    announceStatus(translate("backup.import_reload"), "ok");
+    setSettingsBackupNote(appendSkippedImportHint(translate("backup.import_done_reload")), skipped ? "warn" : "success");
+    announceStatus(skipped || translate("backup.import_reload"), skipped ? "warn" : "ok");
   } catch (error) {
-    setSettingsBackupNote(translate("backup.import_restart_refreshing"), "success");
-    announceStatus(translate("backup.import_reconnect"), "ok");
+    setSettingsBackupNote(appendSkippedImportHint(translate("backup.import_restart_refreshing")), skipped ? "warn" : "success");
+    announceStatus(skipped || translate("backup.import_reconnect"), skipped ? "warn" : "ok");
   }
-  setTimeout(reloadAppPage, 1200);
+  // Wurde etwas übersprungen, bleibt der Hinweis länger stehen -- nach dem Neuladen
+  // der App ist er weg, und 1,2 s reichen nicht zum Lesen.
+  setTimeout(reloadAppPage, skipped ? 6000 : 1200);
 }
 
 function buildPrimaryImportStages(executionState) {
@@ -4820,6 +4847,16 @@ function importFieldMismatch(expected, current, keys) {
   return (keys || []).some((key) => String((expected || {})[key] || "") !== String((current || {})[key] || ""));
 }
 
+// Ein Feld, das in der Sicherung leer ist, wurde bewusst nicht geschrieben. Es darf
+// die Stufe danach auch nicht als "noch nicht angekommen" gelten lassen, sonst läuft
+// jeder Durchgang in einen Wiederholungsversuch, der wieder nichts sendet.
+function importOptionalFieldMismatch(expected, current, keys) {
+  return (keys || []).some((key) => {
+    const wanted = String((expected || {})[key] || "");
+    return !!wanted && wanted !== String((current || {})[key] || "");
+  });
+}
+
 function importNumericFieldMismatch(expected, current, keys) {
   return (keys || []).some((key) => Number((expected || {})[key] || 0) !== Number((current || {})[key] || 0));
 }
@@ -4837,7 +4874,8 @@ function displayImportNeedsRetry(display, settings) {
 
   return importBooleanFieldMismatch(display, current, ["power", "use_rgbw", "automatic_brightness", "permanent_it_is"]) ||
     importNumericFieldMismatch(display, current, ["mode", "brightness", "ticker_deceleration"]) ||
-    importFieldMismatch(display, current, ["ticker_text", "date_ticker_format"]);
+    importFieldMismatch(display, current, ["ticker_text"]) ||
+    importOptionalFieldMismatch(display, current, ["date_ticker_format"]);
 }
 
 function climateImportNeedsRetry(climate, settings) {
@@ -4846,8 +4884,12 @@ function climateImportNeedsRetry(climate, settings) {
   }
 
   const current = getImportRetryCurrentSections(settings).climate;
+  // Enthält die Sicherung weder Ort noch vollständiges Koordinatenpaar, hat der Import
+  // die Ortsangabe bewusst stehen lassen — dann gibt es hier nichts zu wiederholen.
+  const wantsLocation = !!normalizeImportText(climate.weather_city) ||
+    (!!normalizeImportText(climate.weather_lon) && !!normalizeImportText(climate.weather_lat));
 
-  return importFieldMismatch(climate, current, ["weather_city", "weather_lon", "weather_lat"]) ||
+  return (wantsLocation && importFieldMismatch(climate, current, ["weather_city", "weather_lon", "weather_lat"])) ||
     importNumericFieldMismatch(climate, current, ["ldr_min", "ldr_max"]);
 }
 
@@ -4878,7 +4920,7 @@ function maintenanceImportNeedsRetry(maintenance, settings) {
 
   const current = getImportRetryCurrentSections(settings).maintenance;
 
-  return importFieldMismatch(maintenance, current, ["update_host", "update_path"]);
+  return importOptionalFieldMismatch(maintenance, current, ["update_host", "update_path"]);
 }
 
 function buildImportSectionState(settings, eepromSettings) {
@@ -5148,6 +5190,53 @@ async function importIndexedEntries(endpoint, entries, count, fallbackFactory, b
   }
 }
 
+// Ein Feld, das in der Sicherung leer ist oder fehlt, heisst "nicht ändern" — nicht
+// "leer schreiben". Die Firmware weist leere Textwerte inzwischen mit
+// {"ok":false,"error":1} ab, und apiFetch macht daraus eine Ausnahme: Ein
+// bedingungslos gesendetes "" brach die ganze Import-Stufe ab. Ein Gerät ohne
+// Wetter-API-Schlüssel verlor so ldr_min und ldr_max, eines ohne Update-Host den
+// update_path -- der Import einer gültigen Sicherung schlug also fehl.
+const skippedImportFieldKeys = [];
+
+function resetSkippedImportFields() {
+  skippedImportFieldKeys.length = 0;
+}
+
+function noteSkippedImportField(labelKey) {
+  if (labelKey && !skippedImportFieldKeys.includes(labelKey)) {
+    skippedImportFieldKeys.push(labelKey);
+    console.warn("Import: Feld übersprungen, in der Sicherung leer: " + labelKey);
+  }
+}
+
+function getSkippedImportFieldsSummary() {
+  if (!skippedImportFieldKeys.length) {
+    return "";
+  }
+
+  return translateFormat("backup.import_skipped_fields", {
+    fields: skippedImportFieldKeys.map((key) => translate(key)).join(", ")
+  });
+}
+
+function normalizeImportText(value) {
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+
+// Schreibt nur, wenn die Sicherung wirklich einen Wert enthält. Der Rückgabewert sagt,
+// ob geschrieben wurde; die Stufe läuft in beiden Fällen weiter.
+async function importOptionalValue(endpoint, value, labelKey) {
+  const text = normalizeImportText(value);
+
+  if (!text) {
+    noteSkippedImportField(labelKey);
+    return false;
+  }
+
+  await apiFetchValue(endpoint, text);
+  return true;
+}
+
 async function importNetworkSettings(network) {
   if (!network) {
     return;
@@ -5180,8 +5269,9 @@ async function importNetworkTimeSettings(network) {
     return;
   }
 
-  await apiFetchValue(getNetworkTimeserverSetUrl(), network.timeserver || "");
-  await sleep(700);
+  if (await importOptionalValue(getNetworkTimeserverSetUrl(), network.timeserver, "backup.field.timeserver")) {
+    await sleep(700);
+  }
   await apiFetchValue(getNetworkTimezoneSetUrl(), Number(network.timezone_offset || 0));
   await sleep(300);
   await apiFetchValue(getNetworkSummertimeSetUrl(), network.summertime ? "on" : "off");
@@ -5207,10 +5297,13 @@ async function importDisplaySettings(display) {
   await sleep(220);
   await apiFetchValue(getDisplayItIsSetUrl(), display.permanent_it_is ? "on" : "off");
   await sleep(220);
+  // Der leere Ticker ist ein gültiger Zustand und der einzige Weg, ihn abzuschalten.
+  // ticker_set nimmt ihn deshalb bewusst an, und der Import schreibt ihn auch leer.
   await apiFetchValue(getTickerSetUrl(), display.ticker_text || "");
   await sleep(350);
-  await apiFetchValue(getDateTickerFormatSetUrl(), display.date_ticker_format || "");
-  await sleep(900);
+  if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "backup.field.date_ticker_format")) {
+    await sleep(900);
+  }
   await apiFetchValue(getTickerDecelerationSetUrl(), Number(display.ticker_deceleration || 0));
   await sleep(1800);
   await saveImportedColor(getDisplayColorSetUrl(), display.color);
@@ -5226,10 +5319,12 @@ async function importMaintenanceSettings(maintenance) {
 
   setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
 
-  await apiFetchValue(getUpdateHostSetUrl(), maintenance.update_host || "");
-  await sleep(900);
-  await apiFetchValue(getUpdatePathSetUrl(), maintenance.update_path || "");
-  await sleep(500);
+  if (await importOptionalValue(getUpdateHostSetUrl(), maintenance.update_host, "backup.field.update_host")) {
+    await sleep(900);
+  }
+  if (await importOptionalValue(getUpdatePathSetUrl(), maintenance.update_path, "backup.field.update_path")) {
+    await sleep(500);
+  }
 }
 
 async function importClimateSettings(climate) {
@@ -5239,18 +5334,48 @@ async function importClimateSettings(climate) {
 
   setSettingsBackupNote("Importiere Klima- und Wetter-Einstellungen...");
 
-  await apiFetchValue(getWeatherAppIdSetUrl(), climate.weather_appid || "");
-  await sleep(250);
-  await apiFetchValue(getWeatherCitySetUrl(), climate.weather_city || "");
-  await sleep(250);
-  await apiFetchQuery(getWeatherCoordinatesSetUrl(), {
-    lon: climate.weather_lon || "",
-    lat: climate.weather_lat || ""
-  });
-  await sleep(250);
+  if (await importOptionalValue(getWeatherAppIdSetUrl(), climate.weather_appid, "backup.field.weather_appid")) {
+    await sleep(250);
+  }
+
+  await importWeatherLocationSettings(climate);
+
   await apiFetchValue(getLdrMinValueSetUrl(), Number(climate.ldr_min || 0));
   await sleep(150);
   await apiFetchValue(getLdrMaxValueSetUrl(), Number(climate.ldr_max || 0));
+}
+
+// Ort und Koordinaten sind Alternativen, und das Gerät lässt die eine Angabe nur
+// leeren, solange die andere steht. Die Reihenfolge entscheidet deshalb: Zuerst wird
+// die Angabe geschrieben, die in der Sicherung gefüllt ist, erst danach die andere
+// geleert. Andernfalls trifft ein leerer Ort auf ein Gerät ohne Koordinaten, das
+// Gerät antwortet mit Kennung 1 — und ldr_min sowie ldr_max fielen aus der Stufe.
+async function importWeatherLocationSettings(climate) {
+  const city = normalizeImportText(climate.weather_city);
+  const lon = normalizeImportText(climate.weather_lon);
+  const lat = normalizeImportText(climate.weather_lat);
+  const hasCoordinates = !!lon && !!lat;
+
+  if (!city && !hasCoordinates) {
+    noteSkippedImportField("backup.field.weather_location");
+    return;
+  }
+
+  if (city) {
+    await apiFetchValue(getWeatherCitySetUrl(), city);
+    await sleep(250);
+    await apiFetchQuery(getWeatherCoordinatesSetUrl(), {
+      lon: hasCoordinates ? lon : "",
+      lat: hasCoordinates ? lat : ""
+    });
+    await sleep(250);
+    return;
+  }
+
+  await apiFetchQuery(getWeatherCoordinatesSetUrl(), { lon, lat });
+  await sleep(250);
+  await apiFetchValue(getWeatherCitySetUrl(), "");
+  await sleep(250);
 }
 
 async function importSensorCorrectionSettings(climate) {
@@ -6102,9 +6227,11 @@ function refreshUpdateUi(settings, coreData, debugOverrides) {
 }
 
 // network_scan liefert dasselbe Netz mehrfach, einmal je Accesspoint und Kanal — im
-// Testdurchlauf acht Eintraege fuer fuenf Netze. Doppelte Zeilen in der Auswahlliste
-// helfen niemandem. Liefert der Endpunkt eines Tages eine Feldstaerke mit, gewinnt der
-// staerkste Eintrag; heute sind es blosse Namen, dann bleibt der erste Treffer. L34c.
+// Testdurchlauf acht Einträge für fünf Netze. Doppelte Zeilen in der Auswahlliste
+// helfen niemandem. Der Endpunkt liefert inzwischen {"ssid":"…","rssi":-67}, damit
+// gewinnt der stärkste Eintrag. Der blosse Name wird weiterhin angenommen: Eine
+// ältere ESP-Firmware darf die Netzauswahl nicht leer lassen; ohne Feldstärke bleibt
+// es beim ersten Treffer. L34c, L41.
 function dedupeScannedNetworks(list) {
   const strongest = new Map();
 
@@ -7303,8 +7430,11 @@ async function applyWeatherMapSelection() {
     successStatusText: translate("weather.apply_map_success"),
     reload: true,
     request: async () => {
-      await apiFetchValue(getWeatherCitySetUrl(), city);
+      // Erst die Koordinaten, dann der Ort: Ein Punkt auf der Karte ohne Namen
+      // würde als leerer Ort auf ein Gerät ohne Koordinaten treffen und mit
+      // Kennung 1 abgewiesen. Mit gesetzten Koordinaten ist der leere Ort erlaubt.
       await apiFetchQuery(getWeatherCoordinatesSetUrl(), { lon, lat });
+      await apiFetchValue(getWeatherCitySetUrl(), city || "");
       closeWeatherMapPicker();
     }
   });

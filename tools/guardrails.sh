@@ -214,6 +214,12 @@ fi
 # ---------------------------------------------------------- S8 Smoke-Tests
 step S8 "Smoke-Tests pro Modul"
 node tools/checks/smoke-pwa.mjs "$APP/app.js" || CRIT=$((CRIT+1))
+
+# Die PWA ist UTF-8 und schreibt echte Umlaute; die C-Dateien sind es nicht und
+# benutzen Umschrift. Wer in einer Sitzung an beiden arbeitet, traegt die
+# Gewohnheit hinueber -- so kamen "Schluessel" und "ungueltig" in die deutschen
+# Fehlertexte (L52). Aufgefallen ist es dem Nutzer, nicht einer Pruefung.
+node tools/checks/umlaute.mjs "$APP/app.js" || WARN=$((WARN+1))
 if [ "$FULL" -eq 1 ]; then
   echo "  --full: Compile-Smoke-Tests (dauert Minuten, nur serieller Lauf erlaubt)"
   for t in f103 f411 esp; do

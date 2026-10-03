@@ -66,6 +66,11 @@ ihre Oberfläche zur Laufzeit in JavaScript (`#overlay-list`, Timer-Karten). Ein
 Prüfung, die nur das Markup abläuft, übersieht sie vollständig — sie brauchen einen
 eigenen Durchgang (Phase 3.7).
 
+**Beide sind bis heute ungeprüft.** Der erste Durchlauf (02.10.2026) endete vorher am
+Hänger, der zweite (03.10.2026) am Watchdog-Reset aus L45. Von elf Modulen sind vier
+abgearbeitet — und ausgerechnet die beiden, bei denen eine oberflächliche Prüfung am
+meisten übersieht, stehen noch aus.
+
 **Nicht alle Module sind auf jedem Gerät sichtbar.** `getUiFeatureState()` blendet
 Panels anhand von `HARDWARE_CONFIGURATION` und der Online-Erkennung aus — TFT,
 DFPlayer und Ambilight. Vor dem Durchlauf ist festzuhalten, welche Teilsysteme die
@@ -306,6 +311,12 @@ Durchlaufs.
 Wetter-AppID, Ort, Längen- und Breitengrad, Kartenauswahl (Modal), Wetter jetzt und
 Vorhersage abrufen, Temperaturkorrekturen (−20..20), LDR-Minimum und -Maximum,
 Temperatur anzeigen.
+
+**`weather_get_now` und `weather_get_forecast` sind nicht rein lesend** (L54). Sie
+lösen eine Anzeige auf dem Display aus und melden anschliessend bedingungslos
+`{"ok":true}` — auch wenn AppID oder Ort unbrauchbar sind. Für den Durchlauf heisst
+das: Klasse S, nicht L, und ein `ok:true` ist dort **kein** Beleg dafür, dass Daten
+angekommen sind.
 
 Das **Kartenmodal** ist ein eigener Prüfgegenstand: Suche, Klick auf die Karte,
 aktueller Standort, Übernahme in die Felder, Escape, Klick auf den Hintergrund,
