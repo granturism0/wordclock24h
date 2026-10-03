@@ -1,5 +1,208 @@
 # Changelog
 
+## 2026-10-03 Aufräumen nach F1 (STM 3.2.13, ESP 3.2.11, PWA 1.4.81)
+
+Alle drei Komponenten. Angetreten als Hygiene-Paket — vier latente Befunde, die
+beim Bauen von F1 nebenbei aufgefallen waren. Herausgekommen ist ein echter
+Fehler mit sichtbarer Wirkung.
+
+### Ein Tickertext konnte ein Spiel starten
+
+`udpsrv.cpp` hatte an drei Stellen ein vergessenes `break`. Sichtbar wurde das
+erst, nachdem der ESP-Compile-Smoke überhaupt Warnungen melden konnte — vorher
+lief er mit abgeschalteten Warnungen.
+
+Nach einem Ticker-Paket überschrieb der Spielezweig das erste Zeichen und sendete
+den Tickertext ein **zweites Mal** als Spielekommando. Der STM liest `Ts` als
+„Tetris starten", `Ss` als „Snake starten". Ein Tickertext, der mit „Ts" beginnt —
+„Tschüss" genügt —, startete damit ein blockierendes Spiel und riss die Anzeige an
+sich. Aus dem ganzen LAN auslösbar, ohne Authentifizierung.
+
+Über dieselbe Kette setzte jeder Tetris- oder Snake-Start zusätzlich einen
+Abspielbefehl an den DFPlayer: Die beiden Spielstart-Pakete sind **exakt drei
+Byte** lang und passierten damit den einzigen Längenwächter, der den Fall hätte
+abfangen sollen.
+
+Dass es kein beabsichtigter Durchfall war, liess sich belegen: Das Kommando war
+im ersten Fall bereits abgesetzt — der Durchfall fügte nichts hinzu. Alle drei
+stammen unverändert aus dem Ursprungscode.
+
+**Zwei Verhaltensänderungen gegenüber der Android-App:** Ticker-Pakete lösen kein
+zweites Kommando mehr aus, Spiele-Pakete keinen Abspielbefehl.
+
+### Der Tickertext enthielt Stackmüll
+
+Beim Beheben kam eine zweite Stelle heraus, die niemand gesucht hatte. Der
+UDP-Puffer wurde nicht terminiert, und der Ticker-Zweig setzte den Terminator
+**unbedingt** auf eine feste Position. Bei einem Paket „pHallo" lag er damit 27
+Byte hinter dem Paketende — alles dazwischen ging als Tickertext mit aufs
+Display. Der Kommentar daneben las sich wie eine Terminierung, war aber eine
+Kürzung auf Verdacht.
+
+Terminiert wird jetzt **einmal, unmittelbar nach dem Empfang und vor der
+Fallunterscheidung**, damit die Zusicherung auch für künftige Zweige gilt. Die
+alte Zeile kürzt nur noch, wenn zu kürzen ist. Gegengeprüft: Alle neunzehn Fälle
+des Dispatchers enden jetzt mit `break`, auch die, bei denen der Compiler mangels
+Seiteneffekt nie gewarnt hätte.
+
+### Die übrigen vier
+
+- **`snprintf` statt `sprintf`** in zwei Sendefunktionen des STM. Im Überlauffall
+  wird **gar nicht gesendet** statt gekürzt: Eine gekappte Zeile wäre für den ESP
+  syntaktisch gültig und würde dort als richtiger Wert übernommen — aus einem
+  Stacküberlauf würde eine stille Verfälschung.
+- **Nullterminierung** eines Kommandopuffers, der sich eine Union mit dem
+  Dateipuffer teilt. Im Harness belegt: vorher las `strlen` vier Byte über das
+  Feld hinaus.
+- **Drei Compilerwarnungen** in `http.cpp`, darunter eine seit dem Umstieg auf
+  `.gz`-Einzelassets tote Funktion.
+- **Dreizehn Stellen** in der App, die eine bereits übersetzte Statuszeile mit
+  hartcodiertem Deutsch überschrieben. Die richtige Korrektur war ersatzloses
+  Entfernen, nicht Übersetzen: Die Aufrufer setzen die Zeile bereits, und zwar
+  **spezifischer** („abschliessend", „erneut") — auch im Deutschen ging dabei
+  Information verloren.
+
+### Die Warnungswache hätte sich selbst abgeschaltet
+
+Die gestern eingeführte Bestandswache unterschied „behoben" von „Inkrementallauf"
+am Vergleich *weniger als erwartet*. Das trägt nur, solange der Erwartungswert
+über null liegt — mit diesem Paket sank er für den ESP auf 0, und ein
+Inkrementallauf hätte dann grünes „Bestand unverändert" gemeldet.
+
+Sie zählt jetzt über eine Zeitmarke die tatsächlich übersetzten Objektdateien und
+hängt ihre Aussage daran statt an der Warnungszahl. Beide Fälle gegengeprüft.
+
+## 2026-10-03 IR-Codes im Backup — F1 (STM 3.2.12, ESP 3.2.10, PWA 1.4.80)
+
+Alle drei Komponenten. Die gelernten IR-Fernbedienungscodes waren bis jetzt die
+**einzige** Konfiguration der Uhr ohne jeden Rückweg: Nach einem EEPROM-Reset
+musste man alle zwanzig Tasten neu anlernen, und `learn_ir` blockiert dabei
+unbegrenzt — weshalb es nicht einmal automatisierbar ist.
+
+### Was der Katalog falsch geplant hatte
+
+Der Eintrag zu F1 stand seit Monaten als „160 Byte an Offset 4, hexkodiert 320
+Zeichen — ein Lese- und ein Schreibkommando über die Brücke". Drei der vier
+Angaben waren falsch, und die Umsetzung nach dieser Vorlage hätte Schaden
+angerichtet:
+
+- **Belegt sind 100 Byte, nicht 160.** Reserviert ist Platz für 32 Tasten, die
+  Schleifen laufen aber über 20. Der Rest ist Polster.
+- **Ein Kommando je Richtung geht nicht.** Der ESP schneidet nach 127 Zeichen
+  **still** ab, der Empfänger auf der anderen Seite nach 123. Zweihundert
+  Hexzeichen hätten also nicht einmal eine Fehlermeldung erzeugt, sondern falsche
+  Daten — und STM-seitig vorher einen 160-Byte-Stackpuffer überschrieben, weil
+  dort mit `sprintf` ohne Längenprüfung formatiert wird.
+- **Der Watchdog war entgegen der Erwartung nicht das Problem.** Hundert Byte
+  EEPROM sind rund 1,6 s gegen 20 s Budget. Gefährlich ist etwas anderes:
+  Währenddessen wird die Kommandobrücke nicht bedient, und ihr Empfangsring
+  verwirft bei Überlauf ohne Log, ohne Zähler, ohne Spur.
+
+### Wie es stattdessen gebaut ist
+
+Ein indiziertes Kommando je Taste, dreizehn Zeichen, in beide Richtungen. Der
+Export läuft **ein Kommando pro Hauptloop-Durchlauf**, getrieben von einem Zähler,
+den der Anstoss nur auf null setzt. Damit liegt zwischen zwei Kommandos garantiert
+der reguläre Watchdog-Reload am Loop-Kopf — ohne eine einzige neue Aufrufstelle,
+und die Uhr friert während des Abzugs nicht ein.
+
+Die naheliegende Schleife wäre hier ein Fehler gewesen: Jedes Kommando wartet bis
+zu 3 s auf die Quittung, zwanzig ohne Antwort sind 60 s gegen 20 s Watchdog.
+
+Geschrieben wird je Taste einzeln, rund 80 ms statt 1,6 s am Stück. Die App
+schickt zwanzig einzelne Requests, sequenziell — das ist die faktische
+Flusskontrolle des Systems, auch wenn sie nirgends so heisst.
+
+### Der STM prüft die Kommandozeile jetzt selbst
+
+Ohne das hätte eine verstümmelte Zeile einen IR-Code **still gelöscht**. `htoi()`
+hat zwar eine Abbruchbedingung auf das aktuelle Zeichen, prüft dabei aber
+dauerhaft dasselbe erste Byte — ein eingebettetes Nullbyte beendet die Schleife
+also nicht, und Nicht-Hex-Zeichen werden still zu null. Aus `"I05"` wurde damit
+`protocol = 0`, und das ist genau die Kennung für „nie angelernt". Ein verlorenes
+Zeichen verschiebt sogar die Felder und schreibt auf die falsche Taste.
+
+Jetzt werden Länge, Hex-Form und `protocol` geprüft, bevor etwas ins EEPROM geht.
+Der STM bietet kein Löschen an — also führt er auch keines aus.
+
+### Export und Import in der App
+
+Der Abschnitt `settings.ir` hat immer genau zwanzig Einträge. **Zugeordnet wird
+über den Tastennamen, nicht über den Index**: In den Firmware-Quellen steht ein
+auskommentierter Block für künftige Modi, der die Nummerierung verschieben würde —
+eine indexbasierte Zuordnung importierte dann still auf die falschen Tasten.
+
+Bleibt der Abzug unvollständig, fehlt der Abschnitt **ganz**. Ein Export, der
+stillschweigend neunzehn von zwanzig Tasten sichert, sieht gültig aus, und die
+fehlende merkt man erst beim Restore, wenn das Original längst weg ist.
+
+Vor dem Import entsteht automatisch eine Rückfalldatei mit dem bisherigen Stand.
+Gelingt sie nicht, kommt eine zweite Rückfrage. Nach dem Schreiben wird
+gegengelesen — denn ein `{"ok":true}` heisst nur „abgeschickt": Wird ein Kommando
+unterwegs verstümmelt, weist der STM es ab, und der ESP erfährt davon nichts.
+
+`BACKUP_VERSION` steigt auf 3. Bestehende Sicherungen bleiben lesbar — das ist die
+Vorarbeit vom selben Tag, die bis dahin nie auslösen konnte.
+
+### Drei Befunde, die beim Bauen aufgefallen sind
+
+- **Alle 172 `debug_log_*`-Aufrufe sind in der ausgelieferten Firmware
+  wegkompiliert.** Das Makro hängt an einem `DEBUG`, das nirgends definiert wird.
+  Am Binärobjekt nachgewiesen. Jede Diagnose, die jemand darüber eingebaut hat,
+  war wirkungslos — auch in der Hänger-Untersuchung.
+- **Der ESP-Compile-Smoke lief mit abgeschalteten Warnungen** und konnte deshalb
+  gar keine melden. Sechs Bestandswarnungen waren dadurch unsichtbar. Behoben,
+  mit Bestandswache gegen die bekannte Zahl.
+- **Die Projektanweisung wies Agenten an, zwei UTF-8-Dateien als ISO-8859-1 zu
+  patchen.** Die Wissensdatei sagte seit je das Richtige — die falsche Angabe
+  stand in dem Dokument, das immer lädt.
+
+## 2026-10-03 Backup-Import nimmt ältere Sicherungen an (PWA 1.4.79)
+
+Nur die PWA. STM und ESP bleiben bei 3.2.11 und 3.2.9 — geändert wurde allein
+`app.js`, also steigt allein deren Version (DIR-004).
+
+### L82 — der Import wies auch ÄLTERE Sicherungen ab
+
+`parseSettingsBackupFile` prüfte mit `!==` auf die aktuelle `BACKUP_VERSION`.
+Eine Datei aus einer älteren App wurde damit abgewiesen, und zwar mit der
+Meldung „Inkompatible Backup-Version – Datei mit einer neueren App erstellt."
+Die Meldung behauptete das Gegenteil dessen, was vorlag.
+
+Folgenlos war das nur, solange die Version nie gestiegen ist. Mit F1
+(IR-Codes ins Backup) steigt sie — und in dem Moment wären alle bestehenden
+Sicherungen des Nutzers unbrauchbar geworden, ausgerechnet in der Lage, für
+die er sie angelegt hat. Deshalb vor F1 erledigt, nicht mit F1.
+
+Jetzt: grösser als die aktuelle Version → ablehnen, gleich oder kleiner →
+annehmen, fehlend oder kein gültiger Wert → als ungültiges Format ablehnen.
+Beim Import einer älteren Datei sagt die App, dass Einstellungen fehlen
+können, und läuft weiter.
+
+Die eigentliche Falle lag woanders als im Vergleichsoperator: `Number(null)`,
+`Number("")`, `Number(false)` und `Number([])` ergeben alle `0`. Das alte
+`backup.version || 0` machte aus einer fehlenden Version stillschweigend eine
+Zahl. `readBackupFileVersion` prüft deshalb den Typ **vor** der Umwandlung.
+
+Dass fehlende Abschnitte den Import nicht stören, ist jetzt belegt statt
+vermutet: Alle zehn Primärstufen beginnen mit einer Leerprüfung, und alle vier
+Retry-Prädikate liefern bei fehlender Sektion `false` — eine fehlende Sektion
+löst also auch keine zusätzlichen STM-Kommandos aus.
+
+### Ohne Versionsbezug — Werkzeug und Dokumentation
+
+- **S10 prüft jetzt beide Richtungen.** Bisher fiel auf, wenn ein offener
+  Befund in der ToDo-Liste fehlte; nicht aber, wenn ein ToDo-Eintrag längst
+  erledigt war. Sechs Einträge hatten das überlebt. Gemeldet wird nur, wenn
+  jede genannte Kennung erledigt ist — ein Eintrag darf einen erledigten
+  Befund als Begründung zitieren.
+- **`README-CMAKE.md`**: Die drei namentlich genannten Referenz-ZIPs
+  existierten nicht mehr — `build/` ist nicht versioniert. Der Abschnitt nennt
+  keine Dateinamen daraus mehr; die Invariante zum Farbpfad bleibt.
+- **Testplan und Testagent**: Aufgeräumt wird jeder *berührte* Index, nicht
+  jeder geplante. Ein Timer-Slot war nach dem dritten Durchlauf aktiv geblieben
+  (L81), während der Bericht „alle Testslots geleert" meldete.
+
 ## 2026-10-03 Befunde aus Testdurchlauf 3 (STM 3.2.11, ESP 3.2.9, PWA 1.4.78)
 
 Alle drei Komponenten. Der dritte Testdurchlauf hat 137 Pruefungen gefahren,

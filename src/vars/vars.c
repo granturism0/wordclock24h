@@ -28,6 +28,7 @@
 #include "weather.h"
 #include "dfplayer.h"
 #include "ssd1963.h"
+#include "remote-ir.h"
 #include "delay.h"
 
 #include "log.h"
@@ -116,12 +117,36 @@ var_send_short (const char * id, uint_fast32_t var, uint_fast16_t value)
     var_send_buf (buf);
 }
 
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * send a named string to ESP8266: <id><var:2><value>
+ *
+ * Befund L86: Hier stand sprintf in einen 160-Byte-Stackpuffer ohne jede Laengenpruefung des
+ * uebergebenen Werts. Heute speist keine Quelle mehr als rund 64 Zeichen ein, der Fehler war
+ * also latent -- ein laengerer Wert haette den Stack ueberschrieben.
+ *
+ * snprintf kappt. Genau dieses Kappen darf aber NICHT stillschweigend passieren: Eine gekuerzte
+ * var-Zeile ist fuer den ESP syntaktisch gueltig und wird dort als richtiger Wert uebernommen.
+ * Aus einem Absturz wuerde so eine stille Verfaelschung, und die ist hier die schlimmere Sorte.
+ * Im Ueberlauffall geht deshalb gar nichts raus, und der Fall wird gemeldet -- ueber log_printf,
+ * nicht ueber debug_log_printf: Letzteres ist in der ausgelieferten Firmware ein leeres Makro
+ * (Befund L87, log.h:23-31, DEBUG wird nirgends definiert).
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
 static void
 var_send_string (const char * id, uint_fast32_t var, const char * value)
 {
     char            buf[160];
+    int             len;
 
-    sprintf (buf, "%s%02x%s", id, (int) var, value);
+    len = snprintf (buf, sizeof (buf), "%s%02x%s", id, (int) var, value);
+
+    if (len < 0 || (size_t) len >= sizeof (buf))
+    {
+        log_printf ("var_send_string: %s%02x zu lang (%d von max %d Zeichen), nicht gesendet\r\n",
+                    id, (int) var, len, (int) sizeof (buf) - 1);
+        return;
+    }
+
     var_send_buf (buf);
 }
 
@@ -191,10 +216,19 @@ static void
 var_send_str_variable (STR_VARIABLE var, const char * value)
 {
     char            buf[160];
+    int             len;
 
     if (var < MAX_STR_VARIABLES && value)
     {
-        sprintf (buf, "S%02x%s", (int) var, value);
+        len = snprintf (buf, sizeof (buf), "S%02x%s", (int) var, value);
+
+        if (len < 0 || (size_t) len >= sizeof (buf))                    // Befund L86, Begruendung siehe var_send_string()
+        {
+            log_printf ("var_send_str_variable: S%02x zu lang (%d von max %d Zeichen), nicht gesendet\r\n",
+                        (int) var, len, (int) sizeof (buf) - 1);
+            return;
+        }
+
         var_send_buf (buf);
     }
 }
@@ -945,7 +979,47 @@ var_send_ssd1963_flags (void)
 #endif
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
+ * send one single IR code to ESP8266: I<idx:2><protocol:2><address:4><command:4>
+ *
+ * 13 Zeichen feste Breite. Alle Werte werden vor dem Formatieren maskiert, denn "%02x" ist
+ * eine MINDEST-Breite und keine feste: Genau diese Verwechslung war Befund L66 -- ein Wert
+ * ueber 255 erzeugte drei Ziffern, von denen die Gegenseite zwei las. Die Gegenseite liest
+ * mit htoi() in fester Breite und koennte eine Verschiebung nicht bemerken.
+ *
+ * Laenge statisch bekannt: 1 + 2 + 2 + 4 + 4 = 13 Zeichen plus Nullbyte in buf[32]. Befund
+ * L86 (sprintf in einen Stackpuffer ohne Laengenpruefung) ist damit nicht beruehrt; er wird
+ * hier auch nicht behoben, das ist ein eigener Auftrag.
+ *
+ * Gerufen wird diese Funktion ausschliesslich aus dem Hauptloop, ein Kommando je Durchlauf,
+ * angestossen ueber GET_IR_CODES_RPC_VAR. Sie steht bewusst NICHT in
+ * var_send_all_variables() -- siehe dort.
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+var_send_ir_code (uint_fast8_t idx)
+{
+    char            buf[32];
+    uint_fast8_t    protocol;
+    uint_fast16_t   address;
+    uint_fast16_t   command;
+
+    if (remote_ir_get_code (idx, &protocol, &address, &command))
+    {
+        sprintf (buf, "I%02x%02x%04x%04x",
+                 (unsigned int) (idx & 0xFF),
+                 (unsigned int) (protocol & 0xFF),
+                 (unsigned int) (address & 0xFFFF),
+                 (unsigned int) (command & 0xFFFF));
+        var_send_buf (buf);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
  * send all variables to ESP8266
+ *
+ * Hier steht bewusst KEIN var_send_ir_code(). Diese Funktion laeuft ohne einen einzigen
+ * watchdog_reload() durch (Befund L85) und haengt am Startpfad; die 20 IR-Kommandos gehen
+ * deshalb nur auf ausdrueckliche Anforderung raus, getaktet vom Hauptloop.
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
 void

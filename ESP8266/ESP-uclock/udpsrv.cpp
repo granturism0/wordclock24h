@@ -66,7 +66,7 @@ udp_server_setup (void)
 void
 udp_server_loop (void)
 {
-    char udp_server_packet_buffer[MAX_UDP_PACKET_SIZE];
+    char udp_server_packet_buffer[MAX_UDP_PACKET_SIZE + 1];                 // +1: Platz fuer den Terminator, auch bei einem Paket voller Laenge
 
     int noBytes = server_udp.parsePacket();
 
@@ -87,6 +87,7 @@ udp_server_loop (void)
         if (noBytes <= MAX_UDP_PACKET_SIZE)
         {
             server_udp.read (udp_server_packet_buffer, noBytes);            // read packet
+            udp_server_packet_buffer[noBytes] = '\0';                       // L95: terminieren, BEVOR strcmp() oder Serial.print() darauf laufen
 
             switch (udp_server_packet_buffer[0])
             {
@@ -253,8 +254,13 @@ udp_server_loop (void)
 
                 case LISTENER_PRINT_TICKER_CODE:                            // print ticker
                 {
-                    udp_server_packet_buffer[MAX_TICKER_TEXT_LEN + 1] = '\0';           // terminate ticker text!
+                    if (noBytes > MAX_TICKER_TEXT_LEN + 1)                                  // nur KUERZEN - terminiert ist der Puffer oben schon am Paketende
+                    {
+                        udp_server_packet_buffer[MAX_TICKER_TEXT_LEN + 1] = '\0';           // terminate ticker text!
+                    }
+
                     set_strvar (TICKER_TEXT_STR_VAR, udp_server_packet_buffer + 1);
+                    break;                                                                  // L92: kein Durchfall nach TETRIS - set_strvar() hat das Kommando bereits abgesetzt
                 }
 
                 case LISTENER_TETRIS_CODE:
@@ -264,6 +270,7 @@ udp_server_loop (void)
                     Serial.print (udp_server_packet_buffer);
                     Serial.print ("\r\n");
                     Serial.flush ();
+                    break;                                                                  // L92: kein Durchfall nach DISCOVER
                 }
 
                 case LISTENER_DISCOVER_CODE:
@@ -279,6 +286,8 @@ udp_server_loop (void)
                         server_udp.print(F("URESPONSE_WC2h\0"));
                         server_udp.endPacket();
                     }
+
+                    break;                                                                  // L92: kein Durchfall nach PLAY_FOLDER_TRACK
                 }
 
                 case LISTENER_PLAY_FOLDER_TRACK_CODE:

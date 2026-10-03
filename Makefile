@@ -10,6 +10,12 @@ ESP_BUILD_DIR ?= build/esp8266
 ESP_SKETCH_DIR ?= ESP8266/ESP-uclock
 ESP_FQBN ?= esp8266:esp8266:generic:baud=115200,xtal=80,CrystalFreq=26,FlashFreq=40,FlashMode=dout,eesz=4M1M,ip=lm2f,vt=flash,exception=disabled,stacksmash=disabled,wipe=none,ssl=all,mmu=3232,non32xfer=fast,sdk=nonosdk_190703,led=2,dbg=Disabled,lvl=None____,ResetMethod=nodemcu
 ESP_OUTPUT_BASENAME ?= ESP-WordClock-4M
+# Warnstufe des ESP-Builds. Vorgabe "none", damit der normale Build leise bleibt --
+# so hat arduino-cli es ohne diesen Schalter ohnehin getan. Der Compile-Smoke in
+# tools/guardrails.sh setzt ESP_WARNINGS=all und ist damit erst wirksam: Bis zum
+# 03.10.2026 lief er mit der Vorgabe und konnte deshalb GAR KEINE Warnung melden.
+# Er meldete "uebersetzt" und prueffte nichts. Aufgefallen beim Bauen von F1.
+ESP_WARNINGS ?= none
 APP_VERSION_SOURCE ?= ESP8266/ESP-uclock/data/app/app.js
 APP_VERSION_FILE ?= $(ESP_BUILD_DIR)/app-version.txt
 APP_DIR ?= ESP8266/ESP-uclock/data/app
@@ -51,7 +57,7 @@ all: configure
 	@$(MAKE) --no-print-directory say-stm
 
 esp:
-	"$(ARDUINO_CLI)" compile --fqbn '$(ESP_FQBN)' --build-path $(ESP_BUILD_DIR) $(ESP_SKETCH_DIR)
+	"$(ARDUINO_CLI)" compile --fqbn '$(ESP_FQBN)' --warnings $(ESP_WARNINGS) --build-path $(ESP_BUILD_DIR) $(ESP_SKETCH_DIR)
 	cp $(ESP_BUILD_DIR)/ESP-uclock.ino.bin $(ESP_BUILD_DIR)/$(ESP_OUTPUT_BASENAME).bin
 	cp $(ESP_BUILD_DIR)/ESP-uclock.ino.elf $(ESP_BUILD_DIR)/$(ESP_OUTPUT_BASENAME).elf
 	cp $(ESP_BUILD_DIR)/ESP-uclock.ino.map $(ESP_BUILD_DIR)/$(ESP_OUTPUT_BASENAME).map

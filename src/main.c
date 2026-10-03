@@ -1459,6 +1459,7 @@ static uint_fast8_t     icon_duration               = 0;
 static uint_fast8_t     pending_weather_ticker_restore = 0;
 static uint32_t         show_icon_stop_time         = 0;
 static uint32_t         local_uptime                = 0;
+static uint_fast8_t     ir_export_idx               = N_REMOTE_IR_CMDS;     // Abzug der IR-Codes: naechster Index, N == nichts zu tun
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set_overlay_idx () - used by external NIC function wc_display_overlay()
@@ -1599,6 +1600,26 @@ schedule_esp8266_remote_procedure (char * parameters)
         {
             show_date = 1;
             debug_log_message ("rpc: show date");
+            break;
+        }
+
+        case GET_IR_CODES_RPC_VAR:
+        {
+            /* Hier wird nur der Zaehler zurueckgesetzt, gesendet wird im Hauptloop.
+             *
+             * Eine for-Schleife ueber die 20 Kommandos stuende an dieser Stelle ohne jeden
+             * watchdog_reload(): var_send_buf() wartet je Kommando bis zu
+             * VAR_SEND_TIMEOUT_SEC (3 s) auf die Quittung des ESP, 20 davon sind bis zu 60 s
+             * gegen 20 s Watchdog. Derselbe Mechanismus macht var_send_all_variables() zu
+             * Befund L85, nur groesser.
+             *
+             * Ein Kommando je Hauptloop-Durchlauf loest das durch die Struktur statt durch
+             * Sorgfalt: Zwischen zwei I-Kommandos liegt garantiert der regulaere
+             * watchdog_reload() am Kopf des Loops, ohne eine einzige neue Aufrufstelle. Und
+             * der Abzug friert die Uhr nicht ein, der Loop laeuft dazwischen weiter.
+             */
+            ir_export_idx = 0;
+            debug_log_message ("rpc: send IR codes");
             break;
         }
     }
@@ -2006,6 +2027,122 @@ schedule_esp8266_numeric_array (char * parameters)
             }
             break;
         }
+    }
+}
+
+#define IR_CODE_PARAM_LEN       12                                      // iippaaaacccc, ohne das fuehrende 'I'
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * schedule_esp8266_ir_code () - schedule a single IR code: I<idx:2><protocol:2><address:4><command:4>
+ *
+ * Feste Breiten in beiden Richtungen: gelesen wird mit htoi() in fester Breite, gesendet wird in
+ * var_send_ir_code() mit maskierten Werten.
+ *
+ * Jede Abweisung meldet sich ueber log_printf, nicht ueber debug_log_printf: Letzteres ist ohne
+ * -DDEBUG ein leeres Makro (log.h:23-31), und DEBUG wird im Build nirgends gesetzt -- die
+ * Meldung gaebe es im ausgelieferten Fabrikat also gar nicht. Nur der Erfolgsfall bleibt
+ * bedingt: zwanzig zusaetzliche blockierende Logzeilen in genau dem Zeitfenster, in dem der
+ * Abzug ueber die Bruecke laeuft, waeren der falsche Preis.
+ *
+ * Warum der STM ueberhaupt prueft, obwohl der ESP es schon tut: Die ESP-Pruefung schuetzt gegen
+ * falsche Eingaben, nicht gegen Verstuemmelung auf der Strecke. Der Empfangsring verwirft bei
+ * Ueberlauf still (uart-driver.h:698, kein else und kein Zaehler), und esp8266.c:386 schneidet
+ * mit strncpy() still ab. htoi() faengt das nicht auf: Die Schleifenbedingung prueft *buf statt
+ * buf[i] (base.c:327), ein eingebettetes Nullbyte beendet sie also nicht, und jedes
+ * Nicht-Hex-Zeichen wird still zu 0.
+ *
+ * Aus einem unterwegs abgeschnittenen "I0502123400 01" wuerde so "I05" -- idx 5, protocol 0,
+ * address 0, command 0. Und protocol 0 ist die Konvention "nie angelernt": Taste 5 waere
+ * geloescht, persistent, im einzigen Datenbestand des Geraets ohne Rueckweg ausser erneutem
+ * Anlernen mit der Fernbedienung in der Hand. Ein verlorenes Zeichen mitten im Kommando
+ * verschoebe die Felder und traefe eine andere Taste mit einem falschen Code.
+ *
+ * Deshalb hier, vor jedem Schreibzugriff: genau 12 Hexziffern und danach Stringende; Index in
+ * 0 .. N_REMOTE_IR_CMDS-1; protocol weder 0x00 noch 0xFF. Nichts wird zurechtgebogen -- das ist
+ * die Lektion aus L70, wo ein fehlender Parameter still zum Vorgabeindex 0 wurde und die
+ * falsche Taste traf.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+schedule_esp8266_ir_code (char * parameters)
+{
+    char            shown[IR_CODE_PARAM_LEN + 1];
+    uint_fast8_t    idx;
+    uint_fast8_t    protocol;
+    uint_fast16_t   address;
+    uint_fast16_t   command;
+    uint_fast8_t    i;
+    uint_fast8_t    all_hex = 1;
+
+    /* Bewusst kein strlen(): esp8266.u.cmd wird mit strncpy(..., ESP8266_MAX_CMD_LEN) gefuellt
+     * (esp8266.c:386) und ist bei voller Laenge nicht nullterminiert. Gelesen werden hoechstens
+     * 12 Zeichen plus das erwartete Nullbyte dahinter. shown[] wird dabei mitgefuellt und auf
+     * druckbare Zeichen beschraenkt, damit eine verstuemmelte Zeile keine Steuerzeichen auf die
+     * Logleitung legt.
+     */
+    for (i = 0; i < IR_CODE_PARAM_LEN; i++)
+    {
+        char c = parameters[i];
+
+        if (! ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+        {
+            all_hex = 0;
+        }
+
+        shown[i] = (c >= 0x20 && c <= 0x7E) ? c : '?';
+
+        if (! c)
+        {
+            break;                                                  // Stringende: nicht darueber hinaus lesen
+        }
+    }
+
+    shown[i] = '\0';
+
+    if (! all_hex || parameters[IR_CODE_PARAM_LEN] != '\0')         // Reihenfolge wichtig: der zweite Zugriff
+    {                                                               // ist nur sicher, wenn alle 12 Zeichen Hex sind
+        log_printf ("cmd: ir_code rejected, expected 12 hex digits: \"%s\"\r\n", shown);
+        return;
+    }
+
+    idx = htoi (parameters, 2);
+    parameters += 2;
+
+    protocol = htoi (parameters, 2);
+    parameters += 2;
+
+    address = htoi (parameters, 4);
+    parameters += 4;
+
+    command = htoi (parameters, 4);
+
+    if (idx >= N_REMOTE_IR_CMDS)
+    {
+        log_printf ("cmd: ir_code[%d] rejected: index exceeds %d\r\n", (int) idx, (int) (N_REMOTE_IR_CMDS - 1));
+        return;
+    }
+
+    /* protocol 0x00 und 0xFF sind die Konvention "nie angelernt". Der STM bietet kein Loeschen
+     * einer Taste an, also fuehrt er auch keines aus -- zweite Verteidigungslinie neben der
+     * Pruefung auf dem ESP. Folge, bewusst in Kauf genommen: Ein Restore kann eine Taste nie
+     * mehr leeren. Die Spec bietet das ohnehin nicht an, und der Preis dafuer -- eine Taste
+     * versehentlich unbrauchbar zu machen -- waere deutlich hoeher als der Nutzen.
+     */
+    if (protocol == 0x00 || protocol == 0xFF)
+    {
+        log_printf ("cmd: ir_code[%d] rejected: protocol %02x is the empty convention, no delete via command\r\n",
+                    (int) idx, (unsigned int) protocol);
+        return;
+    }
+
+    if (remote_ir_set_code (idx, protocol, address, command) == REMOTE_IR_SET_OK)
+    {
+        debug_log_printf ("cmd: set ir_code[%d] = %02x %04x %04x\r\n",
+                          (int) idx, (unsigned int) protocol, (unsigned int) address, (unsigned int) command);
+    }
+    else
+    {                                                               // Format, Index und protocol sind geprueft, bleibt nur das EEPROM
+        log_printf ("cmd: ir_code[%d] failed: eeprom down or write error\r\n", (int) idx);
     }
 }
 
@@ -2674,6 +2811,12 @@ schedule_esp8266_cmd (void)
             schedule_esp8266_games (parameters);
             break;
         }
+
+        case 'I':                                                   // single IR code: Iiippaaaacccc
+        {
+            schedule_esp8266_ir_code (parameters);
+            break;
+        }
     }
 }
 
@@ -3265,6 +3408,36 @@ main (void)
         }
 
         schedule_esp8266_messages ();
+
+        /* Abzug der IR-Codes: genau EIN Kommando je Hauptloop-Durchlauf. Der RPC
+         * GET_IR_CODES_RPC_VAR setzt nur ir_export_idx auf 0, gesendet wird hier -- damit
+         * zwischen zwei Kommandos garantiert der watchdog_reload() vom Kopf dieses Loops
+         * liegt und keine neue Aufrufstelle noetig ist. Begruendung beim RPC-Zweig.
+         */
+        if (ir_export_idx < N_REMOTE_IR_CMDS)
+        {
+            if (esp8266.is_online)
+            {
+                uint_fast8_t    ir_idx = ir_export_idx;
+
+                var_send_ir_code (ir_idx);
+
+                /* var_send_buf() wartet auf die Quittung und ruft dabei
+                 * schedule_esp8266_messages() selbst auf. Kam waehrenddessen ein neuer RPC,
+                 * steht ir_export_idx bereits wieder auf 0 -- dann hier NICHT hochzaehlen,
+                 * sonst fiele der erste Index des neuen Abzugs aus.
+                 */
+                if (ir_export_idx == ir_idx)
+                {
+                    ir_export_idx = ir_idx + 1;
+                }
+            }
+            else
+            {                                                       // Bruecke weg: Abzug abbrechen, statt den Zaehler haengen zu lassen
+                ir_export_idx = N_REMOTE_IR_CMDS;
+                log_message ("ir export: aborted, esp8266 offline");
+            }
+        }
 
         if (display.animation_stop_flag &&                                                                  // no animation running
             show_icon_stop_time == 0 &&                                                                     // no temperature display

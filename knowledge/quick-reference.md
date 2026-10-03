@@ -11,7 +11,7 @@ abgewichen wird. **Mittel** wird gemeldet und darf bewusst offenbleiben.
 
 | Ich sehe… | Ich tue… | Schweregrad |
 |---|---|---|
-| Busy-Wait, `delay_sec`, `delay_msec` oder Warteschleife im Web-Kommandopfad ohne `watchdog_reload()` | Pfad in den Hauptloop verlagern oder Reload ergänzen. `watchdog_reload()` hat **genau eine** Aufrufstelle: `main.c:3170`. Alles über 20 s ist ein garantierter IWDG-Reset | Kritisch |
+| Busy-Wait, `delay_sec`, `delay_msec` oder Warteschleife im Web-Kommandopfad ohne `watchdog_reload()` | Pfad in den Hauptloop verlagern oder Reload ergänzen. Alles über 20 s ist ein garantierter IWDG-Reset. **Den gültigen Bestand an Aufrufstellen nennt S7** (`./tools/guardrails.sh`) — hier stand bis 03.10.2026 „genau eine Aufrufstelle, `main.c:3170`", und das war längst falsch: Es sind sechs, und `main.c:3170` ist nicht mehr die richtige Zeile. Eine abgeschriebene Zahl veraltet still, eine Prüfung nicht | Kritisch |
 | `log_printf` statt `debug_log_printf` in einem Pfad, der pro Display-Refresh läuft | Auf `debug_log_printf` umstellen. Jede Logzeile blockiert über `esp8266_uart_flush()` und verzögert gleichzeitig das Lesen vom ESP | Kritisch |
 | `display_clock_flag = …` als Zuweisung, wo ein anstehendes Update verloren gehen kann | Prüfen, ob verodert werden muss. Die Flags sind disjunkte Bits (`0x01`, `0x02`, `0x04`) | Kritisch |
 | Ein Flag wird unbedingt gelöscht, seine Wirkung aber nur bedingt gesetzt | Erst löschen, wenn die Wirkung tatsächlich eingetreten ist. Siehe `pending_weather_ticker_restore`, `main.c:3699-3711` | Kritisch |
@@ -66,7 +66,8 @@ Betrifft direkt `display.c` (Display-Zustandsmaschine) und `ds18xx.c`/`tempsenso
 | Modal ohne `role="dialog"`, Fokus-Management und Escape | Ergänzen | Hoch |
 | Rand- oder Umrissfarbe eines Bedienelements unter 3:1 | Anheben. WCAG 2.1 SC 1.4.11 | Hoch |
 | C-Quellen mit Python im **Textmodus** patchen | **Binär lesen und schreiben.** Die Quellen haben gemischte Zeilenenden — `vars.c` etwa 940 CRLF und 45 LF. Universal Newlines vereinheitlichen sie still, und aus einem Dreizeiler wird ein Diff über die ganze Datei | Kritisch |
-| Suchmuster mit Umlauten binär patchen | **Umlaute aus dem Muster heraushalten.** Der Patcher kodiert `latin-1`, die ESP-Quellen sind UTF-8 — ein `ü` im Muster trifft nie. Kostete einen stillen Fehlschlag, der erst beim Nachzählen auffiel | Hoch |
+| Suchmuster mit Umlauten binär patchen | **Umlaute aus dem Muster heraushalten.** Der Patcher kodiert `latin-1`, `http.cpp` und `stm32flash.cpp` sind UTF-8 — ein `ü` im Muster trifft nie. Kostete einen stillen Fehlschlag, der erst beim Nachzählen auffiel | Hoch |
+| Vor dem Patchen die Kodierung **annehmen** statt nachsehen | **Nachsehen.** Welche Datei welcher Gruppe angehört, sagt S7b: „UTF-8 mit Umlauten" wird namentlich gelistet (dort beschädigt ein `latin-1`-Patcher die Datei), „nicht UTF-8" gezählt (dort braucht `grep` ein `-a`). Bis 03.10.2026 behauptete `CLAUDE.md` pauschal, alle ESP-Quellen seien ISO-8859-1 — während diese Zeile hier das Gegenteil sagte. Zwei Dokumente, zwei Aussagen, und die falsche stand in dem, das immer lädt | Hoch |
 | `outline: none` ohne Ersatz | Eigenen Fokusstil setzen | Hoch |
 | Neues `<select>`, `time`, `color` oder `range` ohne `color-scheme` | `color-scheme: dark` setzen, sonst heller Picker auf iOS | Mittel |
 | CSS-Klasse angelegt, aber im HTML nie gesetzt | Im HTML nachziehen oder CSS entfernen. Guardrail-Stufe 6 meldet das | Mittel |

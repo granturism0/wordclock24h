@@ -29,6 +29,7 @@ typedef enum
     DISPLAY_DATE_RPC_VAR,                                                   // display current date
     GET_WEATHER_FC_RPC_VAR,                                                 // get weather forecast
     RESET_EEPROM_RPC_VAR,                                                   // reset EEPROM
+    GET_IR_CODES_RPC_VAR,                                                   // send all learned IR codes to ESP8266
     MAX_RPC_VARIABLES                                                       // must be the last member
 } RPC_VARIABLE;
 
@@ -273,6 +274,12 @@ extern void         var_send_color_animations (void);
 extern void         var_send_ambilight_modes (void);
 extern void         var_send_overlays (void);
 extern void         var_send_use_rgbw (void);
+
+/* Ein einzelner IR-Code, Kommando I<idx:2><protocol:2><addr:4><cmd:4>. Getaktet wird der
+ * Abzug im Hauptloop von main.c -- ein Kommando je Durchlauf, nie als Schleife. Absichtlich
+ * NICHT Teil von var_send_all_variables(): dieser Pfad hat keinen watchdog_reload() (L85).
+ */
+extern void         var_send_ir_code (uint_fast8_t);
 
 #if defined (BLACK_BOARD)
 extern void         var_send_ssd1963_flags (void);

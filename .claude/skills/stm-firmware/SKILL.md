@@ -44,8 +44,14 @@ Display-Zustandsmaschine und die Dateien des offenen DS18xx-Themas.
 
 ## Der Watchdog hat genau eine Reload-Stelle
 
-`watchdog_reload()` wird im gesamten `src/`-Baum an **genau einer** Stelle aufgerufen:
-`main.c:3170`, im Hauptloop. `WATCHDOG_TIMEOUT_MS` ist 20000 (`main.c:382`).
+`watchdog_reload()` wird **regulaer nur am Kopf des Hauptloops** bedient;
+`WATCHDOG_TIMEOUT_MS` ist 20000 (`main.c:382`). Weitere Aufrufstellen gehoeren zu
+Schleifen, die den Loop bewusst anhalten — Display-Test, Ticker, IR-Lernvorgang.
+**Den gueltigen Bestand und die Zeilennummern nennt `./tools/guardrails.sh` in
+Stufe S7.** Hier stand bis 03.10.2026 „genau eine Stelle, `main.c:3170`"; es sind
+sechs, und 3170 stimmt auch nicht mehr. Eine abgeschriebene Zeilennummer veraltet
+schon durch den naechsten Patch — bei F1 ist sie durch den eigenen Eingriff von
+3214 auf 3295 gewandert.
 
 **Jeder Pfad, der länger als 20 s blockiert, ist ein garantierter IWDG-Reset.**
 

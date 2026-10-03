@@ -54,6 +54,14 @@ FORBIDDEN = {
     "fs_remove": "loescht einzelne Dateien aus dem LittleFS, darunter die PWA selbst",
     "test_display": "zieht bei voller Last so viel Strom, dass die Versorgung einbricht — am Geraet beobachtet: Brownout nach 44 s",
     "learn_ir": "blockiert unbegrenzt, bis ein IR-Code eintrifft",
+    # Nachgetragen am 03.10.2026 mit der Spec zu F1, also BEVOR der Endpunkt
+    # existiert -- die bisherigen Eintraege kamen alle erst, nachdem jemand in die
+    # Falle gelaufen war. Der Endpunkt ist der einzige Schreibweg zu den IR-Codes,
+    # und die sind die einzige Konfiguration, von der es bis heute keine Sicherung
+    # gibt: Ein falsch geschriebener Code macht die betroffene Taste unbrauchbar,
+    # und der einzige Rueckweg ist erneutes Anlernen ueber learn_ir -- das eine
+    # Zeile darueber gesperrt ist, weil es unbegrenzt blockiert.
+    "ir_code_set": "ueberschreibt einen angelernten IR-Code; der einzige Rueckweg ist erneutes Anlernen ueber learn_ir, und das blockiert unbegrenzt",
     "local_esp_update": "spielt Firmware ein — gehoert in einen Release, nicht in einen Testdurchlauf",
     "remote_esp_update": "dito, per OTA",
     "local_stm32_flash": "flasht den STM — dito",

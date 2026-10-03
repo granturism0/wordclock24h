@@ -92,6 +92,26 @@ Jede Funktion bekommt eine Klasse. Die Klasse bestimmt, **wie** geprüft wird �
 | **R** | löst einen Neustart aus | eingeplant, mit Wartezeit und Wiederanlaufprüfung |
 | **G** | kann das Gerät unbedienbar machen oder Daten verlieren | **Phase 8** — Ersatzprüfung statt scharfer Ausführung |
 
+### Aufgeräumt wird jeder berührte Index, nicht jeder geplante
+
+Bei Klasse S heisst „zurücksetzen" **jeden Index, an den ein Aufruf ging** — auch den
+eines Aufrufs, den das Gerät abgewiesen hat. Die Aufräumliste entsteht aus dem
+Mitschnitt der gesendeten Aufrufe, nicht aus der Testplanung.
+
+Der Grund ist gemessen (`BEFUNDE.md`, L81): Im Durchlauf vom 03.10.2026 gingen die
+regulären Prüfungen auf die Timer-Slots 2 bis 4, die Edge-Case-Aufrufe aber auf 5
+und 8. Aufgeräumt wurden 2 bis 4. Slot 5 blieb als **aktiver Timer auf 00:00**
+stehen und hätte die Uhr jede Nacht zusätzlich ausgeschaltet. Ein abgewiesener
+Aufruf hinterlässt nichts — aber ob er abgewiesen wurde, weiss man erst hinterher,
+und im Durchlauf davor war derselbe Aufruf noch angenommen worden.
+
+**Der Nachweis ist der Abschlussvergleich, nicht der Bericht.** Derselbe Agent
+meldete „Alle Testslots sofort geleert", während der Slot stand. Das war keine
+Unwahrheit: Er hatte seine Liste abgearbeitet. Ein Agent, der seine eigene
+Aufräumarbeit bestätigt, bestätigt seine Absicht und nicht den Gerätezustand.
+Gefunden hat es `./tools/diff-snapshot.sh` gegen den Referenzabzug — deshalb ist
+Phase 9 keine Formsache und darf auch bei unauffälligem Bericht nie entfallen.
+
 ---
 
 ## 2b. Backup- und Restore-Konzept
@@ -454,10 +474,14 @@ trotzdem scharf ausführt, weil sie sonst nie geprüft würde.
 
 ### 8.1 Was das Backup umfasst
 
-Zehn Abschnitte: `display`, `network`, `maintenance`, `climate`, `animations`, `tft`,
-`ambilight`, `dfplayer`, `overlays`, `timers`, dazu ein Kopf mit Quelle und
-Versionsstand und ein `assets`-Block, der **nur Namen** enthält (Layout-Tabelle,
-verwendete Icons, Asset-Präfix) — **keine Dateien**.
+Elf Abschnitte: `display`, `network`, `maintenance`, `climate`, `animations`, `tft`,
+`ambilight`, `dfplayer`, `overlays`, `timers` und seit F1 `ir`, dazu ein Kopf mit
+Quelle und Versionsstand und ein `assets`-Block, der **nur Namen** enthält
+(Layout-Tabelle, verwendete Icons, Asset-Präfix) — **keine Dateien**.
+
+`ir` ist der einzige Abschnitt, der **fehlen darf**, ohne dass die Datei ungültig ist:
+Lässt sich kein vollständiger Abzug der zwanzig Tasten holen, wird er weggelassen statt
+teilbefüllt geschrieben. Siehe 8.4.
 
 ### 8.2 Prüfreihe
 
@@ -504,6 +528,50 @@ wagen. **Reihenfolge ist deshalb nicht beliebig: B7 vor B5.**
 
 **Vor B5, B7 und B12:** AP-Zugangsdaten griffbereit, serieller Zugang erreichbar,
 Legacy-Oberfläche in einem zweiten Tab offen.
+
+### 8.4 Die IR-Codes im Backup — eigene Prüfreihe
+
+Seit F1 enthält die Sicherung einen elften Abschnitt, `settings.ir` mit genau zwanzig
+Einträgen. Er bekommt eine eigene Reihe, weil er sich in zwei Punkten von allen
+anderen unterscheidet.
+
+**Erstens ist er die einzige Konfiguration ohne zweiten Rückweg.** Ein falsch
+geschriebener IR-Code macht die Taste unbrauchbar, und zurück kommt man nur über
+`learn_ir` — das unbegrenzt blockiert und deshalb in Phase 8 gesperrt ist.
+
+**Zweitens entsteht er asynchron.** Alle anderen Abschnitte werden aus dem lokalen
+Zustandsabbild abgeleitet; dieser hier braucht einen Geräte-Round-Trip über die
+Kommandobrücke, zwanzig Einzelkommandos, je eines pro Hauptloop-Durchlauf. Der Export
+dauert dadurch 1 bis 2 Sekunden länger, im schlechtesten Fall 12,5 Sekunden.
+
+| | Prüfung | Erwartung |
+|---|---|---|
+| **B13** | Export bei erreichbarem Gerät | `settings.ir.keys` hat **genau 20** Einträge, jeder mit `name` und `index`. Nie angelernte Tasten: alle drei Wertfelder `null`, nicht nur `protocol` |
+| **B14** | Export unmittelbar nach einem ESP-Neustart | Abschnitt `ir` **fehlt ganz**, Hinweis nennt den Grund. Der Puffer liegt nur im RAM — eine Datei mit zwanzig leeren Tasten, die wie eine gültige aussieht, wäre schlimmer als keine |
+| **B15** | Zwei Exporte hintereinander | `ir`-Abschnitt identisch. Ergänzt B4 |
+| **B16** | `/api/ir_codes_get` **ohne** vorherigen Anstoss | `requested:false`, `received:0`, alle Indizes in `missing[]`, `codes[]` leer — rein lesend, Klasse **L** |
+| **B17** | Import einer Sicherung mit `null`-Einträgen | übersprungen, **nicht** als Löschung geschrieben. Gegenprobe: Abzug danach unverändert |
+| **B18** | Gegenprobe nach dem Import (AK16) | Erneuter Abzug zeigt die importierten Werte. **Das ist der einzige Nachweis** — `{"ok":true}` heisst nur „abgeschickt", nicht „gespeichert" |
+| **B19** | Import einer **Version-2-Datei** (ohne `ir`-Abschnitt) | Läuft durch, Hinweis „stammt aus einer älteren App-Version". Prüft den L82-Pfad, der **vor F1 nie feuern konnte** |
+
+**B19 ist leicht zu übersehen und deshalb eigens genannt.** Die Vorarbeit aus L82
+— ältere Sicherungen annehmen statt abweisen — war monatelang unauslösbar, weil
+`BACKUP_VERSION` nie gestiegen ist. Mit F1 steigt sie auf 3, und ab diesem Moment
+läuft **jede bestehende Sicherung des Nutzers** über diesen Pfad. Ein Fehler darin
+träfe also nicht einen Randfall, sondern den Normalfall.
+
+**Klasse S, mit einer Einschränkung:** B17 und B18 schreiben über
+`/api/ir_code_set`. Der Endpunkt steht in der Gefahrenliste und wird von
+`tools/hooks/no-danger.py` abgewiesen — bewusst, und nicht zu umgehen. Diese beiden
+Prüfungen laufen deshalb **nur mit ausdrücklicher Freigabe des Nutzers im selben
+Gespräch**. B13 bis B16 und B19 sind davon nicht betroffen.
+
+`/api/ir_codes_request` ist **nicht** gesperrt und darf es auch nicht werden, sonst
+ist der Export nicht prüfbar. Der Filter trifft exakt `ir_code_set`.
+
+**Was auch mit Freigabe offen bleibt:** Ob die Uhr auf die wiederhergestellten Codes
+tatsächlich *reagiert*, lässt sich nur mit der Fernbedienung in der Hand feststellen.
+Das bleibt beim Nutzer und darf nicht stillschweigend als geprüft gelten.
 
 ---
 

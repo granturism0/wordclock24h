@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.78";
+const APP_VERSION = "1.4.81";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 const I18N = {
@@ -599,10 +599,41 @@ const I18N = {
     "backup.export_success": "Einstellungen wurden exportiert.",
     "backup.export_failed": "Einstellungen konnten nicht exportiert werden.",
     "backup.export_eeprom_unavailable": "Die Netzwerkeinstellungen liessen sich nicht lesen. Der Export wurde abgebrochen, damit die Sicherung keine leeren WLAN-Felder enthält.",
+    "backup.ir_collecting": "Lese die IR-Codes der Fernbedienung aus...",
+    "backup.ir_included": "Alle {expected} IR-Tasten sind enthalten, {learned} davon angelernt.",
+    "backup.ir_skipped_incomplete": "Die IR-Codes fehlen: Der Abzug blieb auch im zweiten Anlauf unvollständig ({received} von {expected} Tasten). Ein halber Tastensatz wäre schlimmer als gar keiner, deshalb fehlt der Abschnitt ganz. Versuch den Export gleich noch einmal.",
+    "backup.ir_skipped_stale": "Die IR-Codes fehlen: Der ESP hat den laufenden Abzug verworfen, meist nach einem Neustart. Starte den Export noch einmal.",
+    "backup.ir_skipped_unavailable": "Die IR-Codes fehlen: Die Uhr kennt die dafür nötigen Abfragen nicht — dann ist ihre ESP-Firmware älter als diese App.",
+    "backup.ir_skipped_invalid": "Die IR-Codes fehlen: Die Uhr hat unbrauchbare Werte geliefert, deshalb fehlt der Abschnitt ganz.",
+    "backup.import_ir": "Schreibe die IR-Codes der Fernbedienung zurück...",
+    "backup.ir_restore_snapshot": "Sichere die aktuellen IR-Codes als Rückfalldatei...",
+    "backup.ir_restore_fallback_ok": "Dein bisheriger Stand wurde als {file} heruntergeladen.",
+    "backup.ir_restore_fallback_failed": "Es konnte KEINE Rückfalldatei angelegt werden, weil {reason}.",
+    "backup.ir_restore_fallback_hint": "Dein bisheriger Stand liegt als {file} im Download-Ordner — damit kommst du zurück.",
+    "backup.ir_restore_fallback_none": "Eine Rückfalldatei gibt es nicht: Der alte Stand liess sich vorher nicht lesen.",
+    "backup.ir_restore_confirm_1": "{count} von {total} IR-Tasten werden mit den Werten aus der Sicherung überschrieben:\n\n{names}\n\n{fallback}\n\nDer einzige andere Rückweg ist erneutes Anlernen mit der Fernbedienung — dabei blockiert die Uhr, bis du alle Tasten gedrückt hast.\n\nJetzt überschreiben?",
+    "backup.ir_restore_confirm_2": "Ohne Rückfalldatei gibt es keinen Rückweg: Eine falsch geschriebene Taste bekommst du nur durch erneutes Anlernen wieder hin. Im Zweifel brich jetzt ab.\n\nTrotzdem überschreiben?",
+    "backup.ir_restore_cancelled": "Die IR-Codes wurden nicht überschrieben — du hast abgebrochen.",
+    "backup.ir_restore_writing": "Schreibe IR-Taste {done} von {count}: {name}...",
+    "backup.ir_restore_verifying": "Lese die IR-Codes zur Gegenprobe wieder aus...",
+    "backup.ir_restore_ok": "{written} von {total} IR-Tasten geschrieben und nachgelesen, keine Abweichung.",
+    "backup.ir_restore_skipped": "{skipped} von {total} Tasten stehen in der Sicherung als nie angelernt und blieben unberührt.",
+    "backup.ir_restore_invalid_entries": "Unbrauchbare Einträge in der Sicherung ({count} von {total}), nicht geschrieben: {names}.",
+    "backup.ir_restore_write_failed": "{failed} von {count} IR-Tasten liessen sich nicht schreiben: {names}.",
+    "backup.ir_restore_mismatch": "Achtung: Die Gegenprobe meldet {mismatches} von {written} IR-Tasten abweichend ({names}). Die Uhr hat diese Codes nicht so übernommen, wie sie in der Sicherung stehen. {fallback}",
+    "backup.ir_restore_unverified": "Achtung: {written} von {total} IR-Tasten wurden geschrieben, die Gegenprobe liess sich aber nicht durchführen, weil {reason}. Ob die Codes angekommen sind, ist damit offen. {fallback}",
+    "backup.ir_restore_section_invalid": "Die IR-Codes wurden übersprungen: Der Abschnitt in der Sicherung hat nicht genau {expected} Einträge mit den erwarteten Namen.",
+    "backup.ir_restore_more_names": " und {rest} weitere",
+    "backup.ir_reason_stale": "der ESP den laufenden Abzug verworfen hat",
+    "backup.ir_reason_incomplete": "der Abzug unvollständig blieb",
+    "backup.ir_reason_unavailable": "die Uhr die dafür nötigen Abfragen nicht kennt",
+    "backup.ir_reason_invalid": "die Uhr unbrauchbare Werte geliefert hat",
+    "backup.ir_reason_download": "sich die Datei nicht herunterladen liess",
     "backup.network_skipped_empty_ssid": "WLAN-Zugangsdaten übersprungen: In der Sicherung steht keine SSID. Die bestehenden Einstellungen bleiben unverändert.",
     "backup.choose_file_first": "Bitte zuerst eine Sicherungsdatei auswählen.",
     "backup.invalid_format": "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei.",
     "backup.incompatible_version": "Inkompatible Backup-Version – Datei mit einer neueren App erstellt.",
+    "backup.import_older_version": "Die Sicherung stammt aus einer älteren App-Version ({version} statt {current}). Einstellungen, die es damals noch nicht gab, bleiben unverändert.",
     "backup.import_failed": "Einstellungen konnten nicht importiert werden.",
     "backup.import_confirm": "Einstellungen aus „{file}“ jetzt importieren?",
     "backup.import_start": "Starte Wiederherstellung der Sicherung...",
@@ -616,6 +647,7 @@ const I18N = {
     "backup.import_sensor_verify": "Prüfe Sensor-Korrekturen erneut...",
     "backup.import_persist_critical": "Schreibe kritische Einstellungen dauerhaft...",
     "backup.import_persist_temperature": "Schreibe Temperatur-Korrekturen endgültig...",
+    "backup.import_temperature_final": "Schreibe Temperatur-Korrekturen abschliessend...",
     "backup.import_wait_persist": "Warte, bis Einstellungen dauerhaft gespeichert sind...",
     "backup.import_restart_now": "Import abgeschlossen. STM32 wird jetzt automatisch neu gestartet...",
     "backup.import_restart_reload_data": "STM32 wurde neu gestartet. Lade Daten neu...",
@@ -873,8 +905,10 @@ const I18N = {
     "animations.color_animation_save_failed": "Farbanimation konnte nicht gespeichert werden",
     "backup.file_selected": "Ausgewählt: {name}",
     "backup.no_file_selected": "Noch keine Sicherungsdatei ausgewählt.",
+    "backup.exporting": "exportiert...",
     "backup.importing": "importiert...",
     "backup.checking_files": "Prüfe benötigte Dateien...",
+    "backup.restoring_layout_table": "Stelle Layout-Tabelle wieder her...",
     "backup.restoring_assets": "Stelle Icon- und Overlay-Dateien wieder her...",
     "backup.importing_timers": "Importiere Timer...",
     "weather.locating_short": "ermittelt...",
@@ -1496,10 +1530,41 @@ const I18N = {
     "backup.export_success": "Settings were exported.",
     "backup.export_failed": "Settings could not be exported.",
     "backup.export_eeprom_unavailable": "The network settings could not be read. The export was cancelled so the backup does not contain empty Wi-Fi fields.",
+    "backup.ir_collecting": "Reading the IR remote codes...",
+    "backup.ir_included": "All {expected} IR keys are included, {learned} of them learned.",
+    "backup.ir_skipped_incomplete": "The IR codes are missing: the readout stayed incomplete even on the second attempt ({received} of {expected} keys). Half a key set would be worse than none, so the section was left out entirely. Please try the export again in a moment.",
+    "backup.ir_skipped_stale": "The IR codes are missing: the ESP discarded the running readout, usually after a restart. Please start the export again.",
+    "backup.ir_skipped_unavailable": "The IR codes are missing: the clock does not know the required requests — its ESP firmware is then older than this app.",
+    "backup.ir_skipped_invalid": "The IR codes are missing: the clock returned unusable values, so the section was left out entirely.",
+    "backup.import_ir": "Writing the IR remote codes back...",
+    "backup.ir_restore_snapshot": "Saving the current IR codes as a fallback file...",
+    "backup.ir_restore_fallback_ok": "Your previous state was downloaded as {file}.",
+    "backup.ir_restore_fallback_failed": "NO fallback file could be created because {reason}.",
+    "backup.ir_restore_fallback_hint": "Your previous state is in your download folder as {file} — that is the way back.",
+    "backup.ir_restore_fallback_none": "There is no fallback file: the previous state could not be read beforehand.",
+    "backup.ir_restore_confirm_1": "{count} of {total} IR keys will be overwritten with the values from the backup:\n\n{names}\n\n{fallback}\n\nThe only other way back is learning them again with the remote — and the clock is blocked until you have pressed every key.\n\nOverwrite now?",
+    "backup.ir_restore_confirm_2": "Without a fallback file there is no way back: a wrongly written key can only be repaired by learning it again. When in doubt, cancel now.\n\nOverwrite anyway?",
+    "backup.ir_restore_cancelled": "The IR codes were not overwritten — you cancelled.",
+    "backup.ir_restore_writing": "Writing IR key {done} of {count}: {name}...",
+    "backup.ir_restore_verifying": "Reading the IR codes back for verification...",
+    "backup.ir_restore_ok": "{written} of {total} IR keys written and read back, no deviation.",
+    "backup.ir_restore_skipped": "{skipped} of {total} keys are marked as never learned in the backup and were left untouched.",
+    "backup.ir_restore_invalid_entries": "Unusable entries in the backup ({count} of {total}), not written: {names}.",
+    "backup.ir_restore_write_failed": "{failed} of {count} IR keys could not be written: {names}.",
+    "backup.ir_restore_mismatch": "Warning: the verification reports {mismatches} of {written} IR keys as deviating ({names}). The clock did not take these codes over as they stand in the backup. {fallback}",
+    "backup.ir_restore_unverified": "Warning: {written} of {total} IR keys were written, but the verification could not be carried out because {reason}. Whether the codes arrived is therefore open. {fallback}",
+    "backup.ir_restore_section_invalid": "The IR codes were skipped: the section in the backup does not have exactly {expected} entries with the expected names.",
+    "backup.ir_restore_more_names": " and {rest} more",
+    "backup.ir_reason_stale": "the ESP discarded the running readout",
+    "backup.ir_reason_incomplete": "the readout stayed incomplete",
+    "backup.ir_reason_unavailable": "the clock does not know the required requests",
+    "backup.ir_reason_invalid": "the clock returned unusable values",
+    "backup.ir_reason_download": "the file could not be downloaded",
     "backup.network_skipped_empty_ssid": "Wi-Fi credentials skipped: the backup contains no SSID. The existing settings remain unchanged.",
     "backup.choose_file_first": "Please select a backup file first.",
     "backup.invalid_format": "Invalid file format – no valid WordClock backup file.",
     "backup.incompatible_version": "Incompatible backup version – file was created with a newer app.",
+    "backup.import_older_version": "This backup was created with an older app version ({version} instead of {current}). Settings that did not exist back then are left unchanged.",
     "backup.import_failed": "Settings could not be imported.",
     "backup.import_confirm": "Import settings from “{file}” now?",
     "backup.import_start": "Starting backup restore...",
@@ -1513,6 +1578,7 @@ const I18N = {
     "backup.import_sensor_verify": "Checking sensor corrections again...",
     "backup.import_persist_critical": "Persisting critical settings...",
     "backup.import_persist_temperature": "Persisting temperature corrections...",
+    "backup.import_temperature_final": "Writing temperature corrections as the final step...",
     "backup.import_wait_persist": "Waiting until settings are stored permanently...",
     "backup.import_restart_now": "Import complete. STM32 is now restarting automatically...",
     "backup.import_restart_reload_data": "STM32 restarted. Reloading data...",
@@ -1770,8 +1836,10 @@ const I18N = {
     "animations.color_animation_save_failed": "Colour animation could not be saved",
     "backup.file_selected": "Selected: {name}",
     "backup.no_file_selected": "No backup file selected yet.",
+    "backup.exporting": "exporting...",
     "backup.importing": "importing...",
     "backup.checking_files": "Checking required files...",
+    "backup.restoring_layout_table": "Restoring the layout table...",
     "backup.restoring_assets": "Restoring icon and overlay files...",
     "backup.importing_timers": "Importing timers...",
     "weather.locating_short": "locating...",
@@ -1927,7 +1995,38 @@ const STR = {
 };
 
 const BACKUP_FORMAT = "wordclock-settings-backup";
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
+
+// Reihenfolge und Schreibweise 1:1 aus src/remote-ir/remote-ir.h:38-67 --
+// REMOTE_IR_CMD_* in Kleinschrift ohne Präfix.
+//
+// Der NAME ist der Schlüssel beim Import, der Index ist informativ. In
+// remote-ir.h:19-34 steht ein auskommentierter Block "New Modes (future use)".
+// Wird er je aktiviert, verschiebt sich die Nummerierung vollständig -- eine
+// namensbasierte Zuordnung bleibt dann richtig, eine indexbasierte würde still
+// auf die falschen Tasten schreiben.
+const IR_BACKUP_KEY_NAMES = [
+  "power",
+  "ok",
+  "decrement_display_mode",
+  "increment_display_mode",
+  "decrement_animation_mode",
+  "increment_animation_mode",
+  "decrement_hour",
+  "increment_hour",
+  "decrement_minute",
+  "increment_minute",
+  "decrement_brightness_red",
+  "increment_brightness_red",
+  "decrement_brightness_green",
+  "increment_brightness_green",
+  "decrement_brightness_blue",
+  "increment_brightness_blue",
+  "decrement_brightness",
+  "increment_brightness",
+  "auto_brightness_control",
+  "get_temperature"
+];
 
 const HW = {
   STM32_MASK: 0x07,
@@ -4230,6 +4329,31 @@ function buildBackupExportDocument(exportState) {
   );
 }
 
+// L81: Die Prüfung war strikte Gleichheit -- eine Sicherung aus einer älteren App
+// wurde abgewiesen, und zwar mit der Meldung "mit einer neueren App erstellt", die
+// das Gegenteil dessen behauptet, was vorliegt. Mit F1 (IR-Codes ins Backup) ist
+// BACKUP_VERSION auf 3 gestiegen -- ohne diese Vorarbeit wären damit alle bisher
+// angelegten Sicherungen auf einen Schlag unbrauchbar geworden, ausgerechnet in der
+// Lage, für die der Nutzer sie angelegt hat. Ältere Dateien werden deshalb
+// angenommen. Fehlende Abschnitte stören den Import nicht: getImportExecutionState
+// und die Stufenbauer greifen durchgehend mit "|| {}" bzw. "|| null" zu.
+//
+// Eine Version, die sich nicht als positive Zahl lesen lässt, ist dagegen ein
+// Formatfehler und kein Versionsfehler -- ohne Version ist die Datei gar nicht als
+// Sicherung ausweisbar. Der Typ wird bewusst VOR der Umwandlung geprüft: Number(null),
+// Number(""), Number(false) und Number([]) ergeben allesamt 0, und das bisherige
+// "backup.version || 0" machte daraus stillschweigend eine Zahl.
+function readBackupFileVersion(backup) {
+  const raw = backup ? backup.version : undefined;
+
+  if (typeof raw !== "number" && typeof raw !== "string") {
+    return 0;
+  }
+
+  const version = Number(raw);
+  return Number.isFinite(version) && version > 0 ? version : 0;
+}
+
 async function parseSettingsBackupFile(file) {
   const backup = JSON.parse(await file.text());
 
@@ -4237,7 +4361,13 @@ async function parseSettingsBackupFile(file) {
     throw new Error("invalid-backup-format");
   }
 
-  if (Number(backup.version || 0) !== BACKUP_VERSION) {
+  const version = readBackupFileVersion(backup);
+
+  if (!version) {
+    throw new Error("invalid-backup-format");
+  }
+
+  if (version > BACKUP_VERSION) {
     throw new Error("unsupported-backup-version");
   }
 
@@ -4267,9 +4397,218 @@ function getSettingsBackupImportErrorMessage(error) {
       : translate("backup.import_failed");
 }
 
-async function prepareBackupExportDocument() {
+// ---------------------------------------------------------------------------
+// F1 -- IR-Codes im Backup (specs/f1-ir-backup)
+//
+// Die 20 Tastencodes liegen sonst ausschliesslich im EEPROM des STM und haben keinen
+// Rückweg: Der einzige Weg, sie zu erzeugen, ist /api/learn_ir -- und der blockiert
+// die Uhr, bis ein Mensch 20 Tasten gedrückt hat.
+//
+// Kosten am Gerät: Ein Abzug erzeugt genau EIN STM-Kommando, nämlich den RPC hinter
+// /api/ir_codes_request. Die 20 Antwortkommandos taktet der STM selbst, eines je
+// Hauptloop-Durchlauf. Die Pollaufrufe auf /api/ir_codes_get sind rein lesend und
+// erzeugen kein STM-Kommando; sie kosten nur den Debugtext, den der ESP ohnehin pro
+// Request auf die UART zum STM schreibt. Deshalb 400 ms Abstand und nicht weniger.
+const IR_BACKUP_POLL_INTERVAL_MS = 400;
+const IR_BACKUP_POLL_ATTEMPTS = 15;
+
+async function readIrCodesStatus() {
+  const response = await apiFetch(getIrCodesGetUrl());
+  const payload = await response.json();
+
+  return payload && typeof payload === "object" ? payload : null;
+}
+
+function readIrCodeNumber(value, max) {
+  const number = Number(value);
+
+  return Number.isInteger(number) && number >= 0 && number <= max ? number : null;
+}
+
+// protocol 0 und 255 sind die Leer-Konvention des STM: "nie angelernt". Beides wird
+// zu null, und zwar in allen drei Feldern -- eine halb gefüllte Zeile sähe aus wie
+// ein Wert, der nur unvollständig gelesen wurde.
+function isIrCodeLearned(entry) {
+  const protocol = readIrCodeNumber(entry && entry.protocol, 255);
+
+  return protocol !== null && protocol > 0 && protocol < 255;
+}
+
+function buildIrBackupKey(name, index, entry) {
+  if (!isIrCodeLearned(entry)) {
+    return { name, index, protocol: null, address: null, command: null };
+  }
+
+  const protocol = readIrCodeNumber(entry.protocol, 255);
+  const address = readIrCodeNumber(entry.address, 65535);
+  const command = readIrCodeNumber(entry.command, 65535);
+
+  // Ein angelerntes Protokoll mit unlesbarer Adresse oder unlesbarem Kommando ist
+  // kein "nie angelernt", sondern eine kaputte Antwort. Als null geschrieben würde
+  // der Eintrag beim Import stillschweigend übersprungen -- deshalb null als
+  // Rückgabe, was den ganzen Abschnitt verwirft.
+  if (address === null || command === null) {
+    return null;
+  }
+
+  return { name, index, protocol, address, command };
+}
+
+function buildIrBackupKeys(codes) {
+  const byIndex = new Map();
+
+  (codes || []).forEach((entry) => {
+    const idx = readIrCodeNumber(entry && entry.idx, IR_BACKUP_KEY_NAMES.length - 1);
+
+    if (idx !== null) {
+      byIndex.set(idx, entry);
+    }
+  });
+
+  const keys = [];
+  let learned = 0;
+  let invalid = 0;
+
+  IR_BACKUP_KEY_NAMES.forEach((name, index) => {
+    const key = buildIrBackupKey(name, index, byIndex.get(index));
+
+    if (!key) {
+      invalid += 1;
+      return;
+    }
+
+    keys.push(key);
+
+    if (key.protocol !== null) {
+      learned += 1;
+    }
+  });
+
+  return { keys, learned, invalid };
+}
+
+// Ein Abzug: anstossen, dann pollen.
+//
+// "requested" wird VOR "complete" ausgewertet, und das ist keine Stilfrage. Der ESP
+// hält den Puffer nur im RAM. Startet er mitten im Abzug neu, meldet der Endpunkt
+// requested:false, received:0, alle 20 Indizes in missing[] und ein leeres codes[].
+// Wer allein an "complete" hängt, sieht davon nichts und sichert einen leeren Satz --
+// eine Datei mit 20 leeren Tasten, die aussieht wie eine gültige, ist schlimmer als
+// gar keine.
+async function attemptIrCodesSnapshot() {
+  await apiFetch(getIrCodesRequestUrl());
+
+  let status = null;
+
+  for (let attempt = 0; attempt < IR_BACKUP_POLL_ATTEMPTS; attempt += 1) {
+    await sleep(IR_BACKUP_POLL_INTERVAL_MS);
+    status = await readIrCodesStatus();
+
+    if (!status || status.requested !== true) {
+      return { ok: false, reason: "stale", status };
+    }
+
+    // Vollständigkeit kommt vom Gerät (mask == 0xFFFFF), nicht aus einer
+    // Plausibilität der App.
+    if (status.complete === true) {
+      return { ok: true, reason: "", status };
+    }
+  }
+
+  return { ok: false, reason: "incomplete", status };
+}
+
+async function runIrCodesSnapshot() {
+  try {
+    return await attemptIrCodesSnapshot();
+  } catch (error) {
+    // Kein stilles Schlucken: Der Grund wird mitgeführt und entscheidet über den
+    // Text im Hinweis. Ein 404 heisst hier "ESP-Firmware älter als diese App" und
+    // nicht "Netzfehler". Scheitern darf daran nur der IR-Abschnitt, nicht der
+    // gesamte Export -- die übrigen zehn Abschnitte sind davon unberührt.
+    return { ok: false, reason: "unavailable", status: null, error };
+  }
+}
+
+// Genau EIN Wiederholungsversuch, und nur beim Zeitablauf. "stale" ist kein
+// Timing-Problem, sondern ein verworfener Puffer -- ein zweiter Anlauf verdeckte das
+// nur. "unavailable" ist in aller Regel der 404 einer älteren ESP-Firmware; auch dort
+// hilft Wiederholen nicht, es kostet nur weitere sechs Sekunden.
+async function collectIrBackupSection() {
+  let result = await runIrCodesSnapshot();
+
+  if (!result.ok && result.reason === "incomplete") {
+    result = await runIrCodesSnapshot();
+  }
+
+  if (!result.ok) {
+    return { section: null, reason: result.reason, status: result.status, learned: 0 };
+  }
+
+  const built = buildIrBackupKeys(result.status.codes);
+
+  // Entweder vollständig oder gar nicht. 19 von 20 gesicherten Tasten sind eine
+  // Falle: Die Datei sieht gültig aus, und die fehlende Taste merkt man erst beim
+  // Restore, wenn das Original längst weg ist.
+  if (built.invalid > 0 || built.keys.length !== IR_BACKUP_KEY_NAMES.length) {
+    return { section: null, reason: "invalid", status: result.status, learned: 0 };
+  }
+
+  return {
+    section: { keys: built.keys },
+    reason: "",
+    status: result.status,
+    learned: built.learned
+  };
+}
+
+function getIrBackupExportNote(irResult) {
+  const result = irResult || {};
+  const status = result.status || {};
+  const expected = readIrCodeNumber(status.expected, 255);
+  const values = {
+    learned: Number(result.learned || 0),
+    received: Number(status.received || 0),
+    expected: expected === null ? IR_BACKUP_KEY_NAMES.length : expected
+  };
+
+  if (result.section) {
+    return { message: translateFormat("backup.ir_included", values), tone: "ok" };
+  }
+
+  if (result.reason === "stale") {
+    return { message: translateFormat("backup.ir_skipped_stale", values), tone: "warn" };
+  }
+
+  if (result.reason === "unavailable") {
+    return { message: translateFormat("backup.ir_skipped_unavailable", values), tone: "warn" };
+  }
+
+  if (result.reason === "invalid") {
+    return { message: translateFormat("backup.ir_skipped_invalid", values), tone: "warn" };
+  }
+
+  return { message: translateFormat("backup.ir_skipped_incomplete", values), tone: "warn" };
+}
+
+async function prepareSettingsBackupExport() {
   await ensureBackupExportState();
-  return buildBackupExportDocument(getBackupExportState());
+
+  const backup = buildBackupExportDocument(getBackupExportState());
+
+  setSettingsBackupNote(translate("backup.ir_collecting"));
+
+  const ir = await collectIrBackupSection();
+
+  // Angefügt wird NUR bei vollständigem Abzug. Fehlt der Abschnitt, entsteht die
+  // Sicherung trotzdem -- sie ist dann sichtbar ohne IR-Codes, und der Hinweis sagt
+  // warum. Kein bestehendes Feld wird dabei berührt, deshalb bleibt eine Sicherung
+  // der Version 2 ohne Migration lesbar.
+  if (ir.section) {
+    backup.settings.ir = ir.section;
+  }
+
+  return { backup, ir };
 }
 
 function cloneColor(color) {
@@ -4530,23 +4869,35 @@ async function ensureBackupExportState() {
   }
 }
 
+// Ein Download, zwei Aufrufer: die Sicherungsdatei des Exports und die Rückfalldatei
+// vor dem IR-Restore. Bewusst eine Funktion -- zwei Kopien laufen irgendwann
+// auseinander, und die Rückfalldatei ist der einzige Rückweg, den es gibt.
+function buildBackupFileTimestamp() {
+  return new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
+}
+
+function triggerJsonDownload(fileName, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
 async function exportSettingsBackup() {
   const button = document.getElementById("settings-export-button");
 
-  beginButtonFeedback(button, "exportiert...");
+  beginButtonFeedback(button, translate("backup.exporting"));
 
   try {
-    const backup = await prepareBackupExportDocument();
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    const timestamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "");
-    link.href = URL.createObjectURL(blob);
-    link.download = "wordclock-settings-" + timestamp + ".json";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    setSettingsBackupNote(translate("backup.export_success"), "ok");
+    const exportResult = await prepareSettingsBackupExport();
+    triggerJsonDownload("wordclock-settings-" + buildBackupFileTimestamp() + ".json", exportResult.backup);
+    const irNote = getIrBackupExportNote(exportResult.ir);
+    setSettingsBackupNote(translate("backup.export_success") + " " + irNote.message, irNote.tone);
     finishButtonFeedback(button, translate("backup.export_button"), "success", translate("backup.exported"));
   } catch (error) {
     const reason = error && error.backupReason === "eeprom-settings-unavailable"
@@ -4598,6 +4949,19 @@ async function applySettingsBackup(backup) {
 
   resetSkippedImportFields();
   resetAdjustedImportFields();
+  resetIrImportNotice();
+  resetImportedBackupVersionNotice();
+  noteImportedBackupVersion(readBackupFileVersion(importedState.backup));
+
+  // Früh angesagt, nicht erst in der Schlussmeldung: Der Import dauert über den
+  // STM-Neustart hinweg mehrere Sekunden, und bricht er unterwegs ab, erfährt der
+  // Nutzer den Grund sonst gar nicht. Der Hinweis steht am Ende trotzdem noch einmal
+  // in getImportNoticeSummary -- dort zusammen mit dem, was tatsächlich passiert ist.
+  const versionNotice = getImportedBackupVersionSummary();
+  if (versionNotice) {
+    announceStatus(versionNotice, "warn");
+  }
+
   settingsImportInProgress = true;
   try {
     await runImportWorkflow(importedState.executionState);
@@ -4842,7 +5206,12 @@ function buildImportRestartPlan(executionState) {
 // danach. Der Nutzer soll nach einem Import an genau einer Stelle sehen, was nicht so
 // übernommen wurde, wie es in der Datei stand.
 function getImportNoticeSummary() {
-  return [getSkippedImportFieldsSummary(), getAdjustedImportFieldsSummary()].filter(Boolean).join(" ");
+  return [
+    getImportedBackupVersionSummary(),
+    getSkippedImportFieldsSummary(),
+    getAdjustedImportFieldsSummary(),
+    getIrImportSummary()
+  ].filter(Boolean).join(" ");
 }
 
 function appendImportNoticeHint(message) {
@@ -4879,6 +5248,415 @@ async function finalizeImportRestartAndReload(restartPlan) {
   setTimeout(reloadAppPage, getImportNoticeSummary() ? 6000 : 1200);
 }
 
+// ---------------------------------------------------------------------------
+// F1 -- IR-Codes zurückschreiben (specs/f1-ir-backup, AK13 bis AK16)
+//
+// Das ist der destruktive Teil der Massnahme. Ein falsch geschriebener Code macht die
+// betroffene Taste unbrauchbar, und der einzige Rückweg ist erneutes Anlernen über
+// /api/learn_ir -- ein Vorgang, der die Uhr blockiert, bis ein Mensch alle Tasten
+// gedrückt hat, und der deshalb in der Gefahrenliste steht. Einen zweiten Weg zurück
+// gibt es nicht. Daraus folgt alles Weitere: Rückfalldatei VOR dem ersten
+// Schreibzugriff, Bestätigung mit Zahl und Namen, und eine Gegenprobe, an der die
+// Erfolgsmeldung hängt.
+//
+// Kosten am Gerät: Ein /api/ir_code_set erzeugt genau EIN STM-Kommando und rund 80 ms
+// EEPROM-Schreibzeit, in der der STM die Kommandobrücke nicht bedient. Sein
+// Empfangsring verwirft bei Überlauf still, ohne Log und ohne Zähler -- deshalb
+// sequenziell mit Pause, niemals parallel. Dazu kommen zwei Abzüge (vorher, Gegenprobe)
+// mit je einem RPC-Kommando.
+const IR_RESTORE_WRITE_PAUSE_MS = 120;
+const IR_RESTORE_NAME_PREVIEW = 10;
+const IR_RESTORE_FALLBACK_PREFIX = "wordclock-ir-vorher-";
+
+// Der Stufen-Hinweis wird von der nächsten Import-Stufe überschrieben, und der Import
+// läuft danach noch über den STM-Neustart hinweg weiter. Was die Gegenprobe gefunden
+// hat, muss den ganzen Import überleben -- deshalb zusätzlich über
+// getImportNoticeSummary(), wie bei übersprungenen und zurechtgebogenen Feldern.
+let irImportNoticeMessage = "";
+
+function resetIrImportNotice() {
+  irImportNoticeMessage = "";
+}
+
+function noteIrImportResult(message) {
+  if (!message) {
+    return;
+  }
+
+  irImportNoticeMessage = message;
+  setSettingsBackupNote(message, "warn");
+  announceStatus(message, "warn");
+  console.warn("Import: " + message);
+}
+
+function getIrImportSummary() {
+  return irImportNoticeMessage;
+}
+
+// Die Schlüssel stehen ausgeschrieben, nicht als "backup.ir_reason_" + reason
+// zusammengesetzt: Ein zusammengesetzter Schlüssel ist mit grep nicht auffindbar, und
+// ein fehlender stuende dann wörtlich im Satz, statt beim Prüfen aufzufallen.
+const IR_SNAPSHOT_REASON_KEYS = {
+  stale: "backup.ir_reason_stale",
+  unavailable: "backup.ir_reason_unavailable",
+  invalid: "backup.ir_reason_invalid",
+  download: "backup.ir_reason_download",
+  incomplete: "backup.ir_reason_incomplete"
+};
+
+function getIrSnapshotReasonText(reason) {
+  return translate(IR_SNAPSHOT_REASON_KEYS[reason] || IR_SNAPSHOT_REASON_KEYS.incomplete);
+}
+
+// Zwanzig technische Bezeichner in einem window.confirm sind auf dem Telefon nicht mehr
+// lesbar. Gekürzt wird deshalb die Anzeige, nicht die Information: Die vollständige
+// Liste geht in jedem Fall in die Konsole.
+function formatIrKeyNames(names) {
+  const list = (names || []).filter(Boolean);
+
+  if (list.length <= IR_RESTORE_NAME_PREVIEW) {
+    return list.join(", ");
+  }
+
+  return list.slice(0, IR_RESTORE_NAME_PREVIEW).join(", ") +
+    translateFormat("backup.ir_restore_more_names", { rest: list.length - IR_RESTORE_NAME_PREVIEW });
+}
+
+// Zuordnung über den NAMEN, nicht über den Index. src/remote-ir/remote-ir.h:19-34
+// enthält einen auskommentierten Block "New Modes (future use)"; wird er je aktiviert,
+// verschiebt sich die Nummerierung, und eine indexbasierte Zuordnung schriebe still auf
+// die falschen Tasten. Der Index aus der Datei wird bewusst NICHT verwendet -- er ist
+// dort informativ. Geschrieben wird gegen die Position in IR_BACKUP_KEY_NAMES.
+//
+// Die Formprüfung ist die Verteidigung gegen eine von Hand bearbeitete Datei: genau so
+// viele Einträge wie Namen, und jeder erwartete Name genau einmal.
+function buildIrRestorePlan(section) {
+  const keys = section && Array.isArray(section.keys) ? section.keys : null;
+
+  if (!keys || keys.length !== IR_BACKUP_KEY_NAMES.length) {
+    return { ok: false, writes: [], skipped: 0, invalid: [] };
+  }
+
+  const byName = new Map();
+
+  keys.forEach((entry) => {
+    const name = entry && typeof entry.name === "string" ? entry.name : "";
+
+    if (name && !byName.has(name)) {
+      byName.set(name, entry);
+    }
+  });
+
+  if (byName.size !== IR_BACKUP_KEY_NAMES.length ||
+      !IR_BACKUP_KEY_NAMES.every((name) => byName.has(name))) {
+    return { ok: false, writes: [], skipped: 0, invalid: [] };
+  }
+
+  const writes = [];
+  const invalid = [];
+  let skipped = 0;
+
+  IR_BACKUP_KEY_NAMES.forEach((name, index) => {
+    const entry = byName.get(name);
+    const raw = entry.protocol;
+
+    // null, undefined, 0 und 255 sind dieselbe Konvention: "nie angelernt". Übersprungen,
+    // nicht geschrieben -- ein Restore, der hier löschte, vernichtete im Zweifel Arbeit,
+    // und /api/ir_code_set wiese protocol 0 und 255 ohnehin ab. AK13.
+    if (raw === null || raw === undefined || Number(raw) === 0 || Number(raw) === 255) {
+      skipped += 1;
+      return;
+    }
+
+    const protocol = readIrCodeNumber(raw, 254);
+    const address = readIrCodeNumber(entry.address, 65535);
+    const command = readIrCodeNumber(entry.command, 65535);
+
+    // Lokal geprüft, bevor etwas rausgeht: Ein Wert ausserhalb des Bereichs holte vom
+    // Gerät nur die Kennung 2 zurück, und apiFetch machte daraus eine Ausnahme mitten in
+    // der Schleife. Hier wird er gezählt und benannt, und die übrigen Tasten laufen
+    // weiter.
+    if (protocol === null || protocol < 1 || address === null || command === null) {
+      invalid.push(name);
+      return;
+    }
+
+    writes.push({ name, index, protocol, address, command });
+  });
+
+  return { ok: true, writes, skipped, invalid };
+}
+
+// AK15 -- der Rückweg entsteht VOR dem ersten Schreibzugriff, nicht danach.
+//
+// Unvollständig heisst hier: gar keine Datei. Eine Rückfalldatei mit 19 von 20 Tasten
+// liefe beim nächsten Import in genau die Formprüfung oben und wäre nutzlos -- sie sähe
+// nur aus wie ein Rückweg. Die Rohantwort geht stattdessen in die Konsole, damit der
+// Stand nicht völlig verloren ist.
+//
+// Die Datei ist eine vollwertige Sicherung der Version 3 mit ausschliesslich dem
+// Abschnitt settings.ir. Sie lässt sich damit über den normalen Import wieder
+// einspielen; alle übrigen Import-Stufen steigen bei fehlendem Abschnitt aus.
+async function createIrRestoreFallbackFile() {
+  let result = null;
+
+  try {
+    result = await collectIrBackupSection();
+  } catch (error) {
+    console.warn("Import: Rückfalldatei der IR-Codes nicht angelegt, Abzug fehlgeschlagen.", error);
+    return { ok: false, reason: "unavailable", fileName: "" };
+  }
+
+  if (!result.section) {
+    console.warn("Import: Rückfalldatei der IR-Codes nicht angelegt, Abzug unbrauchbar (" +
+      String(result.reason) + "). Rohstand:", result.status);
+    return { ok: false, reason: result.reason, fileName: "" };
+  }
+
+  const fileName = IR_RESTORE_FALLBACK_PREFIX + buildBackupFileTimestamp() + ".json";
+
+  try {
+    triggerJsonDownload(fileName, {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exported_at: new Date().toISOString(),
+      settings: { ir: result.section }
+    });
+  } catch (error) {
+    console.warn("Import: Rückfalldatei der IR-Codes liess sich nicht herunterladen.", error,
+      result.section);
+    return { ok: false, reason: "download", fileName: "" };
+  }
+
+  return { ok: true, reason: "", fileName };
+}
+
+// AK16 -- die einzige Gegenprobe, die es gibt.
+//
+// {"ok":true} von /api/ir_code_set heisst "abgeschickt", nicht "angekommen": Wird das
+// Kommando auf der UART verstümmelt, weist der STM es ab, und der ESP erfährt davon
+// nichts. Jeder Schreibaufruf invalidiert den ESP-Puffer (AK9) -- dieser Abzug ist
+// deshalb zwangsläufig ein frischer Wert vom STM und nicht das Echo der eigenen Eingabe.
+//
+// Verglichen wird nur, was tatsächlich geschrieben wurde. Übersprungene Tasten sind
+// absichtlich unverändert; sie in den Vergleich zu nehmen, erzeugte Fehlalarme.
+async function verifyIrRestore(written) {
+  let result = null;
+
+  try {
+    result = await collectIrBackupSection();
+  } catch (error) {
+    console.warn("Import: Gegenprobe der IR-Codes fehlgeschlagen.", error);
+    return { ok: false, reason: "unavailable", mismatches: [] };
+  }
+
+  if (!result.section) {
+    return { ok: false, reason: result.reason, mismatches: [] };
+  }
+
+  const byIndex = new Map(result.section.keys.map((key) => [key.index, key]));
+  const mismatches = [];
+
+  written.forEach((entry) => {
+    const key = byIndex.get(entry.index);
+
+    if (!key || key.protocol !== entry.protocol || key.address !== entry.address ||
+        key.command !== entry.command) {
+      mismatches.push(entry.name);
+      console.warn("Import: IR-Taste " + entry.name + " (idx " + entry.index +
+        ") weicht nach dem Schreiben ab.", { gewollt: entry, gelesen: key || null });
+    }
+  });
+
+  return { ok: true, reason: "", mismatches };
+}
+
+async function writeIrRestorePlan(writes) {
+  const written = [];
+  const failed = [];
+
+  for (let position = 0; position < writes.length; position += 1) {
+    const entry = writes[position];
+
+    setSettingsBackupNote(translateFormat("backup.ir_restore_writing", {
+      done: position + 1,
+      count: writes.length,
+      name: entry.name
+    }));
+
+    try {
+      await apiFetchQuery(getIrCodeSetUrl(), {
+        idx: entry.index,
+        protocol: entry.protocol,
+        address: entry.address,
+        command: entry.command
+      });
+      written.push(entry);
+    } catch (error) {
+      // Kein Abbruch der ganzen Stufe: Die übrigen Tasten sind von diesem Fehlschlag
+      // unabhängig, und ein Abbruch in der Mitte liesse einen halb geschriebenen Satz
+      // zurück, über den niemand mehr etwas erfährt. Gezählt, benannt und gemeldet.
+      failed.push(entry.name);
+      console.warn("Import: IR-Taste " + entry.name + " (idx " + entry.index +
+        ") nicht geschrieben.", error);
+    }
+
+    // Flusskontrolle, nicht Kosmetik. apiFetch legt während eines Imports ohnehin 180 ms
+    // ein; die Pause steht hier trotzdem ausdrücklich, damit die Taktung nicht an einem
+    // Flag hängt, das ausserhalb des Imports nicht gesetzt ist.
+    await sleep(IR_RESTORE_WRITE_PAUSE_MS);
+  }
+
+  return { written, failed };
+}
+
+// Jede Zahl steht als "{n} von {m}". Das ist keine Kosmetik: "1 Tasten" ist falsches
+// Deutsch, und eine zweite Schluesselmenge nur fuer den Singular waere Aufwand ohne
+// Gegenwert.
+function buildIrRestoreExtras(plan, failed) {
+  const extras = [];
+  const total = IR_BACKUP_KEY_NAMES.length;
+
+  if (plan.skipped > 0) {
+    extras.push(translateFormat("backup.ir_restore_skipped", { skipped: plan.skipped, total }));
+  }
+
+  if (plan.invalid.length > 0) {
+    extras.push(translateFormat("backup.ir_restore_invalid_entries", {
+      count: plan.invalid.length,
+      total,
+      names: formatIrKeyNames(plan.invalid)
+    }));
+  }
+
+  if (failed.length > 0) {
+    extras.push(translateFormat("backup.ir_restore_write_failed", {
+      failed: failed.length,
+      count: plan.writes.length,
+      names: formatIrKeyNames(failed)
+    }));
+  }
+
+  return extras;
+}
+
+function reportIrRestoreOutcome(plan, fallback, written, failed, verification) {
+  const extras = buildIrRestoreExtras(plan, failed);
+  const fallbackHint = fallback.ok
+    ? translateFormat("backup.ir_restore_fallback_hint", { file: fallback.fileName })
+    : translate("backup.ir_restore_fallback_none");
+
+  if (!verification.ok) {
+    noteIrImportResult([translateFormat("backup.ir_restore_unverified", {
+      written: written.length,
+      total: IR_BACKUP_KEY_NAMES.length,
+      reason: getIrSnapshotReasonText(verification.reason),
+      fallback: fallbackHint
+    })].concat(extras).join(" "));
+    return;
+  }
+
+  if (verification.mismatches.length > 0) {
+    noteIrImportResult([translateFormat("backup.ir_restore_mismatch", {
+      mismatches: verification.mismatches.length,
+      written: written.length,
+      names: formatIrKeyNames(verification.mismatches),
+      fallback: fallbackHint
+    })].concat(extras).join(" "));
+    return;
+  }
+
+  const success = translateFormat("backup.ir_restore_ok", {
+    written: written.length,
+    total: IR_BACKUP_KEY_NAMES.length
+  });
+
+  // Die Erfolgsmeldung hängt am Abzug, nicht am ok:true der Schreibaufrufe (AK16).
+  // Blieb nebenbei etwas liegen -- übersprungen, unbrauchbar, fehlgeschlagen --, bleibt
+  // es eine Warnung, auch wenn das Geschriebene stimmt.
+  if (extras.length > 0) {
+    noteIrImportResult([success].concat(extras).join(" "));
+    return;
+  }
+
+  setSettingsBackupNote(success, "success");
+  console.info("Import: " + success);
+}
+
+async function importIrCodes(section) {
+  // Fehlt der Abschnitt, ist es eine Sicherung der Version 2 oder eine ohne IR-Abzug.
+  // Die Stufe entfällt dann stumm -- das ist AK17 und kein Fehler.
+  if (!section) {
+    return;
+  }
+
+  const plan = buildIrRestorePlan(section);
+
+  if (!plan.ok) {
+    noteIrImportResult(translateFormat("backup.ir_restore_section_invalid", {
+      expected: IR_BACKUP_KEY_NAMES.length
+    }));
+    return;
+  }
+
+  if (plan.writes.length === 0) {
+    console.info("Import: IR-Abschnitt enthält keine angelernte Taste, Stufe entfällt.");
+
+    const extras = buildIrRestoreExtras(plan, []);
+
+    if (plan.invalid.length > 0) {
+      noteIrImportResult(extras.join(" "));
+    }
+    return;
+  }
+
+  console.info("Import: IR-Tasten zum Überschreiben: " +
+    plan.writes.map((entry) => entry.name).join(", "));
+
+  setSettingsBackupNote(translate("backup.ir_restore_snapshot"));
+
+  const fallback = await createIrRestoreFallbackFile();
+  const fallbackSentence = fallback.ok
+    ? translateFormat("backup.ir_restore_fallback_ok", { file: fallback.fileName })
+    : translateFormat("backup.ir_restore_fallback_failed", {
+        reason: getIrSnapshotReasonText(fallback.reason)
+      });
+
+  // AK14 -- die Rückfrage nennt die Zahl UND die Namen, nicht nur "wirklich?".
+  if (!window.confirm(translateFormat("backup.ir_restore_confirm_1", {
+    count: plan.writes.length,
+    total: IR_BACKUP_KEY_NAMES.length,
+    names: formatIrKeyNames(plan.writes.map((entry) => entry.name)),
+    fallback: fallbackSentence
+  }))) {
+    noteIrImportResult(translate("backup.ir_restore_cancelled"));
+    return;
+  }
+
+  // AK15 -- ohne Rückfalldatei eine zweite Hürde, mit Abbruch als empfohlener Antwort.
+  // Dasselbe zweistufige Muster wie maintenance.reset_eeprom_confirm_1/_2.
+  if (!fallback.ok && !window.confirm(translate("backup.ir_restore_confirm_2"))) {
+    noteIrImportResult(translate("backup.ir_restore_cancelled"));
+    return;
+  }
+
+  const result = await writeIrRestorePlan(plan.writes);
+
+  // Ist nichts angekommen, gibt es auch nichts nachzulesen. Der Abzug kostete sechs
+  // Sekunden und bestätigte nur, was die Fehlerliste ohnehin sagt.
+  if (result.written.length === 0) {
+    reportIrRestoreOutcome(plan, fallback, result.written, result.failed,
+      { ok: true, reason: "", mismatches: [] });
+    return;
+  }
+
+  setSettingsBackupNote(translate("backup.ir_restore_verifying"));
+
+  const verification = await verifyIrRestore(result.written);
+
+  reportIrRestoreOutcome(plan, fallback, result.written, result.failed, verification);
+}
+
 function buildPrimaryImportStages(executionState) {
   const settings = executionState && executionState.settings ? executionState.settings : {};
   const assets = executionState && executionState.assets ? executionState.assets : {};
@@ -4892,7 +5670,12 @@ function buildPrimaryImportStages(executionState) {
     { note: translate("backup.import_ambilight"), run: () => importAmbilightSettings(settings.ambilight), pauseMs: 250 },
     { note: translate("backup.import_dfplayer"), run: () => importDfplayerSettings(settings.dfplayer), pauseMs: 250 },
     { note: translate("backup.import_overlays"), run: () => importOverlaySettings(settings.overlays), reload: true, pauseMs: 1200 },
-    { note: translate("backup.import_timers"), run: () => importTimerSettings(settings.timers), reload: true, pauseMs: 1200 }
+    { note: translate("backup.import_timers"), run: () => importTimerSettings(settings.timers), reload: true, pauseMs: 1200 },
+    // Hinter den Timern und vor dem abschliessenden maintenance_reset_stm32: Der
+    // Neustart ist hier erwünscht. Die Codes stehen dann im EEPROM, und dass sie den
+    // Neustart überleben, ist genau das, was read_configuration_from_eep() beim Start
+    // beweist. Kein reload: true -- die IR-Codes sind nicht Teil von loadData().
+    { note: translate("backup.import_ir"), run: () => importIrCodes(settings.ir), pauseMs: 250 }
   ];
 }
 
@@ -5036,7 +5819,7 @@ async function finalizeImportedCriticalPersistenceSettings(settings) {
   const maintenance = settings && settings.maintenance ? settings.maintenance : null;
 
   if (climate) {
-    setSettingsBackupNote("Schreibe Temperatur-Korrekturen abschliessend...");
+    setSettingsBackupNote(translate("backup.import_temperature_final"));
     await runTimedImportPhase(() => importSensorCorrectionSettings(climate), 1000);
   }
 
@@ -5342,7 +6125,7 @@ async function restoreBackupLayoutTable(assets) {
     return;
   }
 
-  setSettingsBackupNote("Stelle Layout-Tabelle wieder her...");
+  setSettingsBackupNote(translate("backup.restoring_layout_table"));
 
   if (familyPrefix) {
     const filesToRemove = files
@@ -5497,6 +6280,37 @@ function getAdjustedImportFieldsSummary() {
   return translateFormat("backup.import_adjusted_fields", { fields: fields.join(", ") });
 }
 
+// Dritte Notiz neben "übersprungen" und "zurechtgebogen", und anders als die beiden
+// keine Liste: Sie gilt für die Datei als Ganzes. Eine ältere Sicherung wird seit L81
+// importiert statt abgewiesen -- der Nutzer soll aber erfahren, warum danach möglich-
+// erweise Einstellungen unverändert geblieben sind, die die Uhr heute kennt. Das ist
+// eine Mitteilung, kein Fehler: Der Import läuft weiter.
+let importedBackupFileVersion = 0;
+
+function resetImportedBackupVersionNotice() {
+  importedBackupFileVersion = 0;
+}
+
+function noteImportedBackupVersion(version) {
+  importedBackupFileVersion = Number(version || 0);
+
+  if (importedBackupFileVersion > 0 && importedBackupFileVersion < BACKUP_VERSION) {
+    console.warn("Import: Sicherung aus älterer App-Version: " +
+      String(importedBackupFileVersion) + " statt " + String(BACKUP_VERSION));
+  }
+}
+
+function getImportedBackupVersionSummary() {
+  if (!(importedBackupFileVersion > 0) || importedBackupFileVersion >= BACKUP_VERSION) {
+    return "";
+  }
+
+  return translateFormat("backup.import_older_version", {
+    version: String(importedBackupFileVersion),
+    current: String(BACKUP_VERSION)
+  });
+}
+
 // Ein Wert aus einer Sicherungsdatei ist kein Formularfeld: Es tippt niemand, und ein
 // Abbruch mitten im Import wäre nach L57 der gefährlichere Zustand. Die Stufe läuft
 // deshalb weiter und der Wert wird geklammert — aber nicht mehr stillschweigend.
@@ -5540,8 +6354,6 @@ async function importNetworkSettings(network) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Netzwerk- und EEPROM-Einstellungen...");
-
   await importNetworkTimeSettings(network);
 
   // Ein Backup ohne SSID wuerde das Geraet ohne WLAN und ohne Accesspoint
@@ -5581,8 +6393,6 @@ async function importDisplaySettings(display) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Display-Einstellungen...");
-
   await apiFetchValue(getDisplayPowerSetUrl(), display.power ? "on" : "off");
   await sleep(180);
   await apiFetchValue(getDisplayModeSetUrl(), Number(display.mode || 0));
@@ -5615,8 +6425,6 @@ async function importMaintenanceSettings(maintenance) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Wartungs- und Update-Einstellungen...");
-
   if (await importOptionalValue(getUpdateHostSetUrl(), maintenance.update_host, "backup.field.update_host")) {
     await sleep(900);
   }
@@ -5629,8 +6437,6 @@ async function importClimateSettings(climate) {
   if (!climate) {
     return;
   }
-
-  setSettingsBackupNote("Importiere Klima- und Wetter-Einstellungen...");
 
   if (await importOptionalValue(getWeatherAppIdSetUrl(), climate.weather_appid, "backup.field.weather_appid")) {
     await sleep(250);
@@ -5681,7 +6487,6 @@ async function importSensorCorrectionSettings(climate) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Sensor-Korrekturen...");
   await apiFetchValue(getTemperatureRtcCorrectionSetUrl(), readClampedImportNumber(climate.rtc_temp_correction, -20, 20, "backup.field.rtc_temp_correction"));
   await sleep(400);
   await apiFetchValue(getTemperatureDs18xxCorrectionSetUrl(), readClampedImportNumber(climate.ds18xx_temp_correction, -20, 20, "backup.field.ds18xx_temp_correction"));
@@ -5716,8 +6521,6 @@ async function importAnimationSettings(animations) {
     return;
   }
 
-  setSettingsBackupNote("Importiere Animationen...");
-
   await apiFetchValue(getAnimationModeSetUrl(), Number(animations.display_mode || 0));
   await apiFetchValue(getColorAnimationModeSetUrl(), Number(animations.color_mode || 0));
 
@@ -5742,8 +6545,6 @@ async function importTftSettings(tft) {
     return;
   }
 
-  setSettingsBackupNote("Importiere TFT-Einstellungen...");
-
   await apiFetchQuery(getTftFlagsSetUrl(), {
     rgb: tft.rgb ? "on" : "off",
     hflip: tft.hflip ? "on" : "off",
@@ -5755,8 +6556,6 @@ async function importAmbilightSettings(ambilight) {
   if (!ambilight) {
     return;
   }
-
-  setSettingsBackupNote("Importiere Ambilight-Einstellungen...");
 
   const ambilightOnlineValue = ambilight.online ? "on" : "off";
   await apiFetchValue(getAmbilightOnlineSetUrl(), ambilightOnlineValue);
@@ -5786,8 +6585,6 @@ async function importDfplayerSettings(dfplayer) {
   if (!dfplayer) {
     return;
   }
-
-  setSettingsBackupNote("Importiere DFPlayer-Einstellungen...");
 
   await apiFetchValue(getDfplayerVolumeSetUrl(), Number(dfplayer.volume || 0));
   await apiFetchValue(getDfplayerModeSetUrl(), Number(dfplayer.mode || 0));
@@ -5820,8 +6617,6 @@ async function importOverlaySettings(overlays) {
   if (!overlays) {
     return;
   }
-
-  setSettingsBackupNote("Importiere Overlays...");
 
   const items = Array.isArray(overlays.items) ? overlays.items.slice().sort((a, b) => a.idx - b.idx) : [];
   const failedDeletes = [];
@@ -8772,6 +9567,9 @@ const URL_DEFAULTS = {
   weather_get_now_url: "/api/weather_get_now",
   weather_get_forecast_url: "/api/weather_get_forecast",
   learn_ir_url: "/api/learn_ir",
+  ir_codes_request_url: "/api/ir_codes_request",
+  ir_codes_get_url: "/api/ir_codes_get",
+  ir_code_set_url: "/api/ir_code_set",
   network_get_time_url: "/api/network_get_time",
   network_wps_url: "/api/network_wps",
   temperature_display_url: "/api/temperature_display",
@@ -8898,6 +9696,9 @@ const getWeatherCoordinatesSetUrl = createConfiguredUrlGetter("weather_coordinat
 const getWeatherNowUrl = createConfiguredUrlGetter("weather_get_now_url");
 const getWeatherForecastUrl = createConfiguredUrlGetter("weather_get_forecast_url");
 const getLearnIrUrl = createConfiguredUrlGetter("learn_ir_url");
+const getIrCodesRequestUrl = createConfiguredUrlGetter("ir_codes_request_url");
+const getIrCodesGetUrl = createConfiguredUrlGetter("ir_codes_get_url");
+const getIrCodeSetUrl = createConfiguredUrlGetter("ir_code_set_url");
 const getNetworkGetTimeUrl = createConfiguredUrlGetter("network_get_time_url");
 const getNetworkWpsUrl = createConfiguredUrlGetter("network_wps_url");
 const getTemperatureDisplayUrl = createConfiguredUrlGetter("temperature_display_url");

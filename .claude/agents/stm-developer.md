@@ -41,8 +41,12 @@ Echtzeitbedingungen.
 Diese Zahlen sind gemessen beziehungsweise aus dem Code belegt. Prüfe **jede** Änderung
 dagegen:
 
-- `watchdog_reload()` hat genau **eine** Aufrufstelle: `main.c:3170`. Jeder Pfad über
-  **20 s** ist ein garantierter IWDG-Reset
+- Jeder Pfad über **20 s** ohne `watchdog_reload()` ist ein garantierter IWDG-Reset.
+  Regulaer bedient wird der Watchdog **nur am Kopf des Hauptloops**; jede weitere
+  Aufrufstelle gehoert zu einer Schleife, die den Loop bewusst anhaelt. **Den
+  gueltigen Bestand nennt Guardrail S7, nicht dieses Dokument** — hier stand bis
+  03.10.2026 „genau eine Aufrufstelle, `main.c:3170`", und zwei Agenten haben die
+  Zahl daraufhin zitiert, bevor einer von ihnen nachgesehen hat
 - EEPROM-Schreibzugriffe kosten rund **16 ms pro Byte** und blockieren
 - Jede unbedingte Logzeile im Refresh-Pfad blockiert und verzögert gleichzeitig das
   **Lesen** vom ESP. `debug_log_printf`, nicht `log_printf`

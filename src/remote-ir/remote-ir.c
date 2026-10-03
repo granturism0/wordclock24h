@@ -238,3 +238,120 @@ remote_ir_write_codes_to_eep (void)
 
     return rtc;
 }
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * read a single IR code out of the RAM mirror
+ *
+ * irmp_data_array ist static, von aussen also nicht erreichbar. Diese Funktion ist der
+ * einzige Lesezugang. Sie liefert den RAM-Spiegel und nicht das EEPROM: beide sind nach
+ * jedem remote_ir_set_code() und nach remote_ir_read_codes_from_eep() in Deckung, und ein
+ * EEPROM-Zugriff je Taste waere hier nur teurer.
+ *
+ * flags wird bewusst nicht geliefert. Das Feld ist eine Laufzeiteigenschaft des Empfangs
+ * (IRMP_FLAG_REPETITION) und steht auch im EEPROM nicht.
+ *
+ * Rueckgabe: 1 = Werte geschrieben, 0 = nichts angefasst.
+ *
+ * Abgewiesen werden ein Index ausserhalb 0 .. N_REMOTE_IR_CMDS-1 und ein Nullzeiger. Kein
+ * Zurechtbiegen auf Taste 0 -- das lieferte stillschweigend den Code einer fremden Taste.
+ * Geprueft wird vor dem ersten Schreiben, damit bei Rueckgabe 0 kein Zeiger halb gefuellt ist.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
+remote_ir_get_code (uint_fast8_t idx, uint_fast8_t * protocol, uint_fast16_t * address, uint_fast16_t * command)
+{
+    uint_fast8_t    rtc = 0;
+
+    if (idx < N_REMOTE_IR_CMDS && protocol != (uint_fast8_t *) 0 && address != (uint_fast16_t *) 0 && command != (uint_fast16_t *) 0)
+    {
+        *protocol   = irmp_data_array[idx].protocol;
+        *address    = irmp_data_array[idx].address;
+        *command    = irmp_data_array[idx].command;
+
+        rtc = 1;
+    }
+
+    return rtc;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * set a single IR code: RAM mirror and EEPROM together
+ *
+ * Geschrieben werden genau die 5 Byte dieser Taste an
+ * EEPROM_DATA_OFFSET_IRMP_DATA + idx * PACKED_IRMP_DATA_SIZE, nicht alle 20. Ein Byte kostet
+ * rund 16 ms, 5 Byte sind rund 80 ms Hauptloop-Blockade. Alle 20 Tasten am Stueck waeren rund
+ * 1,6 s -- so lange liefe schedule_esp8266_messages() nicht, und der 256-Byte-Empfangsring der
+ * ESP-Bruecke verwirft bei Ueberlauf still, ohne Log und ohne Fehler.
+ *
+ * Packung wie in remote_ir_write_codes_to_eep(): [0] protocol, [1..2] address lo/hi,
+ * [3..4] command lo/hi, little endian. flags wird nicht gespeichert.
+ *
+ * RAM und EEPROM bleiben zusammen. Schlaegt der EEPROM-Schreibzugriff fehl -- moeglicherweise
+ * mitten in den 5 Byte --, wird der RAM-Spiegel aus dem EEPROM nachgezogen, dieselbe Sorgfalt
+ * wie nach einem abgebrochenen Lernvorgang weiter oben. Sonst reagierte die Uhr bis zum
+ * naechsten Reset auf einen Code, der nirgends gespeichert ist.
+ *
+ * Rueckgabe: REMOTE_IR_SET_OK oder REMOTE_IR_SET_FAILED, beide in remote-ir.h. Hier bleibt es
+ * still, damit dieser Pfad keine Logzeile auf die UART zum ESP legt; gemeldet wird beim
+ * Aufrufer, und der kann die beiden Ursachen auseinanderhalten -- den Index prueft er vor dem
+ * Aufruf selbst, ein Fehlschlag danach ist das EEPROM.
+ *
+ * Die Indexpruefung unten steht trotzdem, als zweite Verteidigungslinie. Heute loest sie
+ * niemand aus; ein kuenftiger zweiter Aufrufer haette sie sonst nicht, und ein Schreibzugriff
+ * neben irmp_data_array waere ein stiller Speicherfehler.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
+remote_ir_set_code (uint_fast8_t idx, uint_fast8_t protocol, uint_fast16_t address, uint_fast16_t command)
+{
+    uint8_t         packed_irmp_data[PACKED_IRMP_DATA_SIZE];
+    IRMP_DATA       saved_irmp_data;
+    uint_fast16_t   start_addr;
+    uint_fast8_t    rtc = REMOTE_IR_SET_FAILED;
+
+    if (idx >= N_REMOTE_IR_CMDS)
+    {
+        return REMOTE_IR_SET_FAILED;                                                    // nichts angefasst, auch nicht der RAM-Spiegel
+    }
+
+    if (eep_is_up)
+    {
+        saved_irmp_data             = irmp_data_array[idx];
+
+        irmp_data_array[idx].protocol   = protocol;
+        irmp_data_array[idx].address    = address;
+        irmp_data_array[idx].command    = command;
+        irmp_data_array[idx].flags      = 0;
+
+        packed_irmp_data[0]         = irmp_data_array[idx].protocol;
+        packed_irmp_data[1]         = irmp_data_array[idx].address & 0xFF;
+        packed_irmp_data[2]         = irmp_data_array[idx].address >> 8;
+        packed_irmp_data[3]         = irmp_data_array[idx].command & 0xFF;
+        packed_irmp_data[4]         = irmp_data_array[idx].command >> 8;
+
+        start_addr                  = EEPROM_DATA_OFFSET_IRMP_DATA + (uint_fast16_t) idx * PACKED_IRMP_DATA_SIZE;
+
+        if (eep_write (start_addr, (uint8_t *) &packed_irmp_data, PACKED_IRMP_DATA_SIZE))
+        {
+            rtc = REMOTE_IR_SET_OK;
+        }
+        else
+        {
+            rtc = REMOTE_IR_SET_FAILED;
+
+            if (eep_read (start_addr, (uint8_t *) &packed_irmp_data, PACKED_IRMP_DATA_SIZE))
+            {
+                irmp_data_array[idx].protocol   = packed_irmp_data[0];
+                irmp_data_array[idx].address    = packed_irmp_data[1] | (packed_irmp_data[2] << 8);
+                irmp_data_array[idx].command    = packed_irmp_data[3] | (packed_irmp_data[4] << 8);
+                irmp_data_array[idx].flags      = 0;
+            }
+            else
+            {
+                irmp_data_array[idx] = saved_irmp_data;                                     // auch das Lesen scheitert: alten Stand zurueck
+            }
+        }
+    }
+
+    return rtc;
+}

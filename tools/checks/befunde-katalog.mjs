@@ -6,16 +6,20 @@
 // Fehlerklasse, die schon einmal zugeschlagen hat: "fuehre die Doku nach" ist
 // eine Absichtserklaerung, keine Pruefung.
 //
-// Geprueft wird dreierlei:
+// Geprueft wird fuenferlei:
 //   1. Jede Massnahmennummer aus REVIEW.md hat eine Zeile in BEFUNDE.md
 //   2. Dasselbe fuer REVIEW-2026-09-29.md
 //   3. Die L-Nummern der laufenden Arbeit sind lueckenlos ab L1
 //   4. Jeder Befund mit Status "offen", "zurueckgestellt" oder "teilweise" ist
 //      im Abschnitt "ToDo" genannt
+//   5. Umgekehrt: kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes
 // Pruefung 4 gibt es, weil die Tabellen den STAND fuehren, aber niemand aus
 // ihnen ablesen kann, was als Naechstes zu tun ist. Eine Arbeitsliste, die nur
 // von Hand nachgezogen wird, veraltet still -- dieselbe Fehlerklasse wie die
 // Versionsnummern, die in README-CMAKE.md monatelang falsch standen.
+// Pruefung 5 kam dazu, weil 4 nur die vergessene AUFNAHME faengt. Die vergessene
+// STREICHUNG ist haeufiger: Beim Abschliessen pflegt man die Tabelle und nicht
+// die Arbeitsliste. Sechs Eintraege hatten das ueberlebt (siehe dort).
 // Der Status selbst wird NICHT geprueft — den kann nur ein Mensch oder ein
 // gezielter Codecheck setzen. Geprueft wird die Vollstaendigkeit.
 
@@ -104,6 +108,54 @@ if (!todo) {
   }
   if (missing.length) fail("BEFUNDE.md: offen, aber nicht in der ToDo-Liste — " + missing.join(", "));
   else console.log("  OK  ToDo-Liste nennt jeden offenen Befund");
+
+  // ---- 5. Die Gegenrichtung: ToDo-Punkte, deren Befunde ALLE erledigt sind
+  //
+  // Pruefung 4 allein genuegt nicht. Sie faengt die vergessene Aufnahme, nicht die
+  // vergessene Streichung -- und die ist haeufiger, weil beim Abschliessen die
+  // Tabelle gepflegt wird und die Arbeitsliste nicht. Am 03.10.2026 gemessen:
+  // SECHS Eintraege (A4, A8, B0, C1, E5, E6) verwiesen auf laengst erledigte
+  // Befunde. Eine Arbeitsliste, in der ein Drittel der Punkte schon getan ist,
+  // ist keine Arbeitsliste mehr -- man sucht sich die echten heraus oder laesst es.
+  //
+  // Gemeldet wird nur, wenn JEDE im Eintrag genannte Kennung erledigt ist. Ein
+  // Eintrag darf einen erledigten Befund als Begruendung zitieren: A1 nennt L15
+  // ("seit 3.2.8 laeuft der Watchdog ueberhaupt erst") und ist selbst offen, weil
+  // es zusaetzlich L85 nennt. Die Regel haette die sechs echten Faelle alle
+  // gefunden und A1 in Ruhe gelassen -- an genau diesem Bestand geprueft.
+  const statusOf = new Map();
+  for (const [heading, numPattern, label] of [
+    ["Review 1", /^(\d+)$/, "Massnahme "],
+    ["Review 2", /^(\d+)$/, "R2-"],
+    ["Befunde aus der laufenden Arbeit", /^L(\d+)$/, "L"]
+  ]) {
+    const sec = cat.split(/^## /m).find((s) => s.startsWith(heading));
+    if (!sec) continue;
+    for (const line of sec.split("\n")) {
+      if (!line.startsWith("|")) continue;
+      const cols = line.split("|").map((c) => c.trim());
+      if (cols.length < 4) continue;
+      const id = (cols[1].match(numPattern) || [])[1];
+      if (!id) continue;
+      statusOf.set(label + id, /^\*\*erledigt/i.test(cols[3]));
+    }
+  }
+
+  const stale = [];
+  for (const line of todo.split("\n")) {
+    const entry = line.match(/^\| \*\*([A-F]\d+)\*\* \|/);
+    if (!entry) continue;
+    const refs = [
+      ...[...line.matchAll(/\bMassnahme (\d+)\b/g)].map((m) => "Massnahme " + m[1]),
+      ...[...line.matchAll(/\bR2-(\d+)\b/g)].map((m) => "R2-" + m[1]),
+      ...[...line.matchAll(/\bL(\d+)\b/g)].map((m) => "L" + m[1])
+    ].filter((r) => statusOf.has(r));
+    if (refs.length && refs.every((r) => statusOf.get(r))) {
+      stale.push(`${entry[1]} (${[...new Set(refs)].join(", ")})`);
+    }
+  }
+  if (stale.length) fail("BEFUNDE.md: ToDo-Eintrag erledigt, aber nicht gestrichen — " + stale.join("; "));
+  else console.log("  OK  kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes");
 }
 
 process.exit(bad === 0 ? 0 : 1);

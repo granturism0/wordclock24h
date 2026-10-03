@@ -142,52 +142,28 @@ Zusätzlich werden die Versionsdateien auch bei Einzelbuilds erzeugt:
 - STM-Builds: `build/stm-rgbw-12h/wc.txt`
 - ESP-Build: `build/esp8266/ESP-WordClock.txt`
 
-## Bekannte gute Basis
+## Der Farbpfad im Display ist empfindlich
 
-Der aktuell verifizierte funktionierende Referenzstand ist:
+Der laufende Live-Farbversand in `src/display/display.c` hat die Uhr auf echter
+Hardware schon zum Ausfall gebracht. Was daraus gelernt wurde, gilt weiterhin:
 
-- `build/releases/wordclock-release-2026-04-06-2339.zip`
+- **Keine `var_send_display_colors()`-Aufrufe in die Init-Funktionen von `Rainbow`
+  und `Daylight`.** Genau das hat auf der Hardware unmittelbar zum Ausfall geführt
+  und ist seither bewusst draussen.
+- `Rainbow` sendet nur im laufenden Updatepfad und höchstens einmal pro Sekunde.
+  `Daylight` sendet nur beim echten Stundenwechsel.
+- `var_send_buf()` wartet blockierend auf die Quittung des ESP. Jeder zusätzliche
+  Sendeaufruf in einer häufig durchlaufenen Schleife ist deshalb Hauptloop-Zeit,
+  nicht bloss Datenverkehr — derselbe Mechanismus steckt hinter L25 in `BEFUNDE.md`.
 
-Wichtig für diesen Stand:
+Änderungen in diesem Bereich einzeln und kontrolliert einführen, nicht gebündelt.
+Bei einem Anzeigeproblem ist das die erste Stelle, an der man nachsieht.
 
-- die Uhr läuft auf der Hardware wieder sauber
-- `src/display/display.c` entspricht für die kritischen STM-Farbpfade wieder dem funktionierenden `3.1.5`-Verhalten
-- zusätzliche `var_send_display_colors();`-Aufrufe in den Init-Funktionen von `Rainbow` und `Daylight` sind aktuell bewusst nicht enthalten, weil sie auf echter Hardware direkt wieder zu einem Ausfall geführt haben
-- spätere Anpassungen in genau diesem Bereich sollten nur noch einzeln und kontrolliert wieder eingeführt werden
-
-Wenn später erneut ein Anzeigeproblem auftritt, ist dieses ZIP die erste saubere Vergleichsbasis.
-
-Der aktuell verifizierte Arbeitsstand mit sicheren Live-Farben und synchronisiertem PWA-Refresh ist:
-
-- `build/releases/wordclock-release-2026-04-07-0123.zip`
-
-Wichtig für diesen Stand:
-
-- Live-Farben laufen stabil über sichere Laufzeit-Hooks in `src/display/display.c`
-- `Rainbow`: Farbversand nur im laufenden Updatepfad
-- `Daylight`: Farbversand nur beim echten Stundenwechsel
-- PWA-Vorschau zieht im 5-Sekunden-Raster synchron zu echten Zeitgrenzen nach
-- der Auto-Refresh läuft mit `+1.0s` Versatz, damit die Minutenpunkte nach der echten Umschaltung sicher erfasst werden
-- der `/app`-Pfad prüft die PWA-Vollständigkeit robust und zeigt bei fehlenden Dateien den Lade-/Fehlerflow statt einer halben App
-- Status- und Fehlerseiten des Legacy-/Autoinstallationspfads sind bereinigt und mit echten Umlauten versehen
-- PWA-Version dieses Stands: `1.2.11` <!-- historisch -->
-- die instabilen Init-Aufrufe bleiben weiterhin bewusst draussen
-
-Der damals verifizierte Arbeitsstand vom 8. April 2026 mit stabilem Restore, Overlay-Fix und Scroll-Rücksprung nach Update-Aktionen war:
-
-- `build/releases/wordclock-release-2026-04-08-2131.zip`
-
-Wichtig für diesen Stand:
-
-- PWA-Version: `1.2.28` <!-- historisch -->
-- Overlay-Restore ist repariert
-  - Ursache war fehlendes `Serial.flush()` in [vars.cpp](/ESP8266/ESP-uclock/vars.cpp) bei `set_overlay_var()`
-- der laufende Live-Farbpfad für `Rainbow` ist in [display.c](/src/display/display.c) gedrosselt
-  - Live-Farbversand nicht mehr bei jedem einzelnen Farbschritt
-  - stattdessen höchstens einmal pro Sekunde
-- `Daylight` sendet die Live-Farbe weiterhin nur beim echten Stundenwechsel
-- Update-/Flash-Aktionen der PWA merken die Ausgangsposition und springen bei Erfolg an die ursprüngliche Scroll-Position zurück
-- PWA-Quelldateien unter `ESP8266/ESP-uclock/data/app` tragen jetzt einheitliche Dateikopf-Kommentare
+**Vergleichsbasis beim Debuggen:** das jüngste ZIP unter `build/releases/`, das
+nachweislich lief. Welcher Stand das ist, führt `CHANGELOG.md` — hier steht es
+bewusst nicht, denn `build/` ist nicht versioniert: Die drei Referenz-ZIPs, die an
+dieser Stelle jahrelang namentlich genannt waren, existierten längst nicht mehr.
+Ein Verweis auf eine gelöschte Datei fällt genau dann auf, wenn man ihn braucht.
 
 ## Ausgaben
 

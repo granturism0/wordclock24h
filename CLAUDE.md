@@ -3,11 +3,20 @@
 Sprache: **Deutsch**, Schweizer Schreibung (`ss` statt `ß`), mit **echten Umlauten** —
 in den Antworten an den Nutzer, in der UI der PWA und in Commit-Botschaften.
 
-**Eine Ausnahme, und sie ist technisch, nicht sprachlich:** Die C-Dateien unter
-`src/**` und `ESP8266/ESP-uclock/*.cpp` sind ASCII oder ISO-8859-1, nicht UTF-8.
+**Eine Ausnahme, und sie ist technisch, nicht sprachlich:** Die Quelldateien unter
+`src/**` und `ESP8266/ESP-uclock/` sind überwiegend ASCII oder ISO-8859-1.
 Dort gilt die Umschrift (`Geraet`, `waehrend`) — nicht weil die Sprache es verlangt,
 sondern weil ein Werkzeug, das ein `ä` in eine ISO-8859-1-Datei schreibt und dabei
 UTF-8 annimmt, die Datei beschädigt. Das ist hier bereits passiert.
+
+**„Überwiegend" ist wörtlich gemeint — prüf die Datei, bevor du sie schreibst.** Hier
+stand bis zum 03.10.2026 pauschal „`ESP8266/ESP-uclock/*.cpp` sind ASCII oder
+ISO-8859-1", und das ist falsch: `http.cpp` (37 Nicht-ASCII-Bytes) und
+`stm32flash.cpp` (48) sind **UTF-8**. Wer sie nach dieser Regel mit einem
+`latin-1`-Patcher anfasst, beschädigt sie — derselbe Schaden wie oben, nur in der
+Gegenrichtung. Aufgefallen ist es einem Agenten, der nachgesehen hat, statt der
+Anweisung zu folgen. Die Umschrift in neuem Text schadet in keiner der beiden
+Welten; die **Kodierungsannahme beim Patchen** ist das Gefährliche.
 
 Wer in derselben Sitzung an beiden Welten arbeitet, trägt die Gewohnheit hinüber.
 Genau so kamen „Schluessel" und „ungueltig" in die deutschen Fehlertexte der PWA
@@ -282,6 +291,7 @@ Diese Endpunkte sind aus unseren eigenen Befunden heraus gefährlich:
 | `GET /?a` (Parameter **ohne** `=`) | **ESP stürzt ab.** Nie senden, auch nicht versehentlich |
 | `/api/test_display` | 45 s Blockade ⇒ garantierter Watchdog-Reset |
 | `/api/learn_ir` | unbegrenzte Blockade ⇒ garantierter Watchdog-Reset |
+| `/api/ir_code_set` | überschreibt einen angelernten IR-Code. Der einzige Rückweg ist erneutes Anlernen über `learn_ir` — die Zeile darüber |
 | `/api/maintenance_reset_eeprom`, `/api/maintenance_format_fs` | Datenverlust, PWA weg |
 | `/api/fs_remove?filename=app.js.gz` | löscht die PWA vom Gerät |
 | Backup-**Import** | kann das Gerät ohne WLAN, ohne AP und ohne Webserver zurücklassen |
@@ -341,8 +351,14 @@ schlägt fehl.
 Die schwersten offenen Punkte aus dem Katalog, damit sie nicht untergehen:
 `normalize_http_parameters` ohne Null-Prüfung (ESP-Absturz per `GET /?a`, aus dem
 ganzen LAN auslösbar), Backup-Import ohne Guard (kann das Gerät ohne WLAN, ohne AP
-und ohne Webserver zurücklassen) und `watchdog_reload()` mit weiterhin genau **einer**
-Aufrufstelle.
+und ohne Webserver zurücklassen) und die langen Busy-Waits ohne `watchdog_reload()`.
+
+Bei Letzterem stand hier bis zum 03.10.2026 „mit weiterhin genau **einer**
+Aufrufstelle" — falsch, es sind sechs. **Den Bestand nennt Guardrail S7, nicht diese
+Datei**, aus demselben Grund, aus dem hier keine Versionsnummern stehen. Offen ist
+nicht die Zahl der Aufrufstellen, sondern dass einzelne lange Pfade keinen haben:
+namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommandos
+(`BEFUNDE.md`, L85).
 
 1. **DS18xx-Messwertvalidierung im STM** (klarster nächster Fix)
    **Neu belegt (01.10.2026):** `temp_init()` läuft genau einmal beim Start

@@ -200,20 +200,55 @@ n=$($GREP -cE 'catch\s*\(\s*_\s*\)\s*\{\s*\}|catch\s*\{\s*\}' "$APP/app.js" 2>/d
 [ "$n" -gt 0 ] && warn "app.js: $n leere catch-Bloecke — verschlucken Fehler stillschweigend" || ok "app.js: keine leeren catch-Bloecke"
 
 # ------------------------------------------------ S7b Kodierung der Quellen
-step S7b "Kodierung der C-Quellen"
-enc_bad=0
-for f in $(find src -name "*.c" -o -name "*.h" | sort); do
-  if ! iconv -f UTF-8 -t UTF-8 "$f" >/dev/null 2>&1; then
-    enc_bad=$((enc_bad+1))
-    [ "$enc_bad" -le 3 ] && printf '  INFO      nicht UTF-8: %s\n' "$f"
-  fi
-done
-if [ "$enc_bad" -gt 0 ]; then
-  printf '  INFO      %s Datei(en) sind nicht UTF-8. grep braucht dort -a, sonst stuft es sie\n' "$enc_bad"
-  echo   '            als binaer ein und gibt GAR NICHTS aus. LC_ALL=C allein reicht nicht.'
-else
-  ok "alle C-Quellen sind UTF-8"
-fi
+step S7b "Kodierung der C- und ESP-Quellen"
+#
+# Zwei verschiedene Fallen, und sie zeigen in entgegengesetzte Richtungen:
+#
+#   nicht UTF-8 (ISO-8859-1)  -> grep ohne -a gibt GAR NICHTS aus statt "keine Treffer"
+#   UTF-8 mit Nicht-ASCII     -> ein latin-1-Patcher BESCHAEDIGT die Datei
+#
+# Die zweite Gruppe fehlte hier, und CLAUDE.md behauptete pauschal, die ESP-Quellen
+# seien ASCII oder ISO-8859-1. Fuer http.cpp und stm32flash.cpp stimmt das nicht --
+# aufgefallen am 03.10.2026 einem Agenten, der nachgesehen hat, statt der Anweisung
+# zu folgen. Deshalb nennt diese Stufe die Dateien jetzt beim Namen, statt nur zu
+# zaehlen: Wer patcht, muss wissen, welche Gruppe vor ihm liegt.
+#
+# Erkannt wird ueber Bytes > 127, NICHT ueber "nicht druckbar". Der erste Entwurf
+# nahm grep '[^ -~\t]' und meldete 130 Dateien -- er hatte das CR der CRLF-Zeilen
+# miterfasst. Eine Liste, in der fast alles steht, sagt nichts.
+python3 - <<'PYEOF'
+import os
+utf8, latin = [], []
+for root in ("src", "ESP8266/ESP-uclock"):
+    for dirpath, _, names in os.walk(root):
+        for name in sorted(names):
+            if not name.endswith((".c", ".h", ".cpp", ".ino")):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                raw = open(path, "rb").read()
+            except OSError:
+                continue
+            if not any(b > 127 for b in raw):
+                continue                      # reines ASCII, in beiden Welten harmlos
+            try:
+                raw.decode("utf-8")
+                utf8.append(path)
+            except UnicodeDecodeError:
+                latin.append(path)
+
+if utf8:
+    print("  INFO      UTF-8 MIT Umlauten -- ein latin-1-Patcher BESCHAEDIGT diese Dateien:")
+    for p in sorted(utf8):
+        print(f"            {p}")
+if latin:
+    print(f"  INFO      {len(latin)} Datei(en) nicht UTF-8 -- grep braucht dort -a, sonst stuft es sie")
+    print( "            als binaer ein und gibt GAR NICHTS aus. LC_ALL=C allein reicht nicht.")
+    for p in sorted(latin)[:3]:
+        print(f"            {p}")
+if not utf8 and not latin:
+    print("  OK  alle C- und ESP-Quellen sind reines ASCII")
+PYEOF
 
 # ---------------------------------------------------------- S8 Smoke-Tests
 step S8 "Smoke-Tests pro Modul"
@@ -226,9 +261,59 @@ node tools/checks/smoke-pwa.mjs "$APP/app.js" || CRIT=$((CRIT+1))
 node tools/checks/umlaute.mjs "$APP/app.js" || WARN=$((WARN+1))
 if [ "$FULL" -eq 1 ]; then
   echo "  --full: Compile-Smoke-Tests (dauert Minuten, nur serieller Lauf erlaubt)"
+  # ESP_WARNINGS=all ist der Kern dieses Schritts, nicht Beiwerk: Bis 03.10.2026 lief
+  # "make esp" hier mit der arduino-cli-Vorgabe "none". Der Smoke-Test meldete
+  # "uebersetzt" und konnte dabei GAR KEINE Warnung ausgeben -- sechs Bestandswarnungen
+  # blieben jahrelang unsichtbar. Gefunden beim Bauen von F1, weil jemand gegenprueffte,
+  # statt der gruenen Zeile zu glauben.
+  # Zeitmarke VOR den Builds. Daran erkennt die Wache unten, ob ueberhaupt etwas
+  # uebersetzt wurde -- siehe die Begruendung dort.
+  BUILD_STAMP=$(mktemp)
   for t in f103 f411 esp; do
-    if make "$t" >/tmp/guardrail-$t.log 2>&1; then ok "make $t uebersetzt"
+    if make "$t" ESP_WARNINGS=all >/tmp/guardrail-$t.log 2>&1; then ok "make $t uebersetzt"
     else crit "make $t schlaegt fehl — siehe /tmp/guardrail-$t.log"; tail -5 /tmp/guardrail-$t.log; fi
+  done
+
+  # Bestandswache statt Schwelle, dasselbe Mittel wie bei watchdog_reload in S7: Die
+  # bekannten Warnungen sollen sichtbar bleiben, aber nur eine NEUE soll auffallen.
+  # Wer eine behebt, senkt die Zahl hier mit -- sonst meldet die Stufe es.
+  STM_WARN_EXPECTED=19
+  ESP_WARN_EXPECTED=0
+  for t in f103 esp; do
+    [ -f /tmp/guardrail-$t.log ] || continue
+    n=$(grep -c 'warning:' /tmp/guardrail-$t.log 2>/dev/null | tr -d ' ')
+    case "$t" in
+      f103) want=$STM_WARN_EXPECTED; objdir=build/stm-rgbw-12h;;
+      esp)  want=$ESP_WARN_EXPECTED; objdir=build/esp8266;;
+    esac
+
+    # Wurde in diesem Lauf ueberhaupt uebersetzt? Ein Inkrementallauf laesst alle
+    # Objektdateien unberuehrt und meldet deshalb NULL Warnungen -- eine Zahl, die
+    # nichts belegt.
+    #
+    # Frueher haing diese Unterscheidung am Vergleich "weniger als erwartet". Das
+    # traegt nur, solange der Erwartungswert ueber null liegt: Sinkt er auf 0 -- und
+    # genau das ist mit dem Hygiene-Paket passiert --, meldet ein Inkrementallauf
+    # 0 == 0 und damit ein gruenes "Bestand unveraendert". Die Wache haette sich
+    # also ausgerechnet in dem Moment selbst abgeschaltet, in dem der Bestand
+    # sauber ist. Aufgefallen ist das dem Agenten, der die Senkung vorbereitet hat,
+    # nicht beim Schreiben dieser Stufe.
+    fresh=$(find "$objdir" -newer "$BUILD_STAMP" \( -name '*.o' -o -name '*.a' \) 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$n" -gt "$want" ]; then
+      printf '  HOCH      %s: %s Compilerwarnungen, erwartet waren %s — die neuen stehen in /tmp/guardrail-%s.log\n' "$t" "$n" "$want" "$t"
+      grep 'warning:' /tmp/guardrail-$t.log | tail -3 | sed 's/^/            /'
+      WARN=$((WARN+1))
+    elif [ "$fresh" -eq 0 ]; then
+      printf '  INFO      %s: %s Warnungen, aber in diesem Lauf wurde NICHTS uebersetzt (0 frische Objektdateien).\n' "$t" "$n"
+      echo   '            Die Zahl belegt damit gar nichts. Zum Nachpruefen: make clean-stm clean-esp,'
+      echo   '            dann erneut --full.'
+    elif [ "$n" -lt "$want" ]; then
+      printf '  INFO      %s: nur %s Warnungen statt %s, bei %s uebersetzten Dateien — offenbar behoben.\n' "$t" "$n" "$want" "$fresh"
+      echo   '            Dann ...WARN_EXPECTED in dieser Datei senken, sonst faellt die naechste neue nicht auf.'
+    else
+      ok "$t: $n Compilerwarnungen bei $fresh uebersetzten Dateien, Bestand unveraendert"
+    fi
   done
 else
   echo "  uebersprungen: STM- und ESP-Compile-Smoke-Test (nur mit --full)"

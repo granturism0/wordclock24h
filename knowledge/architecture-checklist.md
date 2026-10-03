@@ -21,7 +21,7 @@ Nicht Datenvolumen oder Nutzerzahl. Die harten Grenzen dieses Systems sind:
 
 - **Wie viele STM-Kommandos** erzeugt die Aktion? Einzeln oder als Burst?
 - **Wie viele Byte pro Minute** landen zusätzlich auf der UART? Der RX-Ring ist 256 Byte und verwirft still
-- **Bleibt jeder ausgelöste Pfad unter 20 s?** Watchdog-Timeout, und `watchdog_reload()` hat genau eine Aufrufstelle
+- **Bleibt jeder ausgelöste Pfad unter 20 s?** Watchdog-Timeout. Regulär bedient wird der Watchdog nur am Kopf des Hauptloops; den Bestand aller Aufrufstellen nennt Guardrail S7
 - **Wie oft pollt die PWA?** Jeder HTTP-Request kostet den STM Debugtext, auch ohne Kommando
 - **Wie lange blockiert der Hauptloop?** EEPROM-Schreibzugriffe kosten rund 16 ms pro Byte
 - Gibt es hartkodierte Grenzen, die beim Wachsen der Layouttabellen oder Overlays brechen?

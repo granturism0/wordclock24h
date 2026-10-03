@@ -44,7 +44,10 @@ Beweisführung, nicht das Vorschlagen eines Blindfixes.
 
 Nicht neu herleiten, sondern darauf aufbauen — Details in `REVIEW.md`:
 
-- `watchdog_reload()` hat genau **eine** Aufrufstelle: `main.c:3170`
+- `watchdog_reload()` wird regulaer **nur am Kopf des Hauptloops** bedient. Jede
+  weitere Aufrufstelle gehoert zu einem Pfad, der den Loop bewusst anhaelt. **Den
+  gueltigen Bestand nennt Guardrail S7, nicht dieses Dokument** — hier stand bis
+  03.10.2026 „genau eine Aufrufstelle, `main.c:3170`", und das war laengst falsch
 - `display_test()` blockiert **45 s** bei RGBW gegen 20 s Watchdog
 - Die Restore-Lücke in `main.c:3699-3711` löscht das Flag unbedingt
 - `sk6812.c:476` und `:495` sind unbedingtes `log_printf`

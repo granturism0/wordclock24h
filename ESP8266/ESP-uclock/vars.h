@@ -76,6 +76,7 @@ typedef enum
     DISPLAY_DATE_RPC_VAR,                                               // display current date
     GET_WEATHER_FC_RPC_VAR,                                             // get weather forecast
     RESET_EEPROM_RPC_VAR,                                               // reset EEPROM contents
+    GET_IR_CODES_RPC_VAR,                                               // send all learned IR codes to ESP8266
     MAX_RPC_VARIABLES,                                                  // must be the last member
 } RPC_VARIABLE;
 
@@ -505,6 +506,38 @@ extern ALARM_TIME           alarmtimevars[MAX_ALARM_TIME_VARIABLES];
 
 extern ALARM_TIME *         get_alarm_time_var (ALARM_TIME_VARIABLE);
 extern unsigned int         set_alarm_time_var (ALARM_TIME_VARIABLE, uint_fast16_t, uint_fast8_t);
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * IR remote control codes:
+ *
+ * Fluechtiger Abzug der angelernten Fernbedienungstasten. Die Quelle der Wahrheit ist das STM-EEPROM;
+ * der ESP ist Durchreiche und RAM-Puffer, sonst nichts.
+ *
+ * MAX_IR_CODES spiegelt N_REMOTE_IR_CMDS aus src/remote-ir/remote-ir.h:69. Laufen beide Werte
+ * auseinander, entsteht kein stiller Schaden: Der STM sendet den Index mit, der ESP prueft ihn gegen
+ * seine eigene Grenze und verwirft darueber hinausgehende. Sie fehlen dann in der Maske,
+ * ir_codes_is_complete() bleibt 0, und der Abzug scheitert sichtbar statt halb zu gelingen.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define MAX_IR_CODES                20                                      // spiegelt N_REMOTE_IR_CMDS, src/remote-ir/remote-ir.h:69
+#define IR_CODES_COMPLETE_MASK      ((((uint32_t) 1) << MAX_IR_CODES) - 1)  // 0xFFFFF bei 20 Tasten -- aus MAX_IR_CODES abgeleitet,
+                                                                            // damit beide Werte nicht auseinanderlaufen koennen
+
+typedef struct
+{
+    uint8_t             protocol;                                           // IRMP-Protokoll, 0 und 255 bedeuten "nie angelernt"
+    uint16_t            address;                                            // IRMP-Adresse
+    uint16_t            command;                                            // IRMP-Kommando
+} IR_CODE;
+
+extern void             ir_codes_begin_request (void);                      // Puffer verwerfen, Maske 0, requested = 1
+extern void             ir_codes_invalidate (void);                         // Puffer entwerten: Maske 0, requested = 0
+extern uint_fast8_t     ir_codes_are_requested (void);
+extern uint32_t         ir_codes_mask (void);                               // Bit i gesetzt == Taste i eingetroffen
+extern uint_fast8_t     ir_codes_count (void);
+extern uint_fast8_t     ir_codes_is_complete (void);
+extern IR_CODE *        get_ir_code (uint_fast8_t);                         // 0 wenn Index ungueltig ODER nicht eingetroffen
+extern unsigned int     set_ir_code_var (uint_fast8_t, uint_fast8_t, uint_fast16_t, uint_fast16_t);
 
 extern void                 var_set_parameter (char *);
 #endif

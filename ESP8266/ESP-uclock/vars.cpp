@@ -55,6 +55,7 @@
 #define CMD_CODE_AMBILIGHT_NIGHT_TIME_TABLE             'a'                        // command:   ambilight night time table
 
 #define CMD_CODE_ALARM_TIME_TABLE                       'l'                        // command:   alarm time table
+#define CMD_CODE_IR_CODE                                'I'                        // command:   ir code (both directions)
 
 unsigned int
 rpc (RPC_VARIABLE var)
@@ -747,6 +748,119 @@ set_alarm_time_var (ALARM_TIME_VARIABLE var, uint_fast16_t minutes, uint_fast8_t
     return rtc;
 }
 
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * IR-Codes: fluechtiger Spiegel der angelernten Fernbedienungstasten des STM32
+ *
+ * Der Puffer liegt ausschliesslich im RAM und wird bewusst NICHT ins ESP-EEPROM gespiegelt. Nach einem
+ * ESP-Neustart ist er leer und ir_codes_requested 0; die PWA bricht daran erkennbar ab, statt einen
+ * leeren Satz als Sicherung zu schreiben. Ein Abzug mit 20 leeren Tasten, der aussieht wie ein gueltiges
+ * Backup, waere schlimmer als gar keiner.
+ *
+ * Vollstaendigkeit wird gezaehlt, nicht geschaetzt: ir_codes_received_mask traegt ein Bit je Taste,
+ * ir_codes_is_complete() ist exakt der Vergleich gegen IR_CODES_COMPLETE_MASK. Welche Indizes fehlen,
+ * ist aus der Maske ableitbar -- das ist der Zweck von missing[] im Endpunkt.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static IR_CODE      ir_codes[MAX_IR_CODES];
+static uint32_t     ir_codes_received_mask;                                // Bit i gesetzt == Taste i eingetroffen
+static uint8_t      ir_codes_requested;                                    // 1 == seit dem letzten Anstoss gueltig
+
+void
+ir_codes_begin_request (void)
+{
+    memset (ir_codes, 0, sizeof (ir_codes));
+    ir_codes_received_mask  = 0;
+    ir_codes_requested      = 1;
+}
+
+/* Entwertet den Puffer, statt ihn mitzufuehren. Das ist Absicht und nicht vergessen: Auf einem Geraet
+ * ohne Fernbedienung ist der Abzug der einzige von aussen sichtbare Zustand. Ein Puffer, der die eigene
+ * Eingabe zurueckspiegelt, macht die einzige verfuegbare Gegenprobe wertlos -- man pruefte dann, ob der
+ * ESP sich merkt, was man ihm gesagt hat, statt ob der STM es gespeichert hat.
+ */
+void
+ir_codes_invalidate (void)
+{
+    ir_codes_received_mask  = 0;
+    ir_codes_requested      = 0;
+}
+
+uint_fast8_t
+ir_codes_are_requested (void)
+{
+    return ir_codes_requested;
+}
+
+uint32_t
+ir_codes_mask (void)
+{
+    return ir_codes_received_mask;
+}
+
+uint_fast8_t
+ir_codes_count (void)
+{
+    uint_fast8_t    idx;
+    uint_fast8_t    n = 0;
+
+    for (idx = 0; idx < MAX_IR_CODES; idx++)
+    {
+        if (ir_codes_received_mask & (((uint32_t) 1) << idx))
+        {
+            n++;
+        }
+    }
+
+    return n;
+}
+
+uint_fast8_t
+ir_codes_is_complete (void)
+{
+    return (ir_codes_received_mask == IR_CODES_COMPLETE_MASK) ? 1 : 0;
+}
+
+/* Liefert nur eingetroffene Tasten. Ein Index, dessen Bit fehlt, gibt 0 zurueck statt eines Nullwerts,
+ * der sich von einer nie angelernten Taste nicht unterscheiden liesse.
+ */
+IR_CODE *
+get_ir_code (uint_fast8_t idx)
+{
+    IR_CODE *   rtc = (IR_CODE *) 0;
+
+    if (idx < MAX_IR_CODES && (ir_codes_received_mask & (((uint32_t) 1) << idx)))
+    {
+        rtc = &(ir_codes[idx]);
+    }
+
+    return rtc;
+}
+
+/* Maskiert wie set_overlay_var und set_night_time_var: %02x ist eine MINDESTbreite, der STM liest
+ * dagegen mit FESTER Breite (htoi (parameters, 2) bzw. 4, src/main.c:2052-2061). Ein Wert ueber 255
+ * erzeugt sonst drei Hexziffern, und der Empfaenger nimmt davon die ersten beiden -- genau Befund L66.
+ * Die Maske ist nur das Netz; geprueft werden die Werte im Endpunkt.
+ */
+unsigned int
+set_ir_code_var (uint_fast8_t idx, uint_fast8_t protocol, uint_fast16_t address, uint_fast16_t command)
+{
+    unsigned int   rtc = 0;
+
+    if (idx < MAX_IR_CODES)
+    {
+        Serial.printf ("CMD I%02x%02x%04x%04x\r\n",
+                       (unsigned int) (idx & 0xFF),
+                       (unsigned int) (protocol & 0xFF),
+                       (unsigned int) (address & 0xFFFF),
+                       (unsigned int) (command & 0xFFFF));
+        Serial.flush ();
+        ir_codes_invalidate ();
+        rtc = 1;
+    }
+
+    return rtc;
+}
+
 OVERLAY      overlays[MAX_OVERLAYS];
 
 void
@@ -1176,6 +1290,36 @@ var_set_parameter (char * parameters)
                 alarmtimevars[var_idx].minutes = minutes;
                 alarmtimevars[var_idx].flags = flags;
             }
+
+            break;
+        }
+
+        case CMD_CODE_IR_CODE:                                              // I<idx:2><protocol:2><address:4><command:4>
+        {
+            uint_fast8_t    protocol;
+            uint_fast16_t   address;
+            uint_fast16_t   command;
+
+            var_idx = htoi (parameters, 2);                                 // feste Breiten, siehe var_send_ir_code() im STM
+            parameters += 2;
+            protocol = htoi (parameters, 2);
+            parameters += 2;
+            address = htoi (parameters, 4);
+            parameters += 4;
+            command = htoi (parameters, 4);
+            parameters += 4;
+
+            if (var_idx < MAX_IR_CODES)
+            {
+                ir_codes[var_idx].protocol  = protocol;
+                ir_codes[var_idx].address   = address;
+                ir_codes[var_idx].command   = command;
+                ir_codes_received_mask     |= (((uint32_t) 1) << var_idx);
+            }
+            /* Ein Index jenseits von MAX_IR_CODES wird verworfen -- aber nicht spurlos: Sein Bit
+             * fehlt in der Maske, ir_codes_is_complete() bleibt 0 und der Endpunkt nennt ihn in
+             * missing[]. Der Abzug scheitert damit sichtbar statt halb zu gelingen.
+             */
 
             break;
         }

@@ -384,6 +384,11 @@ esp8266_get_message (void)
                         else if (! strncmp (answer, "CMD ", 4))
                         {
                             strncpy (esp8266.u.cmd, answer + 4, ESP8266_MAX_CMD_LEN);
+                            /* Befund L90: strncpy schreibt bei voller Laenge KEIN Nullbyte. u.cmd liegt in einer
+                             * union mit u.filedata; ohne diese Zeile steht an Position 127 noch ein Byte des
+                             * vorangegangenen Dateikommandos, und jede Stringfunktion liest ueber das Feld hinaus.
+                             */
+                            esp8266.u.cmd[ESP8266_MAX_CMD_LEN] = '\0';
                             rtc = ESP8266_CMD;
                             break;
                         }

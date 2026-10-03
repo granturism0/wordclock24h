@@ -4803,9 +4803,13 @@ display_set_ticker (const unsigned char * ticker, uint_fast8_t do_wait)
         {
             /* Watchdog waehrend des Wartens bedienen, Muster wie in display_test():
              * Seit 3.2.8 laeuft der IWDG wirklich (der LSI wird vor der Konfiguration
-             * gestartet), Timeout 20 s, und watchdog_reload() hat weiterhin genau eine
-             * Aufrufstelle im Hauptloop. Diese Schleife haelt den Hauptloop an und
-             * reisst den Watchdog deshalb seit 3.2.8 erstmals wirklich. Am Geraet
+             * gestartet), Timeout 20 s. Regulaer bedient ihn allein der Kopf des Hauptloops
+             * in main.c; jede weitere Aufrufstelle gehoert zu einer Stelle, die den
+             * Hauptloop bewusst anhaelt -- display_test(), diese Schleife und der
+             * IR-Lernvorgang. Den gueltigen Bestand nennt ./tools/guardrails.sh, Stufe S7,
+             * eine hier abgeschriebene Zeilennummer veraltet still. Diese Schleife haelt
+             * den Hauptloop an und reisst den Watchdog deshalb seit 3.2.8 erstmals
+             * wirklich. Am Geraet
              * zweimal belegt: 03.10.2026 01:36:23 Tickerkommando ueber 32 Zeichen ->
              * 14,5 s ohne eine einzige Hauptloop-Zeile, um 01:37:03 dann
              * "Reset flags: IWDGRST"; 02.10.2026 03:44:46 derselbe Ablauf, 20,85 s bis

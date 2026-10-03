@@ -68,9 +68,21 @@
 
 #define N_REMOTE_IR_CMDS                            20
 
+/*-----------------------------------------------------
+ * Rueckgabewert von remote_ir_set_code(). Ein echter Wahrheitswert, wie remote_ir_get_code()
+ * und wie eep_write() nebenan -- die Namen stehen nur dafuer, dass man am Aufruf liest, was
+ * gemeint ist. Welche der beiden Ursachen vorlag, unterscheidet der Aufrufer selbst: Den
+ * Index prueft er ohnehin vor dem Aufruf, alles danach ist das EEPROM.
+ *-----------------------------------------------------
+ */
+#define REMOTE_IR_SET_OK                            1   // RAM-Spiegel und EEPROM geschrieben
+#define REMOTE_IR_SET_FAILED                        0   // nichts gespeichert
+
 extern uint_fast8_t remote_ir_get_cmd (void);
 extern uint_fast8_t remote_ir_learn (void);
 extern uint_fast8_t remote_ir_read_codes_from_eep (void);
 extern uint_fast8_t remote_ir_write_codes_to_eep (void);
+extern uint_fast8_t remote_ir_get_code (uint_fast8_t, uint_fast8_t *, uint_fast16_t *, uint_fast16_t *);
+extern uint_fast8_t remote_ir_set_code (uint_fast8_t, uint_fast8_t, uint_fast16_t, uint_fast16_t);
 
 #endif

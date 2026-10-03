@@ -5726,30 +5726,6 @@ skip_leading_body_newlines (void)
     return skipped;
 }
 
-static bool
-fs_read_line (File& fp, String& line)
-{
-    int c;
-
-    line = "";
-
-    while ((c = fp.read ()) >= 0)
-    {
-        if (c == '\r')
-        {
-            continue;
-        }
-        else if (c == '\n')
-        {
-            return true;
-        }
-
-        line += (char) c;
-    }
-
-    return line.length () > 0;
-}
-
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * LittleFS page
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -7665,7 +7641,7 @@ http_api_display_mode_set ()
     {
         mode = 0;
     }
-    else if (mode >= display_modes_count)
+    else if (mode >= (int) display_modes_count)
     {
         mode = display_modes_count ? display_modes_count - 1 : 0;
     }
@@ -8581,6 +8557,252 @@ http_api_learn_ir ()
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();
+
+    return 0;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * IR-Codes: Abzug anstossen
+ *
+ * Die Reihenfolge ist wesentlich: erst den Puffer leeren, dann den RPC ausloesen. Umgekehrt liefen die
+ * ersten I-Kommandos des STM in einen Puffer, den ir_codes_begin_request() gleich darauf wieder
+ * verwirft -- sie fehlten in der Maske, und complete wuerde nie true.
+ *
+ * Ein STM-Kommando pro Aufruf: der RPC selbst. Die 20 Antwortkommandos sendet der STM getaktet, je
+ * eines pro Hauptloop-Durchlauf (specs/f1-ir-backup/design.md, "Abweichung von der Analyse"), also
+ * kein Burst auf dem 256-Byte-RX-Ring und keine Schleife ohne watchdog_reload().
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static int
+http_api_ir_codes_request ()
+{
+    char    buf[8];
+
+    ir_codes_begin_request ();
+
+    /* Der Rueckgabewert von rpc() wird ausgewertet statt verworfen: Bliebe requested auf 1, ohne dass
+     * je ein I-Kommando unterwegs ist, pollte die PWA sechs Sekunden gegen einen Puffer, den niemand
+     * fuellt -- und ein Nachzuegler eines frueheren Abzugs saehe dann aus wie ein frischer Wert.
+     */
+    if (! rpc (GET_IR_CODES_RPC_VAR))
+    {
+        ir_codes_invalidate ();
+        http_json_error (HTTP_API_ERROR_NOT_CONFIGURED, "ir codes rpc not available");
+        return 0;
+    }
+
+    sprintf (buf, "%d", (int) MAX_IR_CODES);
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"expected\":"));
+    http_send (buf);
+    http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * IR-Codes: Abzug lesen
+ *
+ * Rein lesend. Kein STM-Kommando, kein Anstoss -- wer wissen will, was im Puffer liegt, loest damit
+ * keinen neuen Abzug aus.
+ *
+ * requested wird ZUERST ausgewertet, nicht erst complete. Ein verspaetetes I-Kommando kann nach einer
+ * Invalidierung noch Maskenbits setzen. Haengt die Antwort allein an der Maske, saehe die PWA nach
+ * einem ESP-Neustart mitten im Abzug einen teilgefuellten Puffer ohne jede Warnung und schriebe ihn
+ * als gueltige Sicherung weg. Ist requested 0, gilt der Puffer deshalb als nicht vorhanden:
+ * received 0, complete false, alle Indizes in missing[], codes[] leer.
+ *
+ * codes[] traegt nur eingetroffene Indizes, jeder mit seinem idx. Fehlende stehen in missing[] --
+ * das ist eindeutig und spart Bytes gegenueber 20 Eintraegen mit Fuellwerten. Vollausbau rund 1,1 kB.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static int
+http_api_ir_codes_get ()
+{
+    char            buf[16];
+    uint_fast8_t    requested;
+    uint_fast8_t    received;
+    uint_fast8_t    complete;
+    uint32_t        mask;
+    uint_fast8_t    idx;
+    uint_fast8_t    first;
+
+    requested   = ir_codes_are_requested () ? 1 : 0;
+    mask        = requested ? ir_codes_mask () : 0;
+    received    = requested ? ir_codes_count () : 0;
+    complete    = (requested && ir_codes_is_complete ()) ? 1 : 0;
+
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"requested\":"));
+    http_send (requested ? "true" : "false");
+
+    sprintf (buf, "%d", (int) MAX_IR_CODES);
+    http_send (FS(",\"expected\":"));
+    http_send (buf);
+
+    sprintf (buf, "%d", (int) received);
+    http_send (FS(",\"received\":"));
+    http_send (buf);
+
+    http_send (FS(",\"complete\":"));
+    http_send (complete ? "true" : "false");
+
+    http_send (FS(",\"missing\":["));
+    first = 1;
+
+    for (idx = 0; idx < MAX_IR_CODES; idx++)
+    {
+        if (! (mask & (((uint32_t) 1) << idx)))
+        {
+            if (! first)
+            {
+                http_send (FS(","));
+            }
+
+            sprintf (buf, "%d", (int) idx);
+            http_send (buf);
+            first = 0;
+        }
+    }
+
+    http_send (FS("],\"codes\":["));
+    first = 1;
+
+    if (requested)
+    {
+        for (idx = 0; idx < MAX_IR_CODES; idx++)
+        {
+            /* Gegen dieselbe Momentaufnahme wie missing[] oben: Beide Listen beschreiben damit
+             * nachweislich denselben Abzug und koennen nicht gegeneinander laufen.
+             */
+            IR_CODE *   ir = (mask & (((uint32_t) 1) << idx)) ? get_ir_code (idx) : (IR_CODE *) 0;
+
+            if (ir)
+            {
+                if (! first)
+                {
+                    http_send (FS(","));
+                }
+
+                sprintf (buf, "%d", (int) idx);
+                http_send (FS("{\"idx\":"));
+                http_send (buf);
+
+                sprintf (buf, "%d", (int) ir->protocol);
+                http_send (FS(",\"protocol\":"));
+                http_send (buf);
+
+                sprintf (buf, "%d", (int) ir->address);
+                http_send (FS(",\"address\":"));
+                http_send (buf);
+
+                sprintf (buf, "%d", (int) ir->command);
+                http_send (FS(",\"command\":"));
+                http_send (buf);
+
+                http_send (FS("}"));
+                first = 0;
+            }
+        }
+    }
+
+    http_send (FS("]}"));
+    http_flush ();
+
+    return 0;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * IR-Codes: eine Taste schreiben
+ *
+ * Alle vier Parameter sind Pflicht und werden vollstaendig geprueft, bevor irgendetwas geschieht.
+ * Das ist die Lehre aus L70/L71: timer_set, overlay_display, overlay_delete und ambilight_timer_set
+ * lasen alle atoi (http_get_param ("idx")) -- ein fehlender Parameter ergab 0, und 0 ist ein
+ * gueltiger Index. overlay_delete ohne idx hat das erste Overlay geloescht und {"ok":true} gemeldet.
+ * http_get_int_param() trennt "fehlt oder leer" von "ist 0" und weist Resttext hinter der Zahl ab.
+ *
+ * protocol 0 und 255 werden abgewiesen, nicht zurechtgebogen. Beides sind keine gueltigen
+ * IRMP-Protokolle und tragen die Konvention "nie angelernt". Liesse man sie durch, machte ein
+ * Restore eine Taste unbrauchbar, ohne dass es auffiele -- gezieltes Loeschen bietet diese API
+ * bewusst nicht an.
+ *
+ * Das Kommando an den STM erzeugt set_ir_code_var() selbst: samt Maskierung auf feste Hexbreiten
+ * (Befund L66, %02x ist eine MINDESTbreite) und samt Invalidierung des Puffers (AK9). Deshalb steht
+ * hier kein eigenes Serial.printf ("CMD ...").
+ *
+ * Ein STM-Kommando und 5 Byte EEPROM pro Aufruf, rund 80 ms Hauptloop-Blockade. Ein Restore ueber
+ * alle 20 Tasten sind 20 einzelne Requests, kein Burst.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static int
+http_api_ir_code_set ()
+{
+    int     idx;
+    int     protocol;
+    int     address;
+    int     command;
+
+    if (! http_get_int_param ("idx", &idx))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx missing or not numeric");
+        return 0;
+    }
+
+    if (! http_get_int_param ("protocol", &protocol))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "protocol missing or not numeric");
+        return 0;
+    }
+
+    if (! http_get_int_param ("address", &address))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "address missing or not numeric");
+        return 0;
+    }
+
+    if (! http_get_int_param ("command", &command))
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "command missing or not numeric");
+        return 0;
+    }
+
+    if (idx < 0 || idx >= (int) MAX_IR_CODES)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range (0..19)");
+        return 0;
+    }
+
+    if (protocol < 1 || protocol > 254)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "protocol out of range (1..254)");
+        return 0;
+    }
+
+    if (address < 0 || address > 65535)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "address out of range (0..65535)");
+        return 0;
+    }
+
+    if (command < 0 || command > 65535)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "command out of range (0..65535)");
+        return 0;
+    }
+
+    /* Nach den Pruefungen oben kann das nicht fehlschlagen. Der Rueckgabewert wird trotzdem
+     * ausgewertet: Ein verworfener Schreibvorgang darf nicht als {"ok":true} enden.
+     */
+    if (! set_ir_code_var ((uint_fast8_t) idx, (uint_fast8_t) protocol,
+                           (uint_fast16_t) address, (uint_fast16_t) command))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range (0..19)");
+        return 0;
+    }
+
+    http_json_ok ();
 
     return 0;
 }
@@ -11395,8 +11617,6 @@ flash_stm32_local (bool post = false)
             }
             else
             {
-                int i;
-
                 // read until a boundary has been found
                 while(read_line(line) && line != boundary)
                 {
@@ -11854,6 +12074,18 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/learn_ir"))
     {
         rtc = http_api_learn_ir ();
+    }
+    else if (! strcmp (path, "/api/ir_codes_request"))
+    {
+        rtc = http_api_ir_codes_request ();
+    }
+    else if (! strcmp (path, "/api/ir_codes_get"))
+    {
+        rtc = http_api_ir_codes_get ();
+    }
+    else if (! strcmp (path, "/api/ir_code_set"))
+    {
+        rtc = http_api_ir_code_set ();
     }
     else if (! strcmp (path, "/api/temperature_display"))
     {

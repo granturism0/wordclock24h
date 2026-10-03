@@ -76,6 +76,21 @@ ist. Die PWA kennt den Erfolg selbst nur vom HTTP-Status. Geprüft wird am Rohwe
 **Schritt 4 passiert sofort**, nicht gesammelt am Ende. Brichst du in der Mitte ab,
 steht die Uhr dann trotzdem nahe am Ausgangszustand.
 
+**Schritt 4 gilt für jeden Index, an den ein Aufruf ging** — auch für den eines
+Aufrufs, den das Gerät abgewiesen hat, und auch für einen, der gar nicht in deiner
+Testplanung stand. Führe die Aufräumliste aus deinen **gesendeten Aufrufen**, nicht
+aus deinem Plan.
+
+Am 03.10.2026 ging das schief (`BEFUNDE.md`, L81): Die regulären Prüfungen liefen
+auf den Timer-Slots 2 bis 4, die Edge-Case-Aufrufe auf 5 und 8. Aufgeräumt wurden 2
+bis 4. Slot 5 blieb als **aktiver Timer auf 00:00** stehen und hätte die Uhr jede
+Nacht zusätzlich ausgeschaltet. Der Bericht lautete „Alle Testslots sofort geleert"
+— nicht gelogen, nur gegen die Planung geprüft statt gegen das Gerät.
+
+Deshalb: **Dein Bericht ist kein Nachweis.** Was du aufgeräumt hast, zeigt der
+Abschlussvergleich gegen den Referenzabzug, und sonst nichts. Melde Abweichungen
+dort auch dann, wenn du sicher bist, alles zurückgesetzt zu haben — gerade dann.
+
 ## Wenn etwas kaputtgeht
 
 Sofort abbrechen, nichts weiter schreiben, Lage berichten bei:
