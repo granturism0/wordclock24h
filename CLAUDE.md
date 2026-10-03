@@ -92,6 +92,14 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 - **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
   `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
+- **Jedes ausgerollte Release wird sofort committet und getaggt (DIR-011).** Nicht
+  gesammelt, nicht „auf Nachfrage" — das gehört zum Rollout wie der Smoketest. Das
+  Tag heisst `release/<stm>-<esp>-<app>` und trägt die Versionen **dieses** Commits.
+  Am 03.10.2026 sind drei Releases in einem Commit gelandet, weil nach jedem Rollout
+  nur gemeldet wurde „nicht committet". Nachholbar war das nicht: Die Versionsdateien
+  tragen nur den Endstand, und ein Tag mit alter Versionsnummer auf einem neuen Stand
+  wäre eine Falschaussage. **`deploy.sh` nennt den fehlenden Tag-Befehl bei jedem
+  Lauf** — diese Zeile ist kein Rauschen. Einzelheiten im Skill `/release`.
 - **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
   `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
   `HARDWARE.md`, `TESTPLAN-PWA.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,

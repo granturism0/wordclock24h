@@ -95,6 +95,45 @@ nichts; **niemals `--delete` ergänzen.**
 - `CHANGELOG.md` nachführen — ein Release gilt erst als fertig, wenn der Eintrag steht
   (DIR-006).
 - Sind Befunde geschlossen worden, den Stand in `BEFUNDE.md` nachziehen.
+- **Committen und taggen, sofort (DIR-011).** Siehe unten.
+
+### DIR-011 — jedes Release wird einzeln committet und getaggt
+
+**Ein ausgerolltes Release ohne Commit und Tag ist nicht abgeschlossen.** Das gehört
+zum Rollout wie der Smoketest, nicht in eine Warteschlange und nicht ans Ende eines
+Arbeitstages.
+
+Reihenfolge: bauen → ausrollen → flashen → Smoketest → `CHANGELOG.md` und
+`BEFUNDE.md` nachziehen → **committen** → **taggen**. Das Tag heisst
+`release/<stm>-<esp>-<app>` und trägt genau die Versionen, die in diesem Commit
+stehen.
+
+**Warum das nicht nachholbar ist.** Am 03.10.2026 sind drei Releases
+(`1.4.79`, `1.4.80`, `1.4.81`) in einem einzigen Commit gelandet, weil nach jedem
+Rollout nur gemeldet wurde „nicht committet, sag Bescheid". Rekonstruieren liessen
+sich die Zwischenstände danach nicht mehr: Die Versionsdateien tragen nur den
+Endstand, und `app.js` enthielt längst alle drei Änderungen. Ein Tag
+`release/3.2.11-3.2.9-1.4.79` auf einem Commit, in dem `1.4.81` steht, wäre eine
+Falschaussage — und zwar genau die Sorte, die dieses Projekt sonst aus der
+Dokumentation entfernt.
+
+Die beiden verlorenen Tags sind damit endgültig weg. Es bleibt ein Commit mit drei
+Releases, und das ist genau der Zustand, den das Tag-Schema verhindern soll.
+
+**`deploy.sh` sagt es von selbst.** Bei unsauberem Arbeitsbaum meldet es
+
+```
+Arbeitsbaum nicht sauber — Tag release/<…> NICHT gesetzt.
+Nach dem Commit nachholen:  git tag -a release/<…> -m '…'
+```
+
+samt fertigem Befehl. Diese Zeile dreimal zu lesen und weiterzuarbeiten war der
+eigentliche Fehler — nicht das Vergessen, sondern das Übergehen eines Hinweises, der
+jedes Mal dastand.
+
+**Bezug zu S4.** Die Stufe misst DIR-004 gegen das **letzte Release-Tag**. Fehlt es,
+misst sie gegen einen veralteten Stand und meldet berechtigt „Code geändert, Version
+steht noch" — über Stunden, bei jedem Lauf. Auch das war ein Hinweis.
 
 ## STM32 flashen — immer über das Skript
 
