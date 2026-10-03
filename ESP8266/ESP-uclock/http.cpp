@@ -175,6 +175,18 @@ static uint32_t     http_write_lost_bytes  = 0;
 static uint16_t     http_write_lost_blocks = 0;
 static uint_fast8_t http_write_broken      = 0;
 
+/* Verbindungen, die angenommen wurden, aber nie eine Anfrage brachten. Zwei
+ * getrennte Zaehler, weil die Ursachen verschieden sind: "timeout" heisst, die
+ * Gegenstelle hielt die Verbindung und schwieg (Chrome oeffnet Verbindungen auf
+ * Vorrat), "abort" heisst, sie war beim Warten schon wieder weg (AbortController
+ * der PWA). Zusammen 4 Byte im statischen Bereich; sie ersetzen eine unbedingte
+ * Serial-Zeile von rund 30 Byte JE verworfener Verbindung auf der STM-UART.
+ */
+static uint16_t     http_no_request_timeouts = 0;
+static uint16_t     http_no_request_aborts   = 0;
+
+#define HTTP_FIRST_LINE_TIMEOUT                 250                     // msec Wartezeit auf die erste Anfragezeile
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display flags:
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -259,7 +271,7 @@ static uint_fast8_t     http_local_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_remote_stm32_filename_matches (const char * actual);
 static uint_fast8_t     http_table_download_filename_matches (const char * actual);
 static void             http_remove_table_family_files (const char * keep_filename);
-static void             http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
+static int              http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len);
 static bool             app_asset_filename (const char * asset_path, char * filename, size_t maxlen);
 static uint_fast8_t     http_app_asset_supports_gzip (const char * asset_path);
 static bool             app_asset_storage_filename (const char * asset_path, uint_fast8_t gzip_encoded, char * filename, size_t maxlen);
@@ -6396,6 +6408,11 @@ http_fs (int post = POST_ICON_NONE)
             {
                 ch = httpclient_read (&len);
 
+                if (ch < 0)
+                {
+                    break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                }
+
                 if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
                 {
                     fname[l++] = ch;
@@ -7056,6 +7073,11 @@ http_update (void)
                     while (len > 0)
                     {
                         ch = httpclient_read (&len);
+
+                        if (ch < 0)
+                        {
+                            break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                        }
     
                         if (ch != '\r' && ch != '\n' && l < 16 - 1)
                         {
@@ -7083,6 +7105,11 @@ http_update (void)
                     while (len > 0)
                     {
                         ch = httpclient_read (&len);
+
+                        if (ch < 0)
+                        {
+                            break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                        }
     
                         if (l < 128 - 1 && ch > 0)
                         {
@@ -7115,6 +7142,11 @@ http_update (void)
                     while (len > 0)
                     {
                         ch = httpclient_read (&len);
+
+                        if (ch < 0)
+                        {
+                            break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                        }
     
                         if (ch != '\r' && ch != '\n' && l < 16 - 1)
                         {
@@ -7233,6 +7265,11 @@ http_update (void)
                     while (len > 0)
                     {
                         ch = httpclient_read (&len);
+
+                        if (ch < 0)
+                        {
+                            break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                        }
     
                         if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
                         {
@@ -7477,19 +7514,31 @@ sanitize_json_string (const String& str)
     return result;
 }
 
-static void
+/* Rueckgabewert: > 0 heisst, der Server hat vollstaendig geantwortet; <= 0 heisst
+ * Fehlschlag (keine Antwort, Status != 200, oder Abbruch beim Lesen). Frueher void -
+ * damit war von aussen nicht zu unterscheiden, ob der Server eine leere Zeile geliefert
+ * hat oder gar nicht geantwortet hat. Genau diese Unterscheidung braucht das
+ * Sperrfenster in http_api_update_status () (L161).
+ *
+ * ACHTUNG, hier liegt eine Falle: len wird von httpclient_read () HERUNTERGEZAEHLT und
+ * ist nach einem erfolgreichen Durchlauf 0. len selbst zurueckzugeben haette die
+ * Bedeutung genau umgedreht. Deshalb ein eigener Rueckgabewert.
+ */
+static int
 http_fetch_remote_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len)
 {
     int len;
+    int rtc;
     int l = 0;
 
     if (buffer_len == 0)
     {
-        return;
+        return -1;
     }
 
     buffer[0] = '\0';
     len = httpclient (host, path, filename);
+    rtc = len;
 
     if (len > 0)
     {
@@ -7499,6 +7548,12 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
         {
             ch = httpclient_read (&len);
 
+            if (ch < 0)
+            {
+                l = 0;                                  // Lesefehler oder Zeitgrenze (L152): lieber LEER zurueckgeben als
+                break;                                  // halb. Eine abgeschnittene Versionsnummer wie "3.2." sieht sonst
+            }                                           // aus wie eine echte und meldet ein Update, das es nicht gibt.
+
             if (ch != '\r' && ch != '\n' && l < (int) buffer_len - 1)
             {
                 buffer[l++] = ch;
@@ -7506,9 +7561,16 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
         }
 
         httpclient_stop ();
+
+        if (len > 0)
+        {
+            rtc = -1;                               // Rest uebrig: die Schleife ist ueber ch < 0 ausgestiegen
+        }
     }
 
     buffer[l] = '\0';
+
+    return rtc;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -7551,18 +7613,25 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
  * zuvor gegen max_len. Ein rohes 0x00 in einem JSON-String waere ohnehin ungueltig.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+/* Rueckgabewert wie bei http_fetch_remote_line (): > 0 bei Antwort des Servers, sonst
+ * <= 0. Das Feld wird in jedem Fall ausgegeben, notfalls leer - die Antwortform bleibt
+ * gleich. Auch hier gilt: len wird heruntergezaehlt und taugt nicht als Rueckgabewert,
+ * zumal die Schleife bei max_len absichtlich mit len > 0 endet.
+ */
+static int
 http_json_send_remote_text_field (const char * key, const char * host, const char * path, const char * filename, size_t max_len)
 {
     char    buf[132];                                   // 128 Nutzzeichen plus Reserve fuer eine Escape-Folge und die Null
     size_t  idx = 0;
     size_t  taken = 0;                                  // gelesene Quellzeichen, Vergleichsgroesse fuer max_len
     int     len;
+    int     rtc;
 
     http_json_send_field_prefix (key);
     http_send (FS("\""));
 
     len = httpclient (host, path, filename);
+    rtc = len;
 
     if (len > 0)
     {
@@ -7575,7 +7644,7 @@ http_json_send_remote_text_field (const char * key, const char * host, const cha
 
             if (ch < 0)
             {
-                break;                                  // Lesefehler: httpclient_read () liefert das nur bei leerem Rest
+                break;                                  // Lesefehler oder Zeitgrenze (L152): *lenp bleibt stehen, sonst dreht die Schleife endlos
             }
 
             taken++;
@@ -7625,6 +7694,8 @@ http_json_send_remote_text_field (const char * key, const char * host, const cha
     }
 
     http_send (FS("\""));
+
+    return rtc;
 }
 
 static void
@@ -11022,6 +11093,161 @@ http_api_fs_remove ()
     return 0;
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Zwischenspeicher und Sperrfenster fuer den Update-Server (BEFUNDE.md L161, L169)
+ *
+ * /api/update_status machte je Aufruf SIEBEN ausgehende HTTP-Abrufe, und die PWA fragt
+ * den Endpunkt zyklisch ab. Jeder Abruf kann DNS bis 5000 ms, Verbindungsaufbau bis
+ * 5000 ms und Warten auf das erste Byte bis 5000 ms kosten; waehrend der ganzen Zeit
+ * laeuft loop () nicht, wird keine Verbindung angenommen und keine wartende bedient.
+ * Auf genau diesem Pfad lag der Absturz vom 04.10.2026 mit bekanntem Ausloeser (L169).
+ *
+ * Zwei Massnahmen, beide OHNE Heap - frei sind rund 5'400 bis 6'400 Byte (L134):
+ *
+ * 1. ZWISCHENSPEICHER fuer die fuenf billigen Serverwerte (drei Versionszeilen, zwei
+ *    Existenzpruefungen). Sie aendern sich nicht im Sekundentakt. 54 Byte im statischen
+ *    Bereich; ein warmer Aufruf macht statt sieben nur noch zwei Abrufe.
+ *    Die Release Notes und wc-list.txt werden BEWUSST NICHT zwischengespeichert: beide
+ *    werden unmittelbar in die laufende Antwort gestroemt, ein Puffer dafuer waere bis
+ *    zu 3072 Byte gross und wuerde den freien Speicher dauerhaft um mehr als die
+ *    Haelfte dessen verringern, was L147 gerade erst freigeraeumt hat.
+ *
+ * 2. SPERRFENSTER. Faellt ein Abruf langsam aus - also nicht mit "404 sofort", sondern
+ *    nach einer Zeitgrenze -, gilt der Server fuer UPDATE_SERVER_DOWN_MS als nicht
+ *    erreichbar und die uebrigen Abrufe desselben und der folgenden Aufrufe entfallen.
+ *    Ohne das kostete ein nicht erreichbarer Update-Server bis zu sieben Zeitgrenzen in
+ *    EINEM Request. Der erste erfolgreiche Abruf hebt die Sperre sofort auf.
+ *
+ * GUELTIGKEIT: Der Zwischenspeicher haengt an Host, Pfad UND hardware_configuration -
+ * die Namen der Icon- und Wetterdatei werden daraus gebildet. Statt die Setter
+ * (/api/update_host_set, /api/update_path_set, die Legacy-Formulare) einzeln zu
+ * benachrichtigen, wird eine Pruefsumme ueber diese drei Werte mitgefuehrt: dann kann
+ * keine Aenderung uebersehen werden, auch keine kuenftige.
+ *
+ * ERZWUNGENE AUFFRISCHUNG: "?refresh=1" an /api/update_status umgeht den
+ * Zwischenspeicher. Die PWA sendet den Parameter heute nicht; die Antwortform aendert
+ * sich dadurch nicht, der API-Vertrag bleibt also unberuehrt.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define UPDATE_INFO_CACHE_MS                    60000UL         // Gueltigkeitsdauer der zwischengespeicherten Serverwerte
+#define UPDATE_SERVER_DOWN_MS                   30000UL         // Sperrfenster nach einem langsamen Fehlschlag
+#define UPDATE_SERVER_SLOW_FAIL_MS               1000UL         // ab hier gilt ein Fehlschlag als "Server antwortet nicht"
+
+static char          update_cache_esp_version[16];
+static char          update_cache_app_version[16];
+static char          update_cache_wc_version[16];
+static unsigned long update_cache_millis        = 0;
+static unsigned long update_cache_window        = UPDATE_INFO_CACHE_MS;
+static uint16_t      update_cache_source_sum    = 0;
+static uint_fast8_t  update_cache_valid         = 0;
+static uint_fast8_t  update_cache_assets        = 0;
+static uint16_t      update_cache_hits          = 0;            // Diagnose, steht in /api/device_ready
+
+static unsigned long update_server_down_millis  = 0;
+static uint_fast8_t  update_server_down         = 0;
+static uint16_t      update_server_down_count   = 0;            // Diagnose, steht in /api/device_ready
+
+static uint16_t
+update_source_checksum (const char * host, const char * path)
+{
+    uint16_t sum = (uint16_t) hardware_configuration;
+
+    while (*host)
+    {
+        sum = (uint16_t) (sum * 31u + (unsigned char) *host++);
+    }
+
+    sum = (uint16_t) (sum * 31u + '/');
+
+    while (*path)
+    {
+        sum = (uint16_t) (sum * 31u + (unsigned char) *path++);
+    }
+
+    return sum;
+}
+
+static uint_fast8_t
+update_server_blocked (void)
+{
+    if (! update_server_down)
+    {
+        return 0;
+    }
+
+    if ((millis () - update_server_down_millis) >= UPDATE_SERVER_DOWN_MS)
+    {
+        update_server_down = 0;                                 // Fenster abgelaufen, naechster Versuch ist frei
+        return 0;
+    }
+
+    return 1;
+}
+
+static void
+update_server_note (int len, unsigned long elapsed)
+{
+    if (len > 0)
+    {
+        update_server_down = 0;                                 // Server antwortet wieder
+    }
+    else if (elapsed >= UPDATE_SERVER_SLOW_FAIL_MS)
+    {
+        /* Nur LANGSAME Fehlschlaege sperren. Ein sofortiges 404 kostet nichts und darf
+         * die uebrigen Abrufe nicht verhindern - sonst verschwaende ein einzelner
+         * fehlender Dateiname auf dem Server die ganze Statusabfrage.
+         */
+        update_server_down        = 1;
+        update_server_down_millis = millis ();
+
+        if (update_server_down_count < 0xFFFF)
+        {
+            update_server_down_count++;
+        }
+    }
+}
+
+static int
+update_server_open (const char * host, const char * path, const char * filename)
+{
+    unsigned long   start_millis;
+    int             len;
+
+    if (update_server_blocked ())
+    {
+        return -1;
+    }
+
+    start_millis = millis ();
+    len          = httpclient (host, path, filename);
+    update_server_note (len, millis () - start_millis);
+
+    return len;
+}
+
+static int
+update_server_fetch_line (const char * host, const char * path, const char * filename, char * buffer, size_t buffer_len)
+{
+    unsigned long   start_millis;
+    int             len;
+
+    if (buffer_len > 0)
+    {
+        buffer[0] = '\0';
+    }
+
+    if (update_server_blocked ())
+    {
+        return -1;
+    }
+
+    start_millis = millis ();
+    len          = http_fetch_remote_line (host, path, filename, buffer, buffer_len);
+    update_server_note (len, millis () - start_millis);
+
+    return len;
+}
+
 static int
 http_api_update_status ()
 {
@@ -11037,6 +11263,10 @@ http_api_update_status ()
     uint_fast8_t assets_available = 0;
     const char * fname_icon = (const char *) 0;
     const char * fname_weather = (const char *) 0;
+    char * refresh;
+    uint16_t source_sum;
+    uint_fast8_t from_cache = 0;
+    unsigned long cache_window = UPDATE_INFO_CACHE_MS;
     int len;
     int first = 1;
 
@@ -11057,10 +11287,47 @@ http_api_update_status ()
     }
 
     flashsize = ESP.getFlashChipRealSize ();
-    http_fetch_remote_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
-    http_fetch_remote_line (update_host, update_path, APP_VERSION_TXT, new_app_version, sizeof (new_app_version));
-    http_fetch_remote_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
     http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
+
+    source_sum = update_source_checksum (update_host, update_path);
+    refresh    = http_get_param ("refresh");
+
+    /* Zwischenspeicher nur verwenden, wenn ALLE vier Bedingungen stimmen: gefuellt,
+     * gleiche Quelle (Host, Pfad, Hardware), nicht aelter als update_cache_window und
+     * keine erzwungene Auffrischung. Die Differenzbildung auf millis () ist
+     * ueberlaufsicher; update_cache_valid deckt den Startfall ab, in dem
+     * update_cache_millis noch 0 ist.
+     */
+    if (update_cache_valid
+        && update_cache_source_sum == source_sum
+        && (millis () - update_cache_millis) < update_cache_window
+        && ! (refresh && refresh[0] && refresh[0] != '0'))
+    {
+        strcpy (new_esp_version, update_cache_esp_version);
+        strcpy (new_app_version, update_cache_app_version);
+        strcpy (new_wc_version, update_cache_wc_version);
+        assets_available = update_cache_assets;
+        from_cache       = 1;
+
+        if (update_cache_hits < 0xFFFF)
+        {
+            update_cache_hits++;
+        }
+    }
+    else
+    {
+        int esp_len = update_server_fetch_line (update_host, update_path, ESP_WORDCLOCK_TXT, new_esp_version, sizeof (new_esp_version));
+        int app_len = update_server_fetch_line (update_host, update_path, APP_VERSION_TXT, new_app_version, sizeof (new_app_version));
+        int wc_len  = update_server_fetch_line (update_host, update_path, WC_TXT, new_wc_version, sizeof (new_wc_version));
+
+        /* Ein Fehlschlag wird KUERZER zwischengespeichert als ein Erfolg. Gar nicht
+         * ablegen hiesse, dass ein nicht erreichbarer Server bei jedem PWA-Zyklus erneut
+         * in die Zeitgrenzen laeuft; voll ablegen hiesse, dass er nach seiner Rueckkehr
+         * eine Minute lang weiter als tot gilt. Das kuerzere Fenster entspricht genau dem
+         * Sperrfenster: Sobald dieses abgelaufen ist, darf wieder gefragt werden.
+         */
+        cache_window = (esp_len > 0 || app_len > 0 || wc_len > 0) ? UPDATE_INFO_CACHE_MS : UPDATE_SERVER_DOWN_MS;
+    }
 
     if (hardware_configuration != 0xFFFF)
     {
@@ -11081,22 +11348,35 @@ http_api_update_status ()
         }
     }
 
-    if (fname_icon && fname_weather)
+    if (! from_cache)
     {
-        int len_icon = httpclient (update_host, update_path, fname_icon);
-
-        if (len_icon > 0)
+        if (fname_icon && fname_weather)
         {
-            httpclient_stop ();
+            int len_icon = update_server_open (update_host, update_path, fname_icon);
 
-            int len_weather = httpclient (update_host, update_path, fname_weather);
-
-            if (len_weather > 0)
+            if (len_icon > 0)
             {
-                assets_available = 1;
                 httpclient_stop ();
+
+                int len_weather = update_server_open (update_host, update_path, fname_weather);
+
+                if (len_weather > 0)
+                {
+                    assets_available = 1;
+                    httpclient_stop ();
+                }
             }
         }
+
+        /* Erst jetzt ablegen - vorher steht assets_available noch nicht fest. */
+        strcpy (update_cache_esp_version, new_esp_version);
+        strcpy (update_cache_app_version, new_app_version);
+        strcpy (update_cache_wc_version, new_wc_version);
+        update_cache_assets     = assets_available;
+        update_cache_source_sum = source_sum;
+        update_cache_window     = cache_window;
+        update_cache_millis     = millis ();
+        update_cache_valid      = 1;
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -11110,6 +11390,11 @@ http_api_update_status ()
     http_json_send_bool_field (FS("local_update_supported"), flashsize >= 1048576UL);
     http_json_send_string_field (FS("local_update_message"), http_get_local_update_message (flashsize));
     http_json_send_bool_field (FS("assets_available"), assets_available);
+    /* Zusaetzliches Feld, rein additiv: true heisst, die fuenf Serverwerte stammen aus
+     * dem Zwischenspeicher und sind bis zu UPDATE_INFO_CACHE_MS alt. "?refresh=1"
+     * erzwingt frische Werte.
+     */
+    http_json_send_bool_field (FS("update_info_cached"), from_cache);
     http_json_send_bool_field (FS("app_bundle_available"), 0);
     http_json_send_bool_field (FS("device_ready_api_supported"), 1);
     http_json_send_bool_field (FS("reconnect_probe_api_supported"), 1);
@@ -11270,11 +11555,26 @@ http_api_update_status ()
      * benutzt dafuer eine eigene WiFiClient-Instanz (httpclient.cpp:16), nicht
      * http_client.
      */
-    http_json_send_remote_text_field (FS("release_notes"), update_host, update_path, RELEASENOTE_HTML, 3072);
+    if (update_server_blocked ())
+    {
+        /* Sperrfenster offen: Feld leer ausgeben statt die laufende Antwort um bis zu
+         * drei Zeitgrenzen anzuhalten. Die Antwortform bleibt unveraendert.
+         */
+        http_json_send_string_field (FS("release_notes"), "");
+    }
+    else
+    {
+        unsigned long   notes_millis = millis ();
+        int             notes_len;
+
+        notes_len = http_json_send_remote_text_field (FS("release_notes"), update_host, update_path, RELEASENOTE_HTML, 3072);
+        update_server_note (notes_len, millis () - notes_millis);
+    }
+
     http_json_send_string_field (FS("stm32_default"), stm32_default_filename);
     http_send (FS(",\"stm32_files\":["));
 
-    len = httpclient (update_host, update_path, WC_LIST_TXT);
+    len = update_server_open (update_host, update_path, WC_LIST_TXT);
 
     if (len > 0)
     {
@@ -11285,6 +11585,11 @@ http_api_update_status ()
         while (len > 0)
         {
             ch = httpclient_read (&len);
+
+            if (ch < 0)
+            {
+                break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+            }
 
             if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
             {
@@ -11392,6 +11697,19 @@ http_api_device_ready ()
      */
     http_json_send_uint_field (FS("write_lost_bytes"), (unsigned long) http_write_lost_bytes);
     http_json_send_uint_field (FS("write_lost_blocks"), (unsigned long) http_write_lost_blocks);
+    /* Angenommene Verbindungen ohne Anfrage (L160). Steigt no_request_aborts im
+     * Takt der PWA-Zyklen, bricht die Gegenstelle ab; steigt no_request_timeouts,
+     * haelt jemand Verbindungen auf Vorrat offen. Vorher war beides nur an einer
+     * Serial-Zeile zu sehen, die den STM-Empfangsring belastete.
+     */
+    http_json_send_uint_field (FS("no_request_timeouts"), (unsigned long) http_no_request_timeouts);
+    http_json_send_uint_field (FS("no_request_aborts"), (unsigned long) http_no_request_aborts);
+    /* Wirksamkeit der Massnahmen aus L161: update_cache_hits zaehlt die Aufrufe von
+     * /api/update_status, die OHNE ausgehende Versionsabrufe auskamen,
+     * update_server_down_count, wie oft das Sperrfenster scharf gestellt wurde.
+     */
+    http_json_send_uint_field (FS("update_cache_hits"), (unsigned long) update_cache_hits);
+    http_json_send_uint_field (FS("update_server_down_count"), (unsigned long) update_server_down_count);
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -11555,6 +11873,11 @@ http_api_update_table_files ()
             while (len > 0)
             {
                 ch = httpclient_read (&len);
+
+                if (ch < 0)
+                {
+                    break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                }
 
                 if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
                 {
@@ -12844,19 +13167,76 @@ http_server_loop (void)
     Serial.flush ();
 #endif
 
-    unsigned long ultimeout = millis() + 250;
+    /* Warten auf die erste Anfragezeile. Hier steckten drei Defekte (BEFUNDE.md L160):
+     *
+     * (a) Der Zweig kehrte OHNE http_client.stop () zurueck. Die Verbindung blieb
+     *     offen, bis der naechste accept () das globale http_client ueberschrieb -
+     *     der Client sah dann ein FIN ohne Antwort. Genau das Bild aus L149
+     *     (BadStatusLine nach 31,5 s). Die beiden Nachbarzweige darunter rufen
+     *     stop (), dieser nicht.
+     * (b) Ohne connected ()-Test wurden die vollen 250 ms auch dann abgesessen, wenn
+     *     die Gegenstelle laengst zurueckgesetzt hatte. Jeder AbortController-Abbruch
+     *     der PWA tut das, und Chrome oeffnet Verbindungen auf Vorrat: vier
+     *     abgebrochene Verbindungen waren eine Sekunde reiner Leerlauf im Hauptloop.
+     * (c) "millis () < ultimeout" bricht beim Ueberlauf alle 49,7 Tage - dann wird
+     *     250 ms lang JEDE Anfrage abgewiesen. Die Differenzbildung ist
+     *     ueberlaufsicher und in dieser Datei schon zweimal so geschrieben.
+     *
+     * available () wird zuerst geprueft: connected () liefert zwar true, solange noch
+     * Daten anstehen (WiFiClient.cpp:332), aber diese Reihenfolge ist auch dann
+     * richtig, wenn sich diese Zusage im Core einmal aendert.
+     */
+    unsigned long start_millis    = millis ();
+    uint_fast8_t  request_arrived = 0;
 
-    while (! http_client.available() && (millis() < ultimeout) )
+    while ((millis () - start_millis) < HTTP_FIRST_LINE_TIMEOUT)
     {
-        delay(1);
+        if (http_client.available ())
+        {
+            request_arrived = 1;
+            break;
+        }
+
+        if (! http_client.connected ())
+        {
+            break;                                      // (b) Gegenstelle weg, kein Request mehr zu erwarten
+        }
+
+        delay (1);
     }
 
-    if (millis() > ultimeout)
+    if (! request_arrived)
     {
+        /* Hier stand eine UNBEDINGTE Serial-Zeile: rund 30 Byte je verworfener
+         * Verbindung auf die STM-UART, deren Empfangsring 256 Byte gross ist und bei
+         * Ueberlauf still verwirft (uart-driver.h:698). Getroffen hat sie genau die
+         * Verbindungen, die Chrome auf Vorrat oeffnet und nie benutzt - mehrere je
+         * Seitenaufruf. Statt der Zeile zwei Zaehler in /api/device_ready; fuer die
+         * Fehlersuche bleibt die Ausgabe ueber HTTP_DEBUG_CLIENT_LOG erreichbar.
+         */
+        if (http_client.connected ())
+        {
+            if (http_no_request_timeouts < 0xFFFF)
+            {
+                http_no_request_timeouts++;
+            }
+        }
+        else
+        {
+            if (http_no_request_aborts < 0xFFFF)
+            {
+                http_no_request_aborts++;
+            }
+        }
+
+#if HTTP_DEBUG_CLIENT_LOG
         Serial.println ("- client connection time-out!");
         Serial.flush ();
+#endif
+        http_client.stop ();                            // (a) sonst sieht der Client ein FIN ohne Antwort
         return;
     }
+
     http_client.setNoDelay(1);
 
     String sRequest = "";

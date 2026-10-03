@@ -12,6 +12,13 @@
 #ifndef HTTPCLIENT_H
 #define HTTPCLIENT_H
 
+/* Lesefehler-Vertrag (BEFUNDE.md L152):
+ * httpclient_read ()      liefert < 0 bei Zeitgrenze oder Abbruch der Gegenstelle
+ *                         und laesst *lenp dabei UNVERAENDERT. Jede Schleife der
+ *                         Form "while (len > 0)" muss deshalb bei < 0 abbrechen.
+ * httpclient_read_line () liefert aus demselben Grund -1 statt einer Zeilenlaenge.
+ * Ein unveraendertes *lenp > 0 nach dem Abruf heisst: unvollstaendig geladen.
+ */
 extern int    httpclient (const char *, const char *, const char *);
 extern int    httpclient_read (int *);
 extern int    httpclient_read_line (unsigned char *, int, int *);
