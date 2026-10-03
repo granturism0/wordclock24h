@@ -351,12 +351,18 @@ Gut parallelisierbar, weil rein lesend oder disjunkt:
 
 Nicht parallelisierbar: alles unter R1–R5.
 
-## Bekannte Falle im Release-Build
+## Behobene Falle im Release-Build
 
-`RELEASE_ZIP` in `Makefile:18` nutzt Minutengenauigkeit, `Makefile:74` macht `rm -f`
-darauf. Zwei Release-Builds in derselben Minute überschreiben sich **kommentarlos**,
-beide melden Erfolg. Bis das behoben ist (`BEFUNDE.md`, L2): nie zwei Release-Builds in
-derselben Minute starten. Ausführlich im Skill `/release`.
+Hier stand bis zum 03.10.2026, `RELEASE_ZIP` nutze Minutengenauigkeit und zwei Builds
+in derselben Minute überschrieben sich kommentarlos. **Das stimmt nicht mehr:**
+`Makefile:34` nutzt `RELEASE_STAMP := $(shell date +"%Y-%m-%d-%H%M%S")` — sekundengenau
+und mit `:=` genau einmal expandiert. Zwei Builds können sich nicht mehr überschreiben.
+
+Die Stelle bleibt als Beispiel stehen, weil sie zweierlei zeigt: Die Warnung nannte
+**Zeilennummern** (`18`, `74`), und beide stimmten längst nicht mehr — heute sind es 34
+und 109. Und niemandem fiel auf, dass die Falle weg war; gemeldet hat es ein Agent, der
+beim Bauen nachgesehen hat. **Eine Warnung, die niemand nachprüft, überlebt ihre
+Ursache.** Das ist derselbe Mechanismus wie bei den Versionsnummern in der Doku.
 
 ## Hardware
 
