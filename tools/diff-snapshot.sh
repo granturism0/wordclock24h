@@ -66,9 +66,27 @@ def read_fields(directory, name):
 
     if stem == "settings_xml":
         # Jede Variable einzeln, damit der Bericht die Nummer nennt statt "Datei anders".
-        for kind in ("numvar", "strvar"):
-            for idx, val in re.findall(rf'<{kind} idx="(\d+)" value="([^"]*)"', text):
-                out[f"{kind}[{int(idx):02d}]"] = val
+        #
+        # Frueher wurden NUR numvar und strvar verglichen. Das war ein Loch genau dort,
+        # wo ein Testdurchlauf arbeitet: Farben, Dimmkurven, Overlays, Timer, Alarme und
+        # die Profil-Flags blieben unbesehen. Ein stehengebliebener Wert haette den
+        # Abschlussvergleich mit "Kein Unterschied" passiert -- und der ist der Schritt,
+        # der aus einem Durchlauf einen Nachweis macht. Gefunden im Durchlauf vom
+        # 03.10.2026, der neun solcher Felder angefasst hat.
+        #
+        # Jetzt wird JEDES Element mit allen seinen Attributen erfasst, ohne Liste der
+        # bekannten Typen: Kommt in einer kuenftigen Firmware ein Element dazu, ist es
+        # automatisch dabei.
+        for tag, attrs in re.findall(r'<([a-z0-9]+)\s+([^>]*?)/?>', text):
+            pairs = dict(re.findall(r'([a-z0-9_]+)="([^"]*)"', attrs))
+            # Der Index gehoert in den Schluessel, nicht in den Wert -- sonst
+            # verschiebt sich beim Vergleich alles, wenn ein Eintrag wegfaellt.
+            key = tag
+            for id_attr in ("idx", "var"):
+                if id_attr in pairs:
+                    key += f"[{id_attr}={pairs.pop(id_attr)}]"
+            for name, value in sorted(pairs.items()):
+                out[f"{key}.{name}"] = value
         if not out:
             out["(roh)"] = text.strip()
         return out

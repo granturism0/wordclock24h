@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-10-03 Zwoelf Befunde aus dem zweiten Testdurchlauf (L45 bis L56)
+
+Reine Dokumentations- und Werkzeugaenderung ausser dem Ticker-Fix, der schon
+in 3.2.10 steckt. Kein Versionsbump.
+
+Der Durchlauf gegen STM 3.2.9 / ESP 3.2.7 / PWA 1.4.75 ist nach 87 Pruefschritten
+am Watchdog-Reset abgebrochen -- und genau der war der wichtigste Fund (L45,
+behoben mit 3.2.10). Vier von elf Modulen sind durch; Klima, Datum/Zeit,
+DFPlayer, Overlays, Timer und der ganze Wartungsbereich stehen aus.
+
+Keine einzige Einstellung blieb verstellt: 128 Schreibzugriffe, alle
+zurueckgenommen und gegengeprueft.
+
+### Der Abschlussvergleich hatte ein Loch genau dort, wo der Durchlauf arbeitet
+
+tools/diff-snapshot.sh verglich nur numvar und strvar -- 62 Felder. Farben,
+Dimmkurven, Overlays, Timer, Alarme und Profil-Flags blieben unbesehen, und
+genau die verstellt Phase 3. Der Durchlauf hat neun solcher Felder angefasst;
+waere eines stehengeblieben, haette der Vergleich "Kein Unterschied" gemeldet.
+Das ist der Schritt, der aus einem Durchlauf einen Nachweis macht.
+
+Jetzt wird jedes Element mit allen Attributen erfasst, ohne Liste bekannter
+Typen -- rund 710 Felder. Gegenprobe: identische Abzuege melden nichts, eine von
+Hand verstellte Farbe erscheint als dspcolor[idx=0].white A='63' B='99'. (L53)
+
+### Der schwerste offene Befund: ein Umlaut an der Byte-Grenze
+
+Die Textfelder werden auf BYTES gekuerzt, die Oberflaeche zaehlt ZEICHEN. Ein
+Tickertext aus 31 A und einem ae endet mit einem halben Zeichen, und
+settings_xml ist kein gueltiges UTF-8 mehr. Der DOMParser scheitert; dank L26
+meldet die PWA das immerhin -- korrigieren laesst sich der Wert ueber sie aber
+nicht, weil sie die Einstellungen nicht mehr lesen kann. Ein deutscher
+Grusstext von 32 Zeichen, der auf einem Umlaut endet, reicht. (L46)
+
+### Weiter
+
+L47 network_summertime_set ohne Wert schaltet aus · L48 acht Stringsetter
+loeschen bei leerer Eingabe, darunter update_host und update_path -- dieselbe
+Luecke wie L42, nur von vorne · L49 zwei Animationssetter beim L29-Fix
+uebersehen · L50 dim_level_set ohne idx schreibt auf Index 0 · L51 "Vorgaben
+zuruecksetzen" setzt den Favoriten-Marker · L52 die vier neuen Fehlertexte
+benutzen ASCII-Umschrift statt Umlauten · L54 weather_get_* melden immer
+Erfolg und sind nicht rein lesend · L55 der ESP-Versionsstring im
+Variablensatz ist immer leer · L56 zweite unbegrenzte Warteschleife in
+display_set_display_mode(), bewusst ohne Reload -- dort waere ein Timeout der
+richtige Hebel.
+
+L25 ist neu bewertet: Der Tickerausloeser passt mit 20,85 s bei 20 s Timeout
+besser als die urspruengliche These der kombinierten Last. Lueckenlos ist auch
+das nicht -- eine show_time-Zeile zwei Sekunden vor dem Reset passt nicht zu
+einer durchgehenden Blockade. Als Kandidat vermerkt, nicht als Beweis.
+
 ## 2026-10-03 Tickerschleife bedient den Watchdog (STM 3.2.10)
 
 Nur STM-Code geaendert, also steigt nach DIR-004 nur dessen Version.
