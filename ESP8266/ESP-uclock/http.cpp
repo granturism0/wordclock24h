@@ -109,7 +109,35 @@ static int                                          bgcolor_cnt;
 #define DFPLAYER_HEADER_COLS                        3
 #define DFPLAYER_SILENCE_COLS                       4
 
-#define MAX_HTTP_RESPONSE_LEN                       1024
+/* Antwort- und zugleich Leseblockgroesse der Dateiauslieferung: genau 2 x TCP_MSS.
+ *
+ * Der Build bindet die lwIP-Variante "v2 Lower Memory" ein (ip=lm2f in ESP_FQBN,
+ * Makefile:11). Die Variante legt -DTCP_MSS=536 auf die Kommandozeile jedes
+ * Uebersetzungslaufs (boards.txt, generic.menu.ip.lm2f.build.lwip_flags) und bindet
+ * gegen liblwip2-536-feat. Daraus ergibt sich TCP_SND_BUF = 2 * TCP_MSS = 1072
+ * (lwipopts.h:1326). MEHR je Schreibvorgang bringt nichts: ClientContext::_write_some()
+ * schreibt hoechstens tcp_sndbuf() Byte am Stueck und wartet fuer den Rest ohnehin auf
+ * die Quittung.
+ *
+ * Warum nicht mehr 1024: 1024 / 536 = 1,91. Jeder Block zerfiel in 536 + 488, das
+ * zweite Segment war nie voll. Am Geraet gemessen (03.10.2026, fuenf vollstaendige
+ * Abrufe): app.js.gz ging in 311 Paketen hinaus, erwartet waren 242. Mit 1072 ist
+ * jeder Block genau zwei volle Segmente; 129'477 / 536 = 242.
+ *
+ * TCP_MSS ist dabei die Obergrenze, nicht die Zusicherung: lwIP sendet mit
+ * min (TCP_MSS, der vom Gegenueber angebotenen MSS). Bietet eine Gegenstelle weniger
+ * als 536 an, zerfaellt ein Block in mehr Segmente - nie in groessere, denn ueber die
+ * zur Uebersetzungszeit festgelegten 536 kommt diese lwIP-Bibliothek nicht hinaus.
+ * Der Wert ist damit in jedem Fall korrekt, im Regelfall exakt passend.
+ *
+ * Kosten: 48 Byte mehr im statischen Bereich. Nichts vom Heap - im Betrieb stehen nur
+ * rund 5'400 Byte frei, groesster zusammenhaengender Block 4'648 (/api/device_ready).
+ */
+#ifndef TCP_MSS
+#error "TCP_MSS ist nicht definiert - lwIP-Variante im FQBN pruefen (ip=lm2f)"
+#endif
+
+#define MAX_HTTP_RESPONSE_LEN                       (2 * TCP_MSS)   // 1072 bei ip=lm2f, genau TCP_SND_BUF
 static char     http_response[MAX_HTTP_RESPONSE_LEN + 1];
 static int      http_response_len = 0;
 
@@ -1201,8 +1229,10 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
             http_flush ();
 
             /* Lesepuffer ist bewusst der bereits vorhandene statische Antwortpuffer:
-             * 1024 Byte (MAX_HTTP_RESPONSE_LEN), unmittelbar darueber mit http_flush()
-             * geleert und bis zum Verbindungsende ungenutzt. Ein eigener Puffer auf dem
+             * 2 x TCP_MSS = 1072 Byte (MAX_HTTP_RESPONSE_LEN, Begruendung dort), unmittelbar
+             * darueber mit http_flush() geleert und bis zum Verbindungsende ungenutzt. Die
+             * Blockgroesse ist damit ein Vielfaches der Segmentgroesse - jeder Schreibvorgang
+             * fuellt genau zwei Segmente. Ein eigener Puffer auf dem
              * Stack kostete 768 Byte vom 4-KB-cont-Stack, ein eigener statischer Puffer
              * 1 KB vom ohnehin knappen Heap - bei einem Speicherbefund beides die
              * falsche Richtung.
