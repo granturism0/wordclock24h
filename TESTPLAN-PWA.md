@@ -265,11 +265,18 @@ Geprüft wird in einem echten Browser gegen das **echte** Gerät:
 
 | | Was | Warum |
 |---|---|---|
-| **P1b-1** | Seite lädt, DOM entsteht | sonst ist alles Weitere gegenstandslos |
-| **P1b-2** | **keine JavaScript-Fehler** | der wichtigste Punkt — ein Tippfehler in `app.js` lässt die Seite halb leer, ohne dass irgendwo ein Fehler erscheint |
-| **P1b-3** | Oberfläche über den Ladebildschirm hinaus | Module im DOM vorhanden |
-| **P1b-4** | **echte Gerätewerte in der Seite** | die gemeldete STM-Version wird aus `/api/settings_xml` geholt und im DOM gesucht. Steht sie nicht da, hat die Oberfläche die Daten nicht verarbeitet |
-| **P1b-5** | Platzhalter gefüllt | viele stehengebliebene Striche heissen: Abrufe ohne Ergebnis, ohne geworfenen Fehler |
+| **P1b-1** | Seite lädt, Titel da | sonst ist alles Weitere gegenstandslos |
+| **P1b-2** | Module im DOM vorhanden | |
+| **P1b-3** | **echte Gerätewerte in der Seite** | die gemeldete STM-Version wird aus `/api/settings_xml` geholt und im gerenderten Text gesucht. Steht sie nicht da, hat die Oberfläche die Daten nicht verarbeitet — unabhängig davon, ob die API sie korrekt geliefert hat |
+| **P1b-4** | **jedes Modul lässt sich öffnen und zeigt Inhalt** | das ist der Unterschied zwischen „lädt" und „funktioniert". Ein Modul kann im DOM stehen und sich trotzdem nicht öffnen lassen, oder beim Öffnen einen Abruf fahren, der scheitert |
+| **P1b-5** | jedes Modul erreichbar | bewusst ausgeblendete zählen nicht als Fehler — die PWA versteckt `dfplayer`, wenn die Hardware fehlt, und sagt das selbst: „DFPlayer is offline and hidden" |
+| **P1b-6** | **keine Fehler in der Konsole** | der wichtigste Punkt — ein Tippfehler in `app.js` lässt die Seite halb leer, ohne dass irgendwo ein Fehler erscheint |
+| **P1b-7** | keine fehlgeschlagenen Abrufe | `ERR_ABORTED` zählt **nicht**: Das heisst „jemand hat abgebrochen", nicht „es ging schief". Beim Schliessen des Browsers brechen alle laufenden Poller ab |
+| **P1b-8** | Platzhalter gefüllt | viele stehengebliebene Striche heissen: Abrufe ohne Ergebnis, ohne geworfenen Fehler |
+
+**Bedient wird über das DevTools-Protokoll**, ohne Puppeteer oder Playwright — Node
+bringt seit v22 ein eingebautes WebSocket mit, und mehr braucht es nicht. Die Module
+werden tatsächlich angeklickt, nicht nur im DOM gezählt.
 
 **Nicht zu verwechseln mit `tools/preview/`.** Das rendert die PWA in zwanzig
 Viewports, aber gegen **Attrappen-Daten** aus `server.py` — gut für das Layout,

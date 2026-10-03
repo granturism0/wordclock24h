@@ -78,81 +78,43 @@ fi
 printf '  Geraet meldet STM %s — dieser Wert muss gleich in der Seite stehen.\n\n' "$stm"
 
 # --------------------------------------------------------------- Seite laden
-printf '  lade /app/ in Chrome'
+#
+# Mit Debug-Port statt --dump-dom: Nur so laesst sich die Seite auch BEDIENEN.
+# Gesteuert wird in tools/check-pwa.mjs ueber das DevTools-Protokoll; Node bringt
+# seit v22 ein eingebautes WebSocket mit, es braucht kein Puppeteer.
+CDP_PORT=${CDP_PORT:-9222}
+
+printf '  starte Chrome und lade /app/'
 "$CHROME" --headless=new --disable-gpu --no-sandbox \
-  --user-data-dir="$PROFILE" --virtual-time-budget=15000 \
-  --enable-logging=stderr --log-level=0 \
-  --dump-dom "$U/app/" >"$DOM" 2>"$LOG" &
+  --user-data-dir="$PROFILE" --remote-debugging-port="$CDP_PORT" \
+  "$U/app/" >"$LOG" 2>&1 &
 CHROME_PID=$!
 
 i=0
-while [ "$i" -lt "$KILL_AFTER" ]; do
-  kill -0 "$CHROME_PID" 2>/dev/null || break
-  [ -s "$DOM" ] && sleep 2 && break          # DOM ist da, kurz nachlaufen lassen
+while [ "$i" -lt 20 ]; do
+  curl -s -m 2 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1 && break
   sleep 1; i=$((i+1)); printf '.'
 done
-kill "$CHROME_PID" 2>/dev/null
-wait "$CHROME_PID" 2>/dev/null
 printf '\n\n'
 
-# ------------------------------------------------------------------ Auswertung
-if [ ! -s "$DOM" ]; then
-  fail "Seite geladen" "kein DOM — Chrome hat nichts geliefert"
-  printf '\n=== %d bestanden, %d fehlgeschlagen ===\n' "$OK" "$FAIL"
-  [ "$KEEP" -eq 1 ] && echo "  Mitschnitt: $LOG" || rm -rf "$WORK"
-  exit 1
-fi
-pass "Seite geladen" "$(wc -c < "$DOM" | tr -d ' ') Byte DOM"
-
-# 1. JavaScript-Fehler. Chrome meldet sie auf stderr mit der Quelle dahinter.
-#    "Uncaught" faengt die geworfenen, "SEVERE" die vom Logger eingestuften.
-js=$(grep -aiE 'uncaught|severe:.*\.js|unhandled.*rejection' "$LOG" 2>/dev/null \
-     | grep -avE 'favicon|DevTools|GPU|Fontconfig|dbus|gl_display' | head -5)
-if [ -n "$js" ]; then
-  fail "keine JavaScript-Fehler" "$(printf '%s' "$js" | wc -l | tr -d ' ') Meldung(en)"
-  printf '%s\n' "$js" | sed 's/^/          /'
-else
-  pass "keine JavaScript-Fehler"
+if ! curl -s -m 2 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; then
+  echo "  ABBRUCH: Chrome hat den Debug-Port nicht geoeffnet." >&2
+  kill "$CHROME_PID" 2>/dev/null
+  rm -rf "$WORK"; exit 1
 fi
 
-# 2. Ist die Oberflaeche ueber den Ladebildschirm hinausgekommen? Bleibt app.js
-#    stehen, liefert der ESP zwar Markup, aber der Inhalt wird nie gefuellt.
-if grep -qa 'id="app-loading"[^>]*hidden\|class="[^"]*is-ready' "$DOM" 2>/dev/null; then
-  pass "Oberflaeche aufgebaut"
-elif grep -qac 'data-module=' "$DOM" 2>/dev/null; then
-  n=$(grep -oa 'data-module="[a-z]*"' "$DOM" | sort -u | wc -l | tr -d ' ')
-  pass "Oberflaeche aufgebaut" "$n Module im DOM"
-else
-  fail "Oberflaeche aufgebaut" "weder Module noch Bereitschaftsmerkmal gefunden"
-fi
+STM_SOLL="$stm" CDP_PORT="$CDP_PORT" node tools/check-pwa.mjs
+RC=$?
 
-# 3. Der eigentliche Punkt: Stehen die ECHTEN Werte der Uhr in der Seite?
-#    Nicht "wurde die API gerufen", sondern "ist das Ergebnis angekommen".
-if grep -qa "$stm" "$DOM"; then
-  pass "Geraetewerte angezeigt" "STM $stm steht in der Seite"
-else
-  fail "Geraetewerte angezeigt" "STM $stm steht NICHT in der Seite — Daten nicht verarbeitet"
-fi
-
-# 4. Leere Platzhalter. Die PWA setzt vor dem ersten Abruf Striche; bleiben viele
-#    davon stehen, sind Abrufe fehlgeschlagen, ohne dass ein Fehler geworfen wurde.
-striche=$(grep -oa '>—<\|>--<\|>…<' "$DOM" 2>/dev/null | wc -l | tr -d ' ')
-if [ "${striche:-0}" -gt 25 ]; then
-  fail "Platzhalter gefuellt" "$striche leere Felder — viele Abrufe ohne Ergebnis?"
-else
-  pass "Platzhalter gefuellt" "$striche offen"
-fi
-
-printf '\n=== %d bestanden, %d fehlgeschlagen ===\n' "$OK" "$FAIL"
+kill "$CHROME_PID" 2>/dev/null
+wait "$CHROME_PID" 2>/dev/null
 
 if [ "$KEEP" -eq 1 ]; then
   echo
-  echo "  DOM:      $DOM"
-  echo "  Konsole:  $LOG"
+  echo "  Chrome-Mitschnitt: $LOG"
 else
-  rm -rf "$WORK"
+  rm -rf "$WORK" 2>/dev/null
 fi
 
-[ "$FAIL" -gt 0 ] && exit 1
-echo "Die PWA laeuft auf dem Geraet und zeigt echte Werte."
-exit 0
+[ "$RC" -eq 0 ] && echo "Die PWA laeuft auf dem Geraet, laesst sich bedienen und zeigt echte Werte."
+exit $RC
