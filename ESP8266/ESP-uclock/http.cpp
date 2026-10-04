@@ -8136,13 +8136,14 @@ http_api_display_brightness_set ()
         return 0;
     }
 
-    if (brightness < 0)
+    /* Abweisen statt klemmen: {"ok":true} heisst, dass der GESENDETE Wert gilt
+     * (Parametervertrag Runde 1, L186). Die Grenze selbst bleibt stehen - ohne sie
+     * verkuerzt set_numvar einen zu grossen Wert still auf 16 Bit (L198).
+     */
+    if (brightness < 0 || brightness > 15)
     {
-        brightness = 0;
-    }
-    else if (brightness > 15)
-    {
-        brightness = 15;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..15)");
+        return 0;
     }
 
     set_numvar (DISPLAY_BRIGHTNESS_NUM_VAR, brightness);
@@ -8195,13 +8196,18 @@ http_api_display_mode_set ()
         return 0;
     }
 
-    if (mode < 0)
+    /* Abweisen statt klemmen (L186). Die Obergrenze ist ein Laufzeitwert und laesst
+     * sich im Text nicht als Literal schreiben - snprintf in einen Stackpuffer, kein
+     * String (L175).
+     */
+    if (mode < 0 || mode >= (int) display_modes_count)
     {
-        mode = 0;
-    }
-    else if (mode >= (int) display_modes_count)
-    {
-        mode = display_modes_count ? display_modes_count - 1 : 0;
+        char detail[44];
+
+        snprintf (detail, sizeof (detail), "value out of range (0..%d)",
+                  display_modes_count ? (int) display_modes_count - 1 : 0);
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, detail);
+        return 0;
     }
 
     set_numvar (DISPLAY_MODE_NUM_VAR, mode);
@@ -8290,13 +8296,14 @@ http_api_ticker_deceleration_set ()
         return 0;
     }
 
-    if (deceleration < 0)
+    /* Abweisen statt klemmen (L186). Die Grenze bleibt stehen: Der Setter schickt den
+     * Wert mit "%02x" auf die Bruecke, und %02x ist eine Mindest-, keine Hoechstbreite -
+     * ueber 255 entstehen drei Hexziffern und verschieben das ganze Kommando (L66, L198).
+     */
+    if (deceleration < 0 || deceleration > 255)
     {
-        deceleration = 0;
-    }
-    else if (deceleration > 255)
-    {
-        deceleration = 255;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..255)");
+        return 0;
     }
 
     set_numvar (TICKER_DECELRATION_NUM_VAR, deceleration);
@@ -9686,7 +9693,7 @@ http_api_animation_profile_set ()
 
     if (deceleration < ANIMATION_MIN_DECELERATION || deceleration > ANIMATION_MAX_DECELERATION)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range");
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range (1..15)");
         return 0;
     }
 
@@ -9945,13 +9952,13 @@ http_api_ambilight_brightness_set ()
         return 0;
     }
 
-    if (brightness < 0)
+    /* Abweisen statt klemmen (L186); die Grenze bleibt gegen die stille Verkuerzung
+     * in set_numvar stehen (L198).
+     */
+    if (brightness < 0 || brightness > 15)
     {
-        brightness = 0;
-    }
-    else if (brightness > 15)
-    {
-        brightness = 15;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..15)");
+        return 0;
     }
 
     set_numvar (AMBILIGHT_BRIGHTNESS_NUM_VAR, brightness);
@@ -9979,13 +9986,13 @@ http_api_ambilight_mode_set ()
         return 0;
     }
 
-    if (mode < 0)
+    /* Abweisen statt klemmen (L186). MAX_AMBILIGHT_MODE_VARIABLES ist 5, der Bereich
+     * also 0..4; der Vergleich benutzt weiter das Symbol, nur der Text nennt die Zahl.
+     */
+    if (mode < 0 || mode >= MAX_AMBILIGHT_MODE_VARIABLES)
     {
-        mode = 0;
-    }
-    else if (mode >= MAX_AMBILIGHT_MODE_VARIABLES)
-    {
-        mode = MAX_AMBILIGHT_MODE_VARIABLES - 1;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..4)");
+        return 0;
     }
 
     set_numvar (AMBILIGHT_MODE_NUM_VAR, mode);
@@ -10015,13 +10022,13 @@ http_api_ambilight_leds_set ()
         return 0;
     }
 
-    if (leds < 0)
+    /* Abweisen statt klemmen (L186); die Grenze bleibt gegen die stille Verkuerzung
+     * in set_numvar stehen (L198).
+     */
+    if (leds < 0 || leds > 999)
     {
-        leds = 0;
-    }
-    else if (leds > 999)
-    {
-        leds = 999;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..999)");
+        return 0;
     }
 
     set_numvar (AMBILIGHT_LEDS_NUM_VAR, leds);
@@ -10051,13 +10058,13 @@ http_api_ambilight_offset_set ()
         return 0;
     }
 
-    if (offset < 0)
+    /* Abweisen statt klemmen (L186); die Grenze bleibt gegen die stille Verkuerzung
+     * in set_numvar stehen (L198).
+     */
+    if (offset < 0 || offset > 999)
     {
-        offset = 0;
-    }
-    else if (offset > 999)
-    {
-        offset = 999;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..999)");
+        return 0;
     }
 
     set_numvar (AMBILIGHT_OFFSET_NUM_VAR, offset);
@@ -10080,8 +10087,9 @@ http_api_ambilight_mode_profile_set ()
     int deceleration;
 
     /* Ein idx ausserhalb des Bereichs hat bisher gar nichts bewirkt und trotzdem
-     * {"ok":true} gemeldet (Fehlerklasse von L30). Die Klammerung von deceleration
-     * bleibt absichtlich stehen - das ist Massnahme 17 und nicht dieser Schritt.
+     * {"ok":true} gemeldet (Fehlerklasse von L30). deceleration wurde geklemmt und
+     * ebenfalls als Erfolg gemeldet - das ist der belegte Ausgangsfall von L186 und
+     * wird hier abgewiesen.
      */
     if (! http_get_int_param ("idx", &idx) || ! http_get_int_param ("deceleration", &deceleration))
     {
@@ -10095,13 +10103,14 @@ http_api_ambilight_mode_profile_set ()
         return 0;
     }
 
-    if (deceleration < 0)
+    /* Die Grenze bleibt stehen: set_ambilight_mode_deceleration schickt den Wert mit
+     * "%02x", und %02x ist eine Mindest-, keine Hoechstbreite - ueber 255 entstehen drei
+     * Hexziffern und verschieben das ganze Kommando auf der Bruecke (L66, L198).
+     */
+    if (deceleration < 0 || deceleration > AMBILIGHT_MODE_MAX_DECELERATION)
     {
-        deceleration = 0;
-    }
-    else if (deceleration > AMBILIGHT_MODE_MAX_DECELERATION)
-    {
-        deceleration = AMBILIGHT_MODE_MAX_DECELERATION;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range (0..15)");
+        return 0;
     }
 
     set_ambilight_mode_deceleration ((AMBILIGHT_MODE_VARIABLE) idx, (uint_fast8_t) deceleration);
@@ -10290,33 +10299,42 @@ http_get_on_off_value (const char * param, uint_fast8_t current_value)
     return current_value;
 }
 
-/* Gibt 1 zurueck, wenn der Farbanteil im Request stand, und laesst *valuep sonst
- * unberuehrt. Das bisherige atoi (value ? value : "0") konnte "fehlt" nicht von "0"
- * trennen: Ein Request ohne "white" hat den Weissanteil geloescht, ein Request nur mit
- * "red" die Farbe bis auf Rot schwarz gemacht - jedesmal mit Erfolgsmeldung (L37).
+/* Gibt HTTP_COLOR_COMPONENT_OK zurueck, wenn der Farbanteil im Request stand und im
+ * Bereich lag, HTTP_COLOR_COMPONENT_ABSENT wenn er fehlte, und
+ * HTTP_COLOR_COMPONENT_REJECTED wenn er ausserhalb 0..63 lag. Im letzten Fall ist die
+ * Fehlerantwort bereits gesendet und der Aufrufer bricht nur noch ab.
+ *
+ * Das bisherige atoi (value ? value : "0") konnte "fehlt" nicht von "0" trennen: Ein
+ * Request ohne "white" hat den Weissanteil geloescht, ein Request nur mit "red" die
+ * Farbe bis auf Rot schwarz gemacht - jedesmal mit Erfolgsmeldung (L37). Ein Anteil
+ * ueber 63 wurde geklemmt und ebenfalls als Erfolg gemeldet (L186).
  */
+#define HTTP_COLOR_COMPONENT_ABSENT         0
+#define HTTP_COLOR_COMPONENT_OK             1
+#define HTTP_COLOR_COMPONENT_REJECTED       2
+
 static uint_fast8_t
 http_get_color_component (const char * param, uint8_t * valuep)
 {
-    int component;
+    int     component;
+    char    detail[40];                                                             // laengste Form: "green out of range (0..63)" = 26 Zeichen
 
     if (! http_get_int_param (param, &component))
     {
-        return 0;
+        return HTTP_COLOR_COMPONENT_ABSENT;
     }
 
-    if (component < 0)                                                              // Klammerung wie bisher, das ist Massnahme 17 und nicht dieser Schritt
+    /* Die Grenze bleibt stehen - der Anteil geht als Byte an den STM (L198). */
+    if (component < 0 || component > 63)
     {
-        component = 0;
-    }
-    else if (component > 63)
-    {
-        component = 63;
+        snprintf (detail, sizeof (detail), "%s out of range (0..63)", param);
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, detail);
+        return HTTP_COLOR_COMPONENT_REJECTED;
     }
 
     *valuep = (uint8_t) component;
 
-    return 1;
+    return HTTP_COLOR_COMPONENT_OK;
 }
 
 static int
@@ -10325,17 +10343,51 @@ http_api_set_dsp_color (DSP_COLOR_VARIABLE var)
     DSP_COLORS   rgbw = { 0, 0, 0, 0 };
     uint_fast8_t use_rgbw = get_numvar (DISPLAY_USE_RGBW_NUM_VAR);
     uint_fast8_t found = 0;
+    uint_fast8_t rtc;
 
-    /* Fehlende Anteile behalten den eingestellten Wert, statt auf 0 zu fallen (L37). */
+    /* Fehlende Anteile behalten den eingestellten Wert, statt auf 0 zu fallen (L37).
+     * Ein abgewiesener Anteil bricht den ganzen Aufruf ab, bevor irgendetwas
+     * geschrieben wird - sonst entstuende eine halb uebernommene Farbe.
+     */
     get_dsp_color_var (var, &rgbw);
 
-    found |= http_get_color_component ("red", &rgbw.red);
-    found |= http_get_color_component ("green", &rgbw.green);
-    found |= http_get_color_component ("blue", &rgbw.blue);
+    rtc = http_get_color_component ("red", &rgbw.red);
+
+    if (rtc == HTTP_COLOR_COMPONENT_REJECTED)
+    {
+        return 0;
+    }
+
+    found |= rtc;
+
+    rtc = http_get_color_component ("green", &rgbw.green);
+
+    if (rtc == HTTP_COLOR_COMPONENT_REJECTED)
+    {
+        return 0;
+    }
+
+    found |= rtc;
+
+    rtc = http_get_color_component ("blue", &rgbw.blue);
+
+    if (rtc == HTTP_COLOR_COMPONENT_REJECTED)
+    {
+        return 0;
+    }
+
+    found |= rtc;
 
     if (use_rgbw)
     {
-        found |= http_get_color_component ("white", &rgbw.white);
+        rtc = http_get_color_component ("white", &rgbw.white);
+
+        if (rtc == HTTP_COLOR_COMPONENT_REJECTED)
+        {
+            return 0;
+        }
+
+        found |= rtc;
     }
     else
     {
@@ -10512,13 +10564,13 @@ http_api_dfplayer_volume_set ()
         return 0;
     }
 
-    if (volume < 0)
+    /* Abweisen statt klemmen (L186). DFPLAYER_MAX_VOLUME ist 30; der Vergleich benutzt
+     * weiter das Symbol, nur der Text nennt die Zahl.
+     */
+    if (volume < 0 || volume > DFPLAYER_MAX_VOLUME)
     {
-        volume = 0;
-    }
-    else if (volume > DFPLAYER_MAX_VOLUME)
-    {
-        volume = DFPLAYER_MAX_VOLUME;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..30)");
+        return 0;
     }
 
     set_numvar (DFPLAYER_VOLUME_NUM_VAR, volume);
@@ -10548,13 +10600,13 @@ http_api_dfplayer_mode_set ()
         return 0;
     }
 
-    if (mode < DFPLAYER_MODE_NONE)
+    /* Abweisen statt klemmen (L186). DFPLAYER_MODE_NONE ist 0, DFPLAYER_MODE_SPEAK ist 2;
+     * der Vergleich benutzt weiter die Symbole, nur der Text nennt die Zahlen.
+     */
+    if (mode < DFPLAYER_MODE_NONE || mode > DFPLAYER_MODE_SPEAK)
     {
-        mode = DFPLAYER_MODE_NONE;
-    }
-    else if (mode > DFPLAYER_MODE_SPEAK)
-    {
-        mode = DFPLAYER_MODE_SPEAK;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..2)");
+        return 0;
     }
 
     set_numvar (DFPLAYER_MODE_NUM_VAR, mode);
@@ -10599,13 +10651,13 @@ http_api_dfplayer_speak_cycle_set ()
         return 0;
     }
 
-    if (speak_cycle < 0)
+    /* Abweisen statt klemmen (L186); die Grenze bleibt gegen die stille Verkuerzung
+     * in set_numvar stehen (L198).
+     */
+    if (speak_cycle < 0 || speak_cycle > 255)
     {
-        speak_cycle = 0;
-    }
-    else if (speak_cycle > 255)
-    {
-        speak_cycle = 255;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range (0..255)");
+        return 0;
     }
 
     set_numvar (DFPLAYER_SPEAK_CYCLE_NUM_VAR, speak_cycle);
@@ -10672,25 +10724,33 @@ http_api_dfplayer_silence_stop_set ()
 static int
 http_api_dfplayer_play ()
 {
-    int folder = atoi (http_get_param ("folder"));
-    int track = atoi (http_get_param ("track"));
+    int folder;
+    int track;
 
-    if (folder < 0)
+    /* Bisher rohes atoi (http_get_param (...)). http_get_param liefert fuer einen
+     * fehlenden Parameter einen leeren String und nie NULL - ein Aufruf ohne folder und
+     * track hat damit still Ordner 0, Titel 0 gespielt und Erfolg gemeldet.
+     * http_get_int_param trennt "fehlt oder leer" von "ist 0" (L29).
+     */
+    if (! http_get_int_param ("folder", &folder) || ! http_get_int_param ("track", &track))
     {
-        folder = 0;
-    }
-    else if (folder > 255)
-    {
-        folder = 255;
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "folder and track required");
+        return 0;
     }
 
-    if (track < 0)
+    /* Abweisen statt klemmen (L186). Die Grenzen bleiben stehen: Beide Werte gehen als
+     * folder << 8 | track in eine 16-Bit-Variable, und set_numvar verkuerzt still (L198).
+     */
+    if (folder < 0 || folder > 255)
     {
-        track = 0;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "folder out of range (0..255)");
+        return 0;
     }
-    else if (track > 255)
+
+    if (track < 0 || track > 255)
     {
-        track = 255;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "track out of range (0..255)");
+        return 0;
     }
 
     set_numvar (DFPLAYER_PLAY_FOLDER_TRACK_NUM_VAR, folder << 8 | track);
@@ -10803,34 +10863,52 @@ http_api_overlay_set ()
     /* interval, duration, month, day und days behalten ihre Rueckfallwerte, wenn sie
      * fehlen - das ist Absicht (L29). Ein VORHANDENER Wert muss aber in den Bereich
      * passen, den der STM mit fester Breite liest (L66).
+     *
+     * Geprueft wird jetzt gegen den ECHTEN Bereich, und jede Abweisung nennt ihn:
+     * interval 0 wurde still zu 5, days 0 still zu 1, und duration trug einen
+     * Doppelvertrag - erst auf 0..255 geprueft, danach auf 5..9 geklemmt. In allen drei
+     * Faellen meldete das Geraet {"ok":true} auf einen Wert, der nie angekommen ist
+     * (L186).
      */
-    if (! http_get_opt_int_param ("interval", &interval, 0, 255) ||
-        ! http_get_opt_int_param ("duration", &duration, 0, 255) ||
-        ! http_get_opt_int_param ("month", &month, 0, 12) ||
-        ! http_get_opt_int_param ("day", &day, 0, 31) ||
-        ! http_get_opt_int_param ("days", &days, 0, 255))
+    if (! http_get_opt_int_param ("interval", &interval, 1, 255))
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "interval, duration, month, day or days out of range");
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "interval out of range (1..255)");
         return 0;
     }
 
-    if (interval == 0)
+    if (! http_get_opt_int_param ("duration", &duration, 5, 9))
     {
-        interval = 5;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "duration out of range (5..9)");
+        return 0;
     }
 
-    if (duration < 5)
+    if (! http_get_opt_int_param ("month", &month, 0, 12))
     {
-        duration = 5;
-    }
-    else if (duration > 9)
-    {
-        duration = 9;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "month out of range (0..12)");
+        return 0;
     }
 
-    if (days < 1)
+    if (! http_get_opt_int_param ("day", &day, 0, 31))
     {
-        days = 1;
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "day out of range (0..31)");
+        return 0;
+    }
+
+    if (! http_get_opt_int_param ("days", &days, 1, 255))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "days out of range (1..255)");
+        return 0;
+    }
+
+    /* Eine Teilangabe des Startdatums wurde bisher stillschweigend verworfen: Wer month
+     * ohne day schickte, bekam {"ok":true} und ein Overlay ohne Startdatum. Die Pruefung
+     * steht hier oben, weil weiter unten bereits n_overlays erhoeht wird - eine Abweisung
+     * danach hinterliesse ein leeres Overlay in der Liste.
+     */
+    if ((month < 1) != (day < 1))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "month (1..12) and day (1..31) must both be set or both be 0");
+        return 0;
     }
 
     if (idx == n_overlays)

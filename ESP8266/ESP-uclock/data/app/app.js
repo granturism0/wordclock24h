@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.83";
+const APP_VERSION = "1.4.84";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -341,6 +341,7 @@ const I18N_DE = {
   "overlays.datecode_advent3": "3. Advent",
   "overlays.datecode_advent4": "4. Advent",
   "overlays.save_failed": "Overlay konnte nicht gespeichert werden",
+  "overlays.start_date_incomplete": "Das Startdatum ist unvollständig. Wähle Tag und Monat zusammen aus — oder lass beide leer, wenn das Overlay kein Startdatum haben soll.",
   "timers.save_all": "Alle Timer speichern",
   "timers.ambilight_eyebrow": "Ambilight-Timer",
   "timers.ambilight_title": "Zeiten für Ambilight",
@@ -692,6 +693,31 @@ const I18N_DE = {
   "backup.field.update_path": "Update-Pfad",
   "backup.field.rtc_temp_correction": "Temperaturkorrektur der RTC",
   "backup.field.ds18xx_temp_correction": "Temperaturkorrektur des DS18xx",
+  "backup.field.display_mode": "Anzeigemodus",
+  "backup.field.display_brightness": "Helligkeit der Anzeige",
+  "backup.field.ticker_deceleration": "Verzögerung des Tickers",
+  "backup.field.animation_mode": "Anzeigeanimation",
+  "backup.field.color_animation_mode": "Farbanimation",
+  "backup.field.animation_deceleration": "Verzögerung einer Anzeigeanimation",
+  "backup.field.color_animation_deceleration": "Verzögerung einer Farbanimation",
+  "backup.field.ambilight_mode": "Ambilight-Modus",
+  "backup.field.ambilight_leds": "Anzahl der Ambilight-LEDs",
+  "backup.field.ambilight_offset": "Versatz des Ambilights",
+  "backup.field.ambilight_brightness": "Helligkeit des Ambilights",
+  "backup.field.ambilight_deceleration": "Verzögerung eines Ambilight-Profils",
+  "backup.field.dfplayer_volume": "Lautstärke des DFPlayers",
+  "backup.field.dfplayer_mode": "Betriebsart des DFPlayers",
+  "backup.field.dfplayer_speak_cycle": "Sprechintervall des DFPlayers",
+  "backup.field.dfplayer_alarm": "Weckzeit des DFPlayers",
+  "backup.field.ldr_min": "Minimalwert des Helligkeitssensors",
+  "backup.field.ldr_max": "Maximalwert des Helligkeitssensors",
+  "backup.field.color": "Farbanteil",
+  "backup.field.dim_curve": "Dimmkurve",
+  "backup.field.timer": "Schaltzeit",
+  "backup.field.overlay_interval": "Intervall eines Overlays",
+  "backup.field.overlay_duration": "Anzeigedauer eines Overlays",
+  "backup.field.overlay_days": "Anzahl Tage eines Overlays",
+  "backup.field.overlay_start_date": "Startdatum eines Overlays",
   "backup.import_adjusted_fields": "Aus der Sicherung übernommen, aber in den erlaubten Bereich gebracht: {fields}. Die Sicherung enthielt diese Werte ausserhalb der Grenzen — sieh sie dir an.",
   "weather.map_loading": "Kartendienst wird geladen...",
   "weather.map_load_failed": "Kartendienst konnte nicht geladen werden.",
@@ -2137,12 +2163,15 @@ function describeApiError(error, fallbackText) {
 
   const key = "api.error." + error.apiErrorCode;
   const translated = translate(key);
+  const base = translated && translated !== key ? translated : fallbackText;
 
-  if (translated && translated !== key) {
-    return translated;
-  }
-
-  return error.apiDetail ? fallbackText + " (" + error.apiDetail + ")" : fallbackText;
+  // Das "detail" nennt seit Runde 1 den Parameter UND den erlaubten Bereich -- also
+  // genau die Auskunft, die aus "Der Wert liegt ausserhalb des erlaubten Bereichs"
+  // eine brauchbare Meldung macht. Bisher ging es verloren, sobald die Kennung
+  // bekannt war; gerade die haeufigste Kennung 2 ist ohne den Bereich wertlos. Es
+  // steht englisch in Klammern dahinter, weil es aus der Firmware kommt und nicht
+  // uebersetzt wird -- ersetzt wird der deutsche Satz dadurch nicht.
+  return error.apiDetail ? base + " (" + error.apiDetail + ")" : base;
 }
 
 function clearButtonFeedback(button) {
@@ -3632,11 +3661,19 @@ async function loadImportedBackupState(file) {
 }
 
 function getSettingsBackupImportErrorMessage(error) {
-  return error && error.message === "invalid-backup-format"
-    ? translate("backup.invalid_format")
-    : error && error.message === "unsupported-backup-version"
-      ? translate("backup.incompatible_version")
-      : translate("backup.import_failed");
+  if (error && error.message === "invalid-backup-format") {
+    return translate("backup.invalid_format");
+  }
+
+  if (error && error.message === "unsupported-backup-version") {
+    return translate("backup.incompatible_version");
+  }
+
+  // Bricht der Import an einem Wert ab, den das Geraet abweist, stand hier bisher nur
+  // "Import fehlgeschlagen" -- ohne jeden Hinweis darauf, welcher Wert gemeint war.
+  // describeApiError nennt Kennung und Bereich und faellt auf denselben Satz zurueck,
+  // wenn der Fehler gar nicht vom Geraet kam.
+  return describeApiError(error, translate("backup.import_failed"));
 }
 
 // ---------------------------------------------------------------------------
@@ -3903,6 +3940,50 @@ function buildCollectionBackupSections(collectionState) {
   };
 }
 
+// Overlay-Parameter kennen seit dem Parametervertrag aus Runde 1 keine stille
+// Abkuerzung mehr: interval muss 1..255 sein, duration 5..9, days 1..255. Eine 0 hiess
+// bisher "nimm die Vorgabe" -- der ESP hat sie selbst ersetzt und {"ok":true} gemeldet.
+// Jetzt weist er sie ab. Die PWA sendet deshalb genau den Wert, den der ESP frueher
+// eingesetzt hat: Das Geraet bekommt denselben Zustand wie vorher, nur steht er jetzt
+// in der Anfrage statt in einer stillen Korrektur.
+const OVERLAY_PARAM_RULES = {
+  interval: { fallback: 5, min: 1, max: 255, labelKey: "backup.field.overlay_interval" },
+  duration: { fallback: 5, min: 5, max: 9, labelKey: "backup.field.overlay_duration" },
+  days: { fallback: 1, min: 1, max: 255, labelKey: "backup.field.overlay_days" }
+};
+
+function overlayParamOrDefault(value, rule) {
+  const number = Number(value);
+
+  return Number.isFinite(number) && number !== 0 ? number : rule.fallback;
+}
+
+function readOverlayImportParam(value, rule) {
+  return readClampedImportNumber(overlayParamOrDefault(value, rule), rule.min, rule.max, rule.labelKey);
+}
+
+// month und day sind ein Paar: beide gesetzt oder beide 0. Eine Teilangabe hat das
+// Geraet frueher stillschweigend verworfen und Erfolg gemeldet, heute weist es sie ab.
+// Ein Startdatum ohne Tag hat also nie gewirkt -- daraus wird deshalb wieder "kein
+// Startdatum" und kein Fehlschlag an einem Feld, das ohnehin folgenlos war.
+function pairOverlayStartDate(month, day) {
+  const monthNumber = Number(month) || 0;
+  const dayNumber = Number(day) || 0;
+
+  if (monthNumber >= 1 && monthNumber <= 12 && dayNumber >= 1 && dayNumber <= 31) {
+    return { month: monthNumber, day: dayNumber };
+  }
+
+  return { month: 0, day: 0 };
+}
+
+function overlayStartDateIsPartial(month, day) {
+  const monthSet = (Number(month) || 0) > 0;
+  const daySet = (Number(day) || 0) > 0;
+
+  return monthSet !== daySet;
+}
+
 function normalizeOverlayBackupItems(items, count) {
   return (items || [])
     .filter((item) => count === undefined || Number(item.idx) < count)
@@ -3913,12 +3994,17 @@ function normalizeOverlayBackupItems(items, count) {
       active: !!(Number(item.flags || 0) & 0x01),
       type: Number(item.type || 0),
       value: item.text || "",
-      interval: Number(item.interval || 0),
-      duration: Number(item.duration || 0),
+      interval: overlayParamOrDefault(item.interval, OVERLAY_PARAM_RULES.interval),
+      duration: overlayParamOrDefault(item.duration, OVERLAY_PARAM_RULES.duration),
       date_code: Number(item.date_code || 0),
-      month: item.date_start ? ((Number(item.date_start) >> 8) & 0xff) : 0,
-      day: item.date_start ? (Number(item.date_start) & 0xff) : 0,
-      days: Number(item.days || 0)
+      // Ein date_start mit Monat ohne Tag -- aus der Zeit, als das Geraet die
+      // Teilangabe noch annahm -- wuerde beim Zurueckspielen abgewiesen. Die Sicherung
+      // traegt deshalb schon das Paar, nicht die Haelfte.
+      ...pairOverlayStartDate(
+        item.date_start ? ((Number(item.date_start) >> 8) & 0xff) : 0,
+        item.date_start ? (Number(item.date_start) & 0xff) : 0
+      ),
+      days: overlayParamOrDefault(item.days, OVERLAY_PARAM_RULES.days)
     }));
 }
 
@@ -5559,9 +5645,15 @@ function getImportedBackupVersionSummary() {
 function readClampedImportNumber(value, min, max, labelKey) {
   const number = Number(value || 0);
 
+  // Die 0 war hier bis Runde 1 harmlos, weil jeder betroffene Bereich sie enthielt.
+  // Seit der Vertrag Untergrenzen ueber 0 kennt -- overlay duration faengt bei 5 an --
+  // waere sie der naechste abgewiesene Wert und damit ein Abbruch der Import-Stufe.
+  // Genommen wird deshalb die 0 nur, wenn sie im Bereich liegt, sonst dessen Rand.
   if (!Number.isFinite(number)) {
-    noteAdjustedImportField(labelKey, value, 0);
-    return 0;
+    const substitute = Math.max(min, Math.min(max, 0));
+
+    noteAdjustedImportField(labelKey, value, substitute);
+    return substitute;
   }
 
   const clamped = Math.max(min, Math.min(max, number));
@@ -5571,6 +5663,24 @@ function readClampedImportNumber(value, min, max, labelKey) {
   }
 
   return clamped;
+}
+
+// Drei Setter haben eine Obergrenze, die erst das Geraet kennt: Anzeigemodus,
+// Anzeigeanimation und Farbanimation haengen an den geladenen Tabellen. Eine Sicherung
+// von einem Geraet mit mehr Eintraegen traegt deshalb einen Wert, den DIESES Geraet
+// seit Runde 1 abweist -- und ein abgewiesener Wert beendet die ganze Import-Stufe,
+// samt allem, was in ihr noch folgen sollte. Die Obergrenze kommt aus dem aktuellen
+// Abzug; liegt keiner vor, wird nicht geklammert, sondern der Wert unveraendert
+// gesendet -- eine erfundene Grenze waere schlechter als die Fehlermeldung des Geraets.
+function readImportIndexAgainstDeviceList(value, listName, labelKey) {
+  const snapshot = getCurrentSettingsSnapshot();
+  const list = snapshot && Array.isArray(snapshot[listName]) ? snapshot[listName] : null;
+
+  if (!list || !list.length) {
+    return Number(value || 0);
+  }
+
+  return readClampedImportNumber(value, 0, list.length - 1, labelKey);
 }
 
 function normalizeImportText(value) {
@@ -5637,13 +5747,13 @@ async function importDisplaySettings(display) {
 
   await apiFetchValue(getDisplayPowerSetUrl(), display.power ? "on" : "off");
   await sleep(180);
-  await apiFetchValue(getDisplayModeSetUrl(), Number(display.mode || 0));
+  await apiFetchValue(getDisplayModeSetUrl(), readImportIndexAgainstDeviceList(display.mode, "dispmodes", "backup.field.display_mode"));
   await sleep(180);
   await apiFetchValue(getDisplayUseRgbwSetUrl(), display.use_rgbw ? "on" : "off");
   await sleep(180);
   await apiFetchValue(getAutoBrightnessSetUrl(), display.automatic_brightness ? "on" : "off");
   await sleep(220);
-  await apiFetchValue(getDisplayBrightnessSetUrl(), Number(display.brightness || 0));
+  await apiFetchValue(getDisplayBrightnessSetUrl(), readClampedImportNumber(display.brightness, 0, 15, "backup.field.display_brightness"));
   await sleep(220);
   await apiFetchValue(getDisplayItIsSetUrl(), display.permanent_it_is ? "on" : "off");
   await sleep(220);
@@ -5654,7 +5764,7 @@ async function importDisplaySettings(display) {
   if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "backup.field.date_ticker_format")) {
     await sleep(900);
   }
-  await apiFetchValue(getTickerDecelerationSetUrl(), Number(display.ticker_deceleration || 0));
+  await apiFetchValue(getTickerDecelerationSetUrl(), readClampedImportNumber(display.ticker_deceleration, 0, 255, "backup.field.ticker_deceleration"));
   await sleep(1800);
   await saveImportedColor(getDisplayColorSetUrl(), display.color);
   await sleep(250);
@@ -5686,9 +5796,9 @@ async function importClimateSettings(climate) {
 
   await importWeatherLocationSettings(climate);
 
-  await apiFetchValue(getLdrMinValueSetUrl(), Number(climate.ldr_min || 0));
+  await apiFetchValue(getLdrMinValueSetUrl(), readClampedImportNumber(climate.ldr_min, 0, 4095, "backup.field.ldr_min"));
   await sleep(150);
-  await apiFetchValue(getLdrMaxValueSetUrl(), Number(climate.ldr_max || 0));
+  await apiFetchValue(getLdrMaxValueSetUrl(), readClampedImportNumber(climate.ldr_max, 0, 4095, "backup.field.ldr_max"));
 }
 
 // Ort und Koordinaten sind Alternativen, und das Gerät lässt die eine Angabe nur
@@ -5763,13 +5873,16 @@ async function importAnimationSettings(animations) {
     return;
   }
 
-  await apiFetchValue(getAnimationModeSetUrl(), Number(animations.display_mode || 0));
-  await apiFetchValue(getColorAnimationModeSetUrl(), Number(animations.color_mode || 0));
+  await apiFetchValue(getAnimationModeSetUrl(), readImportIndexAgainstDeviceList(animations.display_mode, "dispanims", "backup.field.animation_mode"));
+  await apiFetchValue(getColorAnimationModeSetUrl(), readImportIndexAgainstDeviceList(animations.color_mode, "coloranims", "backup.field.color_animation_mode"));
 
   for (const entry of (animations.display_profiles || [])) {
     await apiFetchQuery(getAnimationProfileSetUrl(), {
       idx: Number(entry.idx || 0),
-      deceleration: Number(entry.deceleration || 0),
+      // Anders als bei den uebrigen Verzoegerungen faengt dieser Bereich bei 1 an.
+      // Ein fehlendes Feld wurde bisher zur 0 und vom Geraet still auf die Vorgabe
+      // gezogen; heute waere es ein Abbruch der Animations-Stufe.
+      deceleration: readClampedImportNumber(Number(entry.deceleration) || 1, 1, 15, "backup.field.animation_deceleration"),
       favourite: entry.favourite ? "on" : "off"
     });
   }
@@ -5777,7 +5890,7 @@ async function importAnimationSettings(animations) {
   for (const entry of (animations.color_profiles || [])) {
     await apiFetchQuery(getColorAnimationProfileSetUrl(), {
       idx: Number(entry.idx || 0),
-      deceleration: Number(entry.deceleration || 0)
+      deceleration: readClampedImportNumber(entry.deceleration, 0, 15, "backup.field.color_animation_deceleration")
     });
   }
 }
@@ -5803,10 +5916,10 @@ async function importAmbilightSettings(ambilight) {
   await apiFetchValue(getAmbilightOnlineSetUrl(), ambilightOnlineValue);
   setPersistedAmbilightState(ambilightOnlineValue);
   await apiFetchValue(getAmbilightPowerSetUrl(), ambilight.power ? "on" : "off");
-  await apiFetchValue(getAmbilightModeSetUrl(), Number(ambilight.mode || 0));
-  await apiFetchValue(getAmbilightLedsSetUrl(), Number(ambilight.leds || 0));
-  await apiFetchValue(getAmbilightOffsetSetUrl(), Number(ambilight.offset || 0));
-  await apiFetchValue(getAmbilightBrightnessSetUrl(), Number(ambilight.brightness || 0));
+  await apiFetchValue(getAmbilightModeSetUrl(), readClampedImportNumber(ambilight.mode, 0, 4, "backup.field.ambilight_mode"));
+  await apiFetchValue(getAmbilightLedsSetUrl(), readClampedImportNumber(ambilight.leds, 0, 999, "backup.field.ambilight_leds"));
+  await apiFetchValue(getAmbilightOffsetSetUrl(), readClampedImportNumber(ambilight.offset, 0, 999, "backup.field.ambilight_offset"));
+  await apiFetchValue(getAmbilightBrightnessSetUrl(), readClampedImportNumber(ambilight.brightness, 0, 15, "backup.field.ambilight_brightness"));
   await saveImportedColor(getAmbilightColorSetUrl(), ambilight.color);
   await saveImportedColor(getMarkerColorSetUrl(), ambilight.marker_color);
   await apiFetchValue(getSyncAmbilightSetUrl(), ambilight.sync_ambilight ? "on" : "off");
@@ -5818,7 +5931,7 @@ async function importAmbilightSettings(ambilight) {
   for (const entry of (ambilight.profiles || [])) {
     await apiFetchQuery(getAmbilightModeProfileSetUrl(), {
       idx: Number(entry.idx || 0),
-      deceleration: Number(entry.deceleration || 0)
+      deceleration: readClampedImportNumber(entry.deceleration, 0, 15, "backup.field.ambilight_deceleration")
     });
   }
 }
@@ -5828,14 +5941,14 @@ async function importDfplayerSettings(dfplayer) {
     return;
   }
 
-  await apiFetchValue(getDfplayerVolumeSetUrl(), Number(dfplayer.volume || 0));
-  await apiFetchValue(getDfplayerModeSetUrl(), Number(dfplayer.mode || 0));
+  await apiFetchValue(getDfplayerVolumeSetUrl(), readClampedImportNumber(dfplayer.volume, 0, 30, "backup.field.dfplayer_volume"));
+  await apiFetchValue(getDfplayerModeSetUrl(), readClampedImportNumber(dfplayer.mode, 0, 2, "backup.field.dfplayer_mode"));
   await apiFetchQuery(getDfplayerBellFlagsSetUrl(), {
     m15: (Number(dfplayer.bell_flags || 0) & 0x01) ? "on" : "off",
     m30: (Number(dfplayer.bell_flags || 0) & 0x02) ? "on" : "off",
     m45: (Number(dfplayer.bell_flags || 0) & 0x04) ? "on" : "off"
   });
-  await apiFetchValue(getDfplayerSpeakCycleSetUrl(), Number(dfplayer.speak_cycle || 0));
+  await apiFetchValue(getDfplayerSpeakCycleSetUrl(), readClampedImportNumber(dfplayer.speak_cycle, 0, 255, "backup.field.dfplayer_speak_cycle"));
   await apiFetchHourMinute(getDfplayerSilenceStartSetUrl(), Number(dfplayer.silence_start || 0));
   await apiFetchHourMinute(getDfplayerSilenceStopSetUrl(), Number(dfplayer.silence_stop || 0));
 
@@ -5847,10 +5960,10 @@ async function importDfplayerSettings(dfplayer) {
     (entry) => ({
       idx: Number(entry.idx || 0),
       active: entry.active ? "on" : "off",
-      from: Number(entry.from || 0),
-      to: Number(entry.to || 0),
-      hour: Number(entry.hour || 0),
-      minute: Number(entry.minute || 0)
+      from: readClampedImportNumber(entry.from, 0, 6, "backup.field.dfplayer_alarm"),
+      to: readClampedImportNumber(entry.to, 0, 6, "backup.field.dfplayer_alarm"),
+      hour: readClampedImportNumber(entry.hour, 0, 23, "backup.field.dfplayer_alarm"),
+      minute: readClampedImportNumber(entry.minute, 0, 59, "backup.field.dfplayer_alarm")
     })
   );
 }
@@ -5911,17 +6024,32 @@ async function importOverlaySettings(overlays) {
     const entryFlags = Number(entry.flags || 0);
     const entryDateStart = Number(entry.date_start || 0);
     const entryValue = entry.value !== undefined ? entry.value : entry.text;
+    const rawMonth = Number(entry.month || ((entryDateStart >> 8) & 0xff) || 0);
+    const rawDay = Number(entry.day || (entryDateStart & 0xff) || 0);
+    const startDate = pairOverlayStartDate(rawMonth, rawDay);
+
+    // Eine Teilangabe wird zum Paar 0/0 ergaenzt statt gesendet: Das Geraet weist sie
+    // seit Runde 1 ab, und eine abgewiesene Anfrage beendet den ganzen Overlay-Import.
+    // Gewirkt hat sie nie -- aber stillschweigend verschwinden soll sie auch nicht.
+    if (startDate.month !== rawMonth || startDate.day !== rawDay) {
+      noteAdjustedImportField(
+        "backup.field.overlay_start_date",
+        String(rawMonth) + "/" + String(rawDay),
+        String(startDate.month) + "/" + String(startDate.day)
+      );
+    }
+
     await apiFetchQuery(getOverlaySetUrl(), {
       idx,
       active: (entry.active !== undefined ? entry.active : !!(entryFlags & 0x01)) ? "on" : "off",
       type: Number(entry.type || 0),
       value: entryValue || "",
-      interval: Number(entry.interval || 0),
-      duration: Number(entry.duration || 0),
+      interval: readOverlayImportParam(entry.interval, OVERLAY_PARAM_RULES.interval),
+      duration: readOverlayImportParam(entry.duration, OVERLAY_PARAM_RULES.duration),
       date_code: Number(entry.date_code || 0),
-      month: Number(entry.month || ((entryDateStart >> 8) & 0xff) || 0),
-      day: Number(entry.day || (entryDateStart & 0xff) || 0),
-      days: Number(entry.days || 1)
+      month: startDate.month,
+      day: startDate.day,
+      days: readOverlayImportParam(entry.days, OVERLAY_PARAM_RULES.days)
     });
     await sleep(idx === 0 ? 1100 : 700);
   }
@@ -5944,10 +6072,10 @@ async function importTimerSettings(timers) {
         idx: Number(entry.idx || 0),
         active: entry.active ? "on" : "off",
         switch_on: entry.switch_on ? "on" : "off",
-        from: Number(entry.from || 0),
-        to: Number(entry.to || 0),
-        hour: Number(entry.hour || 0),
-        minute: Number(entry.minute || 0)
+        from: readClampedImportNumber(entry.from, 0, 6, "backup.field.timer"),
+        to: readClampedImportNumber(entry.to, 0, 6, "backup.field.timer"),
+        hour: readClampedImportNumber(entry.hour, 0, 23, "backup.field.timer"),
+        minute: readClampedImportNumber(entry.minute, 0, 59, "backup.field.timer")
       });
       await sleep(idx < 2 ? 420 : 260);
     }
@@ -5964,11 +6092,14 @@ async function saveImportedColor(endpoint, color) {
     return;
   }
 
+  // Jeder Anteil geht als Byte an den STM, das Geraet nimmt 0..63. Ein groesserer
+  // Wert wurde bisher geklemmt und als Erfolg gemeldet; heute weist er die Anfrage ab,
+  // und mit ihr die ganze Stufe -- einschliesslich Dimmkurve und allem danach.
   await apiFetchQuery(endpoint, {
-    red: Number(color.red || 0),
-    green: Number(color.green || 0),
-    blue: Number(color.blue || 0),
-    white: Number(color.white || 0)
+    red: readClampedImportNumber(color.red, 0, 63, "backup.field.color"),
+    green: readClampedImportNumber(color.green, 0, 63, "backup.field.color"),
+    blue: readClampedImportNumber(color.blue, 0, 63, "backup.field.color"),
+    white: readClampedImportNumber(color.white, 0, 63, "backup.field.color")
   });
 }
 
@@ -5978,7 +6109,7 @@ async function saveImportedDimCurve(endpoint, values) {
   }
 
   for (let idx = 0; idx < values.length && idx <= 15; idx += 1) {
-    await apiFetchQuery(endpoint, { idx, value: Number(values[idx] || 0) });
+    await apiFetchQuery(endpoint, { idx, value: readClampedImportNumber(values[idx], 0, 15, "backup.field.dim_curve") });
   }
 }
 
@@ -7059,6 +7190,11 @@ function renderOverlayRowsFromMeta(items) {
     const month = overlay.date_start ? (overlay.date_start >> 8) : 0;
     const day = overlay.date_start ? (overlay.date_start & 0xff) : 0;
     const mp3 = parseOverlayMp3Value(overlay.text || "");
+    // Das Feld traegt min=5 und max=9, und seit Runde 1 weist das Geraet alles
+    // dazwischen ab. Ein aelterer Bestandswert ausserhalb des Bereichs -- moeglich,
+    // solange der ESP ihn selbst klemmte -- stuende sonst unveraenderbar in einem oft
+    // ausgeblendeten Feld und blockierte jedes Speichern dieses Overlays.
+    const duration = overlay.duration >= 5 && overlay.duration <= 9 ? overlay.duration : 5;
     const showIcon = type === 1;
     const showText = type === 6;
     const showMp3 = type === 7;
@@ -7094,7 +7230,7 @@ function renderOverlayRowsFromMeta(items) {
             '<p class="section-label">' + escapeHtml(translate("overlays.time_and_date")) + '</p>' +
             '<div class="overlay-time-grid">' +
               '<label class="field"><span class="label">' + escapeHtml(translate("overlays.interval")) + '</span><input id="ov-interval-' + idx + '" type="number" min="1" max="99" step="1" value="' + escapeHtml(String(overlay.interval || 5)) + '"></label>' +
-              '<label id="ov-duration-wrap-' + idx + '" class="field' + (showDuration ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.duration")) + '</span><input id="ov-duration-' + idx + '" type="number" min="5" max="9" step="1" value="' + escapeHtml(String(overlay.duration || 5)) + '"></label>' +
+              '<label id="ov-duration-wrap-' + idx + '" class="field' + (showDuration ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.duration")) + '</span><input id="ov-duration-' + idx + '" type="number" min="5" max="9" step="1" value="' + escapeHtml(String(duration)) + '"></label>' +
             '</div>' +
             '<label id="ov-datecode-wrap-' + idx + '" class="field"><span class="label">' + escapeHtml(translate("overlays.date_code")) + '</span><select id="ov-datecode-' + idx + '">' + buildNamedOptions(getOverlayDateCodeNames(), overlay.date_code) + '</select></label>' +
             '<div class="overlay-date-grid">' +
@@ -11796,12 +11932,31 @@ async function saveOverlay(idx) {
     : typeNumber === 7
       ? formatOverlayMp3Value(document.getElementById("ov-folder-" + idx).value, document.getElementById("ov-track-" + idx).value)
       : (typeNumber === 6 ? document.getElementById("ov-value-" + idx).value : "");
-  const interval = document.getElementById("ov-interval-" + idx).value;
-  const duration = document.getElementById("ov-duration-" + idx).value;
   const dateCode = document.getElementById("ov-datecode-" + idx).value;
   const month = document.getElementById("ov-month-" + idx).value;
   const day = document.getElementById("ov-day-" + idx).value;
-  const days = document.getElementById("ov-days-" + idx).value;
+
+  // Tag und Monat sind seit Runde 1 ein Paar. Die Haelfte davon hat das Geraet frueher
+  // still verworfen und "gespeichert" gemeldet -- die Maske sagt es jetzt selbst,
+  // statt den Nutzer in eine Fehlermeldung des Geraets laufen zu lassen.
+  if (overlayStartDateIsPartial(month, day)) {
+    announceStatus(translate("overlays.start_date_incomplete"), "error");
+    return;
+  }
+
+  // 0 war fuer interval und days die stille Abkuerzung auf die Vorgabe, duration trug
+  // sogar einen Doppelvertrag. Beides weist das Geraet jetzt ab; abgefangen wird es
+  // hier, damit die Meldung am Feld steht und den erlaubten Bereich nennt.
+  const numbers = readNumberFieldsOrReport([
+    { name: "interval", id: "ov-interval-" + idx, min: 1, max: 255 },
+    { name: "duration", id: "ov-duration-" + idx, min: 5, max: 9 },
+    { name: "days", id: "ov-days-" + idx, min: 1, max: 255 }
+  ]);
+
+  if (!numbers) {
+    return;
+  }
+
   await runIndexedQueryButtonRequest('[data-overlay-save="%idx%"]', idx, {
     endpoint: getOverlaySetUrl(),
     query: {
@@ -11809,12 +11964,12 @@ async function saveOverlay(idx) {
       active,
       type,
       value,
-      interval,
-      duration,
+      interval: numbers.interval,
+      duration: numbers.duration,
       date_code: dateCode,
       month,
       day,
-      days
+      days: numbers.days
     },
     busyText: translate("common.saving"),
     idleText: translate("overlays.save"),

@@ -139,7 +139,17 @@ fi
 
 # ----------------------------------------------------------- S5 .gz-Artefakte
 step S5 "gz-Artefakte vorhanden, nicht leer, nicht veraltet"
+# Die Sprachdateien kommen aus dem VERZEICHNIS, nicht aus einer festen Liste -- aus
+# demselben Grund, den GZIP_SOURCES im Makefile nennt: Jede zusaetzliche Sprache ist
+# eine eigene i18n/<code>.json, und eine Aufzaehlung veraltet beim naechsten Mal still.
+#
+# Dass das hier gefehlt hat, ist am 04.10.2026 aufgefallen und zwar dem Umsetzer von
+# Task 1.4, nicht der Pruefung: Er aenderte en.json, und S5 meldete nur app.js.gz als
+# veraltet. Waere der Hinweis nicht gekommen, haette der Build eine alte englische
+# Tabelle ausgeliefert und die neuen Schluessel staenden woertlich auf dem Bildschirm.
+# Der Makefile hatte diese Lehre schon gezogen (Zeile 23), diese Stufe nicht.
 GZ_SOURCES="$APP/app.js $APP/styles.css $APP/index.html $APP/sw.js $APP/manifest.webmanifest $APP/layout-previews.json $APP/icons/icon-192.svg $APP/icons/icon-512.svg"
+for f in "$APP"/i18n/*.json; do [ -e "$f" ] && GZ_SOURCES="$GZ_SOURCES $f"; done
 for src in $GZ_SOURCES; do
   gz="$src.gz"
   base=$(basename "$src")

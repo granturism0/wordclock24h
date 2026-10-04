@@ -1,5 +1,81 @@
 # Changelog
 
+## 2026-10-04 Runde 1: Der Parametervertrag (ESP 3.2.20, PWA 1.4.84)
+
+ESP und PWA, der STM unverändert. Ab jetzt gilt: **Ein `{"ok":true}` bedeutet,
+dass der gesendete Wert übernommen wurde** — nicht, dass irgendetwas gespeichert
+wurde.
+
+### Was vorher galt
+
+An 15 Stellen bog die Firmware einen unzulässigen Wert still zurecht und meldete
+Erfolg. Der belegte Anlass: `ambilight_mode_profile_set?deceleration=16` antwortete
+`{"ok":true}` und schrieb **15**. Das Geschwister `animation_profile_set` wies
+denselben Wert sauber ab. Drei Profil-Setter liegen im Code nebeneinander, teilen
+Parameternamen und Wertebereich — und behandelten ihn auf drei Arten.
+
+Die Bestandsaufnahme hat nachgezählt statt geschätzt: **34 saubere Abweisungen
+gegen 15 Klemmstellen.** Abweisen war längst die Mehrheit; die Klemmungen waren
+die Ausnahme, die niemand aufgeräumt hatte.
+
+### Was sich ändert
+
+Alle 15 Stellen antworten jetzt
+`{"ok":false,"error":2,"detail":"<param> out of range (<min>..<max>)"}`.
+
+**Keine Klemmung wurde ersatzlos gestrichen** — das war der eine Risikopunkt.
+`set_numvar()` verkürzt still auf 16 Bit, und die Dezelerations-Setter senden mit
+`%02x`, einer **Mindest**breite: Ein Wert über 255 erzeugt drei Hexziffern und
+verschiebt damit das ganze Kommando auf der Brücke. Davor schützten bisher die
+Klemmungen. Jede ist durch eine Abweisung mit **demselben Vergleich** ersetzt, die
+Grenze wirkt also unverändert.
+
+Zwei Vertragsentscheidungen: Ein unzulässiger Farbanteil verwirft den **ganzen**
+Request statt eine halb übernommene Farbe zu hinterlassen. Und bei `overlay_set`
+liegt die Prüfung jetzt vor der ersten Zuweisung — vorher hätte eine Abweisung ein
+leeres Overlay in der Liste hinterlassen.
+
+### Der Bruch, der vor dem Rollout gefunden wurde
+
+Der strengere Vertrag hätte **den Backup-Import gebrochen**. `overlay_set` verlangt
+neu `interval` 1..255, `days` 1..255 und `duration` 5..9 — und die PWA sendete an
+fünf Stellen genau die jetzt verbotenen Nullen, an **beiden Enden** des
+Backup-Pfades: beim Erzeugen der Sicherung und beim Zurückspielen. Ein zweiter
+Bruchpunkt kam dazu: `animation_profile_set` verlangt `deceleration` ab 1, der
+Import sendete 0, sobald das Feld fehlte — das hätte die komplette Animations-Stufe
+abgebrochen.
+
+Behoben wurde die PWA-Seite, nicht der Vertrag. Sie sendet jetzt die Vorgabewerte,
+die der ESP ohne Parameter ohnehin setzt — das Gerät bekommt denselben Zustand wie
+vorher, er steht nur in der Anfrage statt in einer stillen Korrektur.
+
+**Das ist der Punkt, an dem die Spezifikation sich bezahlt gemacht hat.** Die
+Verträglichkeitsprüfung war als eigener Schritt vor dem Rollout vorgesehen. Ohne
+sie wäre der Bruch beim Nutzer aufgetreten, an dem Pfad, der ein Gerät ohne WLAN,
+ohne AP und ohne Webserver zurücklassen kann.
+
+### Die Oberfläche zeigt jetzt, was das Gerät sagt
+
+`describeApiError()` gab bei **bekannter** Fehlerkennung nur den übersetzten Satz
+zurück und warf das mitgelieferte Detail weg. Bei „ausserhalb des Bereichs" stand
+damit genau das auf dem Bildschirm — ohne zu sagen, welcher Wert und welcher
+Bereich. Das entwertete die halbe Arbeit dieser Runde: Der Zweck des Vertrags ist
+eine brauchbare Auskunft, und die brauchbare Hälfte wurde verworfen.
+
+### Guardrails
+
+Stufe S5 führte eine **feste Liste** der gz-Quellen, in der keine Sprachdatei
+vorkam — sie hätte eine veraltete englische Tabelle durchgelassen, und die neuen
+Schlüssel stünden wörtlich auf dem Bildschirm. Der Makefile hatte dieselbe Lehre
+schon gezogen und nutzt einen Glob; angewandt war sie nur an einer von zwei Stellen.
+S5 nutzt ihn jetzt auch.
+
+### Was zu flashen ist
+
+**ESP und PWA.** Der STM ist unverändert. Nach dem ESP-Update gehört
+`./tools/install-app.sh` gefahren — die PWA kommt nicht über den Rollout aufs Gerät.
+
+
 ## 2026-10-04 Runde 0 des grossen Pakets: die Messung erreichbar machen (ESP 3.2.19)
 
 Nur der ESP. Die Runde ändert kein Verhalten der Uhr — sie macht zwei Messungen
