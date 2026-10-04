@@ -64,9 +64,25 @@ for (const file of process.argv.slice(2)) {
     // Realfall "Aktueller Abschlussstand: STM 3.2.0" steht nicht in Klammern.
     const PROVENANCE = /\((?:STM|ESP|PWA|App)\s+\d+\.\d+\.\d+\)/;
 
+    // Dritte Ausnahme: die DATIERTE Messbedingung, "(04.10.2026, ESP 3.2.18)".
+    //
+    // Sie sagt, auf welchem Stand gemessen wurde, und das ist bei einem noch
+    // OFFENEN Befund die wesentliche Angabe -- gerade weil kein Erledigt-Marker
+    // davorsteht, greift doneMarker dort nicht. Ohne diese Ausnahme muesste man
+    // entweder die Version weglassen (dann fehlt die Messbedingung) oder jede
+    // Zeile einzeln mit <!-- historisch --> versehen (dann gewoehnt man sich das
+    // Wegklicken an, und die Marke verliert ihre Bedeutung).
+    //
+    // Eng bleibt es durch das vorangestellte Datum: Eine Messung an einem
+    // bestimmten Tag ist per Konstruktion Vergangenheit und veraltet nicht. Der
+    // Realfall, den diese Pruefung fangen soll -- "Aktueller Abschlussstand:
+    // STM 3.2.0" -- traegt kein Datum und schlaegt weiterhin an.
+    const MESSUNG = /\(\d{2}\.\d{2}\.\d{4},\s*(?:STM|ESP|PWA|App)\s+\d+\.\d+\.\d+/;
+
     for (const m of line.matchAll(VER)) {
       if (doneAt !== -1 && doneAt < m.index) continue;
       if (PROVENANCE.test(line.slice(Math.max(0, m.index - 1), m.index + m[0].length + 1))) continue;
+      if (MESSUNG.test(line)) continue;
       if (!known.has(m[2])) {
         console.log(`  HOCH      ${file}:${i + 1}  "${m[1]} ${m[2]}" — Quellen stehen bei STM ${cur.STM} / ESP ${cur.ESP} / PWA ${cur.PWA}`);
         bad++;

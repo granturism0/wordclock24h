@@ -1,5 +1,84 @@
 # Changelog
 
+## 2026-10-04 Runde 0 des grossen Pakets: die Messung erreichbar machen (ESP 3.2.19)
+
+Nur der ESP. Die Runde ändert kein Verhalten der Uhr — sie macht zwei Messungen
+sichtbar, die es seit zwei Tagen gibt und die niemand lesen konnte.
+
+### Warum sie am Anfang steht
+
+Das grosse Paket umfasst rund 37 Befunde über vier Stränge. Seine Abnahme hängt an
+Messung, und ausgerechnet dort lag ein Fehler, der sich dreimal wiederholt hat:
+
+- Die Logwache schrieb in eine gepufferte Pipe, ihre Ausgabedatei blieb bei 0 Byte
+  (L181).
+- `esp_heap_log()` und die Verlustzeile `- http write lost N` gingen als
+  `Serial.print()` **am Logring vorbei** — messbar 36 Zeilen im seriellen
+  Mitschnitt gegen **0** über `/api/stm32_log` (L185).
+- Die Messmarken-Prüfung im Stop-Hook schrieb auf stderr und lief dann in
+  `return 0` — bei exit 0 liest das niemand (L191).
+
+Dreimal wurde ein Melder gebaut, dreimal kam die Meldung nicht an; zweimal hat es
+der Nutzer bemerkt. **Geprüft wurde jedes Mal der Mechanismus, nie der Weg der
+Meldung bis zum Empfänger.** Ein Paket dieser Grösse auf dieser Grundlage
+abzunehmen hätte wieder „126 bestanden" ergeben, ohne zu wissen, wofür das bürgt.
+
+### Was drin ist
+
+**Beide Zeilen gehen jetzt zusätzlich durch `stm32_log_append()`** und sind über
+`/api/stm32_log` lesbar. Die Zeichenkette wird genau einmal gebaut, per `snprintf`
+in einen Stackpuffer — kein Arduino-`String`, dessen `realloc` in 16-Byte-Schritten
+die Fragmentierung aus L175 speist. Die ausgegebene Bytefolge auf der UART ist
+zeichenidentisch mit vorher, die Brückenlast also unverändert.
+
+Die Vorbedingung „kein STM-Logtext beginnt mit `- `" wurde **geprüft statt
+angenommen**: Nur `log_printf()` erreicht den Ring; die beiden einzigen Logtexte mit
+führendem Minus laufen über Makros, die ausschliesslich auf die UART schreiben.
+
+**Der Kommentar über `esp_heap_log()` behauptete die Lesbarkeit bereits** — „das ist
+der ganze Zweck". Das Präfix allein leistet sie nicht. Wer nur den Kommentar las,
+musste die Sache für erledigt halten, und genau so ist der Irrtum in L177
+entstanden. Eine falsche Zusicherung im Code hält den Nachprüfenden davon ab,
+nachzusehen; sie ist schlimmer als gar keine. Berichtigt, mit der Messung daneben.
+
+### Testplan und Prüfmethode
+
+Neuer Abschnitt **5b, „Was eine Setter-Gegenprobe nicht zeigt"**: `settings_xml`
+liefert die **ESP-seitige** Kopie. Der ESP setzt sie beim Setter sofort und sendet
+erst danach an den STM — geht es auf der Brücke verloren, meldet die Gegenprobe
+trotzdem den neuen Wert. Jedes „bestanden" belegt bis dahin nur, dass der ESP
+gespeichert hat. Drei Verfahren mit ihrem jeweiligen Preis; die Rahmenmessung über
+`d=` ist ab sofort Pflicht je Setter-Phase und steht auch in der Anweisung des
+`pwa-tester`.
+
+**Sieben Schritte waren falsch als „folgenlos rücknehmbar" geführt.** Beim
+Berichtigen der einen belegten Stelle (S47, die Display-Farbe ist nach einem
+Animations-Moduswechsel dauerhaft verloren) fanden sich sechs weitere. Der
+schwerste trifft das neue Verfahren selbst: **S7 leert den Logring und damit den
+`d=`-Anfangswert**, auf dem die Rahmenmessung beruht — das Verfahren hätte sich im
+ersten Durchlauf selbst untergraben. Dasselbe gilt für jeden Neustart im Fenster
+(S110, S113, S114). Annotiert sind ausserdem S48 (löscht still das
+Favoritenflag, während das Schwester-Szenario S49 den Hinweis trägt), S80, S54 und
+die Dateischritte S100 bis S106.
+
+### Zwei Fallen, die beim Umsetzen auffielen
+
+**Gemischte Zeilenenden** (L193): `ESP-uclock.ino` hat 1043 CRLF von 1240 Zeilen.
+Ein Patch über das Edit-Werkzeug vereinheitlicht sie stillschweigend — aus neun
+inhaltlich geänderten Zeilen wurden 432. Zurückgesetzt und byte-genau nachgepatcht.
+Ein Diff dieser Grösse ist nicht mehr prüfbar, und `git blame` zeigt danach für die
+ganze Datei den falschen Commit. Die Regel in `CLAUDE.md` nannte bisher nur UTF-8
+gegen ISO-8859-1 und nennt jetzt auch die Zeilenenden.
+
+**Der Push gehört zum Release-Abschluss** und stand nirgends — 23 Commits und 11
+`release/*`-Tags lagen nur lokal. Der Stop-Hook meldet Ungepushtes jetzt selbst,
+auch bei sauberem Arbeitsbaum; genau dort lag die Lücke.
+
+### Was zu flashen ist
+
+**Nur der ESP.** STM und PWA sind unverändert.
+
+
 ## 2026-10-03 Die Uhr beobachtbar machen (STM 3.2.14, ESP 3.2.12)
 
 STM und ESP, die PWA unverändert. Das Paket löst nichts — es schafft die Mittel,
