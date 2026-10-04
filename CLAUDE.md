@@ -446,7 +446,28 @@ namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommando
    Dateien: `src/ds18xx/ds18xx.c`, `src/tempsensor/tempsensor.c`, `src/vars/vars.c`,
    `src/main.c`, `data/app/app.js`
 
-2. **Sporadische Hänger auf BlackPill STM32F411 + neues LED-Board** — nicht gelöst.
+2. **Sporadische Hänger auf BlackPill STM32F411 + neues LED-Board** — **seit 04.10.2026
+   reproduzierbar** (`BEFUNDE.md`, L204). Zehn schnelle `ticker_set` mit je 32 Zeichen
+   legen den Hauptloop für rund 90 Sekunden stillt: zwei Durchläufe in 38 Sekunden statt
+   140'000 je Sekunde, Gerätezeit 87 Sekunden im Rückstand, **kein Watchdog-Reset**, und
+   der LED-Refresh läuft weiter. Das ist exakt das Bild aus dem Mitschnitt vom 30.09.2026.
+   Zweimal ausgelöst, einmal kontrolliert.
+
+   **Die Spur:** Jeder dieser Setter schreibt 32 Byte ins I2C-EEPROM, bei rund 16 ms je
+   Byte sind das 0,5 Sekunden Blockade je Aufruf — zehnfach überlappend mit der
+   Kommandoannahme. **Ein Nutzer löst das aus, ohne etwas Ungewöhnliches zu tun:**
+   mehrfaches schnelles Speichern eines Textfelds genügt. Damit gehört es zu A1
+   (`watchdog_reload()` in den langen Pfaden) und C3 (EEPROM seitenweise statt byteweise).
+
+   **Was davon unberührt bleibt:** Die frühere Analyse ist damit nicht falsch, sondern
+   ergänzt. Der Hauptloop steht, der periodische Zweig fällt aus, die Anzeige-ISR läuft —
+   die Frage „was macht den periodischen Zweig unerreichbar" hat jetzt eine Antwort für
+   **diesen** Auslöser. Ob die Hänger im Alltagsbetrieb dieselbe Ursache haben, ist damit
+   noch nicht gezeigt. Mechanische Kontaktprobleme bleiben für jene Fälle im Rennen.
+
+   *Der folgende Absatz hielt den Stand vor dieser Reproduktion fest:*
+
+   Hier stand bis dahin: nicht gelöst.
    BluePill F103 läuft stabiler. Bild: Uhr steht, Web-UI zeigt eingefrorene Zeit,
    STM-Reset per Web-UI geht meist noch, teils Hänger exakt bei Anzeige von „IP" in
    der Startsequenz.
