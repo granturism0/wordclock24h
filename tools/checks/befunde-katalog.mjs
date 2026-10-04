@@ -143,13 +143,22 @@ if (!todo) {
 
   const stale = [];
   for (const line of todo.split("\n")) {
-    // Der Buchstabensuffix MUSS mit: Die Kennungen heissen B1b, B1c, C6d -- das
-    // Muster [A-F]\d+ matchte nur B1 und hat acht Eintraege nie gesehen. Gefunden
-    // am 04.10.2026 beim Nachzaehlen des grossen Pakets: Die Stufe meldete
-    // jahrelang OK, waehrend acht laengst erledigte Eintraege in der Arbeitsliste
-    // standen. Eine Pruefung mit zu engem Muster ist schlimmer als keine -- sie
-    // erzeugt das Vertrauen, das sie nicht deckt.
-    const entry = line.match(/^\| \*\*([A-F]\d+[a-z]?)\*\* \|/);
+    // Das Muster hat ZWEIMAL nicht gereicht, und das ist der eigentliche Lehrsatz.
+    //
+    // 04.10.2026: [A-F]\d+ sah B1b, C6d und sechs weitere nie -- acht erledigte
+    // Eintraege standen in der Arbeitsliste, waehrend die Stufe OK meldete.
+    // Korrigiert zu [A-F]\d+[a-z]?.
+    //
+    // 05.10.2026, keinen Tag spaeter: Dasselbe nochmal, eine Stufe feiner. Nach dem
+    // Buchstabensuffix kann eine ZIFFER stehen -- C9c0 bis C9c6. Sieben weitere
+    // Eintraege unsichtbar, zwei davon wieder Altlast. Gefunden hat es ein Agent,
+    // der die Stufe NICHT geglaubt und von Hand nachgezaehlt hat.
+    //
+    // Deshalb steht unten die Abdeckungspruefung: Ein Muster laesst sich immer noch
+    // enger denken, als die Wirklichkeit ist. Die Stufe meldet jetzt selbst, wenn
+    // sie weniger sieht, als dasteht -- statt darauf zu warten, dass das wieder
+    // jemandem auffaellt.
+    const entry = line.match(/^\| \*\*([A-F]\d+[a-z]?\d*)\*\* \|/);
     if (!entry) continue;
     const refs = [
       ...[...line.matchAll(/\bMassnahme (\d+)\b/g)].map((m) => "Massnahme " + m[1]),
@@ -160,6 +169,19 @@ if (!todo) {
       stale.push(`${entry[1]} (${[...new Set(refs)].join(", ")})`);
     }
   }
+  // --- Abdeckung: sieht diese Stufe ueberhaupt alles? (DIR-014, L235, L276)
+  //
+  // Absichtlich WEITER als das Muster oben: jede Zeile, die wie ein Eintrag aussieht,
+  // auch gestrichene. Weicht die Zahl ab, ist das Muster zu eng -- und die Stufe sagt
+  // es, statt stillschweigend ein Teilergebnis zu melden.
+  const sichtbar = todo.split("\n").filter((l) => /^\| ~?~?\*\*[A-F]\d+[a-z]?\d*\*\*/.test(l)).length;
+  const vorhanden = todo.split("\n").filter((l) => /^\| ~?~?\*\*[A-Z]+[0-9][^*|]*\*\*/.test(l)).length;
+  if (sichtbar < vorhanden) {
+    fail(`BEFUNDE.md: diese Pruefung sieht nur ${sichtbar} von ${vorhanden} Eintraegen — das Kennungsmuster ist zu eng`);
+  } else {
+    console.log(`  OK  Abdeckung vollstaendig: ${sichtbar} Eintraege gesehen`);
+  }
+
   if (stale.length) fail("BEFUNDE.md: ToDo-Eintrag erledigt, aber nicht gestrichen — " + stale.join("; "));
   else console.log("  OK  kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes");
 }
