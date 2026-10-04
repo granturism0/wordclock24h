@@ -26,9 +26,12 @@ DIR-001:
   seit: 2026-08-12
 
 DIR-002:
-  regel: "Nach jeder relevanten Änderung vollständig bauen und ein Release-ZIP erzeugen, nicht nur app-gz. Immer explizit sagen, was zu flashen ist: nur App/LittleFS, oder auch STM bzw. ESP."
+  regel: "Nach jeder relevanten Änderung vollständig bauen und ein Release-ZIP erzeugen, nicht nur app-gz. Immer explizit sagen, was zu flashen ist: nur App/LittleFS, oder auch STM bzw. ESP — und in welcher REIHENFOLGE, wenn eine Komponente die andere voraussetzt. Setzt eine PWA-Änderung eine Firmware-Änderung voraus, kommt die Firmware zuerst."
   gilt_fuer: [release-engineer]
   seit: 2026-08-12
+  geaendert: 2026-10-04 — Einspielreihenfolge aufgenommen. Ohne sie war die neue Oberfläche im
+             Zeitfenster zwischen zwei Einspielvorgängen schlechter als ihre Vorgängerin: Sie meldete
+             „Datei ist leer — das ist kein Fehler, die Datei gibt es", wo die Datei fehlte (L241).
 
 DIR-003:
   regel: "Beim Thema der sporadischen F411-Hänger keinen pauschalen DMA-Fix und keinen Recovery-Mechanismus einbauen. Erst per gezielter Instrumentierung erhärten."
@@ -101,13 +104,16 @@ DIR-005:
   gilt_fuer: [release-engineer]
   seit: 2026-09-29
 
-DIR-006:
+DIR-018:
   regel: "Nach jedem Release wird CHANGELOG.md nachgefuehrt, bei neuen Werkzeugen oder
           Ablaeufen auch die README-Dateien. Ein Release gilt erst als fertig, wenn der
           Changelog-Eintrag steht. REVIEW-Dateien und gap-analysis.md sind Momentaufnahmen
           und werden nicht fortgeschrieben."
   gilt_fuer: [doc-writer, release-engineer]
   seit: 2026-09-29
+  geaendert: 2026-10-05 — Kennung von DIR-006 auf DIR-018 geändert, Regel unverändert. Zwei Blöcke
+             trugen denselben Schlüssel; alle elf Zitate im Repo meinen den anderen, dieser hier war
+             damit unzitierbar (L267).
 
 DIR-010:
   regel: "Der STM32 wird ausschliesslich über ./tools/flash-stm.sh geflasht, niemals über
@@ -167,3 +173,46 @@ DIR-014:
           als keine, weil sie genau das Vertrauen erzeugt, das sie nicht deckt."
   gilt_fuer: [alle]
   seit: 2026-10-04
+
+DIR-015:
+  regel: "Vor dem Patchen einer Quelldatei werden ihre KODIERUNG und ihr ortsübliches
+          ZEILENENDE festgestellt, nicht angenommen. Die Quellen unter src/** und
+          ESP8266/ESP-uclock/ sind ÜBERWIEGEND ASCII oder ISO-8859-1, und „überwiegend" ist
+          wörtlich gemeint: http.cpp und stm32flash.cpp sind UTF-8, ein latin-1-Patcher
+          beschädigt sie. In neuem Text dieser Dateien gilt die Umschrift (Geraet, waehrend);
+          sie schadet in keiner der beiden Welten, die Kodierungsannahme beim Patchen ist das
+          Gefährliche. Zeilenenden können innerhalb einer Datei gemischt sein — ESP-uclock.ino
+          hat überwiegend CRLF, http.cpp genau eine CRLF-Zeile. Ein Patch über das
+          Edit-Werkzeug vereinheitlicht sie STILLSCHWEIGEND; aus neun inhaltlich geänderten
+          Zeilen wurden so 432, womit der Diff unprüfbar und git blame für die ganze Datei
+          falsch wird. In solchen Dateien byte-genau in Binärform patchen. Wer in derselben
+          Sitzung an Firmware und PWA arbeitet, trägt die Umschrift in die deutschen
+          PWA-Texte hinüber — dort gehören echte Umlaute hin, geprüft von S8. Guardrail S7b
+          führt den Bestand der Kodierungen."
+  gilt_fuer: [stm-developer, esp-developer, pwa-developer, ui-developer, alle]
+  seit: 2026-10-03
+  geaendert: 2026-10-04 — Zeilenenden aufgenommen; vorher deckte die Regel nur die Kodierung ab.
+             2026-10-05 — Kennung nachträglich vergeben, Regel unverändert (L225).
+
+DIR-016:
+  regel: "Die PWA wird im BROWSER geprüft, nicht nur über die API. ./tools/check-pwa.sh lädt
+          sie vom Gerät in einen echten Browser und meldet unter anderem, ob app.js beim Laden
+          einen Fehler wirft — dann bleibt die Oberfläche halb leer, und weder API noch
+          Smoketest noch Screenshot zeigen das."
+  gilt_fuer: [pwa-developer, ui-developer, pwa-tester, release-engineer]
+  seit: 2026-10-03
+  geaendert: 2026-10-05 — Kennung nachträglich vergeben, Regel unverändert (L225).
+
+DIR-017:
+  regel: "Der Rollout bringt die PWA NICHT aufs Gerät — tools/deploy.sh schreibt nur auf den
+          Update-Server. Auf der Uhr liegen die Assets im LittleFS und werden mit
+          ./tools/install-app.sh hochgeladen. Nach JEDEM ESP-Update wird
+          ./tools/install-app.sh --check gefahren: Ein Firmware-Wechsel löscht das Dateisystem
+          zwar nicht, aber der ESP sucht ausschliesslich nach den abgeflachten .gz-Namen aus
+          der Weissliste APP_INSTALL_ASSETS in http.cpp. Ändert sich ein Name oder kommt ein
+          Asset dazu, ist die Datei nicht weg, sie wird nur nicht mehr gefunden, und die PWA
+          wirkt verschwunden. /api/update_download_assets hilft trotz seines Namens nicht: Er
+          lädt nur die Icon- und Wetterdatei nach und meldet dennoch ok."
+  gilt_fuer: [release-engineer, pwa-tester, alle]
+  seit: 2026-10-02
+  geaendert: 2026-10-05 — Kennung nachträglich vergeben, Regel unverändert (L225).
