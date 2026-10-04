@@ -20,7 +20,9 @@ Schritt dieses Plans:
 2. **Jede Änderung wird einzeln zurückgenommen**, nicht gesammelt am Ende. Bricht der
    Durchlauf in der Mitte ab, steht die Uhr trotzdem nahe am Ausgangszustand.
 3. **Der Beweis ist der Abschlussvergleich** (Phase 9), nicht das Gefühl, alles
-   zurückgesetzt zu haben.
+   zurückgesetzt zu haben. Er hat aber eine Grenze, die man ihm nicht ansieht: Er
+   findet nur, was **dieser** Lauf verändert hat. Deshalb gehört die
+   Altlastendurchsicht aus 12.2 dazu.
 4. **Zehn Funktionen werden nicht scharf ausgeführt.** Welche und warum: Phase 8.
    Dazu gehören **WLAN-SSID und -Schlüssel**: Sie zu schreiben hiesse, die Verbindung
    zu kappen, über die geprüft wird.
@@ -66,10 +68,13 @@ ihre Oberfläche zur Laufzeit in JavaScript (`#overlay-list`, Timer-Karten). Ein
 Prüfung, die nur das Markup abläuft, übersieht sie vollständig — sie brauchen einen
 eigenen Durchgang (Phase 3.7).
 
-**Beide sind bis heute ungeprüft.** Der erste Durchlauf (02.10.2026) endete vorher am
-Hänger, der zweite (03.10.2026) am Watchdog-Reset aus L45. Von elf Modulen sind vier
-abgearbeitet — und ausgerechnet die beiden, bei denen eine oberflächliche Prüfung am
-meisten übersieht, stehen noch aus.
+**Beide sind inzwischen geprüft** — der Satz „bis heute ungeprüft" stand hier noch,
+nachdem er längst überholt war. Der Durchlauf vom 03.10.2026 (ESP 3.2.15) hat S70 bis
+S85 vollständig gefahren; das Ergebnisprotokoll liegt unter
+`tools/snapshots/abschluss-3.2.15/ergebnisse.tsv`. **Der eigene Durchgang in Phase 3.7
+bleibt trotzdem Pflicht:** Er hängt nicht daran, dass die Module neu wären, sondern
+daran, dass sie kein statisches Markup haben und eine Prüfung über das DOM sie
+übersieht.
 
 **Nicht alle Module sind auf jedem Gerät sichtbar.** `getUiFeatureState()` blendet
 Panels anhand von `HARDWARE_CONFIGURATION` und der Online-Erkennung aus — TFT,
@@ -97,6 +102,14 @@ Jede Funktion bekommt eine Klasse. Die Klasse bestimmt, **wie** geprüft wird �
 Bei Klasse S heisst „zurücksetzen" **jeden Index, an den ein Aufruf ging** — auch den
 eines Aufrufs, den das Gerät abgewiesen hat. Die Aufräumliste entsteht aus dem
 Mitschnitt der gesendeten Aufrufe, nicht aus der Testplanung.
+
+**Der Mitschnitt wird zu Beginn jedes Laufs geleert.** Er ist eine Protokolldatei, die
+fortgeschrieben wird — im Durchlauf vom 04.10.2026 hiess sie `gesendet.log`, und beim
+Start enthielt sie **838 Aufrufe aus zwei früheren Läufen**. Wer die Aufräumliste
+daraus baut, räumt fremde Indizes auf: Er schreibt Werte zurück, die gar nicht zu
+seinem Lauf gehören, und erzeugt damit genau die Altlast, die er verhindern soll. Das
+Leeren gehört in Phase 0, zusammen mit den Sicherungen — und nicht ans Ende, wo es bei
+einem Abbruch unterbleibt.
 
 Der Grund ist gemessen (`BEFUNDE.md`, L81): Im Durchlauf vom 03.10.2026 gingen die
 regulären Prüfungen auf die Timer-Slots 2 bis 4, die Edge-Case-Aufrufe aber auf 5
@@ -203,6 +216,12 @@ Nach dem Konzept aus Kapitel 2b, in dieser Reihenfolge:
 ./tools/snapshot-device.sh referenz                   # M3, Vergleichspunkt
 ```
 
+**Und als vierter Schritt, mit demselben Gewicht: den Mitschnitt der gesendeten
+Aufrufe leeren.** Aus ihm entsteht am Ende die Aufräumliste (Kapitel 2). Steht beim
+Start noch der Inhalt früherer Läufe darin, zeigt die Liste auf fremde Indizes — am
+04.10.2026 waren es 838 Aufrufe aus zwei vorangegangenen Läufen. Eine leere Datei ist
+hier Teil der Sicherung, nicht Ordnung.
+
 **M3 ist für den Durchlauf das wichtigste**, obwohl es nichts wiederherstellen kann:
 Das PWA-Backup ist selbst Prüfgegenstand dieses Plans, und eine Sicherung, die von der
 zu prüfenden Funktion abhängt, ist keine Sicherung. M3 fragt die Endpunkte direkt ab
@@ -235,13 +254,25 @@ PWA-Backup lässt sich als JSON einlesen.
 
 ## 4. Phase 1 — Referenzzustand festhalten
 
-1. `./tools/smoke-device.sh` — 25 Prüfungen, muss **0 Fehler** melden. Schlägt hier
-   schon etwas fehl, ist das ein Befund und kein Teststart.
+1. `./tools/smoke-device.sh` — muss **0 Fehler** melden. Schlägt hier schon etwas
+   fehl, ist das ein Befund und kein Teststart. (Die Zahl der Prüfungen steht hier
+   bewusst nicht: Sie hängt an der Zahl der Assets und wächst mit dem Skript.)
 2. `./tools/install-app.sh --check` — Version **und** abgelegte Dateien gegen die
    Weissliste.
 3. Rohabzug S2 als **Referenzdatei** ablegen. Gegen sie läuft Phase 9.
 4. Festhalten: welche Teilsysteme sind da (RTC, EEPROM, DS18B20, TFT, DFPlayer,
    Ambilight), welche Module sind folglich sichtbar.
+5. **`./tools/watch-log.sh` starten und bis zum Ende des Durchlaufs laufen lassen**
+   (DIR-013). Nicht am Schluss durchsehen — **währenddessen** mitlesen. Der Mitschnitt
+   meldet Exceptions, Neustarts, Watchdog-Resets, Sprünge in den verworfenen Zeichen
+   (`d=`) und ein Stillstehen der `diag`-Folge.
+
+**Punkt 5 ist nicht Beiwerk.** Am 03.10.2026 lief ein vollständiger Durchlauf, und
+mitten darin stürzte der ESP ab; bemerkt hat es der Nutzer im Mitschnitt, nicht die
+Prüfung. **Das Problem ist nicht der übersehene Absturz, sondern der Bericht, der
+sauber meldet, während das Gerät zwischendurch neu gestartet ist** — jede Messung vor
+dem Neustart ist dann wertlos, und der Bericht sagt es nicht. Ein Neustart im Fenster
+zerstört ausserdem die Rahmenmessung V1 aus Abschnitt 5b.
 
 ---
 
@@ -299,8 +330,16 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 
 - **Temperatur**: Der STM-Fehlerwert `255` wurde früher als „127,5 °C" angezeigt.
   Zeigt der Sensor `127.5`, ist das **kein** Messwert, sondern „keine Messung".
-- **Zeit**: Gerätezeit gegen die eigene Uhr. Eine eingefrorene Anzeige ist das
-  Leitsymptom des behobenen Hängers (L14) — sie wäre ein Rückfall.
+- **Zeit**: Gerätezeit gegen die eigene Uhr, **minutengenau — mehr ist aus dem
+  Rohabzug nicht zu holen**. `tmvar.second` steht dort durchgehend auf `0` —
+  nachzuzählen mit
+  `grep -o 'second="[0-9]*"' tools/snapshots/*/settings_xml.txt | sort -u`, das
+  liefert genau einen Wert. Eine Forderung „auf ±2 s" wäre aus `settings_xml` nicht
+  einlösbar; wer sie trotzdem protokolliert, protokolliert eine Rechnung, keine
+  Messung. Sekundengenau prüfen liesse sich nur an der Anzeige selbst (V2) oder am
+  Mitschnitt. Eine eingefrorene Anzeige ist das Leitsymptom des behobenen Hängers
+  (L14) — sie wäre ein Rückfall, und dafür reicht die Minute: Zwei Abfragen im Abstand
+  von über einer Minute müssen verschiedene Werte liefern.
 - **Versionen**: STM, ESP und App-Version gegen `guardrails.sh` S4.
 - **Dateiliste**: Grössen gegen die lokalen `.gz`.
 - **`stm32_log`**: Wird das Logbuch überhaupt gefüllt, und bricht die Anzeige bei
@@ -447,6 +486,14 @@ damals **42 benannten** Prüfungen dieses Plans hat er genau **eine** gefahren (
 die übrigen 21 hatte er selbst erfunden und selbst benannt. Was nicht im Plan steht,
 kann nicht fehlen — und was selbst benannt wird, lässt sich zwischen zwei Durchläufen
 nicht vergleichen.
+
+**Teilprüfungen tragen die Kennung der Hauptprüfung plus einen Kleinbuchstaben**, in
+der Reihenfolge, in der sie in der Soll-Spalte stehen: `S13b`, `S41b`, `S76a` bis
+`S76d`. Das ist keine Formsache — am 03.10.2026 hiess der Grenzwert
+`ticker_deceleration=256` im Protokoll `S41b`, am 04.10.2026 `S41c`. Dieselbe
+Prüfung unter zwei Namen ist zwischen zwei Durchläufen nicht vergleichbar, und genau
+das sollte die durchgehende Nummerierung verhindern. Wer eine Teilprüfung braucht, die hier noch
+keinen Buchstaben hat, vergibt ihn **und trägt ihn in diesen Plan nach**.
 
 Die Liste der Einstellungen ist **aus dem Quelltext abgeleitet**, nicht aus der
 früheren Prosa: aus den `*_set`-Endpunkten in `ESP8266/ESP-uclock/http.cpp` (das ist
@@ -595,10 +642,10 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S29** | Helligkeit setzen (`display_brightness_set?value=`, 0..15) | S | `numvar[idx=6].value` (`DISPLAY_BRIGHTNESS`) trägt den Wert, Antwort enthält `display_brightness` mit demselben Wert | Vorher S24 ausschalten, sonst stellt der LDR den Wert gleich wieder um |
-| **S30** | Helligkeit `16` setzen | S | Antwort meldet `display_brightness: 15`, `numvar[idx=6].value` = 15 | **Erwarteter Befund:** Der ESP **klemmt** still statt abzuweisen. Festhalten, dass es klemmt — das ist Massnahme 17 |
+| **S30** | Helligkeit `16` setzen | S | `error=2`, Detail `value out of range (0..15)`, `numvar[idx=6].value` **unverändert** | **Weist heute ab.** Früher klemmte der ESP still auf 15; am Gerät gegengeprüft (04.10.2026, ESP 3.2.21). Die Prüfung bleibt stehen — ein Rückfall auf die Klemmung fiele sonst niemandem auf |
 | **S31** | `display_brightness_set` ohne `value` | S | `error=1`, `numvar[idx=6].value` unverändert | Leer darf nicht `0` heissen — das stellt die Uhr dunkel (L29) |
 | **S32** | Display-Modus wählen (`display_mode_set?value=`) | S | `numvar[idx=4].value` (`DISPLAY_MODE`) trägt den Index, Antwort enthält `display_mode` | Die Obergrenze hängt an der geladenen Layout-Tabelle, nicht an einer festen Zahl |
-| **S33** | Display-Modus oberhalb der Modusliste setzen | S | Antwort meldet den höchsten gültigen Index, `numvar[idx=4].value` entsprechend | Klemmt still, wie S30 |
+| **S33** | Display-Modus oberhalb der Modusliste setzen | S | `error=2`, Detail `value out of range (0..<höchster Index>)`, `numvar[idx=4].value` **unverändert** | **Weist heute ab**, wie S30. Die Obergrenze ist ein Laufzeitwert: Steht nur ein Modus bereit, lautet das Detail `(0..0)` — so am Gerät gemessen (04.10.2026, ESP 3.2.21) |
 | **S34** | Display-Farbe setzen (`display_color_set?red=&green=&blue=`, je 0..63) | S | `dspcolor[idx=0].red/green/blue` tragen die Werte | Sofort am Display sichtbar. Fehlende Anteile behalten ihren alten Wert (L37) |
 | **S35** | Weisskanal setzen (`display_color_set?white=`, 0..63) | S | `dspcolor[idx=0].white` trägt den Wert | **Nur wenn `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) auf 1 steht.** Sonst setzt der ESP `white` bedingungslos auf 0 — dann als „nicht prüfbar" protokollieren |
 | **S36** | `display_color_set` ohne jeden Farbanteil | S | `error=1`, `dspcolor[idx=0]` unverändert | Verhindert einen EEPROM-Schreibzyklus ohne Inhalt |
@@ -606,7 +653,7 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 | **S38** | Tickertext setzen (`ticker_set?value=`, 32 Zeichen) | S | `strvar[idx=0].value` (`TICKER_TEXT`) trägt den Text | Umlaute und Sonderzeichen mitprüfen: Gekürzt wird nach **Bytes**, nicht nach Zeichen (L46) |
 | **S39** | Tickertext leeren | S | `strvar[idx=0].value` ist leer | **Bewusste Ausnahme:** Der leere Text ist zulässig und der einzige Weg, den Ticker abzuschalten. Hier darf **keine** Fehlermeldung kommen |
 | **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error=1`. Gegenprobe am Display: `%d.%m` muss das Datum ergeben |
-| **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | Wert `256` klemmt still auf 255 — wie S30 festhalten |
+| **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | **Teilprüfung S41b** (`value=256`, im Protokoll vom 04.10.2026 als `S41c` geführt — siehe 6.0a): **weist heute ab** — `error=2`, Detail `value out of range (0..255)`, Variable unverändert. Früher klemmte der Wert still auf 255; am Gerät gegengeprüft (04.10.2026, ESP 3.2.21) |
 | **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error=1` |
 | **S43** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=0][idx=0..15].value` entsprechen der gewählten Vorgabe | Schreibt sechzehn Werte auf einmal — **Ausgangskurve vorher vollständig notieren**, sonst ist sie nicht rücknehmbar |
 | **S44** | TFT-Flags setzen (`tft_flags_set?rgb=&hflip=&vflip=`) | S | `numvar[idx=5].value` (`SSD1963_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | **Abweichend von allen anderen Schaltern:** Der Handler baut die Flags von `0` auf. Ein **nicht** gesendeter Parameter **löscht** das Flag. Ohne TFT als „nicht prüfbar" protokollieren |
@@ -640,7 +687,7 @@ Wirkung. Das ist **kein Fehler** — Schritt 4 des Prüfmusters entfällt und wi
 | **S55** | Helligkeit setzen (`ambilight_brightness_set?value=`, 0..15) | S | `numvar[idx=14].value` (`AMBILIGHT_BRIGHTNESS`) | |
 | **S56** | Modus wählen (`ambilight_mode_set?value=`, 0..4) | S | `numvar[idx=11].value` (`AMBILIGHT_MODE`) | Fünf Modi: Normal, Uhr, Uhr 2, Regenbogen, Tageslicht |
 | **S57** | LED-Zahl setzen (`ambilight_leds_set?value=`, 0..999) | S | `numvar[idx=12].value` (`AMBILIGHT_LEDS`) | |
-| **S58** | LED-Zahl `1000` setzen | S | `numvar[idx=12].value` = 999 | Klemmt still — wie S30 festhalten |
+| **S58** | LED-Zahl `1000` setzen | S | `error=2`, Detail `value out of range (0..999)`, `numvar[idx=12].value` **unverändert** | **Weist heute ab**, wie S30; am Gerät gegengeprüft (04.10.2026, ESP 3.2.21) |
 | **S59** | Versatz setzen (`ambilight_offset_set?value=`, 0..999) | S | `numvar[idx=13].value` (`AMBILIGHT_OFFSET`) | |
 | **S60** | Ambilight-Farbe setzen (`ambilight_color_set?red=&green=&blue=&white=`) | S | `dspcolor[idx=1].red/green/blue/white` | Weisskanal nur bei RGBW, siehe S35 |
 | **S61** | Markierungsfarbe setzen (`marker_color_set?...`) | S | `dspcolor[idx=2].red/green/blue/white` | |
@@ -659,9 +706,11 @@ Hier liegt die grösste Lücke einer oberflächlichen Prüfung: **null statische
 Bedienelemente.** Beide Module bauen ihre Oberfläche zur Laufzeit. Eine Prüfung, die
 nur das Markup abläuft, übersieht sie vollständig.
 
-**Beide sind bis heute ungeprüft.** Der erste Durchlauf (02.10.2026) endete vorher am
-Hänger, der zweite (03.10.2026) am Watchdog-Reset aus L45, der dritte am
-Variablenverlust aus L103.
+**Drei Anläufe endeten vorher** — am Hänger (02.10.2026), am Watchdog-Reset aus L45
+und am Variablenverlust aus L103. **Der vierte kam durch:** Am 03.10.2026
+(ESP 3.2.15) sind S70 bis S85 vollständig gefahren worden,
+`tools/snapshots/abschluss-3.2.15/ergebnisse.tsv`. Dieselbe Reihe deckte 100 der 114
+benannten Prüfungen ab; offen blieben S8 und die Dateigruppe S100 bis S114.
 
 **Aufräumen nach dem Mitschnitt, nicht nach der Planung.** Jeder Index, an den ein
 Aufruf ging, wird zurückgesetzt — auch der eines abgewiesenen Aufrufs. Im Durchlauf
@@ -676,7 +725,7 @@ jede Nacht zusätzlich ausgeschaltet (L81).
 | **S73** | Text- und Ticker-Overlay (`value=`, 32 Zeichen) | S | `overlay[idx=N].text` trägt den Text, nach **Bytes** gekürzt | Umlaute mitprüfen (L46) |
 | **S74** | MP3-Overlay | S | `overlay[idx=N].type` = 7, Ton hörbar | Ohne DFPlayer als „nicht prüfbar" protokollieren |
 | **S75** | Datumscode durchschalten (`date_code=0..6`) | S | `overlay[idx=N].date_code` trägt den Wert | Sieben Codes: keiner, Rosenmontag, Ostern, Advent 1 bis 4. `date_code=7` ⇒ `error=2` |
-| **S76** | Klemmungen prüfen: `interval=0`, `duration=3`, `duration=10`, `days=0` | S | `overlay[idx=N].interval`=5, `.duration`=5 bzw. 9, `.days`=1 | Diese vier Werte werden **still zurechtgebogen**, nicht abgewiesen. Festhalten |
+| **S76** | Grenzwerte prüfen: `interval=0` (**S76a**), `duration=3` (**S76b**), `duration=10` (**S76c**), `days=0` (**S76d**) | S | Alle vier `error=2` mit Bereichsangabe — `interval out of range (1..255)`, `duration out of range (5..9)` (zweimal), `days out of range (1..255)`; `overlay[idx=N]` **unverändert** | **Weisen heute ab.** Früher wurden die vier Werte still auf 5, 5, 9 und 1 zurechtgebogen; alle vier am Gerät gegengeprüft (04.10.2026, ESP 3.2.21). Die vier Teilkennungen stehen hier, damit das Protokoll sie einzeln führen kann — eine Sammelzeile verdeckt, wenn nur drei davon gefahren wurden |
 | **S77** | Startdatum setzen (`month=&day=`) | S | `overlay[idx=N].date_start` = `month*256 + day`; bei `month=0` oder `day=0` ist `date_start` = 0 | `month=13` oder `day=32` ⇒ `error=2` |
 | **S78** | Overlay aktiv schalten (`active=on\|off`) | S | Bit `0x01` in `overlay[idx=N].flags` | Ohne `active` wird das Flag **gelöscht** |
 | **S79** | Overlay anzeigen (`overlay_display?idx=`) | S | `numvar[idx=45].value` (`DISPLAY_OVERLAY`) trägt den Index, Overlay erscheint am Display | |
@@ -695,7 +744,7 @@ sind S86 bis S96 als „nicht prüfbar" zu protokollieren, nicht als „bestande
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S86** | Lautstärke setzen (`dfplayer_volume_set?value=`, 0..30) | S | `numvar[idx=34].value` (`DFPLAYER_VOLUME`), Antwort enthält `dfplayer_volume` | Hörbare Gegenprobe über S96 |
-| **S87** | Lautstärke `31` setzen | S | Antwort meldet `30`, `numvar[idx=34].value` = 30 | Klemmt still |
+| **S87** | Lautstärke `31` setzen | S | `error=2`, Detail `value out of range (0..30)`, `numvar[idx=34].value` **unverändert** | **Weist heute ab**, wie S30 — belegt im Quelltext (`http_api_dfplayer_volume_set`), **am Gerät seit dem Wechsel aber nicht nachgemessen**. Am 03.10.2026 (ESP 3.2.15) klemmte er noch still auf 30. Der Rohwert ist auch ohne angeschlossenen DFPlayer prüfbar — nur die hörbare Gegenprobe entfällt. Beim nächsten Durchlauf nachholen |
 | **S88** | Modus wählen (`dfplayer_mode_set?value=`, 0..2) | S | `numvar[idx=37].value` (`DFPLAYER_MODE`): 0 aus, 1 Glocke, 2 Zeitansage | Fehlender Wert ⇒ `error=1`; leer hätte den Ton ganz abgeschaltet (L29) |
 | **S89** | Glockenflags setzen (`dfplayer_bell_flags_set?m15=&m30=&m45=`) | S | `numvar[idx=38].value` (`DFPLAYER_BELL_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | |
 | **S90** | Glockenflags mit nur **einem** gesendeten Parameter | S | Die beiden nicht gesendeten Bits sind **gelöscht** | Wie S44 baut der Handler die Flags von `0` auf. Die Oberfläche sendet immer alle drei — ein direkter Aufruf nicht |
@@ -767,10 +816,18 @@ verworfen wurde.
 | **E7** | Länge + 1 (per Einfügen, nicht per Tippen — `maxlength` greift beim Tippen) | definiert gekürzt oder abgewiesen |
 | **E8** | Sonderzeichen: `äöü`, `<script>`, `"`, `&`, `%20`, Emoji, führende Leerzeichen | kein Absturz, keine Zeichenverfälschung |
 
-**Erwarteter Befund bei E3 und E5:** Die Oberfläche biegt Werte ausserhalb des Bereichs
-derzeit **still zurecht**, statt sie abzuweisen (Massnahme 17, offen). Der Durchlauf
-bestätigt das, er entdeckt es nicht. Festzuhalten ist, **an welchen Feldern** es
-auftritt — das ist die Grundlage für die Korrektur.
+**Zu E3 und E5 — die Erwartung hat sich gedreht.** Hier stand, die Oberfläche biege
+Werte ausserhalb des Bereichs **still zurecht** (Massnahme 17), der Durchlauf
+bestätige das nur. Das trifft nicht mehr zu: `clampNumber()` ist aus `app.js`
+entfallen, und auf der Geräteseite wurden acht Setter gemessen, die **abweisen**
+statt zu klemmen (04.10.2026, ESP 3.2.21 — Einzelheiten in Kapitel 13).
+
+**Erwartung heute:** abgewiesen **mit Meldung**, und zwar an jedem Feld. Festzuhalten
+ist nicht mehr, wo geklemmt wird, sondern **wo noch geklemmt wird** — jede solche
+Stelle ist jetzt ein Befund und keine Bestätigung. Zwei Gruppen sind dabei
+ausdrücklich noch offen und zählen nicht als Rückfall: **Zeichenketten** werden
+weiterhin still gekürzt (L206, u. a. Zeitserver und Update-Host), und der
+**Legacy-Zweig** biegt unverändert zurecht (L199).
 
 Die konkreten Grenzen, aus dem Markup erhoben:
 
@@ -799,9 +856,12 @@ Die konkreten Grenzen, aus dem Markup erhoben:
 - Zeitzone `+2` mit führendem Pluszeichen
 - Zweimal schnell hintereinander auf dieselbe Speichern-Schaltfläche
 - Zwei Felder ändern, nur eines speichern, Modul wechseln — kommt die Warnung über
-  ungespeicherte Änderungen? **Erwarteter Befund:** `hasUnsavedEdits` wird nach
-  normalem Speichern nicht zurückgesetzt (Massnahme 4, offen), die Warnung erscheint
-  also auch ohne offene Änderung.
+  ungespeicherte Änderungen? **Hier lag die Erwartung, dass sie auch ohne offene
+  Änderung erscheint** (Massnahme 4). Am 04.10.2026 (PWA 1.4.88) nicht beobachtet:
+  vier Modulwechsel ohne Bearbeitung, null Dialoge; mit offener Änderung erschien er
+  korrekt. **Der Pfad „nach normalem Speichern" ist dabei nicht gefahren worden** —
+  genau der, an dem der Befund hing. Dieser Punkt ist deshalb **vorrangig** zu
+  prüfen: erst speichern, dann ohne weitere Eingabe das Modul wechseln.
 
 ---
 
@@ -920,11 +980,11 @@ Das bleibt beim Nutzer und darf nicht stillschweigend als geprüft gelten.
 |---|---|
 | **V1** | Uhr im Betrieb vom Netz trennen — wie reagiert die Oberfläche? Erscheint ein Hinweis oder friert sie stumm ein? |
 | **V2** | Wiederverbinden — findet `reconnect_probe` von selbst zurück? |
-| **V3** | Fenster in den Hintergrund legen. **Erwarteter Befund:** Das Polling läuft weiter (R2-11, offen) |
+| **V3** | Fenster in den Hintergrund legen — **pausiert das Polling?** Am 04.10.2026 (PWA 1.4.88) kam bei verborgenem Tab über 60 s kein Request an, nach dem Sichtbarwerden 7 in 12 s. Die frühere Erwartung „läuft weiter" (R2-11) trifft damit nicht mehr zu. **Offen bleibt der Fall mit laufendem Update:** Gemessen wurde ohne. Zu prüfen ist, ob ein laufender Fortschrittsabruf die Pause aushebelt — und dass die Oberfläche nach dem Sichtbarwerden **aktuelle** Werte zeigt, nicht die eingefrorenen von vorher |
 | **V4** | Tab offen lassen, ESP neu starten — erkennt die PWA das? |
 | **V5** | Zwei Browser gleichzeitig, in beiden dieselbe Einstellung ändern — was gewinnt? |
 | **V6** | Seite neu laden während eines laufenden Speichervorgangs |
-| **V7** | Service Worker: Installation über `http://` schlägt fehl, weil kein sicherer Kontext. **Erwarteter Befund:** Es gibt derzeit keinen Hinweis darauf (R2-10, offen) |
+| **V7** | Service Worker: Installation über `http://` schlägt fehl, weil kein sicherer Kontext. **Die Erwartung „kein Hinweis" (R2-10) ist fraglich geworden** — `reportInsecureContextOnce()` meldet den Fall heute einmal je Sitzung. Am Gerät nicht gegengeprüft: Erscheint der Hinweis beim ersten Laden, bleibt er beim Neuladen aus, und nennt er den Grund? |
 | **V8** | Nach einem App-Update: Lädt der Service Worker die neue Fassung, oder bleibt eine alte im Cache? `CACHE_NAME` muss sich mit `APP_VERSION` ändern |
 | **V9** | Legacy-Oberfläche bleibt parallel bedienbar |
 
@@ -981,13 +1041,77 @@ Plan und die Disziplin, sie zu lesen.
 3. **Feldweise gegen die Referenzdatei aus Phase 1 vergleichen**
 4. Jede Abweichung ist entweder ein erklärter Rest (z. B. die Betriebszeit) oder ein
    **Befund**
-5. `./tools/smoke-device.sh` — muss wieder 25/0 melden
-6. `./tools/install-app.sh --check` — Dateien vollständig
-7. Mitschnitt auf dem Pi durchsehen: Watchdog-Resets, Lücken über 90 s, zerrissene
+5. **Altlastendurchsicht nach 12.2** — Vergleich gegen einen **alten** Abzug, nicht
+   gegen die eigene Referenz. Findet, was frühere Läufe hinterlassen haben; Schritt 3
+   kann das grundsätzlich nicht
+6. `./tools/smoke-device.sh` — muss wieder **0 Fehler** melden
+7. `./tools/install-app.sh --check` — Dateien vollständig
+8. Mitschnitt auf dem Pi durchsehen: Watchdog-Resets, Lücken über 90 s, zerrissene
    Zeilen während des Durchlaufs
 
 **Ohne Schritt 3 ist der Durchlauf nicht abgeschlossen.** „Sieht wieder normal aus" ist
 keine Wiederherstellung.
+
+### 12.1 Was der Abschlussvergleich leistet — und was nicht
+
+Dieser Abschnitt steht hier, weil der Vergleich aus Schritt 3 der einzige Nachweis
+dieses Plans ist und gleichzeitig eine Lücke hat, die man ihm nicht ansieht.
+
+**Was er leistet:** Er findet jede Abweichung, die **dieser Lauf** erzeugt hat — auch
+die, von der der Bericht des prüfenden Agenten nichts weiss. Genau dafür ist er da
+(L81, Kapitel 2).
+
+**Was er nicht leistet:** Er vergleicht gegen den Referenzabzug **desselben** Laufs.
+Was ein **früherer** Lauf hinterlassen hat, stand beim Anlegen der Referenz bereits
+drin — es ist Teil des Sollzustands geworden und damit unsichtbar. Der Vergleich
+meldet es nie, egal wie oft er läuft.
+
+**Das ist gemessen, nicht befürchtet** (`BEFUNDE.md`, L81 und L244): Ein Timer, der
+die Uhr jede Nacht eine Stunde zu früh ausschaltete, entstand am 03.10.2026 in einem
+Testlauf und stand danach in **allen 15 nachfolgenden Abzügen**. **Kein einziger
+Abschlussvergleich hat ihn gemeldet.** Dazu fünf weitere Altlasten derselben Art —
+ein aktiver DFPlayer-Alarm, zusammengeschnurrte LDR-Grenzen, zwei verbogene
+Dimmkurven und verstellte Temperaturkorrekturen. Darunter **die Dimmkurve des
+Nutzers**, überschrieben von einer abgebrochenen Vorgabe-Schleife; sie existierte
+zuletzt nur noch in Abzügen von zwei Tagen davor.
+
+**Daraus folgt die Lesart jedes Berichts:** Ein Durchlauf, der „keine
+Konfigurationsabweichung" meldet, sagt damit **nichts über Altlasten**. Er sagt nur,
+dass er selbst sauber zurückgeräumt hat. Beides zu verwechseln erzeugt Vertrauen, das
+nicht gedeckt ist — derselbe Mechanismus wie beim Bericht, der sauber meldet, während
+das Gerät zwischendurch neu gestartet ist (DIR-013).
+
+### 12.2 Altlastendurchsicht — Pflichtschritt, einmal je Durchlauf
+
+Die Lücke aus 12.1 schliesst nur ein Vergleich, der **über den eigenen Lauf
+hinausreicht**. Das ist Schritt 5 der Liste oben:
+
+1. **Gegen einen alten Abzug vergleichen, nicht gegen die eigene Referenz.** Ältester
+   verfügbarer Abzug, der noch als gesund gilt — `./tools/diff-snapshot.sh <alt> <neu>`.
+2. **Jede Abweichung einer Ursache zuordnen**, über die Abzugsreihe datiert: Zwischen
+   welchen beiden Abzügen ist der Wert gekippt? Daraus ergibt sich, welcher Lauf oder
+   welches Ereignis ihn hinterlassen hat.
+3. **Drei Ausgänge, und nur drei.** Gewollte Änderung des Nutzers ⇒ sie wird zur neuen
+   Referenz. Altlast eines früheren Laufs ⇒ Befund in `BEFUNDE.md`, Rückweg benennen.
+   Nicht entscheidbar ⇒ **unverändert lassen und als offen melden**, nicht raten.
+4. **Nichts davon wird im selben Atemzug bereinigt.** Das Zurücksetzen trifft die Uhr
+   des Nutzers im Wohnraum und braucht seine ausdrückliche Freigabe (R5) — ein
+   Timer, ein Alarm oder eine Dimmkurve kann **gewollt** sein. Am 04.10.2026 wurden
+   die sechs gefundenen Altlasten bewusst zunächst stehen gelassen, damit sie nicht
+   dem laufenden Test zugerechnet wurden, und erst danach mit Freigabe bereinigt.
+
+**Diese Durchsicht fällt nicht aus, wenn der Abschlussvergleich unauffällig ist.**
+Sie prüft etwas anderes. Gerade ein sauberer Abschlussvergleich ist der Fall, in dem
+sie gebraucht wird.
+
+**Drei Wertgruppen sind dabei besonders zu prüfen**, weil sie in früheren Läufen
+nachweislich hängen geblieben sind und im Alltag lange unbemerkt bleiben:
+
+| Gruppe | Felder | Warum sie unbemerkt bleibt |
+|---|---|---|
+| Zeitschaltungen | `nighttime[idx=0..7]`, `ambinighttime[idx=0..7]`, `alarmtime[idx=0..7]` | wirkt nachts; der Nutzer sieht die Uhr dann nicht |
+| Kurven und Grenzen | `num8array[var=0]` und `[var=1]` (sechzehn Stufen), LDR-Grenzen | wirkt erst, wenn die Automatik eingeschaltet wird |
+| Korrekturwerte | Temperaturkorrektur RTC und DS18xx | verschiebt eine Anzeige, die niemand gegenmisst |
 
 ---
 
@@ -995,20 +1119,39 @@ keine Wiederherstellung.
 
 Ein Testplan, der nur Bekanntes bestätigt, ist überflüssig; einer, der so tut, als sei
 alles offen, ist unehrlich. Diese Befunde sind **vorhergesagt** — treten sie auf, ist
-das kein neuer Erkenntnisgewinn, sondern eine Bestätigung des Katalogs:
+das kein neuer Erkenntnisgewinn, sondern eine Bestätigung des Katalogs.
 
-| Erwartet | Katalog |
-|---|---|
-| Werte ausserhalb des Bereichs werden still zurechtgebogen statt abgewiesen | Massnahme 17 |
-| Warnung über ungespeicherte Änderungen erscheint auch ohne solche | Massnahme 4 |
-| Polling läuft im Hintergrundtab weiter | R2-11 |
-| Kein Hinweis bei unsicherem Kontext | R2-10 |
-| Leere Datei beim App-Upload wird PWA-seitig nicht abgefangen | Massnahme 7 |
-| Zeitserver wird bei über 16 Zeichen still gekürzt | **neu** — UI erlaubt 32, ESP speichert 16 |
-| Verstecktes WLAN lässt sich eintragen, erscheint aber nie in der Trefferliste | L24 — das freie Feld `network-ssid-manual-input` hat Vorrang vor der Auswahl. *Diese Zeile las sich bis zum 03.10.2026 als „nicht konfigurierbar"; seit L24 stimmt das nicht mehr* |
-| Fehlgeschlagener Flash ist nur einen Frame lang sichtbar | R2-5 |
+**Eine Vorhersage, die sich erledigt hat, wird nicht gestrichen, sondern datiert.**
+Ein Plan, der Behobenes weiter als „erwartet" führt, lässt den nächsten Durchlauf
+daran vorbeisehen: Wer die Zeile liest, hakt sie ab, statt hinzusehen. Gestrichen
+wäre sie aber ebenso verloren — ein Rückfall fiele dann niemandem mehr auf. Die
+Spalte **Stand** sagt deshalb, **wann und woran** zuletzt gemessen wurde. Ohne
+Datum und Messbedingung ist eine erledigte Vorhersage keine Information, sondern
+eine Behauptung.
+
+| Erwartet | Katalog | Stand |
+|---|---|---|
+| Werte ausserhalb des Bereichs werden still zurechtgebogen statt abgewiesen | Massnahme 17 | **Nicht mehr beobachtet** (04.10.2026, ESP 3.2.21). Acht Stellen am Gerät gemessen, alle weisen ab: `display_brightness_set=16` ⇒ `error=2 (0..15)`, `display_mode_set` oberhalb der Modusliste ⇒ `error=2 (0..0)`, `ticker_deceleration_set=256` ⇒ `error=2 (0..255)`, `ambilight_leds_set=1000` ⇒ `error=2 (0..999)`, Overlay `interval=0`, `duration=3`, `duration=10`, `days=0` ⇒ alle vier `error=2`. Keine einzige Klemmung |
+| Warnung über ungespeicherte Änderungen erscheint auch ohne solche | Massnahme 4 | **Nicht beobachtet** (04.10.2026, PWA 1.4.88). Vier Modulwechsel ohne Bearbeitung ⇒ **null** Dialoge; mit offener Änderung erscheint er korrekt. **Lücke:** Der Pfad „nach normalem Speichern" — genau der, an dem der Befund hing — ist dabei **nicht** gefahren worden. Bis er gemessen ist, gilt die Vorhersage als unbestätigt, nicht als widerlegt |
+| Polling läuft im Hintergrundtab weiter | R2-11 | **Nicht beobachtet** (04.10.2026, PWA 1.4.88). Bei verborgenem Tab und offenem Modul `system` kam über 60 s **kein einziger** Request an; nach dem Sichtbarwerden 7 Requests in 12 s. Gemessen **ohne** laufendes Update — ob ein laufender Fortschrittsabruf die Pause aushebelt, ist offen |
+| Kein Hinweis bei unsicherem Kontext | R2-10 | **Fraglich, am Gerät nicht gegengeprüft.** `reportInsecureContextOnce()` in `app.js` meldet den Fall heute einmal je Sitzung. Prüfen statt voraussetzen: erscheint der Hinweis beim ersten Laden über `http://`, und bleibt er beim Neuladen aus? |
+| Leere Datei beim App-Upload wird PWA-seitig nicht abgefangen | Massnahme 7 | **Gilt weiter.** In `app.js` steht keine Prüfung auf `size > 0`; abgefangen wird ausschliesslich ESP-seitig. Siehe S107 |
+| Zeitserver wird bei über 16 Zeichen still gekürzt | **neu** — UI erlaubt 32, ESP speichert 16 | **Gilt weiter.** `MAX_TIMESERVER_NAME_LEN` ist 16, `http_api_network_timeserver_set()` prüft nur auf leer und reicht den Rest an `set_strvar()` durch. Gehört zur offenen Gruppe „Zeichenketten kürzen still" (L206) |
+| Verstecktes WLAN lässt sich eintragen, erscheint aber nie in der Trefferliste | L24 — das freie Feld `network-ssid-manual-input` hat Vorrang vor der Auswahl. *Diese Zeile las sich bis zum 03.10.2026 als „nicht konfigurierbar"; seit L24 stimmt das nicht mehr* | ungeprüft |
+| Fehlgeschlagener Flash ist nur einen Frame lang sichtbar | R2-5 | **Fraglich, am Gerät nicht gegengeprüft.** `failStm32Update()` ruft heute `finishProgressUi(2200)`; ein `finishProgressUi(0)` kommt in `app.js` nicht mehr vor. Nachzuweisen bleibt es an einem tatsächlich fehlgeschlagenen Flash — und der ist Klasse R |
 
 **Alles andere wäre neu** — und gehört als `L`-Befund in `BEFUNDE.md`.
+
+**Drei Lesarten, und sie sind nicht dasselbe.** „Nicht mehr beobachtet" heisst: am
+Gerät gemessen, Vorhersage trifft nicht mehr zu. „Fraglich" heisst: Im Quelltext
+liegt eine Korrektur vor, am Gerät ist sie nicht nachgewiesen — der Durchlauf hat
+sie zu **messen**, nicht vorauszusetzen. „Gilt weiter" heisst: Der Durchlauf
+bestätigt, er entdeckt nicht.
+
+**Und was hier als erledigt steht, ist damit nicht im Katalog erledigt.** Dieser
+Plan führt Messungen, `BEFUNDE.md` führt den Stand der Massnahmen. Eine Zeile hier
+auf „nicht mehr beobachtet" zu setzen, schliesst dort keinen Befund — das ist der
+Unterschied aus DIR-003, und er gilt in beide Richtungen.
 
 ---
 
