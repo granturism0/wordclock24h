@@ -77,6 +77,34 @@ def main():
     if not relevant:
         return 0
 
+    # ------------------------------------------------- Messungen ohne Befund
+    #
+    # Am 04.10.2026 hat der Nutzer dreimal nachfragen muessen, ob die Erkenntnisse
+    # festgehalten sind -- und dreimal fehlte etwas. Seine Forderung: "Wenn nein
+    # nachholen und dies fuer die Zukunft sicherstellen."
+    #
+    # Automatisch erkennen, OB eine Messung etwas Neues ergeben hat, geht nicht.
+    # Was geht: daran erinnern, wenn am Geraet gemessen wurde und BEFUNDE.md
+    # seither unveraendert blieb. Das ist kein Beweis fuer ein Versaeumnis -- eine
+    # Messung, die nur bestaetigt, braucht keinen Eintrag. Es ist eine Frage, und
+    # die kostet weniger als eine verlorene Erkenntnis.
+    messmarke = root / ".git" / "geraet-gemessen"
+    if messmarke.exists():
+        try:
+            befunde = (root / "BEFUNDE.md").stat().st_mtime
+            gemessen = messmarke.stat().st_mtime
+        except OSError:
+            befunde = gemessen = 0
+        if gemessen > befunde:
+            out("")
+            out("Am Geraet gemessen, seither nichts in BEFUNDE.md eingetragen.")
+            out("")
+            out("  Hat die Messung etwas gezeigt, das noch nirgends steht?")
+            out("  Auch ein widerlegter Verdacht ist ein Befund -- gerade der.")
+            out("")
+            out("  Wenn sie nur bestaetigt hat, was schon dokumentiert ist:")
+            out("  nichts zu tun, diese Meldung ist dann richtig und folgenlos.")
+
     # guardrails.sh legt diese Datei bei jedem erfolgreichen Lauf an.
     stamp = root / ".git" / "guardrails-stamp"
     if stamp.exists() and stamp.read_text().strip() == state:

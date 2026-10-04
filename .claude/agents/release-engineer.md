@@ -107,9 +107,13 @@ Stand auszurollen.
 1. **`make app-gz` nur bei sauberem Arbeitsbaum.** Läuft es, während jemand `app.js`
    editiert, entsteht eine `.gz` einer halb geschriebenen Datei — genau der
    White-Screen-Fall. Vorher `git status` (R2)
-2. **Nie zwei Release-Builds in derselben Minute.** `RELEASE_ZIP` in `Makefile:18`
-   nutzt `date +"%Y-%m-%d-%H%M"`, und `Makefile:74` macht `rm -f` darauf. Der zweite
-   Lauf überschreibt den ersten **kommentarlos**, und beide melden Erfolg
+2. **Die Minuten-Falle besteht nicht mehr — aber lies die Zeile, bevor du dich darauf
+   verlässt.** Hier stand bis zum 04.10.2026, zwei Release-Builds in derselben Minute
+   überschrieben sich kommentarlos. `Makefile:38` nutzt inzwischen
+   `RELEASE_STAMP := $(shell date +"%Y-%m-%d-%H%M%S")` — sekundengenau und mit `:=` genau
+   einmal ausgewertet. Die alte Warnung nannte `Makefile:18` und `:74`; beide Nummern
+   stimmten längst nicht mehr. **Eine Warnung, die niemand nachprüft, überlebt ihre
+   Ursache** — bei Zeilennummern in Anweisungen also immer erst nachsehen
 
 ## Format der Versionszeilen
 

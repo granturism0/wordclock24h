@@ -15,6 +15,12 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
+# nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
+# blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
+mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
+  && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
+
 # Die Adresse der Uhr steht NICHT im Repo (oeffentlich) -- sie kommt aus
 # tools/device.conf (gitignored, Vorlage: tools/device.conf.example) oder aus der
 # Umgebung.

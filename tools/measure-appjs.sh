@@ -41,6 +41,12 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
+# nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
+# blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
+mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
+  && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
+
 RUNS=1
 KEEP=0
 while [ $# -gt 0 ]; do

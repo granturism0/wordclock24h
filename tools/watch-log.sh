@@ -30,6 +30,12 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
+# nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
+# blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
+mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
+  && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
+
 ONCE=0
 INTERVAL=30
 while [ $# -gt 0 ]; do
@@ -50,6 +56,13 @@ basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
 basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
 letzte_d=""
 letzte_diag=""
+
+# Ohne das puffert die Shell die Ausgabe, wenn sie in eine Datei oder Pipe geht --
+# und dann steht dort stundenlang NICHTS, obwohl die Wache laeuft. Am 04.10.2026 genau
+# so passiert: Die Wache lief waehrend eines Testlaufs, ihre Ausgabedatei blieb bei
+# 0 Byte, und der Lead meldete "keine Abstuerze", ohne etwas gesehen zu haben. Der
+# Nutzer hat es bemerkt. Eine Wache, deren Meldungen niemanden erreichen, ist keine.
+exec > >(while IFS= read -r z; do printf '%s\n' "$z"; done) 2>&1
 
 printf '=== Logwache ab %s ===\n' "$(date '+%H:%M:%S')"
 printf '  Grundlinie: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n\n' \
@@ -115,5 +128,6 @@ while :; do
   [ "$alarm" -eq 0 ] && printf '  %s  ruhig   diag %s  d=%s  %s\n' "$stamp" "${diag:-?}" "${d:-?}" "${v:-}"
 
   [ "$ONCE" -eq 1 ] && break
+  sync 2>/dev/null
   sleep "$INTERVAL"
 done
