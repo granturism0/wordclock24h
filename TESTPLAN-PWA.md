@@ -308,6 +308,111 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 
 ---
 
+## 5b. Was eine Setter-Gegenprobe nicht zeigt
+
+Dieser Abschnitt steht **vor** Phase 3 und Phase 4, weil er die Aussagekraft jeder
+schreibenden Prüfung begrenzt, die danach kommt.
+
+**Das Problem in einem Satz:** `settings_xml` liefert die **ESP-seitige**
+Variablenkopie — der ESP setzt sie beim Setter sofort und schickt das Kommando erst
+danach an den STM; geht es auf der Brücke verloren, meldet die Gegenprobe trotzdem
+den neuen Wert.
+
+Daraus folgt eine unbequeme Lesart für jedes Protokoll: **Ein „bestanden" in
+Schritt 3 des Prüfmusters belegt, dass der ESP gespeichert hat — nicht, dass der STM
+es angewandt hat.** Das entwertet einen Durchlauf nicht, aber es benennt, was er
+nicht zeigen kann. Am Gerät belegt (L188, 04.10.2026, derselbe blinde Fleck wie
+L103): Der Empfangsring des STM meldete `d=5010` verworfene Zeichen, während die
+Gegenproben desselben Zeitraums durchweg den neuen Wert zeigten. Ein Teil des
+damaligen Testberichts ist dadurch rückwirkend nur noch eine Aussage über den ESP.
+
+Dagegen stehen drei Verfahren. Keines ersetzt die anderen, und **jedes hat einen
+Preis** — der gehört zur Methode, nicht ins Kleingedruckte.
+
+### V1 — Rahmenmessung der Verlustzähler. Pflicht je Setter-Phase
+
+Vor und nach **jeder** Setter-Phase wird der `d=`-Wert aus der Diagnosezeile des STM
+gelesen. Die Zeile ist über `/api/stm32_log` erreichbar; STM-Zeilen kommen dort mit
+dem Präfix `LOG ` an, ESP-eigene Zeilen mit `- `. Beide Werte — vorher und nachher —
+gehören ins Protokoll, auch wenn sie gleich sind.
+
+| Befund | Bedeutung |
+|---|---|
+| `d` unverändert | In diesem Fenster ist kein Zeichen verworfen worden. Die Kommandos sind beim STM angekommen; ESP-Kopie und STM-Zustand dürfen als gleich gelten |
+| `d` gestiegen | Die Gegenprobe dieser Phase ist **ungültig**. Phase wiederholen, Zuwachs und Fenster im Bericht nennen — das speist zugleich den Beobachtungsauftrag zu A28 |
+
+**Der Preis ist methodisch, nicht zeitlich:** V1 ist eine **notwendige, keine
+hinreichende** Bedingung. Drei Grenzen, die man kennen muss, sonst liest man mehr
+heraus, als dasteht:
+
+- `d` zählt die im Empfangsring des STM **verworfenen** Zeichen. Ein Kommando, das
+  der ESP gar nicht erst absetzt, taucht dort nicht auf. „`d` unverändert" heisst
+  also nicht „angekommen", sondern nur „nichts verworfen".
+- `rx` ist ein **Höchststand, kein Füllstand** (`src/main.c:3396`). `rx=1024/1024`
+  heisst „der Ring war einmal voll", nicht „er ist verstopft". Wer ihn als aktuellen
+  Wert liest, überschätzt die Lage — am 04.10.2026 genau so geschehen.
+- Der Ring fasst nur rund **4 bis 5 Minuten** Rückschau. Längere Phasen brauchen
+  Zwischenablesungen, sonst liegt der Anfangswert ausserhalb des sichtbaren Fensters.
+
+Der laufende Aufwand ist dagegen klein: zwei zusätzliche lesende Abrufe je Phase,
+ohne jede Wirkung auf den Gerätezustand. Deshalb Pflicht und nicht Empfehlung.
+
+**Ein Schritt dieses Plans zerstört V1, und zwar genau den Rahmen:** **S7** leert den
+Logring (`stm32_log_clear`). Danach steht der `d=`-Wert vom Phasenanfang nicht mehr
+darin, und die Rahmenmessung der laufenden Phase ist unlesbar. S7 gehört deshalb
+**vor** eine Phase oder **nach** deren Abschlussmessung, nie dazwischen. Dasselbe gilt
+für jeden Neustart im Fenster — nach **S110**, **S113** oder **S114** ist der Ring neu,
+und der Anfangswert ist unwiederbringlich.
+
+### V2 — Wirkungsprobe am sichtbaren Verhalten
+
+Für Werte mit optischer oder hörbarer Wirkung — Helligkeit, Display-Farbe,
+Anzeigemodus, Ambilight, DFPlayer — ist die Uhr selbst das STM-seitige
+Anzeigeinstrument. Sie zeigt, was der STM wirklich anwendet, und umgeht die ESP-Kopie
+vollständig. **Wertvoll genau dort, wo V1 nichts sagt:** beim Kommando, das nie
+abgesetzt wurde.
+
+**Der Preis:** nicht automatisierbar. Die Beobachtung gehört dem Nutzer oder einem
+Schritt, der ihn ausdrücklich um Bestätigung bittet — und sie ist an seiner Uhr im
+Wohnraum sichtbar, nicht auf einem Prüfstand. Anwendbar ist sie ausserdem nur auf die
+Teilmenge der Werte, die überhaupt etwas sichtbar machen; für Zeitserver,
+Koordinaten oder Update-Pfad sagt sie nichts.
+
+### V3 — Abgleich über den STM-Neustart. Höchstens einmal je Durchlauf, am Ende, mit Freigabe
+
+Nach `maintenance_reset_stm32` (S114) kündigt der STM seinen **gesamten**
+Variablensatz neu an; die ESP-Kopie wird damit **aus dem STM** aufgebaut. Ein
+Rohabzug danach zeigt also, was der STM wirklich hält — das ist der einzige
+vollständige Abgleich, den dieser Plan kennt.
+
+**Der Preis ist hoch, und er fällt sofort an:** Der Reset reisst den ESP mit (L183),
+alle ESP-Zähler gehen auf 0, und der Variablenverlust aus L42/L103 kann eintreten —
+also genau der Zustand, in dem der Rohabzug den Gerätezustand nicht mehr abbildet
+(6.0d). Dazu die sichtbare Startsequenz an der Uhr.
+
+Daraus folgt die Regel, ohne Ausnahme:
+
+- **Nie mitten in einer Messreihe.** Jede davor laufende Messung ist danach ungültig.
+- **Höchstens einmal je Durchlauf, am Ende**, in Phase 9, nach der letzten
+  Setter-Phase.
+- **Nur mit Freigabe des Nutzers** im selben Gespräch (R5).
+- Danach zwingend: Variablensatz prüfen und die Update-Quelle gegen
+  `tools/device.conf` (S97/S98).
+
+### Welches Verfahren wann
+
+| Lage | Verfahren |
+|---|---|
+| jede Setter-Phase in Phase 3 und Phase 4 | **V1**, verpflichtend, vorher und nachher |
+| Wert mit sichtbarer Wirkung | **V1 + V2** |
+| Wert ohne sichtbare Wirkung, Zweifel am Durchkommen | **V1**, und im Bericht offen benennen, dass die STM-Seite unbestätigt bleibt |
+| Abschluss des Durchlaufs | **V3**, einmal, mit Freigabe |
+
+**Was im Bericht steht, wenn keines der drei greift:** „ESP hat gespeichert,
+STM-Seite unbestätigt". Das ist eine zulässige Aussage. „Bestanden" ist sie nicht.
+
+---
+
 ## 6. Phase 3 — Schreibende Funktionsprüfung, modulweise
 
 **Klasse S, soweit nicht anders vermerkt.** Für **jede** Einstellung dasselbe Muster:
@@ -323,6 +428,11 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 
 **Schritt 3 ist der Kern.** Eine Schaltfläche, die „Gespeichert" meldet, beweist
 nichts — die PWA kennt den Erfolg nur vom HTTP-Status. Geprüft wird am Rohwert.
+
+**Und Schritt 3 hat eine Grenze, die man ihm nicht ansieht:** Der Rohwert ist die
+ESP-Kopie, nicht der STM-Zustand. Jede Setter-Phase wird deshalb nach **V1** aus
+Abschnitt 5b gerahmt — `d=` vorher und nachher. Ohne diese Rahmung ist ein
+„bestanden" eine Aussage über den ESP allein.
 
 ### 6.0a Jede Prüfung hat eine Kennung
 
@@ -417,7 +527,7 @@ Die beiden Hauptschalter der Uhr liegen hier, nicht im Modul `display`.
 | **S4** | 31. Februar setzen | S | Antwort `error=4` (`INVALID_DATE`), `tmvar[idx=0]` **unverändert** | Schaltjahr mitprüfen: 29.02. eines Schaltjahrs muss angenommen werden |
 | **S5** | `datetime_set` ohne `minute` | S | Antwort `error=1` (`MISSING_VALUE`), `tmvar[idx=0]` unverändert | Jedes Feld ist Pflicht; ein fehlendes darf nicht zu `0` werden |
 | **S6** | Zeit vom Netz holen (`network_get_time`) | S | `tmvar[idx=0]` stimmt binnen 10 s auf ±2 s mit der eigenen Uhr überein | Schlägt fehl, wenn der Zeitserver aus S9 unbrauchbar ist — Reihenfolge beachten |
-| **S7** | Logbuch leeren (`stm32_log_clear`) | S | `/api/stm32_log` meldet unmittelbar danach ein kleineres `count` als davor; die nächste Zeile trägt eine lückenlos fortgesetzte Folgenummer | Der Ring füllt sich sofort weiter, `count=0` ist deshalb **kein** zulässiges Soll |
+| **S7** | Logbuch leeren (`stm32_log_clear`) | S | `/api/stm32_log` meldet unmittelbar danach ein kleineres `count` als davor; die nächste Zeile trägt eine lückenlos fortgesetzte Folgenummer | Der Ring füllt sich sofort weiter, `count=0` ist deshalb **kein** zulässiges Soll. **Nicht innerhalb einer Setter-Phase ausführen.** Der Schritt ist trotz Klasse S **nicht rücknehmbar** — der gelöschte Inhalt ist weg, es gibt keinen Ausgangswert zum Zurückschreiben. Vor allem löscht er genau die Diagnosezeile des STM, auf der **V1** aus Abschnitt 5b beruht: Der `d=`-Wert vom Phasenanfang liegt danach nicht mehr im Ring, und die Rahmenmessung dieser Phase ist unlesbar. Also **vor** einer Phase oder **nach** deren Abschlussmessung, nie dazwischen |
 | **S8** | Debug-Ansichten umschalten (vier Auswahlfelder, Anwenden, Zurücksetzen) | S | Rohabzug vor und nach dem Umschalten **feldgleich** | **Kein Endpunkt dahinter** — die Umschaltung wirkt nur lokal in der Oberfläche. Genau das ist das Soll: Sie darf am Gerät nichts ändern |
 
 ### 6.2 `network`
@@ -509,8 +619,8 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S46** | Anzeigeanimation wählen (`animation_mode_set?value=`) | S | `numvar[idx=10].value` (`ANIMATION_MODE`) trägt den Index | Nicht-numerischer Wert ⇒ `error=1`, früher wurde `"abc"` zu 0 (L49) |
-| **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) | Solange eine Farbanimation läuft, ist die Display-Farbe aus S34 wirkungslos |
-| **S48** | Verzögerung eines Anzeigeprofils setzen (`animation_profile_set?idx=&deceleration=`, 1..15) | S | `dispanim[idx=N].dcl` trägt den Wert | Mindestens zwei verschiedene Profile prüfen |
+| **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) | **Die Display-Farbe aus S34 ist danach verloren**, nicht nur während der Animation wirkungslos — den Ausgangswert von `dspcolor[idx=0]` vorher aus dem Rohabzug notieren, wie bei S51/S53. Am Gerät belegt (L150, 04.10.2026): vorher `0/0/0/63`, nach `color_animation_mode_set=2` und **sofortigem** Zurücksetzen auf `0` stand dort `0/0/31/0`. Überschrieben wird **einmalig beim Moduswechsel**, nicht laufend — nach manuellem Zurückschreiben blieb der Wert über 60 s stabil. Die Klasse bleibt **S**, weil der Schritt mit notiertem Ausgangswert rücknehmbar ist; was fällt, ist die Zusage „folgenlos" |
+| **S48** | Verzögerung eines Anzeigeprofils setzen (`animation_profile_set?idx=&deceleration=`, 1..15) | S | `dispanim[idx=N].dcl` trägt den Wert **und** Bit `0x02` in `dispanim[idx=N].flags` steht unverändert | Mindestens zwei verschiedene Profile prüfen. **Derselbe Aufruf schreibt das Favoritenflag mit** — ohne `favourite` wird Bit `0x02` **gelöscht** (siehe S49). Das Prüfmuster sichert sonst nur `.dcl`, und der Verlust fällt nicht auf, weil die Gegenprobe ihn nicht ansieht: **vorher auch `.flags` notieren, nachher mitprüfen, und beim Zurückschreiben `favourite` mitsenden, falls es gesetzt war.** Gleiche Bauart wie S44 und S90, wo der Hinweis längst steht |
 | **S49** | Profil als Favorit markieren (`animation_profile_set?...&favourite=on`) | S | Bit `0x02` in `dispanim[idx=N].flags` gesetzt bzw. gelöscht | Das Flag wird aus demselben Aufruf mitgeschrieben — ohne `favourite` wird es **gelöscht** |
 | **S50** | Verzögerung `0` und `16` setzen | S | `error=2`, `dispanim[idx=N].dcl` unverändert | Gültig ist 1..15, nicht 0..15 |
 | **S51** | Profilvorgabe zurücksetzen (`animation_profile_default?idx=`) | S | `dispanim[idx=N].dcl` gleicht `dispanim[idx=N].def_dcl` | **Unumkehrbar für dieses Profil** — den Ausgangswert vorher aus dem Rohabzug notieren |
@@ -526,7 +636,7 @@ Wirkung. Das ist **kein Fehler** — Schritt 4 des Prüfmusters entfällt und wi
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
-| **S54** | Ambilight-Erkennung umschalten (`ambilight_online_set?value=on\|off`) | S | `numvar[idx=9].value` (`AMBILIGHT_IS_UP`) 1 bzw. 0 | Steuert, ob die Oberfläche das Modul überhaupt zeigt — bei `off` verschwindet das Panel |
+| **S54** | Ambilight-Erkennung umschalten (`ambilight_online_set?value=on\|off`) | S | `numvar[idx=9].value` (`AMBILIGHT_IS_UP`) 1 bzw. 0 | Steuert, ob die Oberfläche das Modul überhaupt zeigt — bei `off` verschwindet das Panel. **Damit verschwindet auch der Schalter selbst: Der Rückweg führt nur noch über den direkten API-Aufruf** `ambilight_online_set?value=on`, nicht über die Oberfläche. Rücknehmbar bleibt der Schritt, aber nicht auf dem Weg, auf dem er gegangen wurde — vor dem Umschalten festhalten, wie er zurückzunehmen ist |
 | **S55** | Helligkeit setzen (`ambilight_brightness_set?value=`, 0..15) | S | `numvar[idx=14].value` (`AMBILIGHT_BRIGHTNESS`) | |
 | **S56** | Modus wählen (`ambilight_mode_set?value=`, 0..4) | S | `numvar[idx=11].value` (`AMBILIGHT_MODE`) | Fünf Modi: Normal, Uhr, Uhr 2, Regenbogen, Tageslicht |
 | **S57** | LED-Zahl setzen (`ambilight_leds_set?value=`, 0..999) | S | `numvar[idx=12].value` (`AMBILIGHT_LEDS`) | |
@@ -570,7 +680,7 @@ jede Nacht zusätzlich ausgeschaltet (L81).
 | **S77** | Startdatum setzen (`month=&day=`) | S | `overlay[idx=N].date_start` = `month*256 + day`; bei `month=0` oder `day=0` ist `date_start` = 0 | `month=13` oder `day=32` ⇒ `error=2` |
 | **S78** | Overlay aktiv schalten (`active=on\|off`) | S | Bit `0x01` in `overlay[idx=N].flags` | Ohne `active` wird das Flag **gelöscht** |
 | **S79** | Overlay anzeigen (`overlay_display?idx=`) | S | `numvar[idx=45].value` (`DISPLAY_OVERLAY`) trägt den Index, Overlay erscheint am Display | |
-| **S80** | Overlay löschen (`overlay_delete?idx=`) | S | `numvar[idx=46].value` um 1 kleiner, die folgenden Einträge rücken auf | **Letzten Eintrag eigens prüfen** — und den ersten, wenn mehrere stehen |
+| **S80** | Overlay löschen (`overlay_delete?idx=`) | S | `numvar[idx=46].value` um 1 kleiner, die folgenden Einträge rücken auf | **Letzten Eintrag eigens prüfen** — und den ersten, wenn mehrere stehen. **Die Rücknahme ist kein Setter, sondern ein Neuaufbau: den vollständigen Eintrag vorher aus dem Rohabzug notieren** — `type`, `text`, `date_code`, `interval`, `duration`, `days`, `date_start` und `flags`, nicht nur den Index. Fehlt eines davon, ist das Overlay nicht wiederherstellbar. **Und die nachfolgenden Indizes rücken auf:** Nach dem Löschen von `idx=N` trägt der bisherige `N+1` die Nummer `N`. Eine vorher notierte Aufräumliste zeigt danach auf den falschen Eintrag — die Zuordnung geht über den Inhalt, nicht über die Nummer. Am Overlay eines Nutzers ausgeführt, trifft das echte Daten, nicht Testeinträge |
 | **S81** | `overlay_display` und `overlay_delete` **ohne** `idx` | S | Beide `error=1`, `numvar[idx=46].value` unverändert | Früher zeigte beziehungsweise **löschte** das den ersten Eintrag und meldete Erfolg (L70) |
 | **S82** | Display-Timer setzen (`timer_set?idx=&from=&to=&hour=&minute=&active=&switch_on=`) | S | `nighttime[idx=N].minutes` = `hour*60+minute`, Bit `0x80` (aktiv) und `0x40` (einschalten) in `.flags`, Wochentage in den unteren Bits | **Acht Slots** (0..7). Ein aktiver Testtimer schaltet die Uhr im Wohnraum — Zeiten weit vom aktuellen Zeitpunkt wählen |
 | **S83** | Ambilight-Timer setzen (`ambilight_timer_set?...`) | S | `ambinighttime[idx=N].minutes` und `.flags` entsprechend | Gleiche Prüfung, eigener Variablensatz |
@@ -604,18 +714,29 @@ Was hier **nicht** steht, weil es in Phase 8 steht: `maintenance_reset_eeprom`,
 `maintenance_format_fs`, `fs_remove`, `eeprom_settings_set`. Was in Phase 5 steht:
 Sicherung exportieren und importieren.
 
+**S100 bis S106 sind Klasse S, aber nicht folgenlos.** Alle sieben **überschreiben
+eine Datei im LittleFS**, und der Rückweg ist kein Zurückschreiben eines Werts,
+sondern ein erneutes Hochladen. **Er setzt damit voraus, dass die ersetzte Datei
+lokal noch vorliegt.** Stammt die bisherige Datei aus einem früheren lokalen Upload
+und liegt sie nicht mehr auf dem Update-Server, ist sie nach dem Schritt weg — den
+Namen zu notieren genügt dafür nicht, die **Datei** muss dasein.
+
+Vor der Reihe deshalb: Jede Datei, die S100 bis S106 anfassen, vorher **lokal
+sichern** und die Sicherung benennen. Ohne diese Sicherung wird der Schritt
+übersprungen und als „nicht prüfbar" protokolliert, nicht gefahren.
+
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S97** | Update-Host setzen (`update_host_set?value=`, 63 Zeichen) | S | `strvar[idx=9].value` (`UPDATE_HOST`) trägt den Wert | **Danach sofort gegen `DEVICE_UPDATE_HOST` aus `tools/device.conf` prüfen.** Ein falscher Host holt beim nächsten Update fremde Firmware, ohne Fehlermeldung (L42) |
 | **S98** | Update-Pfad setzen (`update_path_set?value=`, 63 Zeichen) | S | `strvar[idx=10].value` (`UPDATE_PATH`) | wie S97 |
 | **S99** | Update-Host mit 64 Zeichen | S | `strvar[idx=9].value` ist auf 63 gekürzt | Leerer Wert ⇒ `error=1` |
-| **S100** | Tabellendatei vom Server laden (`update_download_table`) | S | Die Datei erscheint in `/api/fs_list` mit Grösse > 0, danach stehen in `settings_xml` neue `dispmode`-Einträge | Wechselt das Layout der Uhr — **Ausgangstabelle vorher aus `/api/update_status` notieren** |
-| **S101** | Icon- und Wetterdatei vom Server laden (`update_download_assets`) | S | Beide Dateien in `/api/fs_list` mit Grösse > 0 | Der Endpunkt meldet `{"ok":true}` auch dann, wenn er nur einen Teil geladen hat — Beleg ist die Dateiliste |
-| **S102** | Tabellendatei lokal hochladen (`fs_upload_tables`) | S | Datei in `/api/fs_list`, Grösse gleich der lokalen Datei | |
-| **S103** | Icondatei lokal hochladen (`fs_upload_icon`) | S | wie S102 | |
-| **S104** | Wetterdatei lokal hochladen (`fs_upload_weather`) | S | wie S102 | |
-| **S105** | Displaydatei lokal hochladen (`fs_upload_display`) | S | wie S102 | |
-| **S106** | App-Dateien hochladen (`app_file_upload`) | S | `./tools/install-app.sh --check` meldet alle Dateien der Weissliste mit Grösse > 0 | Die PWA überschreibt sich selbst. Danach Seite neu laden und prüfen, dass sie noch startet |
+| **S100** | Tabellendatei vom Server laden (`update_download_table`) | S | Die Datei erscheint in `/api/fs_list` mit Grösse > 0, danach stehen in `settings_xml` neue `dispmode`-Einträge | Wechselt das Layout der Uhr — **Ausgangstabelle vorher aus `/api/update_status` notieren**. Der Name allein reicht nicht: **Rückweg nur mit der lokal gesicherten Ausgangsdatei** (Vorbemerkung zu S100 bis S106). Kam die bisherige Tabelle aus S102 und liegt nicht auf dem Server, ist sie danach weg |
+| **S101** | Icon- und Wetterdatei vom Server laden (`update_download_assets`) | S | Beide Dateien in `/api/fs_list` mit Grösse > 0 | Der Endpunkt meldet `{"ok":true}` auch dann, wenn er nur einen Teil geladen hat — Beleg ist die Dateiliste. **Rückweg nur mit den lokal gesicherten Ausgangsdateien** |
+| **S102** | Tabellendatei lokal hochladen (`fs_upload_tables`) | S | Datei in `/api/fs_list`, Grösse gleich der lokalen Datei | **Rückweg nur mit der lokal gesicherten Ausgangsdatei** — die überschriebene ist nicht vom Gerät zurückzuholen |
+| **S103** | Icondatei lokal hochladen (`fs_upload_icon`) | S | wie S102 | wie S102, einschliesslich des Rückwegs |
+| **S104** | Wetterdatei lokal hochladen (`fs_upload_weather`) | S | wie S102 | wie S102, einschliesslich des Rückwegs |
+| **S105** | Displaydatei lokal hochladen (`fs_upload_display`) | S | wie S102 | wie S102, einschliesslich des Rückwegs |
+| **S106** | App-Dateien hochladen (`app_file_upload`) | S | `./tools/install-app.sh --check` meldet alle Dateien der Weissliste mit Grösse > 0 | Die PWA überschreibt sich selbst. Danach Seite neu laden und prüfen, dass sie noch startet. **Der heikelste Schritt der Gruppe:** Eine leere oder abgebrochene Datei ist der belegte Weisschirm-Fall — die Oberfläche ist dann weg, und mit ihr der Weg, sie wieder hochzuladen. **Der Rückweg heisst `./tools/install-app.sh`** und läuft vom Rechner aus, nicht über die PWA; er setzt die vollständigen `.gz`-Dateien lokal voraus. Vor dem Schritt prüfen, dass sie da sind, und den Rückweg danach mit `./tools/install-app.sh --check` nachweisen |
 | **S107** | **Leere Datei** hochladen | S | Der ESP weist sie ab, die bestehende Datei bleibt unverändert | **Erwarteter Befund:** ESP-seitig abgefangen (Prüfung auf Grösse > 0), **PWA-seitig steht die Prüfung noch aus** (Massnahme 7). Eine leere `.gz` hat schon einmal einen weissen Bildschirm erzeugt |
 | **S108** | Dateiliste und Speicherstand (`fs_list`, `fs_info`) | L | Jede Datei der Weissliste erscheint mit Grösse > 0; der freie Platz ist grösser als die grösste geplante Hochladedatei | Lesend — gehört eigentlich in Phase 2, steht hier als **Vorbedingung** für S102 bis S107 |
 | **S109** | Datei anzeigen (`fs_show?filename=`) | L | Der Inhalt erscheint in der Vorschau, lange Zeilen brechen um | Lesend |
@@ -623,13 +744,17 @@ Sicherung exportieren und importieren.
 | **S111** | STM32 flashen über den Server (`remote_stm32_flash`) | **R** | `/api/update_status` meldet die neue STM-Version | **Nicht von Hand aufrufen** — `./tools/flash-stm.sh` benutzen (DIR-010). `filename` ist Pflicht, und bei `HARDWARE_CONFIGURATION` = 65535 weist der ESP jeden Namen ab |
 | **S112** | STM32 lokal flashen (`local_stm32_flash`) | **R** | wie S111 | Gleiche Fallen, zusätzlich die Dateigrösse der hochgeladenen Binärdatei |
 | **S113** | ESP neu starten (`local_esp_restart`) | **R** | Das Gerät ist binnen 30 s wieder erreichbar, `reconnect_probe` antwortet | **Danach den Variablensatz prüfen** — genau hier tritt L103 auf |
-| **S114** | STM zurücksetzen (`maintenance_reset_stm32`) | **R** | Die Uhr zeigt die Startsequenz, danach ist `numvar[idx=29].value` (`HARDWARE_CONFIGURATION`) wieder ungleich 65535 | Das ist zugleich die **Reparatur** für den Zustand aus 6.0d |
+| **S114** | STM zurücksetzen (`maintenance_reset_stm32`) | **R** | Die Uhr zeigt die Startsequenz, danach ist `numvar[idx=29].value` (`HARDWARE_CONFIGURATION`) wieder ungleich 65535 | Das ist zugleich die **Reparatur** für den Zustand aus 6.0d — aber der Schritt trifft **nicht nur den STM, er reisst den ESP mit** (L183). Alle ESP-Zähler (`write_lost_bytes`, `write_lost_blocks`, `no_request_aborts`, `update_cache_hits`) stehen danach auf **0**, und der Variablenverlust aus L42/L103 kann eintreten. **Messreihen über einen STM-Reset hinweg sind ungültig**, jede laufende Messreihe wird dadurch wertlos — am 04.10.2026 wurde `write_lost_blocks: 0` fälschlich als Erfolg gelesen, obwohl der Zähler nur zurückgesetzt war. Belegt durch drei unabhängige Fälle mit vollständiger ESP-Startsequenz danach und durch `update_cache_hits` 5 → 0, einen reinen ESP-Zähler ohne STM-Bezug. **Vermutete Ursache, elektrisch und nicht im Code:** Der Handler ruft ausschliesslich `stm32_reset()`; der STM schaltet beim Start über `PB0` die 5-V-Versorgung der LED-Kette, und der Einschaltstrom zieht die Versorgung so weit herunter, dass der ESP mitgeht — dieselbe Stromreserve, die bei `test_display` nach 44 s zum Brownout führt. **Danach zwingend:** Variablensatz prüfen und die Update-Quelle gegen `tools/device.conf` (S97/S98) |
 
 ---
 
 ## 7. Phase 4 — Grenzfälle
 
 Für jedes Eingabefeld dieselben acht Klassen. Nicht stichprobenartig — **jedes Feld**.
+
+**Auch hier gilt V1 aus Abschnitt 5b:** `d=` vor und nach jeder Feldreihe. Ein
+abgewiesener Wert ist erst dann belegt abgewiesen, wenn im selben Fenster nichts
+verworfen wurde.
 
 | | Eingabe | Erwartung |
 |---|---|---|
