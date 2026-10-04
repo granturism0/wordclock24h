@@ -395,7 +395,7 @@
                  steuert, bleibt is-hidden stehen. Beschriftung und Zustand setzt
                  setActionToggleButton() (app.js, R3). -->
             <div id="display-use-rgbw-actions" class="hero-actions is-hidden">
-              <button id="display-use-rgbw-button" class="button" type="button" aria-pressed="false" data-i18n="display.white_channel">Weisskanal</button>
+              <button id="display-use-rgbw-button" class="button" type="button" aria-pressed="false" data-i18n="display.use_rgbw">Weisskanal einschalten</button>
             </div>
             <label class="field"><span class="label" data-i18n="display.mode">Display-Modus</span><select id="display-mode-select"></select></label>
             <button id="display-mode-save-button" class="button" type="button" data-i18n="display.save_mode">Display-Modus speichern</button>
@@ -731,6 +731,45 @@
           </div>
         </section>
 
+        <section id="local-update-panel" class="panel panel-maintenance-local">
+          <div class="panel-head"><div><p class="eyebrow" data-i18n="maintenance.local_update_eyebrow">Lokales Update</p><h2 data-i18n="maintenance.local_update_title">ESP- und STM32-Firmware hochladen</h2><p class="hint" data-i18n="maintenance.local_update_hint">Lokale Firmware-Dateien direkt hochladen, ohne den Update-Server zu verwenden.</p></div></div>
+          <div class="control-stack">
+            <p id="local-update-note" class="hint" data-i18n="maintenance.local_update_preparing">Lokal-Update wird vorbereitet...</p>
+            <form id="local-update-esp-form" class="local-update-form">
+              <label class="field"><span class="label" data-i18n="maintenance.local_esp_file">ESP-Firmwaredatei (.bin)</span><input id="local-update-esp-file-input" type="file" accept=".bin" required></label>
+              <button id="local-update-esp-submit-button" class="button" type="submit" data-i18n="maintenance.local_esp_update">ESP lokal aktualisieren</button>
+            </form>
+            <form id="local-update-stm32-form" class="local-update-form">
+              <label class="field"><span class="label" data-i18n="maintenance.local_stm32_file">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex" required></label>
+              <button id="local-update-stm32-submit-button" class="button" type="submit" data-i18n="maintenance.local_stm32_update">STM32 lokal aktualisieren</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel panel-maintenance-backup">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="maintenance.backup_eyebrow">Sicherung</p>
+              <h2 data-i18n="maintenance.backup_title">Einstellungen exportieren und importieren</h2>
+              <p class="hint" data-i18n="maintenance.backup_hint">Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.</p>
+            </div>
+          </div>
+          <div class="control-stack">
+            <div id="backup-info-list" class="info-list"></div>
+            <div class="hero-actions">
+              <button id="settings-export-button" class="button primary" type="button" data-i18n="backup.export_button">Einstellungen exportieren</button>
+            </div>
+            <label class="field">
+              <span class="label" data-i18n="maintenance.backup_import_file">Sicherungsdatei importieren</span>
+              <input id="settings-import-file-input" type="file" accept=".json,application/json">
+            </label>
+            <div class="hero-actions">
+              <button id="settings-import-button" class="button" type="button" data-i18n="backup.import_button">Einstellungen importieren</button>
+            </div>
+            <p id="settings-backup-note" class="hint" data-i18n="maintenance.backup_idle">Noch keine Sicherungsaktion ausgeführt.</p>
+          </div>
+        </section>
+
         <section class="panel panel-maintenance-service">
           <div class="panel-head">
             <div>
@@ -797,45 +836,6 @@
                 </div>
               </section>
             </div>
-          </div>
-        </section>
-
-        <section id="local-update-panel" class="panel panel-maintenance-local">
-          <div class="panel-head"><div><p class="eyebrow" data-i18n="maintenance.local_update_eyebrow">Lokales Update</p><h2 data-i18n="maintenance.local_update_title">ESP- und STM32-Firmware hochladen</h2><p class="hint" data-i18n="maintenance.local_update_hint">Lokale Firmware-Dateien direkt hochladen, ohne den Update-Server zu verwenden.</p></div></div>
-          <div class="control-stack">
-            <p id="local-update-note" class="hint" data-i18n="maintenance.local_update_preparing">Lokal-Update wird vorbereitet...</p>
-            <form id="local-update-esp-form" class="local-update-form">
-              <label class="field"><span class="label" data-i18n="maintenance.local_esp_file">ESP-Firmwaredatei (.bin)</span><input id="local-update-esp-file-input" type="file" accept=".bin" required></label>
-              <button id="local-update-esp-submit-button" class="button" type="submit" data-i18n="maintenance.local_esp_update">ESP lokal aktualisieren</button>
-            </form>
-            <form id="local-update-stm32-form" class="local-update-form">
-              <label class="field"><span class="label" data-i18n="maintenance.local_stm32_file">STM32-Firmwaredatei (.hex)</span><input id="local-update-stm32-file-input" type="file" accept=".hex" required></label>
-              <button id="local-update-stm32-submit-button" class="button" type="submit" data-i18n="maintenance.local_stm32_update">STM32 lokal aktualisieren</button>
-            </form>
-          </div>
-        </section>
-
-        <section class="panel panel-maintenance-backup">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow" data-i18n="maintenance.backup_eyebrow">Sicherung</p>
-              <h2 data-i18n="maintenance.backup_title">Einstellungen exportieren und importieren</h2>
-              <p class="hint" data-i18n="maintenance.backup_hint">Sichert die konfigurierbaren Einstellungen als JSON-Datei und spielt sie auf Wunsch wieder ein. Die Datei enthält auch WLAN- und AP-Daten im Klartext.</p>
-            </div>
-          </div>
-          <div class="control-stack">
-            <div id="backup-info-list" class="info-list"></div>
-            <div class="hero-actions">
-              <button id="settings-export-button" class="button primary" type="button" data-i18n="backup.export_button">Einstellungen exportieren</button>
-            </div>
-            <label class="field">
-              <span class="label" data-i18n="maintenance.backup_import_file">Sicherungsdatei importieren</span>
-              <input id="settings-import-file-input" type="file" accept=".json,application/json">
-            </label>
-            <div class="hero-actions">
-              <button id="settings-import-button" class="button" type="button" data-i18n="backup.import_button">Einstellungen importieren</button>
-            </div>
-            <p id="settings-backup-note" class="hint" data-i18n="maintenance.backup_idle">Noch keine Sicherungsaktion ausgeführt.</p>
           </div>
         </section>
       </section>

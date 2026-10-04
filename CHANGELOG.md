@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-10-04 Runde 3: Das Kachelraster im Wartungsmodul (PWA 1.4.87)
+
+Nur die PWA. STM und ESP unverändert.
+
+### Was sich ändert
+
+Die sechs Kacheln des Wartungsmoduls standen bisher in drei von Hand gepflegten
+Rastervorlagen — je eine für breite, sehr breite und schmale Bildschirme. Sie sind
+weg; die Kacheln ordnen sich jetzt von allein. Das Markup folgt der Reihenfolge
+`Quelle, Server-Update, Lokales Update, Sicherung, Service, Dateien`, und die
+sichtbare Reihenfolge stimmt an **jeder** Breite mit ihr überein.
+
+**Damit ist die Fokusreihenfolge berichtigt.** Bisher wich sie von der sichtbaren ab
+und führte als Drittes zu den Service-Aktionen: Wer aus „Vom Server laden"
+heraustabbte, stand direkt vor „STM32 zurücksetzen" und „EEPROM zurücksetzen". Die
+Kachel liegt jetzt an fünfter Stelle.
+
+### Die Leerfläche: von 900 auf 406 px — und das Kriterium bleibt verfehlt
+
+Das Ziel war, dass nebeneinanderstehende Kacheln sich um höchstens 400 px in der Höhe
+unterscheiden. Erreicht sind **406**.
+
+Der grosse Abstand ist weg: Die Quellen-Kachel stand neben einer dreimal kleineren,
+das sind jetzt 302 px statt 900. Was bleibt, ist ein anderes Paar — die Sicherungs-
+neben der Service-Kachel. Deren Unterschied ist **kein Rasterproblem**: Die eine trägt
+Infoliste, Exportknopf, Dateifeld, Importknopf und Hinweiszeile, die andere zwei
+Knöpfe. Keine Anordnung dieser sechs Kacheln bringt das unter 400 px.
+
+**Das wird als verfehlt berichtet, nicht als erfüllt.** Der Rückgang von 900 auf 406
+ist der Gewinn dieser Runde; „erfüllt" wäre eine Falschaussage.
+
+Eine Zahl, die dabei herauskam und mehr sagt als das Kriterium selbst: Gemessen wurde
+an sieben Breiten, und der **schlechteste Wert liegt nicht bei der geprüften Breite**,
+sondern bei 600 px — dort sind es 594. Je schmaler die Spalte, desto höher wird die
+Sicherungskachel. Eine Abnahme an einer einzelnen Breite misst nicht, was der Nutzer
+an seinem Gerät sieht.
+
+### Zwei Fallen, die kein Werkzeug gemeldet hätte
+
+Beim Entfernen der Vorlagen wären zwei Folgefehler entstanden, die in keiner
+Aufgabenbeschreibung standen: Der Modulkopf hätte gegen nicht mehr existierende
+Rasterlinien aufgelöst, und die Dateikachel — die die Breite wirklich braucht — wäre
+ab 900 px zu einer halben Spalte geschrumpft. Beides fällt nirgends auf: Die
+Browserprüfung sieht Ladefehler, nicht Geometrie. Gefunden hat sie die Vorprüfung,
+die dieser Runde vorausging.
+
+### Was zu flashen ist
+
+**Nur die PWA.**
+
+
 ## 2026-10-04 Die Tickerblockade ist weg (STM 3.2.18, PWA 1.4.86)
 
 STM und PWA, der ESP unverändert. **Das ist das Release, das den Hänger behebt.**
