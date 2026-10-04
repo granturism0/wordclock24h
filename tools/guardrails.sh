@@ -472,6 +472,10 @@ fi
 step S10 "Massnahmenkatalog BEFUNDE.md vollstaendig"
 node tools/checks/befunde-katalog.mjs || WARN=$((WARN+1))
 
+# ------------------------------------------- S11 Direktivenkatalog vollstaendig
+step S11 "Direktivenkatalog vollstaendig"
+node tools/checks/direktiven.mjs || WARN=$((WARN+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
