@@ -376,7 +376,9 @@
 #define DIAG_INTERVAL_SEC           10                                  // Takt der Diagnosezeile in Sekunden
 #define DIAG_INTERVAL_TICKS         (DIAG_INTERVAL_SEC * F_INTERRUPTS)  // Makro: wird erst im Hauptloop expandiert, F_INTERRUPTS kommt aus irmpconfig.h
 #define DIAG_LOOP_BUDGET_START      1000000UL                           // Rueckfall-Schwelle, solange noch keine regulaere Zeile kalibriert hat
-#define DIAG_LOOP_BUDGET_MIN        1000UL                              // Untergrenze der selbstkalibrierten Schwelle
+#define DIAG_LOOP_BUDGET_MIN        1000UL                              // Untergrenze der selbstkalibrierten Schwelle. Seit A27 / L182 nur noch
+                                                                        // ueber mehrere Fenster mit echtem Rueckgang erreichbar, nicht mehr in
+                                                                        // einem Schritt nach einem Stillstand -- siehe Kalibrierung im Hauptloop
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * global public variables
@@ -3425,8 +3427,9 @@ main (void)
          */
         static uint32_t     diag_seq            = 0;                                    // Folgenummer: eine Luecke im Ring ist sonst nicht von Ruhe zu unterscheiden
         static uint32_t     diag_loop_cnt       = 0;                                    // Hauptloop-Durchlaeufe seit dem Start
-        static uint32_t     diag_last_tick      = 0;                                    // Stand von diag_tick_cnt bei der letzten Zeile
-        static uint32_t     diag_last_loop      = 0;                                    // Stand von diag_loop_cnt bei der letzten Zeile
+        static uint32_t     diag_last_tick      = 0;                                    // Stand von diag_tick_cnt bei der letzten REGULAEREN Zeile - nur die setzt ihn
+        static uint32_t     diag_last_loop      = 0;                                    // Stand von diag_loop_cnt bei der letzten Zeile, Bezug des Rueckfalls
+        static uint32_t     diag_regular_loop   = 0;                                    // Stand von diag_loop_cnt bei der letzten REGULAEREN Zeile, Bezug der Kalibrierung
         static uint32_t     diag_loop_budget    = DIAG_LOOP_BUDGET_START;               // Rueckfall-Schwelle, nach der ersten regulaeren Zeile selbstkalibriert
         static uint_fast8_t diag_armed          = 0;                                    // Nullpunkt gesetzt?
         uint32_t            diag_tick_now       = diag_tick_cnt;                        // volatile genau einmal lesen
@@ -3438,9 +3441,10 @@ main (void)
 
         if (! diag_armed)                                                               // erste Runde: Nullpunkt setzen, sonst kalibrierte die erste Zeile auf einen einzigen Durchlauf
         {
-            diag_armed      = 1;
-            diag_last_tick  = diag_tick_now;
-            diag_last_loop  = diag_loop_cnt;
+            diag_armed         = 1;
+            diag_last_tick     = diag_tick_now;
+            diag_last_loop     = diag_loop_cnt;
+            diag_regular_loop  = diag_loop_cnt;
         }
 
         diag_tick_delta = diag_tick_now - diag_last_tick;                               // vorzeichenlos: ein Umlauf von diag_tick_cnt stoert die Differenz nicht
@@ -3451,16 +3455,44 @@ main (void)
         {
             if (diag_regular)                                                           // nur der regulaere Takt kalibriert - der Rueckfall zoege die Schwelle sonst nach unten
             {
-                diag_loop_budget = 4 * diag_loop_delta;                                 // Vierfaches des Zehn-Sekunden-Pensums: kann per Konstruktion nicht fluten
+                /*-------------------------------------------------------------------------------------------------------------
+                 * WARUM Takt UND Kalibrierung ausschliesslich hier fortgeschrieben werden (A27 / BEFUNDE L182):
+                 *
+                 * Bis zum 04.10.2026 setzten BEIDE Zweige diag_last_tick und diag_last_loop. Damit verschob jede Rueckfallzeile
+                 * auch den Bezugspunkt des regulaeren Takts: Feuerte der Rueckfall oefter als alle zehn Sekunden, erreichte
+                 * diag_tick_delta nie mehr DIAG_INTERVAL_TICKS - es kam keine regulaere Zeile mehr, und damit kalibrierte nie
+                 * wieder etwas. Das Budget blieb auf DIAG_LOOP_BUDGET_MIN stehen und die Flut hielt sich selbst am Leben.
+                 * Am Geraet gemessen: morgens im Ruhebetrieb 60 Zeilen in 590 s (korrekter Zehn-Sekunden-Takt), abends nach
+                 * einem Haenger 69,3 Zeilen JE SEKUNDE, dauerhaft, beendet erst durch einen STM-Reset. Der Ruhebetrieb kann
+                 * diese Rueckkopplung nicht zeigen - sie braucht einen Stillstand als Ausloeser.
+                 *
+                 * Die Rueckfallzeile selbst bleibt unangetastet: Sie ist das einzige Signal dafuer, dass der zeitgesteuerte
+                 * Zweig ausgesetzt hat (so wurde der Haenger aus L204 erkannt). Sie setzt nur noch diag_last_loop - ihren
+                 * eigenen Bezug - und vergiftet die Kalibrierung nicht mehr.
+                 *-------------------------------------------------------------------------------------------------------------
+                 */
+                if (diag_tick_delta < 2 * DIAG_INTERVAL_TICKS)                          // nur ein Fenster, das wirklich rund zehn Sekunden lang war, darf kalibrieren:
+                {                                                                       // stand der Hauptloop dazwischen still, waere das Pensum zu klein gemessen
+                    uint32_t diag_budget_new = 4 * (diag_loop_cnt - diag_regular_loop); // Vierfaches des Zehn-Sekunden-Pensums, seit der letzten REGULAEREN Zeile
 
-                if (diag_loop_budget < DIAG_LOOP_BUDGET_MIN)
-                {
-                    diag_loop_budget = DIAG_LOOP_BUDGET_MIN;
+                    if (diag_budget_new < diag_loop_budget / 2)                         // Daempfung: ein EINZELNES Fenster darf die Schwelle nicht einreissen. Nach
+                    {                                                                   // einem Stillstand des Hauptloops (L204) enthaelt das Fenster den Stillstand,
+                        diag_budget_new = diag_loop_budget / 2;                         // misst fast keine Durchlaeufe und riss sie sonst in EINEM Schritt bis auf die
+                    }                                                                   // Untergrenze ein. Ein echter Rueckgang der Loopfrequenz setzt sich ueber
+                                                                                        // mehrere Fenster trotzdem durch.
+                    if (diag_budget_new < DIAG_LOOP_BUDGET_MIN)
+                    {
+                        diag_budget_new = DIAG_LOOP_BUDGET_MIN;
+                    }
+
+                    diag_loop_budget = diag_budget_new;
                 }
+
+                diag_last_tick    = diag_tick_now;                                      // NUR hier, sonst verhungert der regulaere Takt - siehe oben
+                diag_regular_loop = diag_loop_cnt;
             }
 
-            diag_last_tick = diag_tick_now;
-            diag_last_loop = diag_loop_cnt;
+            diag_last_loop = diag_loop_cnt;                                             // bei JEDER Zeile: sonst feuerte der Rueckfall in jedem weiteren Durchlauf
             diag_seq++;
 
             log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u v=%u/%u\r\n",
