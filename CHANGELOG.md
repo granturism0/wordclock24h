@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-10-04 Zwei Lesefehler über Puffergrenzen, und drei nachgeholte Aufgaben (ESP 3.2.21, PWA 1.4.88)
+
+ESP und PWA. Der STM bleibt auf 3.2.18.
+
+**Einspielreihenfolge: ESP zuerst, PWA danach.** Das ist diesmal keine Formalie —
+siehe unten.
+
+### Ein verlorenes Zeichen erzeugte einen falschen Wert, keinen fehlenden
+
+`htoi()` liest Hexzahlen von der Brücke. Die Schleifenbedingung prüfte das **erste**
+Zeichen, gelesen wurde das **i-te** — nach dem ersten Durchlauf war die Bedingung
+bedeutungslos, und bei einer zu kurzen Zeichenkette las die Funktion über das
+Zeilenende hinaus.
+
+Die Folge ist schwerer als ein Absturz: Ging auf der Brücke ein Zeichen verloren,
+entstand kein *fehlender* Wert, sondern ein **gültig aussehender falscher**,
+aufgefüllt mit dem, was zufällig dahinterstand. Nachgerechnet: `OT000` ergab 0,
+`OT002` ergab 32. Und weil er gültig aussah, fiel er nirgends auf. Das ist der
+Mechanismus, über den ein Overlay-Typ als 14 ankam, obwohl der STM 2 geschickt hatte.
+
+Bei vollständiger Eingabe ändert sich nichts — der Fix wirkt ausschliesslich auf
+Fälle, die heute schon falsch sind. Eine Aufrufstelle war knapp: Sie übergibt einen
+Puffer **ohne Abschlusszeichen** und trägt nur, weil dort genau zwei Ziffern erwartet
+werden.
+
+### `fs_show` unterscheidet jetzt drei Zustände
+
+Der Endpunkt lieferte bei fehlender Datei einen **leeren Rumpf** — ununterscheidbar
+von einer tatsächlich leeren Datei. Am Gerät gemessen fiel sogar ein dritter Zustand
+in dieselbe Antwort: ein leerer Parameter.
+
+Jetzt kommt bei fehlender Datei eine Fehlerantwort mit eigenem Code, bei leerer Datei
+eine leere Textantwort. Die Oberfläche unterscheidet am Antworttyp, nicht am
+Rumpfanfang, und sagt für die leere Datei ausdrücklich, dass das **kein Fehler** ist.
+
+**Hier liegt der Grund für die Einspielreihenfolge:** Auf der alten Firmware würde die
+neue Oberfläche bei einer fehlenden Datei melden „ist leer — das ist kein Fehler, die
+Datei gibt es". Das wäre eine Falschaussage über den Gerätezustand — die Oberfläche
+wäre für dieses Zeitfenster schlechter als ihre Vorgängerin. Die Unterscheidung kann
+nur die Firmware liefern.
+
+### Ankreuzfelder
+
+Sie wurden über eine allgemeine Regel auf **13 × 44 px** gezogen — hohe schmale
+Kästen, bei denen die Beschriftung unter das Feld rutschte statt daneben zu stehen.
+Zurückgesetzt war das nur für einen Teil; die TFT-Felder und die Favoritenzeilen
+blieben so. Das war vermutlich auch der Grund, warum die Felder „beigebraun" wirkten
+— am Bildpunkt gemessen ist die Farbe neutral, der Eindruck kam aus der Geometrie.
+
+Beim Beheben zeigte sich ein Fallstrick: Die 44 px waren das **Einzige**, was diesen
+Zeilen überhaupt ein Antippziel von 44 px gab. Sie nur zurückzusetzen hätte die
+Barrierefreiheit an anderer Stelle gebrochen. Die Höhe ist deshalb auf die Beschriftung
+gewandert.
+
+### Kontrast des Hakens
+
+Die Akzentfarbe war so hell, dass der Haken nur dann genug Kontrast hat, wenn die
+Darstellungsmaschine ihn dunkel zeichnet. Chrome tut das, Safari auf dem iPhone
+möglicherweise nicht — und das ist die Hauptplattform. Eine Messung in Chrome hätte
+„erfüllt" ergeben und wäre eine Zusage gewesen, die auf dem Telefon bricht.
+
+Deshalb eine eigene Steuerfarbe, die in **beiden** Fällen über der Grenze liegt. Sie
+gilt nur für Formularelemente; Text, Ränder und Fokusringe behalten die bisherige
+Farbe. Sichtbare Nebenwirkung: Die Schieberegler sind jetzt kräftiger blau.
+
+### Was zu flashen ist
+
+**ESP zuerst, PWA danach.**
+
+
 ## 2026-10-04 Runde 3: Das Kachelraster im Wartungsmodul (PWA 1.4.87)
 
 Nur die PWA. STM und ESP unverändert.

@@ -30,6 +30,24 @@ dayofweek (int d, int m, int y)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * hex to integer
+ *
+ * Die Schleifenbedingung prueft buf[i] und NICHT *buf -- Befund L232, und das ist kein
+ * Schoenheitsfehler: *buf ist immer buf[0], der Zeiger wandert nie. Die Abbruchbedingung
+ * waere damit nach dem ersten Zeichen bedeutungslos, und bei einer Zeichenkette kuerzer
+ * als max_digits laese die Funktion ueber das Zeilenende hinaus in den Rest des Puffers.
+ *
+ * Die Folge ist schwerer als ein Absturz: Ein auf der Bruecke verlorenes Zeichen erzeugt
+ * dann keinen FEHLENDEN Wert, sondern einen gueltig aussehenden FALSCHEN -- rechtsbuendig
+ * aufgefuellt mit dem, was zufaellig dahinter steht. Nachgerechnet am alten Stand:
+ * Das Typfeld von "OT<idx><typ>" ist zwei Zeichen breit. Fehlt das letzte Zeichen, bleibt
+ * "OT000" -> Typ 0 und "OT002" -> Typ 32: Die 2 rutscht ins obere Nibble, das untere wird
+ * mit dem gefuellt, was hinter dem Zeilenende steht -- hier der Terminator, der ueber den
+ * else-Zweig als 0 gilt. Steht dort kein Terminator, sondern Resttext aus dem Puffer, ist
+ * der Wert beliebig. Das ist der Mechanismus hinter L205, wo overlay[0].type als 14 statt
+ * 2 ankam -- und weil 14 gueltig aussieht, fiel es nirgends auf.
+ *
+ * Also bitte nicht "aufraeumen" und wieder auf *buf zurueckstellen. Betroffen ist jede
+ * Hexzahl, die der ESP von der Bruecke liest.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 uint16_t
@@ -39,7 +57,7 @@ htoi (char * buf, uint8_t max_digits)
     uint8_t     x;
     uint16_t    sum = 0;
 
-    for (i = 0; i < max_digits && *buf; i++)
+    for (i = 0; i < max_digits && buf[i]; i++)
     {
         x = buf[i];
 

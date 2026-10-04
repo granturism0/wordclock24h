@@ -25,6 +25,35 @@
   --text: #eef5ff;
   --muted: #9bb0d0;
   --accent: #8fd3ff;
+  /* Steuerfarbe AUSSCHLIESSLICH fuer accent-color (Ankreuzfeld, Schieber).
+     Sie gehoert nicht an Text, Rand oder Fokusring -- dafuer bleibt --accent.
+
+     Grund: Welche Farbe die Engine fuer den Haken im angekreuzten Feld waehlt,
+     schreibt keine Norm vor. Am 04.10.2026 in Chromium bei 390 px am Bildpunkt
+     nachgemessen: Der Haken kommt in rgb(59, 59, 59) -- NICHT in Schwarz, wie
+     bis dahin angenommen. WebKit kann stattdessen Weiss nehmen, und WebKit ist
+     auf dem iPhone die Hauptplattform. Sicher nach WCAG 1.4.11 ist eine
+     Akzentfarbe deshalb nur, wenn sie gegen DUNKEL UND gegen HELL je 3:1
+     erreicht -- das Leuchtdichteband L in [0,10 ... 0,30].
+
+     --accent liegt mit L = 0,596 weit darueber: zwar 12,93:1 gegen Schwarz,
+     aber nur 1,62:1 gegen Weiss. #0a84ff hat L = 0,238 und erreicht 5,76:1
+     gegen Schwarz, 3,65:1 gegen Weiss, 3,07:1 gegen das gemessene Grau von
+     Chromium und 5,07:1 gegen die Panelflaeche #0a1422 -- erfuellt also in
+     jeder Engine, unabhaengig von deren Wahl.
+
+     WER DIESE FARBE SPAETER "an die Marke anpasst", muss das Band einhalten;
+     sonst haengt die Zusage wieder daran, dass die Engine sich richtig
+     entscheidet.
+
+     HIER NICHT GELOEST, und bewusst nicht: Der UNangekreuzte Zustand haengt
+     gar nicht an accent-color. Chromium zeichnet ihn im Dunkelmodus in
+     rgb(59, 59, 59), also 1,66:1 gegen die Panelflaeche -- mit und ohne
+     Steuerfarbe derselbe Wert, beides gemessen. Bei .chip-toggle traegt der
+     Rand des Labels die 3:1-Zusage, bei .checkbox-line gibt es keinen. Ein
+     normgerechter unangekreuzter Zustand braucht ein selbst gezeichnetes Feld
+     (appearance: none) und ist damit eine Gestaltungsentscheidung. */
+  --accent-control: #0a84ff;
   --warm: #ffd063;
   --ok: #71e7b0;
   --radius-xl: 30px;
@@ -76,8 +105,30 @@ input[type="checkbox"],
 input[type="radio"] {
   /* Ohne accent-color zeichnet der Browser Spur und Haken im Systemgrau. Auf dem
      dunklen Untergrund kommt die Spur auf rund 1,6:1 -- unter den 3:1, die WCAG
-     1.4.11 fuer die grafische Darstellung eines Werts verlangt. */
-  accent-color: var(--accent);
+     1.4.11 fuer die grafische Darstellung eines Werts verlangt.
+     Hier steht --accent-control, nicht --accent: Begruendung bei der Variablen. */
+  accent-color: var(--accent-control);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  /* Ohne diesen Reset zoege die input-Vorgabe oben (min-height: 44px) JEDES
+     Ankreuzfeld auf 13 x 44 px auseinander -- ein hoher schmaler Kasten, um den
+     auch der Fokusring hoch und schmal ausfaellt. Bis zum 04.10.2026 stand der
+     Reset nur in .chip-toggle; die Felder ohne diese Klasse behielten den
+     Defekt. Am 390-px-Geraet nachgemessen: TFT-Felder und Favoritenfelder je
+     Animationsprofil kamen auf 13,0 x 44,0 px, der Fokusring ebenso.
+
+     Die 44-px-Zielgroesse aus WCAG 2.5.5 traegt jetzt das umgebende Label
+     (.chip-toggle, .checkbox-line) statt des Feldes selbst. Ein Ankreuzfeld
+     ohne eines dieser beiden Labels waere also ein zu kleines Ziel -- beim
+     Hinzufuegen eines neuen Feldes eine der beiden Klassen setzen. */
+  flex: none;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
 }
 
 input[type="range"] {
@@ -881,6 +932,12 @@ h2 {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Traegt die 44-px-Zielgroesse (WCAG 2.5.5), seit das Ankreuzfeld selbst auf
+     18 x 18 px zurueckgesetzt ist. Vorher kam die Hoehe vom 44 px hohen Feld --
+     also von genau dem Defekt, den der Reset beseitigt. Das Label umschliesst
+     das Feld, Antippen irgendwo in der Zeile schaltet mit. */
+  min-height: 44px;
+  cursor: pointer;
 }
 
 .overlay-card {
@@ -949,19 +1006,6 @@ h2 {
   border: 1px solid var(--line-control);
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
-}
-
-/* Ohne diese Regel zoege die globale input-Vorgabe (min-height 44px, padding 0 10px)
-   das Ankreuzfeld auf 13 x 44 px auseinander -- ein hoher schmaler Kasten, um den
-   auch der Fokusring hoch und schmal ausfiel. Der Fokusstil selbst bleibt der
-   globale :focus-visible-Ring, er umschliesst jetzt nur ein normal grosses Feld. */
-.chip-toggle input[type="checkbox"] {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
 }
 
 /* Damit haengt der Zustand nicht allein am Haken: Angekreuzt faerbt sich die ganze

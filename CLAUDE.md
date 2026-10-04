@@ -98,7 +98,13 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   Gleichschritt — ändert ein Release nur den STM-Code, steigt nur dessen Version.
   `APP_VERSION` und `CACHE_NAME` gehören dagegen immer zusammen.
 - **Nach jeder relevanten Änderung kompletter Build und Release-ZIP**, nicht nur
-  `app-gz`. Immer explizit sagen, was zu flashen ist.
+  `app-gz`. Immer explizit sagen, was zu flashen ist — **und in welcher Reihenfolge,
+  wenn eine Komponente die andere voraussetzt.** Setzt eine PWA-Änderung eine
+  Firmware-Änderung voraus, kommt die **Firmware zuerst**. Am 04.10.2026 belegt: Die
+  neue Oberfläche meldete auf alter Firmware „Datei ist leer — das ist kein Fehler,
+  die Datei gibt es", wo die Datei in Wahrheit fehlte (`BEFUNDE.md`, L241). Sie war
+  damit für das Zeitfenster zwischen den beiden Einspielvorgängen **schlechter als
+  ihre Vorgängerin**.
 - **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
   `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.

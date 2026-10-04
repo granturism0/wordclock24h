@@ -243,6 +243,13 @@ static uint16_t     http_no_request_aborts   = 0;
  */
 #define HTTP_API_ERROR_NOT_CONFIGURED               5
 
+/* Die angeforderte Datei gibt es nicht. Eingefuehrt fuer fs_show (Befund L187 / C16):
+ * Dort war "Datei fehlt" bis hierher von "Datei leer" nicht zu unterscheiden, weil beide
+ * Faelle einen leeren Rumpf lieferten. Die Kennung erweitert den API-Vertrag -- die PWA
+ * muss sie kennen (Task 1.5).
+ */
+#define HTTP_API_ERROR_NOT_FOUND                    6
+
 static void             http_json_ok ();
 static void             http_json_error (unsigned int error_code, const char * detail);
 static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
@@ -11278,42 +11285,79 @@ http_api_fs_list ()
     return 0;
 }
 
+/* Drei Faelle statt zwei -- Befund L187 / C16. Bis hierher gingen die Kopfzeilen hinaus,
+ * BEVOR die Datei geoeffnet wurde. Scheiterte LittleFS.open(), folgte gar nichts mehr: Die
+ * Antwort war ein leerer Rumpf mit Content-Type text/plain, und die PWA konnte "Datei leer"
+ * nicht von "Datei fehlt" unterscheiden. Eine leere Datei ist hier kein theoretischer Fall,
+ * sondern genau der Weisschirm-Fehlerfall der Architektur-Invariante.
+ *
+ * Unterschieden wird am Content-Type, nicht am Rumpfanfang:
+ *   Parameter fehlt oder leer  -> application/json, error 1
+ *   Datei existiert nicht      -> application/json, error 6
+ *   Datei existiert, Groesse 0 -> text/plain, Rumpflaenge 0 -- wie bisher, jetzt eindeutig
+ *   Datei existiert mit Inhalt -> text/plain mit Inhalt -- unveraendert
+ * Eine Pruefung auf {"ok":false am Rumpfanfang waere falsch, sobald eine angezeigte Datei
+ * genau so beginnt.
+ *
+ * http_fs_file_exists_and_nonempty() ist hier ABSICHTLICH nicht benutzt: Der Helfer prueft
+ * zusaetzlich auf Groesse > 0 und wuerde die leere Datei als "fehlt" melden -- genau die
+ * Verwechslung, die dieser Umbau abschafft.
+ *
+ * Ein begin(), ein end() auf jedem Pfad, auch auf den Fehlerpfaden (C9b / L129).
+ * Der Dateiname wandert NICHT in den detail-Text; ein fester Text spart die Frage nach
+ * seiner Maskierung ganz.
+ */
 static int
 http_api_fs_show ()
 {
     char * fname = http_get_param ("filename");
 
+    if (! fname || ! *fname)
+    {
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "filename required");
+        return 0;
+    }
+
+    LittleFS.begin ();
+
+    if (! LittleFS.exists (fname))
+    {
+        LittleFS.end ();
+        http_json_error (HTTP_API_ERROR_NOT_FOUND, "file not found");
+        return 0;
+    }
+
+    File fp = LittleFS.open (fname, "r");
+
+    if (! fp)                                                               // existiert, laesst sich aber nicht oeffnen
+    {
+        LittleFS.end ();
+        http_json_error (HTTP_API_ERROR_NOT_FOUND, "file not found");
+        return 0;
+    }
+
+    // Ab hier steht fest, dass Inhalt folgt -- erst jetzt gehen die Kopfzeilen hinaus.
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-cache\r\n\r\n"));
 
-    if (fname && *fname)
+    while (fp.available ())
     {
-        LittleFS.begin ();
-        File fp = LittleFS.open (fname, "r");
+        char b[64];
+        int n = fp.readBytes (b, sizeof (b));
 
-        if (fp)
+        if (n > 0)
         {
-            while (fp.available ())
+            for (int i = 0; i < n; i++)
             {
-                char b[64];
-                int n = fp.readBytes (b, sizeof (b));
-
-                if (n > 0)
-                {
-                    for (int i = 0; i < n; i++)
-                    {
-                        char cbuf[2];
-                        cbuf[0] = b[i];
-                        cbuf[1] = '\0';
-                        http_send (cbuf);
-                    }
-                }
+                char cbuf[2];
+                cbuf[0] = b[i];
+                cbuf[1] = '\0';
+                http_send (cbuf);
             }
-
-            fp.close ();
         }
-
-        LittleFS.end ();
     }
+
+    fp.close ();
+    LittleFS.end ();
 
     http_flush ();
 

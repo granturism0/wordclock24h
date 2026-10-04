@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.87";
+const APP_VERSION = "1.4.88";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -828,6 +828,7 @@ const I18N_DE = {
   "maintenance.stm32_auto_reset_running": "STM32 wird automatisch zurückgesetzt. Daten werden danach neu geladen.",
   "maintenance.stm32_flash_success": "STM32-Update erfolgreich abgeschlossen.",
   "maintenance.fs_showing": "Datei „{file}“ wird angezeigt.",
+  "maintenance.fs_show_empty": "Datei „{file}“ ist leer — 0 Byte. Das ist kein Fehler, die Datei gibt es.",
   "maintenance.fs_deleted": "Datei „{file}“ wurde gelöscht.",
   "maintenance.fs_delete_confirm": "Datei „{file}“ wirklich löschen?",
   "maintenance.file_load_failed": "Datei konnte nicht geladen werden",
@@ -863,6 +864,7 @@ const I18N_DE = {
   "api.error.4": "Datum oder Uhrzeit sind ungültig. Die Uhr wurde nicht gestellt.",
   "api.warning.ldr_min_max": "Der Minimalwert der automatischen Helligkeit liegt nicht unter dem Maximalwert. Solange das so bleibt, regelt die Uhr die Helligkeit gar nicht — und meldet dazu nichts weiter. Setz das Minimum unter das Maximum.",
   "api.error.5": "Dafür fehlen noch Angaben: Trage unter Klima den Wetter-API-Schlüssel ein und dazu entweder einen Ort oder ein vollständiges Koordinatenpaar. Im eigenen Accesspoint hat die Uhr keinen Weg ins Internet.",
+  "api.error.6": "Diese Datei gibt es auf dem Gerät nicht.",
   "common.saving": "speichert...",
   "common.loading": "lädt...",
   "common.running": "läuft...",
@@ -933,7 +935,8 @@ const I18N_DE = {
   "maintenance.update_host_save_failed": "Update-Host konnte nicht gespeichert werden",
   "maintenance.update_path_save_failed": "Update-Pfad konnte nicht gespeichert werden",
   "maintenance.format_fs_failed": "LittleFS konnte nicht formatiert werden",
-  "maintenance.preview_empty": "(leer)",
+  "maintenance.preview_empty": "Diese Datei ist leer — 0 Byte.",
+  "maintenance.preview_unavailable": "Der Inhalt liess sich nicht laden.",
   "maintenance.target_uploads_unsupported": "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.",
   "maintenance.upload_file_done": "Datei wurde hochgeladen.",
   "maintenance.upload_table_done": "Layout-Tabelle wurde hochgeladen.",
@@ -10502,19 +10505,62 @@ async function formatLittleFsFromFiles() {
   }
 }
 
+// Unterschieden wird am Content-Type, NICHT am Rumpfanfang. "application/json" ist
+// eine Fehlerantwort, "text/plain" ist Dateiinhalt -- auch dann, wenn er leer ist.
+// Eine Pruefung auf die Zeichenfolge {"ok":false am Anfang des Rumpfes waere falsch,
+// sobald eine angezeigte Datei genau so beginnt; der Kopf luegt nicht, der
+// Rumpfanfang schon.
+//
+// Bis ESP 3.2.20 lieferte fs_show fuer "Datei fehlt" und fuer "Datei leer" dasselbe:
+// text/plain mit Rumpflaenge 0 (am Geraet nachgemessen, L187/C16). Die Oberflaeche
+// konnte beides nicht trennen und schrieb in beiden Faellen "(leer)". Seit dem
+// Umbau kommt fuer die fehlende Datei application/json mit Fehlercode 6, und
+// apiFetch wirft darauf bereits selbst -- hier bleibt nur noch, die leere Datei als
+// das zu zeigen, was sie ist: ein gueltiges Ergebnis.
 async function showFsFile(fileName) {
   if (!fileName) {
     return;
   }
 
+  const preview = document.getElementById("fs-preview-content");
+
   try {
     const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
+    const contentType = String(response.headers && response.headers.get("content-type") || "").toLowerCase();
+
+    // Ein JSON-Rumpf, den apiFetch durchgelassen hat, ist kein Dateiinhalt -- etwa
+    // ein {"ok":true} einer aelteren oder neueren Firmware. Nicht anzeigen.
+    if (contentType.indexOf("json") >= 0) {
+      throw new Error("fs-show-not-plain-text");
+    }
+
     const text = await response.text();
-    document.getElementById("fs-preview-content").textContent = text || translate("maintenance.preview_empty");
-    setFsActionStatus(translateFormat("maintenance.fs_showing", { file: fileName }));
-    announceStatus(fileName + " " + translate("common.loaded"), "ok");
+    const isEmpty = text.length === 0;
+
+    if (preview) {
+      preview.textContent = isEmpty ? translate("maintenance.preview_empty") : text;
+    }
+
+    const status = isEmpty
+      ? translateFormat("maintenance.fs_show_empty", { file: fileName })
+      : translateFormat("maintenance.fs_showing", { file: fileName });
+
+    setFsActionStatus(status);
+    announceStatus(status, "ok");
   } catch (error) {
-    announceStatus(translate("maintenance.file_load_failed"), "error");
+    // describeApiError kennt Fehlercode 6 seit Runde 1 ("Diese Datei gibt es auf dem
+    // Geraet nicht."). Ohne diesen Aufruf stuende hier derselbe allgemeine Satz wie
+    // bei jedem anderen Fehlschlag -- und genau diese Unterscheidung ist der Zweck.
+    const message = describeApiError(error, translate("maintenance.file_load_failed"));
+
+    // Sonst bliebe der Inhalt der zuletzt angezeigten Datei stehen und saehe aus wie
+    // der Inhalt der gerade angeforderten.
+    if (preview) {
+      preview.textContent = translate("maintenance.preview_unavailable");
+    }
+
+    setFsActionStatus(message);
+    announceStatus(message, "error");
   }
 }
 
