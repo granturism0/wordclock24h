@@ -11,11 +11,34 @@
 # Verglichen wird Feld fuer Feld, nicht Datei fuer Datei: Ein diff ueber settings_xml
 # meldet sonst eine einzige lange Zeile und sagt nichts darueber, WELCHE Variable sich
 # geaendert hat.
+#
+# WAS DIESER VERGLEICH NICHT LEISTET -- und das ist teuer geworden
+#
+# Er findet ausschliesslich, was der EIGENE Lauf veraendert hat. Der Referenzabzug
+# entsteht zu Beginn desselben Durchlaufs; was ein FRUEHERER Lauf hinterlassen hat,
+# steht dort bereits drin und faellt damit heraus.
+#
+# Am 04.10.2026 belegt: Ein Timer, der die Uhr jede Nacht eine Stunde zu frueh
+# ausschaltete, stand seit dem 03.10. in ALLEN 15 nachfolgenden Abzuegen -- und kein
+# einziger Abschlussvergleich hat ihn gemeldet. Dazu fuenf weitere Altlasten
+# derselben Art, darunter die ueberschriebene Dimmkurve des Nutzers (BEFUNDE.md,
+# L81 und L244). Jeder dieser Laeufe meldete "keine Konfigurationsabweichung", und
+# jeder hatte damit recht -- gemessen am eigenen Anfang.
+#
+# Deshalb gibt es seit dem 04.10.2026 die zweite Betriebsart --soll: Sie vergleicht
+# gegen einen FESTEN Sollzustand statt gegen den Laufanfang. Welcher Abzug der Soll
+# ist, entscheidet der Nutzer -- das Skript kann es nicht wissen, und zu raten waere
+# hier schlimmer als zu fragen.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 SNAP=tools/snapshots
+SOLL=0
+if [ "${1:-}" = "--soll" ]; then
+  SOLL=1
+  shift
+fi
 A=${1:-}
 B=${2:-}
 
@@ -33,6 +56,7 @@ fi
 [ -d "$SNAP/$A" ] || { echo "Abzug fehlt: $SNAP/$A" >&2; exit 2; }
 [ -d "$SNAP/$B" ] || { echo "Abzug fehlt: $SNAP/$B" >&2; exit 2; }
 
+export DIFF_SOLL="$SOLL"
 exec python3 - "$SNAP/$A" "$SNAP/$B" <<'PY'
 import json, os, re, sys
 
@@ -41,6 +65,34 @@ a_dir, b_dir = sys.argv[1], sys.argv[2]
 # stm32_log ist ein Ringpuffer und aendert sich im Sekundentakt -- er wuerde jeden
 # Vergleich zumuellen. Er gehoert in die Logbuch-Durchsicht, nicht hierher.
 SKIP_FILES = {"stm32_log.txt", "_meta.txt"}
+
+# Betriebsart --soll: Vergleich gegen einen festen Sollzustand statt gegen den
+# Laufanfang. Dann interessieren ausschliesslich KONFIGURATIONSfelder -- Uhrzeit,
+# Betriebszeit, Temperatur, Heap und Sensorrohwerte aendern sich zwangslaeufig und
+# wuerden die Ausgabe zumuellen, bis niemand mehr hinsieht.
+#
+# Die Liste ist bewusst aufgezaehlt und nicht gemustert: Ein zu weites Muster
+# verschluckt irgendwann ein Konfigurationsfeld, und das waere genau der Fehler,
+# gegen den diese Betriebsart gebaut ist.
+SOLL_MODE = os.environ.get("DIFF_SOLL") == "1"
+FLUECHTIG = {
+    "numvar[idx=16].value",   # LDR-Rohwert
+    "numvar[idx=20].value",   # RTC-Temperatur roh
+    "numvar[idx=21].value",   # RTC-Temperatur
+    "numvar[idx=23].value",   # DS18xx-Temperatur
+    "numvar[idx=47].value",   # Betriebszeit
+    "free_heap", "max_free_block", "heap_frag",
+    "no_request_aborts", "no_request_timeouts",
+    "write_lost_bytes", "write_lost_blocks", "update_cache_hits",
+    "update_server_down_count",
+}
+FLUECHTIG_PRAEFIX = ("tmvar[idx=0].",)   # Uhrzeit vollstaendig
+
+
+def ist_fluechtig(schluessel):
+    if schluessel in FLUECHTIG:
+        return True
+    return any(schluessel.startswith(pre) for pre in FLUECHTIG_PRAEFIX)
 
 
 def flatten(prefix, value, out):
@@ -133,6 +185,8 @@ for name in names:
     for key in sorted(set(fa) | set(fb)):
         va, vb = fa.get(key, "<fehlt>"), fb.get(key, "<fehlt>")
         if str(va) != str(vb):
+            if SOLL_MODE and ist_fluechtig(key):
+                continue        # aendert sich zwangslaeufig, siehe FLUECHTIG
             diffs.append((key, va, vb))
 
     if diffs:
@@ -145,9 +199,18 @@ for name in names:
 
 print()
 if total == 0:
-    print("=== Kein Unterschied. Der Zustand ist wiederhergestellt. ===")
+    if SOLL_MODE:
+        print("=== Kein Unterschied in den Konfigurationsfeldern. ===")
+        print("    Fluechtige Felder (Uhrzeit, Temperatur, Heap, Betriebszeit) sind ausgeblendet.")
+    else:
+        print("=== Kein Unterschied. Der Zustand ist wiederhergestellt. ===")
     sys.exit(0)
 
-print(f"=== {total} Abweichung(en). Jede ist entweder erklaert oder ein Befund. ===")
+if SOLL_MODE:
+    print(f"=== {total} Abweichung(en) vom SOLLZUSTAND. ===")
+    print("    Das sind keine Laufspuren, sondern Abweichungen vom gewollten Zustand des")
+    print("    Geraets -- einschliesslich Altlasten frueherer Durchlaeufe (BEFUNDE.md, L81).")
+else:
+    print(f"=== {total} Abweichung(en). Jede ist entweder erklaert oder ein Befund. ===")
 sys.exit(1)
 PY
