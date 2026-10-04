@@ -346,7 +346,7 @@ get_date_by_date_code (uint_fast8_t date_code, int year)
  *
  * Also bitte nicht "aufraeumen" und wieder auf *buf zurueckstellen. Betroffen ist jede Hexzahl,
  * die der STM von der Bruecke liest -- und diese Richtung traegt keine Pruefsumme: Die Marke
- * "*xxxx" haengt der STM nur an seine EIGENEN Sendungen an (vars.c:522).
+ * "*xxxx" haengt der STM nur an seine EIGENEN Sendungen an (var_send_buf(), nur bei cap_var_crc).
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 uint16_t

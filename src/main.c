@@ -2064,8 +2064,8 @@ schedule_esp8266_numeric_array (char * parameters)
  * var_send_ir_code() mit maskierten Werten.
  *
  * Jede Abweisung meldet sich ueber log_printf, nicht ueber debug_log_printf: Letzteres ist ohne
- * -DDEBUG ein leeres Makro (log.h:23-31), und DEBUG wird im Build nirgends gesetzt -- die
- * Meldung gaebe es im ausgelieferten Fabrikat also gar nicht. Nur der Erfolgsfall bleibt
+ * -DDEBUG ein leeres Makro (log.h:23-31), und DEBUG setzt nur der Diagnosebau (CMake-Option
+ * WORDCLOCK_DEBUG, aus per Vorgabe) -- im Fabrikat gibt es sie nicht. Nur der Erfolgsfall bleibt
  * bedingt: zwanzig zusaetzliche blockierende Logzeilen in genau dem Zeitfenster, in dem der
  * Abzug ueber die Bruecke laeuft, waeren der falsche Preis.
  *
@@ -2087,8 +2087,8 @@ schedule_esp8266_numeric_array (char * parameters)
  *
  * Deshalb hier, vor jedem Schreibzugriff: genau 12 Hexziffern und danach Stringende; Index in
  * 0 .. N_REMOTE_IR_CMDS-1; protocol weder 0x00 noch 0xFF. Nichts wird zurechtgebogen -- das ist
- * die Lektion aus L70, wo ein fehlender Parameter still zum Vorgabeindex 0 wurde und die
- * falsche Taste traf.
+ * die Lektion aus L70, wo ein fehlender Parameter an vier ESP-Endpunkten still zum
+ * Vorgabeindex 0 wurde und damit das falsche Overlay oder den falschen Timer traf.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 static void
@@ -2102,11 +2102,13 @@ schedule_esp8266_ir_code (char * parameters)
     uint_fast8_t    i;
     uint_fast8_t    all_hex = 1;
 
-    /* Bewusst kein strlen(): esp8266.u.cmd wird mit strncpy(..., ESP8266_MAX_CMD_LEN) gefuellt
-     * (esp8266.c:386) und ist bei voller Laenge nicht nullterminiert. Gelesen werden hoechstens
-     * 12 Zeichen plus das erwartete Nullbyte dahinter. shown[] wird dabei mitgefuellt und auf
-     * druckbare Zeichen beschraenkt, damit eine verstuemmelte Zeile keine Steuerzeichen auf die
-     * Logleitung legt.
+    /* Bewusst kein strlen(): esp8266.u.cmd kommt aus strncpy(..., ESP8266_MAX_CMD_LEN) in
+     * esp8266_get_message() und ist seit Befund L90 immer nullterminiert -- ein strlen() waere
+     * also nicht unsicher, nur nutzlos: Die Schleife unten muss ohnehin ueber jedes Zeichen
+     * laufen (Hexpruefung und shown[]), und sie liest hoechstens 12 Zeichen plus das erwartete
+     * Nullbyte dahinter. Diese Schranke steht damit hier und haengt nicht an der Zusicherung
+     * eines anderen Moduls. shown[] wird dabei mitgefuellt und auf druckbare Zeichen
+     * beschraenkt, damit eine verstuemmelte Zeile keine Steuerzeichen auf die Logleitung legt.
      */
     for (i = 0; i < IR_CODE_PARAM_LEN; i++)
     {
