@@ -11,6 +11,18 @@ Ablauf: Am Ende jedes Turns wird der Arbeitsbaum angesehen. Sind ueberwachte
 Dateien geaendert und lief ./tools/guardrails.sh seither nicht erfolgreich
 durch, endet der Turn nicht -- Claude bekommt den Hinweis und holt es nach.
 
+Seit 04.10.2026 prueft der Hook drei Dinge, nicht mehr nur eines: die
+Guardrails, die festgehaltene Erkenntnis nach einer Geraetemessung und den
+Push zum Remote. Sie werden GESAMMELT und gemeinsam gemeldet.
+
+Das Sammeln ist kein Feinschliff, sondern eine Fehlerbehebung: Die
+Messmarken-Pruefung schrieb ihre Meldung auf stderr und gab danach `return 0`
+zurueck, sobald die Guardrails sauber waren -- und bei exit 0 liest stderr
+niemand. Sie konnte also nur anschlagen, wenn ohnehin schon blockiert wurde.
+Dieselbe Gattung wie L181 (Logwache in gepufferter Pipe) und L185
+(Heap-Zeile am API-Ring vorbei): der Mechanismus war gebaut, die Meldung kam
+nie an. Dreimal in drei Tagen.
+
 Drei Absicherungen gegen Dauerblockaden, denn ein Stop-Hook, der sich selbst
 nicht bremst, haelt die Sitzung fest:
   1. stop_hook_active (setzt Claude Code, wenn der Turn bereits wegen eines
@@ -57,6 +69,54 @@ def changed_state(root):
     return relevant, digest
 
 
+def ungepusht(root):
+    """Was liegt noch lokal? Gibt eine Liste von Meldungszeilen zurueck.
+
+    DIR-011 verlangt, jedes ausgerollte Release sofort zu committen und zu
+    taggen. Was dort NICHT stand und deshalb dreimal unterging: es gehoert
+    auch zum Remote. Am 04.10.2026 lagen 23 Commits und 11 release-Tags nur
+    lokal -- gefragt hat der Nutzer, nicht die Pruefung. BEFUNDE.md fuehrte
+    das als E4 ("sechs Tags liegen nur lokal"), also als Aufgabe statt als
+    Ablaufregel, und eine Aufgabe erinnert niemanden.
+
+    Die Commit-Pruefung laeuft rein lokal gegen @{upstream} und kostet nichts.
+    Die Tag-Pruefung braucht das Netz; sie bekommt ein kurzes Zeitlimit und
+    schweigt bei jedem Fehler -- ohne Verbindung ist "nicht gepusht" keine
+    Aussage, die man treffen kann.
+    """
+    zeilen = []
+
+    def git(*a, timeout=10):
+        return subprocess.run(["git", *a], capture_output=True, text=True,
+                              cwd=root, timeout=timeout)
+
+    try:
+        r = git("rev-list", "--count", "@{upstream}..HEAD")
+        voraus = int(r.stdout.strip()) if r.returncode == 0 else 0
+    except Exception:
+        voraus = 0
+    if voraus:
+        zeilen.append(f"  {voraus} Commit(s) liegen nur lokal (git push)")
+
+    try:
+        lokal = {t for t in git("tag", "-l", "release/*").stdout.split()}
+        if lokal:
+            r = git("ls-remote", "--tags", "origin", timeout=8)
+            if r.returncode == 0:
+                draussen = {ln.split("refs/tags/")[-1].replace("^{}", "")
+                            for ln in r.stdout.splitlines() if "refs/tags/" in ln}
+                fehlt = sorted(lokal - draussen)
+                if fehlt:
+                    zeilen.append(f"  {len(fehlt)} release-Tag(s) nur lokal: "
+                                  + ", ".join(fehlt[:3])
+                                  + (" ..." if len(fehlt) > 3 else "")
+                                  + "  (git push --tags origin)")
+    except Exception:
+        pass            # ohne Netz keine Aussage -- und erst recht keine Blockade
+
+    return zeilen
+
+
 def main():
     # guardrails.sh ruft sich so selbst den Stempel: fuer WELCHEN Stand galt der Lauf.
     if "--stamp" in sys.argv:
@@ -74,20 +134,24 @@ def main():
 
     root = repo_root()
     relevant, state = changed_state(root)
-    if not relevant:
-        return 0
 
-    # ------------------------------------------------- Messungen ohne Befund
+    # Was ist offen? Gesammelt, nicht einzeln gemeldet -- siehe Kopf: eine
+    # Meldung nach `return 0` erreicht niemanden.
+    bloecke = []        # je Eintrag: (nag-schluessel, [zeilen])
+
+    # ------------------------------------------------------------ Push (DIR-011)
     #
-    # Am 04.10.2026 hat der Nutzer dreimal nachfragen muessen, ob die Erkenntnisse
-    # festgehalten sind -- und dreimal fehlte etwas. Seine Forderung: "Wenn nein
-    # nachholen und dies fuer die Zukunft sicherstellen."
-    #
-    # Automatisch erkennen, OB eine Messung etwas Neues ergeben hat, geht nicht.
-    # Was geht: daran erinnern, wenn am Geraet gemessen wurde und BEFUNDE.md
-    # seither unveraendert blieb. Das ist kein Beweis fuer ein Versaeumnis -- eine
-    # Messung, die nur bestaetigt, braucht keinen Eintrag. Es ist eine Frage, und
-    # die kostet weniger als eine verlorene Erkenntnis.
+    # Laeuft BEWUSST unabhaengig von `relevant`. Genau das war die Luecke: Nach
+    # dem Commit ist der Arbeitsbaum sauber, `relevant` leer, und der Hook
+    # schwieg -- waehrend 23 Commits und 11 Tags lokal liegen blieben.
+    offen = ungepusht(root)
+    if offen:
+        kopf = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, cwd=root).stdout.strip()
+        bloecke.append((f"push-{kopf}-{len(offen)}",
+                        ["Noch nicht beim Remote (DIR-011):", ""] + offen + [""]))
+
+    # ------------------------------------------- Messung ohne Befund (L184)
     messmarke = root / ".git" / "geraet-gemessen"
     if messmarke.exists():
         try:
@@ -96,40 +160,52 @@ def main():
         except OSError:
             befunde = gemessen = 0
         if gemessen > befunde:
-            out("")
-            out("Am Geraet gemessen, seither nichts in BEFUNDE.md eingetragen.")
-            out("")
-            out("  Hat die Messung etwas gezeigt, das noch nirgends steht?")
-            out("  Auch ein widerlegter Verdacht ist ein Befund -- gerade der.")
-            out("")
-            out("  Wenn sie nur bestaetigt hat, was schon dokumentiert ist:")
-            out("  nichts zu tun, diese Meldung ist dann richtig und folgenlos.")
+            bloecke.append((f"mess-{int(gemessen)}", [
+                "Am Geraet gemessen, seither nichts in BEFUNDE.md eingetragen.",
+                "",
+                "  Hat die Messung etwas gezeigt, das noch nirgends steht?",
+                "  Auch ein widerlegter Verdacht ist ein Befund -- gerade der.",
+                "",
+                "  Wenn sie nur bestaetigt hat, was schon dokumentiert ist:",
+                "  nichts zu tun, diese Meldung ist dann richtig und folgenlos.",
+                "",
+            ]))
 
-    # guardrails.sh legt diese Datei bei jedem erfolgreichen Lauf an.
+    # ---------------------------------------------------------- Guardrails
     stamp = root / ".git" / "guardrails-stamp"
-    if stamp.exists() and stamp.read_text().strip() == state:
+    if relevant and not (stamp.exists() and stamp.read_text().strip() == state):
+        zeilen = ["Die Guardrails sind fuer diesen Aenderungsstand noch nicht gelaufen.",
+                  "", "Geaendert:"]
+        zeilen += [f"  {ln}" for ln in relevant[:12]]
+        if len(relevant) > 12:
+            zeilen.append(f"  ... und {len(relevant) - 12} weitere")
+        zeilen += ["", "Auszufuehren:  ./tools/guardrails.sh", "",
+                   "Danach pruefen, was DIR-004 und DIR-006 verlangen: Versionen der",
+                   "geaenderten Komponenten, CHANGELOG.md, und bei geschlossenen Befunden",
+                   "den Stand in BEFUNDE.md.", ""]
+        bloecke.append((f"guard-{state}", zeilen))
+
+    if not bloecke:
         return 0
 
-    # (2) Pro Aenderungsstand nur einmal blockieren.
-    nag = root / ".git" / "guardrails-stop-nag"
-    if nag.exists() and nag.read_text().strip() == state:
-        return 0
-    nag.write_text(state)
+    # (2) Pro Grund und Stand nur EINMAL blockieren. Der Schluessel traegt den
+    # Grund mit -- sonst verschluckt die erste Meldung alle spaeteren.
+    nagdatei = root / ".git" / "guardrails-stop-nag"
+    try:
+        gesehen = set(nagdatei.read_text().split())
+    except OSError:
+        gesehen = set()
 
-    out("Die Guardrails sind fuer diesen Aenderungsstand noch nicht gelaufen.")
-    out("")
-    out("Geaendert:")
-    for ln in relevant[:12]:
-        out(f"  {ln}")
-    if len(relevant) > 12:
-        out(f"  ... und {len(relevant) - 12} weitere")
-    out("")
-    out("Auszufuehren:  ./tools/guardrails.sh")
-    out("")
-    out("Danach pruefen, was DIR-004 und DIR-006 verlangen: Versionen der")
-    out("geaenderten Komponenten, CHANGELOG.md, und bei geschlossenen Befunden")
-    out("den Stand in BEFUNDE.md. Ist alles bereits erledigt oder die Aenderung")
-    out("bewusst ungeprueft, geht der naechste Turn ohne erneute Meldung durch.")
+    neue = [b for b in bloecke if b[0] not in gesehen]
+    if not neue:
+        return 0
+    nagdatei.write_text("\n".join(sorted(gesehen | {b[0] for b in neue})))
+
+    for _, zeilen in neue:
+        for z in zeilen:
+            out(z)
+    out("Ist alles bereits erledigt oder bewusst so gewollt, geht der naechste")
+    out("Turn ohne erneute Meldung durch.")
     return 2
 
 

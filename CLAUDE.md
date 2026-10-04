@@ -123,6 +123,13 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   tragen nur den Endstand, und ein Tag mit alter Versionsnummer auf einem neuen Stand
   wäre eine Falschaussage. **`deploy.sh` nennt den fehlenden Tag-Befehl bei jedem
   Lauf** — diese Zeile ist kein Rauschen. Einzelheiten im Skill `/release`.
+  **Und der Commit samt Tag gehört zum Remote, im selben Zug.** Das stand bis zum
+  04.10.2026 nirgends — nicht hier, nicht im Direktivenkatalog. `BEFUNDE.md` führte
+  es als E4 („sechs `release/*`-Tags liegen nur lokal"), also als **Aufgabe** statt
+  als Ablaufregel, und eine Aufgabe erinnert niemanden. Ergebnis: 23 Commits und
+  11 Tags lagen lokal, **gefragt hat der Nutzer**. Seitdem meldet es der Stop-Hook,
+  und zwar auch bei sauberem Arbeitsbaum — genau dort lag die Lücke, denn nach dem
+  Commit ist ja nichts mehr geändert.
 - **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
   `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
   `HARDWARE.md`, `TESTPLAN-PWA.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
