@@ -3063,6 +3063,19 @@ schedule_esp8266_messages (void)
             var_send_busy = 0;
             break;
         }
+        case ESP8266_NAK:                                                       // "!v": der ESP hat die Zeile abgelehnt
+        {
+            /* Die Pruefsumme der var-Zeile stimmte nicht, der Wert wurde NICHT gesetzt (A32,
+             * Design 6.2/6.3). Ausgewertet wird das in var_send_buf(): Dort unterscheidet
+             * got_answer (die Bruecke lebt) von applied (der Wert steht), und das Kommando wird
+             * sofort zur Nachsendung vorgemerkt. Hier wird nur das Sendeflag aufgeloest -- wie
+             * beim Punkt, denn das Kommando ist in beiden Faellen abgeschlossen.
+             *
+             * Bis Runde 2 dieser Spec ist dieser Zweig belegt wirkungslos: Kein ESP sendet "!v".
+             */
+            var_send_busy = 0;
+            break;
+        }
         case ESP8266_STATUS:                                                    // "OK ..." vom ESP: Statusmeldung, keine Quittung
         {
             /* Bewusst ohne Wirkung: var_send_busy bleibt stehen, damit eine der drei
@@ -3630,6 +3643,27 @@ main (void)
                 ir_export_idx = N_REMOTE_IR_CMDS;
                 log_message ("ir export: aborted, esp8266 offline");
             }
+        }
+
+        /* Nachsendung vorgemerkter var-Kommandos (A32, BEFUNDE.md L230): dasselbe Muster wie der
+         * IR-Abzug darueber, und aus demselben Grund. var_send_buf() verwarf ein Kommando bisher
+         * endgueltig, wenn die Quittung ausblieb -- genau so verschwinden im Nachsendestoss nach
+         * einem ESP-Neustart einmalig angekuendigte Werte (HARDWARE_CONFIGURATION, Zeitzone,
+         * Overlays; L42, L103, L205).
+         *
+         * Wiederholt wird NICHT in der Warteschleife, sondern hier: hoechstens ein Versuch je
+         * Sekunde, damit zwischen zwei Versuchen garantiert der watchdog_reload() vom Kopf dieses
+         * Loops liegt und keine neue Aufrufstelle noetig ist. Dreimal drei Sekunden in der
+         * Warteschleife waeren neun Sekunden Stillstand und ein Rueckfall hinter A29/A31 gewesen;
+         * so bleibt der laengste zusammenhaengende Stillstand bei den 3 s von heute.
+         *
+         * Nur bei lebender Bruecke: Ist der ESP offline, haette eine Nachsendung keine
+         * Gegenstelle. Die Eintraege bleiben dann stehen und loesen sich von selbst auf, sobald
+         * der ESP sich meldet -- der Vollabgleich raeumt jede Kennung beim Senden.
+         */
+        if (esp8266.is_online)
+        {
+            var_retry_drain ();
         }
 
         if (display.animation_stop_flag &&                                                                  // no animation running

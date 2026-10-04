@@ -539,5 +539,5 @@ extern uint_fast8_t     ir_codes_is_complete (void);
 extern IR_CODE *        get_ir_code (uint_fast8_t);                         // 0 wenn Index ungueltig ODER nicht eingetroffen
 extern unsigned int     set_ir_code_var (uint_fast8_t, uint_fast8_t, uint_fast16_t, uint_fast16_t);
 
-extern void                 var_set_parameter (char *);
+extern uint_fast8_t         var_set_parameter (char *);              // 1 = Zeile verwertbar, 0 = verworfen (L237)
 #endif

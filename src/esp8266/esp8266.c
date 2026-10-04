@@ -187,6 +187,60 @@ esp8266_poll (uint_fast8_t * chp, uint_fast16_t ten_ms)
     return 0;
 }
 
+/* Die Faehigkeitsmeldung "CAP var-crc" (A32, Design 6.4) und ihre Festschreibung.
+ *
+ * Der ESP meldet die Marke einmal je Sitzung beim Hochfahren, VOR jeder WLAN-Meldung. Gueltig
+ * wird sie erst mit der FIRMWARE-Zeile DERSELBEN Sitzung -- und genau das ist der Rueckfall gegen
+ * die Rueckroll-Falle: Die FIRMWARE-Zeile sendet jeder ESP bei jedem Start (ESP-uclock.ino,
+ * setup()), auch ein zurueckgerollter ohne Pruefsummenverstaendnis. Sie markiert damit den Beginn
+ * einer neuen Sitzung, und ohne vorangegangenes CAP loescht sie das Flag.
+ *
+ * Warum das noetig ist: Ohne die Festschreibung ueberlebt ein einmal gesetztes Flag das
+ * OTA-Rueckrollen des ESP, weil es nur ein STM-Neustart loescht. Der STM haengte dann die Marke an
+ * eine Gegenstelle, die sie als Teil des Werts speichert -- "meinhost*c328" als Hostname, also
+ * genau der stille falsche Wert, gegen den die Pruefsumme antritt (Risiko R-3).
+ *
+ * Die sichere Richtung ist dabei immer "keine Pruefsumme": Geht CAP verloren, verhaelt sich alles
+ * wie vorher. Geht die FIRMWARE-Zeile einer RUECKROLL-Sitzung verloren, bleibt das Flag stehen --
+ * das ist die verbleibende Luecke, und sie braucht beides: einen Verlust UND ein Rueckrollen.
+ */
+static uint_fast8_t     esp8266_cap_var_crc_seen = 0;           // CAP in dieser Sitzung gesehen, noch nicht festgeschrieben
+
+static void
+esp8266_cap_latch (void)
+{
+    esp8266.cap_var_crc      = esp8266_cap_var_crc_seen;
+    esp8266_cap_var_crc_seen = 0;
+}
+
+/* Ein Zeichen gegen ein Suchwort pruefen, ohne Zeilenpuffer. Rueckgabe 1, sobald das Wort
+ * vollstaendig gelesen wurde. Gebraucht wird das in esp8266_reset(), wo die Bootmeldungen
+ * verworfen werden, bevor irgendein Zeilenparser laeuft.
+ */
+static uint_fast8_t
+esp8266_scan_token (const char * token, uint_fast8_t * posp, uint_fast8_t ch)
+{
+    uint_fast8_t    pos = *posp;
+
+    if ((uint_fast8_t) token[pos] == ch)
+    {
+        pos++;
+
+        if (! token[pos])
+        {
+            *posp = 0;
+            return 1;
+        }
+    }
+    else
+    {
+        pos = ((uint_fast8_t) token[0] == ch) ? 1 : 0;
+    }
+
+    *posp = pos;
+    return 0;
+}
+
 /*--------------------------------------------------------------------------------------------------------------------------------------
  * get message from ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
@@ -233,6 +287,17 @@ esp8266_get_message (void)
                     if (answer[0] == '.' && answer[1] == '\0')                              // dot as "silent ok"
                     {
                         rtc = ESP8266_OK;
+                        break;
+                    }
+                    else if (answer[0] == '!' && answer[1] == 'v' && answer[2] == '\0')     // "!v": Zeile abgelehnt
+                    {
+                        /* Der ESP hat die Zeile gelesen, ihre Pruefsumme stimmte aber nicht -- er hat sie
+                         * deshalb NICHT angewandt (A32, Design 6.2). Das ist ein Lebenszeichen der Bruecke
+                         * und kein Erfolg; var_send_buf() unterscheidet beides und merkt das Kommando sofort
+                         * zur Nachsendung vor. Still wie der Punkt: Gemeldet hat es bereits der ESP selbst,
+                         * und jede zusaetzliche Zeile laege auf derselben ueberlasteten Leitung (L109).
+                         */
+                        rtc = ESP8266_NAK;
                         break;
                     }
                     else if (! strncmp (answer, "FILE ", 5))                                // FILE: keep silent
@@ -304,7 +369,18 @@ esp8266_get_message (void)
                         log_puts (")\r\n");
                         log_flush ();
 
-                        if (! strncmp (answer, "OK", 2))
+                        if (! strcmp (answer, "CAP var-crc"))
+                        {
+                            /* Nur gemerkt, nicht sofort gueltig: Festgeschrieben wird die Faehigkeit mit
+                             * der FIRMWARE-Zeile derselben Sitzung (esp8266_cap_latch(), Begruendung dort).
+                             * Exakter Vergleich ohne Parameter -- der ESP ist fuer den STM keine
+                             * vertrauenswuerdige Quelle.
+                             */
+                            esp8266_cap_var_crc_seen = 1;
+                            rtc = ESP8266_STATUS;                                       // Statusmeldung, KEINE Quittung
+                            break;
+                        }
+                        else if (! strncmp (answer, "OK", 2))
                         {
                             /* Die Quittung eines var-Kommandos ist der Punkt (oben, :227) -- der ESP
                              * sendet ihn in ESP-uclock.ino:444 unmittelbar nach var_set_parameter().
@@ -401,6 +477,7 @@ esp8266_get_message (void)
                         else if (! strncmp (answer, "FIRMWARE ", 9))
                         {
                             strncpy (esp8266.firmware, answer + 9, ESP8266_MAX_FIRMWARE_LEN);
+                            esp8266_cap_latch ();                                       // Ende der Startmeldungen: Faehigkeit dieser Sitzung festschreiben
                             rtc = ESP8266_FIRMWARE;
                             break;
                         }
@@ -619,15 +696,40 @@ esp8266_send_log_line (const char * line)
 void
 esp8266_reset (void)
 {
-    uint_fast8_t    ch;
+    static const char   cap_token[] = "CAP var-crc";
+    static const char   fw_token[]  = "FIRMWARE ";
+    uint_fast8_t        cap_pos = 0;
+    uint_fast8_t        fw_pos = 0;
+    uint_fast8_t        ch;
+
+    esp8266.cap_var_crc      = 0;                                           // neue Sitzung: bis zur Meldung keine Pruefsumme anhaengen
+    esp8266_cap_var_crc_seen = 0;
 
     GPIO_RESET_BIT(ESP8266_RST_PORT, ESP8266_RST_PIN);
     delay_msec (50);
     GPIO_SET_BIT(ESP8266_RST_PORT, ESP8266_RST_PIN);
 
+    /* Die Bootmeldungen werden weiterhin verworfen -- aber nicht mehr blind. Diese Schleife
+     * laeuft, solange hoechstens 500 ms Pause zwischen zwei Zeichen liegen, und sie ist der
+     * einzige Leser, bevor der Hauptloop anlaeuft. Faellt die Faehigkeitsmeldung in dieses
+     * Fenster, saehe sie sonst niemand, und die Pruefsumme bliebe die ganze Sitzung lang aus --
+     * stillschweigend. Heute trennt ein delay(1000) im setup() des ESP beides, aber dieses
+     * Fenster haengt an fremdem Code und verschiebt sich mit ihm.
+     *
+     * Gesucht wird ohne Zeilenpuffer, zeichenweise: Der ESP schickt hier auch Bootgeroell
+     * seines ROM-Laders mit falscher Baudrate, und das ist keine Zeile.
+     */
     while (esp8266_poll (&ch, MSEC(500)))                                   // eat boot message stuff
     {
-        ;
+        if (esp8266_scan_token (cap_token, &cap_pos, ch))                   // beide Suchworte, nicht else-if:
+        {                                                                   // ein Zeichen darf zu beiden beitragen
+            esp8266_cap_var_crc_seen = 1;
+        }
+
+        if (esp8266_scan_token (fw_token, &fw_pos, ch))
+        {
+            esp8266_cap_latch ();                                           // dieselbe Regel wie im Zeilenparser
+        }
     }
 }
 

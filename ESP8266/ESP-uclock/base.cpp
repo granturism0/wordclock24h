@@ -225,6 +225,39 @@ mystrnicmp (const char * s1, const char * s2, int n)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * convert_utf8_to_iso8859 () - convert string to iso8859-1
+ *
+ * Befund L236: Ein Fuehrungsbyte als LETZTES Byte vor dem Terminator liess die alte Fassung
+ * ueber die Pufferkante lesen. Der Ablauf war: *s == 0xC3 -> s++ (zeigt jetzt auf den
+ * Terminator) -> *t++ = *s++ + 0x40 liest den TERMINATOR als Nutzbyte (schreibt 0x00 + 0x40,
+ * also '@') und schiebt s HINTER den Terminator. Die Schleife while (*s) las danach den Rest
+ * des Puffers und alles, was dahinter im Speicher lag, bis zufaellig eine Null kam.
+ * Das SCHREIBEN war durch len == MAX_ISO8BUFLEN - 1 begrenzt, das LESEN nicht.
+ * Dasselbe galt fuer 0xC2, und der Zweig *s > 0xC0 mit s += 2 konnte den Terminator
+ * ebenfalls ueberspringen.
+ *
+ * Warum das mehr als ein Schoenheitsfehler ist: Die einzigen beiden Aufrufstellen stehen in
+ * weather.cpp:151 und :217 und reichen die Wetterbeschreibung einer FREMDEN Website herein.
+ * parse_json() schneidet sie bei MAX_LEN_DESCRIPTION - 1 = 31 Byte hart ab, ohne auf
+ * Zeichengrenzen zu achten (weather.cpp:87-93). Faellt der Schnitt auf ein Fuehrungsbyte,
+ * ist der Fall da. Damit loest eine fremde Antwort einen Lesezugriff ausserhalb des Puffers
+ * aus -- es braucht nur eine Beschreibung, die an der falschen Stelle endet.
+ *
+ * Nachgerechnet mit einer Attrappe: Eingabe so gelegt, dass ihr Terminator genau auf der
+ * letzten Byteposition einer Speicherseite liegt, dahinter eine Schutzseite. Die Eingaben
+ * "ab\xC3", "ab\xC2", "ab\xE2" und "\xC3" erzeugten mit der ALTEN Fassung jeweils SIGBUS,
+ * mit dieser Fassung keinen einzigen. Gueltige Eingaben ("clear sky", "bew\xC3\xB6lkt",
+ * "\xC2\xB0" "C", "" ) liefern in beiden Fassungen Byte fuer Byte dasselbe Ergebnis.
+ * Bemerkenswert dabei: Im Fall 0xC2 sieht die AUSGABE harmlos aus (die 0x00 landet im Ziel
+ * und beendet die Zeichenkette dort) -- der Ueberlauf passiert trotzdem. Wer nur die Ausgabe
+ * prueft, findet diesen Fall nicht.
+ *
+ * Die Korrektur prueft nach jedem s++ auf den Terminator und bricht ab. Das halbe Zeichen
+ * faellt weg, und das ist gewollt: Ein abgeschnittenes Zeichen hat keine Entsprechung in
+ * ISO-8859-1, ein '@' an seiner Stelle waere eine erfundene.
+ *
+ * BEWUSST NICHT geaendert: Der Zweig *s > 0xC0 springt weiterhin nur 2 Byte weit, obwohl ein
+ * Drei-Byte-Zeichen 3 braucht; die Folgebytes werden dann als Literal kopiert. Das ist seit
+ * jeher so, bleibt durch len begrenzt und ist eine Darstellungsfrage, kein Speicherfehler.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 #define MAX_ISO8BUFLEN    128
@@ -244,18 +277,37 @@ convert_utf8_to_iso8859 (const unsigned char * buf)
         if (*s == 0xC3)
         {
             s++;
+
+            if (! *s)                                   // L236: Fuehrungsbyte war das letzte Byte --
+            {                                           // der Terminator ist KEIN Nutzbyte
+                break;
+            }
+
             *t++ = *s++ + 0x40;
             len++;
         }
         else if (*s == 0xC2)
         {
             s++;
+
+            if (! *s)                                   // L236: dito
+            {
+                break;
+            }
+
             *t++ = *s++;
             len++;
         }
         else if (*s >0xC0)                              // unknown codepages
         {
-            s += 2;
+            s++;
+
+            if (! *s)                                   // L236: das frueher unbedingte s += 2
+            {                                           // konnte den Terminator ueberspringen
+                break;
+            }
+
+            s++;
         }
         else
         {

@@ -162,6 +162,27 @@ setup()
     Serial.flush ();
     delay(1000);
 
+    /* Faehigkeitsmeldung der Bruecken-Pruefsumme (A32, Design 6.4), EINMAL je Sitzung.
+     *
+     * SIE MUSS VOR JEDER WLAN-MELDUNG UND VOR DER FIRMWARE-ZEILE STEHEN, und das ist keine
+     * Stilfrage: Der STM behandelt CAP als blossen Merker und schreibt die Faehigkeit erst mit
+     * der FIRMWARE-Zeile DERSELBEN Sitzung fest (src/esp8266/esp8266.c, esp8266_cap_latch()).
+     * Kaeme CAP danach, bliebe das Flag geloescht, der STM haengte nie eine Pruefsumme an --
+     * stillschweigend und ohne jede Meldung.
+     *
+     * Erst NACH dem delay(1000) darueber: Davor laeuft das Bootgeroell des ROM-Laders mit
+     * falscher Baudrate ueber dieselbe Leitung. Der STM sucht die Marke zwar auch im
+     * Verwurffenster von esp8266_reset() zeichenweise, aber darauf baut hier nichts.
+     *
+     * Restrisiko, benannt (Design 6.4): Geht die Zeile im 256-Byte-Ring des STM verloren, bleibt
+     * die Pruefung bis zum naechsten ESP-Neustart aus. Das ist die sichere Richtung -- ohne
+     * Pruefsumme verhaelt sich alles wie vorher, mit falsch angehaengter wuerden Werte beschaedigt.
+     *
+     * Kosten: 13 Byte, einmal je ESP-Start.
+     */
+    Serial.println ("CAP var-crc");
+    Serial.flush ();
+
 #if 0
     Serial.println ("- formatting filesystem");
     Serial.flush ();
@@ -490,6 +511,194 @@ esp_heap_log (void)
 #endif
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * Pruefsumme der Bruecke (A32, specs/bruecke-wiederholung, Design 6.1/6.2)
+ *
+ * WOGEGEN SIE ANTRITT: Der Punkt als Quittung heisst "Zeile gelesen", nicht "Wert uebernommen"
+ * (L233). Eine verstuemmelte Zeile wurde bis hierher angewandt UND quittiert -- der Sender sah
+ * Erfolg. Belegt ist der Schaden in L205: Aus overlay[0].type = 2 wurde 14, gueltig aussehend,
+ * ausserhalb des zulaessigen Bereichs 0..10, von keiner Pruefung bemerkt. Ein fehlender Wert
+ * faellt auf, ein falscher nicht -- deshalb ist das der gefaehrlichere der beiden Fehler.
+ *
+ * Eine Zeile, deren Pruefsumme nicht stimmt, wird daher NICHT angewandt, sondern mit "!v"
+ * abgelehnt. Der STM merkt sie daraufhin sofort zur Nachsendung vor und wartet nicht erneut
+ * (src/vars/vars.c, var_send_buf()).
+ *
+ * RUECKWAERTSKOMPATIBEL: Eine Zeile OHNE Marke wird behandelt wie bisher -- angewandt und mit
+ * dem Punkt quittiert. Solange der STM die Marke nicht anhaengt (das tut er erst mit gesetztem
+ * cap_var_crc), ist dieser Zweig wirkungslos. Das ist die Zusage AK8.
+ *
+ * Die Rechnung steht ein zweites Mal im STM (C) -- das sind zwei Wahrheiten. Schiedsrichter ist
+ * eine dritte, unabhaengig und VOR beiden entstandene Umsetzung mit festen Vektoren:
+ * tools/checks/var-crc.c. Wer hier etwas aendert, rechnet gegen DIESE Vektoren und schreibt sie
+ * nicht ab.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define VAR_CRC_MARK        '*'                                             // Trenner vor der Pruefsumme
+#define VAR_CRC_MARK_LEN    5                                               // '*' + vier Hexziffern
+
+/* Prototypen von Hand, zwingend: arduino-cli erzeugt fuer jede .ino-Funktion ohne eigenen
+ * Prototyp selbst einen -- und zwar OHNE static. "extern deklariert, spaeter static" ist ein
+ * Fehler, der Bau bricht ab; genau daran scheiterte esp_heap_log() am 04.10.2026 (L177).
+ */
+static uint16_t         var_crc (const char * payload, size_t len);
+static int              var_crc_hexval (char ch);
+static void             var_crc_reject (unsigned int len);
+static uint_fast8_t     var_crc_check_and_strip (char * parameters);
+
+/* Fletcher-artig, ohne Tabelle und ohne Division. Die LAENGE ist der Startwert -- damit wirkt
+ * sich eine Laengenaenderung aus, und genau die ist der belegte Schadensfall: Der Empfangsring
+ * verliert zusammenhaengende Bloecke von rund 77 Byte (L141, L188).
+ *
+ * Die Laenge wird uebergeben und nicht mit strlen() geholt: Gerechnet wird ueber die Nutzlast
+ * OHNE "var " und OHNE die Marke selbst, und die steht beim Pruefen noch in der Zeile.
+ */
+static uint16_t
+var_crc (const char * payload, size_t len)
+{
+    uint8_t     sum1;
+    uint8_t     sum2 = 0;
+    size_t      i;
+
+    sum1 = (uint8_t) len;
+
+    for (i = 0; i < len; i++)
+    {
+        sum1 = (uint8_t) (sum1 + (uint8_t) payload[i]);
+        sum2 = (uint8_t) (sum2 + sum1);
+    }
+
+    return (uint16_t) ((sum2 << 8) | sum1);
+}
+
+/* Strenge Hexziffer, -1 wenn keine. AUSDRUECKLICH NICHT htoi(): Das behandelt jedes
+ * Nicht-Hexzeichen still als 0 (L232) -- eine Pruefung, die ihre eigene Eingabe zurechtbiegt,
+ * prueft nichts. Grossbuchstaben werden mitgenommen, obwohl der STM "%04x" sendet: kostet drei
+ * Zeilen und faengt den Tag, an dem dort "%04X" steht.
+ */
+static int
+var_crc_hexval (char ch)
+{
+    if (ch >= '0' && ch <= '9')
+    {
+        return ch - '0';
+    }
+
+    if (ch >= 'a' && ch <= 'f')
+    {
+        return ch - 'a' + 10;
+    }
+
+    if (ch >= 'A' && ch <= 'F')
+    {
+        return ch - 'A' + 10;
+    }
+
+    return -1;
+}
+
+/* Eine abgewiesene Zeile festhalten -- aber nicht auf der Leitung.
+ *
+ * AUSSCHLIESSLICH stm32_log_append(), kein Serial.println und kein debugmsg: L109 beschreibt
+ * genau die Mitkopplung, um die es hier geht -- eine Meldung ueber einen Uebertragungsfehler
+ * legt Last auf dieselbe Leitung, deren Ueberlastung den Fehler erzeugt hat, und der RX-Ring
+ * des STM ist 256 Byte gross und verwirft bei Ueberlauf still (uart-driver.h:698, kein
+ * else-Zweig). Derselbe Entscheid wie bei var_cmd_reject() in vars.cpp (L237).
+ *
+ * Abrufbar ist die Zeile ueber /api/stm32_log. Das ist die Lehre aus C14/L185: Den Ring fuellt
+ * ausschliesslich stm32_log_append(), ein Praefix allein genuegt nicht -- dort wurden 36 Zeilen
+ * im seriellen Mitschnitt gegen 0 Zeilen ueber die API gemessen.
+ *
+ * Gedrosselt, weil der Ring nur STM32_LOG_LINES Zeilen fasst und auch die Diagnosezeilen traegt:
+ * die ersten vier Faelle einzeln, danach jeder fuenfzigste. Der laufende Zaehler steht IN der
+ * Zeile -- die Gesamtzahl geht also nicht verloren, auch wenn nur die letzte uebrig ist.
+ *
+ * KEIN Wert in der Zeile, nur Zahl und Laenge: Zeichenkettenvariablen tragen Hostnamen und
+ * Zugangsdaten (A20/L115).
+ */
+static uint32_t     var_form_error_cnt = 0;                                 // abgewiesene var-Zeilen seit dem ESP-Start
+
+static void
+var_crc_reject (unsigned int len)
+{
+    var_form_error_cnt++;
+
+    if (var_form_error_cnt <= 4 || (var_form_error_cnt % 50) == 0)
+    {
+        char line[48];                                                      // laengste Form: 35 Zeichen
+
+        snprintf (line, sizeof (line), "- var abgewiesen #%lu len=%u",
+                  (unsigned long) var_form_error_cnt, len);
+        stm32_log_append (line);
+    }
+}
+
+/* Marke erkennen, pruefen, abschneiden.
+ *
+ * Rueckgabe: 1 = Zeile darf angewandt werden (ohne Marke, oder Pruefsumme stimmte),
+ *            0 = abgewiesen. Dann ist die Zeile UNVERAENDERT und wurde NICHT angewandt.
+ *
+ * Abgeschnitten wird VOR dem Aufruf von var_set_parameter(): Dessen Laengenpruefung aus L237
+ * zaehlt sonst die fuenf Zeichen der Marke als Nutzlast mit und laesst eine zu kurze Zeile durch.
+ *
+ * Benannter Grenzfall: Eine Zeile, deren NUTZTEXT zufaellig auf '*' + vier Hexziffern endet,
+ * waehrend der STM gar keine Marke anhaengt (vor Runde 3 oder nach einem Rueckrollen), wird als
+ * falsch markiert gelesen und abgewiesen. Die Zeile geht dabei nicht verloren -- der STM sendet
+ * sie auf "!v" hin nach und bekommt dasselbe Ergebnis, der alte Wert bleibt stehen. Das ist die
+ * sichere Richtung: ein stehengebliebener Wert faellt beim naechsten Abgleich auf, ein still
+ * beschaedigter nicht (L205). Betroffen waere nur freier Text (ON/xN/S) mit genau diesem Ende.
+ */
+static uint_fast8_t
+var_crc_check_and_strip (char * parameters)
+{
+    size_t          len;
+    size_t          payload_len;
+    char *          mark;
+    int             digit;
+    int             i;
+    uint_fast16_t   want;
+
+    len = strlen (parameters);
+
+    if (len < VAR_CRC_MARK_LEN)
+    {
+        return 1;                                                           // zu kurz fuer eine Marke -- wie bisher behandeln
+    }
+
+    mark = parameters + (len - VAR_CRC_MARK_LEN);
+
+    if (*mark != VAR_CRC_MARK)
+    {
+        return 1;                                                           // keine Marke: rueckwaertskompatibel annehmen
+    }
+
+    want = 0;
+
+    for (i = 1; i < VAR_CRC_MARK_LEN; i++)
+    {
+        digit = var_crc_hexval (mark[i]);
+
+        if (digit < 0)
+        {
+            return 1;                                                       // '*' ohne vier Hexziffern dahinter ist Nutztext
+        }
+
+        want = (uint_fast16_t) ((want << 4) | (uint_fast16_t) digit);
+    }
+
+    payload_len = len - VAR_CRC_MARK_LEN;
+
+    if (want != (uint_fast16_t) var_crc (parameters, payload_len))
+    {
+        var_crc_reject ((unsigned int) payload_len);
+        return 0;
+    }
+
+    *mark = '\0';                                                           // Marke abschneiden, siehe Kopfkommentar
+
+    return 1;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * main loop
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -524,12 +733,42 @@ loop()
 
             if (! strncmp (cmd_buffer, "var ", 4))
             {
-                char * parameter;
+                char *          parameter;
+                uint_fast8_t    ok;
 
                 parameter = cmd_buffer + 4;
 
-                var_set_parameter (parameter);
-                Serial.println (".");                                       // "silent" OK
+                /* Erst pruefen, dann anwenden (A32, Design 6.2). Die Marke schneidet
+                 * var_crc_check_and_strip() dabei ab -- sie darf var_set_parameter() nie
+                 * erreichen, sonst zaehlt dessen Laengenpruefung (L237) fuenf Zeichen mit,
+                 * die nicht zur Nutzlast gehoeren.
+                 */
+                ok = var_crc_check_and_strip (parameter);
+
+                if (ok)
+                {
+                    /* Rueckgabewert seit L237: 1 = formal verwertbar, 0 = verworfen, weil die
+                     * Zeile zu kurz fuer ihre Kommandoart war. AUCH DAS wird abgelehnt -- sonst
+                     * verhielten sich Laengen- und Pruefsummenverwurf unterschiedlich, und der
+                     * STM saehe nur den einen der beiden Faelle und sendete nur ihn nach.
+                     *
+                     * Weiterhin NICHT bestaetigt wird die Uebernahme: Eine formal gueltige Zeile
+                     * mit unbekanntem Kommandobuchstaben liefert ebenfalls 1. Das ist der offene
+                     * Punkt L233 und wird hier nicht geloest -- eine Wiederholung aenderte daran
+                     * nichts.
+                     */
+                    ok = var_set_parameter (parameter);
+                }
+
+                if (ok)
+                {
+                    Serial.println (".");                                   // "silent" OK
+                }
+                else
+                {
+                    Serial.println ("!v");                                  // abgelehnt und NICHT angewandt; der STM merkt
+                }                                                           // das Kommando sofort zur Nachsendung vor
+
                 Serial.flush ();
             }
             else if (! strcmp (cmd_buffer, "time"))

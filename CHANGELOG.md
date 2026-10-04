@@ -1,5 +1,77 @@
 # Changelog
 
+## 2026-10-04 Die Brücke wiederholt und prüft (STM 3.2.19, ESP 3.2.22)
+
+STM und ESP. Die PWA bleibt auf 1.4.88.
+
+**Einspielreihenfolge: STM zuerst, ESP danach.**
+
+### Worum es geht
+
+Zwischen Uhr und WLAN-Modul läuft eine serielle Leitung, über die **jede** Einstellung
+geht. Sie hatte zwei Lücken, die beide denselben Schaden anrichten: einen **still
+falschen Wert**.
+
+**Die erste: Ein verlorenes Kommando wurde nicht wiederholt.** Die Leitung quittiert
+jedes Kommando, und bei ausbleibender Quittung stand bisher sinngemäss „weiter ohne" —
+das Kommando war weg, und niemand erfuhr davon. Daran hingen mehrere offene Befunde:
+der Variablensatz, der nach einem Modulneustart unvollständig blieb, und damit auch der
+Fall, in dem die Uhr sich nicht mehr flashen liess.
+
+**Die zweite: Ein verfälschtes Kommando sah gültig aus.** Die Quittung bestätigte nur,
+dass eine Zeile **gelesen** wurde — nicht, dass sie heil ankam. Ein Overlay-Typ, der
+als 2 abgeschickt wurde, kam als 14 an. Der Mechanismus ist inzwischen reproduziert:
+Fehlen Zeichen am Ende, liest der Empfänger **Reste des vorigen Kommandos** weiter.
+
+### Was jetzt passiert
+
+Bleibt eine Quittung aus, wird das Kommando **vorgemerkt und später erneut gesendet** —
+höchstens zweimal, höchstens ein Versuch je Sekunde, und veraltende Messwerte wie
+Temperatur oder Uhrzeit kommen gar nicht erst in die Liste. **Die Uhr wartet dabei
+keine Millisekunde länger als vorher**: Vorgemerkt wird sofort, gesendet wird nebenher.
+
+Dazu trägt jedes Kommando eine **Prüfsumme**. Erkennt das Modul eine verfälschte Zeile,
+wendet es sie **nicht an** und meldet das zurück — die Uhr schickt sie erneut.
+
+**Nachgestellt am belegten Schadensfall** (554'121 Zeilen mit echtem Blockverlust):
+Keine einzige verfälschte Zeile hat die Prüfsumme passiert, und keine heile wurde
+abgelehnt. Vorher wurden **76 %** der beschädigten Zeilen angenommen — jede mit einem
+still falschen Wert.
+
+**Was offen bleibt, benannt:** In 19 % der Schadensfälle geht die Prüfsumme **mit**
+verloren. Die Zeile sieht dann unmarkiert aus und wird wie bisher angenommen. Das ist
+der Preis dafür, dass unmarkierte Zeilen weiterhin durchgehen müssen — sonst bräche
+jeder Betrieb, in dem eine Seite die Prüfsumme noch nicht kennt.
+
+### Zwei Lücken, die beim Bauen auffielen
+
+Die Prüfsumme darf erst fliessen, wenn die Gegenseite sie versteht. Dafür meldet das
+Modul beim Start seine Fähigkeit. **Das reichte nicht:** Wird das Modul auf eine
+ältere Fassung zurückgerollt, ohne dass die Uhr neu startet, hätte sie weiter
+Prüfsummen angehängt — und das Modul hätte sie als **Teil des Werts** gespeichert.
+Aus einem Servernamen wäre Servername-plus-Prüfsumme geworden, also genau der stille
+falsche Wert, gegen den das Ganze antritt.
+
+Die zweite war stiller: Die Uhr verwirft beim Start absichtlich alles, was in den
+ersten Sekundenbruchteilen hereinkommt — und genau dort liegt die Fähigkeitsmeldung.
+Dass sie heute ankommt, hing an einer Wartezeit im Modul-Code. Beides ist behoben.
+
+### Zwei Lesefehler über Puffergrenzen
+
+**Ein abgeschnittenes Sonderzeichen liess das Modul über das Ende eines Puffers hinaus
+lesen.** Die Quelle ist eine fremde Wetter-Website; eine Antwort, die mitten in einem
+Umlaut endet, genügte. Nachgewiesen mit einer gesperrten Speicherseite hinter dem
+Puffer — die alte Fassung stürzt dort ab, die neue nicht.
+
+**Und rund 45 Stellen schoben einen Lesezeiger weiter, ohne zu prüfen, ob die Zeile
+überhaupt so lang ist.** Jetzt wird die Länge **einmal vorne** geprüft, bevor
+zerlegt wird; zu kurze Zeilen werden verworfen statt halb ausgeführt.
+
+### Was zu flashen ist
+
+**STM zuerst, dann ESP.** Die PWA bleibt unverändert.
+
+
 ## 2026-10-04 Zwei Lesefehler über Puffergrenzen, und drei nachgeholte Aufgaben (ESP 3.2.21, PWA 1.4.88)
 
 ESP und PWA. Der STM bleibt auf 3.2.18.

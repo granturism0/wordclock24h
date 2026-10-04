@@ -304,4 +304,21 @@ extern void         var_send_reload_budget_reset (void);
 extern uint_fast16_t var_send_timeout_count (void);
 extern uint_fast16_t var_send_nested_count (void);
 
+/* Nachsendung vorgemerkter var-Kommandos (A32, BEFUNDE.md L230). Gehoert in den Hauptloop, neben
+ * den IR-Abzug, und nirgendwo sonst hin: Sie sendet hoechstens EIN Kommando je Durchlauf, damit
+ * zwischen zwei Versuchen garantiert der watchdog_reload() vom Kopf des Loops liegt und keine
+ * neue Aufrufstelle noetig ist. Rueckgabe 1, wenn ein Versuch unternommen wurde.
+ */
+extern uint_fast8_t  var_retry_drain (void);
+
+/* Die vier Zaehler der Nachsendeliste. Saettigende uint16_t, kumulativ seit dem STM-Start, Deutung
+ * bei ihrer Definition in vars.c. Sie stehen NICHT in der Diagnosezeile -- die ist voll (main.c).
+ * Sichtbar werden sie ereignisgetrieben ueber die Zeilen "var retry: ..."; die Zugriffsfunktionen
+ * gibt es fuer den Tag, an dem jemand in der Zeile Platz schafft.
+ */
+extern uint_fast16_t var_retry_ok_count (void);
+extern uint_fast16_t var_retry_gaveup_count (void);
+extern uint_fast16_t var_retry_dropped_count (void);
+extern uint_fast16_t var_retry_toolong_count (void);
+
 #endif

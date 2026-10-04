@@ -52,7 +52,7 @@ den Build (L177).
 nach oben zu den anderen zu stellen scheitert, wenn das `#define` erst weiter unten steht:
 Die Bedingung ist oben noch 0, der Prototyp entfällt, der Fehler kommt zurück.
 
-Derzeit haben **2 von 2** `static`-Funktionen der `.ino` einen Prototyp. Die nächste ohne
+**Die Zahl steht hier bewusst nicht mehr.** Hier stand „2 von 2“, und das war schon falsch, bevor es jemand las — `esp_heap_log()` war die dritte, inzwischen sind es sieben. Eine Zahl, die mit dem Code waechst, veraltet still; dieselbe Gattung wie die Versionsnummern in der Doku. **Nachzaehlen statt nachschlagen.** Die nächste ohne
 bricht den Bau wieder.
 
 

@@ -139,14 +139,392 @@ var_send_nested_count (void)
     return var_send_nested_cnt;
 }
 
-static void
-var_send_buf (char * buf)
+/* Pruefsumme der var-Zeile (A32, Baustein 2, Design 6.1).
+ *
+ * Fletcher-artig, ohne Tabelle und ohne Division. Die LAENGE ist der Startwert -- damit wirkt sich
+ * eine Laengenaenderung aus, und genau die ist der belegte Schadensfall: Der Empfangsring verliert
+ * zusammenhaengende Bloecke von rund 77 Byte (L141, L188), aus zwei Zeilen wird eine kuerzere, und
+ * der ESP liest sie als gueltig (L205).
+ *
+ * Gerechnet wird ueber die Nutzlast OHNE "var " und OHNE die Pruefsumme selbst. Dieselbe Rechnung
+ * steht ein zweites Mal im ESP (C++) -- das sind zwei Wahrheiten. Schiedsrichter ist eine dritte,
+ * unabhaengig und VOR beiden entstandene Umsetzung mit festen Vektoren: tools/checks/var-crc.c.
+ *
+ * 16 Bit und nicht 8: Zwei zusaetzliche Byte je Kommando sind beim Vollabgleich rund 390 Byte auf
+ * 3 kB, also nicht messbar; das Restrisiko einer unerkannt verfaelschten Zeile faellt dabei von
+ * rund 0,4 % auf rund 0,0015 %. Garantien gibt die Rechnung keine -- sie ist eine Pruefsumme und
+ * keine Sicherung. Erkannt heisst hier: nachgesendet.
+ */
+static uint16_t
+var_crc (const char * payload)
 {
+    uint8_t         sum1;
+    uint8_t         sum2 = 0;
+    uint_fast16_t   len  = (uint_fast16_t) strlen (payload);
+    uint_fast16_t   i;
+
+    sum1 = (uint8_t) len;
+
+    for (i = 0; i < len; i++)
+    {
+        sum1 = (uint8_t) (sum1 + (uint8_t) payload[i]);
+        sum2 = (uint8_t) (sum2 + sum1);
+    }
+
+    return (uint16_t) ((sum2 << 8) | sum1);
+}
+
+/* Nachsendeliste (A32, Baustein 1, Design 3.2).
+ *
+ * Bis hierher galt: Bleibt die Quittung aus, steht im Code ein break, und das Kommando ist weg
+ * (L230). Nachgesendet wird NICHT in der Warteschleife -- dreimal drei Sekunden waeren neun
+ * Sekunden Hauptloop-Blockade und damit ein Rueckfall hinter A29/A31 (L204, L211, L226). Beim
+ * Fehlschlag wird deshalb nur VORGEMERKT; gesendet wird spaeter im Hauptloop, hoechstens ein
+ * Versuch je Sekunde, nach dem Muster des IR-Abzugs (main.c).
+ *
+ * Jede Konstante nennt, wogegen sie tauscht -- so wie VAR_SEND_RELOAD_BUDGET_SEC es vormacht.
+ */
+
+/* Wie viele Kommandos gleichzeitig vorgemerkt sein duerfen. Das ist der eigentliche Deckel bei
+ * toter Bruecke: vier Plaetze mal drei Versuche sind hoechstens zwoelf Nachsendungen je Stoerung.
+ * Tauscht RAM gegen Deckung -- 4 x 80 Byte .bss. Reicht das auf dem F103 (20 kB) nicht, faellt der
+ * Wert auf 2; genau dafuer ist es eine Konstante (Risiko R-4). Nach oben lohnt es nicht: Laeuft die
+ * Liste voll, ist die Einzelreparatur ueberfordert, und richtig waere dann der Vollabgleich.
+ */
+#define VAR_RETRY_SLOTS             4
+
+/* Laengstes vorzumerkendes Kommando. Haengt an der laengsten Zeichenkettenvariablen: "S" + zwei
+ * Indexziffern + Wert, beim Hostnamen also 3 + 64 = 67. Waechst eine solche Variable ueber diese
+ * Grenze, wird NICHT still verworfen, sondern var_retry_toolong_cnt gezaehlt -- tauscht RAM gegen
+ * Sichtbarkeit. Ein stilles Verwerfen waere genau der Fehler, gegen den dieser ganze Abschnitt
+ * antritt.
+ */
+#define VAR_RETRY_CMD_LEN          72
+
+/* Zusaetzliche Versuche je Kommando. Tauscht Zustellwahrscheinlichkeit gegen Last auf genau der
+ * Leitung, deren Ueberlastung die Quittung gekostet hat (Mitkopplung, L109). Zwei Versuche decken
+ * rund zehn Sekunden Bruecken-Stoerung je Kommando ab; ein ESP-Neustart liegt darunter, ein
+ * OTA-Schreibvorgang darueber -- dagegen hilft nur der Vollabgleich, nicht eine groessere Zahl.
+ */
+#define VAR_RETRY_MAX_ATTEMPTS      2
+
+/* Fruehestens so viele Sekunden nach dem Fehlschlag. Tauscht Reaktionszeit gegen die Chance, dass
+ * sich die Gegenstelle erholt: sofort nachzusenden traefe dieselbe Ueberlast ein zweites Mal.
+ * Beim ausdruecklich abgelehnten Kommando (!v) gilt das nicht -- dort lebt die Bruecke, und es
+ * wird mit due = uptime sofort faellig.
+ */
+#define VAR_RETRY_DELAY_SEC         2
+
+/* Hoechstens ein Versuch je Sekunde, ueber ALLE Eintraege. Tauscht Durchsatz gegen die Zusicherung,
+ * dass nie zwei Nachsendungen in demselben Hauptloop-Durchlauf liegen: Der laengste
+ * zusammenhaengende Stillstand bleibt damit bei VAR_SEND_TIMEOUT_SEC und waechst nicht (AK1).
+ */
+#define VAR_RETRY_SPACING_SEC       1
+
+/* Hoechstens eine "Liste voll"-Zeile je 60 s. Tauscht Vollstaendigkeit der Meldung gegen dieselbe
+ * Mitkopplung wie oben: Jede Logzeile legt rund 60 Byte auf die ueberlastete Leitung. Wie viele
+ * Eintraege verworfen wurden, sagt der Zaehler -- nicht die Zahl der Zeilen.
+ */
+#define VAR_RETRY_FULL_LOG_SEC     60
+
+/* Laengste Kennung: "n" + 2 Indexziffern + 2 Feldziffern = 5 (var_send_num8_array). */
+#define VAR_RETRY_KEY_LEN           5
+
+/* Feldreihenfolge ist hier nicht Geschmack: Steht due hinter cmd[73], schiebt die Ausrichtung
+ * drei Fuellbyte dazwischen und der Platz waechst von 80 auf 84 Byte. Vorangestellt passt alles
+ * ohne Luecke -- 16 Byte weniger .bss ueber vier Plaetze, umsonst zu haben.
+ */
+typedef struct
+{
+    uint32_t        due;                                        // uptime, ab der gesendet werden darf
+    char            cmd[VAR_RETRY_CMD_LEN + 1];                 // Nutzlast ohne "var " und ohne Pruefsumme; cmd[0] == '\0' heisst "Platz frei"
+    uint8_t         idlen;                                      // Laenge der Kennung, siehe var_retry_purge()
+    uint8_t         attempts;                                   // bereits unternommene Nachsendeversuche
+} VAR_RETRY_SLOT;
+
+static VAR_RETRY_SLOT   var_retry_slots[VAR_RETRY_SLOTS];
+static uint32_t         var_retry_last_attempt = 0;             // uptime der letzten Nachsendung, Taktung ueber VAR_RETRY_SPACING_SEC
+static uint32_t         var_retry_full_log_last = 0;            // uptime der letzten "Liste voll"-Zeile
+static uint_fast8_t     var_retry_full_logged = 0;              // erste Meldung nicht durch die Drossel verschlucken
+static uint_fast8_t     var_retry_attempts_in = 0;              // vom Drain gesetzt: Zahl der Versuche DIESES Aufrufs von var_send_buf()
+
+/* Vier saettigende Zaehler, dieselbe Bauart wie var_send_timeout_cnt: 65535 heisst "mindestens
+ * 65535". Sie werden NICHT in die Diagnosezeile aufgenommen -- die steht bei 118 von 119 Zeichen
+ * (main.c), es passt kein Feld mehr hinein. Sichtbar werden sie ereignisgetrieben ueber die drei
+ * Logzeilen unten; die Zugriffsfunktionen gibt es fuer den Tag, an dem jemand Platz schafft.
+ */
+static uint16_t     var_retry_ok_cnt = 0;                       // Nachsendungen, die quittiert wurden
+static uint16_t     var_retry_gaveup_cnt = 0;                   // nach VAR_RETRY_MAX_ATTEMPTS aufgegeben
+static uint16_t     var_retry_dropped_cnt = 0;                  // Liste war voll
+static uint16_t     var_retry_toolong_cnt = 0;                  // Kommando laenger als VAR_RETRY_CMD_LEN
+
+uint_fast16_t
+var_retry_ok_count (void)
+{
+    return var_retry_ok_cnt;
+}
+
+uint_fast16_t
+var_retry_gaveup_count (void)
+{
+    return var_retry_gaveup_cnt;
+}
+
+uint_fast16_t
+var_retry_dropped_count (void)
+{
+    return var_retry_dropped_cnt;
+}
+
+uint_fast16_t
+var_retry_toolong_count (void)
+{
+    return var_retry_toolong_cnt;
+}
+
+/* Die Kennung fuer eine Logzeile, nullterminiert. In die Logzeilen gehoert die KENNUNG und niemals
+ * der Wert: Die Zeichenkettenvariablen tragen Hostnamen und Zugangsdaten (A20/L115).
+ */
+static void
+var_retry_key (char * dst, const char * buf, uint_fast8_t idlen)
+{
+    uint_fast8_t    i;
+
+    for (i = 0; i < idlen && i < VAR_RETRY_KEY_LEN && buf[i]; i++)
+    {
+        dst[i] = buf[i];
+    }
+
+    dst[i] = '\0';
+}
+
+static uint_fast8_t
+var_retry_hex2 (const char * p)                                 // zwei Hexziffern, wie sie jedes Kommando fuehrt
+{
+    uint_fast8_t    i;
+    uint_fast8_t    sum = 0;
+
+    for (i = 0; i < 2; i++)
+    {
+        sum <<= 4;
+
+        if (p[i] >= '0' && p[i] <= '9')
+        {
+            sum += p[i] - '0';
+        }
+        else if (p[i] >= 'a' && p[i] <= 'f')
+        {
+            sum += p[i] - 'a' + 10;
+        }
+        else if (p[i] >= 'A' && p[i] <= 'F')
+        {
+            sum += p[i] - 'A' + 10;
+        }
+    }
+
+    return sum;
+}
+
+/* Lohnt es, dieses Kommando vorzumerken? (Design 3.3)
+ *
+ * Die Ausschlussliste steht hier an EINER Stelle und nicht verstreut an den Aufrufstellen, damit
+ * die Begruendung neben der Entscheidung steht:
+ *
+ *   T...   die aktuelle Zeit. Idempotent, aber VERALTEND -- eine zwei Sekunden alte Uhrzeit
+ *          nachzusenden ist nicht falsch, nur sinnlos. Sie kommt im naechsten Zyklus ohnehin.
+ *   N..    Uptime (lo/hi), LDR-Rohwert, RTC- und DS18xx-Temperaturindex: dieselbe Lage, zyklisch.
+ *
+ * Der Grund ist nicht Sparsamkeit, sondern Verdraengung: Vier Plaetze, und die zyklischen Werte
+ * kaemen im Stoerfall als Erste und immer wieder. Sie wuerden genau die Werte verdraengen, fuer die
+ * die Liste da ist -- die EINMALIG angekuendigten aus dem Nachsendestoss nach einem ESP-Neustart
+ * (HARDWARE_CONFIGURATION, Zeitzone, Helligkeit, Overlays; L42, L103, L205).
+ */
+static uint_fast8_t
+var_retry_is_worth_it (const char * buf)
+{
+    uint_fast8_t    idx;
+
+    if (buf[0] == 'T')                                          // aktuelle Zeit und Datum
+    {
+        return 0;
+    }
+
+    if (buf[0] == 'N' && buf[1] && buf[2])
+    {
+        idx = var_retry_hex2 (buf + 1);
+
+        if (idx == UPTIME_SECONDS_LO_NUM_VAR || idx == UPTIME_SECONDS_HI_NUM_VAR ||
+            idx == LDR_RAW_VALUE_NUM_VAR ||
+            idx == RTC_TEMP_INDEX_NUM_VAR || idx == DS18XX_TEMP_INDEX_NUM_VAR)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/* Regel der Kennung (Design 3.4, Risiko R-1) -- der Teil, ohne den diese ganze Aenderung abzulehnen
+ * waere.
+ *
+ * Die Kennung sind die fuehrenden Zeichen, die die VARIABLE bezeichnen, ohne ihren Wert:
+ *
+ *   var_send_byte/_short/_string   <id><idx:2>      idlen = strlen (id) + 2
+ *   var_send_num_variable          N<idx:2>         3
+ *   var_send_num8_array            n<idx:2><i:2>    5
+ *   var_send_str_variable          S<idx:2>         3
+ *   var_send_tm_variable           T<idx:2>         3
+ *   var_send_dsp_color_variable    DC<idx:2>        4
+ *   Nacht-/Alarmtabellen           <t|a|l><idx:2>   3
+ *   IR-Code                        I<idx:2>         3
+ *
+ * Geraeumt wird VOR jedem Senden und NACH jeder eingetroffenen Quittung. Ohne beides baute die
+ * Nachsendung genau den Schaden ein, gegen den sie antritt: Ein Kommando laeuft in den Timeout und
+ * wird vorgemerkt, zwei Sekunden spaeter setzt der Nutzer denselben Wert neu und das gelingt --
+ * und danach schriebe die Nachsendung den ALTEN Wert. Ein falscher Wert, der gueltig aussieht, ist
+ * genau die Schadensform aus L205 und schlimmer als ein fehlender.
+ */
+static void
+var_retry_purge (const char * buf, uint_fast8_t idlen)
+{
+    uint_fast8_t    i;
+
+    if (! idlen)
+    {
+        return;
+    }
+
+    for (i = 0; i < VAR_RETRY_SLOTS; i++)
+    {
+        if (var_retry_slots[i].cmd[0] && var_retry_slots[i].idlen == idlen &&
+            ! strncmp (var_retry_slots[i].cmd, buf, idlen))
+        {
+            var_retry_slots[i].cmd[0] = '\0';
+        }
+    }
+}
+
+/* Ein Kommando vormerken. Rueckgabe 1, wenn es in der Liste steht -- der Aufrufer meldet sonst
+ * "vorgemerkt", wo nichts vorgemerkt wurde.
+ */
+static uint_fast8_t
+var_retry_queue (const char * buf, uint_fast8_t idlen, uint_fast8_t attempts, uint32_t due)
+{
+    char            key[VAR_RETRY_KEY_LEN + 1];
+    uint_fast8_t    i;
+
+    if (! idlen || ! var_retry_is_worth_it (buf))
+    {
+        return 0;
+    }
+
+    if (strlen (buf) > VAR_RETRY_CMD_LEN)
+    {
+        if (var_retry_toolong_cnt < 0xFFFF)                     // saettigend
+        {
+            var_retry_toolong_cnt++;
+        }
+
+        return 0;
+    }
+
+    if (attempts >= VAR_RETRY_MAX_ATTEMPTS)
+    {
+        if (var_retry_gaveup_cnt < 0xFFFF)                      // saettigend
+        {
+            var_retry_gaveup_cnt++;
+        }
+
+        var_retry_key (key, buf, idlen);
+        log_printf ("var retry: aufgegeben %s nach %d Versuchen\r\n", key, (int) attempts);
+        return 0;
+    }
+
+    var_retry_purge (buf, idlen);                               // der juengere Wert gilt, siehe oben
+
+    for (i = 0; i < VAR_RETRY_SLOTS; i++)
+    {
+        if (! var_retry_slots[i].cmd[0])
+        {
+            strcpy (var_retry_slots[i].cmd, buf);
+            var_retry_slots[i].idlen    = idlen;
+            var_retry_slots[i].attempts = attempts;
+            var_retry_slots[i].due      = due;
+            return 1;
+        }
+    }
+
+    /* Dass die Liste volllaeuft, ist kein Fehler, sondern eine Aussage: Die Nachsendung auf
+     * Kommandoebene ist ueberfordert, der Zustand der Gegenstelle ist zweifelhaft. Genau dann waere
+     * ein Vollabgleich das richtige Mittel -- der ist bewusst nicht Teil dieser Aenderung.
+     */
+    if (var_retry_dropped_cnt < 0xFFFF)                         // saettigend
+    {
+        var_retry_dropped_cnt++;
+    }
+
+    if (! var_retry_full_logged || uptime - var_retry_full_log_last >= VAR_RETRY_FULL_LOG_SEC)
+    {
+        var_retry_full_logged   = 1;
+        var_retry_full_log_last = uptime;
+        log_printf ("var retry: Liste voll, %d verworfen\r\n", (int) var_retry_dropped_cnt);
+    }
+
+    return 0;
+}
+
+/* Das Kommando, auf dessen Quittung gerade gewartet wird. Zeigt in den Stapelrahmen des wartenden
+ * Aufrufs und ist nur waehrend der Warteschleife gueltig.
+ *
+ * Wozu: Die Warteschleife ruft schedule_esp8266_messages() und fuehrt eintreffende Kommandos damit
+ * verschachtelt aus. Setzt eines davon DIESELBE Variable, geht der neue Wert sofort raus -- und der
+ * Wert, auf den hier noch gewartet wird, ist damit veraltet. Er darf dann NICHT mehr vorgemerkt
+ * werden, sonst ueberschriebe die Nachsendung spaeter den juengeren Wert (R-1). Die Liste allein
+ * kann das nicht zeigen: Ein verschachtelter Aufruf wartet nie und merkt deshalb auch nichts vor.
+ */
+static const char * var_send_cur_buf = (const char *) 0;
+static uint_fast8_t var_send_cur_idlen = 0;
+static uint_fast8_t var_send_superseded = 0;
+
+/* Rueckgabe: 1, wenn der ESP das Kommando quittiert hat (Punkt). 0 sonst -- bei Zeitueberschreitung,
+ * bei Ablehnung (!v) und im verschachtelten Fall, der gar nicht erst wartet.
+ */
+static uint_fast8_t
+var_send_buf (char * buf, uint_fast8_t idlen)
+{
+    char            crc_buf[6];                                 // "*" + 4 Hexziffern + Nullbyte, direkt auf die UART
     uint32_t        start_uptime;
-    uint_fast8_t    got_ack;                                    // Quittung der Bruecke eingetroffen?
+    uint_fast8_t    attempts;
+    uint_fast8_t    got_answer;                                 // Punkt ODER !v: die Bruecke lebt
+    uint_fast8_t    applied;                                    // nur Punkt: der Wert ist gesetzt
+    uint_fast8_t    timed_out;
+    uint_fast8_t    msg_rtc;
+
+    attempts = var_retry_attempts_in;                           // vom Drain gesetzt, gilt genau fuer diesen Aufruf
+    var_retry_attempts_in = 0;
+
+    var_retry_purge (buf, idlen);                               // Regel 1: der juengere Wert verdraengt den vorgemerkten
+
+    if (var_send_nested && var_send_cur_idlen && idlen == var_send_cur_idlen &&
+        ! strncmp (buf, var_send_cur_buf, idlen))
+    {
+        var_send_superseded = 1;                                // der wartende Aufruf traegt jetzt den aelteren Wert
+    }
 
     esp8266_uart_puts ("var ");
     esp8266_uart_puts (buf);
+
+    /* Die Pruefsumme NUR, wenn der ESP sie gemeldet hat (Design 6.4, Risiko R-3). Ein ESP ohne
+     * Pruefsummenverstaendnis speicherte "meinhost*c328" als Hostnamen -- ein stiller falscher Wert
+     * und damit genau der Schaden, gegen den die Pruefsumme antritt. OTA-Rueckrollen ist hier
+     * Routine, der Fall ist nicht theoretisch. Ohne die Meldung verhaelt sich alles wie vorher.
+     */
+    if (esp8266.cap_var_crc)
+    {
+        sprintf (crc_buf, "*%04x", (unsigned int) var_crc (buf));
+        esp8266_uart_puts (crc_buf);
+    }
+
     esp8266_uart_puts ("\r\n");
     esp8266_uart_flush ();
 
@@ -161,6 +539,10 @@ var_send_buf (char * buf)
      *
      * var_send_busy taugt dafuer nicht: main.c setzt es bei jedem ESP8266_OK zurueck,
      * auch bei dem eines verschachtelten Kommandos.
+     *
+     * Vorgemerkt wird hier NICHT: Ohne Quittungspruefung bemerkt niemand, dass das Kommando
+     * fehlt. Gezaehlt wird es (v=<timeouts>/<verschachtelt>); aufgeloest wuerde dieser Fall erst
+     * durch den vertagten Vollabgleich, nicht durch die Nachsendeliste.
      */
     if (var_send_nested)
     {
@@ -169,13 +551,19 @@ var_send_buf (char * buf)
             var_send_nested_cnt++;
         }
 
-        return;
+        return 0;
     }
 
     var_send_nested = 1;
     var_send_busy = 1;
     start_uptime = uptime;
-    got_ack = 0;
+    got_answer = 0;
+    applied = 0;
+    timed_out = 0;
+
+    var_send_cur_buf     = buf;
+    var_send_cur_idlen   = idlen;
+    var_send_superseded  = 0;
 
     if (! var_send_reload_armed)                                // erster wartender Aufruf seit dem Loopkopf: Budget beginnt hier
     {
@@ -189,34 +577,80 @@ var_send_buf (char * buf)
      * nicht weiter.
      *
      * Die Abbruchbedingung stand seither im Schleifenkopf und steht jetzt im Rumpf: Nur
-     * so ist nach der Schleife unterscheidbar, WARUM sie verlassen wurde -- mit Quittung
-     * oder nach Zeitueberschreitung. Diese Unterscheidung traegt den Reload unten.
+     * so ist nach der Schleife unterscheidbar, WARUM sie verlassen wurde -- mit Quittung,
+     * mit Ablehnung oder nach Zeitueberschreitung. Diese Unterscheidung traegt den Reload
+     * unten und die Nachsendung.
      */
     while (1)
     {
-        if (schedule_esp8266_messages () == ESP8266_OK)
+        msg_rtc = schedule_esp8266_messages ();
+
+        if (msg_rtc == ESP8266_OK)
         {
-            got_ack = 1;                                        // Bruecke hat geantwortet
+            got_answer = 1;                                     // Bruecke hat geantwortet
+            applied    = 1;                                     // und den Wert uebernommen
+            break;
+        }
+
+        /* Ablehnung: Die Zeile kam verstuemmelt an, der ESP hat sie NICHT angewandt (Design 6.3).
+         * Hier wird nicht erneut gewartet -- die Bruecke lebt ja, es fehlt nur eine heile Zeile.
+         * Vorgemerkt wird sofort faellig, gesendet wird im naechsten Hauptloop-Durchlauf.
+         */
+        if (msg_rtc == ESP8266_NAK)
+        {
+            got_answer = 1;
             break;
         }
 
         if (uptime - start_uptime >= VAR_SEND_TIMEOUT_SEC)
+        {
+            timed_out = 1;
+            break;                                              // got_answer bleibt 0
+        }
+    }
+
+    var_send_busy = 0;
+    var_send_nested = 0;
+    var_send_cur_buf = (const char *) 0;
+    var_send_cur_idlen = 0;
+
+    if (applied)
+    {
+        var_retry_purge (buf, idlen);                           // Regel 2: bestaetigt gesetzt, nichts mehr nachzusenden
+    }
+    else if (! var_send_superseded)
+    {
+        uint_fast8_t    queued;
+
+        queued = var_retry_queue (buf, idlen, attempts, got_answer ? uptime : uptime + VAR_RETRY_DELAY_SEC);
+
+        if (timed_out)
         {
             if (var_send_timeout_cnt < 0xFFFF)                  // saettigend: 65535 heisst "mindestens 65535"
             {
                 var_send_timeout_cnt++;
             }
 
-            log_printf ("var_send_buf: keine Quittung nach %ds, weiter ohne: %s\r\n",
-                        VAR_SEND_TIMEOUT_SEC, buf);
-            break;                                              // got_ack bleibt 0
+            /* Hier stand "weiter ohne" -- nach der Nachsendeliste waere das eine Falschaussage.
+             * Der Wert bleibt wie er war (A20/L115 ist nicht Teil dieser Aenderung), nur das Wort
+             * sagt jetzt, was wirklich geschieht: entweder vorgemerkt oder eben doch verworfen.
+             */
+            log_printf ("var_send_buf: keine Quittung nach %ds, %s: %s\r\n",
+                        VAR_SEND_TIMEOUT_SEC, queued ? "vorgemerkt" : "verworfen", buf);
         }
     }
+    else if (timed_out)
+    {
+        if (var_send_timeout_cnt < 0xFFFF)                      // saettigend
+        {
+            var_send_timeout_cnt++;
+        }
 
-    var_send_busy = 0;
-    var_send_nested = 0;
+        log_printf ("var_send_buf: keine Quittung nach %ds, inzwischen neuer Wert: %s\r\n",
+                    VAR_SEND_TIMEOUT_SEC, buf);
+    }
 
-    /* Watchdog NUR bei eingetroffener Quittung bedienen, niemals nach dem Timeout.
+    /* Watchdog NUR bei eingetroffener Antwort bedienen, niemals nach dem Timeout.
      *
      * var_send_all_variables() sendet rund 194 Kommandos (ueber 450 mit vollen Overlays),
      * jedes bis zu VAR_SEND_TIMEOUT_SEC lang blockierend, und im ganzen Pfad stand bisher
@@ -227,15 +661,14 @@ var_send_buf (char * buf)
      * Bedingungslos darf der Reload aber NICHT stehen: Bei toter Bruecke ist der
      * Watchdog-Reset die einzige Selbstheilung. Am 02.10.2026 hat er die Uhr nach sieben
      * Sekunden wieder ins Leben gebracht (L25). Ein Reload nach dem Timeout machte daraus
-     * wieder ein stilles Steckenbleiben.
+     * wieder ein stilles Steckenbleiben. Daran aendert die Nachsendeliste nichts: Sie wird
+     * NUR bei Antwort oder gar nicht bedient, und bei toter Bruecke greift weiterhin der Reset.
      *
-     * Deshalb belohnt der Reload Fortschritt, nicht Warten: got_ack wird ausschliesslich
-     * im ESP8266_OK-Zweig gesetzt, der Timeout-Zweig laesst es auf 0. ESP8266_OK entsteht
-     * nur noch aus dem Punkt (esp8266.c:227), den der ESP unmittelbar nach jedem
-     * var-Kommando sendet. Die drei unaufgeforderten "OK ..."-Zeilen seines Bootlaufs
-     * liefern seit specs/bruecke Design 1 ESP8266_STATUS und setzen got_ack nicht mehr --
-     * ein Reload auf eine Falschquittung hin ist durch kein Budget gerechtfertigt.
-     * Bei toter Bruecke bleibt es beim Reset nach rund sieben Kommandos.
+     * Entschieden wird ueber got_answer und nicht ueber applied: Ein abgelehntes Kommando (!v)
+     * ist kein Erfolg, aber es ist ein Lebenszeichen der Bruecke -- und ein Reset dafuer waere
+     * falsch. ESP8266_OK entsteht nur aus dem Punkt (esp8266.c), den der ESP unmittelbar nach
+     * jedem var-Kommando sendet. Die drei unaufgeforderten "OK ..."-Zeilen seines Bootlaufs
+     * liefern seit specs/bruecke Design 1 ESP8266_STATUS und setzen got_answer nicht.
      *
      * Der verschachtelte Fall erreicht diese Stelle gar nicht: Er kehrt oben bei
      * var_send_nested zurueck, hat also nie gewartet. Ein Reload dort waere keiner
@@ -248,11 +681,91 @@ var_send_buf (char * buf)
      * wie vor 9eb6dd9. Der Nullpunkt wird am Kopf des Hauptloops geloescht, der Vergleich ist
      * vorzeichenlos und ueberlebt den Umlauf von uptime.
      */
-    if (got_ack && uptime - var_send_reload_start < VAR_SEND_RELOAD_BUDGET_SEC)
+    if (got_answer && uptime - var_send_reload_start < VAR_SEND_RELOAD_BUDGET_SEC)
     {
         watchdog_reload ();
     }
+
+    return applied;
 }
+
+/* Nachsendung, getaktet vom Hauptloop -- hoechstens EIN Kommando je Durchlauf (Design 3.5).
+ *
+ * Dasselbe Muster wie der IR-Abzug in main.c, und aus demselben Grund: Zwischen zwei Kommandos
+ * liegt dadurch garantiert der watchdog_reload() vom Kopf des Hauptloops, und es braucht keine
+ * neue Aufrufstelle (AK6, Guardrail S7). Der laengste zusammenhaengende Stillstand bleibt bei
+ * VAR_SEND_TIMEOUT_SEC = 3 s, weil nie zwei Versuche in demselben Durchlauf liegen koennen.
+ *
+ * Rueckgabe 1, wenn ein Versuch unternommen wurde.
+ */
+uint_fast8_t
+var_retry_drain (void)
+{
+    char            cmd[VAR_RETRY_CMD_LEN + 1];
+    char            key[VAR_RETRY_KEY_LEN + 1];
+    uint_fast8_t    i;
+    uint_fast8_t    pick = VAR_RETRY_SLOTS;
+    uint_fast8_t    idlen;
+    uint_fast8_t    attempts;
+
+    if (uptime - var_retry_last_attempt < VAR_RETRY_SPACING_SEC)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < VAR_RETRY_SLOTS; i++)
+    {
+        if (! var_retry_slots[i].cmd[0])
+        {
+            continue;
+        }
+
+        if ((uint32_t) (uptime - var_retry_slots[i].due) >= 0x80000000UL)       // noch nicht faellig, umlaufsicher
+        {
+            continue;
+        }
+
+        if (pick == VAR_RETRY_SLOTS ||
+            (uint32_t) (var_retry_slots[i].due - var_retry_slots[pick].due) >= 0x80000000UL)
+        {
+            pick = i;                                           // der aelteste faellige Eintrag zuerst
+        }
+    }
+
+    if (pick == VAR_RETRY_SLOTS)
+    {
+        return 0;
+    }
+
+    /* Der Eintrag wird VOR dem Senden aus der Liste genommen und nur dann zurueckgelegt, wenn er
+     * danach noch gebraucht wird -- var_send_buf() legt ihn selbst wieder ab. Grund ist die
+     * Wiedereintrittsfalle: Die Warteschleife fuehrt eintreffende Kommandos aus, und eines davon
+     * kann dieselbe Variable neu setzen. Dann traegt der Eintrag hier den aelteren Wert und darf
+     * nicht zurueck (var_send_superseded).
+     */
+    strcpy (cmd, var_retry_slots[pick].cmd);
+    idlen    = var_retry_slots[pick].idlen;
+    attempts = var_retry_slots[pick].attempts;
+    var_retry_slots[pick].cmd[0] = '\0';
+
+    var_retry_last_attempt = uptime;
+    var_retry_attempts_in  = attempts + 1;
+
+    if (var_send_buf (cmd, idlen))
+    {
+        if (var_retry_ok_cnt < 0xFFFF)                          // saettigend
+        {
+            var_retry_ok_cnt++;
+        }
+
+        var_retry_key (key, cmd, idlen);
+        log_printf ("var retry: ok %s nach %d Versuchen\r\n", key, (int) (attempts + 1));
+    }
+
+    return 1;
+}
+
+/* A32: Ende des Abschnitts, den der Tischpruefstand einbindet (Anfang: #define VAR_SEND_TIMEOUT_SEC). */
 
 static void
 var_send_byte (const char * id, uint_fast32_t var, uint_fast8_t value)
@@ -260,7 +773,7 @@ var_send_byte (const char * id, uint_fast32_t var, uint_fast8_t value)
     char            buf[32];
 
     sprintf (buf, "%s%02x%02x", id, (int) var, value);
-    var_send_buf (buf);
+    var_send_buf (buf, (uint_fast8_t) (strlen (id) + 2));                 // Kennung: <id><idx:2>
 }
 
 static void
@@ -269,7 +782,7 @@ var_send_short (const char * id, uint_fast32_t var, uint_fast16_t value)
     char            buf[32];
 
     sprintf (buf, "%s%02x%04x", id, (int) var, value & 0xFFFF);
-    var_send_buf (buf);
+    var_send_buf (buf, (uint_fast8_t) (strlen (id) + 2));                 // Kennung: <id><idx:2>
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
@@ -302,7 +815,7 @@ var_send_string (const char * id, uint_fast32_t var, const char * value)
         return;
     }
 
-    var_send_buf (buf);
+    var_send_buf (buf, (uint_fast8_t) (strlen (id) + 2));                 // Kennung: <id><idx:2>
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
@@ -317,7 +830,7 @@ var_send_num_variable (NUM_VARIABLE var, unsigned int value)
     if (var < MAX_NUM_VARIABLES)
     {
         sprintf (buf, "N%02x%02x%02x", (int) var, value & 0xFF, (value >> 8) & 0xFF);
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: N<idx:2>
     }
 }
 
@@ -336,7 +849,7 @@ var_send_num8_array (NUM8_ARRAY var, uint_fast8_t * p, uint_fast8_t n)
         for (i = 0; i < n; i++)
         {
             sprintf (buf, "n%02x%02x%02x", var, i, p[i]);
-            var_send_buf (buf);
+            var_send_buf (buf, 5);                                        // Kennung: n<idx:2><i:2>
         }
     }
 }
@@ -357,7 +870,7 @@ var_send_num16_array (NUM16_ARRAY var, uint_fast16_t * p, uint_fast8_t n)
         for (i = 0; i < n; i++)
         {
             sprintf (buf, "m%02x%02x%02x%02x", var, i, p[i] & 0xFF, (p[i] >> 8) & 0xFF);
-            var_send_buf (buf);
+            var_send_buf (buf, 5);                                        // Kennung: m<idx:2><i:2>
         }
     }
 }
@@ -384,7 +897,7 @@ var_send_str_variable (STR_VARIABLE var, const char * value)
             return;
         }
 
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: S<idx:2>
     }
 }
 
@@ -400,7 +913,7 @@ var_send_tm_variable (TM_VARIABLE var, TM * tm)
     if (var < MAX_TM_VARIABLES)
     {
         sprintf (buf, "T%02x%04d%02d%02d%02d%02d%02d", (int) var, tm->tm_year, tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: T<idx:2>
     }
 }
 
@@ -427,7 +940,7 @@ var_send_dsp_color_variable (DSP_COLOR_VARIABLE var, DSP_COLORS * dsp_colors)
 #else
     sprintf (buf, "DC%02x%02x%02x%02x00", (int) var, dsp_colors->red, dsp_colors->green, dsp_colors->blue);
 #endif
-    var_send_buf (buf);
+    var_send_buf (buf, 4);                                                // Kennung: DC<idx:2>
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
@@ -644,7 +1157,7 @@ var_send_night_time (NIGHT_TIME_VARIABLE var, uint_fast16_t minutes, uint_fast8_
     if (var < MAX_NIGHT_TIME_VARIABLES)
     {
         sprintf (buf, "t%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: t<idx:2>
     }
 }
 
@@ -660,7 +1173,7 @@ var_send_ambilight_night_time (NIGHT_TIME_VARIABLE var, uint_fast16_t minutes, u
     if (var < MAX_NIGHT_TIME_VARIABLES)
     {
         sprintf (buf, "a%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: a<idx:2>
     }
 }
 
@@ -676,7 +1189,7 @@ var_send_alarm_time (ALARM_TIME_VARIABLE var, uint_fast16_t minutes, uint_fast8_
     if (var < MAX_ALARM_TIME_VARIABLES)
     {
         sprintf (buf, "l%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: l<idx:2>
     }
 }
 
@@ -1165,7 +1678,7 @@ var_send_ir_code (uint_fast8_t idx)
                  (unsigned int) (protocol & 0xFF),
                  (unsigned int) (address & 0xFFFF),
                  (unsigned int) (command & 0xFFFF));
-        var_send_buf (buf);
+        var_send_buf (buf, 3);                                            // Kennung: I<idx:2>
     }
 }
 

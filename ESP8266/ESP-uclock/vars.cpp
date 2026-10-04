@@ -863,15 +863,188 @@ set_ir_code_var (uint_fast8_t idx, uint_fast8_t protocol, uint_fast16_t address,
 
 OVERLAY      overlays[MAX_OVERLAYS];
 
-void
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * var_cmd_min_len () - Mindestlaenge einer Kommandozeile, Befund L237
+ *
+ * Hintergrund: In var_set_parameter() folgt auf jedes htoi (parameters, 2) ein UNBEDINGTES
+ * parameters += 2 -- an rund 45 Stellen nach demselben Bauplan. Stand der Zeiger bereits auf
+ * dem Terminator, zeigt er danach DAHINTER, und der naechste htoi liest dort.
+ *
+ * Der Fix aus L232 begrenzt den Schaden -- htoi haelt am ersten Nullbyte --, hebt ihn aber
+ * nicht auf: Hinter dem Terminator steht nicht zwingend eine weitere Null. Sie steht dort
+ * sogar meistens NICHT. Die Zeile liegt in cmd_buffer, einem static char [CMD_BUFFER_SIZE]
+ * im Hauptloop (ESP-uclock.ino:499). Der wird nie geleert, nur an cmd_len terminiert --
+ * dahinter liegt der Rest des VORIGEN Kommandos. Eine um ein Zeichen verkuerzte Zeile liest
+ * also Text aus dem Kommando davor und macht daraus einen gueltig aussehenden falschen Wert.
+ *
+ * Nachgerechnet und am Pruefstand nachgestellt: In cmd_buffer steht noch "var ON00Weihnachten"
+ * (Index 8 = 'W', 9 = 'e'). Danach trifft statt "var OT0002" nur "var OT0" ein -- drei Zeichen
+ * auf der Bruecke verloren. Der Terminator liegt jetzt auf Index 7, die Buchstaben ab Index 8
+ * stehen unveraendert aus dem vorigen Kommando da. Ablauf: cmd_code = 'O' (Index 4),
+ * cmd_code = 'T' (Index 5), var_idx = htoi (Index 6, 2) = 0 -- haelt am Terminator, also noch
+ * harmlos --, dann parameters += 2 UNBEDINGT, und der Zeiger steht auf Index 8, also HINTER
+ * dem Terminator. type = htoi ("We", 2): 'W' ist keine Hexziffer und zaehlt als 0, 'e' ist 14.
+ *
+ *     type = 14.
+ *
+ * Das ist nicht ungefaehr der Fall aus L205, das IST der Wert aus L205: Dort kam
+ * overlay[0].type als 14 statt 2 an und sah gueltig genug aus, um durch jede Pruefung zu
+ * kommen. Gueltig ist er nicht -- src/overlay/overlay.h laesst 0..10 zu.
+ *
+ * Gewaehlte Loesung: EINE Laengenpruefung vorne statt 45 Einzelpruefungen. Jede Kommandoart
+ * hat eine feste Mindestbreite; passt sie nicht, wird das Kommando GANZ verworfen statt halb
+ * ausgefuehrt. Halb ausgefuehrt ist hier die schlechtere Haelfte: Ein fehlendes Kommando
+ * laesst den alten Wert stehen und faellt beim naechsten Abgleich auf, ein halb ausgefuehrtes
+ * schreibt einen falschen und faellt nirgends auf.
+ *
+ * Warum nicht 45 Einzelpruefungen: Das waeren 45 Gelegenheiten, eine zu vergessen, und die
+ * naechste hinzugefuegte Kommandoart haette wieder keine. Diese Tabelle steht unmittelbar vor
+ * dem switch, den sie beschreibt -- weicht eine Breite ab, faellt es beim Lesen auf.
+ *
+ * Rueckgabe: Mindestzahl Zeichen ab parameters[0] EINSCHLIESSLICH Kommandobuchstabe.
+ *            0 = Kommandobuchstabe unbekannt. Dann wird nichts geprueft, weil der switch in
+ *            var_set_parameter() die Zeile ohnehin wirkungslos verwirft.
+ *
+ * parameters[0] ist beim Aufruf garantiert != '\0' (der Aufrufer prueft es), parameters[1]
+ * darf deshalb gelesen werden -- schlimmstenfalls ist es der Terminator, und der trifft
+ * keinen case.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+var_cmd_min_len (const char * parameters)
+{
+    switch (parameters[0])
+    {
+        case CMD_CODE_NUMERIC_VAR:                  return  7;              // N ii ll hh
+        case CMD_CODE_NUMERIC_ARRAY:                return  7;              // n ii nn bb
+        case CMD_CODE_STRING_VAR:                   return  3;              // S ii + Text, Text darf leer sein
+        case CMD_CODE_TIME_VAR:                     return 17;              // T ii YYYYMMDDhhmmss, Ziffern direkt indiziert
+        case CMD_CODE_NIGHT_TIME_TABLE:             return  9;              // t ii mmmm ff
+        case CMD_CODE_AMBILIGHT_NIGHT_TIME_TABLE:   return  9;              // a ii mmmm ff
+        case CMD_CODE_ALARM_TIME_TABLE:             return  9;              // l ii mmmm ff
+        case CMD_CODE_IR_CODE:                      return 13;              // I ii pp aaaa cccc
+
+        case CMD_CODE_DISPLAY_VAR:                                          // D
+            if (parameters[1] == PAR_CODE_DISPLAY_COLOR)                    // DC ii rr gg bb ww
+            {
+                /* Immer 12, NICHT von DISPLAY_USE_RGBW_NUM_VAR abhaengig. Der switch unten
+                 * liest das ww zwar nur bei RGBW, der STM sendet es aber in beiden Bauarten:
+                 * "DC%02x%02x%02x%02x%02x" mit White, sonst "DC%02x%02x%02x%02x00" mit einer
+                 * literalen 00 (src/vars/vars.c:426/428, seit dem ersten Checkin unveraendert).
+                 *
+                 * Ein erster Entwurf machte die Breite hier von get_numvar() abhaengig. Das
+                 * waere eine Pruefung gewesen, die von einem Wert abhaengt, den dieselbe
+                 * Bruecke liefert -- geht das use_rgbw-Kommando verloren, verwirft der ESP
+                 * danach gueltige Farbkommandos. Eine Konstante kann das nicht.
+                 */
+                return 12;
+            }
+            return 4;                                                       // unbekannter Unterbuchstabe: nur der Kopf
+
+        case CMD_CODE_ANIMATION_VAR:                                        // A
+        case CMD_CODE_COLOR_ANIMATION_VAR:                                  // C
+        case CMD_CODE_AMBILIGHT_MODE_VAR:                                   // M
+            switch (parameters[1])                                          // N/D/E/F -- in allen drei Gruppen dieselben
+            {                                                               // Buchstaben, siehe die PAR_CODE_*-Defines oben
+                case PAR_CODE_ANIMATION_MODE_NAME:              return 4;   // xN ii + Name, Name darf leer sein
+                case PAR_CODE_ANIMATION_DECELERATION:           return 6;   // xD ii <wert:2>
+                case PAR_CODE_ANIMATION_DEFAULT_DECELERATION:   return 6;   // xE ii <wert:2>
+                case PAR_CODE_ANIMATION_FLAGS:                  return 6;   // xF ii <wert:2>
+            }
+            return 4;
+
+        case CMD_CODE_OVERLAY_VAR:                                          // O
+            switch (parameters[1])
+            {
+                case PAR_CODE_OVERLAY_TEXT:                     return 4;   // ON ii + Text, Text darf leer sein
+                case PAR_CODE_OVERLAY_DATE_START:               return 8;   // OS ii <wert:4> -- als einziges vier Stellen
+                case PAR_CODE_OVERLAY_TYPE:                     return 6;
+                case PAR_CODE_OVERLAY_INTERVAL:                 return 6;
+                case PAR_CODE_OVERLAY_DURATION:                 return 6;
+                case PAR_CODE_OVERLAY_DATE_CODE:                return 6;
+                case PAR_CODE_OVERLAY_DAYS:                     return 6;
+                case PAR_CODE_OVERLAY_FLAGS:                    return 6;
+            }
+            return 4;
+    }
+
+    return 0;                                                               // unbekanntes Kommando
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * var_cmd_reject () - ein verworfenes Kommando festhalten, Befund L237
+ *
+ * Es darf nicht still verschwinden. Es darf aber auch nicht die Bruecke zusaetzlich belasten:
+ * L109 beschreibt genau diese Mitkopplung -- eine Meldung ueber einen Uebertragungsfehler legt
+ * Last auf dieselbe Leitung, deren Ueberlastung den Fehler erzeugt hat, und der RX-Ring des
+ * STM ist 256 Byte gross und verwirft bei Ueberlauf still.
+ *
+ * Deshalb AUSSCHLIESSLICH stm32_log_append(): ein RAM-Ring im ESP, abrufbar ueber
+ * /api/stm32_log, Kosten auf der UART null. Kein Serial.println, kein debugmsg.
+ *
+ * Gedrosselt, weil der Ring nur STM32_LOG_LINES Zeilen fasst und auch die Diagnosezeilen
+ * traegt: die ersten vier Faelle einzeln, danach jeder fuenfzigste. Der laufende Zaehler steht
+ * IN der Zeile -- die Gesamtzahl geht also nicht verloren, auch wenn nur die letzte uebrig ist.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t     var_cmd_reject_cnt = 0;
+
+static void
+var_cmd_reject (const char * parameters, unsigned int have, unsigned int want)
+{
+    var_cmd_reject_cnt++;
+
+    if (var_cmd_reject_cnt <= 4 || (var_cmd_reject_cnt % 50) == 0)
+    {
+        char line[80];
+
+        snprintf (line, sizeof (line), "- var verworfen #%lu len=%u<%u: %.32s",
+                  (unsigned long) var_cmd_reject_cnt, have, want, parameters);
+        stm32_log_append (line);
+    }
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * var_set_parameter () - eine Kommandozeile der Bruecke auswerten
+ *
+ * Rueckgabe: 1 = Zeile war formal verwertbar, 0 = verworfen, weil zu kurz fuer ihre Kommandoart.
+ *
+ * Das heisst bewusst NICHT "Wert uebernommen": Eine formal gueltige Zeile mit unbekanntem
+ * Kommandobuchstaben liefert ebenfalls 1, obwohl sie nichts bewirkt -- eine Wiederholung
+ * wuerde daran nichts aendern. Dass die Quittung in ESP-uclock.ino nur den Empfang bestaetigt
+ * und nicht die Uebernahme, bleibt der offene Punkt L233 und wird hier nicht geloest.
+ *
+ * Der Rueckgabewert ist der Haken fuer A32 (specs/bruecke-wiederholung): Dort entsteht im
+ * var-Zweig der .ino die Antwort "!v" statt ".", damit der STM nachsendet. Heute wertet ihn
+ * niemand aus -- der Aufruf in ESP-uclock.ino:531 verwirft ihn, und die .ino bleibt
+ * unveraendert uebersetzbar.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
 var_set_parameter (char * parameters)
 {
     uint_fast8_t        cmd_code;
     uint_fast8_t        var_idx;
+    uint_fast8_t        min_len;
+    size_t              len;
 
 #ifdef DEBUG
     debugmsg ("VAR", parameters);
 #endif
+
+    /* L237: EINE Pruefung vorne statt 45 einzelner, siehe var_cmd_min_len() darueber.
+     * Ab hier gilt: Die Zeile ist lang genug fuer ihre Kommandoart. Jedes parameters += 2
+     * im folgenden switch bleibt damit innerhalb der Zeile, und kein htoi liest hinter dem
+     * Terminator.
+     */
+    len     = strlen (parameters);
+    min_len = len ? var_cmd_min_len (parameters) : 1;                       // leere Zeile: immer verwerfen
+
+    if (len < min_len)
+    {
+        var_cmd_reject (parameters, (unsigned int) len, (unsigned int) min_len);
+        return 0;
+    }
 
     cmd_code    = *parameters++;
 
@@ -1324,6 +1497,8 @@ var_set_parameter (char * parameters)
             break;
         }
     }
+
+    return 1;
 }
 
 void

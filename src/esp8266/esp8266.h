@@ -48,6 +48,7 @@
 #define ESP8266_TABLES                  23
 #define ESP8266_DISP                    24
 #define ESP8266_STATUS                  25                                      // "OK ..." vom ESP: Statusmeldung, KEINE Quittung
+#define ESP8266_NAK                     26                                      // "!v" vom ESP: Zeile abgelehnt, Pruefsumme stimmte nicht
 
 #define ESP8266_UNSPECIFIED             0xFF
 
@@ -81,6 +82,12 @@ typedef struct
 {
     uint_fast8_t                        is_up;
     uint_fast8_t                        is_online;
+    /* Meldet der ESP beim Hochfahren "CAP var-crc", haengt der STM an jede var-Zeile eine
+     * Pruefsumme an -- sonst nicht. Ein ESP ohne dieses Verstaendnis speicherte die Marke als
+     * Teil des Werts, und OTA-Rueckrollen ist in diesem Projekt Routine. Festgeschrieben wird
+     * das Flag erst mit der FIRMWARE-Zeile derselben Sitzung, siehe esp8266.c.
+     */
+    uint_fast8_t                        cap_var_crc;
     uint_fast8_t                        mode;
     char                                firmware[ESP8266_MAX_FIRMWARE_LEN + 1];
     char                                accesspoint[ESP8266_MAX_ACCESSPOINT_LEN + 1];
