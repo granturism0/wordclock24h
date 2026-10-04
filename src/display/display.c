@@ -4947,9 +4947,15 @@ display_set_ticker (const unsigned char * ticker, uint_fast8_t do_wait)
              * zum IWDGRST bei 20 s Timeout. Bei ticker_deceleration = 4 sind das 62 ms
              * je Spaltenschritt und rund 14,5 s fuer 32 Zeichen; das Feld laesst 0..255
              * zu, bei 255 waeren es knapp 14 Minuten -- also jedes Mal ein Reset.
-             * Betroffen sind nicht nur Nutzereingaben, sondern auch das Tickerkommando
-             * vom ESP, der Wetterticker, das Ticker-Overlay und der Datumsticker
-             * (alle mit do_wait = 1).
+             * Hier stand bis zum 04.10.2026 "betroffen sind ... das Tickerkommando vom ESP,
+             * der Wetterticker, das Ticker-Overlay und der Datumsticker (alle mit
+             * do_wait = 1)". Das war schon fuer den Wetterticker falsch, und fuer die
+             * uebrigen drei stimmt es seit der Behebung von A29/A31 nicht mehr: Sie rufen
+             * jetzt alle mit do_wait = 0 und scrollen ueber display_animation()
+             * (BEFUNDE.md L204, L211, L216). Mit do_wait = 1 rufen nur noch Pfade, die den
+             * Hauptloop ohnehin bewusst anhalten: der IR-Lernvorgang und die Schlussmeldung
+             * der Spiele. Wer die Aufrufstellen wissen will, greppt nach display_set_ticker
+             * -- eine hier abgeschriebene Liste veraltet genauso still wie eine Zeilennummer.
              *
              * Kein Timeout: Die Schleife endet von selbst, sobald der Text durchgelaufen
              * ist. Gewollt ist allein, dass der Watchdog waehrenddessen bedient wird.

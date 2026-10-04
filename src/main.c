@@ -1474,6 +1474,12 @@ static uint_fast8_t     show_date                   = 0;
 static uint_fast8_t     last_ldr_value              = 0xFF;
 static uint_fast8_t     show_overlay_idx            = MAX_OVERLAYS;
 static uint_fast8_t     icon_duration               = 0;
+/* Nachgezogener Display-Restore fuer JEDEN nicht blockierenden Ticker, nicht mehr nur fuer
+ * den Wetterticker: Es laufen jetzt auch ticker_set, der IP-Ticker der Startsequenz, das
+ * Ticker-Overlay und der Datumsticker mit do_wait = 0 (BEFUNDE.md L204, L211, L216). Der
+ * Name bleibt unveraendert, weil CLAUDE.md und knowledge/quick-reference.md ihn woertlich
+ * als Architektur-Invariante fuehren.
+ */
 static uint_fast8_t     pending_weather_ticker_restore = 0;
 static uint32_t         show_icon_stop_time         = 0;
 static uint32_t         local_uptime                = 0;
@@ -2180,8 +2186,22 @@ schedule_esp8266_string_variable (char * parameters)
     {
         case TICKER_TEXT_STR_VAR:
         {
-            display_set_ticker ((unsigned char *) parameters, 1);
-            display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+            /* Nicht blockierend (BEFUNDE.md L204): Mit do_wait = 1 liess display_set_ticker()
+             * den kompletten Tickertext hier im Hauptloop durchscrollen -- bei 32 Zeichen
+             * 204 Iterationen a rund 93 ms, also 13 bis 20 s Stillstand je Aufruf. Zehn
+             * schnelle ticker_set hintereinander legten den Loop rund 90 s still; der
+             * Watchdog schwieg dabei, weil die Schleife ihn selbst bedient
+             * (display.c, zwei watchdog_reload() im Rumpf). Mit do_wait = 0 scrollt der
+             * Ticker ueber display_animation() im periodischen Zweig -- gleiche
+             * Schrittweite, nur ohne Blockade. Vorbild ist der Wetterticker
+             * (case ESP8266_WEATHER weiter unten).
+             *
+             * Hier steht bewusst KEIN display_clock_flag: Es wuerde den Ticker im naechsten
+             * Durchlauf sofort zumalen. Den Restore zieht die Bedingung um
+             * pending_weather_ticker_restore nach, sobald display_ticker_active() falsch ist.
+             */
+            display_set_ticker ((unsigned char *) parameters, 0);
+            pending_weather_ticker_restore = 1;
             debug_log_printf ("cmd: print ticker: '%s'\r\n", parameters);
             break;
         }
@@ -2905,8 +2925,27 @@ schedule_esp8266_messages (void)
             var_send_all_variables ();
             debug_log_message ("info: configuration sent");
             log_flush ();
-            display_set_ticker (buf, 1);
-            display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+            /* Nicht blockierend (BEFUNDE.md L211): Das ist der Pfad, den CLAUDE.md seit
+             * Monaten als "teils Haenger exakt bei Anzeige von 'IP' in der Startsequenz"
+             * fuehrt -- mit do_wait = 1 standen hier dieselben 13 bis 20 s Hauptloop-
+             * Stillstand wie bei ticker_set (L204: 204 Iterationen a rund 93 ms bei
+             * 32 Zeichen).
+             *
+             * Das Muster traegt an dieser Stelle, und zwar nachgesehen statt angenommen:
+             * schedule_esp8266_messages() wird erst aus dem while (1) weiter unten gerufen,
+             * timer2_init() laeuft lange davor, und der Zweig
+             * "if (animation_flag) display_animation()" steckt im selben Loop -- der
+             * periodische Zweig steht hier also bereits zur Verfuegung. Der Ticker wird
+             * zudem erst NACH var_send_all_variables() gesetzt, dessen Warteschleife
+             * display_animation() nicht ruft.
+             *
+             * buf ist lokal: display_set_ticker() kopiert den Text nach ticker_str, der
+             * Zeiger darf nach der Rueckkehr ungueltig werden.
+             *
+             * Kein display_clock_flag hier, sonst malt display_clock() den Ticker sofort zu.
+             */
+            display_set_ticker (buf, 0);
+            pending_weather_ticker_restore = 1;
             break;
         }
         case ESP8266_ACCESSPOINT:
@@ -3971,8 +4010,22 @@ main (void)
                 case OVERLAY_TYPE_TICKER:                                                                   // ticker
                 {
                     log_printf ("overlay ticker: '%s'\r\n", overlay.overlays[show_overlay_idx].text);
-                    display_set_ticker ((unsigned char *) overlay.overlays[show_overlay_idx].text, 1);      // display ticker and wait
-                    display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;                                     // update display after ticker
+                    /* Nicht blockierend (BEFUNDE.md L211): Ein Ticker-Overlay feuert
+                     * periodisch und ohne jede Benutzerhandlung; mit do_wait = 1 stand der
+                     * Hauptloop dabei jedes Mal 13 bis 20 s still (L204: 204 Iterationen
+                     * a rund 93 ms bei 32 Zeichen).
+                     *
+                     * Der Aufrufer ist auf den abgeschlossenen Ticker nicht angewiesen:
+                     * nach dem switch wird nur show_overlay_idx zurueckgesetzt, und je
+                     * Minutenwechsel feuert hoechstens ein Overlay -- ein noch laufender
+                     * Ticker kann sich mit dem naechsten also nicht ueberschneiden.
+                     *
+                     * Kein display_clock_flag hier, sonst malt display_clock() den Ticker im
+                     * naechsten Durchlauf sofort zu. Den Restore zieht die Bedingung um
+                     * pending_weather_ticker_restore nach.
+                     */
+                    display_set_ticker ((unsigned char *) overlay.overlays[show_overlay_idx].text, 0);
+                    pending_weather_ticker_restore = 1;
                     break;
                 }
                 case OVERLAY_TYPE_MP3:                                                                      // mp3
@@ -4091,8 +4144,23 @@ main (void)
                 datebuflen = strlen (datebuf);
             }
 
-            display_set_ticker ((unsigned char *) datebuf, 1);                          // display date and wait
-            display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;                         // update display after ticker
+            /* Nicht blockierend (BEFUNDE.md L216): Auf dieser Uhr ist overlay[0] aktiv und
+             * hat Typ 2 (DATUM). Der Pfad OVERLAY_TYPE_DATE -> show_date = 1 -> hierher lief
+             * mit do_wait = 1 bei rund 10 Zeichen Datumstext auf (10 + 2) x 6 = 72
+             * Iterationen a rund 93 ms hinaus: rund 7 s Hauptloop-Stillstand, periodisch und
+             * ohne jede Benutzerhandlung. Das ist die Erklaerung fuer "haengt sporadisch von
+             * selbst" -- und bei laengerem Datumsformat oder groesserem ticker_deceleration
+             * kam es den 20 s des Watchdogs gefaehrlich nahe.
+             *
+             * datebuf ist lokal: display_set_ticker() kopiert den Text nach ticker_str, der
+             * Zeiger darf nach der Rueckkehr ungueltig werden. Nach dieser Stelle folgt nur
+             * noch die Restore-Bedingung -- auf den fertigen Ticker ist niemand angewiesen.
+             *
+             * Kein display_clock_flag hier, sonst malt display_clock() den Ticker im
+             * naechsten Durchlauf sofort zu.
+             */
+            display_set_ticker ((unsigned char *) datebuf, 0);
+            pending_weather_ticker_restore = 1;
         }
 
         if (pending_weather_ticker_restore &&

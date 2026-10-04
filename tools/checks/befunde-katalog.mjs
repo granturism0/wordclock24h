@@ -158,4 +158,33 @@ if (!todo) {
   else console.log("  OK  kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes");
 }
 
+
+// ---------------------------------------------- doppelte ToDo-Kennungen (L219)
+//
+// Am 04.10.2026 hat der Lead an einem Tag VIER Kennungen doppelt vergeben --
+// B19, B20, B21, B22 standen danach je zweimal in der Arbeitsliste, mit
+// verschiedenen Inhalten. Gemerkt hat er es nur, weil eine Einfuegung per
+// assert auf "genau einmal" fehlschlug; ohne diesen Zufall waeren sie stehen
+// geblieben.
+//
+// Warum das mehr ist als Unordnung: Die Liste ist das Arbeitsmittel. Wer "B20
+// erledigt" meldet, meint einen von zwei Eintraegen, und der andere gilt still
+// als miterledigt. Dieselbe Mechanik wie bei den doppelten i18n-Schluesseln
+// (L130) -- ein Duplikat faellt lautlos zusammen, und die Pruefung, die es
+// finden muesste, sah bisher nur auf Vollstaendigkeit, nicht auf Eindeutigkeit.
+const todoIds = [...cat.matchAll(/^\|\s*\*\*([A-Z]\d+[a-z]?)\*\*\s*\|/gm)].map((m) => m[1]);
+const seenTodo = new Map();
+let dupes = 0;
+for (const id of todoIds) {
+  seenTodo.set(id, (seenTodo.get(id) || 0) + 1);
+}
+for (const [id, n] of seenTodo) {
+  if (n > 1) {
+    console.log(`  HOCH      Kennung '${id}' steht ${n}x in der Arbeitsliste — "erledigt" traefe nur einen davon`);
+    dupes++;
+  }
+}
+if (dupes === 0) console.log(`  OK  ${seenTodo.size} ToDo-Kennungen, alle eindeutig`);
+else bad += dupes;
+
 process.exit(bad === 0 ? 0 : 1);

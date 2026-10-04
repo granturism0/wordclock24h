@@ -1,5 +1,78 @@
 # Changelog
 
+## 2026-10-04 Die Tickerblockade ist weg (STM 3.2.18, PWA 1.4.86)
+
+STM und PWA, der ESP unverändert. **Das ist das Release, das den Hänger behebt.**
+
+### Was sich an der Uhr ändert
+
+Bis hierher hat jeder Ticker den **Hauptloop angehalten**, bis er durchgelaufen war —
+13 bis 20 Sekunden bei 32 Zeichen. In dieser Zeit lief keine Zeitaktualisierung, keine
+Temperaturmessung, keine Kommandoannahme vom ESP. Die Weboberfläche zeigte eine
+eingefrorene Uhrzeit, und der Watchdog schlug nicht an, weil die Schleife ihn selbst
+bediente.
+
+Betroffen waren vier Stellen, und zwei davon feuern **ohne jede Benutzerhandlung**:
+das Ticker-Overlay und der **Datumsticker**. Auf dieser Uhr ist ein Datums-Overlay
+aktiv — sie stand also periodisch rund sieben Sekunden still, ohne dass jemand etwas
+tat. Dazu der IP-Ticker der Startsequenz und der Tickertext aus der Oberfläche.
+
+Alle vier laufen jetzt nach dem Muster, das der **Wetterticker** seit Langem produktiv
+fährt: Der Ticker scrollt über den periodischen Zweig, der Display-Restore läuft über
+die bestehende Bedingung. Gleiche Schrittweite, gleiche Dauer, gleiches Aussehen — nur
+ohne Blockade.
+
+**Die Uhr bleibt während eines Tickers bedienbar**, und mehrfaches schnelles Speichern
+eines Textfelds legt sie nicht mehr lahm.
+
+**Eine Nebenwirkung, die sichtbar sein kann:** Fällt ein Minutenwechsel oder eine
+Helligkeitsanpassung in einen laufenden Ticker, kann es kurz flackern. Der
+Wetterticker verhält sich seit Langem so; neu ist, dass es auch den häufigeren
+Datumsticker betrifft.
+
+**Nicht umgestellt** wurden fünf weitere Stellen ausserhalb: IR-Anlernen und die
+Schlussmeldung der Spiele halten den Hauptloop **absichtlich** an — dort liefe der
+Ticker gar nicht, die Meldung wäre schlicht unsichtbar.
+
+### Wie der Befund gefunden wurde
+
+Die zuerst naheliegende EEPROM-Spur war **falsch**: Für den Tickertext gibt es gar
+keinen Ablageort. Die Ursache stand wörtlich im Code — zusammen mit zwei Messungen vom
+02. und 03.10. in einem Kommentar über der Schleife, die niemand mit dem seit Monaten
+offenen Hänger verbunden hatte.
+
+Auch die Deutung des Messbilds war verkehrt: Dass der LED-Refresh weiterlief, galt als
+Hinweis auf eine lebende Interrupt-Routine. Es gibt keine — der Refresh wird **aus der
+blockierenden Schleife selbst** gerufen. Weiterlaufender Refresh bei stehendem
+Hauptloop war also der stärkste Beleg, nicht das Gegenargument.
+
+### Was in der PWA drin ist
+
+Ein Schalter für den **Weisskanal**. Er fehlte bisher, und anders als bei den anderen
+Endpunkten ohne Bedienelement gab es **keinen Rückweg**: Steht der Wert auf 0 — etwa
+nach einem Backup-Import —, blendet die Oberfläche alle Weisskanal-Regler aus, auch den
+Weg zurück. An dieser Uhr trägt der Weisskanal die gesamte Anzeigefarbe.
+
+Der Schalter liegt bewusst im **Display**-Modul, nicht bei den Farbeinstellungen: Die
+liegen im Ambilight-Modul, und das ist hier dauerhaft ausgeblendet, weil der
+Ambilight-Ausgang fehlt. Der Rückweg hätte also genau dort gefehlt, wo er gebraucht
+wird.
+
+### Guardrails
+
+Stufe S10 prüft jetzt, dass jede Kennung der Arbeitsliste **eindeutig** ist — an einem
+Tag waren vier Kennungen doppelt vergeben worden, und ein „erledigt" hätte dann nur
+einen von zwei Einträgen getroffen.
+
+Neu als Regel festgehalten: **Eine neu gebaute Prüfung ist erst fertig, wenn sie einmal
+fehlgeschlagen ist.** In zwei Tagen sind fünf Melder gebaut worden, deren Meldung nicht
+ankam — jedes Mal war der Mechanismus geprüft und der Weg bis zum Empfänger nicht.
+
+### Was zu flashen ist
+
+**STM und PWA.** Der ESP bleibt auf 3.2.20.
+
+
 ## 2026-10-04 Runde 2 und der geklärte Hänger (STM 3.2.17, PWA 1.4.85)
 
 STM und PWA, der ESP unverändert.

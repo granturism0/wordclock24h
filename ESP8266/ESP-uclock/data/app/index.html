@@ -385,6 +385,18 @@
               </label>
               <button id="display-color-save-button" class="button" type="button" data-i18n="display.save_color">Display-Farbe speichern</button>
             </section>
+            <!-- Rückweg für DISPLAY_USE_RGBW (BEFUNDE L215). Steht das Flag auf 0, blendet
+                 isRgbwUiActive() jeden Weisskanal-Regler aus, und danach gab es kein Element
+                 mehr, über das sich der Wert zurücksetzen liesse. Dieser Schalter ist es.
+                 Bewusst im Modul "display" statt neben #color-capability-note: Jenes Panel
+                 liegt im Modul "ambilight", und updateModuleAvailability() blendet das ganze
+                 Modul aus, sobald kein Ambilight online ist — der Rückweg wäre dann erneut
+                 unerreichbar. Sichtbar nur bei capabilities.whiteChannel; bis app.js das
+                 steuert, bleibt is-hidden stehen. Beschriftung und Zustand setzt
+                 setActionToggleButton() (app.js, R3). -->
+            <div id="display-use-rgbw-actions" class="hero-actions is-hidden">
+              <button id="display-use-rgbw-button" class="button" type="button" aria-pressed="false" data-i18n="display.white_channel">Weisskanal</button>
+            </div>
             <label class="field"><span class="label" data-i18n="display.mode">Display-Modus</span><select id="display-mode-select"></select></label>
             <button id="display-mode-save-button" class="button" type="button" data-i18n="display.save_mode">Display-Modus speichern</button>
             <div class="hero-actions"><button id="display-it-is-button" class="button" type="button" data-i18n="display.keep_it_is">„ES IST“ dauerhaft anzeigen</button></div>

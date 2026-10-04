@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.85";
+const APP_VERSION = "1.4.86";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -189,6 +189,8 @@ const I18N_DE = {
   "display.color": "Display-Farbe",
   "display.color_hint": "Display-Farbe ist wählbar, wenn keine Farbanimation aktiv ist.",
   "display.white_channel": "Weisskanal",
+  "display.use_rgbw": "Weisskanal einschalten",
+  "display.use_rgbw_disable": "Weisskanal ausschalten",
   "display.save_color": "Display-Farbe speichern",
   "display.color_save_failed": "Farbe konnte nicht gespeichert werden",
   "display.mode": "Display-Modus",
@@ -1628,6 +1630,7 @@ bindElementEvents([
   ["auto-brightness-button", "click", toggleAutoBrightness],
   ["display-mode-save-button", "click", saveDisplayMode],
   ["display-it-is-button", "click", togglePermanentItIs],
+  ["display-use-rgbw-button", "click", () => toggleFlagButton("display-use-rgbw-button", getDisplayUseRgbwSetUrl())],
   ["ticker-save-button", "click", saveTickerText],
   ["date-format-save-button", "click", saveDateTickerFormat],
   ["ticker-deceleration-save-button", "click", saveTickerDeceleration],
@@ -6480,6 +6483,18 @@ function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAni
   document.getElementById("display-color-card").classList.toggle("is-hidden", !canEditDisplayColor);
   document.getElementById("display-color-white-field").classList.toggle("is-hidden", !useRgbw);
 
+  // Der Rueckweg fuer DISPLAY_USE_RGBW (L215). Er haengt bewusst NUR an
+  // capabilities.whiteChannel und nicht an useRgbw: Steht das Flag auf 0, blendet
+  // isRgbwUiActive() jeden Weisskanal-Regler aus -- genau dann wird dieser Schalter
+  // gebraucht, und genau dann darf er nicht mitverschwinden. Er sitzt im Modul
+  // "display", nicht im Ambilight-Block, weil updateAmbilightAvailability() dort alles
+  // ausblendet, sobald kein Ambilight online ist (an dieser Uhr dauerhaft, L11).
+  const useRgbwActions = document.getElementById("display-use-rgbw-actions");
+  if (useRgbwActions) {
+    useRgbwActions.classList.toggle("is-hidden", !capabilities.whiteChannel);
+  }
+  setActionToggleButton("display-use-rgbw-button", translate("display.use_rgbw_disable"), translate("display.use_rgbw"), useRgbw, capabilities.whiteChannel);
+
   document.getElementById("ambilight-color-card").classList.toggle("is-hidden", !capabilities.hasColor || !ambilightOnline);
   document.getElementById("marker-color-card").classList.toggle("is-hidden", !capabilities.hasColor || !ambilightOnline);
   document.getElementById("ambilight-color-white-field").classList.toggle("is-hidden", !useRgbw || !ambilightOnline);
@@ -9286,11 +9301,12 @@ const getDisplayModeSetUrl = createConfiguredUrlGetter("display_mode_set_url");
 //    zusaetzliches Bedienelement waere ein zweiter Schreiber auf dieselben EEPROM-
 //    Felder -- genau die Doppelung, die bei C9c6 zum Befund wurde.
 //
-//  - display_use_rgbw_set: HIER FEHLT DER RUECKWEG, und das bleibt offen. Steht
-//    DISPLAY_USE_RGBW auf 0, blendet isRgbwUiActive() alle Weisskanal-Regler aus; es
-//    gibt dann kein Element mehr, ueber das sich der Wert zuruecksetzen liesse. Ein
-//    Schalter dafuer gehoert ins Markup (index.html, Kachel "LED-Eigenschaften") und
-//    damit nicht in diese Datei (R3). Gemeldet an den Lead, nicht still nachgebaut.
+//  - display_use_rgbw_set: DER RUECKWEG BESTEHT seit L215/B25, ueber
+//    #display-use-rgbw-button in der Kachel "Weitere Steuerung" des Moduls "display".
+//    Steht DISPLAY_USE_RGBW auf 0, blendet isRgbwUiActive() alle Weisskanal-Regler
+//    aus; dieser Schalter bleibt davon unberuehrt, weil applyColorCapabilities() ihn
+//    allein an capabilities.whiteChannel haengt. Das Markup hat der ui-developer
+//    gelegt (R3), die Anbindung steht hier.
 const getDisplayUseRgbwSetUrl = createConfiguredUrlGetter("display_use_rgbw_set_url");
 const getTickerSetUrl = createConfiguredUrlGetter("ticker_set_url");
 const getDateTickerFormatSetUrl = createConfiguredUrlGetter("date_ticker_format_set_url");

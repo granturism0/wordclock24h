@@ -170,6 +170,8 @@
   "display.color": "Display color",
   "display.color_hint": "Display color can be selected when no color animation is active.",
   "display.white_channel": "White channel",
+  "display.use_rgbw": "Enable white channel",
+  "display.use_rgbw_disable": "Disable white channel",
   "display.save_color": "Save display color",
   "display.color_save_failed": "Color could not be saved",
   "display.mode": "Display mode",

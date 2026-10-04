@@ -117,6 +117,20 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   Absturz, sondern der Bericht, der sauber meldet, waehrend das Geraet zwischendurch
   neu gestartet ist** — er erzeugt Vertrauen, das nicht gedeckt ist. Gleiches gilt fuer
   jede Messung am Geraet, nicht nur fuer den vollen Durchlauf.
+- **Eine neu gebaute Prüfung ist erst fertig, wenn sie einmal fehlgeschlagen ist
+  (DIR-014).** Nicht „der Code sieht richtig aus", sondern: einmal eine Verletzung
+  herstellen und sehen, dass die Prüfung anschlägt — und dass ihre Meldung **ankommt**.
+  Am 03./04.10.2026 ist dieselbe Gattung **fünfmal** aufgetreten: Die Logwache schrieb
+  in eine gepufferte Pipe und ihre Datei blieb 0 Byte (`BEFUNDE.md`, L181). Die
+  Heap-Zeile lief am API-Ring vorbei, 36 Zeilen im Mitschnitt gegen 0 über die API
+  (L185). Die Messmarken-Prüfung schrieb auf stderr und gab dann `return 0` zurück —
+  bei exit 0 liest das niemand (L191). Eine Wache wurde mit `| tail` gestartet, das
+  erst beim Streamende ausgibt (L194). Und die Eindeutigkeitsprüfung für
+  ToDo-Kennungen stürzte mit `ReferenceError` ab, **nachdem** die Stufe „OK" gemeldet
+  hatte (L224). **In allen fünf Fällen war der Mechanismus geprüft und der Weg der
+  Meldung bis zum Empfänger nicht.** Dreimal hat es der Nutzer oder ein Agent bemerkt,
+  nicht der Erbauer.
+
 - **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
   Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
   `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr
