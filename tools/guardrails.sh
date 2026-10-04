@@ -239,10 +239,16 @@ fi
 # sporadisch antwortende Bruecke den Hauptloop bis zu zehn Minuten blockieren --
 # jede eintreffende Quittung hielt den Watchdog am Leben (BEFUNDE.md, L108).
 #
-# 7 seit 03.10.2026: Hauptloop, remote_ir_learn, display_test (2), Ticker-
-# Warteschleife (2) und var_send_buf (nach Quittung und innerhalb des Budgets). Die Zahl veraltet still, wenn
-# sie beim Nachruesten vergessen wird -- der Schutz griffe dann erst, wenn mehrere
-# Stellen fehlen.
+# 8 seit 04.10.2026: Hauptloop, remote_ir_learn, display_test (2), Ticker-
+# Warteschleife (2), var_send_buf (nach Quittung und innerhalb des Budgets) und
+# display_wait_for_tables (A22). Die Zahl veraltet still, wenn sie beim Nachruesten
+# vergessen wird -- der Schutz griffe dann erst, wenn mehrere Stellen fehlen.
+#
+# Diese Aufzaehlung stand bis zum 04.10.2026 auf sieben, waehrend WD_EXPECTED und der
+# Warntext darunter bereits acht fuehrten. Die Pruefung war also richtig und ihre
+# Begruendung falsch -- genau der Zustand, der eine Warnung ihre Ursache ueberleben
+# laesst (CLAUDE.md, "Behobene Falle im Release-Build"). Gemeldet hat es ein Agent,
+# der beim Nachzaehlen der Aufrufstellen hiergeblieben ist.
 WD_EXPECTED=8
 n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
 n=${n:-0}

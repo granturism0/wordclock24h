@@ -315,6 +315,38 @@ get_date_by_date_code (uint_fast8_t date_code, int year)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * hex to integer
+ *
+ * Die Schleifenbedingung prueft buf[i] und NICHT *buf -- Befund L232, dieselbe eine Zeile, die
+ * auf der ESP-Seite bereits korrigiert ist (ESP8266/ESP-uclock/base.cpp). Kein Schoenheits-
+ * fehler: *buf ist immer buf[0], der Zeiger wandert nie. Die Abbruchbedingung waere damit nach
+ * dem ersten Zeichen bedeutungslos, und bei einer Zeichenkette kuerzer als max_digits laese die
+ * Funktion ueber das Zeilenende hinaus in den Rest des Puffers.
+ *
+ * Die Folge ist schwerer als ein Absturz: Ein auf der Bruecke verlorenes Zeichen erzeugt keinen
+ * FEHLENDEN Wert, sondern einen gueltig aussehenden FALSCHEN -- rechtsbuendig aufgefuellt mit
+ * dem, was dahinter steht. Die Kommandopuffer kommen aus strncpy() (esp8266.c:516 und
+ * Nachbarn), das bis zur vollen Breite mit Nullbytes auffuellt; der alte Wert war deshalb meist
+ * nicht zufaellig, sondern genau um den Faktor 16 je fehlender Ziffer zu gross.
+ *
+ * Nachgerechnet mit einer Attrappe, die beide Fassungen nebeneinander laufen laesst:
+ *
+ *   "OT0002"  ->  Typ  2 / Typ  2    vollstaendig, unveraendert
+ *   "OT000"   ->  Typ  0 / Typ  0    eine Ziffer fehlt, beide falsch, aber gleich falsch
+ *   "OT002"   ->  Typ 32 / Typ  2    eine Ziffer fehlt, alt schiebt die 2 ins obere Nibble
+ *   "N2A1"    ->  lo  16 / lo   1    dasselbe am numerischen Kommando des STM
+ *
+ * Steht hinter dem Terminator kein Nullbyte, sondern Resttext, ist der alte Wert beliebig:
+ * vier erwartete Ziffern, "12" angekommen, "ef" dahinter -> alt 4622, neu 18.
+ *
+ * Erschoepfend geprueft ueber alle Zeichenketten der Laenge 0..4 bei max_digits 1..4, also
+ * 11204 Faelle, Alphabet aus Hexziffern, einem Nicht-Hex-Zeichen und dem Terminator: 1688
+ * Faelle liefern einen anderen Wert, und KEIN EINZIGER davon ist wohlgeformt -- in jedem von
+ * ihnen liegt der Terminator innerhalb der erwarteten Breite. Der Fix wirkt also ausschliesslich
+ * auf Eingaben, die heute schon still falsch gelesen werden.
+ *
+ * Also bitte nicht "aufraeumen" und wieder auf *buf zurueckstellen. Betroffen ist jede Hexzahl,
+ * die der STM von der Bruecke liest -- und diese Richtung traegt keine Pruefsumme: Die Marke
+ * "*xxxx" haengt der STM nur an seine EIGENEN Sendungen an (vars.c:522).
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 uint16_t
@@ -324,7 +356,7 @@ htoi (char * buf, uint8_t max_digits)
     uint8_t     x;
     uint16_t    sum = 0;
 
-    for (i = 0; i < max_digits && *buf; i++)
+    for (i = 0; i < max_digits && buf[i]; i++)                       // buf[i], nicht *buf -- Begruendung im Kopf (L232)
     {
         x = buf[i];
 

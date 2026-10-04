@@ -84,7 +84,11 @@ static uint_fast8_t var_send_nested = 0;                        // eigener Wiede
  * Budget die Zeit fuer Anzeige, RTC und Temperatur mit und waere aufgebraucht, bevor das erste
  * Kommando ueberhaupt draussen ist.
  *
- * Keine neue watchdog_reload()-Aufrufstelle: Der Bestand bleibt bei 7 (Guardrail S7).
+ * Keine neue watchdog_reload()-Aufrufstelle. Den gueltigen Bestand nennt Guardrail S7, nicht
+ * dieser Kommentar: Hier stand bis zum 04.10.2026 eine feste Zahl, und die war beim Lesen
+ * bereits falsch -- display.c:4254 (display_wait_for_tables) ist mit A22 dazugekommen. Eine
+ * Zahl, die mit dem Code waechst, veraltet still; dieselbe Gattung wie die Versionsnummern in
+ * der Doku, vor denen CLAUDE.md an genau dieser Stelle warnt.
  */
 static uint32_t     var_send_reload_start = 0;                  // uptime beim ersten wartenden Aufruf dieses Durchlaufs
 static uint_fast8_t var_send_reload_armed = 0;                  // Nullpunkt in diesem Durchlauf bereits gesetzt?
