@@ -16,6 +16,41 @@ sortiert, mit der Angabe, was es jeweils braucht. Er wird bei jedem Abschluss
 mitgeführt — ein Punkt verschwindet hier erst, wenn seine Zeile unten auf
 „erledigt" steht.
 
+### Stand des grossen Pakets (Spec vom 04.10.2026)
+
+Die Spezifikation unter `specs/grosses-paket-2026-10-04/` führt **61 Tasks** in sechs
+Rollouts. Dieser Abschnitt hält fest, was davon **nicht** erledigt ist — Task für Task
+gegen den Quelltext geprüft, nicht aus dem Gedächtnis abgehakt. Er wird mitgeführt, bis
+das Paket abgeschlossen ist, und verschwindet dann.
+
+**Ausgerollt und am Gerät belegt:** Runde 0 (Beobachtbarkeit), Runde 1
+(Parametervertrag), Runde 2 (PWA-Eingabefelder), Runde 3 (Kachelraster). Dazu
+A29/A31 (Tickerblockade), die nicht Teil der Spec war.
+
+**Was dabei übersprungen wurde — drei Tasks, beim Nachzählen am 04.10.2026 entdeckt:**
+
+| Task | Was fehlt | Warum es zählt |
+|---|---|---|
+| **1.3 + 1.5** | **`fs_show` ist nicht umgestellt** (C16/L187). Der Endpunkt liefert bei fehlender Datei weiterhin einen **leeren Rumpf** statt `{"ok":false}`; der Fehlercode 6 existiert nicht | Runde 1 hat den Parametervertrag gebracht, aber **nicht vollständig**. Die PWA kann „Datei leer" nicht von „Datei fehlt" unterscheiden — und eine leere Datei ist hier der belegte Weisschirm-Fall |
+| **0.11** | Die **acht veralteten B1-Zeilen** (B1b, B1c, B1d, B1e, B1g, B1j, B1k, B1l) stehen weiter in der Arbeitsliste, obwohl ihre Befundzeilen auf „erledigt" stehen | Guardrail S10 prüft nur, dass jeder **offene** Befund in der Liste steht, nicht die Gegenrichtung. Die Zeilen überleben deshalb und kosten bei jeder Planung Aufmerksamkeit |
+| **3.4 + 3.5 + 3.6** | **B14 (L120)**: Kontrast des Hakens im Ankreuzfeld nie gemessen. **Gegenprobe B1f/B1h** nie gefahren | 3.4 verlangt ausdrücklich eine **Messung** vor jeder Änderung; ohne sie ist auch „keine Änderung nötig" unbelegt |
+
+**Unvollständig abgenommen:**
+
+| Task | Stand |
+|---|---|
+| **2.11** | Gerätelauf Runde 2 **nicht gefahren**. Die PWA-Änderungen aus Runde 2 sind nur über `check-pwa.sh` geprüft, nicht über `TESTPLAN-PWA.md` |
+| **3.10** | Gerätelauf Runde 3 ebenso — `check-pwa.sh` 8/8, aber kein Durchlauf, und die Geometrie ist in der **Vorschau** gemessen, nicht am Gerät (L229) |
+
+**Noch nicht begonnen:**
+
+| Runde | Inhalt | Blockiert durch |
+|---|---|---|
+| **4a** | Selbstheilung des Variablensatzes (A6). **Weg B entschieden** (L231) | **A32 (L230)** — mit einer Wiederholung auf Kommandoebene wäre 4a weitgehend überflüssig. Erst A32 bewerten |
+| **4b** | Flash-Überwachung: Legacy-Pfad auf dieselbe Prüffunktion, keine Dateiliste bei `HARDWARE_CONFIGURATION` = 65535, Smoketest-Stufe dafür | 4a |
+
+**Was nachträglich dazugekommen ist** und nicht in der Spec steht: C17 (`dfplayer_alarm_set`, L197), C18 (19 Fehlertexte ohne Bereich), C19 (Legacy klemmt weiter still, L199), C20, C22 (Zeichenketten, L206), C23 (ISO-8859-1 in JSON, L207), B23 bis B28, E17 bis E19. Sie stehen in den Gruppen unten, nicht hier — dieser Abschnitt führt nur die **Spec**.
+
 ### A — braucht eigene Spec und Verifikation am Gerät
 
 Diese drei ändern das Laufzeitverhalten der **produktiven** Uhr. Kein Nebenbei-Fix.
