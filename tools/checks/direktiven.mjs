@@ -26,7 +26,17 @@
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
-const KATALOG = "knowledge/directives.md";
+// Der Katalogpfad ist ueberschreibbar, damit die Fehlschlagprobe nach DIR-014 an einer
+// ATTRAPPE laufen kann statt an einer versionierten Datei:
+//
+//     node tools/checks/direktiven.mjs /pfad/zu/leerer-attrappe.md     # muss rot werden
+//
+// Der erste Nachweis am 04.10.2026 wurde stattdessen durch ein Testzitat "DIR-999" in
+// TESTPLAN-PWA.md gefuehrt -- waehrend vier Agenten liefen. Einer sah es im Guardrail-Lauf
+// und musste raten, ob es ein echter Tippfehler ist; haette er es "korrigiert", waere daraus
+// Durcheinander geworden. Gemeldet statt angefasst hat ihn gerettet, nicht die Vorgehensweise.
+// Eine Probe, die den Arbeitsbaum anfasst, ist bei paralleler Arbeit selbst ein Risiko.
+const KATALOG = process.argv[2] || "knowledge/directives.md";
 const MUSTER = /\bDIR-(\d{3})\b/g;
 let fehler = 0;
 
@@ -37,7 +47,12 @@ for (const m of katalog.matchAll(/^DIR-(\d{3}):/gm)) gefuehrt.add(m[1]);
 const dateien = execSync("git ls-files", { encoding: "utf8" }).split("\n").filter(Boolean);
 const zitiert = new Map();          // nummer -> Set von Dateien
 for (const f of dateien) {
-  if (f === KATALOG) continue;
+  // Der Katalog selbst zaehlt nicht als Zitat -- und diese Datei auch nicht. Sie spricht
+  // zwangslaeufig ueber Direktiven und nennt im Kommentar eine Beispielnummer; ohne diese
+  // Ausnahme meldete die Pruefung ihre EIGENE Dokumentation als Befund. Genau diese Falle
+  // steht in CLAUDE.md schon beschrieben (R3, der Hook, der seine eigene Doku blockierte) --
+  // und ist hier trotzdem ein zweites Mal entstanden, keine zehn Minuten nach dem Bau.
+  if (f === KATALOG || f === "tools/checks/direktiven.mjs") continue;
   let txt;
   try { txt = readFileSync(f, "latin1"); } catch { continue; }
   for (const m of txt.matchAll(MUSTER)) {
