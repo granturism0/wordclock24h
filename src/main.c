@@ -1484,6 +1484,7 @@ static uint_fast8_t     pending_weather_ticker_restore = 0;
 static uint32_t         show_icon_stop_time         = 0;
 static uint32_t         local_uptime                = 0;
 static uint_fast8_t     ir_export_idx               = N_REMOTE_IR_CMDS;     // Abzug der IR-Codes: naechster Index, N == nichts zu tun
+static uint_fast8_t     var_sync_pending            = 0;                    // SYNCVARS gesehen: Vollabgleich im Hauptloop faellig
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set_overlay_idx () - used by external NIC function wc_display_overlay()
@@ -2948,6 +2949,31 @@ schedule_esp8266_messages (void)
             pending_weather_ticker_restore = 1;
             break;
         }
+        case ESP8266_SYNCVARS:                                                  // ESP8266 bittet um den vollen Variablensatz
+        {
+            /* Nur vormerken, NICHT hier senden -- genau darin muss sich dieser Zweig vom
+             * IPADDRESS-Zweig darueber unterscheiden.
+             *
+             * schedule_esp8266_messages() wird auch aus der Warteschleife von var_send_buf()
+             * gerufen (vars.c). Ein direkter var_send_all_variables() liefe von dort
+             * VERSCHACHTELT: Jedes der rund 194 Kommandos ginge auf die UART, ohne auf seine
+             * Quittung zu warten -- var_send_buf() sendet VOR der Pruefung auf var_send_nested
+             * und kehrt danach sofort zurueck. Die rund 194 zurueckkommenden Punkte quittierten
+             * anschliessend der Reihe nach fremde Kommandos und ueberfuehren dabei den
+             * 256-Byte-Empfangsring. Das ist der Schaden aus L102 (d=5148) -- also genau der,
+             * gegen den dieser Zweig antritt.
+             *
+             * Der Fall ist nicht theoretisch: Der ESP wiederholt SYNCVARS bis zu dreimal im
+             * Abstand von rund 10 s, und der zweite Versuch kann in die Warteschleife des
+             * ersten fallen.
+             *
+             * Gesendet wird deshalb im Hauptloop, nach dem Muster des IR-Abzugs (siehe dort).
+             * Kein Ticker und kein sprintf("IP %s") hier: Dass der IP-Lauftext NICHT ueber die
+             * Uhr laeuft, ist der ganze Grund fuer Weg B (L231).
+             */
+            var_sync_pending = 1;
+            break;
+        }
         case ESP8266_ACCESSPOINT:
         {
             debug_log_message ("info: got ESP8266_ACCESSPOINT");
@@ -3614,6 +3640,24 @@ main (void)
         }
 
         schedule_esp8266_messages ();
+
+        /* Vollabgleich auf Anforderung des ESP (A6, Weg B; BEFUNDE.md L231, L255). Hier und nicht
+         * im Zweig ESP8266_SYNCVARS, damit der Stoss von rund 194 Kommandos nie verschachtelt in
+         * der Warteschleife von var_send_buf() liegt -- Begruendung dort.
+         *
+         * Das Flag wird VOR dem Senden geloescht: Trifft waehrenddessen ein weiteres SYNCVARS ein,
+         * bekommt es seinen eigenen Durchlauf, statt verschluckt zu werden. Zwei Vollabgleiche
+         * nacheinander sind harmlos, zwei ineinander nicht.
+         *
+         * Keine Pruefung auf esp8266.is_online: Das Flag hat der SYNCVARS-Zweig gerade selbst
+         * gesetzt (esp8266.c), und genau dieses Setzen ist der Zweck der Uebung (L255).
+         */
+        if (var_sync_pending)
+        {
+            var_sync_pending = 0;
+            var_send_all_variables ();
+            log_message ("info: syncvars, configuration sent");
+        }
 
         /* Abzug der IR-Codes: genau EIN Kommando je Hauptloop-Durchlauf. Der RPC
          * GET_IR_CODES_RPC_VAR setzt nur ir_export_idx auf 0, gesendet wird hier -- damit

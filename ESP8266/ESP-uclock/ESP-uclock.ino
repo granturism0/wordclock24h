@@ -699,6 +699,125 @@ var_crc_check_and_strip (char * parameters)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * Selbstheilung des Variablensatzes -- Weg B (Runde 4a, L231, L255)
+ *
+ * WOGEGEN SIE ANTRITT: Nach einem ESP-Neustart ist die Variablenkopie hier leer. Gefuellt wird sie
+ * durch GENAU EINE Zeile in Gegenrichtung -- "IPADDRESS x.x.x.x" aus wifi.cpp. Der STM erkennt sie
+ * (src/esp8266/esp8266.c:419) und schickt daraufhin rund 194 Kommandos.
+ *
+ * Diese eine Zeile hat KEINE Pruefsumme, KEINE Quittung und KEINE Nachsendung. A32 sichert
+ * ausschliesslich die Richtung STM -> ESP (var_send_buf) und kann hier strukturell nicht greifen.
+ * Dass die Zeile verloren geht, ist gemessen und nicht vermutet: "d=" zaehlt die im 256-Byte-Ring
+ * des STM verworfenen Zeichen (src/uart/uart-driver.h:97), und beim nachgestellten ESP-Neustart
+ * standen dort 769 (L103).
+ *
+ * Die Folge ist schwerer als ein unvollstaendiger Satz (L255): esp8266.is_online wird NUR in
+ * diesem einen Zweig gesetzt (src/esp8266/esp8266.c:422), und 15 Sendepfade in src/main.c haengen
+ * daran. Faellt die Zeile aus, schweigt der STM weitgehend -- die Bruecke ist halbtot, nicht
+ * lueckenhaft. Geheilt hat das bisher nur ein Neustart.
+ *
+ * WAS SIE TUT: Steht die Hardware-Konfiguration eine Weile nach dem Hochlauf noch auf 0xFFFF
+ * (der Wert, mit dem vars_init() sie vorbelegt, vars.cpp:1507), fordert der ESP den Vollabgleich
+ * mit "SYNCVARS" neu an -- hoechstens dreimal, je rund 10 Sekunden Abstand.
+ *
+ * WARUM NICHT EINFACH "IPADDRESS" WIEDERHOLEN (Weg A): Der STM laesst dann bei jedem Versuch die
+ * IP-Adresse als Lauftext ueber die Uhr laufen. Das ist Laerm an einem Geraet, das im Wohnraum
+ * steht und die Zeit zeigen soll -- Entscheidung des Nutzers, L231. "SYNCVARS" traegt denselben
+ * Auftrag ohne den Ticker; die STM-Seite bekommt dafuer einen eigenen Zweig neben ESP8266_IPADDRESS.
+ *
+ * FEHLALARME SIND AUSGESCHLOSSEN, und das ist der Grund, warum die Pruefung so billig sein darf:
+ * 0xFFFF ist nicht ein Indiz fuer den kaputten Zustand, es IST der kaputte Zustand -- derselbe
+ * Wert, an dem http.cpp jeden STM32-Flash ablehnt (DIR-010, L42).
+ *
+ * DIE UHR LAEUFT ERST AB DER EIGENEN IP: wifi_ip_address ist bis zum ersten
+ * set_local_ip_address() leer, und alle vier Stellen, die es fuellen, senden unmittelbar danach
+ * "IPADDRESS" (wifi.cpp:97/162/181/198 -- nachgesehen, nicht angenommen). Vorher zu zaehlen
+ * hiesse, einem langsamen WLAN-Aufbau einen Verlust anzulasten.
+ *
+ * KOSTEN: Im Gesundfall eine Zeile im Ring, NULL Byte auf der STM-UART -- stm32_log_append()
+ * schreibt nur in den Ring, anders als esp_heap_log() oben, das zusaetzlich sendet. Im Fehlerfall
+ * hoechstens 3 x 10 Byte. Damit ist das hier zugleich die billigste Dauermessung fuer A32:
+ * Schlaegt der Zaehler ueber Monate nie an, ist genau das das Ergebnis.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define VAR_SYNC_CHECK_DELAY_MS     10000UL                                 // Abstand zwischen Pruefungen und Versuchen
+#define VAR_SYNC_MAX_TRIES          3                                       // danach eine deutliche Meldung, dann Ruhe
+
+/* Prototyp von Hand, zwingend: arduino-cli erzeugt fuer jede .ino-Funktion ohne eigenen Prototyp
+ * selbst einen -- und zwar OHNE static. "extern deklariert, spaeter static" ist ein Fehler, der
+ * Bau bricht ab; genau daran scheiterte esp_heap_log() am 04.10.2026 (L177).
+ */
+static void             var_sync_check (void);
+
+static void
+var_sync_check (void)
+{
+    static unsigned long    last_millis = 0;                                // Start der Wartezeit bzw. letzter Versuch
+    static uint_fast8_t     waiting     = 0;                                // Uhr laeuft, siehe wifi_ip_address oben
+    static uint_fast8_t     tries       = 0;
+    static uint_fast8_t     done        = 0;                                // stillgelegt: Erfolg oder aufgegeben
+    char                    line[STM32_LOG_LINE_LEN + 1];
+
+    if (done)
+    {
+        return;
+    }
+
+    if (! waiting)
+    {
+        if (! wifi_ip_address[0])                                           // noch keine eigene IP -> noch kein IPADDRESS gesendet
+        {
+            return;
+        }
+
+        waiting     = 1;
+        last_millis = millis ();
+        return;
+    }
+
+    if ((millis () - last_millis) < VAR_SYNC_CHECK_DELAY_MS)                // Differenzbildung ist ueberlaufsicher
+    {
+        return;
+    }
+
+    last_millis = millis ();
+
+    if (numvars[HARDWARE_CONFIGURATION_NUM_VAR] != 0xFFFF)                  // Vollabgleich ist angekommen
+    {
+        done = 1;
+
+        if (tries)
+        {
+            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig nach %u Anforderung(en)",
+                      (unsigned int) tries);
+        }
+        else
+        {
+            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig, keine Anforderung noetig");
+        }
+
+        stm32_log_append (line);
+        return;
+    }
+
+    if (tries >= VAR_SYNC_MAX_TRIES)                                        // nach dem letzten Versuch noch einmal geprueft
+    {
+        done = 1;
+        stm32_log_append ("- var sync: dreimal erfolglos, Hardware-Konfiguration unbekannt -- kein STM32-Flash, Rueckweg tools/flash-stm.sh");
+        return;
+    }
+
+    tries++;
+
+    snprintf (line, sizeof (line), "- var sync: Variablensatz unvollstaendig, Vollabgleich angefordert (Versuch %u von %u)",
+              (unsigned int) tries, (unsigned int) VAR_SYNC_MAX_TRIES);
+    stm32_log_append (line);
+
+    Serial.println ("SYNCVARS");                                            // still: kein Ticker, anders als bei IPADDRESS
+    Serial.flush ();
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * main loop
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -717,6 +836,8 @@ loop()
 #if ESP_HEAP_LOG
     esp_heap_log ();                                                    // befristet, siehe Kommentar oben (L175/L177)
 #endif
+
+    var_sync_check ();                                                  // Weg B (L231, L255): Vollabgleich nachfordern, falls er ausblieb
 
     while (Serial.available())
     {

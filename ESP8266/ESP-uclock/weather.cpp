@@ -46,6 +46,71 @@ round_up (char * degree)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * utf8_truncate_len - Laenge auf die naechste UTF-8-Zeichengrenze zurueckziehen (C24, L249)
+ *
+ * parse_json() schneidet die Wetterbeschreibung bei max_len - 1 Byte hart ab. Faellt der Schnitt in
+ * ein Mehrbyte-Zeichen, endet die Zeichenkette auf einem halben Zeichen -- genau die Eingabe, an der
+ * convert_utf8_to_iso8859() vor L236 ueber die Pufferkante gelesen hat. Die Luecke dort ist zu, die
+ * Quelle erzeugt ohne diese Korrektur aber weiter kaputte Eingaben.
+ *
+ * Geprueft wird nur das letzte angefangene Zeichen: vom letzten kopierten Byte rueckwaerts bis zum
+ * Fuehrungsbyte, dann dessen erwartete Laenge gegen die tatsaechlich vorhandenen Bytes. Fehlt etwas,
+ * faellt das ganze Zeichen weg -- der Text wird ein bis drei Byte kuerzer statt halb.
+ *
+ * Die Funktion wird NICHT nur bei gekuerzten Werten aufgerufen: Endet schon die Antwort der fremden
+ * Website auf einem halben Zeichen, greift sie ebenso. Fuer vollstaendige Zeichenketten und fuer
+ * reinen ASCII-Text ist sie wirkungslos.
+ *
+ * ES GIBT DIESE REGEL EIN ZWEITES MAL -- utf8_truncated_len() in vars.cpp (aus L46). Sie wird hier
+ * bewusst nicht benutzt, weil ihr Vertrag ein anderer ist: Sie erwartet eine NUL-terminierte
+ * Zeichenkette und ruft strlen() darauf. Der Wert in parse_json() ist aber ein Ausschnitt MITTEN
+ * in der JSON-Antwort; strlen() liefe dort ueber den ganzen Rest des Puffers, und der Fall
+ * "Antwort endet selbst auf einem halben Zeichen" bliebe offen (len <= maxlen gibt dort
+ * unveraendert zurueck). Damit aus dem Doppel kein zweiter Wahrheitsanspruch wird, sind beide
+ * Fassungen gegeneinander gerechnet worden: 27 Schnittlagen, 0 Abweichungen im ueberlappenden
+ * Vertrag. Wer hier etwas aendert, rechnet erneut gegen vars.cpp.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static int
+utf8_truncate_len (const char * str, int l)
+{
+    int     i;
+    int     need;
+
+    for (i = l - 1; i >= 0 && ((unsigned char) str[i] & 0xC0) == 0x80; i--)                 // Folgebytes ueberspringen
+    {
+        ;
+    }
+
+    if (i >= 0 && ((unsigned char) str[i] & 0x80))                                          // letztes Zeichen ist mehrbytig
+    {
+        if (((unsigned char) str[i] & 0xE0) == 0xC0)
+        {
+            need = 2;
+        }
+        else if (((unsigned char) str[i] & 0xF0) == 0xE0)
+        {
+            need = 3;
+        }
+        else if (((unsigned char) str[i] & 0xF8) == 0xF0)
+        {
+            need = 4;
+        }
+        else
+        {
+            need = 1;                                                                       // ungueltiges Fuehrungsbyte: unveraendert lassen
+        }
+
+        if (l - i < need)                                                                   // angefangen, aber nicht vollstaendig
+        {
+            l = i;
+        }
+    }
+
+    return l;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * parse_json - simple json parser
  *
  * ArduinoJson parser is too fat and fails with 9 forecast data lines
@@ -88,6 +153,8 @@ parse_json (const char * str, const char * pattern, int cnt, char * result, int 
                 {
                     l = max_len - 1;
                 }
+
+                l = utf8_truncate_len (str, l);                 // C24/L249: nie mitten in einem Zeichen schneiden
 
                 strncpy (result, str, l);
                 *(result + l) = '\0';

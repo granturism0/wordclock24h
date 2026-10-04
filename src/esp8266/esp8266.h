@@ -49,6 +49,7 @@
 #define ESP8266_DISP                    24
 #define ESP8266_STATUS                  25                                      // "OK ..." vom ESP: Statusmeldung, KEINE Quittung
 #define ESP8266_NAK                     26                                      // "!v" vom ESP: Zeile abgelehnt, Pruefsumme stimmte nicht
+#define ESP8266_SYNCVARS                27                                      // "SYNCVARS" vom ESP: bitte den vollen Variablensatz
 
 #define ESP8266_UNSPECIFIED             0xFF
 

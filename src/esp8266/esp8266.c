@@ -423,6 +423,36 @@ esp8266_get_message (void)
                             rtc = ESP8266_IPADDRESS;
                             break;
                         }
+                        else if (! strcmp (answer, "SYNCVARS"))
+                        {
+                            /* Der ESP bittet um den vollen Variablensatz (A6, Weg B; BEFUNDE.md L231).
+                             * Er sendet das nur, wenn er einige Sekunden nach seinem Hochlauf findet,
+                             * dass HARDWARE_CONFIGURATION noch auf dem Vorgabewert 65535 steht -- also
+                             * genau dann, wenn der Satz nicht angekommen ist (L42, L103).
+                             *
+                             * Exakter Vergleich OHNE Parameter, aus demselben Grund wie bei "CAP var-crc"
+                             * weiter oben: Der ESP ist fuer den STM keine vertrauenswuerdige Quelle.
+                             * "SYNCVARS 1" und "SYNCVARSX" sind damit keine Anforderung, sondern
+                             * ESP8266_UNSPECIFIED.
+                             *
+                             * is_online wird hier MITgesetzt, und das ist der eigentliche Grund fuer
+                             * diesen Zweig. Bisher gab es dafuer genau eine Stelle -- die Zeile
+                             * darueber. An dem Flag haengen 15 Sendepfade in main.c; geht die
+                             * IPADDRESS-Zeile verloren, haelt der STM den ESP fuer offline und
+                             * schweigt, und nichts ausser einem Neustart heilt das (L255).
+                             *
+                             * esp8266.ipaddress bleibt dagegen unberuehrt: Die Adresse steht nur in der
+                             * IPADDRESS-Zeile, und der ESP sendet sie beim naechsten WLAN-Ereignis
+                             * ohnehin nach. Ein erfundener Wert waere schlimmer als ein leeres Feld.
+                             *
+                             * Eigener Rueckgabewert statt ESP8266_IPADDRESS, weil dessen Zweig in main.c
+                             * den IP-Lauftext ueber die Uhr schickt -- genau die sichtbare Nebenwirkung,
+                             * derentwegen der Nutzer Weg B gewaehlt hat (L231).
+                             */
+                            esp8266.is_online = 1;
+                            rtc = ESP8266_SYNCVARS;
+                            break;
+                        }
                         else if (! strncmp (answer, "AP ", 3))
                         {
                             strncpy (esp8266.accesspoint, answer + 3, ESP8266_MAX_ACCESSPOINT_LEN);

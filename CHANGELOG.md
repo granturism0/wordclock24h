@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-10-04 Die Uhr merkt, wenn ihre Einstellungen nicht ankommen (STM 3.2.20, ESP 3.2.23, PWA 1.4.89)
+
+### Das Problem
+
+Nach einem Neustart des WLAN-Moduls ist dessen Kopie der Einstellungen leer. Gefüllt
+wird sie, weil das Modul seine IP meldet und die Uhr daraufhin **alles** schickt.
+
+**Geht diese eine Meldung verloren, passiert gar nichts** — und der Schaden ist grösser
+als eine lückenhafte Kopie: An derselben Meldung hängt die Frage, ob die Uhr das Modul
+überhaupt für erreichbar hält. Zehn Sendewege sind damit bewacht; fällt sie aus,
+schweigt die Uhr vollständig. Die Verbindung ist dann halbtot, nicht lückenhaft, und
+nichts heilt das ausser einem Neustart.
+
+Die Prüfsumme aus dem letzten Release hilft hier nicht und kann es nicht: Sie sichert
+die Richtung **von** der Uhr **zum** Modul. Diese Meldung läuft in der Gegenrichtung.
+
+### Was jetzt passiert
+
+Das Modul prüft nach dem Hochfahren, ob die Einstellungen angekommen sind — erkennbar
+daran, ob die Hardware-Kennung noch auf ihrem Vorgabewert steht. Ist das so, fordert es
+sie **still** erneut an: bis zu dreimal, im Abstand von zehn Sekunden, jeder Versuch mit
+einer Zeile im Logbuch.
+
+**Still** heisst wörtlich: Der frühere Entwurf hätte das Modul seine IP-Meldung
+wiederholen lassen — und dabei wäre der IP-Lauftext jedes Mal sichtbar über die Uhr
+gelaufen. Das war der Grund, diesen Weg nicht zu nehmen.
+
+Im Normalfall kostet die Prüfung **nichts**: eine Abfrage wenige Sekunden nach dem
+Start, und fertig. Sie ist zugleich die billigste Dauermessung für die Prüfsumme —
+schlägt sie nie an, ist das der laufende Beleg, dass die funktioniert.
+
+### Eine Falle, die seit jeher dort steckte
+
+Beim Bauen zeigte sich, dass der vorgesehene Weg einen alten Fehler wiederholt hätte:
+Trifft die IP-Meldung ein, **während** die Uhr auf eine Bestätigung wartet, laufen alle
+rund 194 Kommandos auf einmal hinaus, ohne auf eine einzige Antwort zu warten. Die
+Bestätigungen quittieren danach der Reihe nach **fremde** Kommandos und füllen den
+Empfangspuffer über — genau der Schaden, gegen den das Ganze antritt.
+
+Der neue Weg vermeidet das: Er merkt sich die Anforderung und schickt sie im normalen
+Ablauf, nicht aus der Wartezeit heraus. **Der alte Weg hat die Falle weiterhin** — das
+ist festgehalten und bleibt ein eigener Schritt, weil die Entscheidung dort an einer
+anderen Frage hängt.
+
+### Wetterbeschreibungen werden nicht mehr mitten im Zeichen abgeschnitten
+
+Die Beschreibung von der Wetter-Website wird auf 31 Byte gekürzt — bisher ohne Rücksicht
+auf Zeichengrenzen. Fiel der Schnitt auf einen Umlaut, entstand ein halbes Zeichen, und
+das war der Auslöser des Pufferüberlaufs aus dem letzten Release. Jetzt wird bis zur
+nächsten Zeichengrenze zurückgenommen; der Text ist dann ein bis zwei Zeichen kürzer.
+
+### Kontrast der Ankreuzfelder: nachgemessen, nichts zu ändern
+
+Eine frühere Messung hatte zu niedrige Werte ergeben. Am Bildpunkt nachgemessen — über
+sieben Bildschirmbreiten und alle Module — liegen sie zwischen 3,2:1 und 5,1:1, also
+über der Anforderung. Die Farbe bleibt; nur die Zahlen im Stylesheet waren falsch und
+sind jetzt gemessene.
+
+### Was zu flashen ist
+
+**STM zuerst, dann ESP.** Die PWA enthält nur berichtigte Kommentare, kommt aber mit.
+
+
 ## 2026-10-04 Die Brücke wiederholt und prüft (STM 3.2.19, ESP 3.2.22)
 
 STM und ESP. Die PWA bleibt auf 1.4.88.

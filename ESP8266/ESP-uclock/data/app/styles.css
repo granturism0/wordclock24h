@@ -28,31 +28,51 @@
   /* Steuerfarbe AUSSCHLIESSLICH fuer accent-color (Ankreuzfeld, Schieber).
      Sie gehoert nicht an Text, Rand oder Fokusring -- dafuer bleibt --accent.
 
-     Grund: Welche Farbe die Engine fuer den Haken im angekreuzten Feld waehlt,
-     schreibt keine Norm vor. Am 04.10.2026 in Chromium bei 390 px am Bildpunkt
-     nachgemessen: Der Haken kommt in rgb(59, 59, 59) -- NICHT in Schwarz, wie
-     bis dahin angenommen. WebKit kann stattdessen Weiss nehmen, und WebKit ist
-     auf dem iPhone die Hauptplattform. Sicher nach WCAG 1.4.11 ist eine
-     Akzentfarbe deshalb nur, wenn sie gegen DUNKEL UND gegen HELL je 3:1
-     erreicht -- das Leuchtdichteband L in [0,10 ... 0,30].
+     DREI BEDINGUNGEN, und alle drei sind AM BILDPUNKT GEMESSEN, nicht aus
+     diesem Stylesheet gerechnet. An genau diesem Wert ist dreimal falsch
+     gerechnet worden (BEFUNDE.md L120, L242, L245), und jedes Mal lag der
+     Fehler darin, eine Farbe aus den Regeln hier ABZULEITEN statt sie aus dem
+     gerenderten Bild zu LESEN. Wer den Wert anfasst, misst zuerst.
 
-     --accent liegt mit L = 0,596 weit darueber: zwar 12,93:1 gegen Schwarz,
-     aber nur 1,62:1 gegen Weiss. #0a84ff hat L = 0,238 und erreicht 5,76:1
-     gegen Schwarz, 3,65:1 gegen Weiss, 3,07:1 gegen das gemessene Grau von
-     Chromium und 5,07:1 gegen die Panelflaeche #0a1422 -- erfuellt also in
-     jeder Engine, unabhaengig von deren Wahl.
+     (1) GEGEN DIE ENGINE. Welche Farbe die Engine fuer den Haken waehlt,
+         schreibt keine Norm vor. Chromium nimmt rgb(59, 59, 59), WebKit kann
+         Weiss nehmen -- und WebKit ist auf dem iPhone die Hauptplattform.
+         Sicher ist eine Akzentfarbe deshalb nur, wenn sie gegen DUNKEL UND
+         gegen HELL je 3:1 erreicht, also Leuchtdichte L in [0,10 ... 0,30].
+         #0a84ff hat L = 0,238: 5,76:1 gegen Schwarz, 3,65:1 gegen Weiss und
+         gemessene 3,07:1 gegen das Chromium-Grau des Hakens.
 
-     WER DIESE FARBE SPAETER "an die Marke anpasst", muss das Band einhalten;
-     sonst haengt die Zusage wieder daran, dass die Engine sich richtig
-     entscheidet.
+     (2) GEGEN DIE FLAECHE, AUF DER DAS FELD SITZT -- und das ist NICHT die
+         Panelflaeche #0a1422. Hier stand bis zum 04.10.2026 "5,07:1 gegen
+         #0a1422"; die Felder sitzen aber auf halbtransparent ueberlagerten
+         Karten, und bei .chip-toggle hellt :has(input:checked) die Flaeche
+         zusaetzlich auf. Gemessen in sieben Viewports von 320 bis 3440 px,
+         angekreuztes Feld gegen den unmittelbar angrenzenden Bildpunkt:
 
-     HIER NICHT GELOEST, und bewusst nicht: Der UNangekreuzte Zustand haengt
-     gar nicht an accent-color. Chromium zeichnet ihn im Dunkelmodus in
-     rgb(59, 59, 59), also 1,66:1 gegen die Panelflaeche -- mit und ohne
-     Steuerfarbe derselbe Wert, beides gemessen. Bei .chip-toggle traegt der
-     Rand des Labels die 3:1-Zusage, bei .checkbox-line gibt es keinen. Ein
-     normgerechter unangekreuzter Zustand braucht ein selbst gezeichnetes Feld
-     (appearance: none) und ist damit eine Gestaltungsentscheidung. */
+           display    .checkbox-line  auf rgb(10, 19, 34)   5,10:1
+           animations .checkbox-line  auf rgb(18, 27, 42)   4,74:1
+           overlays   .chip-toggle    auf rgb(35, 53, 71)   3,44:1
+           timers     .chip-toggle    auf rgb(39, 58, 76)   3,21:1  <- Minimum
+
+         Das Minimum traegt, aber knapp. Die enge Stelle ist NICHT die Farbe,
+         sondern die Aufhellung der Pille im angekreuzten Zustand.
+
+     (3) DAS BAND IST SCHMAL, mehr ist ueber die Farbe nicht zu holen.
+         Bedingung (2) fordert gegen rgb(39, 58, 76) ein L >= 0,222,
+         Bedingung (1) ein L <= 0,30. Der beste Ausgleich liegt bei L = 0,259
+         und braechte 3,40:1 auf beiden Seiten -- gegenueber 3,21:1 heute ein
+         Gewinn von 0,19. WER DIESE FARBE SPAETER "an die Marke anpasst", muss
+         im Band [0,222 ... 0,30] bleiben. Luft gibt es nur ueber den
+         HINTERGRUND, nicht ueber die Farbe.
+
+     HIER NICHT GELOEST, und bewusst nicht: der UNangekreuzte Zustand. Seine
+     FUELLUNG kommt in Chromium auf 1,29 bis 1,66:1 gegen die Umgebung und
+     haengt gar nicht an accent-color. Sein UMRISS dagegen -- Chromium zeichnet
+     ihn in rgb(133, 133, 133) -- erreicht gemessen 3,93 bis 5,04:1 und traegt
+     damit die Zusage aus WCAG 1.4.11 auch dort, wo das Label keinen Rand hat.
+     Fuer WebKit ist das nicht nachgemessen; erst ein selbst gezeichnetes Feld
+     (appearance: none) macht beide Zustaende von der Engine unabhaengig. Das
+     ist eine eigene Gestaltungsentscheidung (BEFUNDE.md, B31). */
   --accent-control: #0a84ff;
   --warm: #ffd063;
   --ok: #71e7b0;
@@ -1009,11 +1029,19 @@ h2 {
 }
 
 /* Damit haengt der Zustand nicht allein am Haken: Angekreuzt faerbt sich die ganze
-   Flaeche, und der Rand wechselt von --line-control auf --accent. Gegen die
-   Panelflaeche #0a1422 gerechnet sind das 3,69:1 gegenueber 11,38:1 -- beide ueber
-   den 3:1 aus WCAG 1.4.11, und der Unterschied zwischen ihnen traegt den Zustand.
+   Flaeche, und der Rand wechselt von --line-control auf --accent. Am Bildpunkt
+   gemessen (04.10.2026, Rand gegen die Karte daneben): unangekreuzt rgb(86, 124,
+   153) auf rgb(18, 27, 42) = 3,90:1, angekreuzt rgb(143, 211, 255) = 10,63:1 --
+   beide ueber den 3:1 aus WCAG 1.4.11, und der Unterschied zwischen ihnen traegt
+   den Zustand. Hier standen bis dahin 3,69:1 und 11,38:1, gerechnet gegen die
+   Panelflaeche #0a1422 -- auf der die Pille gar nicht sitzt (BEFUNDE.md, L245).
    Ein Browser ohne :has() zeigt weiterhin den Haken in accent-color; der Zustand
-   bleibt also in jedem Fall ablesbar. */
+   bleibt also in jedem Fall ablesbar.
+
+   DIE AUFHELLUNG IST ZUGLEICH DIE ENGSTE STELLE von --accent-control: Sie hebt
+   den Untergrund des Ankreuzfeldes von rgb(27, 36, 51) auf rgb(39, 58, 76) und
+   druckt dessen Kontrast damit von 4,7:1 auf gemessene 3,21:1. Wer hier weiter
+   aufhellt, reisst die 3:1 -- und zwar am Ankreuzfeld, nicht an der Pille. */
 .chip-toggle:has(input:checked) {
   border-color: var(--accent);
   background: rgba(143, 211, 255, 0.14);

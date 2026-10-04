@@ -15,7 +15,7 @@
 #include <time.h>
 #include "eeprom-data.h"
 
-#define VERSION                     "3.2.19"
+#define VERSION                     "3.2.20"
 #define MAX_RESET_CAUSE_LEN         63
 
 #define MAX_EEPROM_VERSION_LEN      4
