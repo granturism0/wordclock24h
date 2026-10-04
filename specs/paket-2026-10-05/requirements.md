@@ -1,25 +1,27 @@
 # Anforderungen — Paket 2026-10-05
 
 **Status:** Entwurf — **nicht freigegeben**
-**Erstellt:** 2026-10-04. Der Paketname trägt den geplanten Beginn, 2026-10-05.
+**Erstellt:** 2026-10-04. **Fortgeschrieben am 2026-10-05:** die vier Entscheidungen
+des Nutzers und der A35-Nachweis (L266), der den Entwurf von A35 Teil 1 umgeworfen hat.
 **Auslöser:** Arbeitsliste in `BEFUNDE.md` (über hundert Einträge), ausdrücklicher
 Wunsch des Nutzers nach einem **grösseren** Paket, und die drei Vorfälle vom
 04.10.2026, in denen erledigte Arbeit als offen mitgeschleppt wurde (L173, L235,
 L248).
 
-Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Es wird nicht fortgeschrieben;
-der lebende Stand steht in `BEFUNDE.md`.
+Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Es wird nach der Freigabe nicht
+mehr fortgeschrieben; der lebende Stand steht in `BEFUNDE.md`.
 
 ---
 
-## Überblick — sieben Runden
+## Überblick — acht Runden, in dieser Reihenfolge
 
 | Runde | Inhalt | Laufzeit | Einspielen |
 |---|---|---|---|
 | **V** | **Nachzählen** — trifft der Befund überhaupt noch zu? | keine | — |
 | **W** | Werkzeug und Verfahren (E19, E20, E15, B22, Prüfstände, S11) | keine | — |
-| **E1** | ESP: der reproduzierbare Absturz und der Speicher (L174, L176, C14) | ESP | OTA |
+| **E1** | ESP: der reproduzierbare Absturz (L174) und die zwei unerreichbaren Beobachtungszeilen (C14) | ESP | OTA |
 | **E2** | ESP: Eingang der Brücke und Parametervertrag (A37, C24, C22, C20, C17, C18) | ESP | OTA |
+| **H** | **STM: Eingang härten** (A41/L265) — das Gegenstück zu A37 | STM | STM-Flash |
 | **S** | Brücke fertigbauen (L260, A35 Teil 1, C26, A39, A16) | ESP **und** STM | OTA, **dann** STM |
 | **P** | PWA (B33, B24) | PWA | LittleFS-Upload |
 | **U** | UI (B30, B28) | PWA | LittleFS-Upload |
@@ -42,30 +44,30 @@ Am 04.10.2026 ist das **dreimal** aufgetreten, in drei verschiedenen Gestalten:
 | **L248** | Fünf weitere Einträge verwiesen auf **Massnahmen** statt auf Befunde, und deren Stand in den Review-Tabellen war selbst veraltet | Die Prüfung war korrekt und verglich gegen veraltete Daten |
 | **L173** | Ein Befund stand über **sechs Releases** als „offen, KRITISCH" und war beiläufig mitrepariert — am Gerät nachgemessen: 720 von 720 Zeichen, vollständig | **Keine Prüfung kann das finden.** Ob ein Befund noch zutrifft, steht in keinem Dokument, sondern nur im Code oder am Gerät |
 
-**Vorprüfung beim Schreiben dieser Spec, am Quelltext dieses Commits — drei Treffer
-in einer halben Stunde:**
+**Die Vorprüfung beim Schreiben dieser Spec hat das bestätigt, bevor die Runde
+überhaupt lief — drei Treffer in einer halben Stunde, alle drei inzwischen
+nachgezählt, geschlossen und aus der Arbeitsliste gestrichen:**
 
-- **A32 / L230** steht in der Arbeitsliste als „offen, KRITISCH, die Wurzel hinter A6,
-  L42, L103 und L205" und blockiert dort Runde 4a. Im Baum stehen
-  `var_retry_slots`, `VAR_RETRY_SLOTS`, `var_retry_ok_cnt`, `var_retry_gaveup_cnt`
-  (`src/vars/vars.c:245 ff.`) — **A32 ist gebaut**, und L254 belegt es am Gerät.
-- **A38 / L255** („eine einzige unquittierte Zeile entscheidet über `is_online`",
-  offen, KRITISCH) nennt als offene Entscheidung, ob der neue Zweig `is_online`
+- **A32 / L230** stand als „offen, KRITISCH, die Wurzel hinter A6, L42, L103 und
+  L205" in der Liste und **blockierte dort Runde 4a**. Im Baum stehen
+  `var_retry_slots`, `var_retry_ok_cnt`, `var_retry_gaveup_cnt`
+  (`src/vars/vars.c:245 ff.`); L254 belegt die Wirkung am Gerät. **Geschlossen.**
+- **A38 / L255** nannte als offene Entscheidung, ob der neue Zweig `is_online`
   mitsetzt. `src/esp8266/esp8266.c:452` setzt es, mit Begründung im Kommentar
-  darüber — **die Entscheidung ist gefallen und umgesetzt**.
-- **A36 / L236** steht in der Arbeitsliste als „**Höchste Priorität der Gruppe**".
-  L249 meldet denselben Befund als **behoben**, mit einem Nachweis über eine
-  Schutzseite. Zwei Zeilen desselben Dokuments widersprechen sich.
+  darüber. **Geschlossen.**
+- **A36 / L236** stand als „höchste Priorität der Gruppe" in der Liste, während L249
+  denselben Befund als behoben meldete — **zwei Zeilen desselben Dokuments
+  widersprachen sich. Geschlossen.**
+
+**Das ist der Beleg, dass der Durchgang trägt**, und zugleich der Grund, warum er als
+eigene Runde geführt wird und nicht nebenbei läuft: Ohne ihn stünde in dieser Spec
+eine eigene A32-Runde, die nichts zu tun hätte.
 
 Dazu der Abschnitt „Stand des grossen Pakets" in `BEFUNDE.md`: Er führt Runde 4a als
 **„noch nicht begonnen, blockiert durch A32"**. L261 belegt Weg B am Gerät, und
 `src/main.c:2974` sowie `:3655` zeigen den gebauten Zweig. **Der Standabschnitt ist
 selbst veraltet** — und er ist diejenige Stelle, aus der die Planung ihren Umfang
 nimmt.
-
-**Das Problem ist nicht die Unordnung, sondern die Kosten:** Jeder dieser Einträge
-zieht bei jeder Planung Aufmerksamkeit, und mindestens einer von ihnen hat in dieser
-Spec beinahe eine ganze Runde erzeugt, die es nicht braucht.
 
 ### 2. Die Brücke ist halb fertig
 
@@ -76,20 +78,20 @@ Gerät. Vier benannte Lücken bleiben, alle aus derselben Arbeit heraus gefunden
   `var_send_buf()` gerufen (`src/vars/vars.c:586`). Trifft eine `IPADDRESS`-Zeile
   dort ein, läuft `var_send_all_variables()` **verschachtelt**, und alle rund 194
   Kommandos gehen ohne eine einzige Quittung hinaus — wörtlich der Schaden aus L102
-  (`d=5148`). Der `SYNCVARS`-Zweig ist dagegen bereits geschützt
-  (`src/main.c:2974`), der `IPADDRESS`-Zweig nicht (`src/main.c:2926`).
+  (`d=5148`). Der `SYNCVARS`-Zweig ist bereits geschützt (`src/main.c:2974`), der
+  `IPADDRESS`-Zweig nicht (`src/main.c:2926`).
 - **L260** — Das Erfolgskriterium von Weg B ist `HARDWARE_CONFIGURATION != 0xFFFF`,
   und dieses Kommando ist das **dritte** von rund 194. Kommen 1 bis 3 an und 4 bis
   194 nicht, hält der ESP sich für geheilt und fragt nicht nach.
 - **C26 / L253** — Die Prüfsumme lässt 19,1 % der beschädigten Zeilen durch: Der
   Burst nimmt das Zeilenende samt Marke weg, die Zeile sieht unmarkiert aus und wird
   wie bisher angenommen. Gemessen, nicht geschätzt (554'121 Zeilen).
-- **A35 / L233** — Die Quittung bestätigt den **Empfang**, nicht die Übernahme
-  (`ESP-uclock.ino:531-533`: `var_set_parameter (parameter); Serial.println (".");`),
-  und sie ist ein **nackter Punkt ohne Zuordnung**. Eine verspätete Quittung
-  bestätigt damit das **nächste** Kommando — und mit den Nachsendungen aus A32 werden
-  verspätete Quittungen häufiger. A32 hat dieses Problem also nicht nur offengelassen,
-  sondern vergrössert.
+- **A35 / L233** — **Der ESP quittiert, der STM wertet aus**
+  (`ESP-uclock.ino:886` sendet den Punkt, `src/esp8266/esp8266.c:287` liest ihn). Die
+  Quittung bestätigt den **Empfang**, nicht die Übernahme, und sie ist ein **nackter
+  Punkt ohne Zuordnung**: Eine verspätete Quittung bestätigt das **nächste**
+  Kommando. A32 hat das Problem nicht nur offengelassen, sondern **vergrössert** —
+  Nachsendungen machen verspätete Quittungen häufiger.
 
 ### 3. Dasselbe Messgerüst wurde dreimal von Hand nachgebaut
 
@@ -101,16 +103,15 @@ Seite auf. Innerhalb eines Tages ist das dreimal aufgelaufen:
 - **L228** — Die Zahlen hinter AK3.1 (Kachelhöhen) liessen sich nur mit einem selbst
   gebauten Messproxy erheben.
 - **L243** — `shot.sh --module` gibt es seit demselben Tag (L239), **aber es scrollt
-  nicht**; die TFT- und Favoritenfelder liegen weit unterhalb des Seitenkopfs. Der
-  Umsetzer baute sich ein Gerüst über das Chrome-Protokoll.
+  nicht**; die TFT- und Favoritenfelder liegen weit unterhalb des Seitenkopfs.
 - **L245** — Die Entscheidung über die Steuerfarbe fiel erst, nachdem jemand über
   7 Viewports × 4 Module × 2 Zustände **am Bildpunkt** gemessen hatte. Vier
   Fehlrechnungen davor hatten alle dieselbe Ursache: aus dem Stylesheet gerechnet
   statt im Bild gelesen.
 
-Alle drei Gerüste verfielen danach im Scratchpad. Dazu zwei Werkzeugbefunde, die
-dieselbe Gattung treffen: **E20 / L258** (der Besitz-Hook blockiert nach Schreibweise
-statt nach Absicht und lässt sich durch Zusammensetzen des Pfades trivial umgehen) und
+Alle drei Gerüste verfielen danach im Scratchpad. Dazu zwei Werkzeugbefunde
+derselben Gattung: **E20 / L258** (der Besitz-Hook blockiert nach Schreibweise statt
+nach Absicht und lässt sich durch Zusammensetzen des Pfades trivial umgehen) und
 **E15 / L189** (der Gefahren-Hook weist schon eine `grep`-Suche in einer lokalen
 Logdatei ab).
 
@@ -120,21 +121,36 @@ Logdatei ab).
 **danach** `WiFi.scanNetworks()`, mitten in der laufenden Antwort. Zweimal
 aufgetreten, **dieselbe Aufruferadresse `0x4021e571`, derselbe Abstand von 1,6 s**,
 beide Male `Unhandled C++ exception: OOM`. Die PWA ruft den Scan bei **jedem** Wechsel
-ins Netzwerk-Modul (`loadSecondaryData()`), was „Absturz beim Durchklicken der Reiter"
-vollständig erklärt. Der Nutzer umgeht das heute, indem er den Reiter meidet.
+ins Netzwerk-Modul (`loadSecondaryData()`), was „Absturz beim Durchklicken der
+Reiter" vollständig erklärt. Der Nutzer umgeht das heute, indem er den Reiter meidet.
 
-Dazu der grösste Einzelposten im Speicher: **L176** — der STM-Logring belegt
-7'744 Byte BSS, mehr als der gesamte freie Heap. Der Einwand stammt vom Nutzer, und er
-trifft zu: Die Zeilen gehen ohnehin laufend über die serielle Leitung hinaus.
+### 5. Der Eingang der Brücke ist auf beiden Seiten ungeprüft — und nur eine Seite zu härten wiederholt L179
 
-### 5. Runde 4b ist nie gefahren worden
+Auf jedes `htoi (x, n)` folgt ein **unbedingtes** `x += n`. Stand der Zeiger schon auf
+dem Terminator, zeigt er danach dahinter, und der nächste Lesezugriff geht über die
+Pufferkante.
+
+| Seite | Stellen | Befund |
+|---|---|---|
+| ESP, `vars.cpp` | rund **45** | **A37 / L237** |
+| STM, `main.c` (39), `tables.c` (22), `esp-spiffs.c` (4), `tftled.c` (1) | rund **66** | **A41 / L265** |
+
+Am exponiertesten sind `tftled.c:122` und `esp-spiffs.c:206-231`: Dort läuft direkt
+hinter dem Vorrücken eine `while (*p)`-Schleife, die dann über die Pufferkante liest.
+
+**Der Auslöser ist nicht theoretisch.** Eine verkürzte Kommandozeile entsteht genau
+dann, wenn die Brücke ein Zeichen verliert — und das messen wir täglich über `d=`.
+Nur eine Seite zu härten, erzeugt genau das Muster, das L179 bestraft hat: zwei Wege
+zum selben Ziel, einer mit Schutz, einer ohne.
+
+### 6. Runde 4b ist nie gefahren worden
 
 **C9c6 / L179** — Der Legacy-Zweig übernimmt den Flash-Dateinamen ungeprüft
 (`http.cpp:6909-6913`), der API-Endpunkt prüft über
-`http_remote_stm32_filename_matches()`. Zwei Wege zum selben Ziel, einer mit Schutz,
-einer ohne — **und der ungeschützte hat die Uhr am 04.10.2026 stillgelegt**, weil ein
-F103-Abbild auf dem F411 landete. Die Spec dazu steht fertig in
-`specs/grosses-paket-2026-10-04/`, Runde 4b, und ist nie umgesetzt worden.
+`http_remote_stm32_filename_matches()`. **Der ungeschützte Weg hat die Uhr am
+04.10.2026 stillgelegt**, weil ein F103-Abbild auf dem F411 landete. Die Spec dazu
+steht fertig in `specs/grosses-paket-2026-10-04/`, Runde 4b, und ist nie umgesetzt
+worden.
 
 ---
 
@@ -147,13 +163,14 @@ Nach diesem Paket gilt:
    Stand ab, den Code und Gerät zeigen, und nicht den, den sie einmal zeigten.
 2. Die Brücke STM↔ESP hat kein halbes Protokoll mehr: kein verschachtelter
    194er-Stoss, ein Erfolgskriterium, das den **ganzen** Satz prüft, eine Quittung mit
-   Zuordnung, und eine begründete, dokumentierte Entscheidung über die Restlücke der
-   Prüfsumme.
-3. Das Messgerüst für UI-Zahlen steht im Werkzeug statt im Scratchpad und läuft
+   Zuordnung, und eine Markenpflicht für die drei Werte, bei denen ein still falscher
+   Wert teuer ist.
+3. **Beide** Enden der Brücke prüfen die Länge der Kommandozeile, bevor sie sie
+   zerlegen.
+4. Das Messgerüst für UI-Zahlen steht im Werkzeug statt im Scratchpad und läuft
    **sowohl** gegen die Vorschau **als auch** gegen das Gerät.
-4. Der reproduzierte Absturz über `network_scan` tritt nicht mehr auf, und der ESP hat
-   rund 4'800 Byte mehr Heap.
-5. Der Legacy-Flashpfad kann kein fremdes Abbild mehr aufspielen.
+5. Der reproduzierte Absturz über `network_scan` tritt nicht mehr auf.
+6. Der Legacy-Flashpfad kann kein fremdes Abbild mehr aufspielen.
 
 ---
 
@@ -173,8 +190,8 @@ geprüft worden:
 
 ### Runde V — Nachzählen
 
-- [ ] **AKV.1** — Jeder Befund, der am 05.10.2026 den Status **KRITISCH** trägt, hat
-      in `BEFUNDE.md` einen Nachzählvermerk der Form
+- [ ] **AKV.1** — Jeder Befund, der zu Beginn des Pakets den Status **KRITISCH**
+      trägt, hat in `BEFUNDE.md` einen Nachzählvermerk der Form
       `nachgezaehlt: JJJJ-MM-TT · <Verdikt> · <Beleg>`. **Auch bei Bestätigung** —
       sonst ist nicht unterscheidbar, ob nachgesehen wurde oder nichts passiert ist
       (die Unterscheidung aus L261).
@@ -183,8 +200,8 @@ geprüft worden:
 - [ ] **AKV.2** — Jeder Nachzählvermerk trägt **eines von drei Verdikten**, und kein
       anderes: `bestaetigt`, `geschlossen` oder `praemisse-widerlegt`.
       **„nicht reproduziert" ist kein Verdikt.** Ein sporadischer Befund bleibt offen,
-      solange sein Mechanismus im Code steht — das ist dieselbe Unterscheidung, an der
-      die Bewertung von L226, L229 und L232 am 04.10.2026 mehrfach gescheitert ist.
+      solange sein Mechanismus im Code steht — dieselbe Unterscheidung, an der die
+      Bewertung von L226, L229 und L232 am 04.10.2026 mehrfach gescheitert ist.
       *Instrument:* `BEFUNDE.md`, Textprüfung in S11.
 - [ ] **AKV.3** — Jedes `geschlossen` nennt **Datei:Zeile dieses Commits** oder einen
       **Messwert mit Zeitstempel und Instrument**. Ein Verweis auf einen anderen
@@ -195,8 +212,8 @@ geprüft worden:
 - [ ] **AKV.4** — Der Abschnitt „Stand des grossen Pakets" in `BEFUNDE.md` ist Task
       für Task nachgezählt und danach entweder **fortgeschrieben** oder **aufgelöst**.
       Er verschwindet nur, wenn jeder seiner Tasks ein Verdikt trägt.
-      *Instrument:* `BEFUNDE.md`; die Spec `specs/grosses-paket-2026-10-04/tasks.md`
-      als Gegenliste.
+      *Instrument:* `BEFUNDE.md`; `specs/grosses-paket-2026-10-04/tasks.md` als
+      Gegenliste.
 - [ ] **AKV.5** — Die Arbeitsliste enthält nach dem Durchgang **keinen** Eintrag, der
       ausschliesslich auf Erledigtes verweist, und **jeder** offene Befund steht darin.
       *Instrument:* Guardrail S10, beide Richtungen.
@@ -209,8 +226,8 @@ geprüft worden:
 
 - [ ] **AKW.1** — Die Geometriemessung liegt als **ein** Modul vor, das sowohl
       `tools/preview/diag.js` (Vorschau) als auch `tools/check-pwa.mjs` (Gerät)
-      ausführen. Sie liefert je Panel Höhe und Breite, je Ankreuzfeld
-      Geometrie und gerenderte Farben **am Bildpunkt**, und sie scrollt.
+      ausführen. Sie liefert je Panel Höhe und Breite, je Ankreuzfeld Geometrie und
+      gerenderte Farben **am Bildpunkt**, und sie scrollt.
       *Instrument:* Ein Lauf gegen die Vorschau und **ein Lauf gegen das Gerät**,
       beide mit Ergebnisdatei. Damit ist die Lücke aus L229 geschlossen —
       Vorschauzahlen und Gerätezahlen stehen nebeneinander.
@@ -228,12 +245,12 @@ geprüft worden:
 - [ ] **AKW.4** — `tools/hooks/no-danger.py` weist eine `grep`-Suche in einer lokalen
       Datei **nicht** mehr ab, einen Aufruf gegen das Gerät weiterhin schon.
       *Instrument:* dieselben zwei Gegenproben.
-- [ ] **AKW.5** — Der Prüfstand zu A37 (Runde E2) liegt unter `tools/checks/` und
-      nicht im Scratchpad, und er läuft in **zwei** Übersetzungen: einmal mit den
-      Typen des Hosts, einmal mit der mechanischen Angleichung an die Zielplattform
-      (L256).
-      *Instrument:* beide Läufe, beide grün, und der Nachweis, dass die
-      angeglichene Übersetzung den Fall **herstellt**, den sie messen soll.
+- [ ] **AKW.5** — Die Prüfstände zu A37 (Runde E2) und A41 (Runde H) liegen unter
+      `tools/checks/` und nicht im Scratchpad, und sie laufen in **zwei**
+      Übersetzungen: einmal mit den Typen des Hosts, einmal mit der mechanischen
+      Angleichung an die Zielplattform (L256).
+      *Instrument:* beide Läufe, beide grün, und der Nachweis, dass die angeglichene
+      Übersetzung den Fall **herstellt**, den sie messen soll.
 - [ ] **AKW.6** — Guardrail-Stufe S11 meldet jeden Befund mit Status **KRITISCH**,
       dessen Nachzählvermerk fehlt **oder** älter ist als der jüngste Commit auf eine
       der von ihm genannten Dateien.
@@ -242,12 +259,12 @@ geprüft worden:
       L235. Nachweis: Die Zahl der geprüften Befunde wird gemeldet und von Hand gegen
       die Tabelle abgezählt.
 
-### Runde E1 — ESP: Absturz und Speicher
+### Runde E1 — ESP: Absturz und Beobachtbarkeit
 
 - [ ] **AKE1.1** — `WiFi.scanNetworks()` wird **vor** der ersten gesendeten Kopfzeile
       gerufen. Die Netzliste wird geströmt, nicht als `String` je Eintrag gebaut.
       *Instrument:* Quelltext, per `grep` nachgewiesen — die Reihenfolge von
-      `scanNetworks` und dem ersten `http_send`.
+      `scanNetworks` und dem ersten Sendeaufruf.
 - [ ] **AKE1.2** — Zehn aufeinanderfolgende Aufrufe von `/api/network_scan` während
       eines **vollen Seitenaufbaus** erzeugen keine Exception und keinen Neustart.
       *Instrument:* `./tools/check-pwa.sh` mit geöffnetem Netzwerk-Modul, **und**
@@ -256,23 +273,21 @@ geprüft worden:
       nicht in der API-Antwort. Eine Abnahme allein über `curl` hat am 04.10.2026
       dreimal nichts gefunden (L174: „vier parallele Anfragen stürzen nicht ab"), weil
       `curl` den Browser nicht nachbildet.
-- [ ] **AKE1.3** — `free_heap` steigt gegenüber der letzten Messung vor dieser Runde
-      um mindestens **4'000 Byte**.
-      *Instrument:* `/api/device_ready`, gemessen rund 20 Minuten nach dem Flash im
-      Ruhebetrieb — zur selben Bedingung wie die Vergleichsmessung aus L254, sonst
-      vergleicht man zwei verschiedene Zustände.
-- [ ] **AKE1.4** — Die Heap-Zeile und die Verlustzeile erscheinen in
+- [ ] **AKE1.3** — Die Heap-Zeile und die Verlustzeile erscheinen in
       `/api/stm32_log`.
       *Instrument:* der Endpunkt selbst. **Das ist genau die L177/L185-Falle:** Beide
       Zeilen wurden bereits gebaut und liefen am Ring vorbei; eine Abnahme über den
       seriellen Mitschnitt hätte sie als vorhanden gemeldet, obwohl sie über die
       Oberfläche unerreichbar waren.
-- [ ] **AKE1.5** — Das Logfeld der PWA zeigt nach der Verkleinerung des Rings noch
-      Zeilen an, und die Oberfläche meldet keinen Fehler. **Weniger Zeilen sind
-      gewollt** und gehören in die Einspielzeile.
-      *Instrument:* `./tools/check-pwa.sh`, Modul mit dem Logfeld.
+- [ ] **AKE1.4** — Die Runde **verschlechtert den Heap nicht**: `free_heap` und
+      `max_free_block` liegen nach der Runde nicht unter den Werten davor.
+      *Instrument:* `/api/device_ready`, gemessen unter **derselben Bedingung** wie
+      die Vergleichsmessung (rund 20 Minuten nach dem Flash, Ruhebetrieb ohne offene
+      Browsersitzung). Zwei Messungen unter verschiedenen Bedingungen zu vergleichen
+      ist der Fehler aus L262 — dort erklärte sich der ganze Unterschied aus einer
+      offenen PWA.
 
-### Runde E2 — ESP: Eingang und Vertrag
+### Runde E2 — ESP: Eingang der Brücke und Parametervertrag
 
 - [ ] **AKE2.1** — Eine Kommandozeile, die vor dem Ende ausgeht, führt an **keiner**
       der rund 45 Stellen zu einem Lesezugriff hinter dem Terminator.
@@ -296,8 +311,8 @@ geprüft worden:
       `./tools/check-update-source.sh`.
 - [ ] **AKE2.4** — `fs_remove` auf eine nicht vorhandene Datei und `dfplayer_play`
       ohne Parameter melden **nicht** mehr Erfolg.
-      *Instrument:* `/api/fs_remove?filename=<nicht vorhanden>` — lesend unschädlich,
-      weil es nichts zu löschen gibt; **kein** Aufruf mit einem vorhandenen Namen.
+      *Instrument:* `/api/fs_remove?filename=<nicht vorhanden>` — unschädlich, weil es
+      nichts zu löschen gibt; **kein** Aufruf mit einem vorhandenen Namen.
 - [ ] **AKE2.5** — `dfplayer_alarm_set` weist `idx` ausserhalb des Bereichs,
       `from`/`to` ausserhalb von 0..7 und `hour`/`minute` ausserhalb von 0..23 / 0..59
       ab.
@@ -315,6 +330,33 @@ geprüft worden:
       `code-reviewer`, **vor** dem Einspielen. Findet er eine Stelle, die nur auf
       `ok` prüft, wird daraus ein Task in Runde P — keine stille Mitkorrektur.
 
+### Runde H — STM: Eingang härten
+
+- [ ] **AKH.1** — Eine verkürzte Kommandozeile führt an **keiner** der rund 66
+      Stellen zu einem Lesezugriff hinter dem Terminator. Die Prüfung steht **einmal
+      vorn**, nicht 66-mal einzeln.
+      *Instrument:* Prüfstand mit Schutzseite unter `tools/checks/`, nach demselben
+      Verfahren wie AKE2.1, **mit angeglichenen Typen** (L256). Die beiden
+      exponierten Stellen `tftled.c:122` und `esp-spiffs.c:206-231` sind als eigene
+      Fälle aufgeführt, weil dort hinter dem Vorrücken eine `while (*p)`-Schleife
+      läuft.
+- [ ] **AKH.2** — Nach dem Flash läuft ein **vollständiger Vollabgleich** (rund 194
+      Kommandos) durch den neuen Parser, ohne Fehlverhalten.
+      *Instrument:* ESP-Neustart auslösen, dann die Erfolgszeile des Vollabgleichs im
+      Logring; `d=` und die Verlustzähler vorher/nachher; Diagnosefolge lückenlos;
+      `watch-log.sh` mitgelesen. **Das ist die Abnahme, die zählt** — ein Prüfstand
+      beweist die Funktion, nicht ihre Einbettung.
+- [ ] **AKH.3** — Die Anzeige ist nach dem Flash unverändert: Uhrzeit, Layout,
+      Temperatur, TFT-Zustand.
+      *Instrument:* `./tools/diff-snapshot.sh --soll` gegen
+      `tools/snapshots/soll-2026-10-04`, und ein Blick auf die Uhr. `tftled.c` und
+      `esp-spiffs.c` sind Anzeige- und Dateipfade; ein Fehler dort zeigt sich am
+      Gerät, nicht in der API.
+- [ ] **AKH.4** — Eine abgewiesene zu kurze Kommandozeile wird **gezählt und einmal
+      protokolliert**, nicht wortlos verworfen.
+      *Instrument:* Quelltext und der Logring. Eine Härtung, die still verwirft,
+      tauscht einen Absturz gegen ein unerklärliches Nichtverhalten.
+
 ### Runde S — Brücke fertigbauen
 
 - [ ] **AKS.1** — `src/main.c:2926` ruft `var_send_all_variables()` **nicht** mehr
@@ -329,33 +371,56 @@ geprüft worden:
       Display — **der Lauftext ist der Teil, den nur das Auge abnimmt.**
 - [ ] **AKS.3** — Der ESP hält den Vollabgleich erst dann für vollständig, wenn die
       **Abschlussmarke** eingetroffen ist, nicht schon beim dritten von 194 Kommandos.
+      Hat er **keine Eröffnungszeile** gesehen, gilt unverändert das heutige
+      Kriterium.
       *Instrument:* Quelltext **und** die Erfolgszeile im Logring — nach dem Muster
       von L261: `var sync: Variablensatz vollstaendig, keine Anforderung noetig`
       erscheint erst nach der Marke. Die Zeile kostet 0 Byte auf der Brücke, weil
       `stm32_log_append()` nur in den Ring schreibt.
-- [ ] **AKS.4** — Eine Quittung, die nicht zum ausstehenden Kommando gehört, wird
+- [ ] **AKS.4** — Die Zuordnung steht als **eigene Zeile vor** der Quittung
+      (`ACK <xy>`, dann `.` bzw. `!v`). Die Quittung selbst bleibt **unverändert** ein
+      nackter Punkt.
+      *Instrument:* Quelltext beider Seiten. **Das ist das Ergebnis des Nachweises,
+      den der Nutzer verlangt hat (L266)** — eine an den Punkt angehängte Zuordnung
+      (`.c3`) fällt bei `esp8266.c:287` durch die ganze Präfixkette, `var_send_buf()`
+      läuft in den 3-s-Timeout, `got_answer` bleibt 0 und damit auch
+      `watchdog_reload()` aus: **Reset nach rund sieben Kommandos.**
+- [ ] **AKS.5** — Eine Quittung, die nicht zum ausstehenden Kommando gehört, wird
       **verworfen** statt angenommen; das ausstehende Kommando läuft in seinen Timeout
-      und wird von A32 nachgesendet.
+      und wird von A32 nachgesendet. Eine gemerkte Zuordnung ohne folgende Quittung
+      wird **verbraucht**, nicht auf das nächste Kommando übertragen.
       *Instrument:* Prüfstand auf dem Host mit angeglichenen Typen (L256): verspätete
-      Quittung einspielen, Zähler `var_retry_ok_cnt` muss steigen, und das Kommando
-      muss **einmal** wiederholt werden, nicht endlos.
-- [ ] **AKS.5** — Ein ESP ohne die neue Fähigkeit und ein STM ohne die neue Fähigkeit
-      laufen **beide** weiter wie bisher. Die Reihenfolge des Einspielens ist damit
-      nicht sicherheitskritisch.
-      *Instrument:* Quelltext beider Seiten **und** der Mitschnitt des Einspielens —
-      er muss die Fähigkeitsfolge zeigen, wie sie L254 für `CAP var-crc` zeigt: `CAP`
-      setzt den Merker, `FIRMWARE` schreibt ihn fest, eine `FIRMWARE`-Zeile **ohne**
-      vorangegangenes `CAP` löscht ihn.
-- [ ] **AKS.6** — Der Zähler für „unmarkierte Zeile nach der ersten Marke dieser
+      Quittung einspielen, `var_retry_ok_cnt` muss steigen, und das Kommando muss
+      **einmal** wiederholt werden, nicht endlos.
+- [ ] **AKS.6** — **Beide Rückfalllagen laufen wie heute**, ohne Fähigkeitsmeldung:
+      Ein alter STM verwirft die Zuordnungszeile und liest den Punkt unverändert als
+      `OK`; ein neuer STM ohne Zuordnungszeile wertet den Punkt wie bisher. Ebenso
+      beim Vollabgleich: kein Eröffnungssatz ⇒ heutiges Kriterium.
+      *Instrument:* **Die Zwischenabnahme nach dem ESP-Flash ist der Nachweis**
+      (Task S.8) — zu diesem Zeitpunkt läuft der neue ESP gegen den noch alten STM.
+      Ein Vollabgleich muss dort ohne Timeout und ohne Reset durchlaufen,
+      `var_send_timeout_cnt` darf nicht steigen. Die gerechnete Mehrbelastung dieser
+      Lage sind rund 135 ms über 194 Kommandos (L266) und ist damit nicht messbar —
+      **messbar ist das Ausbleiben des Fehlers, und das genügt.**
+- [ ] **AKS.7** — Der Zähler für „unmarkierte Zeile nach der ersten Marke dieser
       Sitzung" steht nach einem vollen Vollabgleich auf einem erklärbaren Wert und ist
       **ablesbar**.
       *Instrument:* `/api/device_ready` oder der Logring — **nicht** nur eine serielle
       Zeile. (L177/L185-Falle.)
-- [ ] **AKS.7** — Tetris und Snake bedienen den Watchdog. Ein Spiel läuft über
+- [ ] **AKS.8** — Eine **unmarkierte** Zeile einer der drei pflichtigen
+      Kommandoarten (`HARDWARE_CONFIGURATION`, Update-Host, Update-Pfad) wird bei
+      belegter Markierung **nicht übernommen** und mit **`!v`** abgewiesen; A32 sendet
+      sie sofort nach.
+      *Instrument:* Prüfstand, nicht am Gerät erzeugt. Dazu am Gerät die Gegenprobe,
+      dass im Normalbetrieb **keine** dieser drei Abweisungen auftritt — eine
+      Abweisung im gesunden Zustand wäre der Beleg, dass die Pflicht zu weit greift.
+      **`!v` statt Schweigen ist Pflicht:** Schweigen kostete je Fall 3 Sekunden
+      Hauptloop-Stillstand ohne `watchdog_reload()` (L266).
+- [ ] **AKS.9** — Tetris und Snake bedienen den Watchdog. Ein Spiel läuft über
       60 Sekunden ohne Reset.
       *Instrument:* Quelltext **und** ein Lauf am Gerät durch den **Nutzer** — der
       Befund sagt, dass nach rund 3,6 Steinen das 20-s-Fenster um ist, also zeigt sich
-      ein fehlender Reload innerhalb einer Minute. Ohne diesen Lauf gilt AKS.7 als
+      ein fehlender Reload innerhalb einer Minute. Ohne diesen Lauf gilt AKS.9 als
       **nicht erfüllt**, nicht als „vermutlich in Ordnung".
 
 ### Runde P — PWA
@@ -416,7 +481,7 @@ geprüft worden:
       **mitgelesen** (DIR-013). Ein Neustart, eine Exception oder ein Sprung in `d=`
       macht das Ergebnis des Laufs ungültig und gehört in den Bericht.
 - [ ] **AKZ.5** — Jedes ausgerollte Release ist **sofort** committet, getaggt und
-      gepusht (DIR-011), einzeln je Runde.
+      **gepusht** (DIR-011), einzeln je Runde.
 - [ ] **AKZ.6** — Die Einspielzeile nennt die **Reihenfolge**, wo eine Komponente die
       andere voraussetzt (L241), und was sich für den Nutzer sichtbar ändert.
 
@@ -429,48 +494,97 @@ ausgeschlossen, jeder mit Grund:
 
 | Ausgeschlossen | Grund |
 |---|---|
+| **L176 — den Logring verkleinern** | **Vom Nutzer entschieden: fällt aus dem Paket.** Der Vorschlag stammt ursprünglich von ihm selbst; seine eigene Beobachtung vom selben Tag ist das stärkere Argument dagegen. **L262: Der Ring deckt bereits nur rund zwei Minuten ab** — gefüllt nicht von HTTP-Zeilen (davon enthält er **null**), sondern von der eigenen Geschwätzigkeit des STM. Für einen Hänger, der 90 Sekunden dauert, ist das knapp. **Weniger Rückschau kostet genau die Diagnosefähigkeit, die zuletzt mehrfach den Ausschlag gegeben hat** — L175 wurde über zwei Heap-Zeilen im Ring gemessen, und das ging erst, seit C14 sie dorthin schickt. Der Heap bleibt eng; **das ist ein eigenes Paket wert** (L175: `sanitize_*_string()` baut 36-mal ein Ergebnis zeichenweise als `String` auf — dort liegt der Hebel, nicht beim Ring). **Hier festgehalten, damit der Vorschlag in einem halben Jahr nicht unbesehen wiederkommt** |
+| **A35 Teil 2 — Quittung bestätigt Übernahme** | Verlangt einen Rückgabewert aus `var_set_parameter()` und damit einen Eingriff in jeden Zweig seines `switch`, der keinen `default` hat. Teil 1 löst das **dringende** Problem, weil A32 die verspäteten Quittungen gerade häufiger gemacht hat. **Für eine Teilmenge ist Teil 2 ohnehin schon da:** `!v` sagt heute „gelesen, nicht angewandt" |
 | **A2 / A5 — DS18xx-CRC und RTC-Vorzeichen** | Der klarste nächste Fix, aber vier Module plus UI-Seite, und er braucht eine eigene Verifikation am Sensor. **Erster Kandidat für das nächste Paket.** Hier auszulassen ist eine Umfangsentscheidung, keine Bewertung |
 | **B15 / B8 — Sprachen auslagern, hartcodierte Strings** | Eigenes Vorhaben, Spec liegt bereits unter `specs/i18n-auslagerung/`. Rund 61 kB Quelle, Weissliste im ESP, `install-app.sh` — das sprengt jede Runde hier |
 | **C3 — EEPROM seitenweise** | Berührt den Schreibpfad der produktiven Uhr bei rund 16 ms je Byte. Eigene Spec, eigene Messung. Voraussetzung für F4, nicht für dieses Paket |
 | **F4 — EEPROM-Abbild als Sicherung** | Gross, zwei neue destruktive Endpunkte, hängt an C3 |
 | **C6 — destruktive Endpunkte auf POST** | Bricht die PWA, solange `apiFetch` ohne Methode aufruft. Beides müsste **gleichzeitig** geschehen — genau das, was Risiko 1 (OTA, C13/L180) verbietet |
-| **A21 / A28 / A15 — Brückenlast, Empfangsring, UART-ISR** | Messvorhaben ohne entschiedene Massnahme. A32 und Weg B haben die Lage gerade verändert; eine Messung **vor** diesem Paket misst einen Zustand, den es nicht mehr gibt. Gehört **nach** Runde S, als eigener Auftrag |
-| **A22 / A24 / A26 — Indexprüfungen im Tabellentransfer** | Die Gewichtung hat sich durch A32 verschoben: Eine beschädigte Zeile wird heute an der Prüfsumme abgewiesen, bevor sie die Tabellen erreicht. **Ob A22 noch dasselbe Gewicht trägt, ist eine Frage für Runde V**, nicht eine Umsetzung für dieses Paket |
-| **A35 Teil 2 — Quittung bestätigt Übernahme** | Verlangt einen Rückgabewert aus `var_set_parameter()` und damit einen Eingriff in jeden Zweig seines `switch`. Teil 1 (Zuordnung) löst das **dringende** Problem, weil A32 die verspäteten Quittungen gerade häufiger gemacht hat. Teil 2 bleibt benannt und bewertet, siehe `design.md` |
-| **C9c3 / C9c4 — periodische Heap-Zeile und ihr Rückbau** | Die Diagnosehilfe hängt an L175, und L178 hat die Fragmentierungs-These bereits widerlegt. Eine Hilfe einzubauen, deren Anlass gerade wackelt, erzeugt nur eine weitere Rückbauschuld |
-| **B31 — selbst gezeichnetes Ankreuzfeld** | Gestaltungsentscheidung mit eigener Abnahme. **Die eine Messung, die die Priorität entscheidet** — trägt der Umriss auch in WebKit? — kostet fast nichts und steht als Messauftrag in Runde W. Erst danach ist das entscheidbar |
+| **L175 / C9c2 — Heap-Fragmentierung an der Wurzel** | Der Hebel sind die 36 `sanitize_*_string()`-Aufrufe, die ihr Ergebnis zeichenweise als `String` aufbauen. Das ist ein Umbau an der meistgenutzten Hilfsfunktion des ESP, und er gehört **nicht** in dieselbe Runde wie der Absturzfix, der an derselben Datei arbeitet |
+| **A21 / A28 / A15 — Brückenlast, Empfangsring, UART-ISR** | Messvorhaben ohne entschiedene Massnahme. A32, Weg B und dieses Paket verändern die Lage gerade; eine Messung **vorher** misst einen Zustand, den es nicht mehr gibt. Gehört **nach** Runde S — und dann mit den rund 1,5 kB je Vollabgleich aus A35 im Blick |
+| **A22 / A24 / A26 — Indexprüfungen im Tabellentransfer** | Die Gewichtung hat sich durch A32 verschoben: Eine beschädigte Zeile wird an der Prüfsumme abgewiesen, bevor sie die Tabellen erreicht. **Ob A22 noch dasselbe Gewicht trägt, ist eine Frage für Runde V**, nicht eine Umsetzung für dieses Paket |
+| **C9c3 / C9c4 — periodische Heap-Zeile und ihr Rückbau** | Die Diagnosehilfe hängt an L175, und L178 hat die Fragmentierungs-These bereits widerlegt. **C14 (Runde E1) liefert den Nutzen ohnehin schon** — seit die Heap-Zeile im Ring steht, ist der Verlauf ohne Zusatzgerät lesbar (L175, Nachtrag) |
+| **B31 — selbst gezeichnetes Ankreuzfeld** | Gestaltungsentscheidung mit eigener Abnahme. **Die eine Messung, die die Priorität entscheidet** — trägt der Umriss auch in WebKit? — kostet fast nichts und steht als Messauftrag W.8 in Runde W. Erst danach entscheidbar |
 | **E2 / E3 / E7 / E14 — tote Bundle-Dateien, Stückliste, Kleinkram** | Kein Risiko, kein Nutzerproblem. Sie verlieren nichts dadurch, dass sie warten |
 | **B19 — Phase 0 des Testplans** | Verfahrensfrage mit einem Passwort darin; gehört in eine Runde, in der der Nutzer ohnehin beteiligt ist |
+
+### Warum A41 / L265 **doch** in dieses Paket gehört
+
+Die Entscheidung lag bei mir. Sie lautet **aufnehmen**, als eigene Runde H, aus drei
+Gründen:
+
+1. **Nur eine Seite zu härten wiederholt L179.** A37 (ESP, rund 45 Stellen) steht in
+   diesem Paket. Dieselbe Fehlergattung im STM mit **rund 66 Stellen** draussen zu
+   lassen, erzeugt genau das Muster, das die Uhr am 04.10.2026 stillgelegt hat: zwei
+   Wege zum selben Ziel, einer mit Schutz, einer ohne.
+2. **Der Auslöser wird täglich gemessen.** Eine verkürzte Kommandozeile entsteht,
+   wenn die Brücke ein Zeichen verliert. Das ist der Zähler `d=`, und er ist nicht
+   null. Die beiden exponierten Stellen lesen danach mit `while (*p)` über die
+   Pufferkante — `tftled.c:122` und `esp-spiffs.c:206-231`.
+3. **Der STM wird in diesem Paket ohnehin geflasht.** Die Alternative wäre, A41 ins
+   nächste Paket zu schieben und dort einen eigenen Flash dafür aufzusetzen.
+
+**Warum trotzdem eine eigene Runde und nicht in Runde S:** Runde S ändert das
+**Protokoll** — Eröffnungszeile, Abschlussmarke, Zuordnungszeile —, A41 ändert den
+**Parser jedes eingehenden Kommandos**. Beides in einem Flash macht einen Fehlschlag
+unzuordenbar. Und die Reihenfolge ist nicht beliebig: **H kommt vor S**, damit die
+neuen Zeilenarten auf einem gehärteten Parser landen und nicht umgekehrt.
 
 ---
 
 ## Betroffene Laufzeiten
 
-- [x] **STM32** (`src/**`) — Runde S. Neu-Flashen nötig, über `./tools/flash-stm.sh`
+- [x] **STM32** (`src/**`) — Runden H und S. Je ein Flash über `./tools/flash-stm.sh`
 - [x] **ESP8266** (`ESP8266/ESP-uclock/*`) — Runden E1, E2, S, F. Je ein OTA
 - [x] **PWA** (`data/app/**`) — Runden P und U. LittleFS-Upload über
       `./tools/install-app.sh`
-- [x] **Build/Release** — je Runde ein Release-ZIP, Rollout, Commit und Tag
+- [x] **Build/Release** — je Runde ein Release-ZIP, Rollout, Commit, Tag und Push
 - [x] **Werkzeug** (`tools/**`, `.claude/**`) — Runde W, kein Flash
 - [x] **Dokumentation** (`BEFUNDE.md`, `knowledge/**`) — Runden V und W
 
 ---
 
-## Entscheidungen, die vor dem Bauen beim Nutzer liegen
+## Getroffene Entscheidungen
 
-Diese vier Punkte sind in `design.md` mit einer Empfehlung beantwortet, aber sie
-berühren das Laufzeitverhalten der produktiven Uhr. **Ohne Bestätigung beginnt die
-jeweilige Runde nicht.**
+Alle vier offenen Punkte hat der Nutzer entschieden. Sie stehen hier, weil die
+Begründung später niemand mehr rekonstruieren kann.
 
-1. **C26 — Markenpflicht für eine kleine Liste kritischer Kommandoarten?**
-   (`design.md` §5.3). Empfehlung: ja, eng begrenzt. L253 nennt eine Markenpflicht
-   gefährlich; L254 entkräftet das Gegenargument teilweise. Die Entscheidung ist
-   keine Umsetzungsfrage.
-2. **A35 Teil 1 — Quittung mit Zuordnung** (`design.md` §5.4). Das ist ein Eingriff
-   ins Protokoll zwischen zwei Laufzeiten, abgesichert über eine Fähigkeitsmeldung.
-   Rückfallverhalten ist entworfen; das Risiko ist nicht null.
-3. **A39 — Reihenfolge von Vollabgleich und IP-Lauftext** (`design.md` §5.1).
-   Empfehlung: Lauftext **nach** dem Abgleich, also heutige Reihenfolge erhalten.
-   Die einfachere Variante (eine Zeile) dreht die Reihenfolge um.
-4. **E1 — Logring von 64 auf 24 Zeilen.** Der Vorschlag stammt vom Nutzer (L176).
-   Die Folge ist sichtbar: Das Logfeld der PWA zeigt weniger Rückschau.
+1. **C26 / L253 — Zähler **und** Markenpflicht.** Beides wird gebaut: der Zähler für
+   unmarkierte Zeilen nach der ersten Marke einer Sitzung, **und** die Markenpflicht
+   für die drei benannten Kommandoarten `HARDWARE_CONFIGURATION`, Update-Host und
+   Update-Pfad. Unmarkiert heisst dort: **nicht übernehmen**, und abgewiesen wird mit
+   **`!v`** — der Mechanismus „gelesen, nicht angewandt, sofort nachsenden" existiert
+   bereits (`src/esp8266/esp8266.c:292`).
+   **Die Begründung, die L253 fehlte:** Ein leerer Update-Host hat zuletzt **fremde
+   Firmware geholt** — der ESP fällt dann auf seine eingebauten Vorgaben zurück, und
+   die zeigen auf den Server des Ursprungsprojekts (L42, DIR-009). Bei genau diesen
+   drei Werten ist die 19,1-%-Lücke keine statistische Grösse, sondern ein Weg, auf
+   dem fremder Code aufs Gerät kommt.
+2. **A35 Teil 1 — ja, und der verlangte Nachweis hat den Entwurf umgeworfen.**
+   Der Nutzer hatte den Punkt unter den Vorbehalt gestellt, dass der Rückfall erst am
+   Code belegt wird. **Das Ergebnis steht als L266 und ist besser als der
+   ursprüngliche Entwurf:**
+   - Die vier Fragen zum Rückfall waren unbedenklich — kein Byteversatz, kein Rest im
+     Ring, kein Teilkommando.
+   - **Die Frage war falsch gestellt.** Gefährlich ist nicht der Versatz, sondern die
+     Folge: `esp8266.c:287` vergleicht auf genau ein Zeichen, jede Form `.XY` endet
+     als `ESP8266_UNSPECIFIED`, `var_send_buf()` läuft in den 3-s-Timeout, und mit
+     `got_answer == 0` bleibt `watchdog_reload()` aus — **Reset nach rund sieben
+     Kommandos.**
+   - **Die Lösung:** Die Zuordnung kommt als **eigene Zeile vor** der Quittung
+     (`ACK c3`, dann `.`). Ein alter STM verwirft die unbekannte Zeile und liest den
+     Punkt unverändert. **Damit ist eine Fähigkeitsmeldung entbehrlich**, der
+     blockierende Nachweis-Task entfällt, und der Fehlfall kann gar nicht erst
+     entstehen.
+   - Kosten, gerechnet: rund **1,5 kB je Vollabgleich** und auf altem STM rund
+     **135 ms** zusätzlich über 194 Kommandos.
+3. **A39 — Variante (b).** Der IP-Lauftext wird **nach** dem Vollabgleich gesetzt,
+   die heutige Reihenfolge bleibt exakt erhalten; nur die Verschachtelung fällt weg.
+   Einzelheiten und die verworfene Variante (a) in `design.md` §6.1.
+4. **A16 — bleibt im Paket.** Der Nutzer nimmt die 60 Sekunden Tetris in Kauf, weil
+   der STM in Runde S ohnehin geflasht wird.
+
+**Nichts davon ist mehr offen.** Was vor dem Bauen noch beim Nutzer liegt, ist allein
+die **Freigabe der Spec** und die Freigabe jedes schreibenden Gerätezugriffs im
+jeweiligen Gespräch (R5).
