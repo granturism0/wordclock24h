@@ -62,7 +62,29 @@ letzte_diag=""
 # so passiert: Die Wache lief waehrend eines Testlaufs, ihre Ausgabedatei blieb bei
 # 0 Byte, und der Lead meldete "keine Abstuerze", ohne etwas gesehen zu haben. Der
 # Nutzer hat es bemerkt. Eine Wache, deren Meldungen niemanden erreichen, ist keine.
-exec > >(while IFS= read -r z; do printf '%s\n' "$z"; done) 2>&1
+#
+# NACHTRAG 04.10.2026 (L194): Das allein reicht NICHT. Beim OTA auf 3.2.19 blieb die
+# Ausgabe erneut leer, und diesmal lag es am Aufruf:
+#
+#     ./tools/watch-log.sh --interval 20 2>&1 | tail -40     <-- SO NICHT
+#
+# `tail -N` sammelt und gibt erst aus, wenn der Stream endet. Bei einer Wache, die
+# bis Strg-C laeuft, endet er nie. Viermal in einer Sitzung so aufgerufen, viermal
+# folgenlos -- und jedes Mal wurde berichtet, die Wache sei mitgelaufen.
+#
+# Ein Melder darf nicht davon abhaengen, wie der Aufrufer ihn pipet. Deshalb geht
+# jede Meldung ZUSAETZLICH in eine feste Datei, an stdout und jeder Pipe vorbei.
+MITSCHRIFT="$(git rev-parse --git-dir 2>/dev/null)/watch-log.out"
+exec > >(while IFS= read -r z; do
+           printf '%s\n' "$z"
+           printf '%s\n' "$z" >> "$MITSCHRIFT"
+         done) 2>&1
+
+# Warnen, wenn stdout keine Konsole ist -- dann ist die Mitschrift der einzige Weg,
+# an die Meldungen zu kommen, und das soll derjenige wissen, der sie startet.
+if [ ! -t 1 ]; then
+  printf 'Hinweis: stdout ist keine Konsole. Meldungen stehen in %s\n\n' "$MITSCHRIFT"
+fi
 
 printf '=== Logwache ab %s ===\n' "$(date '+%H:%M:%S')"
 printf '  Grundlinie: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n\n' \
