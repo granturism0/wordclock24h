@@ -3,7 +3,7 @@
 Sprache: **Deutsch**, Schweizer Schreibung (`ss` statt `ß`), mit **echten Umlauten** —
 in den Antworten an den Nutzer, in der UI der PWA und in Commit-Botschaften.
 
-**Eine Ausnahme, und sie ist technisch, nicht sprachlich:** Die Quelldateien unter
+**Eine Ausnahme, und sie ist technisch, nicht sprachlich (DIR-015):** Die Quelldateien unter
 `src/**` und `ESP8266/ESP-uclock/` sind überwiegend ASCII oder ISO-8859-1.
 Dort gilt die Umschrift (`Geraet`, `waehrend`) — nicht weil die Sprache es verlangt,
 sondern weil ein Werkzeug, das ein `ä` in eine ISO-8859-1-Datei schreibt und dabei
@@ -38,6 +38,13 @@ statt anhand der Buchstabenfolge: Sonst schlüge sie bei „aktuell", „Quelle"
 Anrede: durchgehend **Du-Form**, niemals „Sie". Das gilt **in erster Linie für die
 Antworten an den Nutzer** — er wird geduzt. Ebenso für die UI-Texte der PWA, für
 Meldungen und Fehlertexte. Bestehende Du-Formulierungen nicht auf „Sie" umschreiben.
+
+**Die Kennungen in Klammern sind keine Zierde.** Sie wurden am 05.10.2026 nachgetragen,
+weil `knowledge/directives.md` zwar DIR-000 bis DIR-014 fuehrte, die vier Regeln hier aber
+keine Nummer hatten — und **was keine Nummer hat, kann niemand zitieren**. Aufgefallen ist
+es einem Agenten, der eine Direktive belegen wollte und keine fand. Guardrail S11 prueft
+seither, dass jede zitierte Kennung auch im Katalog steht; die Gegenrichtung prueft sie
+bewusst nicht, denn eine Regel darf gelten, ohne zitiert zu werden.
 
 ## Versionsstände (Single Source of Truth)
 
@@ -81,7 +88,7 @@ Wissen verloren geht.
 |---|---|---|
 | `/release` | Build, Versionspflicht DIR-004, Rollout DIR-005, was zu flashen ist | bei Bedarf |
 | `/pwa-vorschau` | PWA ohne Gerät ansehen und vermessen | bei Bedarf |
-| `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006 | bei Bedarf |
+| `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006, DIR-018 | bei Bedarf |
 | `stm-firmware` | belegtes Detailwissen zur STM-Firmware und zur Platine | automatisch bei Arbeit an `src/**` |
 
 Für den vollständigen PWA-Durchlauf gibt es keinen Skill, sondern einen **Agenten**:
@@ -108,7 +115,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 - **Das fertige Fabrikat wird auf die Synology ausgerollt (DIR-005)**, Ziel
   `/volume1/web/wordclock/test8`. Das Skript löscht nichts; **niemals `--delete`
   ergänzen** — dort liegen Dateien, die der Nutzer selbst pflegt.
-- **Die PWA wird im Browser geprüft, nicht nur über die API.** `./tools/check-pwa.sh`
+- **Die PWA wird im Browser geprüft, nicht nur über die API (DIR-016).** `./tools/check-pwa.sh`
   lädt sie vom Gerät in einen echten Browser und meldet unter anderem, ob `app.js`
   beim Laden einen **Fehler wirft** — dann bleibt die Oberfläche halb leer, und
   weder API noch Smoketest noch Screenshot zeigen das. Bis 03.10.2026 hat das kein
@@ -175,7 +182,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
-### Die PWA kommt nicht durch den Rollout aufs Gerät
+### Die PWA kommt nicht durch den Rollout aufs Gerät (DIR-017)
 
 `tools/deploy.sh` bringt die Assets auf den **Update-Server**. Auf der Uhr liegen sie
 im LittleFS und müssen eigens hochgeladen werden:

@@ -38,6 +38,26 @@ import { execSync } from "node:child_process";
 // Eine Probe, die den Arbeitsbaum anfasst, ist bei paralleler Arbeit selbst ein Risiko.
 const KATALOG = process.argv[2] || "knowledge/directives.md";
 const MUSTER = /\bDIR-(\d{3})\b/g;
+
+// DIR-9xx ist als BEISPIELBEREICH reserviert und wird nie als Zitat gewertet -- wie
+// example.com bei Domains oder 555-0100 bei Telefonnummern.
+//
+// Der Grund ist teuer erarbeitet: Diese Pruefung kann ein Zitat nicht von der
+// BESCHREIBUNG eines Zitats unterscheiden, und sie sucht den ganzen Arbeitsbaum ab.
+// Am 04./05.10.2026 ist sie deshalb DREIMAL auf Text angeschlagen, der ueber sie
+// schreibt: auf das Testzitat der eigenen Fehlschlagprobe, auf den Kommentar, der
+// dieses Testzitat erklaerte, und auf die Befundzeile, die beide Vorfaelle festhielt.
+// Jedes Mal hat jemand Zeit darauf verwendet, ein Nicht-Problem zu melden.
+//
+// Der erste Flicken -- diese Datei von der Suche ausnehmen -- half nur ihr selbst und
+// liess BEFUNDE.md auflaufen. Ein reservierter Bereich loest es fuer ALLE Dokumente,
+// und er macht die Falle zugleich unschaedlich: Wer kuenftig ueber einen Fehlschlag
+// schreiben will, nimmt eine 9xx-Nummer und darf sie woertlich hinschreiben.
+//
+// Echte Kennungen duerfen hier nie hineinwachsen. Bei 15 vergebenen und einem Abstand
+// von ueber 980 ist das keine reale Gefahr; sollte es je eng werden, meldet die Stufe
+// einen Konflikt, statt still das Falsche zu tun.
+const BEISPIELBEREICH = /^9\d\d$/;
 let fehler = 0;
 
 const katalog = readFileSync(KATALOG, "utf8");
@@ -47,15 +67,11 @@ for (const m of katalog.matchAll(/^DIR-(\d{3}):/gm)) gefuehrt.add(m[1]);
 const dateien = execSync("git ls-files", { encoding: "utf8" }).split("\n").filter(Boolean);
 const zitiert = new Map();          // nummer -> Set von Dateien
 for (const f of dateien) {
-  // Der Katalog selbst zaehlt nicht als Zitat -- und diese Datei auch nicht. Sie spricht
-  // zwangslaeufig ueber Direktiven und nennt im Kommentar eine Beispielnummer; ohne diese
-  // Ausnahme meldete die Pruefung ihre EIGENE Dokumentation als Befund. Genau diese Falle
-  // steht in CLAUDE.md schon beschrieben (R3, der Hook, der seine eigene Doku blockierte) --
-  // und ist hier trotzdem ein zweites Mal entstanden, keine zehn Minuten nach dem Bau.
-  if (f === KATALOG || f === "tools/checks/direktiven.mjs") continue;
+  if (f === KATALOG) continue;
   let txt;
   try { txt = readFileSync(f, "latin1"); } catch { continue; }
   for (const m of txt.matchAll(MUSTER)) {
+    if (BEISPIELBEREICH.test(m[1])) continue;        // reserviert, siehe oben
     if (!zitiert.has(m[1])) zitiert.set(m[1], new Set());
     zitiert.get(m[1]).add(f);
   }
@@ -63,6 +79,13 @@ for (const f of dateien) {
 
 // DIR-014 verlangt, den Umfang zu nennen: Eine Pruefung, die zu wenig SIEHT, meldet
 // OK und deckt nichts. Die Zahlen gehoeren deshalb in die Ausgabe, nicht nur das Urteil.
+const imBereich = [...gefuehrt].filter((n) => BEISPIELBEREICH.test(n)).sort();
+if (imBereich.length) {
+  fehler = 1;
+  console.log(`  HOCH      Katalog vergibt Kennungen im Beispielbereich DIR-9xx: ${imBereich.join(", ")}`);
+  console.log("            Der Bereich ist reserviert und wird von dieser Stufe nicht geprueft.");
+}
+
 const fehlend = [...zitiert.keys()].filter((n) => !gefuehrt.has(n)).sort();
 console.log(`      ${gefuehrt.size} Direktiven im Katalog, ${zitiert.size} im Repo zitiert`);
 
