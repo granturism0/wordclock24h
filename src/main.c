@@ -2071,10 +2071,13 @@ schedule_esp8266_numeric_array (char * parameters)
  *
  * Warum der STM ueberhaupt prueft, obwohl der ESP es schon tut: Die ESP-Pruefung schuetzt gegen
  * falsche Eingaben, nicht gegen Verstuemmelung auf der Strecke. Der Empfangsring verwirft bei
- * Ueberlauf still (uart-driver.h:698, kein else und kein Zaehler), und esp8266.c:386 schneidet
- * mit strncpy() still ab. htoi() faengt das nicht auf: Die Schleifenbedingung prueft *buf statt
- * buf[i] (base.c:327), ein eingebettetes Nullbyte beendet sie also nicht, und jedes
- * Nicht-Hex-Zeichen wird still zu 0.
+ * Ueberlauf, aber nicht unbemerkt: esp8266_uart_rxdrops() zaehlt jeden Verwurf saettigend mit,
+ * der Stand steht als d= in der diag-Zeile, und die Logwache meldet Spruenge darin (DIR-013).
+ * Gezaehlt ist aber nicht verhindert: Das Zeichen bleibt weg, und die Uebernahme schneidet
+ * mit strncpy() still ab (esp8266.c:516). htoi() faengt das Abschneiden seit L232 ab -- die
+ * Schleife haelt am ersten Nullbyte --, aber nicht die Verstuemmelung: Jedes Nicht-Hex-Zeichen
+ * wird weiterhin still zu 0, und ein zu kurzes Kommando liefert einen zu kleinen statt eines
+ * aufgefuellten Werts. Beides erkennt nur die Pruefung hier.
  *
  * Aus einem unterwegs abgeschnittenen "I0502123400 01" wuerde so "I05" -- idx 5, protocol 0,
  * address 0, command 0. Und protocol 0 ist die Konvention "nie angelernt": Taste 5 waere
