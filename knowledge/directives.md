@@ -3,6 +3,12 @@
 Verbindliche Regeln, die aus Nutzeräusserungen abgeleitet und **ausdrücklich bestätigt**
 wurden. Gepflegt vom `librarian`-Agenten. Nichts steht hier ohne Bestätigung.
 
+**Dieser Katalog führt den Bestand der Kennungen.** Kommt eine Direktive dazu, steht sie
+hier — sonst wiederholt sich L225: Der Katalog endete bei DIR-009, fünf geltende Regeln
+standen nur in `CLAUDE.md`, und wer hier nachsah, schloss daraus, es gebe keine Regel.
+Hier steht die **Regel**; Anlass, Datum und das Schadensbild dahinter stehen in `CLAUDE.md`
+und in `BEFUNDE.md` und werden hier nicht verdoppelt.
+
 Format:
 
 ```
@@ -103,3 +109,61 @@ DIR-006:
   gilt_fuer: [doc-writer, release-engineer]
   seit: 2026-09-29
 
+DIR-010:
+  regel: "Der STM32 wird ausschliesslich über ./tools/flash-stm.sh geflasht, niemals über
+          einen Aufruf von /api/remote_stm32_flash von Hand. Drei Bedingungen sieht man dem
+          Endpunkt nicht an, und jede lässt ihn stillschweigend nichts tun: filename ist
+          Pflicht (fehlt er, setzt der ESP error_code = 2 und der Aufruf sieht erfolgreich
+          aus; den gültigen Namen meldet das Gerät als stm32_default in /api/update_status),
+          bei HARDWARE_CONFIGURATION = 65535 weist der ESP jeden Dateinamen ab (erst den STM
+          zurücksetzen, dann flashen), und nach dem Flashen muss der STM zurückgesetzt werden
+          — der ESP meldet nur, dass er wartet, und löst den Reset nicht aus. Das Skript
+          erzwingt alle drei Punkte und weist die gemeldete Version am Ende nach."
+  gilt_fuer: [alle]
+  seit: 2026-10-03
+
+DIR-011:
+  regel: "Jedes ausgerollte Release wird sofort committet, getaggt und gepusht — einzeln je
+          Rollout, nicht gesammelt und nicht auf Nachfrage. Das gehört zum Rollout wie der
+          Smoketest. Das Tag heisst release/<stm>-<esp>-<app> und trägt die Versionen DIESES
+          Commits; nachholen lässt es sich nicht, weil die Versionsdateien nur den Endstand
+          tragen. deploy.sh nennt den fehlenden Tag-Befehl bei jedem Lauf, der Stop-Hook
+          meldet Ungepushtes — auch bei sauberem Arbeitsbaum, denn nach dem Commit ist
+          nichts mehr geändert."
+  gilt_fuer: [release-engineer, alle]
+  seit: 2026-10-03
+  geaendert: 2026-10-04 — Push zum Remote ausdrücklich aufgenommen. Er stand vorher nirgends
+             als Ablaufregel, sondern nur als Aufgabe im Befundkatalog, und eine Aufgabe
+             erinnert niemanden: 23 Commits und 11 Tags lagen lokal.
+
+DIR-012:
+  regel: "Der Smoketest ist nicht der Test. ./tools/smoke-device.sh prüft, ob das Gerät LEBT
+          — nicht, ob es noch tut, was es soll; ein Endpunkt, der {\"ok\":true} meldet und
+          nichts tut, besteht ihn. Vor jedem Release, das mehr als eine Komponente berührt,
+          läuft zusätzlich der pwa-tester über TESTPLAN-PWA.md. Eine Frage nach dem Verhalten
+          wird am Gerät beantwortet, nicht aus dem Quelltext. Wird der Durchlauf bewusst
+          ausgelassen, gehört das in den Bericht."
+  gilt_fuer: [release-engineer, pwa-tester, alle]
+  seit: 2026-10-03
+
+DIR-013:
+  regel: "Während jeder Messung am Gerät läuft ./tools/watch-log.sh parallel mit und wird
+          LAUFEND mitgelesen, nicht erst am Schluss durchgesehen. Gemeldet werden Exceptions,
+          Neustarts, Watchdog-Resets, Sprünge in den verworfenen Zeichen (d=) und ein
+          Stillstehen der diag-Folge. Das gilt für jede Messung, nicht nur für den
+          vollständigen Testdurchlauf. Das Problem ist nicht der übersehene Absturz, sondern
+          der Bericht, der sauber meldet, während das Gerät zwischendurch neu gestartet ist —
+          er erzeugt Vertrauen, das nicht gedeckt ist."
+  gilt_fuer: [pwa-tester, release-engineer, alle]
+  seit: 2026-10-03
+
+DIR-014:
+  regel: "Eine neu gebaute Prüfung ist erst fertig, wenn sie einmal fehlgeschlagen ist. Nicht
+          'der Code sieht richtig aus', sondern: eine Verletzung herstellen und sehen, dass
+          die Prüfung anschlägt UND dass ihre Meldung beim Empfänger ankommt — Kanal,
+          Pufferung und Exitcode gehören zum Nachweis, nicht nur der Mechanismus. Dazu
+          nachzählen, wie viele Fälle die Prüfung überhaupt betrachtet, und die Zahl mit dem
+          vergleichen, was es geben müsste: Eine Prüfung mit zu engem Muster ist schlimmer
+          als keine, weil sie genau das Vertrauen erzeugt, das sie nicht deckt."
+  gilt_fuer: [alle]
+  seit: 2026-10-04
