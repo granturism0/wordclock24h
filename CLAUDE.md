@@ -131,6 +131,15 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   Meldung bis zum Empfänger nicht.** Dreimal hat es der Nutzer oder ein Agent bemerkt,
   nicht der Erbauer.
 
+  **Und sie muss ihren Gegenstand vollständig sehen.** Am 04.10.2026 kam ein sechster
+  Fall dazu, eine Stufe schärfer als die fünf davor: Die Prüfung gegen veraltete
+  ToDo-Einträge lief, meldete OK — und ihr Muster `[A-F]\d+` sah die Kennungen mit
+  Buchstabensuffix (`B1b`, `C6c`) **gar nicht**. Nach der Korrektur meldete sie 28
+  Einträge, über ein Fünftel der Arbeitsliste (`BEFUNDE.md`, L235). Eine Prüfung mit zu
+  engem Muster ist schlimmer als keine: Sie erzeugt genau das Vertrauen, das sie nicht
+  deckt. **Zähl deshalb nach, wie viele Fälle die Prüfung überhaupt betrachtet**, und
+  vergleich die Zahl mit dem, was es geben müsste.
+
 - **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
   Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
   `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr

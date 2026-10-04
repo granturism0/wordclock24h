@@ -143,7 +143,13 @@ if (!todo) {
 
   const stale = [];
   for (const line of todo.split("\n")) {
-    const entry = line.match(/^\| \*\*([A-F]\d+)\*\* \|/);
+    // Der Buchstabensuffix MUSS mit: Die Kennungen heissen B1b, B1c, C6d -- das
+    // Muster [A-F]\d+ matchte nur B1 und hat acht Eintraege nie gesehen. Gefunden
+    // am 04.10.2026 beim Nachzaehlen des grossen Pakets: Die Stufe meldete
+    // jahrelang OK, waehrend acht laengst erledigte Eintraege in der Arbeitsliste
+    // standen. Eine Pruefung mit zu engem Muster ist schlimmer als keine -- sie
+    // erzeugt das Vertrauen, das sie nicht deckt.
+    const entry = line.match(/^\| \*\*([A-F]\d+[a-z]?)\*\* \|/);
     if (!entry) continue;
     const refs = [
       ...[...line.matchAll(/\bMassnahme (\d+)\b/g)].map((m) => "Massnahme " + m[1]),
