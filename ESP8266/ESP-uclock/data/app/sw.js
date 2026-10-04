@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const CACHE_NAME = "wordclock-app-v76";
+const CACHE_NAME = "wordclock-app-v77";
 const ASSETS = [
   "/app/",
   "/app/index.html",
@@ -25,8 +25,83 @@ const ASSETS = [
   "/app/icons/icon-mask.png"
 ];
 
+/* Massnahme 7, PWA-Seite.
+ *
+ * response.ok ist bei einer Antwort der Laenge 0 TRUE. Genau deshalb hat der frueher
+ * hier stehende Pfad eine leere Datei anstandslos in den Cache gelegt -- und dort
+ * ueberlebt sie jedes Neuladen, weil der Service Worker sie ab dann selbst
+ * ausliefert. Eine leere app.js.gz ergibt einen weissen Bildschirm, und der Weg
+ * heraus fuehrt nur noch ueber das Loeschen der Browserdaten. Das ist im Projekt
+ * bereits passiert.
+ *
+ * Gemessen wird zuerst an Content-Length: Die Auslieferung der .gz-Assets setzt den
+ * Kopf, und das kostet nichts. Fehlt er, wird eine Kopie des Rumpfes vermessen.
+ */
+async function responseHasContent(response) {
+  if (!response || !response.ok) {
+    return false;
+  }
+
+  const declaredLength = response.headers.get("content-length");
+
+  if (declaredLength !== null && declaredLength !== "") {
+    return Number(declaredLength) > 0;
+  }
+
+  try {
+    const buffer = await response.clone().arrayBuffer();
+    return buffer.byteLength > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+/* Nimmt bereits einen Klon entgegen. Ist er leer, wird der Eintrag nicht nur nicht
+ * geschrieben, sondern ein vorhandener ALTER Eintrag geloescht: Sonst bliebe eine
+ * Fassung im Cache stehen, von der niemand mehr weiss, zu welchem Stand sie gehoert.
+ */
+async function cacheIfNotEmpty(cache, request, candidate) {
+  if (!(await responseHasContent(candidate))) {
+    await cache.delete(request);
+    return;
+  }
+
+  await cache.put(request, candidate);
+}
+
+/* Ersetzt cache.addAll(): addAll prueft ebenfalls nur den Status und legt eine
+ * 0-Byte-Datei ohne Murren ab. Schlaegt es hier fehl, scheitert die Installation --
+ * gewollt. Der bisherige Service Worker bleibt dann aktiv, und das ist in jedem Fall
+ * besser als ein Cache mit einer leeren Datei darin.
+ */
+async function precacheAssets() {
+  const cache = await caches.open(CACHE_NAME);
+  const emptyAssets = [];
+
+  for (const asset of ASSETS) {
+    const response = await fetch(asset, { cache: "reload" });
+
+    if (!response || !response.ok) {
+      throw new Error("App-Asset nicht ladbar: " + asset);
+    }
+
+    const candidate = response.clone();
+
+    if (!(await responseHasContent(response))) {
+      emptyAssets.push(asset);
+      continue;
+    }
+
+    await cache.put(asset, candidate);
+  }
+
+  if (emptyAssets.length) {
+    throw new Error("Leere App-Assets, Installation abgebrochen: " + emptyAssets.join(", "));
+  }
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(precacheAssets().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -68,12 +143,14 @@ async function networkFirst(request) {
     const response = await fetch(request);
 
     if (response && response.ok) {
-      cache.put(request, response.clone());
+      // Klon SOFORT ziehen, die Laengenpruefung laeuft danach nebenher: Die Seite soll
+      // auf die Vermessung nicht warten muessen.
+      void cacheIfNotEmpty(cache, request, response.clone());
     }
 
     return response;
   } catch (_) {
-    const cached = await cache.match(request);
+    const cached = await matchNonEmpty(cache, request);
     if (cached) {
       return cached;
     }
@@ -81,18 +158,45 @@ async function networkFirst(request) {
   }
 }
 
+/* Auch beim LESEN geprueft, nicht nur beim Schreiben. Ein Cache, der vor dieser
+ * Fassung angelegt wurde, kann eine 0-Byte-Datei enthalten -- und ohne diese Pruefung
+ * liefert der Service Worker sie bis in alle Ewigkeit aus, auch wenn das Geraet die
+ * Datei laengst wieder vollstaendig hergibt. Der leere Eintrag wird dabei entfernt.
+ */
+async function matchNonEmpty(cache, request) {
+  const cached = await cache.match(request);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (await responseHasContent(cached)) {
+    return cached;
+  }
+
+  await cache.delete(request);
+  return null;
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
+  const cached = await matchNonEmpty(cache, request);
 
   const networkPromise = fetch(request)
     .then((response) => {
       if (response && response.ok) {
-        cache.put(request, response.clone());
+        void cacheIfNotEmpty(cache, request, response.clone());
       }
       return response;
     })
-    .catch(() => cached);
+    .catch((error) => {
+      // Ohne brauchbaren Cache-Eintrag darf der Fehler nicht zu "undefined" werden:
+      // event.respondWith(undefined) ist selbst ein Fehler und verdeckt den echten.
+      if (cached) {
+        return cached;
+      }
+      throw error;
+    });
 
   return cached || networkPromise;
 }

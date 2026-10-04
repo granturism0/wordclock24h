@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.84";
+const APP_VERSION = "1.4.85";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -342,6 +342,7 @@ const I18N_DE = {
   "overlays.datecode_advent4": "4. Advent",
   "overlays.save_failed": "Overlay konnte nicht gespeichert werden",
   "overlays.start_date_incomplete": "Das Startdatum ist unvollständig. Wähle Tag und Monat zusammen aus — oder lass beide leer, wenn das Overlay kein Startdatum haben soll.",
+  "overlays.type_unknown_save": "Dieses Overlay trägt den unbekannten Typ {value}. Erlaubt sind {min} bis {max}. Wähle zuerst einen gültigen Typ aus — es wurde nichts gespeichert und der Gerätewert bleibt unangetastet.",
   "timers.save_all": "Alle Timer speichern",
   "timers.ambilight_eyebrow": "Ambilight-Timer",
   "timers.ambilight_title": "Zeiten für Ambilight",
@@ -593,6 +594,8 @@ const I18N_DE = {
   "system.logs_loaded": "geladen",
   "system.logs_cleared": "geleert",
   "system.logs_load_failed": "STM32-Logs konnten nicht geladen werden",
+  "system.logs_load_error_hint": "STM32-Logs konnten nicht geladen werden — der Ring ist deshalb nicht zwingend leer. Versuch es mit „Logs neu laden“ noch einmal.",
+  "system.logs_reload_in_flight": "Ein Abruf der STM32-Logs läuft bereits. Es wurde nichts neu geladen.",
   "system.logs_clear_failed": "STM32-Logbuch konnte nicht geleert werden",
   "system.logs_cleared_status": "STM32-Logbuch wurde geleert",
   "system.logs_clear_confirm": "STM32-Logbuch wirklich leeren?",
@@ -685,6 +688,7 @@ const I18N_DE = {
   "backup.import_reconnect": "Import abgeschlossen. Verbindung wird nach dem Neustart erneut aufgebaut",
   "backup.import_done_reload": "Import abgeschlossen. App wird neu geladen...",
   "backup.import_skipped_fields": "Übersprungen, weil in der Sicherung leer: {fields}. Diese Werte sind auf der Uhr unverändert geblieben.",
+  "backup.import_stage_failed": "Abgebrochene Importschritte: {stages}. Was in ihnen noch folgen sollte, ist nicht geschrieben worden — sieh dir diese Bereiche an.",
   "backup.field.timeserver": "Zeitserver",
   "backup.field.weather_appid": "Wetter-API-Schlüssel",
   "backup.field.weather_location": "Ort und Koordinaten für das Wetter",
@@ -805,6 +809,7 @@ const I18N_DE = {
   "maintenance.no_reconnect_reload": "Kein sicheres Reconnect-Signal erhalten. App wird vorsorglich neu geladen.",
   "maintenance.esp_not_ready": "ESP ist noch nicht wieder erreichbar. Bitte Seite bei Bedarf manuell neu laden.",
   "maintenance.unsaved_reload_confirm": "Es gibt ungespeicherte Änderungen. App trotzdem neu laden?",
+  "modules.unsaved_switch_confirm": "Es gibt ungespeicherte Änderungen. Modul trotzdem wechseln? Deine Bearbeitung geht dabei verloren.",
   "maintenance.reloading": "App wird neu geladen...",
   "maintenance.forced_reload": "Neuladen wird erzwungen, damit die aktualisierte App wieder angezeigt wird.",
   "maintenance.assets_confirm": "Icon-Dateien jetzt wirklich vom Server laden?",
@@ -880,6 +885,7 @@ const I18N_DE = {
   "common.deleted": "gelöscht",
   "common.cleared": "geleert",
   "common.none": "Keins",
+  "common.unknown_device_value": "Unbekannter Gerätewert ({value})",
   "common.offline": "offline",
   "common.invalid_value": "ungültig",
   "common.file": "Datei",
@@ -1284,6 +1290,10 @@ let localAppSelectedFiles = new Map();
 let overlayEditorState = null;
 let stm32LogTimer = 0;
 let stm32LogRefreshInFlight = false;
+// Ob im Logfeld gerade echte Zeilen stehen. Ohne diese Angabe muesste eine
+// Fehlermeldung entweder den bereits gezeigten Inhalt ueberschreiben oder gar nicht
+// erscheinen -- beides falsch. B17.
+let stm32LogShowsLines = false;
 let settingsImportInProgress = false;
 let progressReturnScrollY = null;
 let appServiceWorkerRegistration = null;
@@ -1738,7 +1748,13 @@ window.setTimeout(() => {
   }
 }, 250);
 bindDelegatedEvent(document, "click", ".module-chip", (button) => {
-  setActiveModule(button.getAttribute("data-module-target") || "main");
+  const target = button.getAttribute("data-module-target") || "main";
+
+  if (!confirmModuleSwitchWithUnsavedEdits(target)) {
+    return;
+  }
+
+  setActiveModule(target);
 });
 bindDelegatedEvent(document, "change", "#health-ambilight-select", () => {
   void saveAmbilightOnlineState();
@@ -1791,14 +1807,32 @@ document.addEventListener("visibilitychange", () => {
   // Im Hintergrund schaut niemand hin, jeder Poll kostet den STM aber Debugtext auf
   // der UART und blockiert dort den Hauptloop. Deshalb anhalten und beim Sichtbarwerden
   // mit einem sofortigen Lauf wieder aufnehmen. R2-11.
+  //
+  // ES SIND DREI POLLER, NICHT EINER. Nur stopAlignedAutoRefresh() anzuhalten reicht
+  // nicht: Die Live-Farbe fragt alle 5 s ab, solange eine Farbanimation laeuft, und
+  // das STM-Logbuch alle 2,5 s, solange das Modul "system" offen ist. Beide liefen im
+  // Hintergrund weiter -- die Abnahme verlangt aber, dass ueber ein Fenster von 60 s
+  // GAR KEIN Request mehr am Geraet ankommt. Die beiden sync*-Funktionen pruefen
+  // document.hidden inzwischen selbst, deshalb genuegt es, sie hier erneut zu rufen:
+  // einmal zum Abschalten, einmal zum Wiederanlaufen.
+  //
+  // ABSICHTLICH NICHT angehalten werden updateProgressPollTimer und stm32ProgressTimer:
+  // Sie laufen nur waehrend eines Updates oder eines Flashvorgangs. Wer dabei den Tab
+  // wechselt, soll den Fortschritt nicht verlieren -- und ein abgebrochener
+  // Fortschrittspoller liesse die Oberflaeche in einem Zwischenstand stehen.
   if (document.hidden) {
     stopAlignedAutoRefresh();
+    syncLiveDisplayColorPolling(getCurrentSettingsSnapshot());
+    syncStm32LogPolling();
     return;
   }
 
   if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
     startAlignedAutoRefresh();
   }
+
+  syncLiveDisplayColorPolling(getCurrentSettingsSnapshot());
+  syncStm32LogPolling();
 
   if (shouldDelayStartupRefresh() || shouldSkipLifecycleRefresh()) {
     return;
@@ -1968,6 +2002,44 @@ function handleDirtyFormInteraction(event) {
   }
 
   hasUnsavedEdits = true;
+}
+
+// Gegenstueck zu handleDirtyFormInteraction, und bewusst eine eigene Funktion statt
+// einer Zuweisung an jeder Fundstelle: Wer einen neuen Speicherpfad baut, soll eine
+// benannte Handlung aufrufen und nicht eine Variable kennen muessen.
+//
+// Aufgerufen wird sie ueberall dort, wo ein Schreibvorgang GELUNGEN ist und danach
+// loadData() laeuft. Die Begruendung steht in runButtonRequest: Nach dem Neulesen
+// tragen die Felder wieder Geraetestand, das Flag haette nichts mehr zu schuetzen --
+// bliebe es stehen, legte es ueber "opts.auto && hasUnsavedEdits" in loadData() die
+// Selbstaktualisierung fuer den Rest der Sitzung still (L33). Reine Ausloeseaktionen
+// ("Wetter abrufen") ruehren es weiterhin nicht an, sonst verloeren sie eine offene
+// Bearbeitung in einem ganz anderen Feld. Massnahme 4, B1.
+function markEditsPersisted() {
+  hasUnsavedEdits = false;
+}
+
+// B18 (L151): Der Modulwechsel hat bisher nicht gewarnt -- gemessen wurde eine
+// geaenderte, nicht gespeicherte Ortsangabe, die beim Wechsel still verschwand. Kein
+// Verbot, sondern eine Rueckfrage mit "trotzdem wechseln".
+//
+// Der Guard sitzt bewusst am KLICK und nicht in setActiveModule(): Diese Funktion
+// wird auch beim Seitenstart (restoreActiveModule) und beim Ausblenden eines Moduls
+// (updateModuleAvailability) gerufen. Eine Rueckfrage dort waere eine Rueckfrage ohne
+// Handlung des Nutzers.
+function confirmModuleSwitchWithUnsavedEdits(target) {
+  if (!hasUnsavedEdits || target === getActiveModuleName()) {
+    return true;
+  }
+
+  if (!window.confirm(translate("modules.unsaved_switch_confirm"))) {
+    return false;
+  }
+
+  // Zugestimmt heisst verworfen: Das Flag stehen zu lassen wuerde bei jedem weiteren
+  // Wechsel erneut fragen und zusaetzlich die Selbstaktualisierung stilllegen.
+  markEditsPersisted();
+  return true;
 }
 
 let statusBannerTimer = 0;
@@ -2765,11 +2837,13 @@ function updateStm32Log(logData) {
   const wasAtBottom = (output.scrollTop + output.clientHeight) >= (output.scrollHeight - scrollSlackPx);
 
   if (!lines.length) {
+    stm32LogShowsLines = false;
     meta.textContent = translate("system.logs_empty");
     output.textContent = translate("system.logs_empty");
     return;
   }
 
+  stm32LogShowsLines = true;
   meta.textContent = translateFormat("system.logs_buffer", {
     count,
     suffix: count === 1 ? "" : "n"
@@ -2790,9 +2864,39 @@ function jumpStm32LogToEnd() {
   finishButtonFeedback(button, translate("system.logs_jump_end"), "success", translate("system.logs_jump_done"));
 }
 
+// L142/B17: "Die STM-Logs erscheinen erst nach einem Reload." Die Ursache ist nicht
+// abschliessend geklaert -- drei Spuren stehen: verschluckter Fehler, haengendes
+// stm32LogRefreshInFlight, oder ein nach einem ESP-Neustart tatsaechlich leerer Ring.
+// Unabhaengig davon ist EIN Zustand in allen drei Faellen falsch: ein Feld, das nichts
+// zeigt und nichts sagt.
+//
+// Deshalb hier drei Dinge, jedes gegen eine Spur:
+//  - der Fehler des stillen Zweigs wird gemeldet, statt verschluckt zu werden. Vorher
+//    blieb "Noch keine STM32-Logs vorhanden" stehen -- eine FALSCHE Aussage, denn
+//    geladen wurde gar nicht. Das ist dieselbe Klasse wie C16.
+//  - stm32LogRefreshInFlight wird im finally zurueckgesetzt, auf JEDEM Pfad.
+//  - ein uebersprungener Abruf meldet das, statt als Erfolg durchzugehen.
+const STM32_LOG_SKIPPED = Symbol("stm32-log-skipped");
+
+function reportStm32LogLoadFailure() {
+  const meta = document.getElementById("stm32-log-meta");
+  const output = document.getElementById("stm32-log-output");
+  const message = translate("system.logs_load_error_hint");
+
+  if (meta) {
+    meta.textContent = message;
+  }
+
+  // Stehen bereits Zeilen da, bleiben sie stehen: Sie sind alt, aber sie sind echt.
+  // Sie durch eine Fehlermeldung zu ersetzen wuerde Information vernichten.
+  if (output && !stm32LogShowsLines) {
+    output.textContent = message;
+  }
+}
+
 async function fetchStm32Log(silent) {
   if (stm32LogRefreshInFlight) {
-    return;
+    return STM32_LOG_SKIPPED;
   }
 
   stm32LogRefreshInFlight = true;
@@ -2803,16 +2907,21 @@ async function fetchStm32Log(silent) {
     updateStm32Log(data);
     return data;
   } catch (error) {
+    reportStm32LogLoadFailure();
+    console.warn("STM32-Logbuch konnte nicht geladen werden", error);
+
     if (!silent) {
       throw error;
     }
+
+    return null;
   } finally {
     stm32LogRefreshInFlight = false;
   }
 }
 
 function syncStm32LogPolling() {
-  if (settingsImportInProgress) {
+  if (settingsImportInProgress || document.hidden) {
     if (stm32LogTimer) {
       window.clearInterval(stm32LogTimer);
       stm32LogTimer = 0;
@@ -2842,7 +2951,16 @@ async function refreshStm32Log() {
   beginButtonFeedback(button, translate("system.logs_reload_busy"));
 
   try {
-    await fetchStm32Log(false);
+    const result = await fetchStm32Log(false);
+
+    // Ein uebersprungener Abruf ist kein Erfolg. Frueher meldete der Knopf hier
+    // "geladen", obwohl nichts geholt wurde.
+    if (result === STM32_LOG_SKIPPED) {
+      announceStatus(translate("system.logs_reload_in_flight"), "warn");
+      finishButtonFeedback(button, translate("system.logs_reload"));
+      return;
+    }
+
     finishButtonFeedback(button, translate("system.logs_reload"), "success", translate("system.logs_loaded"));
   } catch (error) {
     announceStatus(translate("system.logs_load_failed"), "error");
@@ -2900,6 +3018,8 @@ async function saveAmbilightOnlineState() {
   try {
     await apiFetch(getAmbilightOnlineSetUrl() + "?value=" + next);
     setPersistedAmbilightState(next);
+    // Eigener Pfad neben runButtonRequest, deshalb dieselbe Behandlung. B1.
+    markEditsPersisted();
     try {
       await loadData();
     } catch (_) {
@@ -4257,7 +4377,7 @@ async function importSettingsBackup() {
     }
 
     setSettingsBackupNote(translate("backup.import_start"));
-    hasUnsavedEdits = false;
+    markEditsPersisted();
     await applySettingsBackup(importedState);
     finishButtonFeedback(button, translate("backup.import_button"), "success", translate("backup.imported"));
   } catch (error) {
@@ -4277,6 +4397,7 @@ async function applySettingsBackup(backup) {
 
   resetSkippedImportFields();
   resetAdjustedImportFields();
+  resetFailedImportStages();
   resetIrImportNotice();
   resetImportedBackupVersionNotice();
   noteImportedBackupVersion(readBackupFileVersion(importedState.backup));
@@ -4332,6 +4453,18 @@ async function runReloadingImportPhase(step, pauseMs) {
   await runImportPhase(step, { pauseMs, reload: true });
 }
 
+// L203, zweiter Fund: Die Schleife hatte keinen Fehlerfang je Stufe. Ein einziger vom
+// Geraet abgewiesener Wert warf aus runImportStageList heraus und beendete damit nicht
+// nur die laufende Stufe, sondern den ganzen Rest des Imports. Bei
+// importDisplaySettings waeren das Ticker, Farbe und Dimmkurve gewesen -- und seit
+// Runde 1 weist der ESP ab, statt still zu klemmen, die Eintrittswahrscheinlichkeit ist
+// also GESTIEGEN, nicht gesunken.
+//
+// Was dieser Fang leistet und was nicht, bewusst getrennt gesagt: Die folgenden Stufen
+// laufen jetzt weiter, und der Nutzer erfaehrt am Ende namentlich, welche Stufe
+// abgebrochen ist. INNERHALB einer Stufe bricht die Kette weiterhin ab -- die
+// Importfunktionen sind Folgen von await-Aufrufen. Deshalb nennt die Meldung die Stufe
+// und sagt, dass darin etwas offengeblieben ist, statt Vollstaendigkeit zu behaupten.
 async function runImportStageList(stages) {
   for (const stage of (stages || [])) {
     if (!stage || stage.when === false) {
@@ -4342,22 +4475,26 @@ async function runImportStageList(stages) {
       setSettingsBackupNote(stage.note);
     }
 
-    if (stage.reloadOnly) {
-      await reloadImportedData(stage.pauseMs || 0);
-      continue;
-    }
-
-    if (typeof stage.run !== "function") {
-      if (stage.pauseMs > 0) {
-        await sleep(stage.pauseMs);
+    try {
+      if (stage.reloadOnly) {
+        await reloadImportedData(stage.pauseMs || 0);
+        continue;
       }
-      continue;
-    }
 
-    if (stage.reload) {
-      await runReloadingImportPhase(stage.run, stage.pauseMs || 0);
-    } else {
-      await runTimedImportPhase(stage.run, stage.pauseMs || 0);
+      if (typeof stage.run !== "function") {
+        if (stage.pauseMs > 0) {
+          await sleep(stage.pauseMs);
+        }
+        continue;
+      }
+
+      if (stage.reload) {
+        await runReloadingImportPhase(stage.run, stage.pauseMs || 0);
+      } else {
+        await runTimedImportPhase(stage.run, stage.pauseMs || 0);
+      }
+    } catch (error) {
+      noteFailedImportStage(stage.note, error);
     }
   }
 }
@@ -4536,6 +4673,7 @@ function buildImportRestartPlan(executionState) {
 function getImportNoticeSummary() {
   return [
     getImportedBackupVersionSummary(),
+    getFailedImportStagesSummary(),
     getSkippedImportFieldsSummary(),
     getAdjustedImportFieldsSummary(),
     getIrImportSummary()
@@ -5180,9 +5318,53 @@ function overlayItemsEqual(expectedItems, actualSettings) {
   );
 }
 
+// L203: Hier lag der Fehler, und er war der unangenehmen Sorte -- die Nachkontrolle
+// MELDETE Uebereinstimmung, wo sie keine geprueft hatte.
+//
+// Beide Aufrufer uebergeben bereits normalisierte Eintraege: overlayItemsEqual()
+// normalisiert vorher selbst (wegen der Zaehlergrenze), und overlaysImportNeedsRetry()
+// vergleicht die Sicherungsdatei gegen buildOverlayBackup(), das ebenfalls die
+// Normalform liefert. Ein ZWEITER Durchlauf durch normalizeOverlayBackupItems() las
+// dann item.flags, item.text und item.date_start -- Felder, die eine normalisierte
+// Zeile gar nicht mehr hat. Ergebnis: active, value, month und day fielen auf BEIDEN
+// Seiten auf false/""/0 und wurden faktisch nicht verglichen. Blind war die Pruefung
+// also ausgerechnet fuer die Felder, die der Vertrag aus Runde 1 streng nimmt.
+//
+// Die Gattungsunterscheidung bleibt trotzdem noetig: Eine Sicherung aus einer frueheren
+// Fassung kann die Rohform tragen. Deshalb wird sie erkannt statt angenommen.
+function isRawOverlayBackupItem(item) {
+  return !!item && (item.flags !== undefined || item.text !== undefined || item.date_start !== undefined);
+}
+
+function toNormalizedOverlayItems(items) {
+  const list = items || [];
+
+  if (list.some(isRawOverlayBackupItem)) {
+    return normalizeOverlayBackupItems(list);
+  }
+
+  // Bereits normalisiert: nur ordnen und die Typen vereinheitlichen. Kein zweiter
+  // Durchlauf durch die Rohform-Normalisierung.
+  return list
+    .slice()
+    .sort((a, b) => Number(a.idx) - Number(b.idx))
+    .map((item) => ({
+      idx: Number(item.idx),
+      active: !!item.active,
+      type: Number(item.type || 0),
+      value: item.value || "",
+      interval: Number(item.interval || 0),
+      duration: Number(item.duration || 0),
+      date_code: Number(item.date_code || 0),
+      month: Number(item.month || 0),
+      day: Number(item.day || 0),
+      days: Number(item.days || 0)
+    }));
+}
+
 function overlayBackupItemsEqual(expectedItems, actualItems) {
-  const expected = normalizeOverlayBackupItems(expectedItems || []);
-  const actual = normalizeOverlayBackupItems(actualItems || []);
+  const expected = toNormalizedOverlayItems(expectedItems);
+  const actual = toNormalizedOverlayItems(actualItems);
 
   return normalizedOverlayItemsEqual(expected, actual);
 }
@@ -5606,6 +5788,40 @@ function getAdjustedImportFieldsSummary() {
   ));
 
   return translateFormat("backup.import_adjusted_fields", { fields: fields.join(", ") });
+}
+
+// Vierte Liste in derselben Mechanik: abgebrochene Importstufen (L203). Sie sagt
+// wieder etwas anderes als die drei anderen -- nicht "nicht geschrieben, weil leer"
+// und nicht "geschrieben, aber anders", sondern "mittendrin abgebrochen, der Rest
+// dieser Stufe ist offen". Genau deshalb eine eigene Liste und kein Anhaengen an eine
+// bestehende: Der Satz waere sonst fuer eine der Haelften falsch.
+const failedImportStageNotes = [];
+
+function resetFailedImportStages() {
+  failedImportStageNotes.length = 0;
+}
+
+function noteFailedImportStage(note, error) {
+  const label = String(note || "").trim() || "?";
+
+  if (!failedImportStageNotes.includes(label)) {
+    failedImportStageNotes.push(label);
+  }
+
+  // Die Begruendung des Geraets gehoert in die Konsole, nicht in die Sammelmeldung:
+  // Dort stuenden bei mehreren Stufen mehrere Fehlertexte hintereinander, und die
+  // Zusammenfassung waere nicht mehr lesbar.
+  console.warn("Import: Stufe abgebrochen: " + label, error);
+}
+
+function getFailedImportStagesSummary() {
+  if (!failedImportStageNotes.length) {
+    return "";
+  }
+
+  return translateFormat("backup.import_stage_failed", {
+    stages: failedImportStageNotes.join(", ")
+  });
 }
 
 // Dritte Notiz neben "übersprungen" und "zurechtgebogen", und anders als die beiden
@@ -7204,7 +7420,9 @@ function renderOverlayRowsFromMeta(items) {
     const idx = overlay.idx;
     const title = overlay.isNew ? translate("overlays.new_title") : "Overlay " + String(idx);
     const overlayTypeNames = getOverlayTypeNames();
-    const overlayTypeName = overlayTypeNames[type] || translate("common.none");
+    const overlayTypeName = isKnownListIndex(overlayTypeNames, type)
+      ? overlayTypeNames[type]
+      : translateFormat("common.unknown_device_value", { value: String(type) });
 
     return (
       '<section class="overlay-card" data-overlay-idx="' + idx + '"' + (overlay.isNew ? ' data-overlay-new="1"' : '') + '>' +
@@ -7218,7 +7436,7 @@ function renderOverlayRowsFromMeta(items) {
         '<div class="overlay-layout">' +
           '<div class="form-section">' +
             '<p class="section-label">' + escapeHtml(translate("overlays.content")) + '</p>' +
-            '<label class="field"><span class="label">' + escapeHtml(translate("overlays.type")) + '</span><select id="ov-type-' + idx + '">' + buildNamedOptions(overlayTypeNames, overlay.type) + "</select></label>" +
+            '<label class="field"><span class="label">' + escapeHtml(translate("overlays.type")) + '</span><select id="ov-type-' + idx + '">' + buildNamedOptions(overlayTypeNames, type) + "</select></label>" +
             '<label id="ov-icon-wrap-' + idx + '" class="field' + (showIcon ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.icon")) + '</span><select id="ov-icon-' + idx + '">' + buildIconOptions(overlay.text || "") + '</select></label>' +
             '<label id="ov-value-wrap-' + idx + '" class="field' + (showText ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.value")) + '</span><input id="ov-value-' + idx + '" type="text" maxlength="32" value="' + escapeHtml(overlay.text || "") + '"></label>' +
             '<div id="ov-mp3-wrap-' + idx + '" class="time-grid' + (showMp3 ? '' : ' is-hidden') + '">' +
@@ -7229,7 +7447,7 @@ function renderOverlayRowsFromMeta(items) {
           '<div class="form-section">' +
             '<p class="section-label">' + escapeHtml(translate("overlays.time_and_date")) + '</p>' +
             '<div class="overlay-time-grid">' +
-              '<label class="field"><span class="label">' + escapeHtml(translate("overlays.interval")) + '</span><input id="ov-interval-' + idx + '" type="number" min="1" max="99" step="1" value="' + escapeHtml(String(overlay.interval || 5)) + '"></label>' +
+              '<label class="field"><span class="label">' + escapeHtml(translate("overlays.interval")) + '</span><input id="ov-interval-' + idx + '" type="number" min="1" max="255" step="1" value="' + escapeHtml(String(overlay.interval || 5)) + '"></label>' +
               '<label id="ov-duration-wrap-' + idx + '" class="field' + (showDuration ? '' : ' is-hidden') + '"><span class="label">' + escapeHtml(translate("overlays.duration")) + '</span><input id="ov-duration-' + idx + '" type="number" min="5" max="9" step="1" value="' + escapeHtml(String(duration)) + '"></label>' +
             '</div>' +
             '<label id="ov-datecode-wrap-' + idx + '" class="field"><span class="label">' + escapeHtml(translate("overlays.date_code")) + '</span><select id="ov-datecode-' + idx + '">' + buildNamedOptions(getOverlayDateCodeNames(), overlay.date_code) + '</select></label>' +
@@ -9048,6 +9266,31 @@ const getDisplayTestUrl = createConfiguredUrlGetter("display_test_url");
 const getDisplayBrightnessSetUrl = createConfiguredUrlGetter("display_brightness_set_url");
 const getDisplayItIsSetUrl = createConfiguredUrlGetter("display_it_is_set_url");
 const getDisplayModeSetUrl = createConfiguredUrlGetter("display_mode_set_url");
+// B12 (L112) -- Entscheidung, geprueft am Quelltext des ESP, nicht geschaetzt.
+//
+// Vier schreibende Endpunkte werden ausschliesslich aus dem Backup-Import gerufen:
+// display_use_rgbw_set, ldr_min_value_set, ldr_max_value_set, eeprom_settings_set.
+// Die Frage von L112 ist nicht "gibt es einen Knopf", sondern "kommt der Nutzer
+// wieder heraus, wenn ein Import den Wert verstellt hat". Je Endpunkt:
+//
+//  - ldr_min_value_set / ldr_max_value_set: DER RUECKWEG BESTEHT. Die beiden
+//    Messknoepfe "Minimum/Maximum einmessen" (ldr_min_set / ldr_max_set) setzen die
+//    Grenzen aus dem aktuellen Rohwert neu. Ein Zahlenfeld daneben waere der zweite,
+//    unschaerfere Weg zum selben Ziel -- und er brauchte den Rohwert, der laut L208 (2)
+//    der Messung des STM nachhinkt. Bewusst kein Bedienelement.
+//
+//  - eeprom_settings_set: DER RUECKWEG BESTEHT, ueber zwei getrennte Masken.
+//    network_client_set schreibt SSID und Schluessel und loescht dabei
+//    EEPROM_FLAG_BOOT_AS_AP, network_ap_set schreibt die AP-Daten und setzt das Flag
+//    (http.cpp). Alle fuenf Felder des Sammelsetzers sind damit erreichbar. Ein
+//    zusaetzliches Bedienelement waere ein zweiter Schreiber auf dieselben EEPROM-
+//    Felder -- genau die Doppelung, die bei C9c6 zum Befund wurde.
+//
+//  - display_use_rgbw_set: HIER FEHLT DER RUECKWEG, und das bleibt offen. Steht
+//    DISPLAY_USE_RGBW auf 0, blendet isRgbwUiActive() alle Weisskanal-Regler aus; es
+//    gibt dann kein Element mehr, ueber das sich der Wert zuruecksetzen liesse. Ein
+//    Schalter dafuer gehoert ins Markup (index.html, Kachel "LED-Eigenschaften") und
+//    damit nicht in diese Datei (R3). Gemeldet an den Lead, nicht still nachgebaut.
 const getDisplayUseRgbwSetUrl = createConfiguredUrlGetter("display_use_rgbw_set_url");
 const getTickerSetUrl = createConfiguredUrlGetter("ticker_set_url");
 const getDateTickerFormatSetUrl = createConfiguredUrlGetter("date_ticker_format_set_url");
@@ -9055,7 +9298,18 @@ const getTickerDecelerationSetUrl = createConfiguredUrlGetter("ticker_decelerati
 const getAmbilightPowerUrl = createConfiguredUrlGetter("ambilight_power_url");
 const getAmbilightPowerSetUrl = createConfiguredUrlGetter("ambilight_power_set_url");
 const getAmbilightOnlineSetUrl = createConfiguredUrlGetter("ambilight_online_set_url");
-const getPowerStatusUrl = createConfiguredUrlGetter("power_status_url");
+// B11 (L111): getPowerStatusUrl ist ENTFERNT worden, nicht in Benutzung genommen.
+// Er war der einzige tote unter allen Gettern -- null Aufrufstellen, systematisch
+// geprueft. Ein Getter ohne Aufrufer ist kein Vorrat, sondern eine Behauptung ueber
+// eine Faehigkeit, die niemand prueft.
+//
+// Benutzen waere das schlechtere von beidem: /api/power_status liefert ausschliesslich
+// DISPLAY_POWER und DISPLAY_AMBILIGHT_POWER (http.cpp, http_api_power_status), und
+// beide stehen bereits in settings_xml, das die Oberflaeche ohnehin zyklisch liest.
+// Ein zweiter Abruf dafuer waere eine zusaetzliche HTTP-Verbindung je Runde -- auf
+// einem Geraet, bei dem ab vier parallelen Verbindungen gar keine Antwort mehr kommt
+// (L149). Der Schluessel power_status_url bleibt in den Vorgaben stehen: Die Tabelle
+// spiegelt die vom ESP veroeffentlichte Endpunktliste, und dort steht er.
 const getMaintenanceResetStm32Url = createConfiguredUrlGetter("maintenance_reset_stm32_url");
 const getMaintenanceResetEepromUrl = createConfiguredUrlGetter("maintenance_reset_eeprom_url");
 const getMaintenanceFormatFsUrl = createConfiguredUrlGetter("maintenance_format_fs_url");
@@ -11408,7 +11662,17 @@ async function runSelectSave(selectId, buttonId, endpoint, buttonText, errorText
 }
 
 async function saveAnimationProfile(idx) {
-  const deceleration = document.getElementById("an-dec-" + idx).value;
+  // Der Regler kann von sich aus nichts Unzulaessiges liefern -- ein ueber die
+  // Tastatur oder aus einem Fremdskript gesetzter Wert aber schon, und seit Runde 1
+  // weist der ESP ihn ab (http.cpp: "deceleration out of range (1..15)"). Die Grenzen
+  // stehen hier so, wie das Geraet sie fuehrt; 0 ist bei DIESEM Setter verboten.
+  // Massnahme 17.
+  const deceleration = readNumberInputOrReport(document.getElementById("an-dec-" + idx), 1, 15);
+
+  if (deceleration === null) {
+    return;
+  }
+
   const favourite = document.getElementById("an-fav-" + idx).checked ? "on" : "off";
   await runIndexedQueryButtonRequest('[data-an-save="%idx%"]', idx, {
     endpoint: getAnimationProfileSetUrl(),
@@ -11434,7 +11698,15 @@ async function resetAnimationProfileDefault(idx) {
 }
 
 async function saveColorAnimationProfile(idx) {
-  const deceleration = document.getElementById("can-dec-" + idx).value;
+  // Anders als beim Display-Animationsprofil ist 0 hier gueltig (vars.h:330). Die
+  // beiden Geschwister haben verschiedene Untergrenzen, und genau deshalb steht die
+  // Zahl an jeder Stelle einzeln und nicht in einer gemeinsamen Konstanten.
+  const deceleration = readNumberInputOrReport(document.getElementById("can-dec-" + idx), 0, 15);
+
+  if (deceleration === null) {
+    return;
+  }
+
   await runIndexedQueryButtonRequest('[data-can-save="%idx%"]', idx, {
     endpoint: getColorAnimationProfileSetUrl(),
     query: { idx, deceleration },
@@ -11492,6 +11764,7 @@ async function persistDimCurve(prefix, button, buttonText) {
     for (let idx = 0; idx <= 15; idx += 1) {
       await apiFetch(endpoint + "?idx=" + idx + "&value=" + encodeURIComponent(values[idx]));
     }
+    markEditsPersisted();
     await loadData();
     finishButtonFeedback(button, buttonText, "success", translate("common.saved"));
   } catch (error) {
@@ -11669,7 +11942,7 @@ async function runButtonRequest(button, options) {
     // loadData() die Selbstaktualisierung fuer den Rest der Sitzung still. L33,
     // Massnahme 4. Reine Ausloeseaktionen (reloadDelayMs) ruehren es bewusst nicht an.
     if (reload) {
-      hasUnsavedEdits = false;
+      markEditsPersisted();
       await loadData();
     } else if (reloadDelayMs > 0) {
       setTimeout(loadData, reloadDelayMs);
@@ -11687,7 +11960,15 @@ async function runButtonRequest(button, options) {
 }
 
 async function saveAmbilightModeProfile(idx) {
-  const deceleration = Math.max(0, Math.min(15, Number(document.getElementById("alm-dec-" + idx).value || 0)));
+  // Hier stand die letzte stille Klemmung der Oberflaeche: Math.max(0, Math.min(15, ...))
+  // zog jeden Wert auf die Grenze, und danach meldete die Maske "gespeichert". Das ist
+  // genau der Fall aus Massnahme 17 -- die Oberflaeche log. Jetzt wird abgewiesen.
+  const deceleration = readNumberInputOrReport(document.getElementById("alm-dec-" + idx), 0, 15);
+
+  if (deceleration === null) {
+    return;
+  }
+
   await runIndexedQueryButtonRequest('[data-alm-save="%idx%"]', idx, {
     endpoint: getAmbilightModeProfileSetUrl(),
     query: { idx, deceleration },
@@ -11927,10 +12208,46 @@ async function saveOverlay(idx) {
   const active = document.getElementById("ov-active-" + idx).checked ? "on" : "off";
   const type = document.getElementById("ov-type-" + idx).value;
   const typeNumber = Number(type);
+  const typeNames = getOverlayTypeNames();
+
+  // L205: Am Geraet stand overlay[0].type auf 14, gueltig sind 0..10. Das Auswahlfeld
+  // zeigte deshalb den ERSTEN Eintrag ("Keins"), und wer das Overlay dann speicherte,
+  // schrieb still type=0 und loeschte die Einstellung des Nutzers -- dieselbe Klasse
+  // wie die stillen Klemmungen im ESP, nur in der Gegenrichtung.
+  //
+  // buildNamedOptions() macht den unbekannten Wert seither als eigenen, markierten
+  // Eintrag sichtbar und haelt ihn fest. Hier wird er abgewiesen statt gesendet: Das
+  // Geraet wuerde ihn seit Runde 1 ohnehin abweisen, die Meldung steht so aber am Feld
+  // und nennt den Rohwert. Entscheidend ist, was NICHT passiert -- der Geraetewert wird
+  // nicht ueberschrieben.
+  if (!Number.isInteger(typeNumber) || typeNumber < 0 || typeNumber >= typeNames.length) {
+    announceStatus(translateFormat("overlays.type_unknown_save", {
+      value: String(type),
+      min: 0,
+      max: typeNames.length - 1
+    }), "error");
+    return;
+  }
+
+  // Die beiden MP3-Felder gingen als rohe .value hinaus und wurden lediglich mit
+  // padStart auf Breite gebracht -- "abc" wurde zu "abc/000" (L64, B1i). Geprueft wird
+  // nur, wenn sie ueberhaupt gelten: bei jedem anderen Typ sind sie ausgeblendet und
+  // duerfen ein Speichern nicht blockieren.
+  const mp3Numbers = typeNumber === 7
+    ? readNumberFieldsOrReport([
+      { name: "folder", id: "ov-folder-" + idx, min: 0, max: 99 },
+      { name: "track", id: "ov-track-" + idx, min: 0, max: 999 }
+    ])
+    : {};
+
+  if (!mp3Numbers) {
+    return;
+  }
+
   const value = typeNumber === 1
     ? (document.getElementById("ov-icon-" + idx).value || "")
     : typeNumber === 7
-      ? formatOverlayMp3Value(document.getElementById("ov-folder-" + idx).value, document.getElementById("ov-track-" + idx).value)
+      ? formatOverlayMp3Value(mp3Numbers.folder, mp3Numbers.track)
       : (typeNumber === 6 ? document.getElementById("ov-value-" + idx).value : "");
   const dateCode = document.getElementById("ov-datecode-" + idx).value;
   const month = document.getElementById("ov-month-" + idx).value;
@@ -12076,7 +12393,7 @@ function cancelOverlayEdit(idx) {
   }
 
   window.setTimeout(() => {
-    hasUnsavedEdits = false;
+    markEditsPersisted();
     renderOverlayRows(settings);
     announceStatus("Neues Overlay verworfen", "info");
   }, 140);
@@ -12130,6 +12447,7 @@ async function saveAllTimerRows(isAmbilight) {
       const idx = Number(slotButton.getAttribute('data-' + prefix + '-save'));
       await saveTimerRow(idx, isAmbilight, { reload: false });
     }
+    markEditsPersisted();
     await loadData();
     announceStatus(translate("timers.saved_all"), "ok");
     finishButtonFeedback(button, originalText, "success", translate("common.saved"));
@@ -12148,6 +12466,7 @@ async function toggleFlagButton(id, endpoint) {
 
   try {
     await apiFetch(endpoint + "?value=" + next);
+    markEditsPersisted();
     await loadData();
     finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "success", next === "on" ? "aktiviert" : "deaktiviert", true);
   } catch (error) {
@@ -12832,7 +13151,7 @@ function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverride
 
 function buildOverviewConfigItems(settings, featureMeta, displayMeta, networkMeta, climateMeta, ambilightMeta, dfplayerMeta) {
   const configItems = [
-    [translate("overview.display_mode"), getDisplayModeName(displayMeta.mode)],
+    [translate("overview.display_mode"), getDisplayModeName(settings, displayMeta.mode)],
     [translate("overview.brightness"), String(displayMeta.brightness)],
     [translate("overview.auto_brightness"), displayMeta.automaticBrightness ? "on" : "off"],
     [translate("overview.led_capabilities"), featureMeta.ledCapabilities.label],
@@ -13096,15 +13415,25 @@ function getFsUploadTargets(config) {
   return targets;
 }
 
-function getDisplayModeName(mode) {
-  const names = {
-    0: translate("display.mode_normal"),
-    1: translate("display.mode_seconds"),
-    2: translate("display.mode_date"),
-    3: translate("display.mode_temperature"),
-    4: translate("display.mode_ticker")
-  };
-  return names[mode] || String(mode || 0);
+// L208 (1): Hier stand eine fest verdrahtete Namenstabelle mit fuenf Eintraegen
+// (Normal/Sekunden/Datum/Temperatur/Ticker), die mit den LAYOUT-Modi des Geraets
+// nichts zu tun hat -- ab Index 5 gab sie die blosse Zahl aus. Am Geraet gemessen:
+// Die Uebersicht zeigte "Normal", das Auswahlfeld direkt darunter
+// "SCHWEIZERDEUTSCH 1". Zwei Angaben derselben Sache, die sich widersprechen.
+//
+// Die Schwesterfunktion getAmbilightModeName() darunter macht es seit jeher richtig
+// und gleicht gegen die Geraeteliste ab; genau das passiert jetzt auch hier, ueber
+// dieselbe Quelle, aus der das Auswahlfeld seine Eintraege nimmt
+// (getDisplayUiMeta().displayModes). Damit koennen die beiden nicht mehr auseinander-
+// laufen. Kennt die Liste den Wert nicht, wird er als unbekannter Geraetewert benannt
+// statt als erster Listeneintrag ausgegeben -- dieselbe Linie wie L205.
+function getDisplayModeName(settings, mode) {
+  const modes = getDisplayUiMeta(settings).displayModes;
+  const match = (modes || []).find((entry) => entry.idx === mode);
+
+  return match
+    ? localizeDisplayModeName(match.name || String(match.idx))
+    : translateFormat("common.unknown_device_value", { value: String(mode) });
 }
 
 function getAmbilightModeName(settings) {
@@ -13219,6 +13548,7 @@ async function applyDebugOverrides() {
   beginButtonFeedback(button, translate("debug.apply_busy"));
   try {
     saveDebugOverrides(overrides);
+    markEditsPersisted();
     document.getElementById("updated-at").textContent = translate("debug.active");
     await loadData();
     finishButtonFeedback(button, translate("system.apply_overrides"), "success", translate("debug.active_short"));
@@ -13241,6 +13571,7 @@ async function resetDebugOverrides() {
   try {
     saveDebugOverrides(overrides);
     loadDebugOverridesIntoUi();
+    markEditsPersisted();
     document.getElementById("updated-at").textContent = translate("debug.reset_done");
     await loadData();
     finishButtonFeedback(button, translate("system.reset_overrides"), "success", translate("debug.reset_short"));
@@ -13465,7 +13796,9 @@ async function refreshLiveDisplayColor() {
 }
 
 function syncLiveDisplayColorPolling(settings) {
-  if (settingsImportInProgress || isBackgroundPauseActive()) {
+  // document.hidden mit in der Abbruchbedingung: siehe die Begruendung am
+  // visibilitychange-Hoerer. R2-11.
+  if (settingsImportInProgress || isBackgroundPauseActive() || document.hidden) {
     if (liveDisplayColorTimer) {
       window.clearInterval(liveDisplayColorTimer);
       liveDisplayColorTimer = 0;
@@ -13549,10 +13882,38 @@ function buildWeekdayOptions(selected) {
   )).join("");
 }
 
+// Ein Geraetewert ausserhalb der Liste darf nicht still zum ersten Listeneintrag
+// werden. Genau das ist am 04.10.2026 gemessen worden (L205): overlay[0].type stand
+// auf 14, gueltig sind 0..10, das Auswahlfeld zeigte "Keins" (0) -- und ein Speichern
+// haette die Einstellung des Nutzers mit 0 ueberschrieben, ohne dass irgendetwas
+// darauf hingewiesen haette.
+//
+// Der unbekannte Wert bekommt deshalb einen eigenen, benannten Eintrag und bleibt
+// ausgewaehlt. Zwei Dinge folgen daraus, und beide sind gewollt: Der Nutzer SIEHT,
+// dass dort etwas Fremdes steht, und das Auswahlfeld traegt weiterhin den Rohwert --
+// es kann ihn also nicht mehr durch 0 ersetzen. Das Speichern selbst weist ihn ab
+// (siehe saveOverlay), statt ihn ans Geraet zu schicken.
+function buildUnknownDeviceValueOption(selected) {
+  return '<option value="' + escapeHtml(String(selected)) + '" selected>' +
+    escapeHtml(translateFormat("common.unknown_device_value", { value: String(selected) })) +
+    "</option>";
+}
+
+function isKnownListIndex(values, selected) {
+  const index = Number(selected);
+  return Number.isInteger(index) && index >= 0 && index < (values || []).length;
+}
+
 function buildNamedOptions(values, selected) {
-  return values.map((value, idx) => (
+  const options = values.map((value, idx) => (
     '<option value="' + idx + '"' + (idx === selected ? " selected" : "") + ">" + escapeHtml(value) + "</option>"
-  )).join("");
+  ));
+
+  if (!isKnownListIndex(values, selected)) {
+    options.push(buildUnknownDeviceValueOption(selected));
+  }
+
+  return options.join("");
 }
 
 function buildMonthOptions(selected) {

@@ -1,5 +1,84 @@
 # Changelog
 
+## 2026-10-04 Runde 2 und der geklärte Hänger (STM 3.2.17, PWA 1.4.85)
+
+STM und PWA, der ESP unverändert.
+
+### Der Hänger hat eine Ursache
+
+Das Problem, das seit Monaten als „sporadisch, Ursache offen" geführt wurde, ist
+**reproduzierbar** und erklärt. Zehn schnelle `ticker_set` mit je 32 Zeichen legen
+den Hauptloop für rund 90 Sekunden still — zwei Durchläufe in 38 Sekunden statt
+140'000 je Sekunde, die Uhr bleibt stehen, **kein Watchdog-Reset**.
+
+Die zunächst naheliegende EEPROM-Spur ist **widerlegt**: Für den Tickertext gibt es
+gar keinen Ablageort. Die Ursache steht wörtlich im Code — `display_set_ticker()`
+wird mit `do_wait = 1` gerufen und lässt den kompletten Text **im Hauptloop**
+durchscrollen. 204 Iterationen bei 32 Zeichen, rund 93 ms je Iteration. Und in der
+Schleife stehen zwei `watchdog_reload()`: **Die Blockade bedient den Watchdog
+selbst.**
+
+Der Beleg lag seit zwei Tagen im Quelltext. Ein Kommentar über der Schleife nennt
+zwei Messungen vom 02. und 03.10. samt Rechnung — niemand hatte sie mit dem offenen
+Befund verbunden. Gefunden hat es eine Analyse, die den Pfad gelesen hat statt
+gegrept.
+
+**Dieselbe Blockade steht an drei weiteren Stellen**, zwei davon feuern ohne jede
+Benutzerhandlung: Ticker-Overlay und Datumsticker. Die vierte ist der IP-Ticker der
+Startsequenz — genau der Fall, der in den Projektnotizen als Hängerstelle steht.
+Die Korrektur kommt als eigener Schritt mit eigener Verifikation; dieses Release
+bringt sie **nicht**.
+
+### Was im STM drin ist
+
+**Die Diagnosezeile findet nach einem Stillstand zurück.** Bisher kalibrierte sie
+sich auf das Mindestbudget und flutete dauerhaft mit rund 69 Zeilen je Sekunde —
+der 32-Zeilen-Logring deckte dann noch 0,45 Sekunden ab und enthielt nur noch
+Diagnosezeilen. Die Beobachtbarkeit fiel also genau dann aus, wenn man sie brauchte.
+
+Die Ursache lag tiefer als zunächst angenommen: Nicht nur der Loop-, auch der
+Tick-Bezugspunkt wurde bei jeder Rückfallzeile verschoben — dadurch kam **gar keine
+reguläre Zeile mehr**, und nichts konnte mehr kalibrieren. Behoben mit einem dritten
+Bezugspunkt, einem echten Zehn-Sekunden-Kalibrierfenster und einer Dämpfung auf
+höchstens Halbierung je Fenster. Gegengeprüft in einer Simulation: Die alte Fassung
+erzeugt 70 Zeilen je Sekunde, am Gerät gemessen waren 69,3.
+
+### Was in der PWA drin ist
+
+**Die Selbstaktualisierung hielt nur zu einem Drittel an.** Zwei weitere Poller
+liefen bei verborgenem Tab weiter — mit offenem Logbuch wären das 24 Requests in
+einer Minute gewesen, und die Abnahme hätte den bereits vorhandenen Code als
+wirkungslos erwiesen, ohne dass jemand gesehen hätte, woran es liegt.
+
+**Die Weissschirm-Abwehr fehlte im Service Worker.** `cache.addAll()` prüft nur den
+Status, und der ist bei einer 0-Byte-Datei in Ordnung. Jetzt scheitert die
+Installation bei leerem Inhalt — der bisherige Service Worker bleibt dann aktiv, was
+besser ist als ein Cache mit einer leeren Datei. Wichtiger noch: Es wird auch **beim
+Lesen** geprüft, denn ein älterer Cache kann die leere Datei bereits enthalten und
+würde sie sonst für immer ausliefern.
+
+**Ein Gerätewert ausserhalb des gültigen Bereichs wird sichtbar, statt still ersetzt
+zu werden.** Am Gerät steht `overlay[0].type` auf 14, gültig wäre 0..10. Das
+Auswahlfeld zeigte deshalb „Keins" — und wer das Overlay gespeichert hätte, hätte
+die Einstellung mit 0 überschrieben. Jetzt steht dort „Unbekannter Gerätewert (14)",
+und ein Speicherversuch wird abgewiesen, bevor etwas gesendet wird.
+
+Dazu: unsichere Eingaben an sieben weiteren Speicherpfaden, die Rückfrage beim
+Modulwechsel mit offener Bearbeitung, die letzte stille Klemmung der Oberfläche, der
+verschluckte Fehler beim Laden der Logs, und die Import-Nachkontrolle, die vier
+Felder faktisch nicht verglichen hat.
+
+### Guardrails
+
+Neue Stufe **S8b** überwacht die Flashbelegung des F103 — er stand im Oktober schon
+einmal bei 296 Byte Restreserve, ohne dass es jemand wusste. Beide Schwellen sind
+gegengeprüft, auch die rote.
+
+### Was zu flashen ist
+
+**STM und PWA.** Der ESP bleibt auf 3.2.20.
+
+
 ## 2026-10-04 Runde 1: Der Parametervertrag (ESP 3.2.20, PWA 1.4.84)
 
 ESP und PWA, der STM unverändert. Ab jetzt gilt: **Ein `{"ok":true}` bedeutet,

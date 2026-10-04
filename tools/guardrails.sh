@@ -392,6 +392,37 @@ else
   echo "  uebersprungen: STM- und ESP-Compile-Smoke-Test (nur mit --full)"
 fi
 
+# --------------------------------------------- S8b Flashbelegung des F103
+# A25: Der F103 hatte am 03.10.2026 noch 296 Byte frei (L165, L170) -- also
+# praktisch nichts. Geloest wurde das mit -flto=4, aber eine geloeste Enge bleibt
+# eine Enge: Der naechste Funktionszuwachs sprengt sie wieder, und zwar erst beim
+# Linken, lange nachdem der Code geschrieben ist.
+#
+# Die Stufe ist bewusst NICHT statisch wie die uebrigen -- sie braucht das
+# Build-Artefakt. Fehlt es, meldet sie das und urteilt nicht. Eine Pruefung, die
+# ohne Messgrundlage eine Zahl behauptet, waere schlimmer als keine.
+#
+# Gezaehlt werden die Nutzdatenbytes der Intel-HEX-Datensaetze vom Typ 00. Das ist
+# der belegte Flash, nicht die Dateigroesse -- die ist rund dreimal so gross, weil
+# HEX jedes Byte als zwei Zeichen ablegt.
+step S8b "Flashbelegung STM32F103 (64 KiB)"
+F103_HEX=build/stm-rgbw-12h/wc12h-stm32f103-sk6812-rgbw.hex
+if [ ! -f "$F103_HEX" ]; then
+  echo "  INFO      nicht gebaut - 'make f103' noetig, keine Aussage moeglich"
+else
+  belegt=$(python3 -c "
+import sys
+n=0
+for l in open(sys.argv[1]):
+    if l.startswith(':') and l[7:9]=='00': n+=int(l[1:3],16)
+print(n)" "$F103_HEX" 2>/dev/null)
+  [ -n "$belegt" ] || belegt=0
+  frei=$((65536 - belegt))
+  if   [ "$frei" -lt 512 ];  then crit "F103: nur $frei Byte frei ($belegt von 65536) - der naechste Zuwachs sprengt den Flash"
+  elif [ "$frei" -lt 2048 ]; then warn "F103: $frei Byte frei ($belegt von 65536) - eng, vor neuen Funktionen pruefen"
+  else ok "F103: $frei Byte frei ($belegt von 65536 belegt)"; fi
+fi
+
 # ------------------------------------------------- S9 Aktualitaet der Doku
 step S9 "Versionsangaben in der lebenden Dokumentation"
 # Momentaufnahmen sind ausgenommen (DIR-006): REVIEW*.md, gap-analysis.md,
