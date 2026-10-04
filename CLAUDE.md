@@ -18,6 +18,16 @@ Gegenrichtung. Aufgefallen ist es einem Agenten, der nachgesehen hat, statt der
 Anweisung zu folgen. Die Umschrift in neuem Text schadet in keiner der beiden
 Welten; die **Kodierungsannahme beim Patchen** ist das Gefährliche.
 
+**Dasselbe gilt für die Zeilenenden, und das ist seit dem 04.10.2026 belegt.**
+`ESP-uclock.ino` hat **gemischte** Zeilenenden — 1043 CRLF von 1240 Zeilen, der Rest
+LF; `http.cpp` umgekehrt genau eine CRLF-Zeile. Ein Patch über das Edit-Werkzeug
+vereinheitlicht sie **stillschweigend**: aus neun inhaltlich geänderten Zeilen wurden
+432. Aufgefallen ist es dem Umsetzer, der zurückgesetzt und byte-genau in Binärform
+gepatcht hat. Der Schaden ist nicht kosmetisch — ein Diff mit 432 Zeilen ist nicht
+mehr prüfbar, ein echter Fehler darin fällt niemandem auf, und `git blame` zeigt
+danach für die ganze Datei den falschen Commit. **Vor dem Patchen das ortsübliche
+Zeilenende der Datei feststellen, nicht nur ihre Kodierung.**
+
 Wer in derselben Sitzung an beiden Welten arbeitet, trägt die Gewohnheit hinüber.
 Genau so kamen „Schluessel" und „ungueltig" in die deutschen Fehlertexte der PWA
 (`BEFUNDE.md`, L52). **Geprüft wird das jetzt** — `tools/checks/umlaute.mjs` in

@@ -34,6 +34,28 @@ Kommt eine Blockade: **nicht umgehen.** Kein anderer Schreibweg, kein Umweg übe
 Legacy-Oberfläche, kein `--data` statt Query-Parameter. Notiere den Punkt als „nach
 Phase 8 nicht ausgeführt" und mach weiter.
 
+## Die Rahmenmessung, ohne die eine Setter-Phase nichts belegt
+
+**Vor und nach jeder Setter-Phase liest du `d=` aus der Diagnosezeile** (`/api/stm32_log`)
+und schreibst beide Werte ins Protokoll. **Ist der Wert gestiegen, ist die Phase
+ungültig** — wiederhole sie und nenne den Zuwachs samt Zeitfenster im Bericht.
+
+Der Grund steht ausführlich in `TESTPLAN-PWA.md`, Abschnitt 5b („Was eine
+Setter-Gegenprobe nicht zeigt"), und er ist keine Formalie: `settings_xml` liefert die
+**ESP-seitige** Kopie. Der ESP setzt sie beim Setter sofort und schickt das Kommando
+erst danach an den STM. Geht es auf der Brücke verloren, meldet deine Gegenprobe
+trotzdem den neuen Wert. **Ein „bestanden" belegt ohne diese Messung nur, dass der ESP
+gespeichert hat — nicht, dass die Uhr es angewandt hat.**
+
+Die Messung ist **notwendig, nicht hinreichend**: Sie sieht ein Kommando nicht, das nie
+abgesetzt wurde. Greift weder sie noch eine Wirkungsprobe am sichtbaren Verhalten,
+lautet die zulässige Aussage „ESP hat gespeichert, STM-Seite unbestätigt". Das ist kein
+„bestanden", und es so zu nennen wäre genau die Art Bericht, die Vertrauen erzeugt, das
+nicht gedeckt ist.
+
+**Nicht `stm32_log_clear` (S7) innerhalb einer Setter-Phase** — das löscht die Zeile,
+auf der diese Messung beruht.
+
 ## Was du fährst
 
 | Phase | Was | |

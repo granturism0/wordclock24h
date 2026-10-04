@@ -1206,12 +1206,29 @@ http_flush (void)
                 /* Genau eine Zeile je Verbindung. Jede Zeile hier geht auf die
                  * STM-UART, deren RX-Ring 256 Byte fasst und bei Ueberlauf still
                  * verwirft (uart-driver.h:698). Die Folgebloecke derselben Antwort
-                 * laufen ueber den Zweig oben und schweigen.
+                 * laufen ueber den Zweig oben und schweigen. Fuer den Logring gilt
+                 * dasselbe: Das stm32_log_append () unten steht INNERHALB dieses
+                 * Zweiges, nicht daneben - sonst waere es eine Zeile je Block.
+                 *
+                 * EINMAL formatieren, ZWEIMAL ausgeben: Mitschnitt und API duerfen
+                 * nicht auseinanderlaufen. snprintf in einen Stackpuffer, KEIN
+                 * String - dessen Aufbau ist nach L175 der benannte Treiber der
+                 * Fragmentierung. Laengste Form: "- http write lost 4294967295"
+                 * = 28 Zeichen.
+                 *
+                 * Ohne das stm32_log_append () war diese Zeile nur mit
+                 * angeschlossenem Mitschnitt zu sehen; ueber /api/stm32_log kam
+                 * nichts an (C14, L185).
                  */
+                char line[40];
+
                 http_write_broken = 1;
-                Serial.print ("- http write lost ");
-                Serial.println ((unsigned long) rest);
+
+                snprintf (line, sizeof (line), "- http write lost %lu", (unsigned long) rest);
+
+                Serial.println (line);
                 Serial.flush ();
+                stm32_log_append (line);
             }
         }
 

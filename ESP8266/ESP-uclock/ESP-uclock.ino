@@ -423,8 +423,16 @@ icon_info (const char * fname, const char * name)
  * wurde. Diese Zeile schliesst genau diese Luecke.
  *
  * Sie traegt das Praefix "- ", das der STM als ESP8266_DEBUGMSG erkennt
- * (src/esp8266/esp8266.c:332). Damit landet sie im STM32-Logbuch und ist ueber
- * /api/stm32_log auch im Nachhinein lesbar - das ist der ganze Zweck.
+ * (src/esp8266/esp8266.c:332). Kein STM-Logtext beginnt so: der Ring wird
+ * ausschliesslich ueber "LOG " gefuellt (src/log/log.c:33), und von den dortigen
+ * Formatzeichenketten faengt keine mit "- " an - geprueft per grep -a ueber src/**
+ * am 04.10.2026. "- " heisst im Ring also: vom ESP.
+ *
+ * Hier stand bis zum 04.10.2026, die Zeile sei damit ueber /api/stm32_log lesbar.
+ * Das war falsch, und das Praefix ist nicht der Grund: Den Ring fuellt AUSSCHLIESSLICH
+ * stm32_log_append (), und das rief hier niemand auf. Gemessen wurden 36 Zeilen im
+ * seriellen Mitschnitt gegen 0 Zeilen ueber die API (C14, L185). Die Zeile geht
+ * deshalb unten ausdruecklich BEIDE Wege.
  *
  * Kosten: rund 26 Byte je Minute, also 0,4 Byte/s auf einer Bruecke mit 37 bis 80
  * Byte/s Grundlast (L141). Vernachlaessigbar - ABER NUR, SOLANGE SIE GEBRAUCHT WIRD.
@@ -434,9 +442,10 @@ icon_info (const char * fname, const char * name)
  * hier, traegt sie zu genau der Bruecken- und Speicherlast bei, die wir gerade senken -
  * dasselbe Muster wie "- new client", das jahrelang mitlief, bis es jemandem auffiel.
  *
- * Serial.print () auf eine Zahl baut KEIN String-Objekt (Print::printNumber arbeitet
- * auf dem Stack). Die Messzeile darf den Haufen nicht anfassen, sonst misst sie sich
- * selbst.
+ * Die Messzeile darf den Haufen nicht anfassen, sonst misst sie sich selbst. Der
+ * Aufbau laeuft deshalb ueber snprintf in einen Stackpuffer und NICHT ueber String:
+ * dessen SSO reicht nur bis 14 Zeichen, darueber wird in 16-Byte-Schritten
+ * nachalloziert - genau die Fragmentierungsquelle aus L175.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 #define ESP_HEAP_LOG                1                                       // 0 = aus. Rueckbau zu L175, siehe oben
@@ -460,11 +469,22 @@ esp_heap_log (void)
         pending     = 0;
         last_millis = millis ();
 
-        Serial.print ("- heap free=");
-        Serial.print ((unsigned long) ESP.getFreeHeap ());
-        Serial.print (" max=");
-        Serial.println ((unsigned long) ESP.getMaxFreeBlockSize ());
+        /* EINMAL formatieren, ZWEIMAL ausgeben: Mitschnitt und API duerfen nicht
+         * auseinanderlaufen - eine zweite Formatierung waere eine zweite Wahrheit.
+         * Laengste Form: "- heap free=4294967295 max=4294967295" = 37 Zeichen.
+         */
+        char line[48];
+
+        snprintf (line, sizeof (line), "- heap free=%lu max=%lu",
+                  (unsigned long) ESP.getFreeHeap (),
+                  (unsigned long) ESP.getMaxFreeBlockSize ());
+
+        Serial.println (line);
         Serial.flush ();
+        stm32_log_append (line);                                            // C14 (L185): ohne diese Zeile bleibt
+                                                                            // die Messung ueber /api/stm32_log
+                                                                            // unsichtbar - das Praefix allein
+                                                                            // genuegt nicht
     }
 }
 #endif
