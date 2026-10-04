@@ -1,7 +1,8 @@
 # Design — Paket 2026-10-05
 
-**Erstellt:** 2026-10-04. Entscheidungen des Nutzers und der A35-Nachweis (L266)
-eingearbeitet am 04.10.2026. Momentaufnahme (DIR-006), wird nicht fortgeschrieben.
+**Erstellt:** 2026-10-04. Fortgeschrieben am 2026-10-05: Entscheidungen des Nutzers,
+der A35-Nachweis (L266) und der Nachweis zur Eröffnungszeile (L269).
+Momentaufnahme (DIR-006), wird nach der Freigabe nicht mehr fortgeschrieben.
 
 **Rundenfolge:** V → W → E1 → E2 → **H** → S → P → U → F.
 
@@ -41,7 +42,9 @@ Durchlauf ist kein Nachweis bei einem sporadischen Fehler).
 **Ein Verweis auf einen anderen Befund ist kein Beleg.** Genau diese Kette hatte bei
 A36 zu zwei widersprechenden Zeilen im selben Dokument geführt: Die Arbeitsliste
 nannte ihn „höchste Priorität", L249 nannte ihn behoben. Wer `geschlossen` schreibt,
-zitiert den Code.
+zitiert den Code. **Dasselbe gilt für eine Prämisse in dieser Spec** — §6.2 ist dafür
+das Beispiel: Die dort zunächst aus L250/L251 übernommene Begründung war wahr und
+trug trotzdem nur zur Hälfte (L269).
 
 ### 1.2 Reihenfolge — die schwersten zuerst
 
@@ -166,6 +169,12 @@ Dieses Paket erzeugt zwei davon: die Schutzseite für A37 (Runde E2) und die fü
 (Runde H). Sie gehören **vor** ihrer ersten Verwendung angelegt, deshalb steht die
 Heimat in Runde W.
 
+**Dazu eine Lehre aus L269, die das Werkzeug betrifft und nicht den Code:** Der
+Analyst, der die Prämisse zu §6.2 prüfen sollte, konnte die Git-Historie **nicht**
+auswerten — ihm fehlte das Shell-Werkzeug. Das ist derselbe Koordinationsfehler wie
+L238. **Beim Zuschneiden eines Prüfauftrags gehört geprüft, ob der Empfänger die
+verlangte Tätigkeit ausführen kann**; die Rollenbeschreibungen nennen die Werkzeuge.
+
 ---
 
 ## 3. Runde E1 — der Absturz und die Beobachtbarkeit
@@ -211,8 +220,8 @@ Genau das ist der Grund, warum der Ring **nicht** verkleinert wird — siehe §3
 ### 3.3 Warum der Logring bleibt, wie er ist
 
 Der ursprüngliche Entwurf dieser Spec sah vor, den Ring zu verkleinern (L176, Vorschlag
-des Nutzers). **Der Nutzer hat das am 04.10.2026 zurückgezogen, und die Begründung ist
-stärker als der Vorschlag:**
+des Nutzers). **Der Nutzer hat das zurückgezogen, und die Begründung ist stärker als
+der Vorschlag:**
 
 - **L262, am selben Tag gemessen:** Der Ring deckt rund **zwei Minuten** ab. Gefüllt
   wird er nicht von den HTTP-Zeilen — davon enthält er **null**, sie gehen nur auf die
@@ -247,6 +256,12 @@ den jede Einstellung der Uhr zum ESP kommt.**
 **Dies ist die Runde, die am ehesten zu lang wird.** Wenn sie es wird, fällt **C18**
 zuerst heraus: Es ist die einzige, die nur die Form der Meldung betrifft und kein
 Verhalten.
+
+**Eine Wechselwirkung mit Runde S, die der Umsetzer kennen muss:** A37 führt eine
+Längenprüfung **vor** dem Zerlegen ein. Die neuen Zeilen aus Runde S laufen durch
+genau diese Prüfung, und §6.2 stützt sich darauf, dass eine unbekannte Kommandoart
+sie passiert (`var_cmd_min_len()` liefert dafür 0). **Wer A37 umbaut, darf dieses
+Verhalten nicht nebenbei ändern** — sonst fällt die Prämisse von §6.2.
 
 ---
 
@@ -302,9 +317,9 @@ beweist die **Funktion**. Er beweist nicht ihre **Einbettung** — und genau dor
 das Risiko: `tftled.c` und `esp-spiffs.c` sind Anzeige- und Dateipfade, ein Fehler
 dort zeigt sich an der Wand und nicht in der API.
 
-Deshalb drei Abnahmen (AKH.1 bis AKH.3): Prüfstand, ein vollständiger Vollabgleich
-über rund 194 Kommandos durch den neuen Parser, und ein Abgleich des Gerätezustands
-gegen `tools/snapshots/soll-2026-10-04`.
+Deshalb vier Abnahmen (AKH.1 bis AKH.4): Prüfstand, ein vollständiger Vollabgleich
+über rund 194 Kommandos durch den neuen Parser, ein Abgleich des Gerätezustands
+gegen `tools/snapshots/soll-2026-10-04`, und ein Zähler für die abgewiesene Zeile.
 
 ---
 
@@ -327,10 +342,10 @@ also wissen, was der STM kann, und **dafür gibt es heute keinen Kanal.** Die
 Fähigkeitsmeldung zeigt in die andere Richtung.
 
 **Die Lösung ist in beiden Fällen dieselbe und braucht keinen neuen Kanal: die
-Information reist im Strom mit**, nicht in einem Sitzungszustand. Ein alter ESP
-verwirft eine unbekannte Kommandoart stillschweigend (`var_set_parameter()` hat keinen
-`default:`-Zweig), ein alter STM verwirft eine unbekannte Antwortzeile ebenso. Das ist
-die tragende Eigenschaft dieses Protokolls, und sie wird hier genutzt statt umgangen.
+Information reist im Strom mit**, nicht in einem Sitzungszustand. Was nicht
+überdauert, kann nicht veralten — das ist zugleich die Antwort auf die Gattung L251,
+wo ein Merker eigens an die `FIRMWARE`-Zeile gebunden werden musste, weil er eine
+Sitzung überdauerte.
 
 ### 6.1 A39 / L259 — kein verschachtelter 194er-Stoss mehr
 
@@ -379,15 +394,63 @@ einer Marke ab" — und als **letztes** die Abschlussmarke. Der ESP wertet so:
 | Lage | Verhalten des ESP |
 |---|---|
 | Eröffnungszeile gesehen | Der Abgleich gilt erst mit der Abschlussmarke als vollständig |
-| keine Eröffnungszeile (alter STM) | heutiges Kriterium, `HARDWARE_CONFIGURATION != 0xFFFF` |
-
-**Damit ist das Richtungsproblem aus §6.0 gelöst, ohne einen neuen Kanal.** Die
-Aussage gilt genau für den Abgleich, in dem sie steht — kein Sitzungszustand, der nach
-einem einseitigen Neustart falsch werden kann. Das ist zugleich die Antwort auf die
-Gattung von L251: Dort musste ein Merker eigens an die `FIRMWARE`-Zeile gebunden
-werden, weil er eine Sitzung überdauerte. Was nicht überdauert, kann nicht veralten.
+| keine Eröffnungszeile (alter ESP-Stand bzw. alter STM) | heutiges Kriterium, `HARDWARE_CONFIGURATION != 0xFFFF` |
 
 Kosten: **zwei** Kommandos von dann rund 196.
+
+#### Die Prämisse, und warum sie trägt — drei Punkte statt einem (L269)
+
+Hier stand zunächst als Begründung nur: „Ein alter ESP verwirft eine unbekannte
+Kommandoart stillschweigend, weil `var_set_parameter()` keinen `default:`-Zweig hat."
+**Diese Aussage ist wahr und reicht nicht.** Der Spec-Schreiber hatte sie aus L250/L251
+übernommen statt aus dem Quelltext und als ungeprüft markiert; die Prüfung ergab
+**drei** Schritte vor dem `switch`, von denen zwei ebenfalls stimmen müssen:
+
+1. **`var_cmd_min_len()` liefert für einen unbekannten Buchstaben `0`**, und
+   `len < 0` ist bei vorzeichenlosem `len` nie wahr. Die Zeile passiert damit die
+   Längenprüfung. Ohne diesen Punkt wäre sie als `!v` abgewiesen und zweimal
+   nachgesendet worden — **kein Schaden, aber auch nicht „stillschweigend"**.
+2. **`var_set_parameter()` hat keinen `default:`-Zweig** — die Zeile fällt im `switch`
+   wirkungslos heraus.
+3. **Der eigentliche Träger:** Die gefährliche Zeigerarithmetik der L237-Gattung steht
+   **ausschliesslich in den `case`-Rümpfen**. Es gibt **keinen** gemeinsamen
+   Zerlegeschritt, kein `atoi`, keinen festen Offset vor dem `switch`. Ein unbekannter
+   Buchstabe erreicht also gar keine Zeigerarithmetik.
+
+**Punkt 3 macht die Prämisse versionsrobust:** Die Harmlosigkeit gilt damit auch für
+ESP-Stände **vor** der A37-Korrektur. Das war mit der ursprünglichen Begründung nicht
+erkennbar — sie hätte zufällig getragen, und eine Prämisse, die zufällig trägt, hält
+den nächsten Umbau nicht aus.
+
+#### Drei Bedingungen an die neuen Zeilen — Auflage für den `stm-developer`
+
+Alle drei liegen in seinem Einflussbereich und sind in `tasks.md` (S.9) als Abnahme
+hinterlegt:
+
+1. **Kommandobuchstabe ausserhalb von `N n S T D A C M O t a l I`.** Über die
+   **ganze** Git-Historie waren nie mehr Buchstaben vergeben als heute — eine
+   Kollision mit einem früher entfernten Kommando ist damit ausgeschlossen (L269).
+2. **Die Nutzlast endet nicht auf `*` + vier Hexziffern.** Sonst liest
+   `var_crc_check_and_strip()` sie als Prüfsumme, findet sie falsch und weist die
+   Zeile ab.
+3. **Die Nutzlast bleibt unter 72 Zeichen** (`VAR_RETRY_CMD_LEN`), sonst ist die Zeile
+   nicht nachsendefähig.
+
+#### Verpackung: `var <freierBuchstabe>…`, und zwar verbindlich
+
+**Beide neuen Zeilen gehen als `var …` über `var_send_buf()`.** Das ist keine
+Bequemlichkeit, sondern die Bedingung, unter der der Entwurf trägt:
+
+> **Ein eigenes Top-Level-Präfix wäre gefährlich.** Die `if/else if`-Kette auf der
+> ESP-Seite hat **kein abschliessendes `else`** — auf ein unbekanntes Top-Level-Präfix
+> antwortet der ESP **gar nicht**. `var_send_buf()` liefe dann je Zeile 3 Sekunden
+> leer, **ohne `watchdog_reload()`**; zwei Zeilen je Vollabgleich sind 6 Sekunden bei
+> einem 20-Sekunden-Fenster. **Das ist exakt die Mechanik aus L266.**
+
+Wird je ein eigenes Präfix gewünscht, dann **nicht** über eine quittungserwartende
+Sendefunktion, sondern direkt über `esp8266_uart_puts()` — **mit Vermerk im Code**.
+Sonst baut es der Nächste genau falsch, und zwar aus guten Gründen: Ein eigenes
+Präfix sieht sauberer aus.
 
 **Die gute Seite der heutigen Lage bleibt erhalten** (L260): Weil die Hardwarekennung
 ganz vorn im Stoss steht, darf der Vollabgleich ruhig zehn Sekunden brauchen. Die
@@ -429,7 +492,8 @@ Zeile gelesen, aber wegen falscher Prüfsumme **nicht angewandt** wurde, und
 Erfolg und merkt das Kommando **sofort** zur Nachsendung vor. Eine unmarkierte
 pflichtige Zeile gehört in genau dieselbe Klasse. **Der Gewinn ist nicht kosmetisch:**
 Schweigen kostete je Fall 3 Sekunden Hauptloop-Stillstand ohne `watchdog_reload()` —
-dieselbe Mechanik, die L266 als Reset-Ursache nachgewiesen hat.
+dieselbe Mechanik, die L266 als Reset-Ursache nachgewiesen hat und die L269 ein
+drittes Mal gefunden hat.
 
 **Die Begründung, die L253 fehlte und die den Ausschlag gab:** Ein leerer Update-Host
 hat zuletzt **fremde Firmware geholt**. Der ESP fällt dann auf seine eingebauten
@@ -515,11 +579,13 @@ das dringende Problem**; Teil 2 löst ein zweites, das nicht schlimmer geworden 
 Er bleibt benannt und ist der erste Kandidat der nächsten Brückenrunde. Für eine
 Teilmenge ist er ohnehin schon da: `!v` sagt heute „gelesen, nicht angewandt".
 
-### 6.5 Was von der Fähigkeitsmeldung übrig bleibt — und eine Warnung für jeden künftigen Entwurf
+### 6.5 Was von der Fähigkeitsmeldung übrig bleibt — und zwei Warnungen für jeden künftigen Entwurf
 
 Nach §6.2 und §6.4 verlässt sich **keine** Neuerung dieser Runde auf eine
-Fähigkeitsmeldung. Alle drei tragen ihre Voraussetzung im Strom mit. Das ist die
-Lehre dieser Runde, und sie ist allgemeiner als ihr Anlass:
+Fähigkeitsmeldung. Alle drei tragen ihre Voraussetzung im Strom mit. Daraus folgen
+zwei Sätze, die allgemeiner sind als ihr Anlass.
+
+**Erstens:**
 
 > **Ein Mechanismus, dessen Sicherheit an einem Hardware-Nebeneffekt hängt, ist nicht
 > abgesichert — er hat bisher Glück gehabt.**
@@ -539,6 +605,19 @@ und war nie als Bedingung aufgeschrieben. **Es bleibt so bestehen** (ein Rückba
 A32 steht nicht zur Debatte), aber es gehört benannt: `knowledge/` nimmt die Warnung
 auf (Task W.9), und jeder künftige Entwurf, der eine Sitzungsfähigkeit braucht, nennt
 die Voraussetzung, unter der sein Rückfall gilt.
+
+**Zweitens — und das ist der Satz, der diesen Entwurf rettet:**
+
+> **Die `var `-Verpackung ist nicht stumm, sondern regulär quittiert — und gerade das
+> rettet den Entwurf.**
+
+Die Spec sagt an mehreren Stellen, ein alter ESP verwerfe die neue Zeile
+„stillschweigend". **Das gilt für die Wirkungsebene; auf der Protokollebene ist das
+Gegenteil der Fall, und das ist kein Detail.** Die Zeile wird regulär als
+`var`-Kommando empfangen und **quittiert** — deshalb läuft `var_send_buf()` nicht in
+seinen Timeout. Ein eigenes Top-Level-Präfix hätte genau diese Quittung verloren und
+damit 3 Sekunden Stillstand je Zeile erzeugt, ohne `watchdog_reload()` (L269). **Wer
+die Verpackung ändert, ändert nicht die Form, sondern die Watchdog-Bilanz.**
 
 ### 6.6 A16 / L106 — Tetris und Snake bedienen den Watchdog nicht
 
@@ -618,7 +697,7 @@ kennt, ist die ehrlichste Probe für einen veränderten Flashpfad.
 | Datei | Änderung | Zuständiger Agent | Runde |
 |---|---|---|---|
 | `BEFUNDE.md` | Nachzählvermerke, Arbeitsliste bereinigen, Standabschnitt auflösen | `doc-writer` | V |
-| `knowledge/directives.md`, `knowledge/quick-reference.md` | E18, B21 (`grep -a`), L256, **die Warnung aus §6.5** | `doc-writer` | W |
+| `knowledge/directives.md`, `knowledge/quick-reference.md` | E18, B21 (`grep -a`), L256, **die beiden Warnungen aus §6.5** | `doc-writer` | W |
 | `tools/preview/diag.js`, `tools/preview/shot.sh`, `tools/check-pwa.mjs` | Messmodul: Geometrie, Ankreuzfelder, Bildpunktfarbe, Scrollen, Vollseite | Lead | W |
 | `tools/hooks/file-ownership.py`, `tools/hooks/no-danger.py` | Schreibpositionen bzw. Gerätebezug | Lead | W |
 | `tools/checks/` | Heimat der Prüfstände; neue Stufe S11 | Lead | W |
@@ -626,13 +705,13 @@ kennt, ist die ehrlichste Probe für einen veränderten Flashpfad.
 | `.claude/agents/*.md` | Der Besitz-Hook ist eine Erinnerung, kein Zwang (B22) | Lead | W |
 | `ESP8266/ESP-uclock/http.cpp` | `network_scan`, Verlustzeile in den Ring | `esp-developer` | E1 |
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | Heap-Zeile in den Ring | `esp-developer` | E1 |
-| `ESP8266/ESP-uclock/vars.cpp` | Längenprüfung der Kommandozeile (A37) | `esp-developer` | E2 |
+| `ESP8266/ESP-uclock/vars.cpp` | Längenprüfung der Kommandozeile (A37) — **ohne das Verhalten von `var_cmd_min_len()` bei unbekanntem Buchstaben zu ändern** (§6.2) | `esp-developer` | E2 |
 | `ESP8266/ESP-uclock/weather.cpp` | `parse_json()` an die Zeichengrenze (C24) | `esp-developer` | E2 |
 | `ESP8266/ESP-uclock/http.cpp` | C22, C20, C17, C18 | `esp-developer` | E2 |
 | `src/main.c`, `src/tables/tables.c`, `src/esp-spiffs/esp-spiffs.c`, `src/tftled/tftled.c` | **A41**: eine Längenprüfung vorn, dazu die beiden exponierten `while (*p)`-Stellen | `stm-developer` | **H** |
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | Eröffnungszeile und Abschlussmarke auswerten, Zuordnungszeile senden, Markenpflicht mit `!v`, Zähler | `esp-developer` | S |
 | `src/main.c` | A39 (vormerken, Ticker danach) | `stm-developer` | S |
-| `src/vars/vars.c` | Eröffnungszeile und Abschlussmarke senden, Zuordnung auswerten | `stm-developer` | S |
+| `src/vars/vars.c` | Eröffnungszeile und Abschlussmarke senden — als `var <freierBuchstabe>…` über `var_send_buf()` (§6.2) | `stm-developer` | S |
 | `src/esp8266/esp8266.c` | Zuordnungszeile lesen und dem Punkt bzw. `!v` zuordnen | `stm-developer` | S |
 | `src/tetris/tetris.c`, `src/tetris/snake.c` | `watchdog_reload()` (A16) | `stm-developer` | S |
 | PWA-Hauptdatei | B33, B24 | `pwa-developer` | P |
@@ -707,9 +786,10 @@ Pakets. Fünfmal wäre die bequemere Schicht die falsche gewesen:
 ### Scalable systems
 
 **Wie viele STM-Kommandos erzeugt die Aktion?** Der Vollabgleich wächst von rund 194
-auf rund **196** — Eröffnungszeile und Abschlussmarke. A39 ändert die Zahl nicht,
-sondern den **Zeitpunkt**: Die Kommandos laufen künftig nie mehr verschachtelt,
-sondern sequenziell mit Quittung. Die Markenpflicht aus C26 kann einzelne Kommandos
+auf rund **196** — Eröffnungszeile und Abschlussmarke, beide als reguläre
+`var`-Kommandos mit Quittung (§6.2). A39 ändert die Zahl nicht, sondern den
+**Zeitpunkt**: Die Kommandos laufen künftig nie mehr verschachtelt, sondern
+sequenziell mit Quittung. Die Markenpflicht aus C26 kann einzelne Kommandos
 nachsenden lassen; die Obergrenze aus A32 (vier Plätze, begrenzte Versuchszahl) gilt
 unverändert und ist die Bremse. A41 erzeugt **keine** Kommandos.
 
@@ -718,7 +798,7 @@ nennenswerten Mehrkosten dieses Pakets, und sie sind **gerechnet, nicht geschät
 
 | Posten | Richtung | Kosten |
 |---|---|---|
-| Eröffnungszeile + Abschlussmarke | STM → ESP | je Vollabgleich rund 22 Byte |
+| Eröffnungszeile + Abschlussmarke | STM → ESP | je Vollabgleich rund 22 Byte, plus zwei Quittungen |
 | **Zuordnungszeile, rund 8 Zeichen je Kommando** | **ESP → STM** | **rund 1,5 kB je Vollabgleich** |
 | auf einem **alten** STM zusätzlich ein `log_flush()`-Busy-Wait je Zeile (115200 Baud, acht Zeichen ≈ 0,7 ms) | — | **rund 135 ms über 194 Kommandos** |
 | Erfolgszeile, Zähler | — | **0 Byte** — `stm32_log_append()` schreibt nur in den Ring (L261) |
@@ -740,12 +820,16 @@ und `var_send_buf()` lädt den Watchdog nach eingetroffener Quittung bereits sel
 nach. **Den gültigen Bestand der Aufrufstellen nennt Guardrail S7, nicht dieses
 Dokument.**
 
-**Der gefährlichste Pfad dieses Pakets ist die ausbleibende Quittung, und L266 hat
-ihn beziffert:** Bleibt `got_answer` 0, bleibt auch `watchdog_reload()` aus
-(`vars.c:688`, bewusst so) — bei 3 s je Kommando und 20 s Watchdog ist der Reset nach
-**rund sieben** Kommandos da. Deshalb zwei Festlegungen: die Zuordnung als eigene
-Zeile (§6.4), damit der Punkt unverändert erkannt wird, und die Abweisung über `!v`
-statt über Schweigen (§6.3).
+**Der gefährlichste Pfad dieses Pakets ist die ausbleibende Quittung, und er ist in
+zwei Tagen dreimal aufgetreten** — als Entwurfsfehler, nicht als Bug: Bleibt
+`got_answer` 0, bleibt auch `watchdog_reload()` aus (`vars.c:688`, bewusst so); bei 3 s
+je Kommando und 20 s Watchdog ist der Reset nach **rund sieben** Kommandos da. Daraus
+drei Festlegungen:
+
+1. die Zuordnung als **eigene Zeile** (§6.4), damit der Punkt unverändert erkannt wird;
+2. die Abweisung über **`!v`** statt über Schweigen (§6.3);
+3. die neuen Zeilen als **`var …` über `var_send_buf()`**, nicht mit eigenem
+   Top-Level-Präfix (§6.2) — sonst antwortet der ESP gar nicht.
 
 A16 fügt zwei Pfade hinzu, die heute **garantiert** über 20 s laufen. A41 fügt eine
 Längenprüfung je eingehender Zeile hinzu: ein `strlen` auf einen Puffer von unter
@@ -763,7 +847,9 @@ durchschlagen.
 **Hartkodierte Grenzen?** Die Markenpflichtliste umfasst drei Kommandoarten und wird
 im Code **benannt, nicht gemustert**. Die Längengrenze aus A41 ist die Grösse des
 Empfangspuffers und wird aus ihm abgeleitet, nicht zweitgeschrieben — sonst laufen
-beide auseinander, sobald jemand den Puffer ändert.
+beide auseinander, sobald jemand den Puffer ändert. Die Nutzlast der neuen Zeilen
+bleibt unter `VAR_RETRY_CMD_LEN` (72 Zeichen), sonst sind sie nicht nachsendefähig
+(§6.2).
 
 ### Secure by design
 
@@ -811,6 +897,11 @@ Zähler:** die verworfene, nicht zuordenbare Quittung (§6.4) und die abgewiesen
 kurze Kommandozeile (A41). Eine Härtung, die wortlos verwirft, tauscht einen Absturz
 gegen ein unerklärliches Nichtverhalten — das ist kein Fortschritt, sondern ein
 schlechterer Fehlerbericht.
+
+**Eine dritte Verwerfung ist beabsichtigt und bleibt zählerlos:** Der alte ESP
+verwirft die Eröffnungszeile im `switch`. Dort ist kein Zähler möglich und auch keiner
+nötig — die Zeile wird ja **quittiert** (§6.5), der Sender erfährt also, dass sie
+angekommen ist, und ihre Wirkung ist auf dieser Gegenstelle per Entwurf keine.
 
 **Ist der Zustand nach einem Abbruch mitten in einer Sequenz definiert?** Vier
 Stellen:
@@ -870,6 +961,14 @@ jedes eingehenden Kommandos. In einem Flash wäre ein Fehlschlag nicht zuordenba
 von (b), weil sie zwei Dinge auf einmal ändert: die Verschachtelung **und** die
 Reihenfolge. Eine Änderung, die zwei Wirkungen hat, ist bei einem Fehlschlag nicht
 eindeutig zuzuordnen.
+
+**Ein eigenes Top-Level-Präfix für die Eröffnungszeile und die Abschlussmarke.**
+**Verworfen, weil gefährlich** (L269): Die `if/else if`-Kette der ESP-Seite hat kein
+abschliessendes `else`, der ESP antwortet auf ein unbekanntes Präfix **gar nicht**,
+und `var_send_buf()` läuft je Zeile 3 Sekunden leer ohne `watchdog_reload()` — zwei
+Zeilen je Vollabgleich sind 6 Sekunden bei 20 Sekunden Fenster. **Das sieht sauberer
+aus und ist schlechter**, weshalb es hier samt Begründung steht und nicht nur als
+Vorgabe in den Tasks.
 
 **Die Zuordnung an den Quittungspunkt hängen (`.c3`).** **Verworfen aufgrund des
 Nachweises, den der Nutzer verlangt hat** (L266). `esp8266.c:287` vergleicht auf genau

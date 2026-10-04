@@ -1,7 +1,8 @@
 # Tasks — Paket 2026-10-05
 
 **Erstellt:** 2026-10-04, fortgeschrieben am 2026-10-05 (Entscheidungen des Nutzers,
-A35-Nachweis L266, neue Runde H). Momentaufnahme (DIR-006).
+A35-Nachweis L266, neue Runde H, Nachweis zur Eröffnungszeile L269).
+Momentaufnahme (DIR-006).
 
 **Rundenfolge:** V → W → E1 → E2 → **H** → S → P → U → F.
 
@@ -45,6 +46,12 @@ Produktcode — die Runde kostet nur Lesezeit und spart im besten Fall eine Flas
 gefahren werden. Das ist keine Formalie: Wenn Welle 1 etwa L174 als geschlossen
 belegt, verliert Runde E1 ihren Hauptgrund.
 
+**Werkzeugvorbehalt bei jedem Prüfauftrag dieser Runde:** Vor dem Zuschneiden prüfen,
+ob der Empfänger die verlangte Tätigkeit **ausführen kann**. Der `firmware-analyst`
+und der `code-reviewer` haben `Read`, `Grep`, `Glob` — **kein `Bash`**. Eine
+Auswertung der Git-Historie oder eine Messung am Gerät gehört deshalb zum Lead
+(V.3, V.5). Das ist zweimal schiefgegangen: L238 und L269.
+
 ---
 
 ## Runde W — Werkzeug und Verfahren
@@ -68,7 +75,7 @@ und die Prüfstandsheimat aus W.6 trägt die Abnahmen von E2.1 **und** H.1.
 | W.6 | Prüfstands-Heimat unter `tools/checks/` anlegen, mit der Pflicht zur Typangleichung (L256) als Teil der Ablage, nicht als Merksatz | Lead | — | **AKW.5-Vorbedingung.** Ein Beispiel liegt lauffähig vor (`var-crc.c` als Vorbild), und der Aufruf steht in `tools/guardrails.sh` oder ist dort begründet ausgelassen | ☐ | ☐ |
 | W.7 | Guardrail-Stufe S11 „Nachzählpflicht" | Lead | V.7, W.6 | **AKW.6.** Die Stufe ist **einmal fehlgeschlagen** (DIR-014) **und** es ist nachgewiesen, dass sie ihren ganzen Gegenstand sieht: Sie meldet die Zahl der geprüften Befunde, und die wird von Hand gegen die Tabelle abgezählt (L235) | ☐ | ☐ |
 | W.8 | Messauftrag B31: Trägt der Umriss des unangekreuzten Ankreuzfelds auch in **WebKit** die 3:1? | Lead | W.2 | Ein Messwert aus Safari, am Bildpunkt. Das ist die eine Messung, die die Priorität von B31 entscheidet — sie kostet fast nichts und braucht nur ein Gerät mit Safari. Ergebnis geht als Befundzeile an V.7/V.8 | — | — |
-| W.9 | `knowledge/directives.md` und `knowledge/quick-reference.md` nachführen: E18 (DIR-010 bis DIR-014), B21 (`grep -a`), L256 — **und die Warnung aus `design.md` §6.5** | `doc-writer` | W.5, W.7 | **E18 verlangt zuerst eine Entscheidung, nicht ein Nachtragen:** Wer führt den Bestand? Empfehlung — der Katalog führt, `CLAUDE.md` behält die Kurzregeln und verweist. **Die Warnung im Wortlaut:** „Ein Mechanismus, dessen Sicherheit an einem Hardware-Nebeneffekt hängt, ist nicht abgesichert — er hat bisher Glück gehabt." Mit den beiden Belegen: GPIO-Puls (`esp8266.c:738-740`) und Einschaltstrom über `PB0` (L183). Abnahme: Keine Direktive steht inhaltlich an zwei Orten | ☐ | ☐ |
+| W.9 | `knowledge/directives.md` und `knowledge/quick-reference.md` nachführen: E18 (DIR-010 bis DIR-014), B21 (`grep -a`), L256 — **und die beiden Warnungen aus `design.md` §6.5** | `doc-writer` | W.5, W.7 | **E18 verlangt zuerst eine Entscheidung, nicht ein Nachtragen:** Wer führt den Bestand? Empfehlung — der Katalog führt, `CLAUDE.md` behält die Kurzregeln und verweist. **Die beiden Warnungen im Wortlaut:** (1) „Ein Mechanismus, dessen Sicherheit an einem Hardware-Nebeneffekt hängt, ist nicht abgesichert — er hat bisher Glück gehabt" (Belege: GPIO-Puls `esp8266.c:738-740`, Einschaltstrom über `PB0`, L183). (2) „Eine Zeile, die auf der Wirkungsebene verworfen wird, kann auf der Protokollebene trotzdem quittiert sein — und ob sie es ist, entscheidet über die Watchdog-Bilanz" (L269). Abnahme: Keine Direktive steht inhaltlich an zwei Orten | ☐ | ☐ |
 | W.10 | Agentenanweisungen: „Der Besitz-Hook ist eine Erinnerung, kein Zwang" (B22/L171) | Lead | W.5 | Die Aussage steht in jeder schreibenden Agentendefinition, und sie sagt, was daraus folgt: Fremde Dateien bleiben tabu, auch wo der Hook sie durchliesse | ☐ | ☐ |
 
 ---
@@ -115,13 +122,13 @@ voneinander entkoppelt.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| E2.1 | **Eine** Längenprüfung der Kommandozeile vor dem Zerlegen (A37/L237); Prüfstand mit Schutzseite unter `tools/checks/` | `esp-developer` | E1.8, W.6 | **AKE2.1.** Die **alte** Fassung erzeugt im Prüfstand `SIGBUS`, die neue nicht; gültige Eingaben liefern in beiden byte-identische Ausgabe. **Die Ausgabe allein genügt nicht** — L249 zeigt den Fall, der harmlos *aussieht*, weil die gelesene Null im Ziel landet | ☐ | ☐ |
+| E2.1 | **Eine** Längenprüfung der Kommandozeile vor dem Zerlegen (A37/L237); Prüfstand mit Schutzseite unter `tools/checks/`. **Das Verhalten von `var_cmd_min_len()` bei einem unbekannten Buchstaben (Rückgabe 0, Zeile passiert) darf sich nicht ändern** — darauf stützt sich `design.md` §6.2 | `esp-developer` | E1.8, W.6 | **AKE2.1.** Die **alte** Fassung erzeugt im Prüfstand `SIGBUS`, die neue nicht; gültige Eingaben liefern in beiden byte-identische Ausgabe. **Die Ausgabe allein genügt nicht** — L249 zeigt den Fall, der harmlos *aussieht*, weil die gelesene Null im Ziel landet. **Zusätzlich:** Eine Zeile mit unbekanntem Kommandobuchstaben läuft weiterhin durch die Längenprüfung und wird **nicht** mit `!v` abgewiesen (L269) | ☐ | ☐ |
 | E2.2 | `parse_json()` auf die Zeichengrenze zurücknehmen (C24/L249) | `esp-developer` | E2.1 | **AKE2.2**, im selben Prüfstand: Beschreibung, deren 31. Byte mitten in einem Zeichen liegt | ☐ | ☐ |
 | E2.3 | Sieben Zeichenkettenfelder: abweisen statt kürzen (C22/L206) | `esp-developer` | E2.2 | Quelltext; die Gerätemessung folgt in E2.11 und **erst nach dem Einspielen** | ☐ | ☐ |
 | E2.4 | `http_get_param()`-Vertrag; `fs_remove` und `dfplayer_play` melden keinen Erfolg beim Nichtstun (C20/L199) | `esp-developer` | E2.3 | Quelltext: es gibt keine toten `if (! value)`-Zweige mehr, oder sie sind ausdrücklich als tot entfernt | ☐ | ☐ |
 | E2.5 | `dfplayer_alarm_set` absichern (C17/L197) — **abschreiben** aus `http_api_timer_set_common()`, nicht neu erfinden | `esp-developer` | E2.4 | Quelltext: dieselben drei Prüfungen, dieselbe Form | ☐ | ☐ |
 | E2.6 | 19 Abweisungen auf `<param> out of range (<min>..<max>)`; die zwei Laufzeitgrenzen per `snprintf` in einen Stackpuffer, **kein `String`** | `esp-developer` | E2.5 | **AKE2.6**, `grep` über die Fehlertexte. **Dieser Task fällt als erster heraus, wenn die Runde zu lang wird** | ☐ | ☐ |
-| E2.7 | Review, dazu AKE2.7: Verschluckt die PWA die neuen Abweisungen? | `code-reviewer` | E2.6 | Findet er eine Stelle, die nur auf `ok` prüft, wird daraus ein Task in Runde P — **keine stille Mitkorrektur in dieser Runde** | — | ☐ |
+| E2.7 | Review, dazu AKE2.7: Verschluckt die PWA die neuen Abweisungen? | `code-reviewer` | E2.6 | Findet er eine Stelle, die nur auf `ok` prüft, wird daraus ein Task in Runde P — **keine stille Mitkorrektur in dieser Runde**. Zusätzlich: Ist die Prämisse aus `design.md` §6.2 nach E2.1 noch gültig? | — | ☐ |
 | E2.8 | ESP-Version anheben | `release-engineer` | E2.7 | S4 zeigt den neuen Stand | ☐ | — |
 | E2.9 | Build, Release-ZIP, Rollout, Einspielzeile, Commit + Tag + Push | Lead | E2.8 | wie E1.5 | ☐ | — |
 | E2.10 | ESP einspielen | **Nutzer** | E2.9 | neue ESP-Version in `/api/update_status` | — | — |
@@ -168,11 +175,11 @@ Abnahme (AKH.3).
 Neuerungen tragen ihre Voraussetzung **im Strom** mit, statt sich auf eine
 Fähigkeitsmeldung zu stützen (`design.md` §6.0 und §6.5) — die zeigt ohnehin in die
 falsche Richtung (`CAP`/`FIRMWARE` laufen ESP → STM, diese drei laufen STM → ESP).
-Ein alter ESP verwirft eine unbekannte Kommandoart stillschweigend, ein alter STM eine
-unbekannte Antwortzeile. **Beide Rückfalllagen verhalten sich wie heute, und das ist
-am Code belegt, nicht angenommen** (L266). Deshalb braucht es zwischen den beiden
-Teilen **keine eigene Beobachtungsrunde**. Zwei Einspielschritte bleiben, weil jede
-Runde **eine** Laufzeit aufspielt (Risiko aus C13/L180).
+**Beide Rückfalllagen verhalten sich wie heute, und das ist am Code belegt, nicht
+angenommen** (L266 für die Quittung, L269 für die neuen `var`-Zeilen). Deshalb
+braucht es zwischen den beiden Teilen **keine eigene Beobachtungsrunde**. Zwei
+Einspielschritte bleiben, weil jede Runde **eine** Laufzeit aufspielt (Risiko aus
+C13/L180).
 
 **Reihenfolge: ESP zuerst, dann STM.** Begründung: Die neue Wirkung entsteht erst mit
 dem STM-Teil. Steht der ESP schon bereit, ist der STM-Flash der Moment, in dem alles
@@ -185,24 +192,24 @@ Rückfalllage selbst, am Gerät.
 |---|---|---|---|---|---|---|
 | S.1 | ESP: Eröffnungszeile und **Abschlussmarke** auswerten; `var_sync_check()` verlangt die Marke, **wenn** die Eröffnungszeile kam, sonst heutiges Kriterium (L260) | `esp-developer` | H.7 | **AKS.3.** Quelltext; der Rückfall ohne Eröffnungszeile ist ausdrücklich ausgewiesen | ☐ | ☐ |
 | S.2 | ESP: Zuordnung als **eigene Zeile vor** der Quittung senden — `ACK <xy>`, dann `.` bzw. `!v`. **Der Punkt bleibt unverändert ein nackter Punkt** | `esp-developer` | S.1 | **AKS.4.** Quelltext. Die Zeile geht **jeder** Quittung voraus, dem Punkt wie dem `!v` — sonst bliebe genau der Fall unzugeordnet, in dem Nachsendungen entstehen | ☐ | ☐ |
-| S.3 | ESP: Zähler „unmarkiert nach erster Marke"; Markenpflicht für die **drei benannten** Kommandoarten, Abweisung mit **`!v`** (C26) | `esp-developer` | S.2 | **AKS.7 und AKS.8.** Der Zähler ist über den Logring **oder** `/api/device_ready` ablesbar, nicht nur seriell. Die Liste ist **aufgezählt, nicht gemustert**. `!v` statt Schweigen ist Pflicht (L266) | ☐ | ☐ |
+| S.3 | ESP: Zähler „unmarkiert nach erster Marke"; Markenpflicht für die **drei benannten** Kommandoarten, Abweisung mit **`!v`** (C26) | `esp-developer` | S.2 | **AKS.7 und AKS.8.** Der Zähler ist über den Logring **oder** `/api/device_ready` ablesbar, nicht nur seriell. Die Liste ist **aufgezählt, nicht gemustert**. `!v` statt Schweigen ist Pflicht (L266, L269) | ☐ | ☐ |
 | S.4 | Review ESP-Seite | `code-reviewer` | S.3 | Vier Punkte der Checkliste; besonders: Kann die Markenpflicht einen Dauerzustand erzeugen? Wird die Markenerwartung mit dem Abgleich beendet, zu dem sie gehört? Die Antwort muss am Code stehen, nicht in der Spec | — | ☐ |
 | S.5 | ESP-Version anheben | `release-engineer` | S.4 | S4 zeigt den neuen Stand | ☐ | — |
 | S.6 | Build, Release-ZIP, Rollout, Einspielzeile, Commit + Tag + Push | Lead | S.5 | `guardrails.sh --full` Exit 0 | ☐ | — |
 | S.7 | ESP einspielen | **Nutzer** | S.6 | neue ESP-Version in `/api/update_status` | — | — |
 | S.8 | **Zwischenabnahme: neuer ESP gegen alten STM** — das ist der Rückfallnachweis | Lead | S.7 | **AKS.6.** ESP-Neustart auslösen ⇒ ein Vollabgleich läuft durch, **ohne Timeout und ohne Reset**; `var_send_timeout_cnt` steigt nicht, Diagnosefolge lückenlos, Smoketest 30/0, `watch-log.sh` mitgelesen. **Schlägt das fehl, geht Runde S zurück und wird nicht am STM fortgesetzt** | — | ☐ |
-| S.9 | STM: Eröffnungszeile und Abschlussmarke senden | `stm-developer` | S.8 | Quelltext; die Eröffnungszeile sagt, was **dieser** Abgleich tut (markiert / schliesst ab), und gilt nur für ihn — kein Sitzungszustand | ☐ | ☐ |
+| S.9 | STM: Eröffnungszeile und Abschlussmarke senden — **als `var <freierBuchstabe>…` über `var_send_buf()`** | `stm-developer` | S.8 | **Vier Auflagen, alle am Quelltext prüfbar, Begründung in `design.md` §6.2 (L269):** **(1)** Kommandobuchstabe **ausserhalb** von `N n S T D A C M O t a l I` — über die ganze Git-Historie waren nie mehr Buchstaben vergeben, eine Kollision ist ausgeschlossen. **(2)** Die Nutzlast endet **nicht** auf `*` + vier Hexziffern, sonst liest `var_crc_check_and_strip()` sie als falsche Marke und weist die Zeile ab. **(3)** Die Nutzlast bleibt **unter 72 Zeichen** (`VAR_RETRY_CMD_LEN`), sonst ist die Zeile nicht nachsendefähig. **(4) Kein eigenes Top-Level-Präfix** — der ESP antwortet darauf **gar nicht**, und `var_send_buf()` liefe je Zeile 3 s ohne `watchdog_reload()`. Wird je ein eigenes Präfix gewählt, dann **nicht** über eine quittungserwartende Sendefunktion, sondern über `esp8266_uart_puts()`, **mit Vermerk im Code**. Dazu: Die Eröffnungszeile gilt nur für **ihren** Abgleich, kein Sitzungszustand | ☐ | ☐ |
 | S.10 | STM: A39 — `IPADDRESS`-Zweig merkt vor, Ticker **nach** dem Abgleich (Variante b) | `stm-developer` | S.9 | **AKS.1.** Dazu ausdrücklich: `pending_weather_ticker_restore` wandert mit dem Ticker mit, zu dem es gehört. Der Umsetzer weist das im Bericht nach — keine der vier Teilbedingungen des Restores wird vereinfacht | ☐ | ☐ |
 | S.11 | STM: Zuordnungszeile lesen, dem folgenden Punkt bzw. `!v` zuordnen, unpassende Quittung verwerfen | `stm-developer` | S.10 | **AKS.5** über einen Prüfstand unter `tools/checks/` mit **angeglichenen Typen** (L256): verspätete Quittung einspielen, das Kommando wird **einmal** nachgesendet, nicht endlos. Eine gemerkte Zuordnung ohne folgende Quittung wird **verbraucht**, nicht übertragen | ☐ | ☐ |
 | S.12 | STM: `watchdog_reload()` in Tetris und Snake (A16/L106) | `stm-developer` | S.11 | Quelltext: in beiden Spielschleifen; die Gerätemessung folgt in S.18 | ☐ | ☐ |
-| S.13 | Review STM-Seite | `firmware-analyst` | S.12 | Vier Punkte der Checkliste; besonders die drei neuen Zustände (`ip_ticker_pending`, gemerkte Zuordnung, Markenerwartung): Wird jeder auf **jedem** Pfad wieder aufgelöst? | — | ☐ |
+| S.13 | Review STM-Seite | `firmware-analyst` | S.12 | Vier Punkte der Checkliste; **zusätzlich die vier Auflagen aus S.9 einzeln nachgeprüft** — Buchstabe, Endung, Länge, Verpackung. Dazu die drei neuen Zustände (`ip_ticker_pending`, gemerkte Zuordnung, Markenerwartung): Wird jeder auf **jedem** Pfad wieder aufgelöst? | — | ☐ |
 | S.14 | STM-Version anheben | `release-engineer` | S.13 | S4 zeigt den neuen Stand | ☐ | — |
 | S.15 | Build, Release-ZIP, Rollout, Einspielzeile | Lead | S.14 | `guardrails.sh --full` Exit 0 | ☐ | — |
 | S.16 | STM flashen über `./tools/flash-stm.sh` | **Nutzer** | S.15 | `--check` vorher ohne Beanstandung; danach die erwartete STM-Version. **Nicht** `/api/remote_stm32_flash` von Hand (DIR-010) | — | — |
 | S.17 | Abnahme am Gerät, ohne den Spiellauf | Lead | S.16 | **AKS.2, AKS.3, AKS.5, AKS.7, AKS.8.** Hauptloop-Zähler während eines ESP-Neustarts mit IP-Meldung gegen die Referenz aus L226; **der IP-Lauftext muss vollständig durchlaufen** — das nimmt nur das Auge ab; Erfolgszeile des Vollabgleichs im Logring **erst nach der Abschlussmarke**; Zähler ablesbar; keine `!v`-Abweisung im gesunden Zustand; `watch-log.sh` mitgelesen | — | ☐ |
 | S.18 | Spiellauf Tetris oder Snake, mindestens 60 s | **Nutzer** | S.16 | **AKS.9.** Kein Watchdog-Reset im Mitschnitt. Fällt der Lauf aus, gilt AKS.9 als **nicht erfüllt** und wird so berichtet — nicht als „vermutlich in Ordnung" | — | — |
 | S.19 | Commit + Tag + Push für den STM-Stand | Lead | S.17 | DIR-011, je Einspielschritt einzeln getaggt und gepusht | — | — |
-| S.20 | `BEFUNDE.md` nachführen | `doc-writer` | S.18, S.19 | S10 läuft durch; A39, A35 Teil 1, C26, L260, L266 und A16 tragen Status und Beleg | ☐ | — |
+| S.20 | `BEFUNDE.md` nachführen | `doc-writer` | S.18, S.19 | S10 läuft durch; A39, A35 Teil 1, C26, L260, L266, L269 und A16 tragen Status und Beleg | ☐ | — |
 
 **Einspielreihenfolge: erst ESP (S.7), dann STM (S.16).** Dazwischen die
 Zwischenabnahme S.8, kein eigener Gerätelauf. **Was sich für den Nutzer sichtbar
@@ -309,6 +316,10 @@ vereinheitlicht, macht aus neun geänderten Zeilen 432.
 
 **Bei jeder Suche in den STM-Quellen: `grep -a`.** Ohne das übersieht die Suche acht
 Quelldateien (B21/L166).
+
+**Vor jedem Prüfauftrag: Kann der Empfänger die verlangte Tätigkeit ausführen?** Die
+Analyse-Agenten haben kein `Bash` — Git-Historie und Gerätemessung gehören zum Lead
+(L238, L269).
 
 ---
 
