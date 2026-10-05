@@ -62,16 +62,27 @@ DIR-009:
   seit: 2026-10-02
 
 DIR-008:
-  regel: "Die produktive Uhr (Adresse aus tools/device.conf, DEVICE_HOST) darf LESEND abgefragt werden
-          (GET auf /api/-Endpunkte, die nur Zustand liefern). VERBOTEN ohne ausdrueckliche
-          Freigabe des Nutzers im selben Gespraech: jeder schreibende Endpunkt, jeder Flash,
-          jeder Reset, Backup-Import, maintenance_reset_eeprom, maintenance_format_fs,
-          fs_remove, test_display (45 s Watchdog-Reset), learn_ir (unbegrenzter Reset).
-          NIE senden: eine URL mit Parameter ohne Gleichheitszeichen, etwa GET /?a --
-          das stuerzt den ESP nachweislich ab (Review 2, Kernbefund 3). Grund: Es ist die
-          Uhr des Nutzers im Dauerbetrieb, nicht ein Testgeraet."
+  regel: "Die produktive Uhr (Adresse aus tools/device.conf, DEVICE_HOST) darf LESEND abgefragt
+          werden: GET auf /api/-Endpunkte, die nur Zustand liefern. Alles Schreibende ist
+          VERBOTEN ohne ausdrueckliche Freigabe des Nutzers im selben Gespraech — jeder
+          schreibende Endpunkt, jeder Flash, jeder Reset. Grund: Es ist die Uhr des Nutzers im
+          Dauerbetrieb, nicht ein Testgeraet.
+          DIE NAMENTLICHE LISTE DER GEFAEHRLICHEN ENDPUNKTE STEHT IN CLAUDE.md UNTER R5, mit
+          der Folge je Endpunkt, und NUR dort. Sie waechst, und ein zweiter Ort laeuft
+          auseinander — genau das war am 05.10.2026 bereits eingetreten (L278). Guardrail S12
+          laesst nur zwei Zustaende zu: vollstaendig oder gar nicht.
+          Zwei Dinge stehen hier, weil sie keine Endpunkte sind und sonst in keiner Regel
+          stuenden: NIE eine URL mit einem Parameter OHNE Gleichheitszeichen senden, etwa
+          GET /?a — das stuerzt den ESP nachweislich ab (Review 2, Kernbefund 3), auch
+          versehentlich. Und der Backup-Import kann das Geraet ohne WLAN, ohne AP und ohne
+          Webserver zuruecklassen."
   gilt_fuer: [alle]
   seit: 2026-09-30
+  geaendert: 2026-10-05 — Die namentliche Endpunktliste ist entfallen; sie wird jetzt allein in
+             CLAUDE.md unter R5 gefuehrt. KEINE Abschwaechung der Regel: Die Liste stand an
+             beiden Orten und war bereits auseinandergelaufen — ein am 03.10.2026 ergaenzter
+             Endpunkt fehlte hier, und wer den Katalog als Quelle las, hielt ihn fuer
+             unbedenklich (L278). Was gestrichen wurde, ist die Aufzaehlung, nicht die Regel.
 
 DIR-007:
   regel: "R1 (nur der release-engineer baut) ist per Hook erzwungen, nicht nur

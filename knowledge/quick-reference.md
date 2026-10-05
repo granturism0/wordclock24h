@@ -91,9 +91,6 @@ bricht den Bau wieder.
 | Dynamischer Statusbereich ohne `aria-live` | Ergänzen | Hoch |
 | Modal ohne `role="dialog"`, Fokus-Management und Escape | Ergänzen | Hoch |
 | Rand- oder Umrissfarbe eines Bedienelements unter 3:1 | Anheben. WCAG 2.1 SC 1.4.11 | Hoch |
-| C-Quellen mit Python im **Textmodus** patchen | **Binär lesen und schreiben.** Die Quellen haben gemischte Zeilenenden — `vars.c` etwa 940 CRLF und 45 LF. Universal Newlines vereinheitlichen sie still, und aus einem Dreizeiler wird ein Diff über die ganze Datei | Kritisch |
-| Suchmuster mit Umlauten binär patchen | **Umlaute aus dem Muster heraushalten.** Der Patcher kodiert `latin-1`, `http.cpp` und `stm32flash.cpp` sind UTF-8 — ein `ü` im Muster trifft nie. Kostete einen stillen Fehlschlag, der erst beim Nachzählen auffiel | Hoch |
-| Vor dem Patchen die Kodierung **annehmen** statt nachsehen | **Nachsehen.** Welche Datei welcher Gruppe angehört, sagt S7b: „UTF-8 mit Umlauten" wird namentlich gelistet (dort beschädigt ein `latin-1`-Patcher die Datei), „nicht UTF-8" gezählt (dort braucht `grep` ein `-a`). Bis 03.10.2026 behauptete `CLAUDE.md` pauschal, alle ESP-Quellen seien ISO-8859-1 — während diese Zeile hier das Gegenteil sagte. Zwei Dokumente, zwei Aussagen, und die falsche stand in dem, das immer lädt | Hoch |
 | `outline: none` ohne Ersatz | Eigenen Fokusstil setzen | Hoch |
 | Neues `<select>`, `time`, `color` oder `range` ohne `color-scheme` | `color-scheme: dark` setzen, sonst heller Picker auf iOS | Mittel |
 | CSS-Klasse angelegt, aber im HTML nie gesetzt | Im HTML nachziehen oder CSS entfernen. Guardrail-Stufe 6 meldet das | Mittel |
@@ -109,6 +106,19 @@ bricht den Bau wieder.
 | Geändertes Format der Versionszeilen | Zurücknehmen. Der Makefile liest sie per `grep`; das Release bricht sonst still | Kritisch |
 | `cat > datei` oder `Write` auf eine Datei, die ich nicht vorher gelesen habe | Erst lesen. Bei Konfigurationsdateien **anhängen statt ersetzen**. Ein `[ -f x ] && grep … \|\| echo "fehlt"` meldet auch dann „fehlt", wenn die Datei existiert und `grep` nur nichts findet | Kritisch |
 | Release ohne vorherigen vollständigen Build | Vollständig bauen, nicht nur `app-gz` | Hoch |
+
+## Quelldateien patchen — Kodierung und Zeilenenden (`src/**`, `ESP8266/ESP-uclock/`)
+
+Für `stm-developer` und `esp-developer`. **Diese drei Zeilen standen bis zum 05.10.2026 im
+UI-Abschnitt** — also unter einer Überschrift, unter der niemand nachschlägt, der eine
+C-Quelle patcht (L279). Der Text ist unverändert, nur der Ort ist jetzt der richtige.
+Die Regel dahinter trägt DIR-015.
+
+| Ich sehe… | Ich tue… | Schweregrad |
+|---|---|---|
+| C-Quellen mit Python im **Textmodus** patchen | **Binär lesen und schreiben.** Die Quellen haben gemischte Zeilenenden — `vars.c` etwa 940 CRLF und 45 LF. Universal Newlines vereinheitlichen sie still, und aus einem Dreizeiler wird ein Diff über die ganze Datei | Kritisch |
+| Suchmuster mit Umlauten binär patchen | **Umlaute aus dem Muster heraushalten.** Der Patcher kodiert `latin-1`, `http.cpp` und `stm32flash.cpp` sind UTF-8 — ein `ü` im Muster trifft nie. Kostete einen stillen Fehlschlag, der erst beim Nachzählen auffiel | Hoch |
+| Vor dem Patchen die Kodierung **annehmen** statt nachsehen | **Nachsehen.** Welche Datei welcher Gruppe angehört, sagt S7b: „UTF-8 mit Umlauten" wird namentlich gelistet (dort beschädigt ein `latin-1`-Patcher die Datei), „nicht UTF-8" gezählt (dort braucht `grep` ein `-a`). Bis 03.10.2026 behauptete `CLAUDE.md` pauschal, alle ESP-Quellen seien ISO-8859-1 — während diese Zeile hier das Gegenteil sagte. Zwei Dokumente, zwei Aussagen, und die falsche stand in dem, das immer lädt | Hoch |
 
 ## Das Edit-Werkzeug vereinheitlicht Zeilenenden — still
 
