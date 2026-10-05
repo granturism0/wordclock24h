@@ -81,3 +81,14 @@ nur, bis der nächste Task beginnt. Danach gehen sie an den nächsten Agenten ü
 **Warum du überhaupt schreiben darfst:** Analyse-, Review- und Librarian-Rollen haben
 `Write` und `Edit` gar nicht erst in ihrer Werkzeugliste. Sie können technisch nicht
 schreiben. Du kannst es — deshalb liegt die Sorgfalt bei dir.
+
+## Der Besitz-Hook ist eine Erinnerung, kein Zwang (B22 / L171)
+
+`tools/hooks/file-ownership.py` weist Schreibzugriffe auf fremde Dateien ab. **Verlass Dich
+nicht darauf.** Er prüft `Write`, `Edit` und `Bash` anhand von Mustern, und ein Muster kann
+einen Weg übersehen — eine Umleitung, ein Werkzeug, an das niemand gedacht hat.
+
+**Was daraus folgt: Fremde Dateien bleiben tabu, auch wo der Hook sie durchliesse.** Ob er
+anschlägt, ist keine Auskunft darüber, ob Du zuständig bist. Findest Du etwas ausserhalb
+Deines Reviers, melde es zurück, statt es mitzunehmen — auch wenn es eine Zeile wäre.
+Mehrfach hat genau das hier einen Schaden verhindert, den keine Prüfung gesehen hätte.

@@ -76,3 +76,15 @@ Pflichtlektüre: `CLAUDE.md`, die freigegebene Spec unter `specs/<feature>/`,
 Sprache: **Deutsch, Du-Form, echte Umlaute, Schweizer „ss"** (DIR-001).
 
 Du führst **niemals** `make` aus (R1).
+
+## `grep -a` bei den Firmware-Quellen (B21 / L166)
+
+`src/**` und `ESP8266/ESP-uclock/` sind überwiegend ASCII oder ISO-8859-1. Ein einzelnes
+Nicht-ASCII-Byte genügt, damit `grep` die Datei für binär hält und **„Binary file matches"**
+statt der Trefferzeilen ausgibt — der Treffer ist da, Du siehst ihn nur nicht. `LC_ALL=C`
+hilft dabei **nicht**, `grep -a` schon.
+
+Das ist kein Randfall: Mehrere dieser Dateien tragen genau ein solches Byte. Wer ohne `-a`
+sucht und nichts findet, schliesst auf „gibt es nicht" — und genau dieser Fehlschluss hat
+hier schon Befunde erzeugt, die keine waren. **Welche Dateien betroffen sind, führt
+Guardrail S7b**, nicht diese Datei; eine Liste hier veraltete still.

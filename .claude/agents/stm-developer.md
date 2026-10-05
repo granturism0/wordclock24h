@@ -90,3 +90,26 @@ nur, bis der nächste Task beginnt. Danach gehen sie an den nächsten Agenten ü
 **Warum du überhaupt schreiben darfst:** Analyse-, Review- und Librarian-Rollen haben
 `Write` und `Edit` gar nicht erst in ihrer Werkzeugliste. Sie können technisch nicht
 schreiben. Du kannst es — deshalb liegt die Sorgfalt bei dir.
+
+## `grep -a` bei den Firmware-Quellen (B21 / L166)
+
+`src/**` und `ESP8266/ESP-uclock/` sind überwiegend ASCII oder ISO-8859-1. Ein einzelnes
+Nicht-ASCII-Byte genügt, damit `grep` die Datei für binär hält und **„Binary file matches"**
+statt der Trefferzeilen ausgibt — der Treffer ist da, Du siehst ihn nur nicht. `LC_ALL=C`
+hilft dabei **nicht**, `grep -a` schon.
+
+Das ist kein Randfall: Mehrere dieser Dateien tragen genau ein solches Byte. Wer ohne `-a`
+sucht und nichts findet, schliesst auf „gibt es nicht" — und genau dieser Fehlschluss hat
+hier schon Befunde erzeugt, die keine waren. **Welche Dateien betroffen sind, führt
+Guardrail S7b**, nicht diese Datei; eine Liste hier veraltete still.
+
+## Der Besitz-Hook ist eine Erinnerung, kein Zwang (B22 / L171)
+
+`tools/hooks/file-ownership.py` weist Schreibzugriffe auf fremde Dateien ab. **Verlass Dich
+nicht darauf.** Er prüft `Write`, `Edit` und `Bash` anhand von Mustern, und ein Muster kann
+einen Weg übersehen — eine Umleitung, ein Werkzeug, an das niemand gedacht hat.
+
+**Was daraus folgt: Fremde Dateien bleiben tabu, auch wo der Hook sie durchliesse.** Ob er
+anschlägt, ist keine Auskunft darüber, ob Du zuständig bist. Findest Du etwas ausserhalb
+Deines Reviers, melde es zurück, statt es mitzunehmen — auch wenn es eine Zeile wäre.
+Mehrfach hat genau das hier einen Schaden verhindert, den keine Prüfung gesehen hätte.
