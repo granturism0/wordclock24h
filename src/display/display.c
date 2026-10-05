@@ -6187,6 +6187,30 @@ display_set_ambilight_marker_colors (DSP_COLORS * rgb)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Die folgenden fuenf Setter pruefen ihren Index NICHT -- das tut ihr Aufrufer (A44 / L289)
+ *
+ * display_set_animation_deceleration (), display_set_animation_flags (),
+ * display_set_color_animation_deceleration (), display_set_ambilight_mode_deceleration ()
+ * und display_set_ambilight_mode_flags () schreiben idx ungeprueft in display.animations[],
+ * display.color_animations[] bzw. display.ambilight_modes[].
+ *
+ * Das ist seit A44 keine Luecke mehr, sondern eine Entscheidung mit Ort: Die Pruefung sitzt
+ * bei ihrem jeweils einzigen Aufrufer in main.c -- schedule_esp8266_animation_variable (),
+ * schedule_esp8266_color_animation_variable () und schedule_esp8266_ambilight_mode () --
+ * ueber esp8266_idx_ok (). Dort liegt der Zaehler, der verworfene Zeilen drosselt, und die
+ * Drosselung muss fuer die SUMME aller Abweisungen gelten: Die Meldung geht ueber dieselbe
+ * UART, deren Ueberlastung die schlechten Zeilen erzeugt. Ein zweiter Zaehler hier haette
+ * genau das aufgehoben.
+ *
+ * WER EINEN WEITEREN AUFRUFER ERGAENZT, BRINGT SEINE EIGENE PRUEFUNG MIT -- und verlaesst
+ * sich dabei nicht auf die EEPROM-Partner. display_save_animation (),
+ * display_save_color_animation () und display_save_ambilight_mode_deceleration () pruefen
+ * idx zwar, aber eine Zeile SPAETER, wenn der Strukturzugriff oben laengst stattgefunden
+ * hat. Genau diese Reihenfolge hat den Pfad gesichert aussehen lassen; sie sichert ihn nicht.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * set display animation deceleration
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */

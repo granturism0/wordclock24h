@@ -2427,6 +2427,19 @@ schedule_esp8266_display_variable (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Vorwaertsdeklaration fuer esp8266_idx_ok () (A44 / L289)
+ *
+ * Die Pruefung steht samt Begruendung bei ihrer Definition weiter unten, zusammen mit dem
+ * Zaehler, den sie sich mit esp8266_cmd_reject () teilt. Die drei Handler ab hier brauchen
+ * sie aber frueher. Deklaration statt Verschiebung: Der Compiler haelt beide Seiten
+ * zusammen, eine verschobene Funktion haette einen Diff ueber rund 150 Zeilen erzeugt --
+ * und ein Diff, den niemand mehr pruefen kann, ist in diesem Projekt schon einmal teuer
+ * geworden.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static __attribute__((noinline)) uint_fast8_t esp8266_idx_ok (uint_fast8_t, uint_fast8_t, const char *);
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_animation_variable () - schedule ESP8266 animation variables
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2439,6 +2452,11 @@ schedule_esp8266_animation_variable (char * parameters)
     cmd_code = *parameters++;
     var_idx = htoi (parameters, 2);
     parameters += 2;
+
+    if (! esp8266_idx_ok (var_idx, sizeof (display.animations) / sizeof (display.animations[0]), "anim"))
+    {
+        return;                                                     // A44/L289: Schreibzugriff ueber den Arrayrand
+    }
 
     switch (cmd_code)
     {
@@ -2488,6 +2506,11 @@ schedule_esp8266_color_animation_variable (char * parameters)
     var_idx = htoi (parameters, 2);
     parameters += 2;
 
+    if (! esp8266_idx_ok (var_idx, sizeof (display.color_animations) / sizeof (display.color_animations[0]), "colanim"))
+    {
+        return;                                                     // A44/L289: Schreibzugriff ueber den Arrayrand
+    }
+
     switch (cmd_code)
     {
         case 'N':                                                       // CNiis: Color animation Name
@@ -2532,6 +2555,11 @@ schedule_esp8266_ambilight_mode (char * parameters)
     cmd_code = *parameters++;
     var_idx = htoi (parameters, 2);
     parameters += 2;
+
+    if (! esp8266_idx_ok (var_idx, sizeof (display.ambilight_modes) / sizeof (display.ambilight_modes[0]), "ambimode"))
+    {
+        return;                                                     // A44/L289: Schreibzugriff ueber den Arrayrand
+    }
 
     switch (cmd_code)
     {
@@ -2656,7 +2684,7 @@ schedule_esp8266_overlay (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
- * esp8266_idx_ok () - Indexpruefung fuer die Zeittabellen-Handler (A43 / L286)
+ * esp8266_idx_ok () - Indexpruefung fuer die Handler mit Array-Index (A43 / L286, A44 / L289)
  *
  * schedule_esp8266_night_tables(), schedule_esp8266_ambilight_night_tables() und
  * schedule_esp8266_alarm_tables() lesen ihren Index mit htoi (parameters, 2) -- zwei
@@ -2667,6 +2695,20 @@ schedule_esp8266_overlay (char * parameters)
  * Die Laengenpruefung aus A41 faengt das nicht, und genau darin liegt der Punkt: "tff010203"
  * ist formal eine voellig gueltige Zeile -- richtige Laenge, richtige Zeichen, nur der Index
  * ist unsinnig. Eine Pruefung auf die FORM kann eine Pruefung auf den WERT nicht ersetzen.
+ *
+ * A44 / L289 hat dieselbe Pruefung auf drei weitere Handler gezogen:
+ * schedule_esp8266_animation_variable (), schedule_esp8266_color_animation_variable () und
+ * schedule_esp8266_ambilight_mode (). Sie reichten ihren Index an fuenf Setter in display.c
+ * weiter, die ihn ungeprueft in display.animations[], display.color_animations[] und
+ * display.ambilight_modes[] schrieben -- derselbe Schreibzugriff ueber den Arrayrand.
+ *
+ * Die Pruefung sitzt beim AUFRUFER und nicht im Setter, und das ist eine Entscheidung:
+ * Hier liegt der Zaehler. Im Setter haette sie entweder still verworfen oder einen zweiten
+ * Meldeweg gebraucht, und damit waere die Drosselung je Grund getrennt gelaufen statt fuer
+ * die Summe. Dazu kommt, dass hier die GANZE Zeile verworfen wird und nicht nur ein
+ * einzelner Schreibzugriff: Eine Zeile mit unsinnigem Index hat nichts zu sagen. Jeder der
+ * fuenf Setter hat genau einen Aufrufer, und der ist damit gedeckt; ein Hinweis bei den
+ * Settern in display.c haelt das fuer den naechsten fest, der dort einen Aufrufer ergaenzt.
  *
  * Form, Rueckgabeweg und Verhalten sind von tables_idx_ok() in tables.c abgeschrieben
  * (A22 / L145), und das ist Absicht: Zwei Bauarten fuer dieselbe Pruefung sind genau das,
