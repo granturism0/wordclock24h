@@ -250,11 +250,21 @@ static uint16_t     http_no_request_aborts   = 0;
  */
 #define HTTP_API_ERROR_NOT_FOUND                    6
 
+/* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK und
+ * ALARM_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen. Die Masken haben 3 Bit, also 0..7 -
+ * belegt sind aber nur So..Sa, also 0..6. Stand bis C17/L197 unmittelbar vor
+ * http_api_timer_set_common(); seitdem braucht ihn auch http_api_dfplayer_alarm_set(),
+ * und das steht weiter oben in der Datei.
+ */
+#define HTTP_MAX_WEEKDAY                            6
+
 static void             http_json_ok ();
 static void             http_json_error (unsigned int error_code, const char * detail);
 static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
 static uint_fast8_t     http_get_opt_int_param (const char * name, int * valuep, int lo, int hi);
 static uint_fast8_t     http_get_string_param (const char * name, char ** valuep);
+static uint_fast8_t     http_check_strvar_len (const char * name, const char * value, unsigned int maxlen);
+static void             http_json_error_range (const char * name, int lo, int hi);
 static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
@@ -1921,7 +1931,7 @@ http_app (const char * path)
 
     action = http_get_param ("action");
 
-    if (is_pwa_index && action && ! strcmp (action, "install"))
+    if (is_pwa_index && ! strcmp (action, "install"))
     {
         remote_app_available = http_remote_app_files_available (remote_app_version, sizeof (remote_app_version));
 
@@ -2128,6 +2138,25 @@ http_set_params (char * paramlist)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * get a parameter
+ *
+ * VERTRAG (C20/L199): Diese Funktion liefert NIE NULL. Fehlt der Parameter, kommt ein
+ * leerer String. Aufrufer pruefen deshalb auf *value, nicht auf value.
+ *
+ * Bis zum 05.10.2026 stimmte dieser Vertrag NICHT, und der Befund hatte es umgekehrt:
+ * L199 und L273 fuehrten "gibt nie NULL zurueck" als die URSACHE und die NULL-Pruefungen
+ * als tote Zweige. Nachgelesen hat sich das Gegenteil gezeigt -- http_set_params() setzt
+ * .value auf NULL, wenn ein Parameter OHNE '=' ankommt, und gab genau dieses NULL hier
+ * heraus. Damit war
+ *
+ *     GET /update?action=flash&stm32_filenames      -> strncpy (dst, NULL, 63)
+ *     GET /api/dfplayer_alarm_set?idx               -> atoi (NULL)
+ *
+ * aus dem ganzen LAN ohne Anmeldung ausloesbar. Die rund 144 Aufrufstellen pruefen
+ * ueberwiegend gar nicht, und ein Teil schiebt den Rueckgabewert roh in atoi(), strcmp()
+ * oder strncpy(). Es ist deshalb der Vertrag, der eingeloest wird, und nicht jede
+ * Aufrufstelle, die eine Pruefung bekommt -- eine einzige vergessene reichte.
+ *
+ * Wer das hier je zurueckdreht, dreht beide Abstuerze wieder auf.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 static char *
@@ -2140,7 +2169,7 @@ http_get_param (const char * name)
     {
         if (! strcmp (http_parameters[idx].name, name))
         {
-            return http_parameters[idx].value;
+            return http_parameters[idx].value ? http_parameters[idx].value : empty;
         }
     }
 
@@ -4207,7 +4236,7 @@ http_display (void)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "saveitis"))
         {
@@ -4422,7 +4451,7 @@ http_animations (void)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "saveanimation"))
         {
@@ -4641,7 +4670,7 @@ http_overlays (void)
 
     n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
 
-    if (action)
+    if (*action)
     {
         if (! strncmp (action, "disp", 4))
         {
@@ -4967,7 +4996,7 @@ http_ambilight (void)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "savesyncambi"))
         {
@@ -5307,7 +5336,7 @@ http_timers (uint_fast8_t is_ambilight)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strncmp (action, "saveid", 6))
         {
@@ -5476,7 +5505,7 @@ http_dfplayer (void)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "savevolume"))
         {
@@ -5708,7 +5737,7 @@ http_tft (void)
     flags = get_numvar (SSD1963_FLAGS_NUM_VAR);
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "saveflags"))
         {
@@ -6228,7 +6257,7 @@ http_fs (int post = POST_ICON_NONE)
         LittleFS.end();
     }
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "format"))
         {
@@ -6735,12 +6764,12 @@ http_api_app_file_upload ()
 
     local_filename[0] = '\0';
 
-    if (step_param && *step_param)
+    if (*step_param)
     {
         step = strtoul (step_param, (char **) 0, 10);
     }
 
-    if (total_param && *total_param)
+    if (*total_param)
     {
         total = strtoul (total_param, (char **) 0, 10);
     }
@@ -6756,7 +6785,7 @@ http_api_app_file_upload ()
     else
     {
         const char * encoding = http_get_param ("encoding");
-        uint_fast8_t gzip_encoded = (encoding && ! strcmp (encoding, "gzip")) ? 1 : 0;
+        uint_fast8_t gzip_encoded = (! strcmp (encoding, "gzip")) ? 1 : 0;
 
         if (! app_asset_storage_filename (validated_asset, gzip_encoded, local_filename, sizeof (local_filename)))
         {
@@ -6911,12 +6940,12 @@ http_update (void)
     action = http_get_param ("action");
     return_to_app = http_get_param ("return_to_app");
 
-    if (return_to_app && ! strcmp (return_to_app, "1"))
+    if (! strcmp (return_to_app, "1"))
     {
         refresh_url = "/app/";
     }
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "update"))
         {
@@ -8088,11 +8117,11 @@ http_api_display_power_set ()
 {
     char * value = http_get_param ("value");
 
-    if (value && ! strcmp (value, "on"))
+    if (! strcmp (value, "on"))
     {
         set_numvar (DISPLAY_POWER_NUM_VAR, 1);
     }
-    else if (value && ! strcmp (value, "off"))
+    else if (! strcmp (value, "off"))
     {
         set_numvar (DISPLAY_POWER_NUM_VAR, 0);
     }
@@ -8111,11 +8140,11 @@ http_api_ambilight_power_set ()
 {
     char * value = http_get_param ("value");
 
-    if (value && ! strcmp (value, "on"))
+    if (! strcmp (value, "on"))
     {
         set_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR, 1);
     }
-    else if (value && ! strcmp (value, "off"))
+    else if (! strcmp (value, "off"))
     {
         set_numvar (DISPLAY_AMBILIGHT_POWER_NUM_VAR, 0);
     }
@@ -8171,11 +8200,11 @@ http_api_auto_brightness_set ()
 {
     char * value = http_get_param ("value");
 
-    if (value && ! strcmp (value, "on"))
+    if (! strcmp (value, "on"))
     {
         set_numvar (DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE_NUM_VAR, 1);
     }
-    else if (value && ! strcmp (value, "off"))
+    else if (! strcmp (value, "off"))
     {
         set_numvar (DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE_NUM_VAR, 0);
     }
@@ -8259,7 +8288,12 @@ http_api_ticker_set ()
      * zugleich der einzige Weg, den Ticker wieder abzuschalten - es gibt keinen
      * getrennten Schalter. Eine Ablehnung des leeren Werts liesse ihn nie mehr loeschen.
      */
-    set_strvar (TICKER_TEXT_STR_VAR, value ? value : "");
+    if (! http_check_strvar_len ("value", value, MAX_TICKER_TEXT_LEN))
+    {
+        return 0;
+    }
+
+    set_strvar (TICKER_TEXT_STR_VAR, value);
 
     http_json_ok ();
 
@@ -8279,6 +8313,11 @@ http_api_date_ticker_format_set ()
     if (! http_get_string_param ("value", &value))
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
+
+    if (! http_check_strvar_len ("value", value, MAX_DATE_TICKER_FORMAT_LEN))
+    {
         return 0;
     }
 
@@ -8353,6 +8392,11 @@ http_api_weather_appid_set ()
         return 0;
     }
 
+    if (! http_check_strvar_len ("value", value, MAX_WEATHER_APPID_LEN))
+    {
+        return 0;
+    }
+
     set_strvar (WEATHER_APPID_STR_VAR, value);
 
     http_json_ok ();
@@ -8373,7 +8417,12 @@ http_api_weather_city_set ()
      * zulaessig, solange die andere Ortsangabe bestehen bleibt - nur der Fall "beides
      * leer" nimmt der Uhr still das Wetter.
      */
-    if (! value || ! *value)
+    if (! http_check_strvar_len ("value", value, MAX_WEATHER_CITY_LEN))
+    {
+        return 0;
+    }
+
+    if (! *value)
     {
         if (! lon_var || ! *(lon_var->str) || ! lat_var || ! *(lat_var->str))
         {
@@ -8398,14 +8447,10 @@ http_api_weather_coordinates_set ()
     char *      lat = http_get_param ("lat");
     STR_VAR *   city_var = get_strvar (WEATHER_CITY_STR_VAR);
 
-    if (! lon)
+    if (! http_check_strvar_len ("lon", lon, MAX_WEATHER_LON_LEN) ||
+        ! http_check_strvar_len ("lat", lat, MAX_WEATHER_LAT_LEN))
     {
-        lon = (char *) "";
-    }
-
-    if (! lat)
-    {
-        lat = (char *) "";
+        return 0;
     }
 
     /* Nur eine der beiden Koordinaten zu setzen ergibt nie eine Abfrage: Der STM32
@@ -8602,16 +8647,6 @@ http_api_network_client_set ()
     char * ssid = http_get_param ("ssid");
     char * key  = http_get_param ("key");
 
-    if (! ssid)
-    {
-        ssid = (char *) "";
-    }
-
-    if (! key)
-    {
-        key = (char *) "";
-    }
-
     wifi_connect (ssid, key, true);
 
     String pssid = ssid;
@@ -8645,16 +8680,6 @@ http_api_network_ap_set ()
 {
     char * ssid = http_get_param ("ssid");
     char * key  = http_get_param ("key");
-
-    if (! ssid)
-    {
-        ssid = (char *) "";
-    }
-
-    if (! key)
-    {
-        key = (char *) "";
-    }
 
     /* Bei zu kurzem Schluessel passierte bisher gar nichts, die Antwort lautete aber
      * {"ok":true} und die Oberflaeche meldete "Zugangspunkt gestartet" (L30).
@@ -8724,11 +8749,6 @@ http_api_eeprom_settings_set ()
     char * ap_key = http_get_param ("ap_key");
     char * boot_as_ap = http_get_param ("boot_as_ap");
 
-    if (! ssid)     { ssid = (char *) ""; }
-    if (! key)      { key = (char *) ""; }
-    if (! ap_ssid)  { ap_ssid = (char *) ""; }
-    if (! ap_key)   { ap_key = (char *) ""; }
-
     String pssid = ssid;
     String pkey = key;
     String pap_ssid = ap_ssid;
@@ -8771,11 +8791,11 @@ http_api_eeprom_settings_set ()
         eeprom_save_ap_ssidkey ();
     }
 
-    if (boot_as_ap && ! strcmp (boot_as_ap, "on"))
+    if (! strcmp (boot_as_ap, "on"))
     {
         eeprom_flags |= EEPROM_FLAG_BOOT_AS_AP;
     }
-    else if (boot_as_ap && eeprom_ssid[0])
+    else if (eeprom_ssid[0])
     {
         /* Den Accesspoint nur abschalten, wenn danach noch ein WLAN bleibt. Sonst
          * faellt der letzte Weg ins Geraet weg.
@@ -8803,6 +8823,11 @@ http_api_network_timeserver_set ()
     if (! http_get_string_param ("value", &value))
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
+
+    if (! http_check_strvar_len ("value", value, MAX_TIMESERVER_NAME_LEN))
+    {
         return 0;
     }
 
@@ -8924,6 +8949,11 @@ http_api_update_host_set ()
         return 0;
     }
 
+    if (! http_check_strvar_len ("value", value, MAX_UPDATE_HOST_LEN))
+    {
+        return 0;
+    }
+
     set_strvar (UPDATE_HOST_VAR, value);
 
     http_json_ok ();
@@ -8942,6 +8972,11 @@ http_api_update_path_set ()
     if (! http_get_string_param ("value", &value))
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "value missing or empty");
+        return 0;
+    }
+
+    if (! http_check_strvar_len ("value", value, MAX_UPDATE_PATH_LEN))
+    {
         return 0;
     }
 
@@ -9638,7 +9673,7 @@ http_api_animation_mode_set ()
 
     if (value < 0 || value >= (int) max_display_animation_variables)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range");
+        http_json_error_range ("value", 0, max_display_animation_variables ? (int) max_display_animation_variables - 1 : 0);
         return 0;
     }
 
@@ -9663,7 +9698,7 @@ http_api_color_animation_mode_set ()
 
     if (value < 0 || value >= MAX_COLOR_ANIMATION_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "value out of range");
+        http_json_error_range ("value", 0, MAX_COLOR_ANIMATION_VARIABLES - 1);
         return 0;
     }
 
@@ -9694,7 +9729,7 @@ http_api_animation_profile_set ()
 
     if (idx < 0 || idx >= (int) max_display_animation_variables)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, max_display_animation_variables ? (int) max_display_animation_variables - 1 : 0);
         return 0;
     }
 
@@ -9708,7 +9743,7 @@ http_api_animation_profile_set ()
 
     set_display_animation_deceleration ((uint_fast8_t) idx, (uint_fast8_t) deceleration);
 
-    favourite = (http_get_param ("favourite") && ! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
+    favourite = (! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
 
     if (favourite)
     {
@@ -9743,7 +9778,7 @@ http_api_animation_profile_default ()
 
     if (idx < 0 || idx >= (int) max_display_animation_variables)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, max_display_animation_variables ? (int) max_display_animation_variables - 1 : 0);
         return 0;
     }
 
@@ -9751,7 +9786,7 @@ http_api_animation_profile_default ()
 
     if (! da)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, max_display_animation_variables ? (int) max_display_animation_variables - 1 : 0);
         return 0;
     }
 
@@ -9785,13 +9820,13 @@ http_api_color_animation_profile_set ()
 
     if (idx < 0 || idx >= MAX_COLOR_ANIMATION_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_COLOR_ANIMATION_VARIABLES - 1);
         return 0;
     }
 
     if (deceleration < 0 || deceleration > COLOR_ANIMATION_MAX_DECELERATION)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "deceleration out of range");
+        http_json_error_range ("deceleration", 0, COLOR_ANIMATION_MAX_DECELERATION);
         return 0;
     }
 
@@ -9819,7 +9854,7 @@ http_api_color_animation_profile_default ()
 
     if (idx < 0 || idx >= MAX_COLOR_ANIMATION_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_COLOR_ANIMATION_VARIABLES - 1);
         return 0;
     }
 
@@ -9827,7 +9862,7 @@ http_api_color_animation_profile_default ()
 
     if (! ca)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_COLOR_ANIMATION_VARIABLES - 1);
         return 0;
     }
 
@@ -9856,7 +9891,7 @@ http_api_display_dim_level_set ()
 
     if (idx < 0 || idx > MAX_BRIGHTNESS)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_BRIGHTNESS);
         return 0;
     }
 
@@ -9890,7 +9925,7 @@ http_api_ambilight_dim_level_set ()
 
     if (idx < 0 || idx > MAX_BRIGHTNESS)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_BRIGHTNESS);
         return 0;
     }
 
@@ -9912,17 +9947,17 @@ http_api_tft_flags_set ()
 {
     uint_fast8_t flags = 0;
 
-    if (http_get_param ("rgb") && ! strcmp (http_get_param ("rgb"), "on"))
+    if (! strcmp (http_get_param ("rgb"), "on"))
     {
         flags |= SSD1963_GLOBAL_FLAGS_RGB_ORDER;
     }
 
-    if (http_get_param ("hflip") && ! strcmp (http_get_param ("hflip"), "on"))
+    if (! strcmp (http_get_param ("hflip"), "on"))
     {
         flags |= SSD1963_GLOBAL_FLAGS_FLIP_HORIZONTAL;
     }
 
-    if (http_get_param ("vflip") && ! strcmp (http_get_param ("vflip"), "on"))
+    if (! strcmp (http_get_param ("vflip"), "on"))
     {
         flags |= SSD1963_GLOBAL_FLAGS_FLIP_VERTICAL;
     }
@@ -10106,7 +10141,7 @@ http_api_ambilight_mode_profile_set ()
 
     if (idx < 0 || idx >= MAX_AMBILIGHT_MODE_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_AMBILIGHT_MODE_VARIABLES - 1);
         return 0;
     }
 
@@ -10144,7 +10179,7 @@ http_api_ambilight_mode_profile_default ()
 
     if (idx < 0 || idx >= MAX_AMBILIGHT_MODE_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_AMBILIGHT_MODE_VARIABLES - 1);
         return 0;
     }
 
@@ -10152,7 +10187,7 @@ http_api_ambilight_mode_profile_default ()
 
     if (! am)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "idx out of range");
+        http_json_error_range ("idx", 0, MAX_AMBILIGHT_MODE_VARIABLES - 1);
         return 0;
     }
 
@@ -10200,7 +10235,7 @@ http_get_int_param (const char * name, int * valuep)
     char *  endp;
     long    parsed;
 
-    if (! value || ! *value)
+    if (! *value)                                           // nie NULL, siehe Vertrag bei http_get_param (C20/L199)
     {
         return 0;
     }
@@ -10230,7 +10265,7 @@ http_get_opt_int_param (const char * name, int * valuep, int lo, int hi)
     char *  endp;
     long    parsed;
 
-    if (! value || ! *value)
+    if (! *value)                                           // nie NULL, siehe Vertrag bei http_get_param (C20/L199)
     {
         return 1;
     }
@@ -10258,7 +10293,7 @@ http_get_string_param (const char * name, char ** valuep)
 {
     char * value = http_get_param (name);
 
-    if (! value || ! *value)
+    if (! *value)
     {
         return 0;
     }
@@ -10266,6 +10301,51 @@ http_get_string_param (const char * name, char ** valuep)
     *valuep = value;
 
     return 1;
+}
+
+/* C22/L206: Zeichenketten wurden bisher STILL auf die Breite der Variablen gekuerzt und
+ * das Ergebnis als {"ok":true} gemeldet -- AppID 33 auf 32, Zeitserver 17 auf 16,
+ * Update-Host 64 auf 63. Beim Update-Host ist das kein Schoenheitsfehler: Ein gekuerzter
+ * Hostname zeigt auf einen ANDEREN Server, und genau das war L124.
+ *
+ * Gezaehlt werden BYTES, nicht Zeichen -- die Grenze der Variablen ist eine Pufferbreite.
+ * Die Kuerzung in set_strvar() bleibt als letztes Netz stehen; sie wird ab hier nur nicht
+ * mehr erreicht.
+ *
+ * Die Fehlerantwort ist bereits gesendet, wenn 0 zurueckkommt; der Aufrufer bricht nur
+ * noch ab -- dieselbe Form wie bei http_get_color_component().
+ */
+static uint_fast8_t
+http_check_strvar_len (const char * name, const char * value, unsigned int maxlen)
+{
+    if (strlen (value) > maxlen)
+    {
+        char detail[64];
+
+        snprintf (detail, sizeof (detail), "%s too long (max. %u characters)", name, maxlen);
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, detail);
+        return 0;
+    }
+
+    return 1;
+}
+
+/* C18/L186: Fuenfzehn Abweisungen nannten den Bereich nicht, den sie pruefen -- "idx out of
+ * range" ohne jede Zahl. Die Oberflaeche zeigt den detail-Text woertlich an (L201), der
+ * Nutzer erfuhr also weder den erlaubten Bereich noch, welcher Wert gemeint war.
+ *
+ * snprintf in einen Stackpuffer, KEIN String (L175): Der Heap ist der Engpass dieser
+ * Laufzeit, und drei der Grenzen sind Laufzeitwerte bzw. Aufzaehlungsenden, die sich im
+ * Text nicht als Literal schreiben lassen. Eine Funktion statt fuenfzehn Literale spart
+ * zusaetzlich Flash.
+ */
+static void
+http_json_error_range (const char * name, int lo, int hi)
+{
+    char detail[64];
+
+    snprintf (detail, sizeof (detail), "%s out of range (%d..%d)", name, lo, hi);
+    http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, detail);
 }
 
 /* Laenge eines Monats inklusive Schaltjahr. Ohne sie nimmt datetime_set den
@@ -10294,11 +10374,11 @@ http_get_on_off_value (const char * param, uint_fast8_t current_value)
 {
     char * value = http_get_param (param);
 
-    if (value && ! strcmp (value, "on"))
+    if (! strcmp (value, "on"))
     {
         return 1;
     }
-    else if (value && ! strcmp (value, "off"))
+    else if (! strcmp (value, "off"))
     {
         return 0;
     }
@@ -10541,11 +10621,11 @@ http_api_ambilight_online_set ()
 {
     char * value = http_get_param ("value");
 
-    if (value && ! strcmp (value, "on"))
+    if (! strcmp (value, "on"))
     {
         set_numvar (AMBILIGHT_IS_UP_NUM_VAR, 1);
     }
-    else if (value && ! strcmp (value, "off"))
+    else if (! strcmp (value, "off"))
     {
         set_numvar (AMBILIGHT_IS_UP_NUM_VAR, 0);
     }
@@ -10691,7 +10771,7 @@ http_api_dfplayer_silence_start_set ()
 
     if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour must be 0..23, minute 0..59");
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour out of range (0..23) or minute out of range (0..59)");
         return 0;
     }
 
@@ -10717,7 +10797,7 @@ http_api_dfplayer_silence_stop_set ()
 
     if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour must be 0..23, minute 0..59");
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour out of range (0..23) or minute out of range (0..59)");
         return 0;
     }
 
@@ -10766,41 +10846,78 @@ http_api_dfplayer_play ()
     return 0;
 }
 
+/* C17/L197: Drei Maengel, und fuer jeden stand die Loesung bereits in
+ * http_api_timer_set_common() -- ABGESCHRIEBEN, nicht neu erfunden, dieselben drei
+ * Pruefungen in derselben Reihenfolge und derselben Form:
+ *
+ *   (1) idx wurde mit atoi gelesen und in einem if OHNE else geprueft. Ein Index
+ *       ausserhalb uebersprang den ganzen Block, http_json_ok() feuerte trotzdem; ein
+ *       FEHLENDER idx wurde ueber atoi("") zu 0 und ueberschrieb Alarm 0.
+ *   (2) from und to wurden MASKIERT statt geprueft: from=9 ergab 9<<3 = 0x48, maskiert
+ *       0x08 -- also Montag.
+ *   (3) hour und minute wurden gar nicht geprueft: hour=99&minute=99 ergab 6039 Minuten,
+ *       ein Tag hat 1440. set_alarm_time_var() verkuerzte danach still auf 16 Bit.
+ *
+ * Der so gesetzte Alarm stand anschliessend als aktiv in der Liste und konnte NIE
+ * ausloesen -- kein Fehler, keine Meldung. Die Wochentagsgrenze ist HTTP_MAX_WEEKDAY wie
+ * beim Zwilling; die Maske traegt zwar 3 Bit, aber den Wert 7 gibt es als Tag nicht.
+ */
 static int
 http_api_dfplayer_alarm_set ()
 {
-    int idx = atoi (http_get_param ("idx"));
+    int             idx;
+    int             from_day;
+    int             to_day;
+    int             hour;
+    int             minute;
+    ALARM_TIME *    at;
+    uint_fast8_t    flags;
 
-    if (idx >= 0 && idx < MAX_ALARM_TIME_VARIABLES)
+    if (! http_get_int_param ("idx", &idx) ||
+        ! http_get_int_param ("from", &from_day) ||
+        ! http_get_int_param ("to", &to_day) ||
+        ! http_get_int_param ("hour", &hour) ||
+        ! http_get_int_param ("minute", &minute))
     {
-        ALARM_TIME *    at;
-        uint_fast8_t    from_day;
-        uint_fast8_t    to_day;
-        uint_fast16_t   minutes;
-        uint_fast8_t    flags;
-
-        at = get_alarm_time_var ((ALARM_TIME_VARIABLE) idx);
-        flags = at ? at->flags : 0;
-
-        if (http_get_on_off_value ("active", 0))
-        {
-            flags |= ALARM_TIME_FLAG_ACTIVE;
-        }
-        else
-        {
-            flags &= ~ALARM_TIME_FLAG_ACTIVE;
-        }
-
-        from_day = atoi (http_get_param ("from"));
-        to_day = atoi (http_get_param ("to"));
-
-        flags &= ~(ALARM_TIME_FROM_DAY_MASK | ALARM_TIME_TO_DAY_MASK);
-        flags |= ALARM_TIME_FROM_DAY_MASK & (from_day << 3);
-        flags |= ALARM_TIME_TO_DAY_MASK & to_day;
-
-        minutes = atoi (http_get_param ("hour")) * 60 + atoi (http_get_param ("minute"));
-        set_alarm_time_var ((ALARM_TIME_VARIABLE) idx, minutes, flags);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "idx, from, to, hour and minute required");
+        return 0;
     }
+
+    if (idx < 0 || idx >= MAX_ALARM_TIME_VARIABLES)
+    {
+        http_json_error_range ("idx", 0, MAX_ALARM_TIME_VARIABLES - 1);
+        return 0;
+    }
+
+    if (from_day < 0 || from_day > HTTP_MAX_WEEKDAY || to_day < 0 || to_day > HTTP_MAX_WEEKDAY)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "from and to out of range (0..6)");
+        return 0;
+    }
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "hour out of range (0..23) or minute out of range (0..59)");
+        return 0;
+    }
+
+    at = get_alarm_time_var ((ALARM_TIME_VARIABLE) idx);
+    flags = at ? at->flags : 0;
+
+    if (http_get_on_off_value ("active", 0))
+    {
+        flags |= ALARM_TIME_FLAG_ACTIVE;
+    }
+    else
+    {
+        flags &= ~ALARM_TIME_FLAG_ACTIVE;
+    }
+
+    flags &= ~(ALARM_TIME_FROM_DAY_MASK | ALARM_TIME_TO_DAY_MASK);
+    flags |= ALARM_TIME_FROM_DAY_MASK & (from_day << 3);
+    flags |= ALARM_TIME_TO_DAY_MASK & to_day;
+
+    set_alarm_time_var ((ALARM_TIME_VARIABLE) idx, (uint_fast16_t) (hour * 60 + minute), flags);
 
     http_json_ok ();
 
@@ -11035,11 +11152,6 @@ http_api_overlay_delete ()
     return 0;
 }
 
-/* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen.
- * Die Masken haben 3 Bit, also 0..7 - belegt sind aber nur So..Sa, also 0..6.
- */
-#define HTTP_MAX_WEEKDAY                        6
-
 /* Beide Timer-Endpunkte unterscheiden sich nur in is_ambilight. Vorher war jeder
  * Parameter optional und wurde per atoi zu 0 (L70/L71):
  *   - ohne idx ueberschrieb der Aufruf still den ersten Timer
@@ -11070,7 +11182,7 @@ http_api_timer_set_common (uint_fast8_t is_ambilight)
 
     if (idx < 0 || idx >= MAX_NIGHT_TIME_VARIABLES)
     {
-        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "timer index out of range");
+        http_json_error_range ("idx", 0, MAX_NIGHT_TIME_VARIABLES - 1);
         return 0;
     }
 
@@ -11312,7 +11424,7 @@ http_api_fs_show ()
 {
     char * fname = http_get_param ("filename");
 
-    if (! fname || ! *fname)
+    if (! *fname)                                           // nie NULL, siehe Vertrag bei http_get_param (C20/L199)
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "filename required");
         return 0;
@@ -11364,16 +11476,43 @@ http_api_fs_show ()
     return 0;
 }
 
+/* C20/L199: Hier kam {"ok":true} heraus, egal was passiert ist -- bei fehlendem Dateinamen
+ * (dann lief der Block gar nicht), bei nicht vorhandener Datei und bei einem Fehlschlag von
+ * LittleFS.remove(), dessen Rueckgabewert verworfen wurde. Die Oberflaeche meldete
+ * "geloescht" und die Datei lag noch da.
+ *
+ * Ein begin(), ein end() auf jedem Pfad, auch auf den Fehlerpfaden (C9b/L129). Der Dateiname
+ * wandert NICHT in den detail-Text -- ein fester Text spart die Frage nach seiner Maskierung
+ * ganz, dieselbe Entscheidung wie bei http_api_fs_show().
+ */
 static int
 http_api_fs_remove ()
 {
     char * fname = http_get_param ("filename");
+    bool   removed;
 
-    if (fname && *fname)
+    if (! *fname)                                           // nie NULL, siehe Vertrag bei http_get_param (C20/L199)
     {
-        LittleFS.begin ();
-        LittleFS.remove (fname);
+        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "filename required");
+        return 0;
+    }
+
+    LittleFS.begin ();
+
+    if (! LittleFS.exists (fname))
+    {
         LittleFS.end ();
+        http_json_error (HTTP_API_ERROR_NOT_FOUND, "file not found");
+        return 0;
+    }
+
+    removed = LittleFS.remove (fname);
+    LittleFS.end ();
+
+    if (! removed)
+    {
+        http_json_error (HTTP_API_ERROR_NOT_FOUND, "remove failed");
+        return 0;
     }
 
     http_json_ok ();
@@ -11589,7 +11728,7 @@ http_api_update_status ()
     if (update_cache_valid
         && update_cache_source_sum == source_sum
         && (millis () - update_cache_millis) < update_cache_window
-        && ! (refresh && refresh[0] && refresh[0] != '0'))
+        && ! (refresh[0] && refresh[0] != '0'))
     {
         strcpy (new_esp_version, update_cache_esp_version);
         strcpy (new_app_version, update_cache_app_version);
@@ -12381,11 +12520,10 @@ http_api_remote_stm32_flash ()
     uint32_t        error_code = 0;
     uint_fast8_t    stream_mode = 0;
 
-    if (stream_param &&
-        (*stream_param == '1' ||
-         *stream_param == 'y' ||
-         *stream_param == 'Y' ||
-         ! strcmp (stream_param, "true")))
+    if (*stream_param == '1' ||
+        *stream_param == 'y' ||
+        *stream_param == 'Y' ||
+        ! strcmp (stream_param, "true"))
     {
         stream_mode = 1;
     }
@@ -12597,7 +12735,7 @@ flash_stm32_local (bool post = false)
 
     action = http_get_param ("action");
 
-    if (action)
+    if (*action)
     {
         if (! strcmp (action, "reset"))
         {

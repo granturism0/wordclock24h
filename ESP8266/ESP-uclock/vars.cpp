@@ -1014,10 +1014,12 @@ var_cmd_reject (const char * parameters, unsigned int have, unsigned int want)
  * wuerde daran nichts aendern. Dass die Quittung in ESP-uclock.ino nur den Empfang bestaetigt
  * und nicht die Uebernahme, bleibt der offene Punkt L233 und wird hier nicht geloest.
  *
- * Der Rueckgabewert ist der Haken fuer A32 (specs/bruecke-wiederholung): Dort entsteht im
- * var-Zweig der .ino die Antwort "!v" statt ".", damit der STM nachsendet. Heute wertet ihn
- * niemand aus -- der Aufruf in ESP-uclock.ino:531 verwirft ihn, und die .ino bleibt
- * unveraendert uebersetzbar.
+ * Der Rueckgabewert ist der Haken aus A32 (specs/bruecke-wiederholung), und er WIRD seit
+ * A32 ausgewertet: Der var-Zweig in ESP-uclock.ino antwortet bei 0 mit "!v" statt mit ".",
+ * damit der STM die Zeile nachsendet -- das ist der Mechanismus, mit dem L205 geschlossen
+ * wurde. Hier stand bis zum 05.10.2026 das Gegenteil ("Heute wertet ihn niemand aus"), und
+ * das war keine verschobene Zeilennummer, sondern eine falsche Zusicherung im Quelltext
+ * (L274): Wer nur den Kommentar liest, haelt den Rueckkanal fuer ungebaut.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 uint_fast8_t
