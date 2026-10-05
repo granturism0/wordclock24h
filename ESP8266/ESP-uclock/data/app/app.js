@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.90";
+const APP_VERSION = "1.4.91";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -257,8 +257,8 @@ const I18N_DE = {
   "display.unsync_ambilight": "Ambilight-Synchronisierung deaktivieren",
   "display.sync_markers": "Marker synchronisieren",
   "display.unsync_markers": "Marker-Synchronisierung deaktivieren",
-  "display.fade_clock_seconds": "Sekunden weich ausblenden",
-  "display.fade_clock_seconds_disable": "Weiches Ausblenden deaktivieren",
+  "display.fade_clock_seconds": "Sekunden am Ambilight-Ring weich ausblenden",
+  "display.fade_clock_seconds_disable": "Weiches Ausblenden am Ambilight-Ring deaktivieren",
   "display.five_second_markers": "5-Sekunden Marker",
   "display.ambilight_markers": "5-Sekunden-Marker aktivieren",
   "display.ambilight_markers_disable": "5-Sekunden-Marker deaktivieren",
@@ -559,6 +559,7 @@ const I18N_DE = {
   "status.data_load_failed": "Daten konnten nicht geladen werden",
   "input.number_required": "Bitte einen Wert zwischen {min} und {max} eintragen. Ein leeres Feld wird nicht gespeichert.",
   "input.number_range": "Der Wert {value} liegt ausserhalb des erlaubten Bereichs {min} bis {max}. Es wurde nichts gespeichert — bitte korrigiere die Eingabe.",
+  "input.text_too_long": "Zu lang für {field}: Der Text belegt {bytes} Byte, die Uhr speichert höchstens {max}. Umlaute und Akzente zählen doppelt, manche Sonderzeichen dreifach. Es wurde nichts gespeichert — bitte kürze die Eingabe.",
   "status.settings_parse_error": "Die Konfiguration des Geräts ist beschädigt und konnte nicht gelesen werden. Ein Anführungszeichen in Ort, Tickertext, AppID oder Update-Host ist die häufigste Ursache — korrigiere es über die Legacy-Oberfläche.",
   "overview.display_mode": "Display-Modus",
   "overview.brightness": "Helligkeit",
@@ -697,6 +698,12 @@ const I18N_DE = {
   "backup.field.date_ticker_format": "Datumsformat des Tickers",
   "backup.field.update_host": "Update-Host",
   "backup.field.update_path": "Update-Pfad",
+  "backup.field.ticker_text": "Ticker-Text",
+  "backup.field.weather_city": "Ort für das Wetter",
+  "backup.field.weather_lon": "Längengrad für das Wetter",
+  "backup.field.weather_lat": "Breitengrad für das Wetter",
+  "backup.import_too_long_fields": "Nicht übernommen, weil länger, als die Uhr speichern kann: {fields}. Umlaute zählen dabei doppelt. Diese Werte sind auf der Uhr unverändert geblieben.",
+  "backup.import_too_long_entry": "{field} ({bytes} statt höchstens {max} Byte)",
   "backup.field.rtc_temp_correction": "Temperaturkorrektur der RTC",
   "backup.field.ds18xx_temp_correction": "Temperaturkorrektur des DS18xx",
   "backup.field.display_mode": "Anzeigemodus",
@@ -829,6 +836,7 @@ const I18N_DE = {
   "maintenance.stm32_flash_success": "STM32-Update erfolgreich abgeschlossen.",
   "maintenance.fs_showing": "Datei „{file}“ wird angezeigt.",
   "maintenance.fs_show_empty": "Datei „{file}“ ist leer — 0 Byte. Das ist kein Fehler, die Datei gibt es.",
+  "maintenance.fs_show_binary": "Datei „{file}“ ist eine Binärdatei ({size}) und wird nicht als Text angezeigt.",
   "maintenance.fs_deleted": "Datei „{file}“ wurde gelöscht.",
   "maintenance.fs_delete_confirm": "Datei „{file}“ wirklich löschen?",
   "maintenance.file_load_failed": "Datei konnte nicht geladen werden",
@@ -936,6 +944,7 @@ const I18N_DE = {
   "maintenance.update_path_save_failed": "Update-Pfad konnte nicht gespeichert werden",
   "maintenance.format_fs_failed": "LittleFS konnte nicht formatiert werden",
   "maintenance.preview_empty": "Diese Datei ist leer — 0 Byte.",
+  "maintenance.preview_binary": "Binärdatei, {size}. Ihr Inhalt lässt sich nicht als Text anzeigen.",
   "maintenance.preview_unavailable": "Der Inhalt liess sich nicht laden.",
   "maintenance.target_uploads_unsupported": "PWA-Zieluploads werden von dieser Firmware noch nicht unterstützt.",
   "maintenance.upload_file_done": "Datei wurde hochgeladen.",
@@ -1376,6 +1385,91 @@ function translateFormat(key, values) {
   });
 }
 
+// L284: Ein Element mit data-i18n trägt dort seinen PLATZHALTER ("wird geladen…"), und
+// viele davon werden danach mit Gerätedaten gefüllt -- Logfenster, Dateivorschau,
+// Statuszeilen. Bisher setzte jeder Sprachwechsel hier unbedingt den Platzhalter
+// zurück, und ein Mitschnitt, den der Nutzer gerade las, war weg.
+//
+// Entschieden wird HIER und nicht an den Schreibstellen: Gefüllt werden diese Elemente
+// an Dutzenden Stellen (updated-at und update-progress-note allein an über vierzig),
+// und jede künftige, die das Attribut zu entfernen vergässe, brächte den Fehler zurück.
+// Das Attribut bleibt deshalb stehen, und hier gilt eine Regel für alle.
+//
+// Als Platzhalter gilt der Text, wenn er (a) noch nie übersetzt wurde -- erster Lauf,
+// Rückfalltext aus dem Markup --, (b) genau dem zuletzt hier eingesetzten Text
+// entspricht oder (c) der Übersetzung seines Schlüssels in irgendeiner geladenen
+// Sprache. (c) deckt den Rückweg in den Ladezustand: Setzt eine Renderfunktion wieder
+// translate(<derselbe Schlüssel>), etwa beim leeren Logbuch oder nach dem Löschen der
+// angezeigten Datei, wird das Element beim nächsten Wechsel wieder übersetzt -- auch
+// dann, wenn die Sprache dazwischen schon einmal gewechselt hat und (b) nicht mehr greift.
+//
+// Gefüllte Elemente behalten bis zum nächsten Rendern den Wortlaut der alten Sprache.
+// Das ist gewollt: alter Wortlaut ist besser als verlorener Inhalt.
+// Schaltflächen sind ausgenommen; sie folgen eigenen Regeln (siehe unten).
+const i18nPlaceholderText = new WeakMap();
+
+// Die Beschriftungen der Umschaltknöpfe stehen hier als SCHLÜSSEL, nicht als Text. Bis
+// Runde P bekam setActionToggleButton fertig übersetzte Texte, und der Sprachwechsel
+// kannte nur das data-i18n aus dem Markup: Ein eingeschalteter Knopf zeigte danach die
+// Beschriftung für "einschalten", während is-on stehen blieb -- Beschriftung und
+// Zustand widersprachen sich bis zum nächsten loadData. Zwei Knöpfe (automatische
+// Helligkeit, 5-Sekunden-Marker) tragen im Markup sogar einen dritten Text, der zu
+// keinem der beiden Zustände gehört. Mit den Schlüsseln an einer Stelle kann
+// applyStaticTranslations() denselben Text erzeugen wie das Rendern, aus dem Zustand,
+// der schon am Knopf steht -- ohne Geräteanfrage.
+//
+// Steht bewusst VOR applyStaticTranslations(): Der erste Sprachdurchlauf läuft noch
+// während des Ladens, und eine const weiter unten wäre dann nicht initialisiert.
+const ACTION_TOGGLE_LABEL_KEYS = Object.freeze({
+  "display-it-is-button": { on: "display.keep_it_is_disable", off: "display.keep_it_is" },
+  "auto-brightness-button": { on: "climate.disable_auto_brightness", off: "climate.enable_auto_brightness" },
+  "network-summertime-button": { on: "network.summertime_disable", off: "network.summertime" },
+  "display-use-rgbw-button": { on: "display.use_rgbw_disable", off: "display.use_rgbw" },
+  "sync-ambilight-button": { on: "display.unsync_ambilight", off: "display.sync_ambilight" },
+  "sync-markers-button": { on: "display.unsync_markers", off: "display.sync_markers" },
+  "fade-clock-seconds-button": { on: "display.fade_clock_seconds_disable", off: "display.fade_clock_seconds" },
+  "ambilight-markers-button": { on: "display.ambilight_markers_disable", off: "display.ambilight_markers" },
+  // Die beiden Power-Knöpfe der Startseite tragen ihren Zustand nicht selbst; er steht
+  // am Overview-Element (renderOverview), und dort liest ihn auch runStateToggleButton.
+  // "offline" beim Ambilight beschriftet wie "aus" -- der Knopf ist dann ohnehin verborgen.
+  "display-toggle-button": { on: "main.display_turn_off", off: "main.display_turn_on", stateFrom: "display-power" },
+  "ambilight-toggle-button": { on: "main.ambilight_turn_off", off: "main.ambilight_turn_on", stateFrom: "ambilight-power" }
+});
+
+// Zustand eines Umschaltknopfs, "" solange er noch nicht gerendert ist. Gelesen wird
+// nur aus dem DOM, nie vom Gerät.
+function getActionToggleState(button) {
+  const keys = button ? ACTION_TOGGLE_LABEL_KEYS[button.id] : null;
+
+  if (!keys) {
+    return "";
+  }
+
+  const source = keys.stateFrom ? document.getElementById(keys.stateFrom) : button;
+  return (source && source.dataset.state) || "";
+}
+
+function isShowingI18nPlaceholder(element, key) {
+  if (!i18nPlaceholderText.has(element)) {
+    return true;
+  }
+
+  const shown = element.textContent;
+
+  if (shown === i18nPlaceholderText.get(element)) {
+    return true;
+  }
+
+  if (I18N_DE[key] === shown) {
+    return true;
+  }
+
+  return Object.keys(loadedLanguageTables).some((code) => {
+    const table = loadedLanguageTables[code];
+    return !!table && table[key] === shown;
+  });
+}
+
 function applyStaticTranslations() {
   document.documentElement.lang = currentLanguage;
   document.title = translate("app.title");
@@ -1384,8 +1478,23 @@ function applyStaticTranslations() {
     const key = element.getAttribute("data-i18n");
     if (key) {
       const translated = translate(key);
-      element.textContent = translated;
-      if (element.tagName === "BUTTON") {
+      const isButton = element.tagName === "BUTTON";
+
+      // Umschaltknöpfe, deren Zustand schon gerendert ist, nehmen ihre Beschriftung aus
+      // dem Zustand, nicht aus dem Markup (siehe ACTION_TOGGLE_LABEL_KEYS).
+      if (isButton && getActionToggleState(element)) {
+        applyActionToggleLabel(element);
+        return;
+      }
+
+      // Schaltflächen wie bisher: Ihre Beschriftung IST die Übersetzung, und
+      // restoreText muss der neuen Sprache folgen, sonst kehrt ein Knopf nach dem
+      // nächsten Klick in die alte zurück.
+      if (isButton || isShowingI18nPlaceholder(element, key)) {
+        element.textContent = translated;
+        i18nPlaceholderText.set(element, translated);
+      }
+      if (isButton) {
         element.dataset.restoreText = translated;
       }
     }
@@ -2266,6 +2375,12 @@ function clearButtonFeedback(button) {
   button.classList.remove("is-busy", "is-success", "is-error");
 }
 
+// Text vor dem Busy-Zustand, je Knopf. preserveCurrentText heisst "behalte, was das
+// Neuladen inzwischen hingeschrieben hat" -- nach einem FEHLER lädt aber niemand neu,
+// und der "aktuelle" Text war der Busy-Text. Der Knopf blieb dann dauerhaft auf
+// "läuft..." stehen, bis das nächste loadData ihn zufällig neu beschriftete.
+const buttonTextBeforeBusy = new WeakMap();
+
 function beginButtonFeedback(button, busyText) {
   if (!button) {
     return;
@@ -2275,9 +2390,14 @@ function beginButtonFeedback(button, busyText) {
   if (!button.dataset.restoreText) {
     button.dataset.restoreText = button.textContent;
   }
+  buttonTextBeforeBusy.set(button, { busy: busyText, before: button.textContent });
   button.disabled = true;
   button.classList.add("is-busy");
   button.textContent = busyText;
+}
+
+function isRenderedActionToggle(button) {
+  return !!getActionToggleState(button);
 }
 
 function finishButtonFeedback(button, idleText, state, temporaryText, preserveCurrentText) {
@@ -2288,13 +2408,31 @@ function finishButtonFeedback(button, idleText, state, temporaryText, preserveCu
   clearButtonFeedback(button);
   button.disabled = false;
 
+  const pending = buttonTextBeforeBusy.get(button);
+  buttonTextBeforeBusy.delete(button);
+
   if (state === "success" || state === "error") {
-    const restoreText = preserveCurrentText ? (button.textContent || idleText) : idleText;
+    let restoreText = idleText;
+
+    if (preserveCurrentText) {
+      const current = button.textContent;
+      const stillBusy = !!pending && current === pending.busy;
+
+      restoreText = current && !stillBusy ? current : ((pending && pending.before) || idleText);
+    }
+
     button.classList.add(state === "success" ? "is-success" : "is-error");
     button.textContent = temporaryText;
     const timer = window.setTimeout(() => {
       button.classList.remove("is-success", "is-error");
-      button.textContent = restoreText;
+      // Ein gerenderter Umschaltknopf nimmt seine Beschriftung aus data-state: Nach
+      // Erfolg hat loadData den neuen Zustand gesetzt, nach einem Fehler steht dort
+      // unverändert der alte -- und in beiden Fällen in der aktuellen Sprache.
+      if (isRenderedActionToggle(button)) {
+        applyActionToggleLabel(button);
+      } else {
+        button.textContent = restoreText;
+      }
       buttonFeedbackTimers.delete(button);
     }, 1400);
     buttonFeedbackTimers.set(button, timer);
@@ -2507,8 +2645,8 @@ async function loadData(options) {
     } catch (error) {
       console.error("Wordclock preview failed", error);
     }
-    updateDisplayButton(coreData.displayPower);
-    updateAmbilightButton(coreData.ambilightPower, ambilightOnline);
+    updateDisplayButton();
+    updateAmbilightButton(ambilightOnline);
     updateAmbilightOnlineButton(ambilightOnline ? "on" : "off");
     updateAmbilightAvailability(ambilightOnline ? "on" : "off");
     updateBrightnessControl(
@@ -3264,15 +3402,17 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   updateLayoutTableWarnings(settings);
 }
 
-function updateDisplayButton(displayPower) {
+// Beschriftung über ACTION_TOGGLE_LABEL_KEYS, aus dem Zustand, den renderOverview()
+// unmittelbar davor aus denselben Werten am Overview-Element gesetzt hat.
+function updateDisplayButton() {
   const button = document.getElementById("display-toggle-button");
-  button.textContent = displayPower === "on" ? translate("main.display_turn_off") : translate("main.display_turn_on");
+  applyActionToggleLabel(button);
 }
 
-function updateAmbilightButton(ambilightPower, ambilightOnline) {
+function updateAmbilightButton(ambilightOnline) {
   const button = document.getElementById("ambilight-toggle-button");
   button.classList.toggle("is-hidden", !ambilightOnline);
-  button.textContent = ambilightPower === "on" ? translate("main.ambilight_turn_off") : translate("main.ambilight_turn_on");
+  applyActionToggleLabel(button);
 }
 
 function updateAmbilightOnlineButton(state) {
@@ -3304,7 +3444,7 @@ function updateAmbilightAvailability(state) {
 
 function updateDisplayFlagControls(settings) {
   const meta = getDisplayFormUiMeta(settings).display;
-  setActionToggleButton("display-it-is-button", translate("display.keep_it_is_disable"), translate("display.keep_it_is"), meta.itIsActive);
+  setActionToggleButton("display-it-is-button", meta.itIsActive);
 }
 
 function updateBrightnessControl(value, autoState) {
@@ -3314,7 +3454,7 @@ function updateBrightnessControl(value, autoState) {
   slider.value = value;
   slider.disabled = autoState === "on";
   saveButton.disabled = autoState === "on";
-  setActionToggleButton("auto-brightness-button", translate("climate.disable_auto_brightness"), translate("climate.enable_auto_brightness"), autoState === "on");
+  setActionToggleButton("auto-brightness-button", autoState === "on");
   syncBrightnessLabel();
 }
 
@@ -3378,7 +3518,7 @@ function updateNetworkControlsFromMeta(meta) {
 
   document.getElementById("network-timeserver-input").value = meta.timeserver;
   document.getElementById("network-timezone-input").value = String(meta.timezoneOffset);
-  setActionToggleButton("network-summertime-button", translate("network.summertime_disable"), translate("network.summertime"), meta.summertime);
+  setActionToggleButton("network-summertime-button", meta.summertime);
 
   document.getElementById("network-status-note").textContent =
     "SSID: " + (meta.currentSsid || "-") +
@@ -4403,6 +4543,7 @@ async function applySettingsBackup(backup) {
 
   resetSkippedImportFields();
   resetAdjustedImportFields();
+  resetTooLongImportFields();
   resetFailedImportStages();
   resetIrImportNotice();
   resetImportedBackupVersionNotice();
@@ -4681,6 +4822,7 @@ function getImportNoticeSummary() {
     getImportedBackupVersionSummary(),
     getFailedImportStagesSummary(),
     getSkippedImportFieldsSummary(),
+    getTooLongImportFieldsSummary(),
     getAdjustedImportFieldsSummary(),
     getIrImportSummary()
   ].filter(Boolean).join(" ");
@@ -5733,6 +5875,137 @@ async function importIndexedEntries(endpoint, entries, count, fallbackFactory, b
   }
 }
 
+// L287: Das Gerät prüft seit ESP 3.2.24 neun Textparameter an acht Endpunkten gegen die
+// Breite ihrer Variablen und weist zu lange Werte mit error 2 ab (http_check_strvar_len
+// in http.cpp, Grenzen MAX_*_LEN in vars.h). Es zählt BYTE, nicht Zeichen. Das maxlength
+// im Markup zählt Zeichen -- die Zahlen stimmen heute überein, und genau deshalb fiel
+// die Verwechslung niemandem auf: 32 Umlaute passen ins Feld und sind 64 Byte.
+//
+// Gezählt wird in UTF-8, und das ist die Kodierung, die das Gerät an dieser Stelle
+// sieht: buildQueryString schickt encodeURIComponent, also UTF-8-Prozentkodierung,
+// normalize_http_parameters dekodiert sie Byte für Byte, und http_check_strvar_len
+// misst mit strlen() -- VOR jeder Umwandlung. Nach ISO-8859-1 wandelt der ESP nur die
+// Wetterbeschreibung, keinen dieser Werte; gespeichert wird UTF-8 (utf8_copy_truncated).
+//
+// Die Grenzen stehen nur hier. WEATHER_CITY_MAX_BYTES und WEATHER_COORDINATE_MAX_CHARS
+// bei der Wetterkarte lesen von hier, der Backup-Import ebenso.
+const TEXT_FIELD_LIMITS = Object.freeze({
+  ticker_text: { maxBytes: 32, labelKey: "backup.field.ticker_text" }, //               MAX_TICKER_TEXT_LEN
+  date_ticker_format: { maxBytes: 5, labelKey: "backup.field.date_ticker_format" }, // MAX_DATE_TICKER_FORMAT_LEN (6 - 1)
+  weather_appid: { maxBytes: 32, labelKey: "backup.field.weather_appid" }, //           MAX_WEATHER_APPID_LEN
+  weather_city: { maxBytes: 32, labelKey: "backup.field.weather_city" }, //             MAX_WEATHER_CITY_LEN
+  weather_lon: { maxBytes: 8, labelKey: "backup.field.weather_lon" }, //                MAX_WEATHER_LON_LEN
+  weather_lat: { maxBytes: 8, labelKey: "backup.field.weather_lat" }, //                MAX_WEATHER_LAT_LEN
+  timeserver: { maxBytes: 16, labelKey: "backup.field.timeserver" }, //                 MAX_TIMESERVER_NAME_LEN
+  update_host: { maxBytes: 63, labelKey: "backup.field.update_host" }, //               MAX_UPDATE_HOST_LEN (64 - 1)
+  update_path: { maxBytes: 63, labelKey: "backup.field.update_path" } //                MAX_UPDATE_PATH_LEN (64 - 1)
+});
+
+// TextEncoder erst beim Aufruf und nur, wenn vorhanden: Ein fehlender Konstruktor auf
+// oberster Ebene würfe beim Laden, und die Oberfläche bliebe halb leer.
+function countUtf8Bytes(text) {
+  const value = text === undefined || text === null ? "" : String(text);
+
+  if (typeof TextEncoder === "function") {
+    return new TextEncoder().encode(value).length;
+  }
+
+  let bytes = 0;
+  for (const character of value) {
+    bytes += utf8ByteLengthOfCodePoint(character.codePointAt(0));
+  }
+  return bytes;
+}
+
+// null, wenn der Wert passt; sonst, um wie viel er zu lang ist. Ein unbekannter Name ist
+// ein Programmierfehler und wird laut, statt still als "passt" durchzugehen.
+function getTextFieldOverflow(fieldName, value) {
+  const limit = TEXT_FIELD_LIMITS[fieldName];
+
+  if (!limit) {
+    throw new Error("TEXT_FIELD_LIMITS kennt kein Feld '" + fieldName + "'");
+  }
+
+  const bytes = countUtf8Bytes(value);
+
+  return bytes > limit.maxBytes
+    ? { bytes, max: limit.maxBytes, labelKey: limit.labelKey }
+    : null;
+}
+
+function describeTextFieldOverflow(overflow) {
+  return translateFormat("input.text_too_long", {
+    field: translate(overflow.labelKey),
+    bytes: overflow.bytes,
+    max: overflow.max
+  });
+}
+
+// Gegenstück zu readNumberInputOrReport für Text: Zu lang wird VOR dem Abruf abgewiesen,
+// mit einer Meldung in Byte. Gekürzt wird nicht -- ein gekürzter Update-Host zeigt auf
+// einen anderen Server (L124).
+function readTextInputOrReport(input, fieldName, statusElement) {
+  const value = input && input.value !== null && input.value !== undefined ? String(input.value) : "";
+  const overflow = getTextFieldOverflow(fieldName, value);
+
+  if (!overflow) {
+    return value;
+  }
+
+  const message = describeTextFieldOverflow(overflow);
+
+  announceStatus(message, "error");
+  if (statusElement) {
+    statusElement.textContent = message;
+  }
+  if (input && input.focus) {
+    input.focus();
+  }
+  return null;
+}
+
+// Der Backup-Import schreibt dieselben Felder. Seit E2.3 bricht ein zu langer Wert dort
+// die ganze Import-Stufe ab -- alles, was in ihr noch folgte, blieb ungeschrieben. Er
+// wird deshalb vorher erkannt und NICHT geschrieben, der Wert auf der Uhr bleibt
+// stehen. Gekürzt wird auch hier nicht, aus demselben Grund wie oben.
+//
+// Eine eigene Liste neben "übersprungen" und "zurechtgebogen", weil der Satz für beide
+// falsch wäre: Der Wert war nicht leer, und er wurde auch nicht angepasst übernommen.
+const tooLongImportFieldEntries = new Map();
+
+function resetTooLongImportFields() {
+  tooLongImportFieldEntries.clear();
+}
+
+function acceptImportTextOrNote(fieldName, value) {
+  const overflow = getTextFieldOverflow(fieldName, value);
+
+  if (!overflow) {
+    return true;
+  }
+
+  if (!tooLongImportFieldEntries.has(overflow.labelKey)) {
+    tooLongImportFieldEntries.set(overflow.labelKey, overflow);
+  }
+  console.warn("Import: Wert aus der Sicherung zu lang, nicht geschrieben: " +
+    fieldName + " " + String(overflow.bytes) + " > " + String(overflow.max) + " Byte");
+  return false;
+}
+
+function getTooLongImportFieldsSummary() {
+  if (!tooLongImportFieldEntries.size) {
+    return "";
+  }
+
+  const fields = [...tooLongImportFieldEntries.values()].map((entry) => translateFormat("backup.import_too_long_entry", {
+    field: translate(entry.labelKey),
+    bytes: entry.bytes,
+    max: entry.max
+  }));
+
+  return translateFormat("backup.import_too_long_fields", { fields: fields.join(", ") });
+}
+
 // Ein Feld, das in der Sicherung leer ist oder fehlt, heisst "nicht ändern" — nicht
 // "leer schreiben". Die Firmware weist leere Textwerte inzwischen mit
 // {"ok":false,"error":1} ab, und apiFetch macht daraus eine Ausnahme: Ein
@@ -5909,13 +6182,17 @@ function normalizeImportText(value) {
   return value === undefined || value === null ? "" : String(value).trim();
 }
 
-// Schreibt nur, wenn die Sicherung wirklich einen Wert enthält. Der Rückgabewert sagt,
-// ob geschrieben wurde; die Stufe läuft in beiden Fällen weiter.
-async function importOptionalValue(endpoint, value, labelKey) {
+// Schreibt nur, wenn die Sicherung wirklich einen Wert enthält und er auf die Uhr passt.
+// Der Rückgabewert sagt, ob geschrieben wurde; die Stufe läuft in allen Fällen weiter.
+async function importOptionalValue(endpoint, value, fieldName) {
   const text = normalizeImportText(value);
 
   if (!text) {
-    noteSkippedImportField(labelKey);
+    noteSkippedImportField(TEXT_FIELD_LIMITS[fieldName].labelKey);
+    return false;
+  }
+
+  if (!acceptImportTextOrNote(fieldName, text)) {
     return false;
   }
 
@@ -5953,7 +6230,7 @@ async function importNetworkTimeSettings(network) {
     return;
   }
 
-  if (await importOptionalValue(getNetworkTimeserverSetUrl(), network.timeserver, "backup.field.timeserver")) {
+  if (await importOptionalValue(getNetworkTimeserverSetUrl(), network.timeserver, "timeserver")) {
     await sleep(700);
   }
   await apiFetchValue(getNetworkTimezoneSetUrl(), Number(network.timezone_offset || 0));
@@ -5981,9 +6258,12 @@ async function importDisplaySettings(display) {
   await sleep(220);
   // Der leere Ticker ist ein gültiger Zustand und der einzige Weg, ihn abzuschalten.
   // ticker_set nimmt ihn deshalb bewusst an, und der Import schreibt ihn auch leer.
-  await apiFetchValue(getTickerSetUrl(), display.ticker_text || "");
-  await sleep(350);
-  if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "backup.field.date_ticker_format")) {
+  const tickerText = display.ticker_text || "";
+  if (acceptImportTextOrNote("ticker_text", tickerText)) {
+    await apiFetchValue(getTickerSetUrl(), tickerText);
+    await sleep(350);
+  }
+  if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "date_ticker_format")) {
     await sleep(900);
   }
   await apiFetchValue(getTickerDecelerationSetUrl(), readClampedImportNumber(display.ticker_deceleration, 0, 255, "backup.field.ticker_deceleration"));
@@ -5999,10 +6279,10 @@ async function importMaintenanceSettings(maintenance) {
     return;
   }
 
-  if (await importOptionalValue(getUpdateHostSetUrl(), maintenance.update_host, "backup.field.update_host")) {
+  if (await importOptionalValue(getUpdateHostSetUrl(), maintenance.update_host, "update_host")) {
     await sleep(900);
   }
-  if (await importOptionalValue(getUpdatePathSetUrl(), maintenance.update_path, "backup.field.update_path")) {
+  if (await importOptionalValue(getUpdatePathSetUrl(), maintenance.update_path, "update_path")) {
     await sleep(500);
   }
 }
@@ -6012,7 +6292,7 @@ async function importClimateSettings(climate) {
     return;
   }
 
-  if (await importOptionalValue(getWeatherAppIdSetUrl(), climate.weather_appid, "backup.field.weather_appid")) {
+  if (await importOptionalValue(getWeatherAppIdSetUrl(), climate.weather_appid, "weather_appid")) {
     await sleep(250);
   }
 
@@ -6036,6 +6316,16 @@ async function importWeatherLocationSettings(climate) {
 
   if (!city && !hasCoordinates) {
     noteSkippedImportField("backup.field.weather_location");
+    return;
+  }
+
+  // Ist einer der drei Werte zu lang, bleibt die ganze Ortsangabe auf der Uhr stehen.
+  // Nur den passenden Teil zu schreiben hiesse nach der Reihenfolge oben, die andere
+  // Angabe zu leeren -- dann stünde auf der Uhr weder der alte noch der neue Ort.
+  // map statt every, damit jeder zu lange Wert in der Meldung erscheint.
+  const fits = [["weather_city", city], ["weather_lon", lon], ["weather_lat", lat]]
+    .map(([fieldName, text]) => acceptImportTextOrNote(fieldName, text));
+  if (!fits.every(Boolean)) {
     return;
   }
 
@@ -6496,7 +6786,7 @@ function applyColorCapabilities(capabilities, useRgbw, ambilightOnline, colorAni
   if (useRgbwActions) {
     useRgbwActions.classList.toggle("is-hidden", !capabilities.whiteChannel);
   }
-  setActionToggleButton("display-use-rgbw-button", translate("display.use_rgbw_disable"), translate("display.use_rgbw"), useRgbw, capabilities.whiteChannel);
+  setActionToggleButton("display-use-rgbw-button", useRgbw, capabilities.whiteChannel);
 
   document.getElementById("ambilight-color-card").classList.toggle("is-hidden", !capabilities.hasColor || !ambilightOnline);
   document.getElementById("marker-color-card").classList.toggle("is-hidden", !capabilities.hasColor || !ambilightOnline);
@@ -6675,7 +6965,13 @@ function renderFileSystem(fsInfo, files, settings) {
     "</section>"
   )).join("") : '<p class="hint">' + escapeHtml(translate("maintenance.no_files")) + '</p>';
 
-  bindQueryAll(root, "[data-fs-show]", "click", (button) => showFsFile(button.getAttribute("data-fs-show") || ""));
+  // Die Grösse aus fs_list geht mit: showFsFile entscheidet damit über die Binärsperre,
+  // bevor überhaupt ein Byte übertragen wird (L246).
+  const fileSizes = new Map(meta.files.map((file) => [file.name || "", file.size]));
+  bindQueryAll(root, "[data-fs-show]", "click", (button) => {
+    const name = button.getAttribute("data-fs-show") || "";
+    showFsFile(name, fileSizes.get(name));
+  });
   bindQueryAll(root, "[data-fs-delete]", "click", (button) => deleteFsFile(button.getAttribute("data-fs-delete") || ""));
 
   updateFsUploadTargets(settings);
@@ -7648,20 +7944,46 @@ function updateFlagControlsFromMeta(meta) {
   // Erreichbarkeit des Ambilights. L34b.
   const available = meta.controlsEnabled !== false;
 
-  setActionToggleButton("sync-ambilight-button", translate("display.unsync_ambilight"), translate("display.sync_ambilight"), meta.syncAmbilight, available);
-  setActionToggleButton("sync-markers-button", translate("display.unsync_markers"), translate("display.sync_markers"), meta.syncMarkers, available);
-  setActionToggleButton("fade-clock-seconds-button", translate("display.fade_clock_seconds_disable"), translate("display.fade_clock_seconds"), meta.fadeClockSeconds, available);
-  setActionToggleButton("ambilight-markers-button", translate("display.ambilight_markers_disable"), translate("display.ambilight_markers"), meta.ambilightMarkers, available);
+  setActionToggleButton("sync-ambilight-button", meta.syncAmbilight, available);
+  setActionToggleButton("sync-markers-button", meta.syncMarkers, available);
+  setActionToggleButton("fade-clock-seconds-button", meta.fadeClockSeconds, available);
+  setActionToggleButton("ambilight-markers-button", meta.ambilightMarkers, available);
 }
 
-function setActionToggleButton(id, onText, offText, enabled, available) {
+// Beschriftung und restoreText aus data-state. Läuft ein Klick gerade (is-busy) oder
+// steht noch seine Rückmeldung (is-success/is-error), bleibt der sichtbare Text
+// stehen -- er wird gleich danach ohnehin ersetzt; nachgezogen wird nur restoreText.
+// Der Hinweis im title gehört zur Bedienbarkeit und folgt ebenfalls der Sprache.
+function applyActionToggleLabel(button) {
+  const keys = ACTION_TOGGLE_LABEL_KEYS[button.id];
+
+  if (!keys) {
+    throw new Error("ACTION_TOGGLE_LABEL_KEYS kennt keinen Knopf '" + button.id + "'");
+  }
+
+  const text = translate(getActionToggleState(button) === "on" ? keys.on : keys.off);
+  const showsFeedback = button.classList.contains("is-busy") ||
+    button.classList.contains("is-success") ||
+    button.classList.contains("is-error");
+
+  if (!showsFeedback) {
+    button.textContent = text;
+  }
+  button.dataset.restoreText = text;
+
+  if (button.hasAttribute("title")) {
+    button.title = translate("flags.ambilight_offline_hint");
+  }
+}
+
+function setActionToggleButton(id, enabled, available) {
   const button = document.getElementById(id);
   if (!button) {
     return;
   }
 
   button.dataset.state = enabled ? "on" : "off";
-  button.textContent = enabled ? onText : offText;
+  applyActionToggleLabel(button);
 
   // Bewusst NICHT "primary": Seit Massnahme 10 ist "primary" sichtbar hervorgehoben und
   // heisst "das ist die Hauptaktion dieser Karte". Ein Schalter, der nur seinen Zustand
@@ -7747,12 +8069,22 @@ async function saveDisplayMode() {
 }
 
 async function saveTickerText() {
-  const value = document.getElementById("ticker-text-input").value;
+  const value = readTextInputOrReport(document.getElementById("ticker-text-input"), "ticker_text");
+
+  if (value === null) {
+    return;
+  }
+
   await runValueSave("ticker-save-button", getTickerSetUrl(), value, translate("display.save_ticker"), translate("display.ticker_save_failed"));
 }
 
 async function saveDateTickerFormat() {
-  const value = document.getElementById("date-format-input").value;
+  const value = readTextInputOrReport(document.getElementById("date-format-input"), "date_ticker_format");
+
+  if (value === null) {
+    return;
+  }
+
   await runValueSave("date-format-save-button", getDateTickerFormatSetUrl(), value, translate("display.save_date_format"), translate("display.date_format_save_failed"));
 }
 
@@ -7790,18 +8122,38 @@ async function testDisplay() {
 }
 
 async function saveWeatherAppId() {
-  const value = document.getElementById("weather-appid-input").value || "";
+  const value = readTextInputOrReport(document.getElementById("weather-appid-input"), "weather_appid");
+
+  if (value === null) {
+    return;
+  }
+
   await runValueSave("weather-appid-save-button", getWeatherAppIdSetUrl(), value, translate("climate.save_api_key"), translate("climate.api_key_save_failed"));
 }
 
 async function saveWeatherCity() {
-  const value = document.getElementById("weather-city-input").value || "";
+  const value = readTextInputOrReport(document.getElementById("weather-city-input"), "weather_city");
+
+  if (value === null) {
+    return;
+  }
+
   await runValueSave("weather-city-save-button", getWeatherCitySetUrl(), value, translate("climate.save_city"), translate("climate.city_save_failed"));
 }
 
 async function saveWeatherCoordinates() {
-  const lon = document.getElementById("weather-lon-input").value || "";
-  const lat = document.getElementById("weather-lat-input").value || "";
+  const lon = readTextInputOrReport(document.getElementById("weather-lon-input"), "weather_lon");
+
+  if (lon === null) {
+    return;
+  }
+
+  const lat = readTextInputOrReport(document.getElementById("weather-lat-input"), "weather_lat");
+
+  if (lat === null) {
+    return;
+  }
+
   await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, translate("climate.save_coordinates"), translate("climate.coordinates_save_failed"));
 }
 
@@ -8057,8 +8409,10 @@ function syncWeatherMapFromInputs() {
 // Das maxlength der Felder greift nur beim Tippen: Eine programmatische Zuweisung
 // bleibt vollständig stehen, tooLong ist dabei false, und erst das Gerät schneidet
 // hart ab. Aus "-123.4567" wurde dort "-123.456". L74.
-const WEATHER_COORDINATE_MAX_CHARS = 8;
-const WEATHER_CITY_MAX_BYTES = 32;
+// Seit L287 aus TEXT_FIELD_LIMITS. Koordinaten sind reines ASCII, Zeichen und Byte
+// fallen dort zusammen.
+const WEATHER_COORDINATE_MAX_CHARS = Math.min(TEXT_FIELD_LIMITS.weather_lon.maxBytes, TEXT_FIELD_LIMITS.weather_lat.maxBytes);
+const WEATHER_CITY_MAX_BYTES = TEXT_FIELD_LIMITS.weather_city.maxBytes;
 
 // Lieber eine Nachkommastelle weniger als eine abgeschnittene Zahl: Bei einem
 // dreistelligen negativen Grad braucht toFixed(4) neun Zeichen, toFixed(3) acht.
@@ -8331,9 +8685,17 @@ async function reverseLookupWeatherLocation(lat, lon) {
 }
 
 async function applyWeatherMapSelection() {
-  const city = document.getElementById("weather-map-city-input").value || "";
-  const lon = document.getElementById("weather-map-lon-input").value || "";
-  const lat = document.getElementById("weather-map-lat-input").value || "";
+  // Die drei Felder sind von Hand editierbar; formatWeatherCityName kürzt nur, was aus
+  // Suche und Karte kommt. Geprüft wird vor dem Übernehmen in die Hauptmaske. Die
+  // Meldung steht zusätzlich im Dialog, weil er die globale Statuszeile verdeckt.
+  const mapStatus = document.getElementById("weather-map-status");
+  const city = readTextInputOrReport(document.getElementById("weather-map-city-input"), "weather_city", mapStatus);
+  const lon = city === null ? null : readTextInputOrReport(document.getElementById("weather-map-lon-input"), "weather_lon", mapStatus);
+  const lat = lon === null ? null : readTextInputOrReport(document.getElementById("weather-map-lat-input"), "weather_lat", mapStatus);
+
+  if (lat === null) {
+    return;
+  }
 
   document.getElementById("weather-city-input").value = city;
   document.getElementById("weather-lon-input").value = lon;
@@ -8422,7 +8784,13 @@ async function saveNetworkAp() {
 }
 
 async function saveTimeServer() {
-  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), document.getElementById("network-timeserver-input").value || "", translate("network.save_timeserver"), translate("network.timeserver_save_failed"));
+  const value = readTextInputOrReport(document.getElementById("network-timeserver-input"), "timeserver");
+
+  if (value === null) {
+    return;
+  }
+
+  await runTextSave("network-timeserver-save-button", getNetworkTimeserverSetUrl(), value, translate("network.save_timeserver"), translate("network.timeserver_save_failed"));
 }
 
 async function saveTimezone() {
@@ -8484,14 +8852,33 @@ async function runWps() {
   await runSimpleAction("network-wps-button", getNetworkWpsUrl(), "WPS", translate("network.wps_failed"), translate("network.wps_started"));
 }
 
+// L288: Die Nachprüfung lief hier unbedingt, auch nach einer Abweisung -- runButtonRequest
+// fängt den Fehler selbst ab. Sie überschrieb die Begründung des Geräts binnen
+// Millisekunden mit "abgeschlossen" in Grün, und ein abgewiesener Host sah gespeichert
+// aus, während die Uhr weiter auf den alten Server zeigte (L124, eine Ebene höher).
+// Jetzt nur nach erfolgreichem Speichern.
 async function saveUpdateHost() {
-  await runTextSave("update-host-save-button", getUpdateHostSetUrl(), document.getElementById("update-host-input").value || "", translate("maintenance.save_update_host"), translate("maintenance.update_host_save_failed"));
-  await refreshUpdateServerAvailability();
+  const value = readTextInputOrReport(document.getElementById("update-host-input"), "update_host");
+
+  if (value === null) {
+    return;
+  }
+
+  if (await runTextSave("update-host-save-button", getUpdateHostSetUrl(), value, translate("maintenance.save_update_host"), translate("maintenance.update_host_save_failed"))) {
+    await refreshUpdateServerAvailability();
+  }
 }
 
 async function saveUpdatePath() {
-  await runTextSave("update-path-save-button", getUpdatePathSetUrl(), document.getElementById("update-path-input").value || "", translate("maintenance.save_update_path"), translate("maintenance.update_path_save_failed"));
-  await refreshUpdateServerAvailability();
+  const value = readTextInputOrReport(document.getElementById("update-path-input"), "update_path");
+
+  if (value === null) {
+    return;
+  }
+
+  if (await runTextSave("update-path-save-button", getUpdatePathSetUrl(), value, translate("maintenance.save_update_path"), translate("maintenance.update_path_save_failed"))) {
+    await refreshUpdateServerAvailability();
+  }
 }
 
 async function uploadLocalEspUpdate(event) {
@@ -8985,13 +9372,15 @@ async function installLocalAppFiles() {
   }
 }
 
+// true nur, wenn bestätigt UND gelungen. Bis zu L288 hiess true "bestätigt", und
+// formatLittleFsFromFiles schrieb "formatiert" auch nach einem Fehlschlag in die
+// Dateiansicht -- dieselbe Form wie beim Update-Host.
 async function runConfirmedButtonAction(buttonId, confirmMessage, options) {
   if (confirmMessage && !window.confirm(confirmMessage)) {
     return false;
   }
 
-  await runButtonRequestById(buttonId, options);
-  return true;
+  return runButtonRequestById(buttonId, options);
 }
 
 function getUploadActionButtonText(button, fallback) {
@@ -10470,24 +10859,8 @@ async function resetEeprom() {
   }
 }
 
-async function formatLittleFs() {
-  await runConfirmedButtonAction(
-    "maintenance-format-fs-button",
-    translate("maintenance.format_fs_confirm"),
-    {
-      busyText: translate("common.running"),
-      idleText: translate("maintenance.format_fs_button"),
-      successText: translate("common.ready"),
-      errorText: translate("maintenance.format_fs_failed"),
-      successStatusText: translate("maintenance.format_fs_done"),
-      reloadDelayMs: 1200,
-      request: () => apiFetch(getMaintenanceFormatFsUrl())
-    }
-  );
-}
-
 async function formatLittleFsFromFiles() {
-  const didRun = await runConfirmedButtonAction(
+  const succeeded = await runConfirmedButtonAction(
     "files-format-fs-button",
     translate("maintenance.format_fs_confirm"),
     {
@@ -10500,7 +10873,7 @@ async function formatLittleFsFromFiles() {
       request: () => apiFetch(getMaintenanceFormatFsUrl())
     }
   );
-  if (didRun) {
+  if (succeeded) {
     setFsActionStatus(translate("maintenance.format_fs_done"));
   }
 }
@@ -10517,12 +10890,51 @@ async function formatLittleFsFromFiles() {
 // Umbau kommt fuer die fehlende Datei application/json mit Fehlercode 6, und
 // apiFetch wirft darauf bereits selbst -- hier bleibt nur noch, die leere Datei als
 // das zu zeigen, was sie ist: ein gueltiges Ergebnis.
-async function showFsFile(fileName) {
+//
+// L246/B33: "Anzeigen" schrieb auch Binärdateien ins DOM -- am Gerät 123'127 Zeichen
+// gzip aus app-app.js.gz, gemeldet als "wird angezeigt". Die Sperre hängt an BEIDEM:
+//  - an der Endung, VOR dem Abruf: Bekannte Binärendungen werden gar nicht erst
+//    geholt. Das spart dem ESP die Übertragung von über 100 kB, die niemand lesen
+//    kann, und dem Telefon das Rendern. Gilt nur bei bekannter Grösse über 0 -- eine
+//    leere Datei ist kein Binärfall, sondern das, was L187 eigens von "fehlt"
+//    unterscheidet, und eine leere .gz ist genau der Weissbildschirm-Fall, den man
+//    hier sehen können muss.
+//  - am Inhalt, NACH dem Abruf, als Netz für Endungen, die die Liste nicht kennt: Ein
+//    NUL-Byte kommt in keiner Textdatei vor. Ungültiges UTF-8 dagegen ist KEIN
+//    Kriterium -- eine Layouttabelle in ISO-8859-1 wäre sonst "binär".
+const FS_BINARY_EXTENSIONS = ["gz", "bin", "png", "ico", "jpg", "jpeg", "gif", "webp", "woff", "woff2", "zip"];
+
+function hasBinaryFileExtension(fileName) {
+  const match = /\.([A-Za-z0-9]+)$/.exec(String(fileName || ""));
+  return !!match && FS_BINARY_EXTENSIONS.includes(match[1].toLowerCase());
+}
+
+function showFsBinaryNotice(fileName, size) {
+  const preview = document.getElementById("fs-preview-content");
+  const sizeText = formatBytes(size);
+
+  if (preview) {
+    preview.textContent = translateFormat("maintenance.preview_binary", { size: sizeText });
+  }
+
+  // Ohne Tonfarbe: Die Datei ist in Ordnung, nur nicht als Text lesbar. Weder
+  // "angezeigt" (das war die Falschmeldung) noch ein Fehler.
+  const status = translateFormat("maintenance.fs_show_binary", { file: fileName, size: sizeText });
+  setFsActionStatus(status);
+  announceStatus(status);
+}
+
+async function showFsFile(fileName, knownSize) {
   if (!fileName) {
     return;
   }
 
   const preview = document.getElementById("fs-preview-content");
+
+  if (hasBinaryFileExtension(fileName) && Number(knownSize) > 0) {
+    showFsBinaryNotice(fileName, Number(knownSize));
+    return;
+  }
 
   try {
     const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
@@ -10534,8 +10946,19 @@ async function showFsFile(fileName) {
       throw new Error("fs-show-not-plain-text");
     }
 
-    const text = await response.text();
-    const isEmpty = text.length === 0;
+    // Als Puffer lesen statt als Text: Nur so ist die Grösse exakt. Dekodiert wird genau
+    // wie response.text() es tat, UTF-8. Ein NUL-Byte übersteht die Dekodierung immer als
+    // U+0000 -- auch hinter einer ungültigen Folge --, die Prüfung am Text ist deshalb
+    // gleichwertig zur Prüfung an den Bytes.
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder("utf-8").decode(buffer);
+
+    if (buffer.byteLength > 0 && text.indexOf("\u0000") >= 0) {
+      showFsBinaryNotice(fileName, buffer.byteLength);
+      return;
+    }
+
+    const isEmpty = buffer.byteLength === 0;
 
     if (preview) {
       preview.textContent = isEmpty ? translate("maintenance.preview_empty") : text;
@@ -11855,7 +12278,7 @@ async function saveTftFlags() {
 }
 
 async function runTextSave(buttonId, endpoint, value, buttonText, errorText) {
-  await runValueSave(buttonId, endpoint, value, buttonText, errorText);
+  return runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
 async function refreshUpdateServerAvailability() {
@@ -11980,6 +12403,10 @@ async function runStateToggleButton(button, endpoint, options) {
   });
 }
 
+// Liefert true nach Erfolg, false nach einem Fehler. Der Fehler selbst ist dann schon
+// gemeldet und wird bewusst nicht weitergeworfen; wer danach noch etwas tun will, muss
+// den Rückgabewert prüfen -- sonst läuft sein Folgeschritt auch nach der Abweisung
+// und überschreibt deren Meldung (L288).
 async function runButtonRequest(button, options) {
   const {
     busyText = translate("common.running"),
@@ -12013,11 +12440,13 @@ async function runButtonRequest(button, options) {
       announceStatus(successStatusText, "ok");
     }
     finishButtonFeedback(button, idleText, "success", successText, preserveCurrentText);
+    return true;
   } catch (error) {
     // Hat das Geraet die Eingabe begruendet abgewiesen, gehoert SEIN Grund angezeigt
     // und nicht "Aktion konnte nicht ausgefuehrt werden".
     announceStatus(describeApiError(error, errorText), "error");
     finishButtonFeedback(button, idleText, "error", translate("common.error"), preserveCurrentText);
+    return false;
   }
 }
 
@@ -12524,19 +12953,21 @@ async function toggleFlagButton(id, endpoint) {
   const current = button.dataset.state === "on" ? "on" : "off";
   const next = current === "on" ? "off" : "on";
 
-  beginButtonFeedback(button, "schaltet...");
+  // Dieselben Schlüssel wie runStateToggleButton; bis Runde P standen hier feste
+  // deutsche Texte, auch in der englischen Oberfläche (Massnahme 18).
+  beginButtonFeedback(button, translate("common.running"));
 
   try {
     await apiFetch(endpoint + "?value=" + next);
     markEditsPersisted();
     await loadData();
-    finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "success", next === "on" ? "aktiviert" : "deaktiviert", true);
+    finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "success", next === "on" ? translate("flags.enabled") : translate("flags.disabled"), true);
   } catch (error) {
     // Eigener Pfad neben runButtonRequest, deshalb braucht er dieselbe Behandlung:
     // sonst meldete gerade dieser Schalter eine Abweisung des Geraets nur als
-    // allgemeinen Fehler. (Die hartcodierten Texte hier gehoeren zu Massnahme 18.)
+    // allgemeinen Fehler.
     announceStatus(describeApiError(error, translate("common.toggle_failed")), "error");
-    finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "error", "Fehler", true);
+    finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "error", translate("common.error"), true);
   }
 }
 
