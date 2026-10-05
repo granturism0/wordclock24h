@@ -518,6 +518,10 @@ fi
 step S14 "Hook-Gegenproben in beide Richtungen"
 ./tools/checks/hooks.sh || WARN=$((WARN+1))
 
+# --------------------------------------- S15 Indexguards stehen und wirken
+step S15 "Indexpruefung gegen Schreibzugriffe ueber den Arrayrand"
+./tools/checks/idx-guard.sh || CRIT=$((CRIT+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
