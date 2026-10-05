@@ -153,6 +153,15 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   deckt. **Zähl deshalb nach, wie viele Fälle die Prüfung überhaupt betrachtet**, und
   vergleich die Zahl mit dem, was es geben müsste.
 
+- **Eine Ankündigung im Schlusssatz ist eine Zusage für DIESEN Turn (DIR-019).**
+  „Als Nächstes mache ich X" und dann Turn-Ende ist keine Planung, sondern eine
+  Unterbrechung, die der Nutzer auflösen muss — und er hat nichts entschieden,
+  worauf zu warten wäre. Am 05.10.2026 dreimal hintereinander passiert, zuletzt
+  wörtlich „Ich fange damit an", gefolgt von nichts. Seine Frage danach: **„Wieso
+  muss ich dich immer wieder auffordern weiterzufahren?"** Wer weiterarbeiten kann,
+  arbeitet weiter, statt es anzukündigen. Wer es **nicht** kann, schreibt **warum** —
+  welche Entscheidung, welche Freigabe, welches Gerät fehlt. Der Stop-Hook prüft den
+  letzten Satz des Turns darauf (`BEFUNDE.md`, L283).
 - **Der Smoketest ist nicht der Test (DIR-012).** `smoke-device.sh` prüft, ob das
   Gerät **lebt** — nicht, ob es noch tut, was es soll. Ein Endpunkt, der
   `{"ok":true}` meldet und nichts tut, besteht ihn. Vor jedem Release, das **mehr

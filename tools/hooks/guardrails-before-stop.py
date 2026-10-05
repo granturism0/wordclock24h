@@ -117,6 +117,60 @@ def ungepusht(root):
     return zeilen
 
 
+# Wendungen, die eine Arbeit fuer SPAETER ankuendigen. Eng gehalten: Nur die
+# Ich-Form mit klarem Vorsatz, kein blosses "als Naechstes steht X an" (das ist ein
+# Bericht ueber die Planung und voellig richtig).
+VORSATZ = [
+    "ich fange", "ich beginne", "ich mache mich", "ich starte jetzt",
+    "ich nehme mir", "ich ziehe", "ich arbeite", "ich setze", "ich baue",
+    "ich gehe", "ich kuemmere", "ich kümmere", "ich melde mich, sobald",
+]
+# Gegenanzeigen: Wenn der Satz zugleich sagt, WARUM es nicht weitergeht, ist die
+# Ankuendigung richtig und kein Fehler.
+WARTET_AUF = [
+    "sobald du", "wenn du", "deine entscheidung", "deine freigabe", "brauche ich von dir",
+    "warte auf", "wartet auf dich", "gib mir", "sag mir", "bevor ich",
+]
+
+
+def letzter_vorsatz(transcript_path):
+    """Letzter Textblock des Turns -- endet er mit einem Arbeitsvorsatz?"""
+    if not transcript_path:
+        return None
+    try:
+        zeilen = Path(transcript_path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    text = None
+    for zeile in reversed(zeilen):
+        try:
+            satz = json.loads(zeile)
+        except ValueError:
+            continue
+        if satz.get("type") != "assistant":
+            continue
+        inhalt = (satz.get("message") or {}).get("content") or []
+        stuecke = [c.get("text", "") for c in inhalt if isinstance(c, dict) and c.get("type") == "text"]
+        if stuecke:
+            text = "\n".join(stuecke)
+            break
+    if not text:
+        return None
+
+    # NUR der letzte Satz. Der erste Entwurf nahm die letzten zwei und schlug damit
+    # auf "Ich baue die Pruefung ein. Das Ergebnis: 13 Proben bestanden" an -- ein
+    # Bericht ueber bereits Getanes, mit dem Ergebnis dahinter. Folgt auf einen
+    # Vorsatz noch ein Satz, ist er fast immer die Ausfuehrung davon.
+    saetze = [x.strip() for x in text.replace("\n", " ").split(".") if x.strip()]
+    if not saetze:
+        return None
+    letzter = saetze[-1]
+    klein = letzter.lower()
+    if any(w in klein for w in VORSATZ) and not any(w in klein for w in WARTET_AUF):
+        return letzter[:160]
+    return None
+
+
 def main():
     # guardrails.sh ruft sich so selbst den Stempel: fuer WELCHEN Stand galt der Lauf.
     if "--stamp" in sys.argv:
@@ -150,6 +204,39 @@ def main():
                               capture_output=True, text=True, cwd=root).stdout.strip()
         bloecke.append((f"push-{kopf}-{len(offen)}",
                         ["Noch nicht beim Remote (DIR-011):", ""] + offen + [""]))
+
+    # ------------------------------------- Ankuendigung statt Arbeit (L283)
+    #
+    # "Als Naechstes fange ich mit X an." -- und dann endet der Turn. Der Nutzer
+    # muss daraufhin auffordern weiterzumachen, obwohl nichts auf ihn gewartet hat.
+    # Am 05.10.2026 dreimal hintereinander passiert, zuletzt woertlich: "Ich fange
+    # damit an", gefolgt von nichts. Seine Frage danach: "Wieso muss ich dich immer
+    # wieder auffordern weiterzufahren?"
+    #
+    # Die Regel dahinter steht in CLAUDE.md: Eine Ankuendigung im Schlusssatz ist
+    # eine Zusage fuer DIESEN Turn, nicht fuer den naechsten. Wer nicht weiterarbeiten
+    # kann -- weil eine Entscheidung fehlt oder eine Freigabe --, sagt das; wer
+    # weiterarbeiten kann, tut es, statt es anzukuendigen.
+    #
+    # Geprueft wird der LETZTE Textblock des Turns gegen eine knappe Liste von
+    # Wendungen. Bewusst eng gehalten: Eine Pruefung mit Fehlalarmen liest niemand
+    # mehr (DIR-014), und "als Naechstes steht X an" in einem Bericht UEBER die
+    # Planung ist voellig in Ordnung -- deshalb zaehlt nur die Ich-Form mit Vorsatz.
+    ankuendigung = letzter_vorsatz(payload.get("transcript_path"))
+    if ankuendigung:
+        bloecke.append((f"vorsatz-{hashlib.sha1(ankuendigung.encode()).hexdigest()[:8]}", [
+            "Der Turn endet mit einer Ankuendigung statt mit der Arbeit:",
+            "",
+            f"  \u201e{ankuendigung}\u201c",
+            "",
+            "  Eine Ankuendigung im Schlusssatz ist eine Zusage fuer DIESEN Turn.",
+            "  Wenn Du weiterarbeiten kannst, tu es jetzt -- der Nutzer wartet nicht",
+            "  auf eine Bestaetigung, sondern auf das Ergebnis.",
+            "",
+            "  Wenn Du NICHT weiterarbeiten kannst, schreib warum: welche",
+            "  Entscheidung, welche Freigabe, welches Geraet fehlt.",
+            "",
+        ]))
 
     # ------------------------------------------- Messung ohne Befund (L184)
     messmarke = root / ".git" / "geraet-gemessen"

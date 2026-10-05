@@ -227,3 +227,13 @@ DIR-017:
   gilt_fuer: [release-engineer, pwa-tester, alle]
   seit: 2026-10-02
   geaendert: 2026-10-05 — Kennung nachträglich vergeben, Regel unverändert (L225).
+
+DIR-019:
+  regel: "Eine Ankuendigung im Schlusssatz eines Turns ist eine Zusage fuer DIESEN Turn.
+          Wer weiterarbeiten kann, arbeitet weiter, statt es anzukuendigen. Wer es nicht
+          kann, schreibt WARUM -- welche Entscheidung, welche Freigabe, welches Geraet
+          fehlt. Ein Turn, der mit 'als Naechstes mache ich X' endet, zwingt den Nutzer
+          zu einem Eingriff, auf den niemand gewartet hat."
+  gilt_fuer: [alle]
+  seit: 2026-10-05
+
