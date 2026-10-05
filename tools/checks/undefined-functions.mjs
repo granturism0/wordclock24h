@@ -51,6 +51,8 @@ Number Object Promise Proxy Reflect RegExp Set String Symbol WeakMap WeakSet Wea
 BigInt Intl URL URLSearchParams FinalizationRegistry
 Blob File FileReader FormData Headers Request Response AbortController AbortSignal
 TextEncoder TextDecoder Image Audio Worker Event CustomEvent MutationObserver
+ArrayBuffer DataView Uint8Array Uint8ClampedArray Int8Array Uint16Array Int16Array
+Uint32Array Int32Array Float32Array Float64Array BigInt64Array BigUint64Array
 ResizeObserver IntersectionObserver DOMParser XMLHttpRequest WebSocket Notification
 CompressionStream DecompressionStream ReadableStream WritableStream TransformStream
 Element HTMLElement Node NodeList Option DocumentFragment
