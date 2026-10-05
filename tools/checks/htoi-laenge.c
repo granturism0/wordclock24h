@@ -447,6 +447,11 @@ typedef enum
 {
     ERW_GEFAHR,         /* die alte Fassung MUSS hinter den Terminator lesen */
     ERW_GLEICH,         /* gueltige Zeile: alt und neu muessen gleich rechnen */
+    ERW_DURCH,          /* unbekannter Buchstabe: wie ERW_GLEICH, und neu darf NICHT verwerfen.
+                         * Eigene Klasse, weil ERW_GLEICH das nicht sieht: Eine Abweisung liefert
+                         * den Wert 0, ein unbekannter Buchstabe auch -- 0 gegen 0 ist "gleich".
+                         * Mit absichtlich abweisendem min_len() meldete Abschnitt 4 deshalb
+                         * fuenfmal "ok" bei verw=1, Exit 0 (H.2-Review, 05.10.2026). */
     ERW_VERWORFEN,      /* zu kurz, aber heute (noch) ohne Zugriffsfehler -- neu verwirft */
     ERW_GEFAHR_BEGRENZT /* alt faellt; neu VERWIRFT NICHT, sondern begrenzt die Schleife */
 } ERWARTUNG;
@@ -477,6 +482,11 @@ pruefe (FORM form, const char * name, const char * s, ERWARTUNG erw)
     else if (erw == ERW_GLEICH && (sa != 0 || ra.wert != rn.wert))
     {
         urteil = "FEHLER: gueltige Eingabe, aber alt != neu";
+        fehler++;
+    }
+    else if (erw == ERW_DURCH && (sa != 0 || ra.wert != rn.wert || rn.verworfen != 0))
+    {
+        urteil = "FEHLER: unbekannter Buchstabe wurde verworfen -- Praemisse von Runde S gebrochen (L269)";
         fehler++;
     }
     else if (erw == ERW_VERWORFEN && rn.verworfen == 0)
@@ -567,11 +577,11 @@ main (void)
     pruefe (F_CMD, "G Snake",              "GSs",               ERW_GLEICH);
 
     printf ("\n4. Unbekannter Kommandobuchstabe -- MUSS durchgelassen werden (L269, Runde S)\n");
-    pruefe (F_CMD, "m -- ESP sendet es, STM kennt es nicht", "m00010203", ERW_GLEICH);
-    pruefe (F_CMD, "V Eroeffnungszeile Runde S", "V01",         ERW_GLEICH);
-    pruefe (F_CMD, "Z Abschlussmarke Runde S",   "Z0102",       ERW_GLEICH);
-    pruefe (F_CMD, "X nur Buchstabe",       "X",                ERW_GLEICH);
-    pruefe (F_CMD, "unbekannt mit langem Rumpf", "QdiesIstEineZuordnungszeile", ERW_GLEICH);
+    pruefe (F_CMD, "m -- ESP sendet es, STM kennt es nicht", "m00010203", ERW_DURCH);
+    pruefe (F_CMD, "V Eroeffnungszeile Runde S", "V01",         ERW_DURCH);
+    pruefe (F_CMD, "Z Abschlussmarke Runde S",   "Z0102",       ERW_DURCH);
+    pruefe (F_CMD, "X nur Buchstabe",       "X",                ERW_DURCH);
+    pruefe (F_CMD, "unbekannt mit langem Rumpf", "QdiesIstEineZuordnungszeile", ERW_DURCH);
 
     printf ("\n5. Die beiden exponierten Stellen (tftled.c, esp-spiffs.c)\n");
     pruefe (F_TFTLED, "DISP leer",           "",                ERW_GEFAHR);

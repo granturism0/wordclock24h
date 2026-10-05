@@ -54,7 +54,10 @@ cc -std=c99 -w "${DEF[@]}" "${INC[@]}" "$TMP/ohne.c" -o "$TMP/ohne" 2>/dev/null 
 
 fehler=0
 if "$TMP/mit" > "$TMP/mit.log" 2>&1; then
-  echo "  OK  Indexpruefung: 0 Verletzungen ueber alle 256 Indizes"
+  # Geltungsbereich ausdruecklich: Der Pruefstand schneidet die drei A44-Handler aus,
+  # NICHT die drei A43-Handler (night, ambinight, alarm). Ohne Sollwert in der Meldung
+  # liest sich "OK" wie "alle sechs geprueft" (H.2-Review, 05.10.2026).
+  echo "  OK  Indexpruefung: 0 Verletzungen ueber alle 256 Indizes (A44: 3 von 6 Aufrufstellen; A43 nicht abgedeckt)"
 else
   echo "  KRITISCH  Indexpruefung: Schreibzugriff ueber den Arrayrand (A43/L286, A44/L289)"
   sed -n '1,6p' "$TMP/mit.log" | sed 's/^/            /'
