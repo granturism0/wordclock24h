@@ -28,8 +28,15 @@ const bad  = (w, d = "") => { console.log(`  FEHLT ${w.padEnd(38)} ${d}`); fail+
 
 // ---------------------------------------------------------------- CDP-Anbindung
 const targets = await fetch(`http://127.0.0.1:${PORT}/json/list`).then(r => r.json());
-const page = targets.find(t => t.type === "page");
-if (!page) { console.log("  ABBRUCH: kein Browser-Target gefunden"); process.exit(2); }
+// Das Ziel an der GERAETEADRESSE festmachen, nicht das erste Seitenziel nehmen (L301).
+// Mit dem ersten Ziel prueft ein Lauf an einem fremden Browser die falsche Seite --
+// und meldet womoeglich gruen.
+const SOLL = process.env.GERAET_URL || "";
+const page = targets.find(t => t.type === "page" && SOLL && t.url.startsWith(SOLL));
+if (!page) {
+  console.log(`  ABBRUCH: kein Seitenziel mit der Geraeteadresse (${targets.filter(t => t.type === "page").length} fremde Seitenziele)`);
+  process.exit(2);
+}
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });

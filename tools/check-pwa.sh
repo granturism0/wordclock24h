@@ -88,7 +88,16 @@ printf '  Geraet meldet STM %s — dieser Wert muss gleich in der Seite stehen.\
 # Mit Debug-Port statt --dump-dom: Nur so laesst sich die Seite auch BEDIENEN.
 # Gesteuert wird in tools/check-pwa.mjs ueber das DevTools-Protokoll; Node bringt
 # seit v22 ein eingebautes WebSocket mit, es braucht kein Puppeteer.
-CDP_PORT=${CDP_PORT:-9222}
+# Freien Port waehlen statt fest 9222 (L301). War 9222 belegt -- etwa durch das
+# Chrome einer Vorschausitzung --, sprach dieses Skript mit dem FREMDEN Browser und
+# pruefte die falsche Seite. Am 05.10.2026 ist einem Tester genau das passiert; er fand
+# 0 Module und hat es gemerkt. Ein Lauf, der die falsche Seite gruen meldet, merkt es nicht.
+if [ -z "${CDP_PORT:-}" ]; then
+  CDP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+elif curl -s -m 1 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; then
+  echo "  ABBRUCH: Port $CDP_PORT ist schon belegt -- ein fremder Browser wuerde geprueft." >&2
+  rm -rf "$WORK"; exit 1
+fi
 
 printf '  starte Chrome und lade /app/'
 "$CHROME" --headless=new --disable-gpu --no-sandbox \
@@ -109,7 +118,7 @@ if ! curl -s -m 2 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; the
   rm -rf "$WORK"; exit 1
 fi
 
-STM_SOLL="$stm" CDP_PORT="$CDP_PORT" node tools/check-pwa.mjs
+STM_SOLL="$stm" CDP_PORT="$CDP_PORT" GERAET_URL="$U/app/" node tools/check-pwa.mjs
 RC=$?
 
 kill "$CHROME_PID" 2>/dev/null
