@@ -2656,6 +2656,64 @@ schedule_esp8266_overlay (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * esp8266_idx_ok () - Indexpruefung fuer die Zeittabellen-Handler (A43 / L286)
+ *
+ * schedule_esp8266_night_tables(), schedule_esp8266_ambilight_night_tables() und
+ * schedule_esp8266_alarm_tables() lesen ihren Index mit htoi (parameters, 2) -- zwei
+ * Hexziffern, also 0..255 -- und schrieben damit ungeprueft in ein Array mit acht Plaetzen.
+ * Ein Index von 255 landete rund 247 Strukturen hinter dem Array, mitten in anderen
+ * Zustandsdaten. Es ist ein SCHREIBzugriff, kein Lesen.
+ *
+ * Die Laengenpruefung aus A41 faengt das nicht, und genau darin liegt der Punkt: "tff010203"
+ * ist formal eine voellig gueltige Zeile -- richtige Laenge, richtige Zeichen, nur der Index
+ * ist unsinnig. Eine Pruefung auf die FORM kann eine Pruefung auf den WERT nicht ersetzen.
+ *
+ * Form, Rueckgabeweg und Verhalten sind von tables_idx_ok() in tables.c abgeschrieben
+ * (A22 / L145), und das ist Absicht: Zwei Bauarten fuer dieselbe Pruefung sind genau das,
+ * woraus dieser Befund entstanden ist -- dieselbe Aufgabe zweimal geloest, einmal mit
+ * Schutz, einmal ohne.
+ *
+ * Gemeldet wird ueber Zaehler und Drosselung von esp8266_cmd_reject() statt ueber einen
+ * zweiten Meldeweg. Eine verworfene Zeile ist eine verworfene Zeile, gleich ob sie an der
+ * Laenge oder am Index scheitert, und die Drosselung muss fuer die SUMME gelten: Die Meldung
+ * geht ueber dieselbe UART, deren Ueberlastung die verstuemmelten Zeilen erzeugt (L109).
+ * tables_idx_ok() meldet ungedrosselt, weil seine Zeilen vom STM selbst angefordert werden
+ * und damit nicht beliebig schnell kommen koennen; diese hier kommen unaufgefordert.
+ *
+ * DIE GRENZE IST NICHT ZWEITGESCHRIEBEN: Sie kommt mit sizeof aus dem Array selbst, nicht
+ * als dritte Zahl neben MAX_NIGHT_TIMES und der Arraydefinition. Eine Zahl, die zu zwei
+ * anderen passen muss, veraltet still -- dieselbe Ueberlegung wie bei der Laengenpruefung.
+ *
+ * noinline aus demselben Grund wie in tables.c: Ohne das Attribut kopiert der Optimierer
+ * die Funktion an jede Aufrufstelle zurueck, und die Flash-Ersparnis ist weg. Der F103
+ * stand mit Inline-Pruefungen schon einmal ueber der Flashgrenze (L165).
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t     esp8266_cmd_reject_cnt = 0;                 // gemeinsam mit esp8266_cmd_reject()
+
+static __attribute__((noinline)) uint_fast8_t
+esp8266_idx_ok (uint_fast8_t idx, uint_fast8_t limit, const char * was)
+{
+    uint_fast8_t    ok = 1;
+
+    if (idx >= limit)
+    {
+        esp8266_cmd_reject_cnt++;
+
+        if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0)
+        {
+            log_printf ("cmd rejected #%lu %s idx %u>%u\r\n",
+                        (unsigned long) esp8266_cmd_reject_cnt, was,
+                        (unsigned int) idx, (unsigned int) limit);
+        }
+
+        ok = 0;
+    }
+
+    return ok;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_night_tables () - schedule ESP8266 night tables
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2668,6 +2726,12 @@ schedule_esp8266_night_tables (char * parameters)
 
     var_idx = htoi (parameters, 2);
     parameters += 2;
+
+    if (! esp8266_idx_ok (var_idx, sizeof (night_time) / sizeof (night_time[0]), "night"))
+    {
+        return;                                                     // A43/L286: Schreibzugriff ueber den Arrayrand
+    }
+
     minutes = htoi (parameters, 2) + (htoi (parameters + 2, 2) << 8);
     parameters += 4;
     flags = htoi (parameters, 2);
@@ -2692,6 +2756,12 @@ schedule_esp8266_ambilight_night_tables (char * parameters)
 
     var_idx = htoi (parameters, 2);
     parameters += 2;
+
+    if (! esp8266_idx_ok (var_idx, sizeof (ambilight_night_time) / sizeof (ambilight_night_time[0]), "ambinight"))
+    {
+        return;                                                     // A43/L286: Schreibzugriff ueber den Arrayrand
+    }
+
     minutes = htoi (parameters, 2) + (htoi (parameters + 2, 2) << 8);
     parameters += 4;
     flags = htoi (parameters, 2);
@@ -2716,6 +2786,12 @@ schedule_esp8266_alarm_tables (char * parameters)
 
     var_idx = htoi (parameters, 2);
     parameters += 2;
+
+    if (! esp8266_idx_ok (var_idx, sizeof (alarm_time) / sizeof (alarm_time[0]), "alarm"))
+    {
+        return;                                                     // A43/L286: Schreibzugriff ueber den Arrayrand
+    }
+
     minutes = htoi (parameters, 2) + (htoi (parameters + 2, 2) << 8);
     parameters += 4;
     flags = htoi (parameters, 2);
@@ -2867,10 +2943,12 @@ esp8266_cmd_min_len (const char * line)
  * Ohne Nutzlast, nur mit dem Kommandobuchstaben: Eine verstuemmelte Zeile darf keine
  * Steuerzeichen auf die Logleitung legen -- dieselbe Vorsicht wie in
  * schedule_esp8266_ir_code(), nur billiger.
+ *
+ * Der Zaehler steht seit A43 bei esp8266_idx_ok() weiter oben: Die dortige Indexpruefung
+ * teilt ihn sich mit dieser Funktion, damit die Drosselung fuer die SUMME beider
+ * Abweisungsgruende gilt und nicht je Grund getrennt.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-static uint32_t     esp8266_cmd_reject_cnt = 0;
-
 static void
 esp8266_cmd_reject (const char * line, uint_fast8_t have, uint_fast8_t want)
 {

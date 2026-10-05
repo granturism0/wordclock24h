@@ -79,10 +79,37 @@ for (const file of process.argv.slice(2)) {
     // STM 3.2.0" -- traegt kein Datum und schlaegt weiterhin an.
     const MESSUNG = /\(\d{2}\.\d{2}\.\d{4},\s*(?:STM|ESP|PWA|App)\s+\d+\.\d+\.\d+/;
 
+    // Vierte Ausnahme: ein DATUM im selben Satz vor der Versionsangabe, auch ohne
+    // Klammern. Die Klammerform oben ist nur eine Schreibweise derselben Aussage.
+    //
+    // Am 05.10.2026 meldete die Stufe nach einem ESP-Bump drei Findings, und alle drei
+    // waren Fehlalarme -- Saetze wie "L173 ist am 04.10.2026 auf ESP 3.2.23 nachgemessen"
+    // oder "das OTA auf ESP 3.2.23 ist durchgelaufen". Das sind MESSBELEGE, und sie
+    // duerfen gerade NICHT hochgezogen werden: Die Messung fand auf jenem Stand statt,
+    // nicht auf dem heutigen. Ein pauschales Nachziehen waere eine Falschaussage.
+    //
+    // Die bestehende Erledigt-Ausnahme griff nicht, weil ihr Muster einen ABGESCHLOSSENEN
+    // Fettblock mit hoechstens 24 Zeichen nach dem Schluesselwort verlangt; diese Saetze
+    // sind laenger. Die Ausnahme war also richtig gemeint und zu eng gefasst -- dieselbe
+    // Gattung wie die ToDo-Pruefung, deren Muster 7 von 120 Eintraegen nicht sah (L276).
+    //
+    // Eng bleibt es durch dasselbe Argument wie bei der Klammerform: Eine Angabe mit
+    // Datum traegt ihren Zeitpunkt mit und veraltet deshalb nicht. Der Realfall, den die
+    // Stufe fangen soll -- "Aktueller Abschlussstand: STM 3.2.0" -- traegt kein Datum.
+    const DATIERT = /\b\d{2}\.\d{2}\.\d{4}\b/;
+
     for (const m of line.matchAll(VER)) {
       if (doneAt !== -1 && doneAt < m.index) continue;
       if (PROVENANCE.test(line.slice(Math.max(0, m.index - 1), m.index + m[0].length + 1))) continue;
       if (MESSUNG.test(line)) continue;
+      // Datum IM SELBEN SATZ und VOR der Versionsangabe -- siehe DATIERT oben.
+      // Der Satzanfang zaehlt ab dem letzten Punkt vor der Fundstelle, damit ein
+      // Datum weit vorn in einer langen Tabellenzeile nicht den ganzen Rest deckt.
+      {
+        const vorher = line.slice(0, m.index);
+        const satz = vorher.slice(vorher.lastIndexOf(". ") + 1);
+        if (DATIERT.test(satz)) continue;
+      }
       if (!known.has(m[2])) {
         console.log(`  HOCH      ${file}:${i + 1}  "${m[1]} ${m[2]}" — Quellen stehen bei STM ${cur.STM} / ESP ${cur.ESP} / PWA ${cur.PWA}`);
         bad++;
