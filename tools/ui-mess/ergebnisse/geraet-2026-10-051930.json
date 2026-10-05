@@ -1,0 +1,249 @@
+{
+  "ziel": "geraet",
+  "basis": "(Geraet, Adresse nicht protokolliert)",
+  "zeitpunkt": "2026-10-05T19:30:23.651Z",
+  "module": [
+    {
+      "viewport": "1512x982",
+      "modul": "maintenance",
+      "doc": {
+        "w": 1512,
+        "h": 5466
+      },
+      "panels": [
+        {
+          "name": "panel panel-maintenance-source",
+          "x": 22,
+          "y": 590.39,
+          "w": 690.64,
+          "h": 1594
+        },
+        {
+          "name": "panel panel-maintenance-remote",
+          "x": 726.64,
+          "y": 590.39,
+          "w": 763.34,
+          "h": 348
+        },
+        {
+          "name": "local-update-panel",
+          "x": 726.64,
+          "y": 1276.39,
+          "w": 763.34,
+          "h": 584
+        },
+        {
+          "name": "panel panel-maintenance-backup",
+          "x": 22,
+          "y": 2198.39,
+          "w": 690.64,
+          "h": 650
+        },
+        {
+          "name": "panel panel-maintenance-service",
+          "x": 726.64,
+          "y": 2198.39,
+          "w": 763.34,
+          "h": 244
+        },
+        {
+          "name": "files-panel",
+          "x": 22,
+          "y": 2862.39,
+          "w": 1467.98,
+          "h": 2568
+        }
+      ],
+      "felder": [],
+      "klein": [
+        {
+          "tag": "a",
+          "name": "Release Notes STM32",
+          "x": 75,
+          "y": 2033.39,
+          "w": 158.36,
+          "h": 22,
+          "eigen": {
+            "x": 75,
+            "y": 2033.39,
+            "w": 158.36,
+            "h": 22
+          }
+        },
+        {
+          "tag": "a",
+          "name": "Release Notes ESP8266",
+          "x": 75,
+          "y": 2055.39,
+          "w": 172.66,
+          "h": 22,
+          "eigen": {
+            "x": 75,
+            "y": 2055.39,
+            "w": 172.66,
+            "h": 22
+          }
+        }
+      ],
+      "fokus": [
+        {
+          "tag": "select",
+          "name": "DeutschEnglish",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1214,
+            "y": 201,
+            "w": 140,
+            "h": 44
+          }
+        },
+        {
+          "tag": "a",
+          "name": "Legacy-Seite",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1214,
+            "y": 263,
+            "w": 127,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Neu laden",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1351,
+            "y": 263,
+            "w": 110,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Hauptseite",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 24,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "System",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 188,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Netzwerk",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 352,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Umwelt",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 515,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Display",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 679,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Animationen",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 843,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Overlays",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1007,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Timer",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1170,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Wartung",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": "rgba(143, 211, 255, 0.12) 0px 0px 0px 1px",
+          "box": {
+            "x": 1334,
+            "y": 364,
+            "w": 154,
+            "h": 44
+          }
+        }
+      ],
+      "farben": []
+    }
+  ]
+}
