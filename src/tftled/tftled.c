@@ -113,18 +113,55 @@ tftled_redraw_display (void)
     }
 }
 
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * tftled_layout_get_line () - eine Zeile des LED-Layouts uebernehmen
+ *
+ * A41 / L265 -- eine der beiden exponierten Stellen des Befundes.
+ *
+ * Bis zum 05.10.2026 lief "str += 2" hier UNBEDINGT, und direkt dahinter eine while-Schleife
+ * ueber *str. Bei einer Zeile kuerzer als zwei Zeichen zeigte der Zeiger damit HINTER den
+ * Terminator, und die Schleife las von dort bis zum naechsten Nullbyte -- ueber die
+ * Pufferkante hinaus. Am Pruefstand mit Schutzseite ausgeloest: leere Zeile und Zeile mit
+ * einer Ziffer, beide SIGBUS.
+ *
+ * Die Grenze ist nicht zweitgeschrieben, sondern mit sizeof aus dem Empfangspuffer genommen.
+ * Diese Funktion wird ausschliesslich mit esp8266.u.disp aufgerufen (schedule_esp8266_messages(),
+ * Zweig ESP8266_DISP). Der Puffer wird in esp8266_get_message() mit strncpy() gefuellt, und
+ * strncpy() setzt bei voller Laenge KEIN Nullbyte -- die begrenzte Zaehlung ist deshalb kein
+ * Schmuck, sondern die Zusicherung, auf der die Schleife darunter steht.
+ *
+ * Die Kette bricht hier ab, wenn die Zeile zu kurz ist: kein tftled_layout (row + 1). Das ist
+ * dieselbe Entscheidung wie in tables_tabillu() -- eine Zeile, die hier scheitert, kann auch
+ * dauerhaft falsch sein, und ein Neuversuch liefe endlos.
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
 void
 tftled_layout_get_line (char * str)
 {
     uint_fast8_t    row;
+    uint_fast8_t    len;
     uint32_t        offset;
+
+    len = 0;
+
+    while (len < sizeof (esp8266.u.disp) && str[len])
+    {
+        len++;
+    }
+
+    if (len < 2)                                                                    // zu kurz fuer die Zeilennummer
+    {
+        log_printf ("disp line rejected, len=%u<2\r\n", (unsigned int) len);
+        return;
+    }
 
     row = htoi (str, 2);
     str += 2;
+    len -= 2;
 
     offset = row * WC_COLUMNS;
 
-    while (* str)
+    while (len > 0 && *str)
     {
         if (offset < DSP_DISPLAY_LEDS)
         {
@@ -132,6 +169,7 @@ tftled_layout_get_line (char * str)
             offset++;
         }
         str++;
+        len--;
     }
 
     if (row < WC_ROWS - 1)

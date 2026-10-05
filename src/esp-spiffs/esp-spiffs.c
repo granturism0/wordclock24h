@@ -163,6 +163,8 @@ esp_diffs_get_icon (const char * fname, const char * name)
  *  2       receive complete
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+#define ICON_HEAD_LEN   (2 + 2 + 4 + 4 + 4)                                         // rows, cols, color_len, anim_on_len, anim_off_len
+
 uint_fast8_t
 esp_diffs_read_icon (DISPLAY_ICON * dip)
 {
@@ -178,6 +180,30 @@ esp_diffs_read_icon (DISPLAY_ICON * dip)
 
     if (icon_block == 0)
     {
+        uint_fast8_t    len;
+
+        /* A41 / L265 -- eine der beiden exponierten Stellen des Befundes.
+         *
+         * Der Kopfblock liest fuenf Felder mit festen Breiten und rueckt nach jedem
+         * UNBEDINGT vor. Ist die Zeile kuerzer, zeigt p hinter den Terminator und das
+         * naechste htoi liest von dort. ICON_HEAD_LEN ist keine zweite Zahl, sondern die
+         * Summe genau dieser fuenf Breiten -- sie steht neben den Lesezugriffen, die sie
+         * beschreibt, und faellt auf, wenn eine davon sich aendert.
+         */
+        len = 0;
+
+        while (len < ICON_HEAD_LEN && esp8266.u.filedata[len])
+        {
+            len++;
+        }
+
+        if (len < ICON_HEAD_LEN)
+        {
+            log_printf ("icon head rejected, len=%u<%u\r\n",
+                        (unsigned int) len, (unsigned int) ICON_HEAD_LEN);
+            return 0;                                                               // 0 = Fehler, siehe Kopf
+        }
+
         p = esp8266.u.filedata;
 
         dip->rows       = htoi (p, 2);
@@ -203,9 +229,21 @@ esp_diffs_read_icon (DISPLAY_ICON * dip)
     }
     else
     {
+        const char *    ende = esp8266.u.filedata + sizeof (esp8266.u.filedata);
+
         p = esp8266.u.filedata;
 
-        while (*p)
+        /* A41 / L265: Die Schleife laeuft PAARWEISE und rueckte unbedingt um 2 vor. Bei
+         * ungerader Laenge sprang p damit UEBER den Terminator, und "while (*p)" las von
+         * dort weiter bis zum naechsten Nullbyte -- ueber die Pufferkante hinaus. Am
+         * Pruefstand mit Schutzseite ausgeloest: Zeile mit sieben Zeichen, SIGBUS.
+         *
+         * Gepruefte Bedingung ist deshalb das vollstaendige PAAR, und die Obergrenze kommt
+         * mit sizeof aus dem Empfangspuffer selbst -- nicht als zweite Zahl, die zur ersten
+         * passen muss. Fuer jede gerade, terminierte Zeile laeuft die Schleife unveraendert;
+         * auch die Abbruchbedingung darunter (p == esp8266.u.filedata) bleibt gueltig.
+         */
+        while (p + 1 < ende && p[0] && p[1])
         {
             if (color_idx < color_len)
             {

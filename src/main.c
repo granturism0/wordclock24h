@@ -2758,6 +2758,140 @@ schedule_esp8266_games (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * esp8266_cmd_min_len () - Mindestlaenge einer Kommandozeile, EINSCHLIESSLICH Kommandobuchstabe
+ *
+ * Befund A41 / L265. Auf jedes htoi (x, n) folgt in diesem Modul ein UNBEDINGTES x += n --
+ * nachgezaehlt am 05.10.2026: 39 Vorrueckungen allein hier, dazu 22 in tables.c, 5 in
+ * esp-spiffs.c und 1 in tftled.c. Stand der Zeiger schon auf dem Terminator, zeigt er danach
+ * dahinter, und der naechste htoi liest dort.
+ *
+ * WARUM EINE TABELLE UND NICHT 39 EINZELPRUEFUNGEN: 39 Pruefungen waeren 39 Gelegenheiten,
+ * eine zu vergessen, und die naechste hinzugefuegte Kommandoart haette wieder keine. Diese
+ * Tabelle steht unmittelbar vor dem switch, den sie beschreibt -- weicht eine Breite ab,
+ * faellt es beim Lesen auf. Das ESP-Ende derselben Gattung ist genauso geloest
+ * (var_cmd_min_len() in ESP8266/ESP-uclock/vars.cpp, Befund A37 / L237).
+ *
+ * WIE WEIT L263 SCHON TRAEGT und was hier dazukommt -- am Pruefstand mit Schutzseite
+ * gemessen, nicht geschaetzt: Seit htoi() am ersten Nullbyte haelt, laeuft eine Zeile, der
+ * GENAU EIN Feld fehlt, bereits glimpflich ab. Hinter den Terminator gelesen wird erst, wenn
+ * der Zeiger ihn UEBERSPRINGT -- bei zwei fehlenden Feldern, bei einem Vorruecken, das
+ * breiter ist als das vorangegangene Lesen (die 14 direkt indizierten Ziffern bei T, das
+ * "+= 4" bei t/a/l), oder bei ungerader Laenge in einer paarweise laufenden Schleife.
+ * Nachgewiesen fuer N, n, T, t, a, l und DC.
+ *
+ * Rueckgabe: Mindestzahl Zeichen ab line[0]. 0 = Kommandobuchstabe unbekannt.
+ *            Dann wird NICHTS geprueft und die Zeile laeuft durch -- der switch darunter hat
+ *            keinen default-Zweig und verwirft sie wirkungslos. Das ist Absicht und keine
+ *            Nachlaessigkeit: Der ESP verhaelt sich spiegelbildlich (L269), und die neuen
+ *            Zeilenarten der Bruecken-Runde muessen hier durchkommen statt abgewiesen zu
+ *            werden. Wer das aendert, bricht diese Zusage.
+ *
+ * line[0] ist beim Aufruf garantiert != 0 (der Aufrufer prueft die Laenge zuerst), line[1]
+ * darf deshalb gelesen werden -- schlimmstenfalls ist es der Terminator, und der trifft
+ * keinen case.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+esp8266_cmd_min_len (const char * line)
+{
+    switch (line[0])
+    {
+        case 'R':   return  3;                                      // R ii
+        case 'N':   return  7;                                      // N ii ll hh
+        case 'n':   return  7;                                      // n ii nn bb
+        case 'S':   return  3;                                      // S ii + Text, Text darf leer sein
+        case 'T':   return 17;                                      // T ii YYYYMMDDhhmmss -- Ziffern direkt indiziert
+        case 't':   return  9;                                      // t ii mmmm ff
+        case 'a':   return  9;                                      // a ii mmmm ff
+        case 'l':   return  9;                                      // l ii mmmm ff
+        case 'I':   return 13;                                      // I ii pp aaaa cccc
+        case 'G':   return  3;                                      // GTs / GSs
+
+        case 'D':                                                   // Display
+            if (line[1] == 'C')                                     // DC ii rr gg bb [ww]
+            {
+                /* Zehn, NICHT zwoelf -- auch im RGBW-Bau. Ob der ESP das vierte Byte (Weiss)
+                 * mitschickt, haengt an seinem use_rgbw (vars.cpp, set_dsp_color_var), und
+                 * den Wert hat ihm DIESELBE Bruecke geliefert. Eine Pruefung auf 12 wiese
+                 * nach einem verlorenen use_rgbw-Kommando gueltige Farbzeilen ab: ein Schutz,
+                 * der genau dann versagt, wenn er gebraucht wird. Fehlt das Weiss, liest htoi
+                 * den Terminator und liefert 0 -- dasselbe Ergebnis wie heute.
+                 */
+                return 10;
+            }
+            return 4;                                               // DN ii + Name, Name darf leer sein
+
+        case 'A':                                                   // Animation
+        case 'C':                                                   // Farbanimation
+        case 'M':                                                   // Ambilight-Modus
+            switch (line[1])                                        // in allen drei Gruppen dieselben Unterbuchstaben
+            {
+                case 'D':   return 6;                               // xD ii <wert:2>
+                case 'E':   return 6;                               // xE ii <wert:2>
+                case 'F':   return 6;                               // xF ii <wert:2>
+                case 'N':   return 4;                               // xN ii + Name, Name darf leer sein
+            }
+            return 4;
+
+        case 'O':                                                   // Overlay
+            switch (line[1])
+            {
+                case 'S':   return 8;                               // OS ii <wert:4> -- als einziges vier Stellen
+                case 'N':   return 4;                               // ON ii + Text, Text darf leer sein
+                case 'T':   return 6;
+                case 'I':   return 6;
+                case 'D':   return 6;
+                case 'C':   return 6;
+                case 'Y':   return 6;
+                case 'F':   return 6;
+            }
+            return 4;
+    }
+
+    return 0;                                                       // unbekannt -- siehe Kopf: MUSS durchgelassen werden
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * esp8266_cmd_reject () - eine verworfene Kommandozeile festhalten (A41 / L265, Abnahme AKH.4)
+ *
+ * Eine Haertung, die STILL verwirft, tauscht einen Absturz gegen ein unerklaerliches
+ * Nichtverhalten: Die Uhr uebernaehme eine Einstellung nicht und saehe dabei gesund aus.
+ * Deshalb wird jede verworfene Zeile gezaehlt und die Zaehlung mitgemeldet.
+ *
+ * GEDROSSELT, und das hat einen Grund auf der Leitung: Diese Meldung geht ueber dieselbe
+ * UART, deren Ueberlastung die verkuerzte Zeile ueberhaupt erst erzeugt hat (L109). Eine
+ * Meldung je Zeile waere eine Mitkopplung. Die ersten vier Faelle einzeln, danach jeder
+ * fuenfzigste; der laufende Zaehler steht IN der Zeile, die Gesamtzahl geht also nicht
+ * verloren, auch wenn nur die letzte uebrig bleibt.
+ *
+ * Ohne Nutzlast, nur mit dem Kommandobuchstaben: Eine verstuemmelte Zeile darf keine
+ * Steuerzeichen auf die Logleitung legen -- dieselbe Vorsicht wie in
+ * schedule_esp8266_ir_code(), nur billiger.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t     esp8266_cmd_reject_cnt = 0;
+
+static void
+esp8266_cmd_reject (const char * line, uint_fast8_t have, uint_fast8_t want)
+{
+    esp8266_cmd_reject_cnt++;
+
+    if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0)
+    {
+        char    c = have ? line[0] : '-';
+
+        if (c < 0x20 || c > 0x7E)
+        {
+            c = '?';
+        }
+
+        log_printf ("cmd rejected #%lu '%c' len=%u<%u\r\n",
+                    (unsigned long) esp8266_cmd_reject_cnt, c,
+                    (unsigned int) have, (unsigned int) want);
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_cmd () - schedule ESP8266 commands
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2766,8 +2900,40 @@ schedule_esp8266_cmd (void)
 {
     char *              parameters;
     uint_fast8_t        cmd_code;
+    uint_fast8_t        len;
+    uint_fast8_t        want;
 
     parameters = esp8266.u.cmd;
+
+    /* A41/L265: EINE Laengenpruefung vorne statt 39 einzelner, Begruendung bei
+     * esp8266_cmd_min_len(). Ab hier gilt: Die Zeile ist lang genug fuer ihre Kommandoart.
+     * Jedes "parameters += n" im folgenden switch bleibt damit innerhalb der Zeile, und kein
+     * htoi liest hinter dem Terminator.
+     *
+     * DIE GRENZE IST NICHT ZWEITGESCHRIEBEN. Sie steht nirgends als Zahl, sondern wird mit
+     * sizeof aus dem Empfangspuffer selbst genommen. Eine zweite Zahl, die zur ersten passen
+     * muss, veraltet still -- genau die Gattung Fehler, die dieses Projekt wiederholt
+     * getroffen hat.
+     *
+     * Eigene Schleife statt strlen(): strlen() hat keine Obergrenze. esp8266_get_message()
+     * setzt zwar seit L90 das abschliessende Nullbyte selbst, aber eine Pruefung, die sich
+     * auf die Zusicherung eines anderen Moduls stuetzt, prueft nicht -- sie vertraut.
+     */
+    len = 0;
+
+    while (len < sizeof (esp8266.u.cmd) && parameters[len])
+    {
+        len++;
+    }
+
+    want = len ? esp8266_cmd_min_len (parameters) : 1;              // leere Zeile: immer verwerfen
+
+    if (len < want || len >= sizeof (esp8266.u.cmd))                // kein Terminator im Puffer => ebenfalls verwerfen
+    {
+        esp8266_cmd_reject (parameters, len, want);
+        return;
+    }
+
     cmd_code = *parameters++;
 
     switch (cmd_code)

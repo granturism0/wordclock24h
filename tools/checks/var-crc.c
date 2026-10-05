@@ -17,8 +17,23 @@
  * auswirkt. Gerechnet wird ueber die Nutzlast OHNE "var " und OHNE die
  * Pruefsumme selbst.
  *
- *   cc -o /tmp/var-crc tools/checks/var-crc.c && /tmp/var-crc
+ *   cc -I tools/checks -o /tmp/var-crc tools/checks/var-crc.c && /tmp/var-crc
+ *
+ * ZUR TYPANGLEICHUNG (L256, pruefstand.h)
+ *
+ * Dieser Pruefstand band pruefstand.h bis zum 05.10.2026 NICHT ein -- und war
+ * zugleich das einzige Beispiel in Guardrail-Stufe S13. Die Breitenpruefung des
+ * Headers, die bei falscher Zielbreite den Bau abbricht, lief damit in keinem
+ * einzigen Durchlauf mit. Gemeldet hat es der Umsetzer von A41, dem es beim
+ * Einbinden fuer seinen eigenen Pruefstand auffiel -- nicht die Stufe.
+ *
+ * Die Rechnung hier ist von der Wortbreite UNABHAENGIG: Sie laeuft ueber uint8_t
+ * und uint16_t, und das size_t zaehlt nur Zeichen einer kurzen Zeichenkette. Der
+ * Header wird trotzdem eingebunden, denn genau das ist sein Zweck -- er prueft die
+ * Breiten zur Uebersetzungszeit, und ein Pruefstand, der ihn auslaesst, nimmt die
+ * Pruefung fuer alle anderen mit heraus.
  */
+#include "pruefstand.h"
 
 #include <stdio.h>
 #include <string.h>
