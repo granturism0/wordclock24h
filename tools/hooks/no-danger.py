@@ -98,8 +98,22 @@ def main():
     command = payload.get("tool_input", {}).get("command", "")
 
     for name, why in FORBIDDEN.items():
-        # Wortgrenze, damit "update_status" nicht an "local_esp_update" haengenbleibt.
-        if re.search(rf"\b{re.escape(name)}\b", command):
+        # Der Name muss als ENDPUNKT auftreten, nicht bloss als Wort.
+        #
+        # Die Wortgrenze allein reichte nicht, und das ist am 05.10.2026 bei der
+        # Gegenprobe aufgefallen: `echo "test_display ausgelassen"` wurde abgewiesen.
+        # Ausgerechnet der pwa-tester, der diesen Hook traegt, SOLL ausgelassene
+        # Schritte in seinen Bericht schreiben (DIR-012) -- der Hook blockierte also
+        # genau das Verhalten, das die Direktive verlangt.
+        #
+        # Das ist dieselbe Falle wie bei file-ownership.py, in CLAUDE.md unter R3
+        # beschrieben: Ein Hook, der das SCHREIBEN UEBER eine Gefahr blockiert statt
+        # ihres Aufrufs, wird umgangen statt befolgt.
+        #
+        # Verlangt wird deshalb der Pfadbezug: /api/<name> oder <name>? bzw. <name>&.
+        # Das deckt jede Aufrufform ab, die ueber HTTP geht -- und laesst jede
+        # Erwaehnung in Prosa durch.
+        if re.search(rf"/api/{re.escape(name)}\b|\b{re.escape(name)}[?&]", command):
             return refuse(f"Aufruf von /api/{name}", why)
 
     if BOOT_AS_AP.search(command):

@@ -514,6 +514,10 @@ else
   ok "kein cc vorhanden, Pruefstaende uebersprungen"
 fi
 
+# ------------------------------------------------- S14 Hooks tun, was sie sollen
+step S14 "Hook-Gegenproben in beide Richtungen"
+./tools/checks/hooks.sh || WARN=$((WARN+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
