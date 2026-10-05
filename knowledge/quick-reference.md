@@ -21,8 +21,11 @@ abgewichen wird. **Mittel** wird gemeldet und darf bewusst offenbleiben.
 | Sensorwert wird ohne CRC-Prüfung als gültig übernommen | CRC prüfen, „gefunden“ und „Messwert gültig“ trennen | Hoch |
 | `__disable_irq(); … __enable_irq();` ohne PRIMASK-Sicherung | PRIMASK sichern und wiederherstellen | Mittel |
 
-**Falle beim Durchsuchen von `src/**`:** Acht Dateien sind **ISO-8859-1**, nicht UTF-8 —
+**Falle beim Durchsuchen von `src/**` (B21/L166):** Acht Dateien sind **ISO-8859-1**, nicht UTF-8 —
 `base.c`, `base.h`, `display.c`, `ds18xx.c`, `irmp.c`, `rtc.c`, `tempsensor.c`, `w25qxx.c`.
+**Den gültigen Bestand nennt S7b**, nicht diese Liste: Sie ist eine Kopie und veraltet still,
+sobald eine Datei dazukommt oder umkodiert wird — dieselbe Gattung wie die Versionsnummern in
+der Doku. Die Namen stehen hier nur, damit man die Falle beim Lesen wiedererkennt.
 `grep` stuft sie als **binär** ein und gibt **gar nichts** aus — nicht „0 Treffer", sondern
 eine leere Ausgabe. Das sieht aus wie „nicht vorhanden", ist aber „nicht gelesen".
 
@@ -130,3 +133,66 @@ nicht, wurden unberührte Zeilen umgeschrieben. Betroffen sind in diesem Repo
 `ESP8266/ESP-uclock/data/app/styles.css` (56 CRLF-Zeilen). Bei der Stilvorlage trat es
 am 03.10.2026 auf: Nach einem `Edit` standen 0 CR statt 56, und der Diff zeigte
 `89 insertions, 56 deletions` statt der gemeinten 33 Zeilen.
+
+## Ein Prüfstand auf dem Entwicklungsrechner ist nicht die Zielplattform
+
+**Kritisch.** Wo eine **Typbreite** über den geprüften Fall entscheidet, gehört sie an die
+Zielplattform angeglichen — sonst läuft die Prüfung, ist grün und hat den Fall nie
+hergestellt.
+
+Belegt am 05.10.2026 (L256): Ein Test sollte den Überlauf der Millisekundenuhr prüfen.
+`unsigned long` ist auf dem ESP **32 Bit**, auf dem Entwicklungsrechner **64**. Die
+simulierte Uhr lief einfach über 2³² hinaus weiter und wickelte **nie** — grün, und ohne
+jede Aussage. Mit mechanischer Angleichung (`unsigned long` → `uint32_t`) wickelt sie
+tatsächlich: `4294962345 ms → 5049 ms → 15049 ms`, Abstände weiterhin 10 Sekunden.
+
+**Das ist die Gattung von DIR-014 in ihrer heimtückischsten Form.** Nicht eine Prüfung,
+deren Meldung nicht ankommt, und nicht eine mit zu engem Muster — sondern eine, die auf
+der **falschen Plattform** läuft. Bemerkt hat es der Umsetzer selbst; er lässt seitdem
+**beide** Übersetzungen über alle Fälle laufen, die angeglichene und die native.
+
+**Betroffen ist alles, was plattformabhängig breit ist:** `unsigned long`, `int`, `size_t`,
+Zeigerbreite, `time_t`. Prüfstand bauen heisst: erst die Breiten festnageln, dann messen.
+
+## Zwei Warnungen für jeden künftigen Entwurf an der STM↔ESP-Brücke
+
+Beide stammen aus `specs/paket-2026-10-05/design.md` §6.5 und sind allgemeiner als ihr
+Anlass. Sie stehen hier, weil sie **vor** dem Entwurf gebraucht werden, nicht danach.
+
+### Hardware-Nebeneffekte sind keine Absicherung
+
+> **Ein Mechanismus, dessen Sicherheit an einem Hardware-Nebeneffekt hängt, ist nicht
+> abgesichert — er hat bisher Glück gehabt.**
+
+**Hoch.** Der A35-Nachweis fand keinen Pfad, auf dem der ESP einen Sitzungsmerker behält,
+während eine STM-Firmware ohne die zugehörige Fähigkeit läuft. Diese Sicherheit hing aber
+an zwei Dingen, die **nirgends als Voraussetzung benannt waren**: am GPIO-Puls in
+`esp8266_reset()` (`src/esp8266/esp8266.c`) **und** am Einschaltstrom der LED-Kette über
+`PB0`, der bei einem STM-Reset den ESP mitreisst (L183). Fiele eines von beiden weg — ein
+anderer Resetpfad, eine andere Platinenrevision —, wäre die Zusage still verloren, ohne
+dass jemand den Zusammenhang kennt.
+
+**Dasselbe gilt rückwirkend für `cap_var_crc`:** Die Begründung in L254, der Fall „STM
+startet neu, ESP nicht" trete in der Praxis gar nicht ein, stützt sich auf genau diesen
+Einschaltstrom. Das ist heute richtig und war nie als Bedingung aufgeschrieben.
+
+**Ich tue:** Jeder Entwurf, der eine Sitzungsfähigkeit oder einen Merker über einen Reset
+hinweg braucht, **nennt die Voraussetzung, unter der sein Rückfall gilt** — und zwar im
+Entwurf, nicht im Nachhinein im Befundkatalog.
+
+### Verworfen heisst nicht unquittiert
+
+> **Eine Zeile, die auf der Wirkungsebene verworfen wird, kann auf der Protokollebene
+> trotzdem quittiert sein — und ob sie es ist, entscheidet über die Watchdog-Bilanz.**
+
+**Kritisch.** „Ein alter Empfänger verwirft die neue Zeile stillschweigend" ist eine
+Aussage über die **Wirkung**. Auf der **Protokollebene** kann das Gegenteil gelten, und
+das ist kein Detail: Die `var `-Verpackung wird von einem alten ESP regulär als
+`var`-Kommando empfangen und **quittiert** — deshalb läuft `var_send_buf()` nicht in
+seinen Timeout. Ein eigenes Top-Level-Präfix hätte genau diese Quittung verloren und damit
+**3 Sekunden Stillstand je Zeile** erzeugt, ohne `watchdog_reload()` (L269).
+
+**Ich tue:** Bei jeder Änderung an der Verpackung eines Kommandos getrennt beantworten —
+(1) Was tut der alte Empfänger mit der Zeile? (2) **Quittiert er sie?** Nur die zweite
+Frage entscheidet über Timeout und Watchdog. **Wer die Verpackung ändert, ändert nicht die
+Form, sondern die Watchdog-Bilanz.**
