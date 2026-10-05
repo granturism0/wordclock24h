@@ -140,7 +140,14 @@ while :; do
   # periodischer Zweig nicht.
   if [ -n "$diag" ] && [ -n "$letzte_diag" ]; then
     erwartet=$((letzte_diag + INTERVAL / 10))
-    if [ "$diag" -lt "$((letzte_diag + 1))" ]; then
+    # Ein KLEINERER Wert ist kein Stillstand, sondern ein STM-Neustart: Die Folge beginnt
+    # danach wieder bei 1. Bis zum 05.10.2026 lief beides in denselben Zweig, und jeder
+    # Flash erzeugte einen Fehlalarm "diag steht still bei 1" (L295). Ein Neustart ist
+    # selbst meldenswert -- aber als Neustart, nicht als Hänger.
+    if [ "$diag" -lt "$letzte_diag" ]; then
+      printf '  %s  *** STM neu gestartet *** diag %s -> %s\n' "$stamp" "$letzte_diag" "$diag"
+      alarm=1
+    elif [ "$diag" -eq "$letzte_diag" ]; then
       printf '  %s  *** diag steht still bei %s *** periodischer Zweig ausgefallen?\n' "$stamp" "$diag"
       alarm=1
     fi

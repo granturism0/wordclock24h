@@ -67,6 +67,23 @@ SECRETS=0
 if [ "${1:-}" = "--restore" ]; then
   SECRETS=1
   shift
+
+  # VOR dem ersten Abruf pruefen, ob ein Passwort ueberhaupt zu bekommen ist.
+  #
+  # Der Abzug schreibt eeprom_settings mit dem WLAN-Schluessel zuerst im Klartext hin
+  # und verschluesselt erst am Ende. Ohne SNAPSHOT_PASS und ohne Terminal kann openssl
+  # kein Passwort lesen, scheitert -- und das Klartextverzeichnis bleibt liegen. Der
+  # pwa-tester hat das am 05.10.2026 am Quelltext erkannt und das Skript deshalb gar
+  # nicht erst aufgerufen. Ein Agent, der Phase 0 woertlich nimmt, haette den
+  # Schluessel auf die Platte gelegt.
+  #
+  # /dev/tty statt [ -t 0 ]: openssl liest das Passwort vom Terminal, nicht von stdin.
+  if [ -z "${SNAPSHOT_PASS:-}" ] && ! { : < /dev/tty; } 2>/dev/null; then
+    echo "Abbruch vor dem ersten Abruf: kein Passwort (SNAPSHOT_PASS) und kein Terminal." >&2
+    echo "Ohne Passwort wuerde der WLAN-Schluessel unverschluesselt liegen bleiben." >&2
+    echo "Im eigenen Terminal ausfuehren, dort wird das Passwort abgefragt." >&2
+    exit 2
+  fi
 fi
 
 NAME=${1:-$(date '+%Y-%m-%d-%H%M%S')}
