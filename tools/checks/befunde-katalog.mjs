@@ -68,6 +68,26 @@ else {
   for (let i = 1; i <= (n[n.length - 1] || 0); i++) if (!live.has(String(i))) gaps.push(`L${i}`);
   if (gaps.length) fail(`BEFUNDE.md: Luecke in der L-Nummerierung — ${gaps.join(", ")} fehlen`);
   else console.log(`  OK  laufende Arbeit: L1 bis L${n[n.length - 1]} lueckenlos`);
+
+  // LUECKENLOS IST NICHT EINDEUTIG -- und das ist am 05.10.2026 teuer geworden (L280).
+  //
+  // Zwei Agenten haben im selben Zeitraum dieselben L-Nummern vergeben. Die Stufe
+  // meldete im selben Lauf "L1 bis L277 lueckenlos" und OK: Solange jede Nummer
+  // MINDESTENS einmal vorkommt, faellt eine doppelt vergebene nicht auf. Die Ursache
+  // sitzt eine Ebene tiefer als der fehlende Test -- catalogNums() liefert ein Set,
+  // und darin ist eine Dublette per Konstruktion unsichtbar.
+  //
+  // Fuer die ToDo-Kennungen wurde die Eindeutigkeit ausdruecklich geprueft und hat im
+  // selben Lauf prompt eine Dublette gemeldet. Dieselbe Datei, dieselbe Stufe, eine
+  // Haelfte geprueft, die andere nicht. Gefunden hat es ein Agent von Hand mit
+  // sort | uniq -d, weil er fragte, ob die L-Seite denn geprueft sei.
+  const roh = [...cat.matchAll(/^\|\s*L(\d+)\s*\|/gm)].map((m) => m[1]);
+  const doppelt = [...new Set(roh.filter((x, i) => roh.indexOf(x) !== i))];
+  if (doppelt.length) {
+    fail(`BEFUNDE.md: L-Nummer doppelt vergeben — ${doppelt.map((d) => "L" + d).join(", ")}`);
+  } else {
+    console.log(`  OK  L-Nummern eindeutig: ${roh.length} Zeilen, ${live.size} verschiedene`);
+  }
 }
 
 // ---- 4. Offene Befunde muessen in der ToDo-Liste stehen

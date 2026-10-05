@@ -476,6 +476,10 @@ node tools/checks/befunde-katalog.mjs || WARN=$((WARN+1))
 step S11 "Direktivenkatalog vollstaendig"
 node tools/checks/direktiven.mjs || WARN=$((WARN+1))
 
+# ------------------------------------------- S12 Gefahrenliste an einem Ort
+step S12 "Gefahrenliste der Endpunkte an genau einem Ort"
+node tools/checks/endpunkte.mjs || WARN=$((WARN+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
