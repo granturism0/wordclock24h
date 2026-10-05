@@ -121,9 +121,22 @@ def ungepusht(root):
 # Ich-Form mit klarem Vorsatz, kein blosses "als Naechstes steht X an" (das ist ein
 # Bericht ueber die Planung und voellig richtig).
 VORSATZ = [
+    # Ich-Form mit Vorsatz
     "ich fange", "ich beginne", "ich mache mich", "ich starte jetzt",
     "ich nehme mir", "ich ziehe", "ich arbeite", "ich setze", "ich baue",
     "ich gehe", "ich kuemmere", "ich kümmere", "ich melde mich, sobald",
+    # UNPERSOENLICHE Ankuendigungen -- nachgetragen am 05.10.2026, weil die Pruefung
+    # ihren Gegenstand nicht ganz sah. Der Turn endete mit "Als Naechstes der Review
+    # der STM-Seite, dann der Versionsbump und der Build." Kein "ich", also kein
+    # Treffer -- und der Nutzer musste zum VIERTEN Mal nachfassen: "Brauchst du etwas
+    # von mir, dass du wieder gestoppt hast?"
+    #
+    # Genau die Gattung, gegen die diese Pruefung gebaut wurde: ein Muster, das enger
+    # ist als die Wirklichkeit (L235, L276). Eine Ankuendigung bleibt eine
+    # Ankuendigung, ob sie ein "ich" traegt oder nicht.
+    "als naechstes", "als nächstes", "danach kommt", "danach folgt",
+    "jetzt kommt", "jetzt folgt", "dann kommt", "dann folgt",
+    "steht als naechstes", "steht als nächstes", "weiter geht es",
 ]
 # Gegenanzeigen: Wenn der Satz zugleich sagt, WARUM es nicht weitergeht, ist die
 # Ankuendigung richtig und kein Fehler.
