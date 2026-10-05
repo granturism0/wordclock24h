@@ -1172,8 +1172,30 @@ h2 {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* Die Verweise in den Release Notes sind Treffflächen, nicht nur Textauszeichnung.
+   Am Gerät gemessen (05.10.2026, 1512 px, Modul maintenance, L282): „Release Notes
+   STM32“ und „Release Notes ESP8266“ waren 22 px hoch — die Hälfte der 44 px aus
+   WCAG 2.5.5 und den Apple HIG. Die Notizen kommen vom Update-Server, die Verweise
+   stehen dort inline zwischen <BR> und erben damit nur die Zeilenhöhe.
+
+   In der Vorschau ist das nicht zu sehen: Die Simulation liefert keine Release Notes,
+   der Block bleibt leer, und derselbe Messlauf meldet dort 0 statt 2 Treffer. Wer
+   diese Regel ändert, misst am Gerät oder an einer Seite mit echten Notizen nach.
+
+   inline-flex statt padding: Senkrechtes Polster vergrössert an einem Inline-Element
+   die Zeilenhöhe nicht. Die Trefffläche wäre zwar 44 px gross, läge aber über dem
+   Text der Nachbarzeilen — gemessen bestanden, in der Hand ein Fehlgriff.
+
+   Nur die Höhe, keine min-width: Ein Verweis mitten im Satz ist von WCAG 2.5.5
+   ausdrücklich ausgenommen („Inline“), und 44 px erzwungene Breite schoben bei
+   kurzem Text sichtbar den Rest des Satzes weg — am Prüfaufbau gesehen. Die beiden
+   Verweise vom Server stehen allein auf ihrer Zeile und sind 158 bzw. 173 px breit. */
 .html-block a {
   color: #8fd3ff;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  vertical-align: middle;
 }
 
 .progress-frame {
