@@ -56,6 +56,7 @@ basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
 basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
 letzte_d=""
 letzte_diag=""
+still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
 # Ohne das puffert die Shell die Ausgabe, wenn sie in eine Datei oder Pipe geht --
 # und dann steht dort stundenlang NICHTS, obwohl die Wache laeuft. Am 04.10.2026 genau
@@ -157,8 +158,19 @@ while :; do
       printf '  %s  *** STM neu gestartet *** diag %s -> %s\n' "$stamp" "$letzte_diag" "$diag"
       alarm=1
     elif [ "$diag" -eq "$letzte_diag" ]; then
-      printf '  %s  *** diag steht still bei %s *** periodischer Zweig ausgefallen?\n' "$stamp" "$diag"
-      alarm=1
+      # Erst ab 30 s Stillstand melden, nicht nach EINER Abfrage ohne neue Zeile. Die
+      # diag-Zeilen kommen rund alle 10 s; liefert der ESP unter Seitenlast eine davon
+      # verspaetet aus, sieht eine einzelne Abfrage denselben Wert. Am 05.10.2026 genau
+      # so: "steht still bei 359", waehrend check-pwa.sh alle Module lud -- im Ring
+      # folgten 360 und 361 lueckenlos (L321). Ein Fehlalarm im Testfenster gewoehnt
+      # ans Leitsymptom von L14/L204, und dann wird der echte Haenger ueberlesen.
+      still_sek=$((still_sek + INTERVAL))
+      if [ "$still_sek" -ge 30 ]; then
+        printf '  %s  *** diag steht still bei %s seit %s s *** periodischer Zweig ausgefallen?\n' "$stamp" "$diag" "$still_sek"
+        alarm=1
+      fi
+    else
+      still_sek=0
     fi
   fi
   [ -n "$diag" ] && letzte_diag=$diag
