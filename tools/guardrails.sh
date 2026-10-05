@@ -480,6 +480,40 @@ node tools/checks/direktiven.mjs || WARN=$((WARN+1))
 step S12 "Gefahrenliste der Endpunkte an genau einem Ort"
 node tools/checks/endpunkte.mjs || WARN=$((WARN+1))
 
+# -------------------------------------------- S13 Pruefstaende uebersetzen
+# Was diese Stufe leistet und was NICHT (W.6):
+#
+# Sie uebersetzt die Pruefstaende unter tools/checks/ und laeuft sie an. Das faengt
+# den Fall, dass ein Pruefstand nach einer Aenderung gar nicht mehr baut -- und es
+# faengt eine falsche Typbreite in pruefstand.h, weil der Header seine eigenen
+# Breiten zur Uebersetzungszeit prueft und sonst abbricht.
+#
+# Sie prueft NICHT, ob die Firmware mit den Vektoren uebereinstimmt: var-crc.c
+# ERZEUGT die Vektoren, der Abgleich gegen STM und ESP gehoert in die Runde, die
+# die Pruefsumme anfasst. Eine Stufe, die hier mehr behauptete, waere eine
+# Pruefung, die ihren Gegenstand nicht hat.
+step S13 "Pruefstaende uebersetzen und anlaufen"
+if command -v cc >/dev/null 2>&1; then
+  # KEIN zusaetzliches WARN=$((WARN+1)) hier: warn() zaehlt selbst (Zeile 32). Der
+  # erste Entwurf hatte beides und meldete bei EINEM kaputten Pruefstand drei
+  # Hoch-Findings statt zwei. Das || WARN=$((WARN+1)) der Nachbarstufen gilt fuer
+  # node-Aufrufe, die ueber ihren Exit-Code melden und nicht ueber warn().
+  for src in tools/checks/*.c; do
+    [ -e "$src" ] || continue
+    if cc -I tools/checks -o "/tmp/gr-$(basename "$src" .c)" "$src" 2>/tmp/gr-cc.err; then
+      if "/tmp/gr-$(basename "$src" .c)" >/dev/null 2>&1; then
+        ok "$(basename "$src") uebersetzt und laeuft"
+      else
+        warn "$(basename "$src") uebersetzt, bricht aber beim Lauf ab"
+      fi
+    else
+      warn "$(basename "$src") uebersetzt nicht: $(head -2 /tmp/gr-cc.err | tr '\n' ' ')"
+    fi
+  done
+else
+  ok "kein cc vorhanden, Pruefstaende uebersprungen"
+fi
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
