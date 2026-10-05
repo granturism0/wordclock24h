@@ -228,8 +228,15 @@ static uint16_t     http_no_request_aborts   = 0;
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * Fehlercodes der JSON-Antworten der Setter. Sie stehen hier beisammen, damit nicht jede
- * Funktion eine eigene Nummerierung erfindet - die PWA wertet nur "ok" aus, der Code
- * dient der Diagnose am Geraet.
+ * Funktion eine eigene Nummerierung erfindet.
+ *
+ * DIE PWA WERTET DIE KENNUNG AUS, nicht nur "ok". Hier stand bis zum 05.10.2026 das
+ * Gegenteil ("die PWA wertet nur ok aus, der Code dient der Diagnose am Geraet"), und das
+ * ist eine falsche Zusicherung im Quelltext, dieselbe Gattung wie L274: describeApiError()
+ * uebersetzt jede der Kennungen 1 bis 6 in einen eigenen deutschen Satz und haengt den
+ * "detail"-Text woertlich in Klammern dahinter. Eine neue Kennung braucht deshalb ihren
+ * Eintrag in BEIDEN i18n-Tabellen der PWA, sonst steht dort der Rueckfalltext; und wer
+ * einen detail-Text aendert, aendert, was der Nutzer liest.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 #define HTTP_API_ERROR_MISSING_VALUE                1
@@ -6961,8 +6968,8 @@ http_update (void)
         }
         else if (! strcmp (action, "flash"))
         {
-            strncpy (flash_stm32_filename, http_get_param ("stm32_filenames"), 63);
-            flash_stm32_filename[63] = '\0';
+            strncpy (flash_stm32_filename, http_get_param ("stm32_filenames"), MAX_UPDATE_FILENAME_LEN - 1);
+            flash_stm32_filename[MAX_UPDATE_FILENAME_LEN - 1] = '\0';
         }
         else if (! strcmp (action, "reset"))
         {
@@ -9741,6 +9748,24 @@ http_api_animation_profile_set ()
 
     da = get_display_animation_var ((uint_fast8_t) idx);
 
+    /* Die drei Geschwisterfunktionen pruefen hier, diese nicht -- dieselbe Asymmetrie wie
+     * L179 und L272, zwei Wege zum selben Ziel und nur einer mit Schutz. AUSLOESBAR IST ES
+     * HEUTE NICHT: max_display_animation_variables waechst in vars.cpp ausschliesslich
+     * INNERHALB von "if (var_idx < MAX_DISPLAY_ANIMATION_VARIABLES)", bleibt also stets
+     * <= MAX_DISPLAY_ANIMATION_VARIABLES, und genau daran haengt get_display_animation_var().
+     * Diese Sicherheit steht aber in einer ANDEREN Datei und nirgends als Voraussetzung --
+     * wer den Vorwaertsfilter oben auf das naheliegende MAX_... umstellt, erzeugt einen
+     * Nullzeigerzugriff, ohne den Zusammenhang je gesehen zu haben.
+     *
+     * Die Pruefung steht VOR dem ersten Schreibzugriff: Ein Abbruch dahinter liesse die
+     * Verzoegerung geschrieben und das Favoritenflag ungeschrieben zurueck.
+     */
+    if (! da)
+    {
+        http_json_error_range ("idx", 0, max_display_animation_variables ? (int) max_display_animation_variables - 1 : 0);
+        return 0;
+    }
+
     set_display_animation_deceleration ((uint_fast8_t) idx, (uint_fast8_t) deceleration);
 
     favourite = (! strcmp (http_get_param ("favourite"), "on")) ? 1 : 0;
@@ -10312,6 +10337,13 @@ http_get_string_param (const char * name, char ** valuep)
  * Die Kuerzung in set_strvar() bleibt als letztes Netz stehen; sie wird ab hier nur nicht
  * mehr erreicht.
  *
+ * DESHALB SAGT DIE MELDUNG "bytes" UND NICHT "characters", und das ist keine Wortklauberei:
+ * Die Oberflaeche begrenzt dieselben Felder ueber maxlength auf ZEICHEN. Ein Tickertext aus
+ * 32 Umlauten sind 64 Byte -- das Eingabefeld laesst ihn zu, das Geraet weist ihn ab, und
+ * eine Meldung "max. 32 characters" waere bei genau 32 Zeichen im Feld nicht aufloesbar.
+ * Die Oberflaeche muss vor dem Absenden in Byte rechnen; bis dahin ist "bytes" wenigstens
+ * wahr. Wer hier je "characters" zurueckschreibt, macht die Meldung wieder irrefuehrend.
+ *
  * Die Fehlerantwort ist bereits gesendet, wenn 0 zurueckkommt; der Aufrufer bricht nur
  * noch ab -- dieselbe Form wie bei http_get_color_component().
  */
@@ -10322,7 +10354,7 @@ http_check_strvar_len (const char * name, const char * value, unsigned int maxle
     {
         char detail[64];
 
-        snprintf (detail, sizeof (detail), "%s too long (max. %u characters)", name, maxlen);
+        snprintf (detail, sizeof (detail), "%s too long (max. %u bytes)", name, maxlen);
         http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, detail);
         return 0;
     }
@@ -11067,13 +11099,12 @@ http_api_overlay_set ()
 
     text = http_get_param ("value");
 
-    if (text)
-    {
-        /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
-         * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46).
-         */
-        utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
-    }
+    /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
+     * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46). Das frueher hier stehende
+     * "if (text)" war die POSITIVFORM einer toten NULL-Pruefung (C20/L199) -- ein
+     * fehlender Parameter liefert den leeren String, und der wurde ohnehin kopiert.
+     */
+    utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
 
     set_overlay_var (idx);
 
