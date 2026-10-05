@@ -99,9 +99,18 @@ while :; do
   rst=$(printf '%s' "$roh" | grep -ac 'rst cause')
   wdt=$(printf '%s' "$roh" | grep -aci 'wdt reset')
 
-  d=$(printf '%s' "$roh" | grep -aoE 'd=[0-9]+' | tail -1 | cut -d= -f2)
-  v=$(printf '%s' "$roh" | grep -aoE 'v=[0-9]+/[0-9]+' | tail -1)
-  diag=$(printf '%s' "$roh" | grep -aoE 'diag [0-9]+' | tail -1 | awk '{print $2}')
+  # NUR aus der letzten diag-Zeile lesen, nicht aus dem ganzen Mitschnitt.
+  #
+  # Bis zum 05.10.2026 suchte die Wache 'd=[0-9]+' ueber alle Zeilen. Das traf auch
+  # Request-Zeilen: Um 23:14:00 meldete sie "diag 136 d=20", die Rohzeile hatte d=0 --
+  # gelesen war "re*d=20*" aus display_color_set?red=20. Umgekehrt verdeckt eine
+  # spaetere Zeile mit "...d=<klein>" einen echten Sprung und setzt letzte_d falsch
+  # zurueck. Die Wache haette damit genau beim Setterverkehr, fuer den sie laeuft, ein
+  # falsches "ruhig" melden koennen (L-Befund aus dem Testdurchlauf, DIR-014).
+  diag_zeile=$(printf '%s' "$roh" | grep -aE '(^|[^A-Za-z])diag [0-9]+ ' | tail -1)
+  d=$(printf '%s' "$diag_zeile" | grep -aoE '(^| )d=[0-9]+' | tail -1 | cut -d= -f2)
+  v=$(printf '%s' "$diag_zeile" | grep -aoE '(^| )v=[0-9]+/[0-9]+' | tail -1 | sed 's/^ //')
+  diag=$(printf '%s' "$diag_zeile" | grep -aoE 'diag [0-9]+' | tail -1 | awk '{print $2}')
 
   stamp=$(date '+%H:%M:%S')
   alarm=0
