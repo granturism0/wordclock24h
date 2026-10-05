@@ -860,7 +860,7 @@ Die konkreten Grenzen, aus dem Markup erhoben:
   Änderung erscheint** (Massnahme 4). Am 04.10.2026 (PWA 1.4.88) nicht beobachtet:
   vier Modulwechsel ohne Bearbeitung, null Dialoge; mit offener Änderung erschien er
   korrekt. **Der Pfad „nach normalem Speichern" ist am 05.10.2026 nachgeholt worden**
-  (PWA 1.4.90, L302): erst speichern, dann ohne weitere Eingabe das Modul wechseln —
+  (05.10.2026, PWA 1.4.90, L302): erst speichern, dann ohne weitere Eingabe das Modul wechseln —
   kein Dialog. Der Punkt bleibt im Plan, damit ein Rückfall auffällt.
 
 ---
