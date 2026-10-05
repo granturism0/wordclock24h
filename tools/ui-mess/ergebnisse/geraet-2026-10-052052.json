@@ -1,0 +1,220 @@
+{
+  "ziel": "geraet",
+  "basis": "(Geraet, Adresse nicht protokolliert)",
+  "zeitpunkt": "2026-10-05T20:52:35.081Z",
+  "module": [
+    {
+      "viewport": "1512x982",
+      "modul": "maintenance",
+      "doc": {
+        "w": 1512,
+        "h": 5510
+      },
+      "panels": [
+        {
+          "name": "panel panel-maintenance-source",
+          "x": 22,
+          "y": 590.39,
+          "w": 690.64,
+          "h": 1638
+        },
+        {
+          "name": "panel panel-maintenance-remote",
+          "x": 726.64,
+          "y": 590.39,
+          "w": 763.34,
+          "h": 348
+        },
+        {
+          "name": "local-update-panel",
+          "x": 726.64,
+          "y": 1298.39,
+          "w": 763.34,
+          "h": 584
+        },
+        {
+          "name": "panel panel-maintenance-backup",
+          "x": 22,
+          "y": 2242.39,
+          "w": 690.64,
+          "h": 650
+        },
+        {
+          "name": "panel panel-maintenance-service",
+          "x": 726.64,
+          "y": 2242.39,
+          "w": 763.34,
+          "h": 244
+        },
+        {
+          "name": "files-panel",
+          "x": 22,
+          "y": 2906.39,
+          "w": 1467.98,
+          "h": 2568
+        }
+      ],
+      "felder": [],
+      "klein": [],
+      "fokus": [
+        {
+          "tag": "select",
+          "name": "DeutschEnglish",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1214,
+            "y": 201,
+            "w": 140,
+            "h": 44
+          }
+        },
+        {
+          "tag": "a",
+          "name": "Legacy-Seite",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1214,
+            "y": 263,
+            "w": 127,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Neu laden",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1351,
+            "y": 263,
+            "w": 110,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Hauptseite",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 24,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "System",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 171,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Netzwerk",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 319,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Umwelt",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 466,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Display",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 614,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Animationen",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 761,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Overlays",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 908,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Ambilight",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1056,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        },
+        {
+          "tag": "button",
+          "name": "Timer",
+          "sichtbarerRing": true,
+          "outline": "solid 2px rgb(143, 211, 255)",
+          "schatten": null,
+          "box": {
+            "x": 1203,
+            "y": 364,
+            "w": 137,
+            "h": 44
+          }
+        }
+      ],
+      "farben": []
+    }
+  ]
+}

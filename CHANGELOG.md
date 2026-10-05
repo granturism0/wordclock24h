@@ -1,5 +1,95 @@
 # Changelog
 
+## 2026-10-05 Eingänge gehärtet, auf beiden Seiten der Brücke (STM 3.2.21, ESP 3.2.24, PWA 1.4.90)
+
+Alle drei Komponenten. Release-ZIP `wordclock-release-2026-10-05-224844.zip`, Tag
+`release/3.2.21-3.2.24-1.4.90`.
+
+**Einspielreihenfolge: ESP zuerst, dann STM.** Die PWA kommt mit.
+
+### Ein Absturz aus dem LAN, der als behoben galt (ESP)
+
+Seit ESP 3.2.3 stürzt die Uhr nicht mehr ab, wenn eine Adresse einen Parameter **ohne**
+`=` trägt (`GET /?a`). Das war nur die halbe Wahrheit: Die Korrektur hatte den Fehler
+von der Zerlegung der Adresse in deren **Auswertung** verschoben. Drei Aufrufe konnten
+das WLAN-Modul weiterhin zum Absturz bringen — aus dem ganzen Heimnetz, ohne Anmeldung:
+der Flashvorgang der Legacy-Seite, das Setzen eines DFPlayer-Alarms und die
+Overlay-Seite der Legacy-Oberfläche. **Das ist jetzt behoben**, an einer Stelle für alle
+Aufrufer statt an jeder einzeln (`BEFUNDE.md`, L285).
+
+### Einstellungen werden abgewiesen statt verfälscht (ESP)
+
+- **Zu lange Texte werden abgewiesen, nicht mehr still gekürzt.** Betroffen sind
+  Lauftext, Datumsformat, Wetter-AppID, Ort, Längen- und Breitengrad, Zeitserver,
+  Update-Host und Update-Pfad. Bisher kam `{"ok":true}`, gespeichert wurde ein
+  gekürzter Wert — beim Update-Host hiesse das ein anderer Server. Jetzt bleibt der
+  alte Wert stehen, und die Meldung nennt die Grenze.
+- **Die Grenze zählt Byte, nicht Zeichen.** Die Meldung sagt das ausdrücklich. Die
+  Eingabefelder der PWA begrenzen dagegen auf Zeichen: Ein Lauftext mit vielen Umlauten
+  kann deshalb abgewiesen werden, obwohl das Feld ihn zulässt. **Offen**, wird in der
+  PWA mit einer Byteprüfung vor dem Absenden gelöst (`BEFUNDE.md`, L287).
+- **Beim Speichern des Update-Hosts oder -Pfads kann die Abweisung verdeckt werden:**
+  Die PWA zeigt danach sofort „abgeschlossen" an. Prüf nach dem Speichern, ob der
+  Wert angekommen ist. **Offen** (`BEFUNDE.md`, L288).
+- **Datei löschen meldet keinen Erfolg mehr, wenn nichts gelöscht wurde** — weder bei
+  fehlendem Namen noch bei einer Datei, die es nicht gibt, noch bei einem Fehlschlag.
+- **DFPlayer-Alarm:** Ein ungültiger Index, ein Wochentag ausserhalb von 0 bis 6 und
+  eine Uhrzeit ausserhalb des Tages werden abgewiesen. Bisher entstand daraus ein
+  Alarm, der als aktiv in der Liste stand und nie auslösen konnte; ein Wochentag 9
+  wurde zum Montag.
+- **Bereichsmeldungen einheitlich:** Abweisungen nennen den gültigen Bereich in der
+  Form `<param> out of range (<min>..<max>)`. Zwei Meldungen zum Overlay-Index nennen
+  bewusst keinen, weil die Bedingung dort „nicht belegt" heisst und kein Zahlenbereich
+  ist.
+
+### Kommandos vom WLAN-Modul werden geprüft, bevor sie wirken (STM)
+
+- **Drei Zeittabellen-Handler schrieben mit einem ungeprüften Index** — Nachtzeiten,
+  Ambilight-Nachtzeiten und Weckzeiten. Die Arrays haben acht Plätze, der Index
+  reichte bis 255: ein Schreibzugriff bis rund 247 Einträge hinter das Array
+  (`BEFUNDE.md`, L286).
+- **Fünf Display-Setter hatten denselben Fehler** — Verzögerung und Flags der
+  Animationen, der Farbanimationen und der Ambilight-Modi, schlimmstenfalls 5'658 Byte
+  hinter der Struktur (`BEFUNDE.md`, L289).
+- **Eine zu kurze Kommandozeile wird verworfen**, bevor sie zerlegt wird. Vorher konnte
+  der Lesezeiger hinter das Zeilenende laufen.
+- **`htoi()`** liest nicht mehr über das Zeilenende hinaus — dieselbe Korrektur, die
+  der ESP schon hatte.
+- **Verworfene Zeilen werden gezählt und gedrosselt protokolliert** (`cmd rejected #…`
+  im Logbuch), damit eine Abweisung nicht als unerklärliches Nichtverhalten endet.
+
+Bei gültigen Kommandos ändert sich nichts. Für die fünf Display-Setter ist das über den
+ganzen Indexbereich 0 bis 255 nachgewiesen: ohne Prüfung 1'241 Schreibzugriffe ausserhalb,
+mit Prüfung keiner, und keine gültige Zeile fällt heraus.
+
+### Release-Notes-Verweise treffbar (PWA)
+
+Die beiden Verweise „Release Notes STM32" und „Release Notes ESP8266" im Modul
+Wartung waren 22 px hoch. Am Gerät nachgemessen (05.10.2026, 1512 px Breite): keine
+Trefffläche mehr unter 44 px, vorher zwei (`BEFUNDE.md`, L282).
+
+### Beim Einspielen beobachtet
+
+Der ESP-Neustart hat den Variablensatz wie vorgesehen selbst nachgefordert: Ein
+Vollabgleich nach **einer** Anforderung. Die stille Nachforderung aus dem letzten
+Release hat sich damit zum ersten Mal im Ernstfall gezeigt.
+
+### Was das für künftige STM-Runden heisst
+
+Der F103-Build hat nach diesem Release **1'924 Byte frei**, vorher 2'608 — unter der
+Warnschwelle von 2'048 Byte. Deine Uhr läuft auf dem F411 und ist davon nicht
+betroffen. Jede weitere STM-Änderung muss den F103 aber mitrechnen
+(`BEFUNDE.md`, L296).
+
+### Intern
+
+Neue dauerhafte Prüfungen: Die Indexguards der fünf Display-Setter stehen in Guardrail
+S15 unter Prüfung, gegen den wörtlich ausgeschnittenen Quelltext und mit einer
+Gegenprobe bei jedem Lauf; die drei Zeittabellen-Handler deckt sie noch nicht ab. Die
+Längenprüfung der Kommandozeile läuft in S13. Dazu ein falscher Kommentar im ESP
+berichtigt (L274) und `BEFUNDE.md` auf echte Umlaute umgestellt.
+
+
 ## 2026-10-04 Die Uhr merkt, wenn ihre Einstellungen nicht ankommen (STM 3.2.20, ESP 3.2.23, PWA 1.4.89)
 
 ### Das Problem

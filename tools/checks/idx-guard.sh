@@ -2,8 +2,13 @@
 # Prueft, dass die Indexguards aus A43/L286 und A44/L289 im Quelltext stehen UND wirken.
 #
 # Der Pruefstand wird bei jedem Lauf frisch aus src/main.c und src/display/display.c
-# erzeugt (idx-guard-gen.py): Die drei Handler, esp8266_idx_ok() und die fuenf Setter
-# werden WOERTLICH herausgeschnitten, nicht nachgebaut. Entfernt jemand einen Guard,
+# erzeugt (idx-guard-gen.py): die drei A44-Handler, esp8266_idx_ok() und die fuenf
+# Setter werden WOERTLICH herausgeschnitten, nicht nachgebaut.
+#
+# GELTUNGSBEREICH: nur A44 -- 3 von 6 esp8266_idx_ok()-Aufrufstellen. Die drei
+# A43-Handler (night, ambinight, alarm) deckt er NICHT ab. Hier stand bis zum
+# 05.10.2026 "die drei Handler", ohne zu sagen welche; der doc-writer hat es
+# daraufhin in L286 und den Changelog als "alle abgedeckt" uebernommen. Entfernt jemand einen Guard,
 # schlaegt diese Stufe an -- hergestellt und gemessen, nicht angenommen: Mit
 # herausgeschnittenem CD-Guard meldet sie 253 Verletzungen und nennt das Kommando.
 #

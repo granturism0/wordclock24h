@@ -30,7 +30,14 @@ Mit --probe wird nichts geschrieben, nur gezaehlt.
 """
 import io, re, sys, collections
 
-AUSNAHMEN = {"zuerst", "zueinander", "zuerkannt", "zuerteilt"}
+AUSNAHMEN = {"zuerst", "zueinander", "zuerkannt", "zuerteilt", "duell", "duelle"}
+
+# Silbengrenze zwischen u und e, die man am Vorgaengerbuchstaben NICHT sieht:
+# ak-tu-ell, even-tu-ell, ma-nu-ell, Kon-gru-enz. Die erste Fassung dieses Skripts
+# machte daraus "aktuell" -> "aktüll", an zwoelf Stellen in BEFUNDE.md, gleich die
+# erste in Zeile 5 (L297). Gemeldet hat es der doc-writer, nicht die Gegenprobe --
+# die zaehlte nur Zeilen und Codespannen, nicht ob ein Wort danach noch eines ist.
+SILBENGRENZE = ("uell", "uenz", "uent", "poet", "poes", "koexist", "koeffiz")
 UMLAUT = {"ae": "ä", "oe": "ö", "ue": "ü", "Ae": "Ä", "Oe": "Ö", "Ue": "Ü"}
 
 
@@ -38,6 +45,8 @@ def ersetze(text):
     def einzeln(m):
         wort = m.group(0)
         if wort.lower() in AUSNAHMEN:
+            return wort
+        if any(g in wort.lower() for g in SILBENGRENZE):
             return wort
 
         def paar(mm):
