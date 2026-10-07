@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.92";
+const APP_VERSION = "1.4.93";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -1107,7 +1107,10 @@ const NUM = {
   DISPLAY_OVERLAY: 45,
   OVERLAY_N_OVERLAYS: 46,
   UPTIME_SECONDS_LO: 47,
-  UPTIME_SECONDS_HI: 48
+  UPTIME_SECONDS_HI: 48,
+  // A5 (P3.1): RTC-Temperatur in halben Grad, int16 im Zweierkomplement, 0x8000 = kein
+  // Messwert. Ab STM 3.2.22 / ESP 3.2.25; aeltere Staende liefern ihn nicht oder 0x8000.
+  RTC_TEMP_HALF_DEG: 49
 };
 
 const STR = {
@@ -2133,8 +2136,17 @@ function handleDirtyFormInteraction(event) {
 
   if (baseline !== undefined && "value" in target && String(target.value) === baseline) {
     unsavedEditFields.delete(target);
+    delete target.dataset.userChoice;
   } else {
     unsavedEditFields.add(target);
+    // B41 (L326): Eine echte Wahl in einer Auswahlliste bekommt ein eigenes Merkmal.
+    // unsavedEditFields leert markEditsPersisted() nach JEDEM Speichern, auch nach dem
+    // Zeitserver -- im Fall ohne Ausgangswert ging die Wahl damit verloren. Das Merkmal
+    // endet erst, wenn das Geraet die Wahl selbst meldet (prefillDeviceValue), oder wenn
+    // der Nutzer verwirft (discardUnsavedEdits).
+    if (target instanceof HTMLSelectElement) {
+      target.dataset.userChoice = "1";
+    }
   }
 
   hasUnsavedEdits = unsavedEditFields.size > 0;
@@ -2156,6 +2168,17 @@ function markEditsPersisted() {
   hasUnsavedEdits = false;
 }
 
+// B41 (M2, Review P3.3): Verwerfen ist mehr als "gespeichert". markEditsPersisted() laesst
+// die echte Wahl einer Auswahlliste (dataset.userChoice) bewusst stehen, weil sie ein
+// anderes Speichern in derselben Sektion ueberdauern muss. Wer verwirft, gibt sie auf --
+// danach folgt die Liste wieder dem Geraet.
+function discardUnsavedEdits() {
+  document.querySelectorAll("select[data-user-choice]").forEach((select) => {
+    delete select.dataset.userChoice;
+  });
+  markEditsPersisted();
+}
+
 // B18 (L151): Der Modulwechsel hat bisher nicht gewarnt -- gemessen wurde eine
 // geaenderte, nicht gespeicherte Ortsangabe, die beim Wechsel still verschwand. Kein
 // Verbot, sondern eine Rueckfrage mit "trotzdem wechseln".
@@ -2175,7 +2198,7 @@ function confirmModuleSwitchWithUnsavedEdits(target) {
 
   // Zugestimmt heisst verworfen: Das Flag stehen zu lassen wuerde bei jedem weiteren
   // Wechsel erneut fragen und zusaetzlich die Selbstaktualisierung stilllegen.
-  markEditsPersisted();
+  discardUnsavedEdits();
   return true;
 }
 
@@ -3540,7 +3563,14 @@ function hasPendingUserValue(input) {
   }
 
   const applied = input.dataset.devicePrefill;
-  return applied === undefined ? unsavedEditFields.has(input) : input.value !== applied;
+  if (applied !== undefined) {
+    return input.value !== applied;
+  }
+
+  // B41 (L326): Ohne Ausgangswert zaehlt bei einer Auswahlliste die echte Wahl
+  // (dataset.userChoice), nicht unsavedEditFields -- die Menge leert jedes andere
+  // Speichern in derselben Sektion. Textfelder ohne Ausgangswert wie bisher.
+  return input instanceof HTMLSelectElement ? input.dataset.userChoice === "1" : unsavedEditFields.has(input);
 }
 
 function prefillDeviceValue(input, deviceValue) {
@@ -3562,6 +3592,15 @@ function prefillDeviceValue(input, deviceValue) {
   // Selbstaktualisierung ruhte.
   if (input.value === input.dataset.devicePrefill && unsavedEditFields.delete(input)) {
     hasUnsavedEdits = unsavedEditFields.size > 0;
+  }
+
+  // B41 (M1, Review P3.3): Die Wahl gilt, bis das Geraet sie selbst meldet -- nicht nur
+  // bis zum erfolgreichen Speichern. saveNetworkClient() liest erst verzoegert neu
+  // (reloadDelayMs); waere das Merkmal schon weg, spraenge die Liste dort ohne
+  // Ausgangswert auf den ersten Eintrag, und ein Speichern nur des korrigierten
+  // Schluessels ginge an die falsche SSID.
+  if (input.value === input.dataset.devicePrefill) {
+    delete input.dataset.userChoice;
   }
 }
 
@@ -7607,7 +7646,7 @@ function getTemperatureUiMeta(settings) {
     items: [
       ["DS18xx", formatHalfDegreeValue(settings.numvars[NUM.DS18XX_IS_UP] ? settings.numvars[NUM.DS18XX_TEMP_INDEX] : null)],
       ["DS18xx online", onOff(settings.numvars[NUM.DS18XX_IS_UP])],
-      ["RTC", formatHalfDegreeValue(settings.numvars[NUM.RTC_IS_UP] ? settings.numvars[NUM.RTC_TEMP_INDEX] : null)],
+      ["RTC", formatHalfDegreeValue(settings.numvars[NUM.RTC_IS_UP] ? getRtcTemperatureHalfDegrees(settings.numvars) : null)],
       ["RTC online", onOff(settings.numvars[NUM.RTC_IS_UP])]
     ],
     ds18xxCorrection: settings.numvars[NUM.DS18XX_TEMP_CORRECTION] || 0,
@@ -14265,9 +14304,39 @@ function formatHalfDegreeValue(value) {
     return translate("common.invalid_value");
   }
 
-  const integer = Math.floor(value / 2);
-  const fraction = value % 2 ? ".5" : ".0";
-  return integer + fraction + " °C";
+  // A5 (P3.1): Mit dem BETRAG rechnen und das Vorzeichen davorsetzen. Math.floor und %
+  // auf dem negativen Wert ergaeben bei -3 halben Grad "-2.5" statt "-1.5", und bei -1
+  // ginge das Vorzeichen ganz verloren. Gleich wie http_format_half_deg() der
+  // Legacy-Seite (http.cpp); nur die Schreibweise ganzer Grade ("24.0 °C") bleibt PWA-eigen.
+  const magnitude = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const fraction = magnitude % 2 ? ".5" : ".0";
+  return sign + Math.floor(magnitude / 2) + fraction + " °C";
+}
+
+// A5 (P3.1): Anzuzeigende RTC-Temperatur in halben Grad -- Index 49 mit Vorzeichen, sonst
+// Index 21. Dieselbe Regel wie http_rtc_temp_half_deg() der Legacy-Seite (http.cpp).
+// Im XML kommt Index 49 vorzeichenlos an (0..65535). Rueckfall auf Index 21, wenn Index 49
+// fehlt (alter ESP) oder 0x8000 traegt (alter STM oder RTC-Lesefehler). Bei einem
+// Lesefehler steht Index 21 auf 0, die PWA zeigt dann 0.0 °C wie die Uhr -- bewusst kein
+// eigener "ungueltig"-Zustand (Lead-Entscheid zu L334, H6). Index 21 = 255 behaelt seine
+// Behandlung in formatHalfDegreeValue().
+const RTC_TEMP_HALF_DEG_NONE = 0x8000;
+
+function getRtcTemperatureHalfDegrees(numvars) {
+  const raw = Number(numvars[NUM.RTC_TEMP_HALF_DEG]);
+
+  // Fehlt der Index, ist raw NaN (Number(undefined)).
+  if (!Number.isFinite(raw)) {
+    return numvars[NUM.RTC_TEMP_INDEX];
+  }
+
+  const word = raw & 0xFFFF;
+  if (word === RTC_TEMP_HALF_DEG_NONE) {
+    return numvars[NUM.RTC_TEMP_INDEX];
+  }
+
+  return word >= 0x8000 ? word - 0x10000 : word;
 }
 
 function decodeTimezone(raw) {

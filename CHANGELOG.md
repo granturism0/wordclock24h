@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-08 Runde P3: Minusgrade und halbe Grad in der PWA (PWA 1.4.93)
+
+Nur die PWA. Setzt STM 3.2.22 und ESP 3.2.25 voraus — beide sind seit dem 07./08.10.2026
+auf dem Gerät, die Reihenfolge Firmware vor PWA (L241) ist damit eingehalten. Release-ZIP
+`wordclock-release-2026-10-08-011508.zip`, Tag `release/3.2.22-3.2.25-1.4.93`. Am
+08.10.2026 um 01:43 per `install-app.sh` aufgespielt.
+
+### Die RTC-Temperatur zeigt halbe Grad und Minusgrade (A5, PWA-Teil)
+
+Die PWA liest die RTC-Temperatur aus der neuen Variable (Index 49, halbe Grad mit
+Vorzeichen). Fehlt sie (alter ESP) oder meldet sie „kein Messwert“ (alter STM, Lesefehler),
+gilt wie bisher Index 21. Bei negativen Werten rundete die Anzeige bisher falsch: Aus
+−1,5 °C wurde „−2.5 °C“. Behoben. Minusgrade sind am Gerät nicht herstellbar; belegt sind sie
+in der Vorschau (`tools/ui-mess/proben/runde-p3.mjs`). Am Gerät: PWA „29.0 °C“, Legacy
+„29 °C“, Index 21 = Index 49 = 58.
+
+### Eine WLAN-Auswahl geht nicht mehr verloren (B41, L326)
+
+Steht das verbundene Netz nicht in der Scanliste, hing der Schutz einer gewählten SSID an
+der Liste offener Änderungen — und die wurde beim Speichern eines anderen Feldes geleert.
+Danach sprang die Auswahl auf den ersten Eintrag, und ein Speichern nur des Schlüssels hätte
+die Uhr in ein fremdes Netz geschickt. Jetzt merkt sich die Liste eine echte Wahl, bis das
+Gerät sie selbst meldet oder Du beim Modulwechsel verwirfst. Zwei Review-Befunde (M1, M2)
+sind vor der Auslieferung behoben.
+
+### Geprüft
+
+Probe `runde-p3.mjs` 34/34, gegen 1.4.92 14 Fehlschläge. `runde-p2` 52/52,
+`b40-spaeter-scan` 12/12, `runde-p` 84/84. Am Gerät `check-pwa.sh` 8/0, Logwache ruhig.
+
 ## 2026-10-08 Runde S, STM-Teil: Brücke mit Abschlussmarke, Spiele ohne Watchdog-Reset, halbe Grad (STM 3.2.22)
 
 Nur der STM, ESP und PWA unverändert. Release-ZIP
