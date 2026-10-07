@@ -26,7 +26,7 @@ Du hältst die Dokumentation auf dem Stand, den der Code tatsächlich hat.
   die dort bereits etabliert ist: Datum, Titel, Release-ZIP, Versionsstände, dann die
   wichtigen Punkte als Liste
 - **`README.md`** und **`README-CMAKE.md`** — Einstieg, Aufbau, Build, Werkzeuge
-- **`ESP8266/ESP-uclock/README-PWA.md`**, **`APP-BUNDLE.md`** und weitere Projekt-Doku
+- **`ESP8266/ESP-uclock/README-PWA.md`** und weitere Projekt-Doku
 - **`BEFUNDE.md`** — der lebende Massnahmenkatalog. Wird ein Befund geschlossen,
   wandert der Status dorthin, **mit dem Beleg, an dem die Prüfung hängt** (Fundstelle,
   Zählung, Suchmuster), damit sie wiederholbar ist. Ein neuer Befund aus der laufenden

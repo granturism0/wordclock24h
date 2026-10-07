@@ -26,30 +26,21 @@ Damit gilt aktuell bewusst:
 - [sw.js](../../ESP8266/ESP-uclock/data/app/sw.js)
 - [http.cpp](../../ESP8266/ESP-uclock/http.cpp)
 
-## Bundle bauen
-
-```bash
-sh ESP8266/ESP-uclock/tools/release-app-bundle.sh
-```
-
-Erzeugt:
-
-- [app-bundle.txt](../../ESP8266/ESP-uclock/data/app-bundle.txt)
-- `build/esp8266/app-version.txt`
-
 ## Deployment
 
 ### Nur PWA geändert
 
-1. Dateien unter `data/app` anpassen
-2. Bundle neu bauen
-3. `app-bundle.txt` und bei Server-Deployment zusätzlich `app-version.txt` aktualisieren
+1. Dateien unter `data/app` anpassen, `APP_VERSION` und `CACHE_NAME` gemeinsam anheben
+2. `make release-zip`, danach `./tools/deploy.sh` (Update-Server)
+3. `./tools/install-app.sh` lädt die Assets ins LittleFS der Uhr, `--check` prüft sie
+   gegen die Weissliste
 4. `/app` neu laden
 
 ### ESP-Logik geändert
 
-1. Firmware neu flashen
-2. danach das aktuelle `app-bundle.txt` installieren
+1. Firmware einspielen — **vor** einer PWA, die sie voraussetzt
+2. `./tools/install-app.sh --check`: Ein Firmware-Wechsel löscht das Dateisystem nicht,
+   aber eine geänderte Weissliste findet alte Namen nicht mehr
 3. `/app` prüfen
 
 ## Architekturstand
@@ -111,12 +102,6 @@ Der Umbau wurde bis zu einem stabilen PWA-/Legacy-Zielstand durchgezogen. Ab jet
 - nur noch gezielte Bugfixes oder UX-Nachzüge nach echtem Praxisfund
 - der aktuelle Stand ist als bewusster Freeze-Kandidat zu verstehen
 
-## Ergänzende Doku
-
-Ausführlicher beschrieben in:
-
-- [APP-BUNDLE.md](../../ESP8266/ESP-uclock/APP-BUNDLE.md)
-
 ## Oberfläche ohne Gerät ansehen
 
 `tools/preview/` liefert die PWA aus und simuliert die Geräte-API, sodass die Oberfläche
@@ -134,6 +119,7 @@ Grenzen und Details in [tools/preview/README.md](../../tools/preview/README.md).
 Der Weg ist `make release-zip` gefolgt von `./tools/deploy.sh`. Die App-Assets werden
 einzeln als `.gz` ausgeliefert.
 
-Der in [APP-BUNDLE.md](APP-BUNDLE.md) beschriebene Bundle-Weg wird **nicht mehr
-verwendet** — der ESP meldet die Bundle-Unterstützung ausdrücklich als nicht vorhanden,
-und auf dem Update-Server liegt keine `app-bundle.txt`.
+Den früheren Bundle-Weg (`app-bundle.txt`) gibt es nicht mehr. Er war tot, nicht
+defekt: Der ESP meldet die Bundle-Unterstützung als nicht vorhanden. Die Werkzeuge, die
+Datei und `APP-BUNDLE.md` wurden am 07.10.2026 entfernt (E2, `BEFUNDE.md` L1); die
+Git-Historie hält sie.
