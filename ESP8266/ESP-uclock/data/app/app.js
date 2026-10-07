@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.91";
+const APP_VERSION = "1.4.92";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -117,6 +117,8 @@ const I18N_DE = {
   "network.client_title": "Mit WLAN verbinden",
   "network.status_loading": "Netzwerkstatus wird geladen...",
   "network.found_ssids": "Gefundene WLANs",
+  "network.no_networks_found": "Keine WLANs gefunden",
+  "network.status_note": "SSID: {ssid} | IP: {ip} | Modus: {mode}",
   "network.wifi_password": "WLAN-Passwort",
   "network.wifi_password_placeholder": "Passwort für WLAN-Client",
   "network.scan": "WLANs neu laden",
@@ -698,6 +700,7 @@ const I18N_DE = {
   "backup.field.date_ticker_format": "Datumsformat des Tickers",
   "backup.field.update_host": "Update-Host",
   "backup.field.update_path": "Update-Pfad",
+  "backup.field.overlay_text": "Overlay-Text",
   "backup.field.ticker_text": "Ticker-Text",
   "backup.field.weather_city": "Ort für das Wetter",
   "backup.field.weather_lon": "Längengrad für das Wetter",
@@ -731,6 +734,8 @@ const I18N_DE = {
   "backup.field.overlay_duration": "Anzeigedauer eines Overlays",
   "backup.field.overlay_days": "Anzahl Tage eines Overlays",
   "backup.field.overlay_start_date": "Startdatum eines Overlays",
+  "backup.import_too_long_overlays": "Nicht übernommen, weil der Text länger ist, als die Uhr speichern kann: {overlays}. Umlaute zählen dabei doppelt. Diese Overlays fehlen jetzt auf der Uhr — leg sie bei Bedarf mit kürzerem Text neu an.",
+  "backup.import_too_long_overlay_entry": "Overlay {number} ({bytes} statt höchstens {max} Byte)",
   "backup.import_adjusted_fields": "Aus der Sicherung übernommen, aber in den erlaubten Bereich gebracht: {fields}. Die Sicherung enthielt diese Werte ausserhalb der Grenzen — sieh sie dir an.",
   "weather.map_loading": "Kartendienst wird geladen...",
   "weather.map_load_failed": "Kartendienst konnte nicht geladen werden.",
@@ -1293,6 +1298,10 @@ let stm32RemoteStreamOffset = 0;
 let stm32RemoteRequestInFlight = false;
 let stm32RemoteResultOkSeen = false;
 let hasUnsavedEdits = false;
+// P2.1d: Welche Felder gerade als geaendert gelten. hasUnsavedEdits bleibt das Flag, das
+// alle Leser kennen; es folgt dieser Menge. Eine Menge statt eines Flags, weil das
+// Zuruecktippen EINES Feldes eine offene Aenderung in einem anderen nicht aufheben darf.
+const unsavedEditFields = new Set();
 let wordclockSizingFrame = 0;
 let wordclockSizingTimeout = 0;
 let wordclockResizeObserver = null;
@@ -2116,7 +2125,19 @@ function handleDirtyFormInteraction(event) {
     return;
   }
 
-  hasUnsavedEdits = true;
+  // P2.1d (Massnahme 4, engere Form): Geaendert heisst "weicht vom Ausgangswert ab",
+  // nicht "es fand eine Eingabe statt". Der Ausgangswert ist der von prefillDeviceValue()
+  // (getDeviceBaseline). Ein Feld ohne bekannten Ausgangswert gilt wie bisher bei jeder
+  // Eingabe als geaendert -- lieber ein Dialog zu viel als eine verlorene Aenderung.
+  const baseline = getDeviceBaseline(target);
+
+  if (baseline !== undefined && "value" in target && String(target.value) === baseline) {
+    unsavedEditFields.delete(target);
+  } else {
+    unsavedEditFields.add(target);
+  }
+
+  hasUnsavedEdits = unsavedEditFields.size > 0;
 }
 
 // Gegenstueck zu handleDirtyFormInteraction, und bewusst eine eigene Funktion statt
@@ -2131,6 +2152,7 @@ function handleDirtyFormInteraction(event) {
 // ("Wetter abrufen") ruehren es weiterhin nicht an, sonst verloeren sie eine offene
 // Bearbeitung in einem ganz anderen Feld. Massnahme 4, B1.
 function markEditsPersisted() {
+  unsavedEditFields.clear();
   hasUnsavedEdits = false;
 }
 
@@ -3489,18 +3511,64 @@ function updateWeatherControlsFromMeta(meta) {
 // Vorbefuellen darf nie ueber eine laufende Eingabe huschen. Deshalb merkt sich das
 // Feld, welchen Geraetewert es zuletzt bekommen hat: steht etwas anderes drin, hat der
 // Nutzer getippt und behaelt das letzte Wort.
+//
+// P2.1b: Diese Regel gilt seit L34 fuer die AP-SSID und jetzt auch fuer Zeitserver und
+// Zeitzone (B40/L321). P2.1d: dataset.devicePrefill ist zugleich der Ausgangswert, gegen
+// den handleDirtyFormInteraction() vergleicht -- es gibt genau EINE Antwort auf "was ist
+// der Geraetewert", und sie steht hier (getDeviceBaseline).
+//
+// Meldet das Geraet genau den Wert, der im Feld steht, ist die Eingabe gespeichert und
+// wird zum neuen Ausgangswert. Ohne das bliebe nach dem Speichern der alte Wert der
+// Ausgangswert, und ein spaeteres Zuruecktippen auf den gespeicherten Wert gaelte als
+// Aenderung. "Vom Nutzer geaendert" gilt damit bis zum Speichern oder Neuladen.
+//
+// H1 (Nachreview P2): Die einzige Stelle, die entscheidet, ob im Feld eine Eingabe des
+// Nutzers steht. Ohne Ausgangswert zaehlt dafuer nur eine echte Eingabe
+// (unsavedEditFields), nicht ein beliebiger Inhalt: Eine Auswahlliste hat nach dem
+// Aufbau immer einen Wert, ihren ersten Eintrag. Der galt sonst als Eingabe, und die
+// Geraete-SSID wurde ausgesperrt -- wer danach nur den WLAN-Schluessel speicherte,
+// schickte die falsche SSID.
+function hasPendingUserValue(input) {
+  if (!input) {
+    return false;
+  }
+  if (document.activeElement === input) {
+    return true;
+  }
+  if (!input.value) {
+    return false;
+  }
+
+  const applied = input.dataset.devicePrefill;
+  return applied === undefined ? unsavedEditFields.has(input) : input.value !== applied;
+}
+
 function prefillDeviceValue(input, deviceValue) {
   if (!input || document.activeElement === input) {
     return;
   }
 
-  const applied = input.dataset.devicePrefill;
-  if (input.value && input.value !== applied) {
+  const value = deviceValue === undefined || deviceValue === null ? "" : String(deviceValue);
+  if (hasPendingUserValue(input) && input.value !== value) {
     return;
   }
 
-  input.value = deviceValue || "";
-  input.dataset.devicePrefill = input.value;
+  input.value = value;
+  input.dataset.devicePrefill = value;
+
+  // P2.1h (N2): Steht das Feld jetzt auf seinem Ausgangswert, ist es nicht mehr
+  // geaendert -- auch wenn es vorher in unsavedEditFields stand (geleert, verlassen,
+  // dann vom Scan wieder gefuellt). Sonst bliebe ein Dialog ohne Grund, und die
+  // Selbstaktualisierung ruhte.
+  if (input.value === input.dataset.devicePrefill && unsavedEditFields.delete(input)) {
+    hasUnsavedEdits = unsavedEditFields.size > 0;
+  }
+}
+
+// undefined heisst: Fuer dieses Feld ist kein Ausgangswert bekannt, es laeuft nicht ueber
+// prefillDeviceValue().
+function getDeviceBaseline(input) {
+  return input && input.dataset ? input.dataset.devicePrefill : undefined;
 }
 
 function updateNetworkControls(settings, networkInfo) {
@@ -3510,20 +3578,72 @@ function updateNetworkControls(settings, networkInfo) {
 function updateNetworkControlsFromMeta(meta) {
   const select = document.getElementById("network-ssid-select");
 
+  // P2.1f: Die Liste wird bei jedem Scan neu aufgebaut, damit neue Netze erscheinen.
+  // Frueher setzte das eine ungespeicherte Auswahl still auf das verbundene Netz zurueck
+  // -- dasselbe Muster wie B40. Die Auswahl wird deshalb nach dem Neuaufbau zuerst
+  // wiederhergestellt, und ob der Geraetewert sie ersetzen darf, entscheidet
+  // prefillDeviceValue(): dieselbe Regel und derselbe Ausgangswert (dataset.devicePrefill)
+  // wie bei AP-SSID, Zeitserver und Zeitzone.
+  const previousSsid = select.value;
+  // Vor dem Neuaufbau gefragt: Danach steht select.value auf dem ersten Eintrag.
+  const selectionPending = hasPendingUserValue(select);
+
   select.innerHTML = meta.networks.length
-    ? meta.networks.map((ssid) => '<option value="' + escapeHtml(ssid) + '"' + (ssid === meta.currentSsid ? " selected" : "") + ">" + escapeHtml(ssid) + "</option>").join("")
-    : '<option value="">Keine WLANs gefunden</option>';
+    ? meta.networks.map((ssid) => '<option value="' + escapeHtml(ssid) + '">' + escapeHtml(ssid) + "</option>").join("")
+    : '<option value="">' + escapeHtml(translate("network.no_networks_found")) + "</option>";
+
+  // Ein gewaehltes Netz, das der Scan nicht mehr meldet, bleibt als Eintrag erhalten.
+  // Waehlt prefillDeviceValue() danach doch den Geraetewert, war die Auswahl nicht
+  // offen, und der Eintrag faellt wieder weg.
+  //
+  // P2.1h (N1), H1: Wiederhergestellt wird, wenn es etwas zu schuetzen gibt -- eine
+  // offene Wahl (hasPendingUserValue, dieselbe Entscheidung wie in prefillDeviceValue)
+  // oder ein Ausgangswert, ueber den prefillDeviceValue() gleich entscheidet. Ohne
+  // Ausgangswert ist der angezeigte erste Eintrag blosse Anzeige und keine Wahl; er
+  // wuerde sonst als verwaister Eintrag stehen bleiben, wenn er aus dem Scan faellt.
+  const keepSelection = !!previousSsid && (
+    getDeviceBaseline(select) !== undefined ||
+    selectionPending
+  );
+  let keptOption = null;
+  if (keepSelection && !meta.networks.includes(previousSsid)) {
+    keptOption = document.createElement("option");
+    keptOption.value = previousSsid;
+    keptOption.textContent = previousSsid;
+    select.appendChild(keptOption);
+  }
+  if (keepSelection) {
+    select.value = previousSsid;
+  }
+
+  // P2.1h (N1): Ausgangswert wird nur die echte Geraete-SSID. Steht sie nicht in der
+  // Liste, gibt es keinen Aufruf mit einem Ersatz -- frueher wurde der erste Eintrag zum
+  // Ausgangswert, und eine spaeter wiederkehrende Geraete-SSID ersetzte still eine
+  // offene Auswahl, die zwischenzeitlich vorne stand.
+  if (meta.networks.includes(meta.currentSsid)) {
+    prefillDeviceValue(select, meta.currentSsid);
+
+    if (keptOption && select.value !== previousSsid) {
+      keptOption.remove();
+      select.value = meta.currentSsid;
+    }
+  }
 
   prefillDeviceValue(document.getElementById("network-ap-ssid-input"), meta.apSsid);
 
-  document.getElementById("network-timeserver-input").value = meta.timeserver;
-  document.getElementById("network-timezone-input").value = String(meta.timezoneOffset);
+  // B40/L321: Ein spaeter network_scan schrieb hier ueber die laufende Eingabe, und
+  // "Speichern" schickte still den alten Wert. Dieselbe Regel wie die AP-SSID.
+  prefillDeviceValue(document.getElementById("network-timeserver-input"), meta.timeserver);
+  prefillDeviceValue(document.getElementById("network-timezone-input"), String(meta.timezoneOffset));
   setActionToggleButton("network-summertime-button", meta.summertime);
 
-  document.getElementById("network-status-note").textContent =
-    "SSID: " + (meta.currentSsid || "-") +
-    " | IP: " + (meta.ip || "-") +
-    " | Modus: " + (meta.mode || "-");
+  // P2.1g: "Modus" stand hier als festes deutsches Literal, auch in der englischen
+  // Oberflaeche.
+  document.getElementById("network-status-note").textContent = translateFormat("network.status_note", {
+    ssid: meta.currentSsid || "-",
+    ip: meta.ip || "-",
+    mode: meta.mode || "-"
+  });
 }
 
 function updateMaintenanceControls(settings, eepromSettings) {
@@ -4823,6 +4943,7 @@ function getImportNoticeSummary() {
     getFailedImportStagesSummary(),
     getSkippedImportFieldsSummary(),
     getTooLongImportFieldsSummary(),
+    getTooLongImportOverlaysSummary(),
     getAdjustedImportFieldsSummary(),
     getIrImportSummary()
   ].filter(Boolean).join(" ");
@@ -5898,7 +6019,13 @@ const TEXT_FIELD_LIMITS = Object.freeze({
   weather_lat: { maxBytes: 8, labelKey: "backup.field.weather_lat" }, //                MAX_WEATHER_LAT_LEN
   timeserver: { maxBytes: 16, labelKey: "backup.field.timeserver" }, //                 MAX_TIMESERVER_NAME_LEN
   update_host: { maxBytes: 63, labelKey: "backup.field.update_host" }, //               MAX_UPDATE_HOST_LEN (64 - 1)
-  update_path: { maxBytes: 63, labelKey: "backup.field.update_path" } //                MAX_UPDATE_PATH_LEN (64 - 1)
+  update_path: { maxBytes: 63, labelKey: "backup.field.update_path" }, //               MAX_UPDATE_PATH_LEN (64 - 1)
+  // P2.1: Der Overlay-Text ist der zehnte Wert. Er steht nicht in vars.h:183-194, sondern
+  // als OVERLAY_MAX_TEXT_LEN in ESP8266/ESP-uclock/vars.h:414 (gleich src/overlay/overlay.h:35).
+  // Anders als bei den neun oben weist der ESP hier nicht ab, sondern kürzt still
+  // (utf8_copy_truncated in http_api_overlay_set) -- bis zum F-OTA ist diese Prüfung der
+  // einzige Schutz vor einem abgeschnittenen Ticker-Text.
+  overlay_text: { maxBytes: 32, labelKey: "backup.field.overlay_text" } //              OVERLAY_MAX_TEXT_LEN
 });
 
 // TextEncoder erst beim Aufruf und nur, wenn vorhanden: Ein fehlender Konstruktor auf
@@ -5975,6 +6102,7 @@ const tooLongImportFieldEntries = new Map();
 
 function resetTooLongImportFields() {
   tooLongImportFieldEntries.clear();
+  tooLongImportOverlayEntries.length = 0;
 }
 
 function acceptImportTextOrNote(fieldName, value) {
@@ -5990,6 +6118,31 @@ function acceptImportTextOrNote(fieldName, value) {
   console.warn("Import: Wert aus der Sicherung zu lang, nicht geschrieben: " +
     fieldName + " " + String(overflow.bytes) + " > " + String(overflow.max) + " Byte");
   return false;
+}
+
+// P2.1: Ein Overlay mit zu langem Text ist eine eigene Liste, weil der Schlusssatz der
+// Feldliste hier falsch wäre: importOverlaySettings() hat die Plätze vorher geleert, das
+// übersprungene Overlay ist also NICHT "unverändert geblieben", sondern fehlt danach.
+const tooLongImportOverlayEntries = [];
+
+function noteTooLongImportOverlay(number, overflow) {
+  tooLongImportOverlayEntries.push({ number, bytes: overflow.bytes, max: overflow.max });
+  console.warn("Import: Overlay " + String(number) + " übersprungen, Text zu lang: " +
+    String(overflow.bytes) + " > " + String(overflow.max) + " Byte");
+}
+
+function getTooLongImportOverlaysSummary() {
+  if (!tooLongImportOverlayEntries.length) {
+    return "";
+  }
+
+  const overlays = tooLongImportOverlayEntries.map((entry) => translateFormat("backup.import_too_long_overlay_entry", {
+    number: entry.number,
+    bytes: entry.bytes,
+    max: entry.max
+  }));
+
+  return translateFormat("backup.import_too_long_overlays", { overlays: overlays.join(", ") });
 }
 
 function getTooLongImportFieldsSummary() {
@@ -6531,11 +6684,25 @@ async function importOverlaySettings(overlays) {
 
   await sleep(1500);
 
-  for (let idx = 0; idx < items.length; idx += 1) {
-    const entry = items[idx] || {};
+  // P2.1: Ein Overlay mit zu langem Text wird übersprungen und genannt, nicht gekürzt
+  // geschrieben. Der Schreibindex läuft deshalb getrennt von der Position in der
+  // Sicherung: Das Gerät legt ein Overlay nur an idx == n_overlays an, eine Lücke wiese
+  // es für jedes folgende ab.
+  let writeIdx = 0;
+
+  for (let itemPos = 0; itemPos < items.length; itemPos += 1) {
+    const entry = items[itemPos] || {};
     const entryFlags = Number(entry.flags || 0);
     const entryDateStart = Number(entry.date_start || 0);
     const entryValue = entry.value !== undefined ? entry.value : entry.text;
+    const textOverflow = getTextFieldOverflow("overlay_text", entryValue || "");
+
+    if (textOverflow) {
+      noteTooLongImportOverlay(itemPos + 1, textOverflow);
+      continue;
+    }
+
+    const idx = writeIdx;
     const rawMonth = Number(entry.month || ((entryDateStart >> 8) & 0xff) || 0);
     const rawDay = Number(entry.day || (entryDateStart & 0xff) || 0);
     const startDate = pairOverlayStartDate(rawMonth, rawDay);
@@ -6563,6 +6730,7 @@ async function importOverlaySettings(overlays) {
       day: startDate.day,
       days: readOverlayImportParam(entry.days, OVERLAY_PARAM_RULES.days)
     });
+    writeIdx += 1;
     await sleep(idx === 0 ? 1100 : 700);
   }
   await sleep(1200);
@@ -12735,11 +12903,21 @@ async function saveOverlay(idx) {
     return;
   }
 
-  const value = typeNumber === 1
-    ? (document.getElementById("ov-icon-" + idx).value || "")
-    : typeNumber === 7
-      ? formatOverlayMp3Value(mp3Numbers.folder, mp3Numbers.track)
-      : (typeNumber === 6 ? document.getElementById("ov-value-" + idx).value : "");
+  // P2.1: Icon-Name und Ticker-Text landen im selben 32-Byte-Feld des Geräts, und der
+  // ESP kürzt dort still. Geprüft wird deshalb vor dem Absenden, in Byte, über dieselbe
+  // Prüfung wie bei den übrigen Textfeldern. Der MP3-Wert ist immer sieben ASCII-Zeichen.
+  const valueInput = typeNumber === 1
+    ? document.getElementById("ov-icon-" + idx)
+    : (typeNumber === 6 ? document.getElementById("ov-value-" + idx) : null);
+  const textValue = valueInput ? readTextInputOrReport(valueInput, "overlay_text") : "";
+
+  if (textValue === null) {
+    return;
+  }
+
+  const value = typeNumber === 7
+    ? formatOverlayMp3Value(mp3Numbers.folder, mp3Numbers.track)
+    : textValue;
   const dateCode = document.getElementById("ov-datecode-" + idx).value;
   const month = document.getElementById("ov-month-" + idx).value;
   const day = document.getElementById("ov-day-" + idx).value;

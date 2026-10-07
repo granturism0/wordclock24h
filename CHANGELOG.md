@@ -1,5 +1,151 @@
 # Changelog
 
+## 2026-10-07 Runde P2: Eingaben im Netzwerkmodul bleiben stehen (PWA 1.4.92)
+
+Nur die PWA, STM und ESP unverändert. **Keine Firmware vorausgesetzt.** Release-ZIP
+`wordclock-release-2026-10-07-223610.zip`, Tag `release/3.2.21-3.2.24-1.4.92`. Umfang:
+Runde P2 aus `specs/paket-2026-10-06/`.
+
+**Am Gerät (07.10.2026):** `install-app.sh --check` vollständig, `check-pwa.sh` 8/0,
+Smoketest 29/1 (der bekannte Verlustzähler, L270). Lesende Abnahme P2.8 mit einem
+Wächter, der nur lesende Abrufe durchlässt: Eingaben in Zeitserver und Zeitzone
+überleben den nächsten Scan, die WLAN-Auswahl bleibt auf dem verbundenen Netz,
+wiederhergestellter Ausgangswert ohne Dialog, kein Schreibabruf versucht — 8/0. Logwache
+durchgehend ruhig.
+
+### Ein später WLAN-Scan überschreibt Deine Eingabe nicht mehr
+
+Beim Öffnen des Netzwerkmoduls lädt die PWA die WLAN-Liste. Kam die Antwort erst,
+nachdem Du im Zeitserver oder in der Zeitzone getippt hattest, stand danach wieder der
+alte Gerätewert im Feld — und „Speichern“ schickte still diesen alten Wert, ohne
+Meldung. Bei der Zeitzone hiess das: Du hieltest die neue für gespeichert, die Uhr lief
+weiter nach der alten. **Jetzt bleibt ein Feld stehen, in dem Du tippst oder getippt
+hast.** Ein unberührtes Feld übernimmt den Gerätewert wie bisher (`BEFUNDE.md`, L321).
+
+Dasselbe gilt für die **WLAN-Auswahl:** Ein Netz, das Du gewählt, aber noch nicht
+gespeichert hast, springt bei einem neuen Scan nicht mehr auf das verbundene zurück. Neu
+gefundene Netze erscheinen weiterhin in der Liste.
+
+**Am Gerät mit Speichern noch nicht nachgewiesen.** Der Fehler ist ein Wettlauf und
+lässt sich an der Uhr nicht gezielt herstellen. Belegt ist die Korrektur über eine Probe,
+die die Scan-Antwort absichtlich zurückhält. Den Nachweis mit Speichern liefert der
+nächste volle Testdurchlauf (S.26).
+
+### Kein Dialog mehr, wenn Du eine Eingabe zurücknimmst — in vier Feldern
+
+Wer in **AP-SSID, Zeitserver, Zeitzone oder WLAN-Auswahl** etwas ändert und danach den
+Ausgangswert wiederherstellt, bekommt beim Modulwechsel keine Warnung „Es gibt
+ungespeicherte Änderungen“ mehr. **Das gilt nur für diese vier Felder.** In allen
+anderen zählt jede Eingabe weiter als Änderung, auch wenn danach wieder derselbe Wert
+dasteht.
+
+### Overlay-Text wird vor dem Absenden geprüft
+
+Der Text eines Overlays — Icon-Name oder Lauftext — darf höchstens 32 Byte lang sein;
+Umlaute zählen doppelt. Die PWA prüft das jetzt **im Overlay-Editor und beim Import**
+einer Sicherung, mit derselben Byte-Prüfung wie bei den übrigen Textfeldern. Im Editor
+geht ein zu langer Text nicht hinaus. Beim Import wird das Overlay übersprungen und in
+der Abschlussmeldung mit Länge und Grenze genannt. Weil der Import die Overlay-Plätze
+vorher leert, **fehlt ein übersprungenes Overlay danach auf der Uhr**; die Meldung sagt
+das ausdrücklich.
+
+**Das Gerät selbst kürzt einen zu langen Overlay-Text heute noch still** und meldet
+Erfolg (`BEFUNDE.md`, L319). Bis zum ESP-Update ist die Prüfung in der PWA der einzige
+Schutz.
+
+### Übersetzt
+
+„Keine WLANs gefunden“ und die Statuszeile im Netzwerkmodul (SSID, IP, Modus) standen
+als feste deutsche Texte im Code. Sie erscheinen in der englischen Oberfläche jetzt auf
+Englisch.
+
+### Während der Entwicklung gefunden und vor der Auslieferung behoben
+
+Ein Zwischenstand dieser Runde zeigte in der WLAN-Auswahl ein fremdes Netz, wenn das
+verbundene im Scan nicht an erster Stelle stand. Wer danach nur einen neuen
+WLAN-Schlüssel speicherte, hätte die Uhr ins falsche WLAN geschickt. Das war ein
+Rückschritt innerhalb von P2, gefunden im Nachreview. **Ausgeliefert wurde er nie, und
+1.4.91 war nicht betroffen.**
+
+### Was offen bleibt
+
+Steht das verbundene Netz gar nicht im Scan — etwa im AP-Rückfall —, kennt die
+WLAN-Auswahl keinen Ausgangswert. Dann geht eine gewählte, aber nicht gespeicherte
+SSID nach einem **anderen** Speichervorgang in derselben Sektion verloren, zum Beispiel
+nach dem Speichern des Zeitservers. Die Auswahl springt auf den ersten Eintrag, und ein
+folgendes Speichern des WLAN-Schlüssels ginge an diese SSID. **Prüf in diesem Fall die
+Auswahl, bevor Du den Schlüssel speicherst.** Kein Rückschritt: 1.4.91 verlor eine
+offene Auswahl bei jedem Scan (`BEFUNDE.md`, L326).
+
+### Intern
+
+Drei Proben gegen die Vorschau unter `tools/ui-mess/proben/`: `runde-p2.mjs` (52 Fälle),
+`b40-spaeter-scan.mjs` (12 Fälle; hält die Scan-Antwort tatsächlich zurück und prüft
+zuerst, dass sie ankommt) und `runde-p.mjs` (84 Fälle), die L303 jetzt auch in der
+Gegenprobe prüft. Damit sind die beiden Korrekturen aus 1.4.91, die einen
+fehlschlagenden Schreibaufruf brauchen — keine „formatiert“-Meldung nach misslungenem
+Formatieren (L303) und kein Knopf, der nach einem Fehler auf „schaltet…“ stehen bleibt
+(L306) —, über die Probe belegt. Am Gerät wird das bewusst nicht hergestellt.
+
+### Was zu flashen ist
+
+**Nur die PWA**, mit `./tools/install-app.sh`. Keine Firmware vorausgesetzt.
+
+
+## 2026-10-05 Runde P: Sprachwechsel, Byte-Prüfung, Abweisungen (PWA 1.4.91)
+
+Nur die PWA, STM und ESP unverändert. Release-ZIP
+`wordclock-release-2026-10-05-234753.zip`, Tag `release/3.2.21-3.2.24-1.4.91`.
+Nachgetragen am 07.10.2026.
+
+### Was sich ändert
+
+- **Ein Sprachwechsel leert keine gefüllten Anzeigen mehr.** Bisher fielen 21
+  Anzeigeflächen auf „wird geladen…“ zurück, darunter das Logfenster und die
+  Dateivorschau, und bei einigen kam der Inhalt nicht von selbst zurück
+  (`BEFUNDE.md`, L284).
+- **Textfelder werden vor dem Absenden in Byte geprüft, nicht in Zeichen.** Das Gerät
+  zählt Byte, die Eingabefelder zählten Zeichen: Ein Lauftext aus 32 Umlauten passte
+  ins Feld und wurde vom Gerät abgewiesen. Jetzt meldet die PWA die Überschreitung
+  selbst und schickt nichts ab. Der Import einer Sicherung nutzt dieselben Grenzen und
+  übernimmt einen zu langen Wert nicht, statt ihn zu kürzen — ein gekürzter Update-Host
+  zeigt auf einen anderen Server (L287).
+- **Nach einer Abweisung erscheint keine grüne Meldung mehr.** Beim Speichern von
+  Update-Host und -Pfad überdeckte die anschliessende Nachprüfung den Fehler mit
+  „abgeschlossen“ (L288). Derselbe Fehler beim Formatieren des Dateisystems ist
+  mitbehoben: Nach misslungenem Formatieren steht nicht mehr „formatiert“ da (L303).
+- **Umschaltknöpfe zeigen nach einem Sprachwechsel den richtigen Zustand** (L304), ihre
+  Texte stehen in beiden Sprachen statt fest auf Deutsch (L305), und nach einem Fehler
+  bleibt keiner mehr auf „schaltet…“ stehen (L306).
+- **Die Dateivorschau zeigt Binärdateien nicht mehr als Text** und meldet sie nicht
+  mehr als Erfolg. Bisher landeten bei `app.js.gz` rund 123'000 Zeichen Rohdaten in der
+  Seite. Erkannt wird zuerst an der Endung, damit das Gerät die Datei gar nicht erst
+  überträgt, dann am Inhalt. Eine leere `.gz` bleibt sichtbar — das ist der
+  Weissbildschirm-Fall (L246).
+- **Die Beschriftung sagt, worauf der Knopf wirkt:** „Sekunden am Ambilight-Ring weich
+  ausblenden“ (L223).
+
+Intern: eine tote Funktion entfernt (`formatLittleFs()`, L221). Probe
+`tools/ui-mess/proben/runde-p.mjs`.
+
+### Am Gerät abgenommen, mit Vorbehalten
+
+Lesender Testdurchlauf am 05./06.10.2026 (`BEFUNDE.md`, L324): 29 Prüfungen, 26
+bestanden, keine Exceptions, keine Neustarts, keine Watchdog-Resets. Abgenommen sind
+Sprachwechsel, Binärsperre, Beschriftung und die Umschaltknöpfe nach Sprachwechsel.
+
+- Die Byte-Prüfung ist für Lauftext und Update-Host belegt, **am Zeitserver nicht** —
+  dort überschrieb ein spät eintreffender WLAN-Scan die Eingabe, bevor die Prüfung sie
+  sah (L321, behoben in 1.4.92).
+- L288, L303 und L306 brauchen einen fehlschlagenden Schreibaufruf und sind im lesenden
+  Lauf nicht geprüft.
+- Die Phasen 3 bis 8 des Testplans liefen nicht.
+
+### Was zu flashen ist
+
+**Nur die PWA.**
+
+
 ## 2026-10-05 Eingänge gehärtet, auf beiden Seiten der Brücke (STM 3.2.21, ESP 3.2.24, PWA 1.4.90)
 
 Alle drei Komponenten. Release-ZIP `wordclock-release-2026-10-05-224844.zip`, Tag
