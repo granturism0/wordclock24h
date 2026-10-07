@@ -221,7 +221,7 @@ init_date_codes (int year)
         mmdd = get_easter (year);
 
         date_codes[DATE_CODE_NEW_YEAR]          = TO_MMDD( 1,  1);                      // Neujahr
-        date_codes[DATE_CODE_THREE_MAGI]        = TO_MMDD( 1,  6);                      // Heilige drei Könige
+        date_codes[DATE_CODE_THREE_MAGI]        = TO_MMDD( 1,  6);                      // Heilige drei Koenige
         date_codes[DATE_CODE_FIRST_MAY]         = TO_MMDD( 5,  1);                      // Maifeiertag
         date_codes[DATE_CODE_GERMANY_UNITY_DAY] = TO_MMDD(10,  3);                      // Tag der deutschen Einheit
         date_codes[DATE_CODE_CHRISTMAS_DAY1]    = TO_MMDD(12, 25);                      // 1. Weihnachtsfeiertag

@@ -48,7 +48,7 @@
 #define DS3231_CTRL_DEFAULT     0x00                            // default value: all bits reset
 
 #define DS3231_TEMP_REG_HI      0x11                            // 8 upper bytes: integer part
-#define DS3231_TEMP_REG_LO      0x12                            // 2 lower bytes: fractional part 0x00=0.00°, 0x01=0.25°, ... 0x03=0.75°
+#define DS3231_TEMP_REG_LO      0x12                            // 2 lower bytes: fractional part 0x00=0.00deg, 0x01=0.25deg, ... 0x03=0.75deg
 
 #define INT_TO_BCD(x)           (((x) / 10) << 4) + ((x) % 10)
 #define BCD_TO_INT(x)           (10 * ((x) >> 4) + ((x) & 0x0F))
@@ -344,8 +344,8 @@ rtc_set_temp_correction (int_fast8_t new_rtc_temp_correction)
  * get temperature index
  *
  * Return values:
- *    index =   0 ->   0°C
- *    index = 250 -> 125°C
+ *    index =   0 ->   0degC
+ *    index = 250 -> 125degC
  *    index = 255 -> Error
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */

@@ -38,8 +38,8 @@ temp_start_conversion (uint_fast8_t do_wait)
 /*-----------------------------------------------------------------------------------------------------------------------------------------------
  * temp_read_temp_index () - read temperature
  *
- *    temperature_index =   0 ->   0°C
- *    temperature_index = 250 -> 125°C
+ *    temperature_index =   0 ->   0degC
+ *    temperature_index = 250 -> 125degC
  *    temperature_index = 255 -> Error
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */

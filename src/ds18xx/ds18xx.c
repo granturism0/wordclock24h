@@ -117,10 +117,10 @@ ds1822B20_write_resolution (uint_fast8_t resolution)
  * ds18xx_start_conversion () - start conversion
  *
  * conversion times:
- *   DS_RESOLUTION_12_BIT: 12 bit resolution 0.0625 °C - conversion time ~750 ms: wait 800ms = 13333 x 60 us
- *   DS_RESOLUTION_11_BIT: 11 bit resolution 0.125  °C - conversion time ~375 ms: wait 400ms =  6666 x 60 us
- *   DS_RESOLUTION_10_BIT: 10 bit resolution 0.25   °C - conversion time ~187 ms: wait 200ms =  3333 x 60 us
- *   DS_RESOLUTION_9_BIT:   9 bit resolution 0.5    °C - conversion time  ~93 ms: wait 100ms =  1666 x 60 us
+ *   DS_RESOLUTION_12_BIT: 12 bit resolution 0.0625 degC - conversion time ~750 ms: wait 800ms = 13333 x 60 us
+ *   DS_RESOLUTION_11_BIT: 11 bit resolution 0.125  degC - conversion time ~375 ms: wait 400ms =  6666 x 60 us
+ *   DS_RESOLUTION_10_BIT: 10 bit resolution 0.25   degC - conversion time ~187 ms: wait 200ms =  3333 x 60 us
+ *   DS_RESOLUTION_9_BIT:   9 bit resolution 0.5    degC - conversion time  ~93 ms: wait 100ms =  1666 x 60 us
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
 uint_fast8_t
@@ -161,10 +161,10 @@ ds18xx_start_conversion (uint_fast8_t do_wait)
  * ds18xx_read_raw_temp () - read temperature
  *
  * conversion times:
- *   DS_RESOLUTION_12_BIT: 12 bit resolution 0.0625 °C - conversion time ~750 ms: wait 800ms = 13333 x 60 us
- *   DS_RESOLUTION_11_BIT: 11 bit resolution 0.125  °C - conversion time ~375 ms: wait 400ms =  6666 x 60 us
- *   DS_RESOLUTION_10_BIT: 10 bit resolution 0.25   °C - conversion time ~187 ms: wait 200ms =  3333 x 60 us
- *   DS_RESOLUTION_9_BIT:   9 bit resolution 0.5    °C - conversion time  ~93 ms: wait 100ms =  1666 x 60 us
+ *   DS_RESOLUTION_12_BIT: 12 bit resolution 0.0625 degC - conversion time ~750 ms: wait 800ms = 13333 x 60 us
+ *   DS_RESOLUTION_11_BIT: 11 bit resolution 0.125  degC - conversion time ~375 ms: wait 400ms =  6666 x 60 us
+ *   DS_RESOLUTION_10_BIT: 10 bit resolution 0.25   degC - conversion time ~187 ms: wait 200ms =  3333 x 60 us
+ *   DS_RESOLUTION_9_BIT:   9 bit resolution 0.5    degC - conversion time  ~93 ms: wait 100ms =  1666 x 60 us
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
 

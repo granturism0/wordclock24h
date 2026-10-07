@@ -51,9 +51,9 @@ HERE IS A SHORT PROGRAM TO CALCULATE THE PWM TABLE:
 #define PWMBITS     (8)             // CHANGE HERE
 
 // GAMMA:
-// 0.5   für punktförmige oder aufblitzende Helligkeiten
-// 0.33  für Lichtquellen bei 5° Blickwinkel
-// 1/2.2 für diffus strahlende LEDs - entspricht der Gammakorrektur von VGA-Bildschirmen
+// 0.5   fuer punktfoermige oder aufblitzende Helligkeiten
+// 0.33  fuer Lichtquellen bei 5 Grad Blickwinkel
+// 1/2.2 fuer diffus strahlende LEDs - entspricht der Gammakorrektur von VGA-Bildschirmen
 #define GAMMA       (1/2.2)
 
 int main ()
@@ -5211,46 +5211,46 @@ display_icon (void)
  *
  * Rainbow color animation:
  *
- *     Step     von         nach        Änd.     Phase   S1  S2
+ *     Step     von         nach        Aend.    Phase   S1  S2
  *      1       rot         gelb        g+       1       1   6
- *      2       gelb        grün        r-       2       2   7
- *      3       grün        cyan        b+       3       3   8
+ *      2       gelb        gruen       r-       2       2   7
+ *      3       gruen       cyan        b+       3       3   8
  *      4       cyan        blau        g-       4       4   9
  *      5       blau        magenta     r+       5       5   10
  *      6       magenta     rot         b-       6       6   11
  *      7       rot         gelb        g+       1       1   12
- *      8       gelb        weiß        b+       3*      2   13*
- *      9       weiß        cyan        r-       2*      3   14*
+ *      8       gelb        weiss       b+       3*      2   13*
+ *      9       weiss       cyan        r-       2*      3   14*
  *      10      cyan        blau        g-       4       4   1
  *      11      blau        magenta     r+       5       5   2
  *      12      magenta     rot         b-       6       6   3
  *      13      rot         gelb        g+       1       1   4
- *      14      gelb        grün        r-       2       2   5
- *      15      grün        cyan        b+       3       3   6
+ *      14      gelb        gruen       r-       2       2   5
+ *      15      gruen       cyan        b+       3       3   6
  *      16      cyan        blau        g-       4       4   7
  *      17      blau        magenta     r+       5       5   8
  *      18      magenta     rot         b-       6       6   9
  *      19      rot         gelb        g+       1       1   10
- *      20      gelb        grün        r-       2       2   11
- *      21      grün        cyan        b+       3       3   12
- *      22      cyan        weiß        r+       5*      4   13*
- *      23      weiß        magenta     g-       4*      5   14*
+ *      20      gelb        gruen       r-       2       2   11
+ *      21      gruen       cyan        b+       3       3   12
+ *      22      cyan        weiss       r+       5*      4   13*
+ *      23      weiss       magenta     g-       4*      5   14*
  *      24      magenta     rot         b-       6       6   1
  *      25      rot         gelb        g+       1       1   2
- *      26      gelb        grün        r-       2       2   3
- *      27      grün        cyan        b+       3       3   4
+ *      26      gelb        gruen       r-       2       2   3
+ *      27      gruen       cyan        b+       3       3   4
  *      28      cyan        blau        g-       4       4   5
  *      29      blau        magenta     r+       5       5   6
  *      30      magenta     rot         b-       6       6   7
  *      31      rot         gelb        g+       1       1   8
- *      32      gelb        grün        r-       2       2   9
- *      33      grün        cyan        b+       3       3   10
+ *      32      gelb        gruen       r-       2       2   9
+ *      33      gruen       cyan        b+       3       3   10
  *      34      cyan        blau        g-       4       4   11
  *      35      blau        magenta     r+       5       5   12
- *      36      magenta     weiß        g+       1*      6   13*
- *      37      weiß        gelb        b-       6*      1   14*
- *      38      gelb        grün        r-       2       2   1
- *      39      grün        cyan        b+       3       3   2
+ *      36      magenta     weiss       g+       1*      6   13*
+ *      37      weiss       gelb        b-       6*      1   14*
+ *      38      gelb        gruen       r-       2       2   1
+ *      39      gruen       cyan        b+       3       3   2
  *      40      cyan        blau        g-       4       4   3
  *      41      blau        magenta     r+       5       5   4
  *      42      magenta     rot         b-       6       6   5
@@ -5427,8 +5427,8 @@ display_animation (void)
 
                         display_rainbow_phase = display_rainbow_state1;
 
-                        // bei S2= 13 / 14 weiß durch Tausch der Steps
-                        // geht auch bei 7 / 8, dann kommt weiß öfter
+                        // bei S2= 13 / 14 weiss durch Tausch der Steps
+                        // geht auch bei 7 / 8, dann kommt weiss oefter
 
                         display_rainbow_state2++;
 
@@ -5548,8 +5548,8 @@ display_animation (void)
 
                         ambilight_rainbow_phase = ambilight_rainbow_state1;
 
-                        // bei S2= 13 / 14 weiß durch Tausch der Steps
-                        // geht auch bei 7 / 8, dann kommt weiß öfter
+                        // bei S2= 13 / 14 weiss durch Tausch der Steps
+                        // geht auch bei 7 / 8, dann kommt weiss oefter
 
                         ambilight_rainbow_state2++;
 
@@ -6347,11 +6347,11 @@ display_test (void)
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display temperature
  *
- *   index ==   0  ->   0°C
- *   index == 250  -> 125°C
+ *   index ==   0  ->   0degC
+ *   index == 250  -> 125degC
  *
- * the first temperature we can show is 10,0°C (index =  0, temperature_index ==  20)
- * the last  temperature we can show is 39,5°C (index = 79, temperature_index == 159)
+ * the first temperature we can show is 10,0degC (index =  0, temperature_index ==  20)
+ * the last  temperature we can show is 39,5degC (index = 79, temperature_index == 159)
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 void
@@ -6366,7 +6366,7 @@ display_temperature (uint_fast8_t temperature_index)
                 const MINUTEDISPLAY *   tbl_minute;
                 uint_fast16_t           idx;
 
-                temperature_index -= 20;                                            // subtract 10°C (20 units)
+                temperature_index -= 20;                                            // subtract 10degC (20 units)
                 display_animation_flush (FALSE);
                 tbl_minute  = &(tables.temperature[temperature_index]);
 
@@ -6386,8 +6386,8 @@ display_temperature (uint_fast8_t temperature_index)
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display temperature on WC24h with big digits
  *
- *   index ==   0  ->   0°C
- *   index == 250  -> 125°C
+ *   index ==   0  ->   0degC
+ *   index == 250  -> 125degC
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 void
@@ -6429,8 +6429,8 @@ display_temperature_digits (uint_fast8_t temperature_index)
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display temperature on WC12h
  *
- *   index ==   0  ->   0°C
- *   index == 250  -> 125°C
+ *   index ==   0  ->   0degC
+ *   index == 250  -> 125degC
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 void
@@ -6466,8 +6466,8 @@ display_temperature (uint_fast8_t temperature_index)
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display temperature on WC12h with 2 big digits
  *
- *   index ==   0  ->   0°C
- *   index == 250  -> 125°C
+ *   index ==   0  ->   0degC
+ *   index == 250  -> 125degC
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 void

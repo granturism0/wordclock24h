@@ -700,7 +700,7 @@ irmp_uart_init (void)
     // Oversampling
     USART_OverSampling8Cmd(STM32_UART_COM, ENABLE);
 
-    // init mit Baudrate, 8Databits, 1Stopbit, keine Parität, kein RTS+CTS
+    // init mit Baudrate, 8Databits, 1Stopbit, keine Paritaet, kein RTS+CTS
     USART_InitStructure.USART_BaudRate = STM32_UART_BAUD;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
@@ -738,7 +738,7 @@ irmp_uart_init (void)
     // Oversampling
     USART_OverSampling8Cmd(STM32_UART_COM, ENABLE);
 
-    // init mit Baudrate, 8Databits, 1Stopbit, keine Parität, kein RTS+CTS
+    // init mit Baudrate, 8Databits, 1Stopbit, keine Paritaet, kein RTS+CTS
     USART_InitStructure.USART_BaudRate = 115200;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
@@ -4646,14 +4646,14 @@ get_fdc_key (uint_fast16_t cmd)
     static uint8_t key_table[128] =
     {
      // 0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
-        0,  '^', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'ß', '´',  0,  '\b',
-       '\t','q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 'ü', '+',  0,   0,  'a',
-       's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ö', 'ä', '#',  '\r', 0,  '<', 'y', 'x',
+        0,  '^', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '\xdf' /* sz */, '\xb4' /* akut */,  0,  '\b',
+       '\t','q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', '\xfc' /* ue */, '+',  0,   0,  'a',
+       's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '\xf6' /* oe */, '\xe4' /* ae */, '#',  '\r', 0,  '<', 'y', 'x',
        'c', 'v', 'b', 'n', 'm', ',', '.', '-',  0,   0,   0,   0,   0,  ' ',  0,   0,
 
-        0,  '°', '!', '"', '§', '$', '%', '&', '/', '(', ')', '=', '?', '`',  0,  '\b',
-       '\t','Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P', 'Ü', '*',  0,   0,  'A',
-       'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ö', 'Ä', '\'','\r', 0,  '>', 'Y', 'X',
+        0,  '\xb0' /* Grad */, '!', '"', '\xa7' /* Paragraf */, '$', '%', '&', '/', '(', ')', '=', '?', '`',  0,  '\b',
+       '\t','Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P', '\xdc' /* Ue */, '*',  0,   0,  'A',
+       'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '\xd6' /* Oe */, '\xc4' /* Ae */, '\'','\r', 0,  '>', 'Y', 'X',
        'C', 'V', 'B', 'N', 'M', ';', ':', '_',  0,   0,   0,   0,   0,  ' ',  0,   0
     };
     static uint_fast8_t state;
@@ -4701,7 +4701,7 @@ get_fdc_key (uint_fast16_t cmd)
                     {
                         switch (cmd)
                         {
-                            case 0x0003: key = '²';     break;
+                            case 0x0003: key = '\xb2' /* hoch2 */;     break;
                             case 0x0008: key = '{';     break;
                             case 0x0009: key = '[';     break;
                             case 0x000A: key = ']';     break;

@@ -442,7 +442,7 @@ w25qxx_init (void)
 
     gpio.GPIO_Pin     = W25QXX_GPIO_SCK_PIN | W25QXX_GPIO_MISO_PIN | W25QXX_GPIO_MOSI_PIN;
     gpio.GPIO_Mode    = GPIO_Mode_AF;
-    gpio.GPIO_OType   = GPIO_OType_PP;                              // fm: Ist das richtig für Eingang MISO?
+    gpio.GPIO_OType   = GPIO_OType_PP;                              // fm: Ist das richtig fuer Eingang MISO?
     gpio.GPIO_PuPd    = GPIO_PuPd_DOWN;
     gpio.GPIO_Speed   = GPIO_Speed_100MHz;
     GPIO_Init(W25QXX_GPIO_PORT, &gpio);

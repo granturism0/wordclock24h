@@ -20,7 +20,7 @@ enum
 {
     DATE_CODE_NONE,                                                                         // no date code
     DATE_CODE_NEW_YEAR,                                                                     // Neujahr
-    DATE_CODE_THREE_MAGI,                                                                   // Heilige drei Könige
+    DATE_CODE_THREE_MAGI,                                                                   // Heilige drei Koenige
     DATE_CODE_FIRST_MAY,                                                                    // Maifeiertag
     DATE_CODE_GERMANY_UNITY_DAY,                                                            // Tag der deutschen Einheit
     DATE_CODE_CHRISTMAS_DAY1,                                                               // 1. Weihnachtsfeiertag
