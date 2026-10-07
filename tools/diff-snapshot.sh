@@ -80,6 +80,7 @@ FLUECHTIG = {
     "numvar[idx=20].value",   # RTC-Temperatur roh
     "numvar[idx=21].value",   # RTC-Temperatur
     "numvar[idx=23].value",   # DS18xx-Temperatur
+    "numvar[idx=49].value",   # RTC-Temperatur in halben Grad mit Vorzeichen (A5, ab ESP 3.2.25)
     "numvar[idx=47].value",   # Betriebszeit
     "free_heap", "max_free_block", "heap_frag",
     "no_request_aborts", "no_request_timeouts",
