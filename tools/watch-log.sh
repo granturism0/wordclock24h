@@ -55,6 +55,7 @@ basis_exc=$("$LOG" tail 3000 2>/dev/null | grep -ac 'Exception (29)')
 basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
 basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
 letzte_d=""
+letzte_a=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
@@ -111,6 +112,11 @@ while :; do
   diag_zeile=$(printf '%s' "$roh" | grep -aE '(^|[^A-Za-z])diag [0-9]+ ' | tail -1)
   d=$(printf '%s' "$diag_zeile" | grep -aoE '(^| )d=[0-9]+' | tail -1 | cut -d= -f2)
   v=$(printf '%s' "$diag_zeile" | grep -aoE '(^| )v=[0-9]+/[0-9]+' | tail -1 | sed 's/^ //')
+  # a= seit STM 3.2.22 (S.16): Quittungen, deren Zuordnung nicht zum wartenden Kommando
+  # passte und die deshalb verworfen wurden. Auf einer gesunden Bruecke bleibt das 0;
+  # jeder Anstieg heisst, eine Quittung kam zu spaet oder gehoerte einem anderen Kommando.
+  # Aeltere STM fuehren das Feld nicht -- dann bleibt a leer und nichts wird gemeldet.
+  a=$(printf '%s' "$diag_zeile" | grep -aoE '(^| )a=[0-9]+' | tail -1 | cut -d= -f2)
   diag=$(printf '%s' "$diag_zeile" | grep -aoE 'diag [0-9]+' | tail -1 | awk '{print $2}')
 
   stamp=$(date '+%H:%M:%S')
@@ -145,6 +151,12 @@ while :; do
   fi
   [ -n "$d" ] && letzte_d=$d
 
+  if [ -n "$a" ] && [ -n "$letzte_a" ] && [ "$a" -gt "$letzte_a" ]; then
+    printf '  %s  Bruecke: %d Quittung(en) verworfen, Zuordnung passte nicht (a=%s)\n' "$stamp" "$((a - letzte_a))" "$a"
+    alarm=1
+  fi
+  [ -n "$a" ] && letzte_a=$a
+
   # Luecke in der diag-Folge: der zeitgesteuerte Zweig des STM hat ausgesetzt.
   # Genau das Bild aus dem mitgeschnittenen Haenger (L14) -- Hauptloop laeuft,
   # periodischer Zweig nicht.
@@ -175,7 +187,7 @@ while :; do
   fi
   [ -n "$diag" ] && letzte_diag=$diag
 
-  [ "$alarm" -eq 0 ] && printf '  %s  ruhig   diag %s  d=%s  %s\n' "$stamp" "${diag:-?}" "${d:-?}" "${v:-}"
+  [ "$alarm" -eq 0 ] && printf '  %s  ruhig   diag %s  d=%s  %s%s\n' "$stamp" "${diag:-?}" "${d:-?}" "${v:-}" "${a:+  a=$a}"
 
   [ "$ONCE" -eq 1 ] && break
   sync 2>/dev/null
