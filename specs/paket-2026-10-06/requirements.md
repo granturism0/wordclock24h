@@ -4,9 +4,10 @@
 Entscheidung des Leads bereits ausgeliefert (PWA 1.4.91, Abnahme in L324).
 **Erstellt:** 2026-10-06, Stand des Arbeitsbaums `401aae2` (Zweig `pwa-decoupling`).
 **Nachgeführt:** am 06.10.2026 nach der Auslieferung von P und dem Gerätetest von 1.4.91;
-am **07.10.2026** mit den Entscheidungen des Nutzers — darunter **A5 als Protokolländerung**
-(echte Minusgrade), **E17 mit S**, **C4 als eigener Schritt**, **B19** und **E2** als
-Werkzeug, **P3** als neue kleine PWA-Runde für A5.
+am **07.10.2026** in zwei Durchgängen mit den Entscheidungen des Nutzers — darunter **A5 als
+Protokolländerung** (echte Minusgrade in PWA **und Legacy**, Uhranzeige unverändert), das
+**RTC-Nachkommabit** mit A5, **E17 mit S**, **C4 als eigener Schritt**, **P3** für A5;
+**B19 und E2 erledigt**; **P2.1h** neu, **P2.2/P2.3 entfallen**.
 **Auslöser:** Entscheidungen des Nutzers: Das nächste grosse Paket umfasst **P, S und F, in
 dieser Reihenfolge**. U bleibt draussen; aus U wandern **B27 und B32 nach P**, B28 und B31
 **warten auf den Nutzer**. Dazu eine **Kleinkram-Runde K** aus der Nachzählung vom
@@ -16,18 +17,15 @@ Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Es übernimmt aus
 `specs/paket-2026-10-05/`, was für P, S und F weiter gilt; die alte Spec bleibt unverändert
 stehen. Der lebende Stand steht in `BEFUNDE.md`.
 
-**Fundstellen.** In `app.js` nennt diese Spec vorzugsweise **Funktionsnamen**: Die Datei
-wurde beim Schreiben dieser Spec gerade bearbeitet, und ihre Zeilen sind dabei um rund 200
-gewandert. In den Firmware-Quellen gelten die Zeilen für Stand `401aae2`. **`vars.h` ohne
-Pfad meint `ESP8266/ESP-uclock/vars.h`**; die STM-Datei heisst ausdrücklich
-`src/vars/vars.h`. (Eine frühere Fassung nannte `vars.h:414` ohne Pfad — gemeint war die
-ESP-Datei.)
+**Fundstellen.** In `app.js` nennt diese Spec vorzugsweise **Funktionsnamen**. In den
+Firmware-Quellen gelten die Zeilen für Stand `401aae2`. **`vars.h` ohne Pfad meint
+`ESP8266/ESP-uclock/vars.h`**; die STM-Datei heisst ausdrücklich `src/vars/vars.h`.
 
-**Kennungen.** „N1" und „N2" sind **Befunde aus der Nachzählung**. **L321 / B40**
-(network_scan überschreibt Eingabe), **L323 / C38** (SSID und WLAN-Schlüssel still
-gekürzt) und **L324** (Abnahme von 1.4.91) stammen aus dem Gerätetest. **L303** betrifft
-`runConfirmedButtonAction`, **L306** das Umschalten von Flags. Die Entscheidungen heissen
-**Ent-1 bis Ent-8**.
+**Kennungen.** „N1" und „N2" **ohne Zusatz** sind **Befunde aus der Nachzählung**; die zwei
+Befunde aus dem Review von P2 heissen **„P2-Review N1/N2"**. **L321 / B40**, **L323 / C38**
+und **L324** stammen aus dem Gerätetest von 1.4.91. **L303** betrifft
+`runConfirmedButtonAction`, **L306** das Umschalten von Flags. **„L-Befund Nachkommabit"**
+ist neu; seine Nummer vergibt der Lead. Die Entscheidungen heissen **Ent-1 bis Ent-8**.
 
 ---
 
@@ -36,15 +34,14 @@ gekürzt) und **L324** (Abnahme von 1.4.91) stammen aus dem Gerätetest. **L303*
 | Runde | Inhalt | Laufzeit | Einspielen | Testdurchlauf |
 |---|---|---|---|---|
 | **P** | **ausgeliefert als PWA 1.4.91** (`release/3.2.21-3.2.24-1.4.91`): B34, B35 (ohne Overlay-Text), B36, B33, B27, B26, R1–R4, dazu L304, B37/L305, B38/L306. B32 erledigt | PWA | erledigt | lesender Gerätetest gelaufen (L324); Durchlauf mit M2 offen (P.18) |
-| **P2** | Rest aus P: **Overlay-Text in `TEXT_FIELD_LIMITS`**, **B40/L321**, **SSID-Auswahl**, **Massnahme 4 in engerer Form**, B17 (wenn klein); dazu die **Vorschau-Probe für L303 und L306** | PWA | nächster PWA-Upload, **vor** S | **kein eigener**, begründet: Proben plus lesende Geräteprobe; Gerätenachweis von B35 am Zeitserver in S.26 |
-| **S** | Brücke fertigbauen: L260/A42, A35 Teil 1, C26, A39, A16, **C31**, **A46**, **E17** (reine Umbenennung), **A5** (STM- und ESP-Teil); dazu **N1** und neun STM-K-Punkte — mit **zweistufigem Flash-Gate**, Reserve 1'024 Byte | ESP **und** STM | **erst ESP, dann STM** | ja; dazu Gerätenachweis für B35 (Zeitserver) und B36 |
+| **P2** | Rest aus P: **Overlay-Text in `TEXT_FIELD_LIMITS`**, **B40/L321**, **SSID-Auswahl**, **Massnahme 4 — nur für die vier vorbefüllten Netzwerkfelder**, **P2-Review N1/N2**; dazu die **Vorschau-Probe für L303 und L306** | PWA | nächster PWA-Upload, **vor** S | **kein eigener**, begründet: Proben plus lesende Geräteprobe; Gerätenachweis von B35 am Zeitserver in S.26 |
+| **S** | Brücke fertigbauen: L260/A42, A35 Teil 1, C26, A39, A16, **C31**, **A46**, **E17** (reine Umbenennung), **A5** (STM-, ESP- und Legacy-Teil) samt **Nachkommabit**; dazu **N1** und neun STM-K-Punkte — mit **zweistufigem Flash-Gate**, Reserve 1'024 Byte; **B17 Spur 3** als lesende Beobachtung | ESP **und** STM | **erst ESP, dann STM** | ja; dazu Gerätenachweis für B35 (Zeitserver) und B36 |
 | **P3** | **A5, PWA-Teil**: Minusgrade anzeigen, mit Rückfall | PWA | **nach** S.24 | kein eigener; F.12 läuft gegen einen Stand mit P3 |
 | **F** | Flash-Überwachung: C9c6/L179, Auswahlliste bei 65535, C28/L272, Smoketest-Stufe; **C38/L323**, **Ent-4**, **Ent-5**; dazu sieben ESP-K-Punkte (mit C23 und C6u) | ESP + Werkzeug | **nur** ESP; ein STM-Flash als Probe | ja |
 | **C4** | Umschrift der acht ISO-8859-1-Dateien unter `src/**` auf ASCII | STM-Quellen | **kein Flash** — Nachweis über gleiche `.hex` | — |
-| **K** | Kleinkram aus der Nachzählung — **kein eigener Flash**, verteilt auf P2, S und F; Werkzeug ohne Flash (mit B19 und E2); C2 und C9c4 geschlossen; E3 wartet | je Punkt | mit dem Träger | im Durchlauf des Trägers |
+| **K** | Kleinkram aus der Nachzählung — **kein eigener Flash**; Werkzeug ohne Flash; **B19 und E2 erledigt**; C2, C9c4 geschlossen; E3 wartet | je Punkt | mit dem Träger | im Durchlauf des Trägers |
 
-**E31 / L302 ist erledigt:** Das Release `release/3.2.21-3.2.24-1.4.90` ist im Umfang des
-`pwa-tester` abgenommen. **Ein Vorbehalt daraus trägt in diese Spec:** Ob die
+**E31 / L302 ist erledigt.** **Ein Vorbehalt daraus trägt in diese Spec:** Ob die
 STM-Indexguards greifen, lässt sich über HTTP nicht zeigen, weil der ESP jeden Index vorher
 abweist. Die Abnahme von STM-Guards läuft deshalb über den Prüfstand (AKK.6).
 
@@ -54,146 +51,103 @@ abweist. Die Abnahme von STM-Guards läuft deshalb über den Prüfstand (AKK.6).
 
 ### 1. Die PWA hatte drei Befunde aus dem letzten Release — inzwischen ausgeliefert
 
-**Stand:** B34, B35 und B36 sind mit PWA 1.4.91 ausgeliefert. Die Problembeschreibung bleibt
-stehen, weil die Abnahmekriterien AKP.1 bis AKP.5 auf sie Bezug nehmen.
-
 | Befund | Status vor P | Kern |
 |---|---|---|
-| **B35 / L287** | ✔ verifiziert am Code (`http.cpp:10351-10363`; `index.html` `maxlength`) | `maxlength` zählt **Zeichen**, `http_check_strvar_len()` seit ESP 3.2.24 **Byte**. Ein Ticker aus 32 Umlauten (64 Byte) passiert das Feld und wird vom Gerät abgewiesen |
-| **B36 / L288** | ✔ verifiziert (`saveUpdateHost()`, `saveUpdatePath()`, `refreshUpdateServerAvailability()`, `runButtonRequest()`) | Nach dem Speichern lief **unbedingt** die Nachprüfung und überschrieb die Abweisung mit „abgeschlossen" |
+| **B35 / L287** | ✔ verifiziert am Code (`http.cpp:10351-10363`; `index.html` `maxlength`) | `maxlength` zählt **Zeichen**, `http_check_strvar_len()` seit ESP 3.2.24 **Byte** |
+| **B36 / L288** | ✔ verifiziert | Nach dem Speichern lief **unbedingt** die Nachprüfung und überschrieb die Abweisung |
 | **B34 / L284** | ● gemeldet mit Messung; Ursache in `applyTranslations()` ✔ | Ein Sprachwechsel setzte **17** gefüllte Flächen auf ihren Platzhalter zurück |
 
-**Ungenauigkeit in L287:** Die Befundzeile nennt `:239` (SSID von Hand), das nicht über
-`http_check_strvar_len()` geht, und lässt `:405` (Datumsformat) aus. Massgeblich sind die
-Endpunkte (`design.md` §1.1). ✔ Acht Endpunkte rufen `http_check_strvar_len()`:
-`http.cpp:8298`, `:8326`, `:8402`, `:8427`, `:8457-8458`, `:8836`, `:8959`, `:8985`.
+**Ungenauigkeit in L287:** `:239` (SSID von Hand) gehört nicht dazu, `:405` (Datumsformat)
+fehlt. Massgeblich sind die acht Endpunkte mit `http_check_strvar_len()`.
 
 **Der neunte Endpunkt, offen für P2:** `http_api_overlay_set` kürzt den Overlay-Text still
-(`utf8_copy_truncated`, `http.cpp:11107`; 33 Byte → 32, `{"ok":true}`, Testdurchlauf
-06.10.2026). Grenze `OVERLAY_MAX_TEXT_LEN` = 32 (**`ESP8266/ESP-uclock/vars.h:414`**).
-**`TEXT_FIELD_LIMITS` in PWA 1.4.91 führt den Overlay-Text nicht** — vom Lead bestätigt.
-PWA-Seite in P2.1, ESP-Seite als K-Punkt in F.
+(`http.cpp:11107`). Grenze `OVERLAY_MAX_TEXT_LEN` = 32 (**`ESP8266/ESP-uclock/vars.h:414`**).
+`TEXT_FIELD_LIMITS` in 1.4.91 führt ihn nicht. PWA-Seite in P2.1, ESP-Seite in F.
 
 ### 1a. B40 / L321 — ein später Scan überschreibt die Eingabe
 
-Am Gerät belegt um 23:58:46 (Meldung des Leads): `updateNetworkControlsFromMeta()` setzt
-`network-timeserver-input.value` und `network-timezone-input.value` **ohne Bedingung**
-(`app.js:3519-3520` laut Lead, Stand 1.4.91). Ausgelöst wird das nach jeder
-`network_scan`-Antwort über `refreshNetworkUi()` (`app.js:2893-2897`). Kommt ein Scan
-zurück, während der Nutzer tippt, steht danach wieder der alte Wert im Feld, und
-„Speichern" schickt **still den alten Wert**. Für die AP-SSID ist dieselbe Falle mit
-`prefillDeviceValue()` bereits gelöst (L34).
-
-**Dasselbe Muster an der SSID-Auswahl** (Meldung des Leads vom 07.10.2026):
-`network-ssid-select` (`app.js` um Zeile 3550) wird bei jedem Scan per `innerHTML` neu
-aufgebaut, mit `selected` auf der Geräte-SSID. Ein später Scan setzt eine ungespeicherte
-Auswahl zurück (P2.1f).
-
-**Folge für B35:** Die Byteprüfung am Zeitserver ist erst nachgewiesen, wenn B40 behoben ist.
+`updateNetworkControlsFromMeta()` setzt Zeitserver und Zeitzone nach jeder
+`network_scan`-Antwort ohne Bedingung; „Speichern" schickt danach still den alten Wert. Für
+die AP-SSID ist dieselbe Falle mit `prefillDeviceValue()` gelöst (L34). **Dasselbe Muster an
+der SSID-Auswahl** (`network-ssid-select`, P2.1f). **Folge für B35:** Am Zeitserver erst
+nach B40 nachgewiesen.
 
 ### 1b. Massnahme 4 — der Dialog bei unveränderten Feldern
 
-`handleDirtyFormInteraction()` (`app.js:2119` laut Lead) setzt `hasUnsavedEdits = true` bei
-**jeder** Eingabe, ohne mit dem Ausgangswert zu vergleichen. Am Gerät beobachtet am
-06.10.2026 (L324): tippen, den Ausgangswert vollständig wiederherstellen — beim
-Modulwechsel erscheint trotzdem der Dialog. Ein Dialog, der bei nichts warnt, wird
-weggeklickt — auch dann, wenn er einmal recht hat.
+`handleDirtyFormInteraction()` setzt `hasUnsavedEdits = true` bei **jeder** Eingabe. Am
+Gerät beobachtet (L324). **Entscheidung des Leads (07.10.2026): Die Korrektur gilt nur für
+die vier vorbefüllten Netzwerkfelder**, nicht allgemein. Für alle anderen Felder bleibt das
+Verhalten, wie es ist — und `BEFUNDE.md` hält Massnahme 4 deshalb ausdrücklich als
+**eingeschränkt** umgesetzt fest.
+
+**Zwei Befunde aus dem P2-Review** betreffen genau diese Vergleichsregel: **P2-Review N1**
+(der Ersatz-Ausgangswert `networks[0]`) und **P2-Review N2** (`unsavedEditFields` nach dem
+Vorbefüllen). P2.1h.
 
 ### 1c. C38 / L323 — SSID und WLAN-Schlüssel werden still gekürzt
 
-`http_api_network_client_set()` (`http.cpp:8664-8670`) und `http_api_eeprom_settings_set()`
-(`:8779-8785`) übernehmen SSID und Schlüssel per `toCharArray` mit fester Länge — **zu
-Langes wird still abgeschnitten**. Ein gekürzter WLAN-Schlüssel ist ein falscher Schlüssel.
+`toCharArray` mit fester Länge in `http.cpp:8664-8670` und `:8779-8785`.
 
 ### 1d. L303 und L306 — am Gerät nicht folgenlos nachweisbar
 
-**L303** betrifft `runConfirmedButtonAction` (`app.js:9378` laut Lead): `downloadUpdateAssets`,
-`resetStm32`, `formatLittleFsFromFiles`. Keine lässt sich am Gerät folgenlos zum Scheitern
-bringen. **L306** betrifft `toggleFlagButton`/`finishButtonFeedback`; ein Umschalten
-scheitert nicht über einen zu langen Text. Nachweis über eine **nachgebildete
-Fehlerantwort in der Vorschau** (P2.1e).
+Nachweis über eine nachgebildete Fehlerantwort in der Vorschau (P2.1e).
 
 ### 1e. A5 / L38 — Minusgrade gibt es heute nicht
 
-✔ am Code, Stand `401aae2`: `rtc_get_temperature_index()` (`src/rtc/rtc.c:352-384`) liest das
-Temperaturregister des DS3231 und rechnet `(buffer[0] << 1) | …` — `buffer[0]` ist
-`uint8_t`, beim DS3231 aber **vorzeichenbehaftet**. Seit L27 wird das Ergebnis auf 0..250
-**begrenzt**: Unter 0 °C meldet die Uhr **0 °C**. Der Index (halbe Grad, 255 = Fehler) geht
-als `RTC_TEMP_INDEX_NUM_VAR` über die Brücke — **Index 21** im gemeinsamen Enum
-(`src/vars/vars.h:63`, `ESP8266/ESP-uclock/vars.h:112`; Index 20 ist `DS18XX_IS_UP`, Index 22
-die Korrektur). Der ESP formatiert ihn auf der Legacy-Seite (`http.cpp:3739-3747`), die PWA
-in `formatHalfDegreeValue()`, und der STM zeigt ihn an der Uhr selbst
-(`display_temperature()`, `display_temperature_digits()`).
+✔ am Code: `rtc_get_temperature_index()` (`src/rtc/rtc.c:352-384`) liest das vorzeichenbehaftete
+Temperaturbyte des DS3231 als `uint8_t` und begrenzt das Ergebnis auf **0..250** halbe Grad;
+unter 0 °C meldet die Uhr **0 °C**. Der Wert geht als `RTC_TEMP_INDEX_NUM_VAR` (**Index 21**)
+über die Brücke und wird von der Legacy-Seite, der PWA und der Anzeige an der Uhr gelesen.
 
-**Entscheidung des Nutzers (07.10.2026): echte Minusgrade, nicht klemmen.** Das ist keine
-Korrektur an einer Stelle, sondern eine **Protokolländerung** über STM, ESP und PWA. Dazu
-die Bedingung: **Firmware vor PWA** (L241), und **eine alte PWA auf neuer Firmware darf
-nicht schlechter werden**.
+**Entscheidungen des Nutzers (07.10.2026):** echte Minusgrade, nicht klemmen — **in PWA und
+Legacy**. **Die Uhranzeige bleibt, wie sie ist** (Ent-8), zeigt also bei Minusgraden 0 °C.
+Dazu: Firmware vor PWA (L241), und eine alte PWA auf neuer Firmware darf nicht schlechter
+werden.
 
-**Ein Nebenbefund, ● nicht gegen das Datenblatt geprüft:** Das Nachkommabit wird als
-`(buffer[1] & 0x02) >> 1` gelesen. Beim DS3231 stehen die Nachkommabits nach Datenblatt in
-**Bit 7 und 6** des Registers `0x12`. Stimmt das, zeigt die Uhr nie „,5". Geklärt in S.7 (4).
+### 1f. L-Befund Nachkommabit — die halben Grad gehen verloren
+
+● gemeldet, Prüfung in S.7 (4): `src/rtc/rtc.c:364` bildet den Index aus
+`(buffer[0] << 1) | ((buffer[1] & 0x02) >> 1)`. Beim DS3231 trägt das Register `0x12` die
+Nachkommastelle nach Datenblatt in **Bit 7 (0,5 °C) und Bit 6 (0,25 °C)**; Bit 1 ist dort
+immer 0. **Stimmt das, ist der Index nie ungerade**, und weder Legacy noch PWA haben je
+„,5 °C" gezeigt. **Entscheidung des Nutzers (07.10.2026): Bestätigt S.7 den Fehler, wird er
+mit A5 in S.18b korrigiert; die Freigabe liegt damit vor.** Die Befundzeile legt der Lead an.
 
 ### 2. Vier Punkte aus dem E2-Review — ausgeliefert
 
-R1 bis R4 sind mit PWA 1.4.91 ausgeliefert. **Die ESP-Seite von R2** — Kennung 6 doppelt
-belegt — wird nach Ent-4 (ja) in **F.2** getrennt.
+R1 bis R4 sind ausgeliefert. **Die ESP-Seite von R2** — Kennung 6 doppelt belegt — wird
+nach Ent-4 (ja) in **F.2** getrennt.
 
 ### 3. Aus Runde U
 
-- **B27 / L223** — **ausgeliefert** mit „Sekunden am Ambilight-Ring weich ausblenden" (Ent-3).
-- **B32 / L235** — **erledigt**.
-- **B28 / L227** — **wartet auf eine Gestaltungsvorgabe des Nutzers.** Nicht gestrichen.
-- **B31 / L242** — **wartet auf die Safari-Messung des Nutzers.** Nicht gestrichen.
+B27 ausgeliefert, B32 erledigt; **B28** und **B31 warten auf den Nutzer**, nicht gestrichen.
 
 ### 4. Die Brücke ist weiter halb fertig — der Entwurf steht, gebaut ist nichts
 
-- **A39 / L259** — ✔ `src/main.c:3217` ruft im `ESP8266_IPADDRESS`-Zweig weiterhin direkt
-  `var_send_all_variables()`.
-- **L260 / A42** — ✔ `var_sync_check()` (`ESP-uclock.ino:753`) prüft nur
-  `HARDWARE_CONFIGURATION`, das dritte von rund 194 Kommandos.
-- **C26 / L253** — Zähler **und** Markenpflicht, `!v`. ToDo-Text in S.27 nachführen.
-- **A35 / L233, L266** — Zuordnung als eigene Zeile vor der Quittung. ToDo-Text in S.27.
-- **A16 / L106** — vom Nutzer bestätigt, einschliesslich der 60 Sekunden Spiellauf (Ent-6).
-- **E17** — `pending_weather_ticker_restore` trägt seit L217 alle Ticker, nicht nur den
-  Wetterticker. **Der Nutzer will die Umbenennung mit S** (07.10.2026) — als reine
-  Umbenennung, so eingeordnet, dass der Diff von A39 lesbar bleibt.
+A39 (`src/main.c:3217`), L260/A42 (`ESP-uclock.ino:753`), C26, A35 Teil 1, A16 (Ent-6),
+**E17** (Umbenennung mit S, als eigener Diff nach A39).
 
 ### 5. Neu seit der alten Spec, und für Runde S bestimmend
 
-- **C31 / L298** — ✔ `eepromdata.cpp:252-253`, `:258-259` schreiben beide Schlüssel im
-  Klartext auf die UART. **● ungeprüft:** ein möglicher Zweitweg über die STM-Logausgabe.
-- **N1 (Nachzählung), KRITISCH** — ✔ `http_overlays()` (`http.cpp:4689-4717`): `oidx` aus
-  `atoi`, nur gegen `0xff` geprüft; Schreibzugriff über 32 Plätze, aus dem LAN, auch per
-  `<img>`. Auf dem STM trägt der Fehler über A3 weiter — ● Task S.7.
-- **L296** — ✔ F103: **1'924 Byte** frei. Dazu kommen neun STM-K-Punkte **und A5** — zu
-  **messen, nicht zu schätzen**.
-- **L291 / A46**, **L292 / A47** — ● aus dem H.2-Review.
-- **C32 / L299** — Index 9 ist auf beiden Seiten etwas anderes. **Nicht in S.** **Für A5 ist
-  C32 die Lehre:** ein Index, der auf beiden Seiten verschieden gelesen wird, kostet über
-  Monate Fehlersuche. A5 nimmt deshalb **keinen** obsoleten Index wieder in Gebrauch,
-  sondern hängt einen neuen an (`design.md` §7.2).
+C31 (`eepromdata.cpp:252-259`), **N1** (`http.cpp:4689-4717`, KRITISCH), **L296** (F103
+1'924 Byte frei), L291/A46, L292/A47, C32 (nicht in S — **die Lehre aus C32 trägt A5**:
+kein obsoleter Index wird wiederverwendet).
 
 ### 6. Runde F ist zum dritten Mal geplant und nie gefahren
 
-- **C9c6 / L179** — ✔ Legacy flasht ohne Filter (`http.cpp:6969-6973`); hat die Uhr am
-  04.10.2026 stillgelegt.
-- **C28 / L272** — ✔ `http.cpp:7343` liest `fname + 6` ohne Längenprüfung. **L272 bleibt
-  eigenständig**, F.1 schliesst sie.
-- **API-Auswahlliste** (`http.cpp:12063-12071`) zeigt ohne Filter alle Dateien — nach
-  **Ent-5 (ja)** künftig leer (F.3).
+C9c6/L179, C28/L272 (bleibt eigenständig), API-Auswahlliste nach **Ent-5 (ja)** leer.
 
 ### 7. Der Testdurchlauf war planbar unvollständig
 
-**L302:** Phase 3 und 4 entfielen zunächst, weil M2 fehlte — und M2 entstand **nur mit dem
-Passwort des Nutzers**. **Mit B19 (07.10.2026) ändert sich das:** Das Passwort kommt aus
-einer Datei ausserhalb des Repos, und der Agent darf Phase 0 selbst fahren. Bis B19 umgesetzt
-ist, bleibt M2 ein Nutzerschritt.
+**L302:** M2 entstand nur mit dem Passwort des Nutzers. **B19 ist umgesetzt** (`e121058`):
+`snapshot-device.sh` liest das Passwort aus `SNAPSHOT_PASS`, dann aus
+`~/.config/wordclock/snapshot.pass`, dann vom Terminal. **Die Datei legt der Nutzer an** —
+bis dahin bleibt M2 ein Nutzerschritt, danach fährt der Agent Phase 0 selbst.
 
 ### 8. Kleinkram bleibt liegen — oder wird erledigt und bleibt trotzdem offen
 
-Die vorletzte Nachzählung fand **26** längst erledigte und weiter als offen geführte
-Punkte (L235). Runde K soll viele Punkte abhaken — **mit** Abnahme je Punkt.
+Die vorletzte Nachzählung fand **26** längst erledigte und weiter als offen geführte Punkte
+(L235). Runde K soll viele Punkte abhaken — **mit** Abnahme je Punkt.
 
 ---
 
@@ -201,16 +155,17 @@ Punkte (L235). Runde K soll viele Punkte abhaken — **mit** Abnahme je Punkt.
 
 1. Die PWA meldet nach jeder Speicheraktion das **tatsächliche** Ergebnis, prüft **jedes**
    Textfeld vor dem Absenden in Byte, **sendet den Wert, den der Nutzer eingegeben oder
-   ausgewählt hat**, und warnt nur bei **echten** ungespeicherten Änderungen.
+   ausgewählt hat**, und warnt an den vier vorbefüllten Netzwerkfeldern nur bei **echten**
+   Änderungen.
 2. Die Brücke STM↔ESP hat kein halbes Protokoll mehr, und **kein Schlüssel geht mehr über
    die UART**.
 3. Kein Schreibzugriff über den Rand von `overlays[]` mehr aus dem LAN (N1).
 4. Der Legacy-Flashpfad kann kein fremdes Abbild mehr aufspielen, und **kein
    Zeichenkettenfeld des ESP kürzt mehr still**.
-5. **Die RTC-Temperatur kommt mit Vorzeichen in der PWA an** — und keine bestehende
-   Oberfläche zeigt danach etwas Schlechteres als heute.
-6. Möglichst viele kleine Punkte sind **nachweislich** zu, ohne zusätzlichen Flash — und auf
-   dem F103 nur so viele, wie **gemessen** hineinpassen, bei mindestens 1'024 Byte Reserve.
+5. **Die RTC-Temperatur kommt mit Vorzeichen und mit halben Grad in PWA und Legacy an** —
+   die Uhranzeige bleibt, wie sie ist, und keine bestehende Oberfläche wird schlechter.
+6. Möglichst viele kleine Punkte sind **nachweislich** zu — auf dem F103 nur so viele, wie
+   **gemessen** hineinpassen, bei mindestens 1'024 Byte Reserve.
 7. Jede Runde ist **vollständig** abgenommen — oder ausdrücklich als unvollständig berichtet.
 
 ---
@@ -224,171 +179,154 @@ Jedes Kriterium nennt sein **Instrument** und den **Weg, auf dem die Meldung ank
 ### Runde P — ausgeliefert, und P2
 
 **Zuordnung:** AKP.1 bis AKP.12 sind die Abnahme der ausgelieferten Runde P (P.17, P.18).
-**In P2** gelten AKP.1, AKP.2 und AKP.10 für den Overlay-Text, **AKP.13** (B17), **AKP.14**
-(B40), **AKP.15** (Massnahme 4), **AKP.16** (L303, L306) und **AKP.17** (SSID-Auswahl).
-**AKP.1 für Zeitserver und Zeitzone gilt erst mit AKP.14.** Den Gerätenachweis für **AKP.3
-(B36)** liefert S.26.
+**In P2** gelten AKP.1, AKP.2 und AKP.10 für den Overlay-Text, **AKP.14** (B40), **AKP.15**
+(Massnahme 4), **AKP.16** (L303, L306), **AKP.17** (SSID-Auswahl) und **AKP.18**
+(P2-Review N1/N2). **AKP.1 für Zeitserver und Zeitzone gilt erst mit AKP.14.** Den
+Gerätenachweis für **AKP.3 (B36)** liefert S.26. **AKP.13 (B17)** ist aus P2 heraus und wird
+in S beobachtet.
 
 - [ ] **AKP.1 (B35)** — Für **jedes** Textfeld — die acht Endpunkte mit
       `http_check_strvar_len()` **und**, ab P2, den Overlay-Text — prüft die PWA vor dem
       Absenden die Länge **in UTF-8-Byte** gegen die Grenze aus
-      `ESP8266/ESP-uclock/vars.h:183-194` bzw. `:414`. Ein zu langer Wert wird **nicht**
-      gesendet; die Meldung nennt Ist- und Höchstwert **in Byte**.
-      *Instrument:* Vorschau mit 17 Umlauten (34 Byte) und mit 16 Umlauten, **beide Proben
-      Pflicht**; Zählung aller Aufrufstellen (DIR-014). Gerätenachweis am Zeitserver: S.26.
-- [ ] **AKP.2 (B35)** — `TEXT_FIELD_LIMITS` an **genau einer** Stelle, mit Verweis auf
-      `ESP8266/ESP-uclock/vars.h`; nach P2 **zehn** Werte. *Instrument:* Review.
+      `ESP8266/ESP-uclock/vars.h:183-194` bzw. `:414`. *Instrument:* Vorschau mit 17 und 16
+      Umlauten, **beide Proben Pflicht**; Zählung aller Aufrufstellen (DIR-014).
+      Gerätenachweis am Zeitserver: S.26.
+- [ ] **AKP.2 (B35)** — `TEXT_FIELD_LIMITS` an **genau einer** Stelle; nach P2 **zehn**
+      Werte. *Instrument:* Review.
 - [ ] **AKP.3 (B36)** — Nach einer **abgewiesenen** Speicherung von Update-Host oder -Pfad
       bleibt die Fehlermeldung **stehen** und wird **nicht** von einer Erfolgsmeldung
       überschrieben. *Instrument:* Vorschau; **am Gerät in S.26** über einen zu langen
       Update-Host mit `error=2`, Phase 9 belegt den unveränderten Gerätewert.
-- [ ] **AKP.4 (B36)** — Kein anderer Aufrufer von `runButtonRequest()` ändert sein
-      Verhalten. *Instrument:* Review.
-- [ ] **AKP.5 (B34)** — Kein gefüllter Bereich fällt nach einem Sprachwechsel auf den
-      Platzhalter zurück. *Instrument:* Vorschau; alle 17 Flächen beim Namen.
-- [ ] **AKP.6 (B33)** — „Anzeigen" bei `.gz` meldet „binär" mit Grösse.
-- [ ] **AKP.7 (R1)**, **AKP.8 (R2)**, **AKP.9 (R3)**, **AKP.10 (R4)** — wie ausgeliefert;
-      **AKP.10 ab P2 auch für die Overlay-Texte**. *Instrument:* Vorschau.
-- [x] **AKP.11 (B27)** — **Erfüllt** (PWA 1.4.91).
-- [x] **AKP.12 (B32)** — **Erfüllt**.
-- [ ] **AKP.13 (B17, P2, nur wenn klein)** — Ursache eingegrenzt und in **einer** Funktion
-      behoben, **oder** begründet offen. Keine Umsetzung auf Verdacht.
-- [ ] **AKP.14 (B40 / L321, P2)** — Ein **fokussiertes** oder **geändertes** Zeitserver-
-      oder Zeitzonenfeld wird von einer späten Scan-Antwort **nicht** überschrieben; ein
-      unberührtes übernimmt den Gerätewert. **Dieselbe** `prefillDeviceValue()`-Regel wie
-      bei der AP-SSID. *Instrument:* Probe P2.1c, einmal gegen 1.4.91 fehlgeschlagen; am
-      Gerät lesend (P2.8).
-- [ ] **AKP.15 (Massnahme 4, P2)** — Wiederhergestellter Ausgangswert ⇒ kein Dialog; echte
-      Änderung ⇒ Dialog. Derselbe Ausgangswert wie in AKP.14. *Instrument:* Vorschau.
-- [ ] **AKP.16 (L303, L306, P2)** — Eine Formatier-Antwort mit Fehler meldet **nicht**
-      „formatiert"; nach fehlgeschlagenem Umschalten steht der Knopf wieder auf seinem
-      Zustand. *Instrument:* Probe P2.1e mit nachgebildeter Fehlerantwort, **einmal
-      fehlgeschlagen gegen einen künstlich zurückgebauten Stand** (im Scratchpad, L268).
-      **Nicht am Gerät.**
-- [ ] **AKP.17 (SSID-Auswahl, P2)** — Eine **ungespeicherte, vom Gerätewert abweichende**
-      Auswahl in `network-ssid-select` überlebt eine späte Scan-Antwort; neu gefundene
-      Netze erscheinen weiterhin; SSID-Namen gehen nie ungeschützt per `innerHTML` ins DOM.
-      **Dieselbe Regel** wie AKP.14/AKP.15. *Instrument:* Probe P2.1c (drei Fälle für die
-      Auswahl), einmal gegen 1.4.91 fehlgeschlagen; am Gerät lesend (P2.8).
+- [ ] **AKP.4 (B36)** bis **AKP.10 (R4)** — wie ausgeliefert; **AKP.10 ab P2 auch für die
+      Overlay-Texte**.
+- [x] **AKP.11 (B27)**, **AKP.12 (B32)** — **erfüllt**.
+- [ ] **AKP.13 (B17)** — **Aus P2 heraus** (07.10.2026): Die Spuren 1 und 2 aus L142 sind im
+      Code abgedeckt. **Spur 3** — leerer Logring nach ESP-Neustart — ist beobachtet: Was
+      zeigt das Logfenster ohne Reload, solange der Ring leer ist, und füllt es sich von
+      selbst? *Instrument:* **lesende Beobachtung in S.11**, mit Zeitstempeln; das Ergebnis
+      schliesst B17 oder lässt es mit Beleg offen (S.27).
+- [ ] **AKP.14 (B40 / L321)** — Ein **fokussiertes** oder **geändertes** Zeitserver- oder
+      Zeitzonenfeld wird von einer späten Scan-Antwort **nicht** überschrieben; **dieselbe**
+      `prefillDeviceValue()`-Regel wie bei der AP-SSID. *Instrument:* Probe P2.1c, einmal
+      gegen 1.4.91 fehlgeschlagen; am Gerät lesend (P2.8).
+- [ ] **AKP.15 (Massnahme 4, eingeschränkt)** — **An den vier vorbefüllten Netzwerkfeldern:**
+      wiederhergestellter Ausgangswert ⇒ kein Dialog; echte Änderung ⇒ Dialog. **An allen
+      anderen Feldern bleibt das Verhalten wie heute.** Derselbe Ausgangswert wie in
+      AKP.14. *Instrument:* Vorschau, beide Fälle **und** eine Gegenprobe an einem Feld
+      ausserhalb (dort erscheint der Dialog weiterhin). `BEFUNDE.md` führt Massnahme 4 als
+      **eingeschränkt** umgesetzt (P2.9).
+- [ ] **AKP.16 (L303, L306)** — Formatier-Fehler meldet **nicht** „formatiert";
+      fehlgeschlagenes Umschalten stellt den Knopf zurück. *Instrument:* Probe P2.1e, einmal
+      gegen einen künstlich zurückgebauten Stand fehlgeschlagen (Scratchpad, L268). **Nicht
+      am Gerät.**
+- [ ] **AKP.17 (SSID-Auswahl)** — Eine ungespeicherte, abweichende Auswahl überlebt eine
+      späte Scan-Antwort; SSID-Namen nie ungeschützt per `innerHTML`. *Instrument:* Probe
+      P2.1c; am Gerät lesend (P2.8).
+- [ ] **AKP.18 (P2-Review N1/N2)** — **N1** (Ersatz-Ausgangswert `networks[0]`) und **N2**
+      (`unsavedEditFields` nach dem Vorbefüllen) sind behoben, mit Ursache und Funktionsname
+      im Bericht. *Instrument:* Probe P2.1c läuft danach erneut grün; der `code-reviewer`
+      bestätigt beide in P2.4.
 
 ### Runde S — Brücke
 
 Übernommen aus `specs/paket-2026-10-05/requirements.md` (AKS.1 bis AKS.9); neu sind AKS.0
-und AKS.10 bis AKS.16.
+und AKS.10 bis AKS.17.
 
-- [ ] **AKS.0 (Flash-Gate, zwei Stufen, Ent-2 entschieden)** — **Stufe 1:** Vorabschätzung
-      je Teil (Kern, A5, jeder STM-K-Punkt). Passt **schon der Kern** nicht in 1'924 −
-      **1'024** Byte, geht sie an den Nutzer. **Stufe 2:** nach dem Kern und nach **jedem**
-      weiteren STM-Teil ein serieller Testbau (Ent-7). Unterschreitet ein Teil die Reserve:
-      bei **A5, A20, A13+A47, A3+A48 anhalten und vorlegen**, bei den übrigen
-      **zurückstellen und weitermachen**. *Instrument:* Bericht S.12; Testbauten; Endmessung
-      aus S8b in S.23.
-- [ ] **AKS.1 (A39)** — Der `IPADDRESS`-Zweig merkt vor, gesendet wird im Hauptloop, der
-      IP-Lauftext folgt **nach** dem Abgleich. *Instrument:* Quelltext.
-- [ ] **AKS.2 (A39)** — Kein Einbruch des Hauptloop-Zählers über rund 2 % (L226), und **der
-      IP-Lauftext läuft vollständig durch**. *Instrument:* Diagnosezeile; das Auge.
-- [ ] **AKS.3 (L260/A42)** — Mit Eröffnungszeile gilt der Abgleich erst mit der
-      **Abschlussmarke** als vollständig. *Instrument:* Quelltext **und** Logring.
-- [ ] **AKS.4 (A35)** — Zuordnung als **eigene Zeile vor** jeder Quittung.
-- [ ] **AKS.5 (A35)** — Unpassende Quittung **verworfen und gezählt**; **eine** Nachsendung.
-      *Instrument:* Prüfstand, Typen angeglichen.
-- [ ] **AKS.6 (Rückfall)** — **Neuer ESP gegen alten STM** läuft wie heute.
-      *Instrument:* Zwischenabnahme S.11.
-- [ ] **AKS.7 (C26)** — Zähler **über den Logring** ablesbar.
-- [ ] **AKS.8 (C26)** — Markenpflicht für die drei Kommandoarten, `!v`, im Normalbetrieb
-      **keine** Abweisung.
-- [ ] **AKS.9 (A16)** — Spiel über 60 Sekunden ohne Reset. *Instrument:* Lauf durch den
-      **Nutzer** (S.24, Ent-6). Ohne diesen Lauf **nicht erfüllt**.
-- [ ] **AKS.10 (C31)** — nur **gesetzt**/**leer** statt der Schlüssel. **Geprüft wird die
-      Form der Zeile, nicht die Abwesenheit des Schlüssels.**
-- [ ] **AKS.11 (C31, Zweitweg)** — am Code beantwortet (S.7).
-- [ ] **AKS.12 (A47, mit A13)** — `u.filedata` terminiert.
-- [ ] **AKS.13 (A46)** — drei Verwerfungspfade am gemeinsamen Zähler. Unter dem Gate.
-- [ ] **AKS.14 (N1)** — `http_overlays()` prüft `oidx < MAX_OVERLAYS && oidx <= n_overlays`
-      vor jedem Schreibzugriff und vor `n_overlays++`. *Instrument:* Prüfstand mit
-      Zieltypen. **Nicht am Gerät.**
-- [ ] **AKS.15 (A5, STM- und ESP-Teil)** — Der STM sendet die RTC-Temperatur **zusätzlich**
+- [ ] **AKS.0 (Flash-Gate, Ent-2 entschieden)** — **Stufe 1:** Vorabschätzung je Teil (Kern,
+      A5 samt Nachkommabit, jeder STM-K-Punkt). Passt **schon der Kern** nicht in 1'924 −
+      **1'024** Byte, geht sie an den Nutzer. **Stufe 2:** serielle Testbauten (Ent-7) nach
+      dem Kern und nach jedem weiteren Teil. Unterschreitung: bei **A5, A20, A13+A47,
+      A3+A48 anhalten und vorlegen**, sonst **zurückstellen und weitermachen**.
+- [ ] **AKS.1 (A39)** bis **AKS.14 (N1)** — wie in der vorigen Fassung: A39 Variante (b);
+      Hauptloop und vollständiger IP-Lauftext; Abschlussmarke; Zuordnungszeile; unpassende
+      Quittung verworfen und gezählt; Rückfall neuer ESP gegen alten STM (S.11); C26-Zähler
+      über den Logring; Markenpflicht mit `!v`; A16 mit Spiellauf des Nutzers (S.24); C31
+      „gesetzt"/„leer", **geprüft an der Form der Zeile**; C31-Zweitweg (S.7); A47 mit A13;
+      A46 unter dem Gate; N1-Indexguard über den Prüfstand mit Zieltypen, **nicht am Gerät**.
+- [ ] **AKS.15 (A5 — STM, ESP, Legacy)** — Der STM sendet die RTC-Temperatur **zusätzlich**
       als neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` am **Ende** des gemeinsamen Enums
       (**Index 49**, auf beiden Seiten gleich), als `int16` im Zweierkomplement in halben
       Grad, **`0x8000` = kein Messwert**; im Vollabgleich und bei **Änderung des
-      vorzeichenbehafteten Werts**. Der ESP kennt den Index und belegt ihn beim Start mit
-      `0x8000` vor. **`RTC_TEMP_INDEX_NUM_VAR` (21), die Legacy-Seite und die Anzeige an der
-      Uhr bleiben unverändert.**
-      *Instrument:* **Prüfstand** für die Umrechnung aus den Registerbytes (−10,0 °C,
-      −0,5 °C, 0,0 °C, +24,5 °C, Korrektur ±20, Lesefehler; Index 21 bleibt bei allen
-      negativen Werten 0) — **Minusgrade sind am Gerät nicht herstellbar**. Am Gerät
-      lesend: zwischen S.10 und S.24 steht Index 49 auf `0x8000` (S.11); nach S.24 gilt
-      Index 49 = Index 21 bei Raumtemperatur (S.25); Diff-Snapshot zeigt Index 49 als
-      einzige neue Zeile.
-- [ ] **AKS.16 (E17)** — `pending_weather_ticker_restore` heisst in `src/**` `pending_ticker_restore`;
-      der Diff von S.15b enthält **nur** den ersetzten Bezeichner; `CLAUDE.md`,
-      `knowledge/quick-reference.md`, `knowledge/architecture-checklist.md` und `tools/**`
-      nennen den alten Namen nicht mehr; der Inhalt der Invariante ist unverändert.
-      *Instrument:* `git diff --word-diff` auf S.15b; `grep -a` über `src/**`, `grep` über
-      die drei Dokumente und `tools/**`.
+      vorzeichenbehafteten Werts**. Der ESP kennt den Index, belegt ihn beim Start mit
+      `0x8000` vor, **zeigt auf der Legacy-Seite Minusgrade** (Rückfall auf Index 21 bei
+      `0x8000`) und rechnet Index 49 bei einer Korrekturänderung **an denselben Stellen und
+      über dieselbe Hilfsfunktion** nach wie Index 21. **Index 21 und die Anzeige an der Uhr
+      bleiben unverändert** (Ent-8: bei Minusgraden 0 °C).
+      *Instrument:* **Prüfstände** — STM-Umrechnung aus Registerbytes (−10,0 °C, −0,5 °C,
+      0,0 °C, +24,5 °C, Korrektur ±20, Lesefehler; Index 21 bei allen negativen Werten 0;
+      Wechsel −1 °C → −8 °C löst Versand aus) und Legacy-Formatierung (−20, −1, 0, +49,
+      `0x8000`). **Minusgrade sind am Gerät nicht herstellbar.** Am Gerät lesend: zwischen
+      S.10 und S.24 Index 49 = `0x8000`, Legacy und PWA unverändert (S.11); nach S.24
+      Index 49 = Index 21 bei Raumtemperatur, Legacy und PWA zeigen denselben Wert (S.25).
+- [ ] **AKS.16 (E17)** — `pending_weather_ticker_restore` heisst in `src/**`
+      `pending_ticker_restore`; der Diff von S.15b enthält **nur** den ersetzten
+      Bezeichner; `CLAUDE.md`, `knowledge/quick-reference.md`,
+      `knowledge/architecture-checklist.md` und `tools/**` nennen den alten Namen nicht mehr.
+      *Instrument:* `git diff --word-diff`; `grep`.
+- [ ] **AKS.17 (L-Befund Nachkommabit)** — **Nur wenn S.7 (4) den Fehler bestätigt:** Der
+      Index nimmt das halbe Grad aus **Bit 7** von Register `0x12`. Die halben Grad stimmen
+      danach: Registerbytes für +24,0 °C mit Bit 7 ergeben +24,5 °C (Index 49), mit Bit 6
+      allein +24,0 °C (Index 48), und dasselbe vorzeichenrichtig im negativen Bereich (−0,5 °C
+      ⇒ −1). *Instrument:* **Prüfstand mit genau diesen Registerfällen**, einmal gegen das
+      alte `rtc.c` fehlgeschlagen (DIR-014). Am Gerät **als Beobachtung**, nicht als
+      Abnahme: ungerade Indizes treten bei Raumtemperatur auf, sofern die Temperatur sie
+      hergibt. **Bestätigt S.7 den Fehler nicht,** steht die Begründung im Bericht, und der
+      Befund wird damit geschlossen.
 
 ### Runde P3 — A5 in der PWA
 
 - [ ] **AKP3.1 (A5, PWA-Teil)** — Die PWA zeigt die RTC-Temperatur aus Index 49 **mit
-      Vorzeichen** und vorzeichenrichtig gerundet (−1 halbes Grad ⇒ „−0.5 °C", −3 ⇒
-      „−1.5 °C"); **fehlt** Index 49 oder trägt er `0x8000`, zeigt sie wie bisher Index 21.
-      *Instrument:* **Probe P3.2** in der Vorschau, sechs Fälle (−20, −1, 0, 49, `0x8000`,
-      fehlend), einmal gegen den Stand vor P3 fehlgeschlagen. Am Gerät: bei Raumtemperatur
-      **derselbe** Wert wie vor P3 (P3.6). **Minusgrade am Gerät nicht verlangt.**
+      Vorzeichen** und vorzeichenrichtig gerundet (−1 ⇒ „−0.5 °C", −3 ⇒ „−1.5 °C"); fehlt
+      Index 49 oder trägt er `0x8000`, zeigt sie Index 21. *Instrument:* Probe P3.2, sechs
+      Fälle, einmal gegen den Stand vor P3 fehlgeschlagen. Am Gerät: bei Raumtemperatur
+      derselbe Wert wie auf der Legacy-Seite und wie Index 21 (P3.6).
 - [ ] **AKP3.2 (A5, Rückfall)** — **Eine alte PWA auf neuer Firmware zeigt nichts
-      Schlechteres als heute:** Sie liest weiter Index 21, der unverändert auf 0..250
-      begrenzt ist. *Instrument:* Quelltext (Index 21 unverändert, S.21) und S.25 mit der
-      PWA aus P2.
+      Schlechteres als heute:** Sie liest weiter Index 21, unverändert auf 0..250 begrenzt —
+      **mit der einzigen gewollten Ausnahme**, dass sie nach der Nachkommabit-Korrektur
+      halbe Grad zeigen kann, die vorher fehlten. *Instrument:* Quelltext (S.21) und S.25.
+- [ ] **AKP3.3 (gleiche Formatierung)** — PWA und Legacy-Seite formatieren denselben Wert
+      gleich. *Instrument:* P3.3 (Review) und P3.6 am Gerät.
 
 ### Runde F — Flash-Überwachung
 
-- [ ] **AKF.1 (C9c6)** — Legacy-Flashzweig prüft mit `http_remote_stm32_filename_matches()`.
-      **Nicht scharf fahren.**
-- [ ] **AKF.2 (C28/L272)** — Legacy-Liste über dieselbe Funktion; L272 erledigt.
-- [ ] **AKF.3 (65535)** — Legacy-Liste leer, Hinweis auf `./tools/flash-stm.sh`, unter
-      120 Zeichen im Logring (L257).
-- [ ] **AKF.4 (Smoketest)** — `smoke-device.sh` meldet 65535 als Fehlschlag.
-- [ ] **AKF.5 (Probe)** — STM-Flash über `flash-stm.sh` nach dem F-OTA.
+- [ ] **AKF.1 (C9c6)**, **AKF.2 (C28/L272)**, **AKF.3 (65535)**, **AKF.4 (Smoketest)**,
+      **AKF.5 (Probe)** — wie in der vorigen Fassung. **Nicht scharf fahren.**
 - [ ] **AKF.6 (C38 / L323)** — SSID und Schlüssel **abgewiesen** statt gekürzt.
       *Instrument:* **Nur Quelltext und Prüfstand**; `network_client_set` bleibt gesperrt.
-- [ ] **AKF.7 (Ent-4)** — `fs_remove` meldet „remove failed" mit **eigener** Kennung,
-      Kennung 6 nur noch für „nicht gefunden". *Instrument:* Quelltext; F.6 prüft die
-      Darstellung in der PWA (Rückfalltext mit Detail).
-- [ ] **AKF.8 (Ent-5)** — Die API-Auswahlliste ist bei 65535 **leer**. *Instrument:*
-      Quelltext; F.6 prüft die Darstellung einer leeren Liste in der PWA.
+- [ ] **AKF.7 (Ent-4)** — „remove failed" mit **eigener** Kennung; Kennung 6 nur noch für
+      „nicht gefunden". *Instrument:* Quelltext; F.6 prüft die Darstellung in der PWA.
+- [ ] **AKF.8 (Ent-5)** — API-Auswahlliste bei 65535 **leer**. *Instrument:* Quelltext; F.6
+      prüft die Darstellung einer leeren Liste.
 
 ### Schritt C4 — Umschrift ohne Flash
 
-- [ ] **AKC4.1** — Unter `src/**` gibt es kein Nicht-ASCII-Byte mehr; geändert sind **nur**
-      die acht Dateien aus L166, die Zeilenenden je Datei unverändert.
-      *Instrument:* `grep -aP '[^\x00-\x7F]'`, `git diff --stat`.
-- [ ] **AKC4.2** — **Die `.hex` von F103 und F411 sind vor und nach C4 byteweise gleich.**
-      Weicht eines ab, ist C4 verfehlt und wird zurückgenommen. **Kein Flash, keine
-      Versionserhöhung.** *Instrument:* Lead-Bau beider Ziele, Vergleich (C4.2).
+- [ ] **AKC4.1** — Kein Nicht-ASCII-Byte mehr unter `src/**`; nur die acht Dateien aus L166
+      geändert, Zeilenenden unverändert.
+- [ ] **AKC4.2** — **`.hex` von F103 und F411 vor und nach C4 byteweise gleich.** Sonst
+      verfehlt und zurückgenommen. **Kein Flash, keine Versionserhöhung.**
 
 ### Runde K — Kleinkram
 
 - [ ] **AKK.1** — Jeder K-Punkt hat **vor** seiner Umsetzung einen Satz „erledigt, wenn …".
-- [ ] **AKK.2** — Die Zahl der K-Punkte stimmt mit der Nachzählung; jeder hat genau einen
-      Träger, ist erledigt, geschlossen oder wartet ausdrücklich. *Instrument:* K.0.
-- [ ] **AKK.3** — Wächst ein K-Punkt über rund zehn Zeilen oder wirft er eine Entwurfsfrage
-      auf, wird er **umgestuft und zurückgemeldet**.
-- [ ] **AKK.4** — Jeder geschlossene K-Punkt trägt einen Beleg **dieses Commits** oder einen
-      Messwert; **geschlossen durch Entscheidung** (C2, C9c4) trägt Datum und Entscheidung.
-- [ ] **AKK.5** — Jeder STM-K-Punkt ist **gemessen**, ob er bleibt oder zurückgestellt wird.
+- [ ] **AKK.2** — Die Zahl der K-Punkte stimmt mit der Nachzählung (K.0).
+- [ ] **AKK.3** — Wächst ein K-Punkt, wird er **umgestuft und zurückgemeldet**.
+- [ ] **AKK.4** — Geschlossene K-Punkte tragen einen Beleg dieses Commits, einen Messwert —
+      oder, wenn **durch Entscheidung** geschlossen (C2, C9c4), Datum und Entscheidung.
+      **Erledigt gemeldete Werkzeugpunkte** (B19 `e121058`, E2 `8dfba36`) tragen ihren Commit.
+- [ ] **AKK.5** — Jeder STM-K-Punkt ist **gemessen**.
 - [ ] **AKK.6 (STM-Guards)** — Abnahme über den **Prüfstand** (S15), nicht am Gerät.
 
 ### Für jede Runde
 
 - [ ] **AKZ.1** — `./tools/guardrails.sh` nach jedem Task mit Exit 0.
 - [ ] **AKZ.2** — `./tools/guardrails.sh --full` vor dem Release mit Exit 0 (Lead, R1).
-- [ ] **AKZ.3** — `./tools/smoke-device.sh` nach jedem Einspielen ohne Fehlschlag
-      (DIR-009). **Der Smoketest ist nicht der Test** (DIR-012).
+- [ ] **AKZ.3** — `./tools/smoke-device.sh` nach jedem Einspielen ohne Fehlschlag (DIR-009).
+      **Der Smoketest ist nicht der Test** (DIR-012).
 - [ ] **AKZ.4** — **Ein `pwa-tester`-Durchlauf je Runde über die Phasen 0 bis 4 und 9**,
       nach M2. Unvollständig ⇒ **nicht abgenommen**. **Ausnahmen, begründet:** **P2**
       (Proben P2.1c und P2.1e, lesende Geräteprobe P2.8; S.26 läuft gegen einen Stand mit
-      P2) und **P3** (Probe P3.2; F.12 läuft gegen einen Stand mit P3). **M2:** bis B19
-      umgesetzt ist durch den Nutzer, danach durch den `pwa-tester` in Phase 0.
+      P2) und **P3** (Probe P3.2; F.12 läuft gegen einen Stand mit P3). **M2:** durch den
+      Nutzer, bis er die Passwortdatei aus B19 angelegt hat; danach durch den `pwa-tester`.
 - [ ] **AKZ.5** — `./tools/watch-log.sh` läuft bei jedem Gerätelauf mit (DIR-013).
 - [ ] **AKZ.6** — Jedes ausgerollte Release **sofort** committet, getaggt, **gepusht**
       (DIR-011).
@@ -403,33 +341,33 @@ und AKS.10 bis AKS.16.
 |---|---|
 | **Runde U: B28, B31** | **Wartet auf den Nutzer**, nicht gestrichen |
 | **B24 / L208** | Erledigt |
-| **Weitere Felder in `updateNetworkControlsFromMeta()`** | P2.1b und P2.1f beheben, was belegt ist. Weiteres melden, nicht mitkorrigieren |
-| **Gerätenachweis für L303 und L306 mit echtem Fehlschlag** | Nicht folgenlos herstellbar; Nachweis über P2.1e |
+| **Massnahme 4 allgemein** | **Entscheidung des Leads:** nur die vier vorbefüllten Netzwerkfelder. Alle anderen Felder bleiben, wie sie sind |
+| **Weitere Felder in `updateNetworkControlsFromMeta()`** | Melden, nicht mitkorrigieren |
+| **B17, Umsetzung in P2** | Entfällt (07.10.2026); Spur 3 wird in S.11 beobachtet |
+| **Gerätenachweis für L303 und L306 mit echtem Fehlschlag** | Nicht folgenlos herstellbar; Probe P2.1e |
 | **Schreibende WLAN-Aufrufe am Gerät** | Auch für C38 nicht |
-| **Minusgrade an der Uhr selbst** (Wortanzeige, Ziffernanzeige) | **Entscheidung Ent-8**, Empfehlung: nicht in diesem Paket. Die Wortanzeige kennt ohnehin nur 10 °C bis 40 °C (`display_temperature()`, Index 20..79); die Ziffernanzeige zeigt heute „00". Minusgrade dort bräuchten ein Minuszeichen im Lauftextzeichensatz und Flash — eine eigene Entscheidung über das Ziffernbild |
-| **Minusgrade beim DS18xx** | Gleiche Index-Logik (`DS18XX_TEMP_INDEX_NUM_VAR`), gehört aber zu **A2** (DS18xx-Spec). Der Entwurf aus A5 ist so gebaut, dass A2 ihn mit einer weiteren angehängten Variable übernehmen kann |
-| **Der Nachkommabit-Fehler (S.7 (4))** | Wird geklärt; **bestätigt er sich, ist er ein eigener Befund** und wird nur mit Freigabe des Nutzers in S.18b mitkorrigiert, weil er die angezeigten Werte ändert |
-| **C32 / L299 — Ambilight-Flag, Index 9** | Nicht in S: anderer Gegenstand, offene Entwurfsfrage, Flash, kein Sicherheitsbefund. **Kein K-Punkt** |
-| **A35 Teil 2** | Rückgabewert aus `var_set_parameter()` |
-| **C6b / L22** | Eigene Abwägung |
-| **C19 / L199** | N1 und C6u fassen `http_overlays()` an, `saveuphost` bleibt unberührt — C19 als Ganzes ist nicht entschieden |
+| **Minusgrade an der Uhr selbst** | **Entschieden (Ent-8):** Die Uhranzeige bleibt, wie sie ist, und zeigt bei Minusgraden 0 °C |
+| **Minusgrade beim DS18xx** | Gehört zu **A2**; der Entwurf aus A5 ist übertragbar |
+| **C32 / L299** | Nicht in S. **Kein K-Punkt** |
+| **A35 Teil 2**, **C6b / L22** | Eigene Abwägung |
+| **C19 / L199** als Ganzes | `saveuphost` bleibt unberührt |
 | **Löschen der Pi-Logdateien mit Schlüsseln** (L298) | Handlung des Nutzers |
-| **Die alte Sicherung `vor-durchlauf-3.2.15.tar.gz.enc`** | **Bleibt** (Entscheidung zu B19) |
-| **E3** | Wartet; der Nutzer sieht im KiCad-Projekt nach |
+| **Die alte Sicherung `vor-durchlauf-3.2.15.tar.gz.enc`** | **Bleibt** |
+| **E3** | Wartet; der Nutzer sieht nach |
 
 ---
 
 ## Betroffene Laufzeiten
 
 - [x] **PWA** — P ausgeliefert (1.4.91); **P2** vor S; **P3** nach S
-- [x] **ESP8266** — S (mit N1 und A5-ESP-Teil) und F (mit C38, Ent-4, Ent-5, C23, C6u und
-      fünf weiteren K-Punkten), je ein OTA
-- [x] **STM32** (`src/**`) — S, ein Flash (mit E17, A5 und gemessenen K-Punkten); F flasht
-      denselben Stand als Probe; **C4 ohne Flash**
+- [x] **ESP8266** — S (N1, A5 samt Legacy-Anzeige) und F (C38, Ent-4, Ent-5, C23, C6u und
+      fünf weitere K-Punkte), je ein OTA
+- [x] **STM32** (`src/**`) — S, ein Flash (E17, A5 samt Nachkommabit, gemessene K-Punkte);
+      F flasht denselben Stand als Probe; **C4 ohne Flash**
 - [x] **Werkzeug** (`tools/**`) — Proben (P2, P3), Prüfstände und S15 (S), Prüfstand C38,
-      Smoketest, C23-/C25-Leser (F), K.W mit **B19** und **E2**
+      Smoketest, C23-/C25-Leser (F), K.W; **B19 und E2 erledigt**
 - [x] **Dokumentation** — `BEFUNDE.md` je Runde; **E17** in `CLAUDE.md` (Lead) und
-      `knowledge/` (`doc-writer`)
+      `knowledge/` (`doc-writer`); **L-Befund Nachkommabit** (Lead legt an)
 - [x] **Build/Release** — je Einspielschritt ein Release-ZIP; dazu **serielle Testbauten**
       (S) und **Gleichheitsbauten** (C4) ohne Release
 
@@ -437,27 +375,24 @@ und AKS.10 bis AKS.16.
 
 ## Entscheidungen
 
-Stand **07.10.2026**.
+Stand **07.10.2026** — **alle entschieden**.
 
 - **Ent-1 — Freigabe. Entschieden: freigegeben** für P2, S, F und K.
 - **Ent-2 — Flash. Entschieden:** Reserve **1'024 Byte**; Reihenfolge A20 → A13+A47 →
-  A3+A48 → A24 → A45 → A14 → A46 → A49, **danach A9** (neu); bei A20, A13+A47, A3+A48
-  **anhalten und vorlegen**, die übrigen **zurückstellen**. **A5** steht vor diesen Punkten
-  und wird ebenfalls **angehalten und vorgelegt** — Festlegung dieser Spec, weil A5 eine
-  ausdrückliche Bestellung des Nutzers ist (`design.md` §7.6).
+  A3+A48 → A24 → A45 → A14 → A46 → A49 → **A9**; bei A20, A13+A47, A3+A48 **anhalten und
+  vorlegen**, die übrigen **zurückstellen**. **A5** steht vor diesen Punkten und wird
+  ebenfalls angehalten und vorgelegt — Festlegung dieser Spec (`design.md` §7.6).
 - **Ent-3 — Wortlaut B27. Erledigt.**
 - **Ent-4 — Kennung 6 trennen. Entschieden: ja** (F.2).
 - **Ent-5 — API-Auswahlliste bei 65535. Entschieden: ja, leere Liste** (F.3).
 - **Ent-6 — A16 samt Spiellauf. Entschieden.**
 - **Ent-7 — Serielle Testbauten. Entschieden vom Lead: ja.** R1 soll paralleles Bauen
   verhindern, und das bleibt gewahrt; „einmal am Ende" stammt aus einer Zeit ohne Flash-Gate.
-- **Ent-8 — Zeigt die Uhr selbst Minusgrade an? Offen.** Empfehlung: **nein, nicht in diesem
-  Paket.** A5 bringt die Minusgrade in die PWA; die Anzeige an der Uhr bleibt wie heute (Wortanzeige
-  nur 10 °C bis 40 °C, Ziffern „00" unter null). Wer sie dort will, entscheidet über ein
-  Minuszeichen im Zeichensatz und über Flash — beides gehört in eine eigene Runde.
+- **Ent-8 — Minusgrade an der Uhr. Entschieden:** Minusgrade **nur in PWA und Legacy**; die
+  Uhranzeige bleibt, wie sie ist, und zeigt bei Minusgraden 0 °C. A5 bleibt damit in S.
 
-**Weitere Entscheidungen vom 07.10.2026, eingearbeitet:** A5 echte Minusgrade (S.4b,
-S.18b, P3); A9 ungeklammert (S.19i); C23 UTF-8 plus Escapen (F.5i); C6u ja, in F (F.5j); C2
-und C9c4 lassen und schliessen (P2.9); C4 Umschrift ASCII als eigener Schritt (C4); B19
-Passwort aus Datei ausserhalb des Repos, Agent fährt Phase 0 (K.W); E2 löschen (K.W); E17
-mit S (S.15b–d); **E3 offen**.
+**Weitere Entscheidungen vom 07.10.2026, eingearbeitet:** RTC-Nachkommabit mit A5 korrigieren,
+falls S.7 es bestätigt (S.18b); A9 ungeklammert (S.19i); C23 UTF-8 plus Escapen (F.5i); C6u
+in F (F.5j); C2 und C9c4 geschlossen (P2.9); C4 als eigener Schritt; **B19 und E2 erledigt**
+(`e121058`, `8dfba36`); E17 mit S (S.15b–d); **P2.1h** neu; **P2.2/P2.3 entfallen**, B17
+Spur 3 in S.11; **Massnahme 4 nur für die vier vorbefüllten Netzwerkfelder**; **E3 offen**.

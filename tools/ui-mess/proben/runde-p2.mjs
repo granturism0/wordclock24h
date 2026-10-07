@@ -9,7 +9,8 @@
 // durch direkten Aufruf von updateNetworkControlsFromMeta() nach; den echten Weg ueber
 // eine zurueckgehaltene network_scan-Antwort geht b40-spaeter-scan.mjs.
 //
-// Gegenprobe (DIR-014), 07.10.2026: gegen 1.4.91 17 von 31 fehlgeschlagen. Die drei
+// P2.1h (Review-Befunde N1/N2, 14 Faelle mehr): gegen den Stand vor P2.1h 39/6, genau
+// die N1- und N2-Faelle. Gegenprobe (DIR-014), 07.10.2026: gegen 1.4.91 17 von 31 fehlgeschlagen. Die drei
 // SSID-Gegenfaelle (unberuehrt, kein verwaister Eintrag, zurueckgewaehlt) bestehen auch
 // dort -- sie schuetzen vor Ueberkorrektur, belegen den Fix nicht. "echte Aenderung =>
 // Dialog" haengt am Zaehler des vorigen Falls und ist allein nicht aussagekraeftig.
@@ -26,6 +27,14 @@ const tippe = async (id, text) => {
   await b.cdp("Input.insertText", { text }, b.sessionId);
 };
 const verlasse = () => b.js(`(document.activeElement && document.activeElement.blur(), true)`);
+const waehle = async (id, buchstabe) => {
+  await b.js(`(document.getElementById(${JSON.stringify(id)}).focus(), true)`);
+  for (const t of ["keyDown", "keyUp"]) await b.cdp("Input.dispatchKeyEvent", { type: t, key: buchstabe, code: "Key" + buchstabe.toUpperCase(), text: t === "keyDown" ? buchstabe : undefined, windowsVirtualKeyCode: buchstabe.toUpperCase().charCodeAt(0) }, b.sessionId);
+};
+const leere = async (id) => {
+  await b.js(`(() => { const e = document.getElementById(${JSON.stringify(id)}); e.focus(); e.select(); return true })()`);
+  for (const t of ["rawKeyDown", "keyUp"]) await b.cdp("Input.dispatchKeyEvent", { type: t, key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 51 }, b.sessionId);
+};
 const instrumentiere = async () => {
   await b.js(`(() => { window.__status=[]; const o=window.announceStatus; window.announceStatus=(m,t)=>{window.__status.push([t,m]);return o(m,t)};
     window.__calls=[]; const of=window.fetch.bind(window); window.fetch=(u,o)=>{window.__calls.push(String(u&&u.url?u.url:u)); return of(u,o)};
@@ -123,6 +132,58 @@ try {
   await scan(["Nachbar", "Neu3", "Neu4"], "Neu4");
   s1 = await sel();
   pruef("SSID auf Ausgangswert zurück: folgt dem Gerät", s1.v === "Neu4", JSON.stringify(s1));
+
+  console.log("P2.1h / N1 Ersatz-Ausgangswert");
+  const netzStart = async () => { await b.gehe(`http://127.0.0.1:${port}/app/`); await sleep(2500); await instrumentiere(); await b.js(`(document.querySelector('.module-chip[data-module-target="network"]').click(), true)`); await sleep(2500); };
+  const scanN = (nets, cur, ts) => b.js(`(() => { const m = getSettingsControlUiMeta(getCurrentSettingsSnapshot(), getCurrentNetworkInfo()).network; m.networks=${JSON.stringify(nets)}; m.currentSsid=${JSON.stringify(cur)}; ${ts === undefined ? "" : "m.timeserver=" + JSON.stringify(ts) + ";"} updateNetworkControlsFromMeta(m); return true })()`);
+  const selN = () => b.js(`(() => { const s=document.getElementById("network-ssid-select"); return { v: s.value, base: s.dataset.devicePrefill, opts: [...s.options].map(o=>o.value) } })()`);
+  await netzStart();
+  await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
+  await waehle("network-ssid-select", "b"); await verlasse();
+  let n1 = await selN();
+  pruef("N1: Nutzer wählt Bravo per Tastatur", n1.v === "Bravo", JSON.stringify(n1));
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  n1 = await selN();
+  pruef("N1: Gerät fehlt im Scan, Bravo vorn -> Ausgangswert bleibt Alpha", n1.v === "Bravo" && n1.base === "Alpha", JSON.stringify(n1));
+  await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
+  n1 = await selN();
+  pruef("N1: Alpha kehrt zurück -> Auswahl Bravo bleibt", n1.v === "Bravo", JSON.stringify(n1));
+  pruef("N1: Auswahl gilt weiter als geändert", await b.js(`hasUnsavedEdits`) === true);
+  // ohne Ausgangswert: angezeigter erster Eintrag ist keine Wahl
+  await netzStart();
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  n1 = await selN();
+  pruef("N1: ohne Gerät in der Liste kein Ausgangswert, erster Eintrag angezeigt", n1.v === "Bravo" && n1.base === undefined, JSON.stringify(n1));
+  await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
+  pruef("N1: unberührt, Gerät taucht auf -> folgt dem Gerät", (await selN()).v === "Alpha", JSON.stringify(await selN()));
+  // ohne Ausgangswert, aber Nutzerwahl
+  await netzStart();
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  await waehle("network-ssid-select", "c"); await verlasse();
+  await scanN(["Bravo", "Delta"], "Alpha");
+  n1 = await selN();
+  pruef("N1: Wahl ohne Ausgangswert bleibt, auch verschwunden", n1.v === "Charlie" && n1.opts.includes("Charlie"), JSON.stringify(n1));
+  await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
+  pruef("N1: Wahl ohne Ausgangswert übersteht Rückkehr des Geräts", (await selN()).v === "Charlie", JSON.stringify(await selN()));
+
+  console.log("P2.1h / N2 Feld kehrt über den Scan auf den Ausgangswert zurück");
+  await netzStart();
+  const tsBase = await b.js(`document.getElementById("network-timeserver-input").value`);
+  await leere("network-timeserver-input");
+  pruef("N2: Feld geleert -> geändert", (await b.js(`document.getElementById("network-timeserver-input").value`)) === "" && await b.js(`hasUnsavedEdits`) === true);
+  await verlasse();
+  await scanN(["Alpha"], "Alpha", tsBase);
+  pruef("N2: Scan füllt den Ausgangswert wieder ein", (await b.js(`document.getElementById("network-timeserver-input").value`)) === tsBase);
+  pruef("N2: danach nicht mehr geändert", await b.js(`hasUnsavedEdits`) === false);
+  await b.js(`(window.__confirms=0, window.confirm=()=>{window.__confirms++; return true}, document.querySelector('.module-chip[data-module-target="system"]').click(), true)`); await sleep(300);
+  pruef("N2: Modulwechsel ohne Dialog", await b.js(`window.__confirms`) === 0);
+  await netzStart();
+  await tippe("network-timeserver-input", "neu.example"); await verlasse();
+  await scanN(["Alpha"], "Alpha", "neu.example");
+  pruef("N2: Gerät meldet den eingegebenen Wert -> nicht mehr geändert", await b.js(`hasUnsavedEdits`) === false);
+  await tippe("network-timeserver-input", "anders.example"); await verlasse();
+  await scanN(["Alpha"], "Alpha", "neu.example");
+  pruef("N2: echte Abweichung bleibt geändert", await b.js(`hasUnsavedEdits`) === true && (await b.js(`document.getElementById("network-timeserver-input").value`)) === "anders.example");
   await b.gehe(`http://127.0.0.1:${port}/app/`); await sleep(2500); await instrumentiere();
   console.log("P2.1 / AKP.1 + AKP.10 Overlay-Text");
   await b.js(`(document.querySelector('.module-chip[data-module-target="overlays"]').click(), true)`); await sleep(2500);

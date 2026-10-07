@@ -2,7 +2,7 @@
 
 **Erstellt:** 2026-10-06, Stand `401aae2`. Nachgeführt nach der Auslieferung von Runde P,
 nach dem Gerätetest von 1.4.91 (L324) und nach den **Entscheidungen des Nutzers vom
-07.10.2026**. Momentaufnahme (DIR-006).
+07.10.2026** (zwei Durchgänge). Momentaufnahme (DIR-006).
 
 **Status: freigegeben (Ent-1, 07.10.2026)** für P2, S, F und K.
 
@@ -20,20 +20,24 @@ mit** (`design.md` §4.1). Deshalb beginnt S erst nach dem P2-Build, P3 nach dem
 F nach dem P3-Build — auch wo die Inhalte nichts miteinander zu tun haben.
 
 **`Nutzer` in der Agentenspalte heisst:** Der Lead liefert die Zeile fertig zum Einfügen,
-der Nutzer führt sie aus. Er spielt **jedes** Update selbst ein. **M2** legt er mit seinem
-Passwort an, **bis B19 erledigt ist** — danach fährt der `pwa-tester` Phase 0 selbst
-(`design.md` §5).
+der Nutzer führt sie aus. Er spielt **jedes** Update selbst ein. **M2:** B19 ist umgesetzt
+(`e121058`); sobald der Nutzer die Passwortdatei `~/.config/wordclock/snapshot.pass`
+angelegt hat, fährt der `pwa-tester` Phase 0 selbst. **Bis dahin bleibt M2 ein
+Nutzerschritt** (`design.md` §5).
 
 **Werkzeugvorbehalt:** `firmware-analyst`, `code-reviewer` und `ui-reviewer` haben kein
 `Bash` (L238, L269). Git-Historie, Bauen und Gerätemessung gehören zum Lead.
 **Prüfstände unter `tools/checks/` und Proben unter `tools/ui-mess/proben/` legt der Lead
 ab** — `tools/**` ist sein Revier.
 
-**Kennungen.** „N1", „N2" sind **Befunde aus der Nachzählung** vom 06.10.2026. **L321 / B40**
-ist der Befund aus dem Gerätetest von 1.4.91 (network_scan überschreibt Eingabe), **L323 /
-C38** die stille Kürzung von SSID und WLAN-Schlüssel, **L324** die Abnahme von 1.4.91.
-**L303** betrifft `runConfirmedButtonAction`, **L306** das Umschalten von Flags. Die
-Entscheidungen heissen **Ent-1 bis Ent-8** (`requirements.md`). **`vars.h` ohne Pfad meint
+**Kennungen.** „N1", „N2" **ohne Zusatz** sind **Befunde aus der Nachzählung** vom
+06.10.2026. Die zwei Befunde aus dem Review von P2 heissen hier **„P2-Review N1"** und
+**„P2-Review N2"**, damit sie nicht verwechselt werden. **L321 / B40** ist der Befund aus dem
+Gerätetest von 1.4.91 (network_scan überschreibt Eingabe), **L323 / C38** die stille Kürzung
+von SSID und WLAN-Schlüssel, **L324** die Abnahme von 1.4.91. **L303** betrifft
+`runConfirmedButtonAction`, **L306** das Umschalten von Flags. **„L-Befund Nachkommabit"**
+ist der Befund zum RTC-Nachkommabit; seine Nummer vergibt der Lead. Die Entscheidungen heissen
+**Ent-1 bis Ent-8** (`requirements.md`). **`vars.h` ohne Pfad meint
 `ESP8266/ESP-uclock/vars.h`**; die STM-Datei heisst ausdrücklich `src/vars/vars.h`.
 
 ---
@@ -57,9 +61,9 @@ L324**; der lesende Gerätetest hat B40/L321 geliefert und die Beobachtung zu Ma
 **Ebenfalls erledigt:** **B32** — die Gegenprobe B1f/B1h ist gefahren.
 
 **Nicht enthalten, deshalb in P2:** der Overlay-Text in `TEXT_FIELD_LIMITS`, B40/L321,
-Massnahme 4 in engerer Form, die SSID-Auswahl (P2.1f), B17 — und der **Nachweis für L303
-und L306**, der am Gerät nicht folgenlos herstellbar ist (P2.1e). **B35 gilt für Zeitserver
-und Zeitzone erst als nachgewiesen, wenn B40 behoben ist.**
+Massnahme 4 in engerer Form, die SSID-Auswahl (P2.1f), die beiden Befunde aus dem P2-Review
+(P2.1h) — und der **Nachweis für L303 und L306** (P2.1e). **B35 gilt für Zeitserver und
+Zeitzone erst als nachgewiesen, wenn B40 behoben ist.**
 
 **Was von P noch aussteht**, soweit nicht schon geschehen — der Lead vermerkt es:
 
@@ -67,7 +71,7 @@ und Zeitzone erst als nachgewiesen, wenn B40 behoben ist.**
 |---|---|---|---|---|---|---|
 | P.17 | Lesende Abnahme am Gerät — **gelaufen**, Ergebnis in L324 | Lead | — | `check-pwa.sh` ohne Fehler, Dateimodul geöffnet (AKP.6); Smoketest; `watch-log.sh` mitgelesen | — | ☐ |
 | P.18 | **Testdurchlauf Phasen 0–4 und 9**, mit M2 | `pwa-tester` | P.17, M2 | **AKZ.4.** Unvollständig ⇒ P nicht abgenommen | — | — |
-| P.19 | `BEFUNDE.md` nachführen: alles aus der Tabelle oben, B32, B17 bleibt offen, B35 für Zeitserver/Zeitzone mit Vorbehalt bis B40 | `doc-writer` | P.18 | S10 läuft durch; jedes „erledigt" mit Datei und Funktion dieses Commits | ☐ | — |
+| P.19 | `BEFUNDE.md` nachführen: alles aus der Tabelle oben, B32, B35 für Zeitserver/Zeitzone mit Vorbehalt bis B40 | `doc-writer` | P.18 | S10 läuft durch; jedes „erledigt" mit Datei und Funktion dieses Commits | ☐ | — |
 
 ---
 
@@ -87,22 +91,27 @@ Stand mit P2 und prüft B35 am Zeitserver in Phase 2.
 Gerät nur lesend belegt. L303 und L306 werden nie mit einem echten Fehlschlag am Gerät
 belegt — der Nachweis ist die Probe.
 
+**B17 ist aus P2 heraus** (Entscheidung des Leads vom 07.10.2026): Die Spuren 1 und 2 aus
+L142 sind im Code abgedeckt; **P2.2 und P2.3 entfallen**. Die Spur 3 — ein leerer Logring
+nach ESP-Neustart — wird beim ESP-OTA von S **lesend beobachtet** (S.11).
+
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | P2.1 | **[K] Overlay-Text in `TEXT_FIELD_LIMITS`** (32 Byte, `OVERLAY_MAX_TEXT_LEN`, `ESP8266/ESP-uclock/vars.h:414`), angewandt im Overlay-Editor **und** in `importOverlaySettings()` | `pwa-developer` | — | **AKP.1** und **AKP.10** für den Overlay-Text: 17 Umlaute (34 Byte) ⇒ keine Anfrage, Meldung sichtbar; 16 Umlaute ⇒ Anfrage geht hinaus; präparierte Sicherung mit 33-Byte-Overlay-Text ⇒ übersprungen und genannt. **Das Gerät kürzt heute still** — die PWA-Prüfung ist bis zum F-OTA der einzige Schutz | ☐ | ☐ |
 | P2.1b | **B40 / L321:** `updateNetworkControlsFromMeta()` setzt `network-timeserver-input.value` und `network-timezone-input.value` ohne Bedingung; ausgelöst nach jeder `network_scan`-Antwort über `refreshNetworkUi()`. Beide Felder über **dieselbe** `prefillDeviceValue()`-Regel wie die AP-SSID (L34) — keine zweite Regel daneben | `pwa-developer` | P2.1 | **AKP.14:** Ein **fokussiertes** oder **vom Nutzer geändertes** Zeitserver- oder Zeitzonenfeld wird von einer späten Scan-Antwort nicht mehr überschrieben; ein unberührtes Feld übernimmt den Gerätewert weiterhin. Bericht nennt, ob weitere Felder dieselbe Form haben — **gemeldet, nicht mitkorrigiert** | ☐ | ☐ |
-| P2.1c | **Probe B40 und SSID-Auswahl** unter `tools/ui-mess/proben/`: Vorschau mit verzögerter `network_scan`-Antwort; Eingabe in Zeitserver und Zeitzone **und eine ungespeicherte Auswahl in `network-ssid-select`**, dann Antwort ausliefern, Felder ablesen. Drei Fälle je Feld: fokussiert, geändert und verlassen, unberührt | Lead | P2.1b, P2.1f | **Einmal fehlgeschlagen gegen 1.4.91** (DIR-014), bestanden gegen P2.1b/P2.1f; die Probe meldet die Zahl der geprüften Fälle (drei je Feld, **neun** gesamt) | ☐ | — |
-| P2.1d | **Massnahme 4 in engerer Form:** `handleDirtyFormInteraction()` setzt `hasUnsavedEdits = true` bei **jeder** Eingabe, ohne mit dem Ausgangswert zu vergleichen. Am Gerät beobachtet (L324). Künftig gilt ein Feld nur als geändert, wenn sein Wert vom Ausgangswert abweicht | `pwa-developer` | P2.1b | **AKP.15** in der Vorschau: tippen und Ausgangswert wiederherstellen ⇒ **kein** Dialog beim Modulwechsel; echte Änderung ⇒ Dialog **weiterhin**. Der Ausgangswert ist **derselbe**, den `prefillDeviceValue()` aus P2.1b kennt | ☐ | ☐ |
+| P2.1c | **Probe B40 und SSID-Auswahl** unter `tools/ui-mess/proben/`: Vorschau mit verzögerter `network_scan`-Antwort; Eingabe in Zeitserver und Zeitzone **und eine ungespeicherte Auswahl in `network-ssid-select`**, dann Antwort ausliefern, Felder ablesen. Drei Fälle je Feld: fokussiert, geändert und verlassen, unberührt | Lead | P2.1b, P2.1f | **Einmal fehlgeschlagen gegen 1.4.91** (DIR-014), bestanden gegen P2.1b/P2.1f; die Probe meldet die Zahl der geprüften Fälle (drei je Feld, **neun** gesamt). **Nach P2.1h erneut grün** | ☐ | — |
+| P2.1d | **Massnahme 4 in engerer Form — nur für die vier vorbefüllten Netzwerkfelder:** `handleDirtyFormInteraction()` setzt `hasUnsavedEdits = true` bei **jeder** Eingabe, ohne mit dem Ausgangswert zu vergleichen. Am Gerät beobachtet (L324). Für die vier vorbefüllten Netzwerkfelder gilt ein Feld künftig nur als geändert, wenn sein Wert vom Ausgangswert abweicht. **Für alle anderen Felder bleibt das Verhalten wie heute** | `pwa-developer` | P2.1b | **AKP.15** in der Vorschau, an diesen vier Feldern: tippen und Ausgangswert wiederherstellen ⇒ **kein** Dialog beim Modulwechsel; echte Änderung ⇒ Dialog **weiterhin**. **Gegenprobe an einem Feld ausserhalb:** dort erscheint der Dialog nach Tippen und Wiederherstellen weiterhin. Der Ausgangswert ist **derselbe**, den `prefillDeviceValue()` aus P2.1b kennt | ☐ | ☐ |
 | P2.1f | **SSID-Auswahl:** `network-ssid-select` (`app.js` um Zeile 3550 laut Lead) wird bei jedem Scan per `innerHTML` neu aufgebaut, mit `selected` auf der Geräte-SSID. Ein später Scan setzt eine **ungespeicherte Auswahl** zurück — dasselbe Muster wie B40. Die Auswahl des Nutzers überlebt den Neuaufbau, solange sie vom Gerätewert abweicht und nicht gespeichert ist; **dieselbe Regel** wie P2.1b/P2.1d, keine dritte | `pwa-developer` | P2.1d | **AKP.17**, abgenommen über die Probe P2.1c. Neu gefundene Netze erscheinen weiterhin in der Liste; die Optionen gehen weiter über `escapeHtml` oder DOM-Knoten, nie ungeschützt per `innerHTML` (Checkliste §3) | ☐ | ☐ |
+| P2.1h | **Zwei Befunde aus dem P2-Review:** **P2-Review N1** — der Ersatz-Ausgangswert `networks[0]`; **P2-Review N2** — `unsavedEditFields` nach dem Vorbefüllen | `pwa-developer` | P2.1f | **AKP.18:** Jeder der beiden Befunde ist im Bericht mit Ursache und Fundstelle (Funktionsname) beschrieben und behoben; die Probe P2.1c läuft danach erneut grün; der `code-reviewer` bestätigt in P2.4, dass beide geschlossen sind. Wächst einer über die Vergleichsregel der vier Netzwerkfelder hinaus, wird er zurückgemeldet (AKK.3) | ☐ | ☐ |
 | P2.1e | **Probe L303 und L306** unter `tools/ui-mess/proben/`, mit **nachgebildeter Fehlerantwort**. **L303** (`runConfirmedButtonAction`): Eine Formatier-Antwort mit Fehler (`formatLittleFsFromFiles`) meldet **nicht** „formatiert". **L306** (`toggleFlagButton`/`finishButtonFeedback`): Nach einem fehlgeschlagenen Umschalten steht der Knopf wieder auf seinem Zustand, **nicht** auf „schaltet…" | Lead | — | **AKP.16.** Jede der beiden Proben ist **einmal fehlgeschlagen**, gegen einen **künstlich zurückgebauten** Stand (DIR-014) — 1.4.91 enthält die Korrekturen bereits. Der zurückgebaute Stand liegt im Scratchpad, nicht im Arbeitsbaum (L268). Fallzahl gemeldet | ☐ | — |
-| P2.2 | **B17, Eingrenzung am Gerät:** Seite nach einem ESP-Neustart laden, `system`, Logfenster ohne Reload beobachten. Rein lesend | Lead | — | Bericht: welche der drei Spuren aus L142 trägt, oder keine. `watch-log.sh` mitgelesen | — | — |
-| P2.3 | **B17, Umsetzung — nur wenn P2.2 eine Ursache belegt, die in einer Funktion behebbar ist** | `pwa-developer` | P2.1f, P2.2 | **AKP.13.** Sonst entfällt der Task **ausdrücklich**, mit Vermerk | ☐ | ☐ |
-| P2.4 | Review | `code-reviewer` | P2.3, P2.1c, P2.1e | `TEXT_FIELD_LIMITS` gegen `ESP8266/ESP-uclock/vars.h` (jetzt **zehn** Werte, Koordinaten doppelt gezählt); **B40, Massnahme 4 und SSID-Auswahl nutzen dieselbe Regel und denselben Ausgangswert** — keine zweite Fassung; keine neuen leeren `catch`; kein ungeschütztes `innerHTML` mit SSID-Namen | — | ☐ |
+| ~~P2.2~~ | ~~B17, Eingrenzung am Gerät~~ — **entfällt** (07.10.2026): Spuren 1 und 2 im Code abgedeckt, Spur 3 in S.11 | — | — | — | — | — |
+| ~~P2.3~~ | ~~B17, Umsetzung~~ — **entfällt** (07.10.2026) | — | — | — | — | — |
+| P2.4 | Review | `code-reviewer` | P2.1h, P2.1c, P2.1e | `TEXT_FIELD_LIMITS` gegen `ESP8266/ESP-uclock/vars.h` (jetzt **zehn** Werte, Koordinaten doppelt gezählt); **B40, Massnahme 4 und SSID-Auswahl nutzen dieselbe Regel und denselben Ausgangswert** — keine zweite Fassung; **Massnahme 4 wirkt nur auf die vier vorbefüllten Netzwerkfelder**; P2-Review N1 und N2 geschlossen; keine neuen leeren `catch`; kein ungeschütztes `innerHTML` mit SSID-Namen | — | ☐ |
 | P2.5 | `APP_VERSION` **und** `CACHE_NAME` anheben | `release-engineer` | P2.4 | S4 zeigt den neuen Stand | ☐ | — |
 | P2.6 | `git status` (kein offener Produktcode-Task), Build inkl. `app-gz`, Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | P2.5 | R2; `guardrails.sh --full` Exit 0 | ☐ | — |
 | P2.7 | **Nutzer:** `./tools/install-app.sh --check`, `./tools/install-app.sh` | **Nutzer** | P2.6 | Seite meldet die neue App-Version | — | — |
 | P2.8 | Abnahme | Lead | P2.7 | `check-pwa.sh` ohne Fehler; **lesend, ohne Speichern:** Netzwerk-Modul öffnen, in Zeitserver und Zeitzone tippen und eine andere SSID auswählen, den nächsten Scan abwarten, alles unverändert; dann Ausgangswerte wiederherstellen und Modul wechseln, kein Dialog; `watch-log.sh` mitgelesen | — | ☐ |
-| P2.9 | `BEFUNDE.md`: Overlay-Text PWA-Seite, B40/L321, SSID-Auswahl, Massnahme 4, **L303 und L306 (Nachweis über P2.1e)**, B35 für Zeitserver/Zeitzone (Vorbehalt bis S.26), B17 (erledigt oder mit Eingrenzung offen). **Dazu die Entscheidungen vom 07.10.2026:** **C2 und C9c4 geschlossen** („bleibt bewusst so", mit Datum und Verweis auf die Entscheidung), **E3 offen** (Nutzer sieht nach) | `doc-writer` | P2.8 | S10 läuft durch | ☐ | — |
+| P2.9 | `BEFUNDE.md`: Overlay-Text PWA-Seite, B40/L321, SSID-Auswahl, P2-Review N1 und N2, **Massnahme 4 — ausdrücklich nur für die vier vorbefüllten Netzwerkfelder umgesetzt, nicht allgemein**; **L303 und L306** (Nachweis über P2.1e); B35 für Zeitserver/Zeitzone (Vorbehalt bis S.26); **B17: Spuren 1 und 2 im Code abgedeckt, Spur 3 offen bis S.11**. **Dazu die Entscheidungen vom 07.10.2026:** **C2 und C9c4 geschlossen** (mit Datum und Verweis auf die Entscheidung), **B19 erledigt** (`e121058`), **E2 erledigt** (`8dfba36`, die Dateien lagen unter `ESP8266/ESP-uclock/`, nicht unter `data/app/`), **E3 offen** | `doc-writer` | P2.8 | S10 läuft durch. Massnahme 4 steht **nicht** als „erledigt" ohne Einschränkung | ☐ | — |
 
 **Einspielreihenfolge:** nur PWA. Keine Firmware vorausgesetzt.
 
@@ -117,9 +126,10 @@ gegen den alten STM — der Rückfallnachweis AKS.6 (S.11).
 Komponenten (`design.md` §4.1).
 
 **Der STM-Teil:** erst der **Kern** (S.14–S.17), darin **E17 als reine Umbenennung direkt
-nach A39** (S.15b), dann ein **Testbau** (S.18), dann **A5** und die **K-Punkte einzeln, je
-mit Testbau danach** (S.18b, S.19a–S.19i). Die seriellen Testbauten hat der Lead freigegeben
-(Ent-7); Reserve und Regel stehen in Ent-2.
+nach A39** (S.15b), dann ein **Testbau** (S.18), dann **A5** (mit dem Nachkommabit, falls
+S.7 es bestätigt) und die **K-Punkte einzeln, je mit Testbau danach** (S.18b,
+S.19a–S.19i). Die seriellen Testbauten hat der Lead freigegeben (Ent-7); Reserve und Regel
+stehen in Ent-2.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
@@ -127,15 +137,15 @@ mit Testbau danach** (S.18b, S.19a–S.19i). Die seriellen Testbauten hat der Le
 | S.2 | ESP: Zuordnungszeile `ACK <xy>` **vor** jedem `.` und `!v`. **Festlegen und im Bericht begründen**, woher die zwei Zeichen kommen und was bei einer unmarkierten Zeile gesendet wird (`design.md` §2.4) | `esp-developer` | S.1 | **AKS.4.** Der Punkt bleibt ein nackter Punkt | ☐ | ☐ |
 | S.3 | ESP: Zähler „unmarkiert nach erster Marke" **in den Logring**; Markenpflicht für die **drei aufgezählten** Kommandoarten mit `!v` | `esp-developer` | S.2 | **AKS.7, AKS.8** (Quelltextteil). Kein Eingriff in `http.cpp` für C26 (`design.md` §4.2) | ☐ | ☐ |
 | S.4 | ESP: **C31** — `eepromdata.cpp` gibt „gesetzt"/„leer" statt der Schlüssel aus | `esp-developer` | S.3 | **AKS.10** (Quelltextteil). Kodierung und Zeilenende der Datei vorher festgestellt und im Bericht genannt | ☐ | ☐ |
-| S.4b | ESP: **A5, ESP-Teil** — neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` **am Ende** des `NUM_VARIABLE`-Enums in `ESP8266/ESP-uclock/vars.h` (**Index 49**, unmittelbar vor `MAX_NUM_VARIABLES`; heute ist `UPTIME_SECONDS_HI_NUM_VAR` Index 48); in `vars_init()` mit **`0x8000` („unbekannt")** vorbelegen. **Kein** Eingriff in `http.cpp` | `esp-developer` | S.4 | **AKS.15** (ESP-Teil): Quelltext; der Index ist 49 und auf beiden Seiten gleich (Abgleich mit S.18b); der Vorgabewert ist `0x8000`, nicht `0` | ☐ | ☐ |
+| S.4b | ESP: **A5, ESP-Teil** — (1) neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` **am Ende** des `NUM_VARIABLE`-Enums in `ESP8266/ESP-uclock/vars.h` (**Index 49**, unmittelbar vor `MAX_NUM_VARIABLES`; heute ist `UPTIME_SECONDS_HI_NUM_VAR` Index 48); in `vars_init()` mit **`0x8000` („unbekannt")** vorbelegen. (2) **Legacy-Seite zeigt Minusgrade** (Ent-8): Die RTC-Anzeige in `http.cpp` (heute `:3739-3747`) liest Index 49 vorzeichenrichtig und fällt auf Index 21 zurück, wenn Index 49 `0x8000` trägt. (3) Wo der ESP den Index bei einer Korrekturänderung **selbst nachrechnet** (Legacy `savetcorrrtc`, `:3686-3704`, und der Korrektur-Endpunkt, `:9549` ff.), rechnet er Index 49 **im selben Schritt** nach — **eine** Hilfsfunktion für beide Stellen | `esp-developer` | S.4 | **AKS.15** (ESP-Teil): Quelltext; Index 49 auf beiden Seiten gleich (Abgleich mit S.18b); Vorgabewert `0x8000`, nicht `0`; Legacy-Formatierung vorzeichenrichtig (−3 halbe Grad ⇒ „-1.5 °C"); Prüfstand für die Legacy-Formatierung mit −20, −1, 0, +49, `0x8000`. **Kodierung von `http.cpp` (UTF-8) und `vars.cpp` vor dem Patch feststellen** | ☐ | ☐ |
 | S.5 | **[K] N1:** `http_overlays()` (Legacy) prüft `oidx < MAX_OVERLAYS && oidx <= n_overlays`, **bevor** irgendetwas geschrieben oder `n_overlays` erhöht wird. **Sicherheitsausnahme** von der Trägerregel (`design.md` §6.2) | `esp-developer` | S.4b | **AKS.14.** Prüfstand im Scratchpad mit den Typen des Ziels (L256), an S.20 übergeben | ☐ | ☐ |
-| S.6 | Review ESP-Seite | `code-reviewer` | S.5 | Vier Punkte; besonders: Kann die Markenpflicht einen Dauerzustand erzeugen? Endet die Markenerwartung mit **ihrem** Abgleich? Bilden ESP und STM-Entwurf dieselben zwei Zuordnungszeichen? N1: Ist auch der `disp`-Zweig (`http.cpp:4684`) gesichert **oder** als eigener Befund gemeldet? **A5:** Liefert die Einstellungs-API das Feld mit Index 49 aus, und behandelt eine alte PWA es als unbekannt? **Die Antwort steht am Code** | — | ☐ |
-| S.7 | **Analyse, rein lesend:** (1) **AKS.11** — kann eine unbekannte ESP-Zeile über die STM-Logausgabe in den ESP-Logring gelangen? (2) **N1, STM-Seite** — fängt der STM einen Overlay-Index ≥ 32 ab, und kann `n_overlays` über `overlay_set_n_overlays` (A3) über 32 gesetzt werden? (3) Welche Grenze muss A3+A48 nehmen, damit sie zu `overlay.c` passt („S2 im Katalog" laut Nachzählung, ● nicht nachgesehen). **(4) A5:** Liest `rtc_get_temperature_index()` das Nachkommabit richtig? Der Code nimmt `(buffer[1] & 0x02) >> 1`; beim DS3231 liegen die Nachkommabits nach Datenblatt in **Bit 7 und 6** des Registers `0x12` — ● nicht gegen das Datenblatt geprüft, siehe `design.md` §7.4 | `firmware-analyst` | — | Antworten mit Fundstellen. (1) bei ja: neuer Befund über S.27. (2) und (3) gehen als Vorgabe an S.19c. **(4) geht als Vorgabe an S.18b**; bestätigt sich der Bitfehler, wird er **ein eigener Befund** und in S.18b nur dann mitkorrigiert, wenn der Nutzer es freigibt (ändert die angezeigten Werte) | — | — |
+| S.6 | Review ESP-Seite | `code-reviewer` | S.5 | Vier Punkte; besonders: Kann die Markenpflicht einen Dauerzustand erzeugen? Endet die Markenerwartung mit **ihrem** Abgleich? Bilden ESP und STM-Entwurf dieselben zwei Zuordnungszeichen? N1: Ist auch der `disp`-Zweig (`http.cpp:4684`) gesichert **oder** als eigener Befund gemeldet? **A5:** Liefert die Einstellungs-API das Feld mit Index 49 aus, behandelt eine alte PWA es als unbekannt, und rechnen beide Korrekturstellen Index 49 über **dieselbe** Hilfsfunktion nach? **Die Antwort steht am Code** | — | ☐ |
+| S.7 | **Analyse, rein lesend:** (1) **AKS.11** — kann eine unbekannte ESP-Zeile über die STM-Logausgabe in den ESP-Logring gelangen? (2) **N1, STM-Seite** — fängt der STM einen Overlay-Index ≥ 32 ab, und kann `n_overlays` über `overlay_set_n_overlays` (A3) über 32 gesetzt werden? (3) Welche Grenze muss A3+A48 nehmen, damit sie zu `overlay.c` passt („S2 im Katalog" laut Nachzählung, ● nicht nachgesehen). **(4) Nachkommabit:** Liest `rtc_get_temperature_index()` das Nachkommabit richtig? Der Code nimmt `(buffer[1] & 0x02) >> 1` (`src/rtc/rtc.c:364`); beim DS3231 liegen die Nachkommabits nach Datenblatt in **Bit 7 (0,5 °C) und Bit 6 (0,25 °C)** des Registers `0x12` | `firmware-analyst` | — | Antworten mit Fundstellen. (1) bei ja: neuer Befund über S.27. (2) und (3) gehen als Vorgabe an S.19c. **(4): Bestätigt sich der Bitfehler, wird er in S.18b mit A5 korrigiert — die Freigabe des Nutzers liegt vor (07.10.2026).** Bestätigt er sich nicht, steht die Begründung im Bericht, und der L-Befund wird mit diesem Beleg geschlossen | — | — |
 | S.8 | ESP-Version anheben | `release-engineer` | S.6 | S4 zeigt den neuen Stand | ☐ | — |
 | S.9 | Build, Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S.8 | `git status` ohne offenen Produktcode-Task; `guardrails.sh --full` Exit 0 | ☐ | — |
 | S.10 | **Nutzer-Sitzung S1:** ESP einspielen | **Nutzer** | S.9 | neue ESP-Version in `/api/update_status` | — | — |
-| S.11 | **Zwischenabnahme: neuer ESP gegen alten STM** | Lead | S.10 | **AKS.6:** ESP-Neustart ⇒ Vollabgleich ohne Timeout und ohne Reset, `var_send_timeout_cnt` steigt nicht, Diagnosefolge lückenlos. **AKS.10:** beide Schlüsselzeilen im Mitschnitt und in `/api/stm32_log` tragen nur „gesetzt"/„leer". **AKS.14** lesend: Legacy-Overlayseite lädt. **AKS.15** lesend: Index 49 steht auf `0x8000` (32768), die PWA zeigt die RTC-Temperatur unverändert. Dazu `install-app.sh --check`, Smoketest samt Update-Quelle (DIR-009). `watch-log.sh` mitgelesen. **Schlägt AKS.6 fehl, geht S zurück und wird nicht am STM fortgesetzt** | — | ☐ |
-| S.12 | **Flash-Gate, Stufe 1 — Vorabschätzung** des F103-Bedarfs: Kern (S.14–S.17, E17 kostet null) **und** A5 (S.18b) **und** jeder Punkt S.19a–S.19i, je Unter- und Obergrenze, Herleitung aus gemessenen Zuwächsen (L165, L289, L296) und neuen unbedingten Zeichenketten (L168) | `firmware-analyst` | — | **AKS.0** Stufe 1. Bericht mit Summe der Obergrenzen gegen 1'924 Byte minus **1'024 Byte Reserve** (Ent-2). **Entscheidet nichts** — passt schon der Kern nicht, geht der Bericht über den Lead an den Nutzer | — | — |
+| S.11 | **Zwischenabnahme: neuer ESP gegen alten STM** | Lead | S.10 | **AKS.6:** ESP-Neustart ⇒ Vollabgleich ohne Timeout und ohne Reset, `var_send_timeout_cnt` steigt nicht, Diagnosefolge lückenlos. **AKS.10:** beide Schlüsselzeilen im Mitschnitt und in `/api/stm32_log` tragen nur „gesetzt"/„leer". **AKS.14** lesend: Legacy-Overlayseite lädt. **AKS.15** lesend: Index 49 steht auf `0x8000` (32768); PWA **und Legacy-Seite** zeigen die RTC-Temperatur unverändert (Rückfall auf Index 21). **B17, Spur 3, lesende Beobachtung:** Unmittelbar nach dem ESP-Neustart die PWA laden, Modul `system`, Logfenster **ohne Reload** beobachten — was steht im Feld, solange der Ring leer ist, und füllt es sich von selbst? Ergebnis mit Zeitstempeln an S.27. Dazu `install-app.sh --check`, Smoketest samt Update-Quelle (DIR-009). `watch-log.sh` mitgelesen. **Schlägt AKS.6 fehl, geht S zurück und wird nicht am STM fortgesetzt** | — | ☐ |
+| S.12 | **Flash-Gate, Stufe 1 — Vorabschätzung** des F103-Bedarfs: Kern (S.14–S.17, E17 kostet null) **und** A5 samt Nachkommabit (S.18b) **und** jeder Punkt S.19a–S.19i, je Unter- und Obergrenze, Herleitung aus gemessenen Zuwächsen (L165, L289, L296) und neuen unbedingten Zeichenketten (L168) | `firmware-analyst` | — | **AKS.0** Stufe 1. Bericht mit Summe der Obergrenzen gegen 1'924 Byte minus **1'024 Byte Reserve** (Ent-2). **Entscheidet nichts** — passt schon der Kern nicht, geht der Bericht über den Lead an den Nutzer | — | — |
 | S.13 | **Nur wenn S.12 schon für den Kern nicht passt:** Entscheidung, was entfällt oder wo gespart wird | **Nutzer** | S.12 | Entscheidung im Gespräch; der Lead vermerkt entfallene Tasks hier **ausdrücklich** | — | — |
 | S.14 | STM: Eröffnungszeile und Abschlussmarke senden — **als `var <freierBuchstabe>…` über `var_send_buf()`** | `stm-developer` | S.11, S.12, (S.13) | **Vier Auflagen aus `design.md` §2.2, einzeln im Bericht belegt:** (1) Buchstabe ausserhalb `N n S T D A C M O t a l I`; (2) Nutzlast endet nicht auf `*` + vier Hexziffern; (3) Nutzlast unter 72 Zeichen; (4) **kein eigenes Top-Level-Präfix**. Die Eröffnungszeile gilt nur für **ihren** Abgleich | ☐ | ☐ |
 | S.15 | STM: **A39**, Variante (b) — `IPADDRESS`-Zweig merkt vor, Ticker **nach** dem Abgleich; `pending_weather_ticker_restore` wandert mit | `stm-developer` | S.14 | **AKS.1.** Bericht weist nach, dass keine der vier Teilbedingungen des Restores vereinfacht ist. **Noch mit dem alten Namen** — die Umbenennung ist S.15b | ☐ | ☐ |
@@ -145,7 +155,7 @@ mit Testbau danach** (S.18b, S.19a–S.19i). Die seriellen Testbauten hat der Le
 | S.16 | STM: Zuordnungszeile lesen, dem folgenden `.`/`!v` zuordnen, unpassende Quittung **verwerfen und zählen**; Prüfstand im Scratchpad, Typen angeglichen (L256) | `stm-developer` | S.15b | **AKS.5:** verspätete Quittung ⇒ **eine** Nachsendung; gemerkte Zuordnung ohne Quittung wird verbraucht. Prüfstand an S.20 | ☐ | ☐ |
 | S.17 | STM: **A16** — `watchdog_reload()` in Tetris und Snake (Ent-6) | `stm-developer` | S.16 | Quelltext: in beiden Spielschleifen | ☐ | ☐ |
 | S.18 | **Flash-Gate, Stufe 2 — Testbau nach dem Kern:** nur Ziel F103, kein Release-ZIP, kein Rollout | Lead | S.17 | Gemessener Rest notiert. **Liegt er schon unter 1'024 Byte:** Halt, Bericht an den Nutzer | — | — |
-| S.18b | STM: **A5 — echte Minusgrade.** Vorzeichenbehaftete Rechnung in `rtc_get_temperature_index()` (`(int8_t) buffer[0]`); neues Feld für den Wert in halben Grad mit Vorzeichen; neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` (**Index 49**, `src/vars/vars.h`, am Enum-Ende) als `int16` im Zweierkomplement, **`0x8000` = kein Messwert**; gesendet im Vollabgleich und bei **Änderung des vorzeichenbehafteten Werts** (heute vergleicht `src/main.c` um Zeile 4315 nur den begrenzten Index). **`RTC_TEMP_INDEX_NUM_VAR` (21) und die Anzeige an der Uhr bleiben unverändert**, also weiterhin auf 0..250 begrenzt | `stm-developer` | S.18, S.7 (4) | **AKS.15** (STM-Teil), Prüfstand mit Registerwerten: −10,0 °C, −0,5 °C, 0,0 °C, +24,5 °C, Korrektur ±20, Lesefehler; Index 21 für alle negativen Werte unverändert 0; ein Wechsel von −1 °C auf −8 °C löst einen Versand aus. **Danach Testbau (Lead)**, Zuwachs notiert. **Regel bei Unterschreitung: anhalten und vorlegen** | ☐ | ☐ |
+| S.18b | STM: **A5 — echte Minusgrade**, und **das Nachkommabit, falls S.7 (4) es bestätigt**. Vorzeichenbehaftete Rechnung in `rtc_get_temperature_index()` (`(int8_t) buffer[0]`); halbes Grad aus **Bit 7** von Register `0x12` statt aus Bit 1; neues Feld für den Wert in halben Grad mit Vorzeichen; neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` (**Index 49**, `src/vars/vars.h`, am Enum-Ende) als `int16` im Zweierkomplement, **`0x8000` = kein Messwert**; gesendet im Vollabgleich und bei **Änderung des vorzeichenbehafteten Werts** (heute vergleicht `src/main.c` um Zeile 4315 nur den begrenzten Index). **`RTC_TEMP_INDEX_NUM_VAR` (21) bleibt auf 0..250 begrenzt, die Anzeige an der Uhr unverändert** (Ent-8: bei Minusgraden 0 °C) | `stm-developer` | S.18, S.7 (4) | **AKS.15** (STM-Teil) und **AKS.17** (Nachkommabit), Prüfstand mit **Registerbytes**: −10,0 °C, −0,5 °C, 0,0 °C, +24,5 °C, **+24,0 °C mit Bit 6 allein (0,25 °C ⇒ kein halbes Grad)**, **+24,0 °C mit Bit 7 (⇒ +24,5 °C)**, Korrektur ±20, Lesefehler; Index 21 für alle negativen Werte 0; **ungerade Indizes treten auf** (vorher nie); ein Wechsel von −1 °C auf −8 °C löst einen Versand aus. **Danach Testbau (Lead)**, Zuwachs notiert. **Regel bei Unterschreitung: anhalten und vorlegen** | ☐ | ☐ |
 | S.19a | **[K] A20** — Geheimnisse aus der Timeout-Meldung | `stm-developer` | S.18b + Testbau | Abnahmesatz A20 (K-Tabelle); danach Testbau, Zuwachs in die K-Tabelle. **Unterschreitung: anhalten** | ☐ | ☐ |
 | S.19b | **[K] A13 + A47** — `strncpy` ohne Abschlussbyte in `esp8266.c`, zusammen, rund 8 Zeilen | `stm-developer` | S.19a + Testbau | Abnahmesatz A13+A47, **AKS.12**; danach Testbau. **Unterschreitung: anhalten** | ☐ | ☐ |
 | S.19c | **[K] A3 + A48** — Bereichsprüfung `overlay_set_n_overlays` und Indexguard in `schedule_esp8266_overlay()`, Grenze nach S.7 (3) | `stm-developer` | S.19b + Testbau, S.7 | Abnahmesatz A3+A48 — **über den Prüfstand (AKK.6), nicht am Gerät**; danach Testbau. **Unterschreitung: anhalten** | ☐ | ☐ |
@@ -155,14 +165,14 @@ mit Testbau danach** (S.18b, S.19a–S.19i). Die seriellen Testbauten hat der Le
 | S.19g | **A46** — drei Verwerfungspfade an den gemeinsamen Zähler | `stm-developer` | S.19f + Testbau | **AKS.13**; Prüffälle an S.20; danach Testbau. Unterschreitung: zurückstellen, weiter | ☐ | ☐ |
 | S.19h | **[K] A49** — Abweisungsmeldung je Grund (1-Byte-Maske) | `stm-developer` | S.19g + Testbau | Abnahmesatz A49; danach Testbau. Unterschreitung: zurückstellen, weiter | ☐ | ☐ |
 | S.19i | **[K] A9** — gesendeten LDR-Rohwert **ungeklammert** (Entscheidung vom 07.10.2026) | `stm-developer` | S.19h + Testbau | Abnahmesatz A9; danach Testbau. Unterschreitung: zurückstellen | ☐ | ☐ |
-| S.20 | **Prüfstände ablegen und Guardrails nachziehen:** AKS.5, AKS.14 und **AKS.15** unter `tools/checks/`; A46-Fälle in `htoi-laenge.c` (S13); **S15 (`idx-guard.sh`) auf A3+A48 und A24 erweitern**; **S7 nachführen** (zwei neue `watchdog_reload()` aus A16) | Lead | S.19i | **AKK.6:** S15 meldet für die neuen Guards nicht mehr „nicht abgedeckt", Fallzahl gemeldet. Jeder Prüfstand **einmal fehlgeschlagen** gegen die alte Fassung (DIR-014). S7 zeigt den neuen Bestand | ☐ | — |
-| S.21 | Review STM-Seite | `firmware-analyst` | S.20 | Vier Punkte; **die vier Auflagen aus S.14 einzeln**; die drei neuen Zustände auf **jedem** Pfad aufgelöst; Restore-Bedingung vollständig (**unter dem neuen Namen**); **jeder K-Punkt im Brückenpfad einzeln markiert**; jeder zurückgestellte Punkt ist **ganz** zurückgenommen; **A5:** Index 49 auf beiden Seiten gleich, **beide Enums gleich lang**, `0x8000` nie ein gültiger Messwert, Änderungserkennung am vorzeichenbehafteten Wert | — | ☐ |
+| S.20 | **Prüfstände ablegen und Guardrails nachziehen:** AKS.5, AKS.14, **AKS.15** und **AKS.17** unter `tools/checks/`; A46-Fälle in `htoi-laenge.c` (S13); **S15 (`idx-guard.sh`) auf A3+A48 und A24 erweitern**; **S7 nachführen** (zwei neue `watchdog_reload()` aus A16) | Lead | S.19i | **AKK.6:** S15 meldet für die neuen Guards nicht mehr „nicht abgedeckt", Fallzahl gemeldet. Jeder Prüfstand **einmal fehlgeschlagen** gegen die alte Fassung (DIR-014) — für AKS.17 heisst das: Der Registerfall mit Bit 7 schlägt gegen das alte `rtc.c` fehl. S7 zeigt den neuen Bestand | ☐ | — |
+| S.21 | Review STM-Seite | `firmware-analyst` | S.20 | Vier Punkte; **die vier Auflagen aus S.14 einzeln**; die drei neuen Zustände auf **jedem** Pfad aufgelöst; Restore-Bedingung vollständig (**unter dem neuen Namen**); **jeder K-Punkt im Brückenpfad einzeln markiert**; jeder zurückgestellte Punkt ist **ganz** zurückgenommen; **A5:** Index 49 auf beiden Seiten gleich, **beide Enums gleich lang**, `0x8000` nie ein gültiger Messwert, Änderungserkennung am vorzeichenbehafteten Wert, Nachkommabit aus Bit 7 | — | ☐ |
 | S.22 | STM-Version anheben | `release-engineer` | S.21 | S4 zeigt den neuen Stand | ☐ | — |
-| S.23 | Build, **Gegenprobe des Gates**, Release-ZIP, Rollout, **Commit + Tag + Push** — **im selben Commit** wie S.15c und S.15d | Lead | S.22, S.15c, S.15d | Gemessene F103-Grösse aus S8b neben die Schätzung S.12 und die Testbauten gestellt. **Rest unter 1'024 Byte: kein Rollout**, Bericht an den Nutzer. Schätzung über ihrer Obergrenze ⇒ Befund an S.27. Release-Notiz nennt jeden enthaltenen und jeden zurückgestellten Punkt | ☐ | — |
-| S.24 | **Nutzer-Sitzung S2:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh`, **dann 60 s Tetris oder Snake**, **dann M2** (entfällt als Nutzerschritt, wenn B19 erledigt ist) | **Nutzer** | S.23 | Erwartete STM-Version; **AKS.9:** kein Watchdog-Reset im Mitschnitt — fällt der Spiellauf aus, gilt AKS.9 als **nicht erfüllt**; M2 liegt vor | — | — |
-| S.25 | Abnahme am Gerät | Lead | S.24 | **AKS.2, AKS.3, AKS.5, AKS.7, AKS.8.** Hauptloop-Zähler gegen L226 während eines ESP-Neustarts; **IP-Lauftext vollständig** (Auge); Erfolgszeile erst nach der Marke; Zähler im Logring; null `!v`-Abweisungen im gesunden Zustand; `diff-snapshot.sh --soll` (**Index 49 ist neu** und darf als einzige neue Zeile erscheinen); **AKS.15 lesend:** Index 49 = Index 21 bei Raumtemperatur; **ein Blick auf die Uhr** (A24, A45 sind Anzeigepfade); `watch-log.sh` mitgelesen. **Nicht verlangt:** STM-Guards am Gerät (AKK.6), Minusgrade am Gerät (nicht herstellbar) | — | ☐ |
+| S.23 | Build, **Gegenprobe des Gates**, Release-ZIP, Rollout, **Commit + Tag + Push** — **im selben Commit** wie S.15c und S.15d | Lead | S.22, S.15c, S.15d | Gemessene F103-Grösse aus S8b neben die Schätzung S.12 und die Testbauten gestellt. **Rest unter 1'024 Byte: kein Rollout**, Bericht an den Nutzer. Schätzung über ihrer Obergrenze ⇒ Befund an S.27. Release-Notiz nennt jeden enthaltenen und jeden zurückgestellten Punkt, **und dass die RTC-Temperatur jetzt halbe Grad zeigen kann** | ☐ | — |
+| S.24 | **Nutzer-Sitzung S2:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh`, **dann 60 s Tetris oder Snake**, **dann M2** (entfällt als Nutzerschritt, sobald die Passwortdatei aus B19 angelegt ist) | **Nutzer** | S.23 | Erwartete STM-Version; **AKS.9:** kein Watchdog-Reset im Mitschnitt — fällt der Spiellauf aus, gilt AKS.9 als **nicht erfüllt**; M2 liegt vor | — | — |
+| S.25 | Abnahme am Gerät | Lead | S.24 | **AKS.2, AKS.3, AKS.5, AKS.7, AKS.8.** Hauptloop-Zähler gegen L226 während eines ESP-Neustarts; **IP-Lauftext vollständig** (Auge); Erfolgszeile erst nach der Marke; Zähler im Logring; null `!v`-Abweisungen im gesunden Zustand; `diff-snapshot.sh --soll` (**Index 49 ist neu** und darf als einzige neue Zeile erscheinen; Index 21 darf sich um ±1 verschieben, wenn S.18b das Nachkommabit korrigiert hat); **AKS.15 lesend:** Index 49 = Index 21 bei Raumtemperatur, Legacy-Seite zeigt dieselbe Temperatur wie die PWA; **AKS.17 lesend:** über ein paar Minuten tritt bei Raumtemperatur auch ein **ungerader** Index auf, sofern die Temperatur ihn hergibt — **als Beobachtung, nicht als Abnahme**; tragend ist der Prüfstand; **ein Blick auf die Uhr** (A24, A45 sind Anzeigepfade); `watch-log.sh` mitgelesen. **Nicht verlangt:** STM-Guards am Gerät (AKK.6), Minusgrade am Gerät (nicht herstellbar) | — | ☐ |
 | S.26 | **Testdurchlauf Phasen 0–4 und 9** — gegen einen Stand, der P2 enthält | `pwa-tester` | S.25 | **AKZ.4**, M2 aus S.24. Bericht nennt die enthaltenen Punkte. **Zusätzlich:** (1) **B35 am Zeitserver** in Phase 2. (2) **B36** über einen zu langen Update-Host, den der ESP mit `error=2` abweist — die Fehlermeldung bleibt stehen und wird **nicht** von einer Erfolgsmeldung überschrieben, und **Phase 9 belegt**, dass der Gerätewert unverändert ist. (3) **Phase 3** prüft den Overlay-Text mit 33 Byte in der PWA. **Nicht hier:** L303 und L306 (P2.1e) | — | — |
-| S.27 | `BEFUNDE.md` nachführen: A39, A42/L260, A35 Teil 1, C26, A16, C31, A46, N1, **A5/L38 (STM- und ESP-Teil; PWA-Teil folgt in P3)**, **E17**, alle K-Punkte mit Träger S (erledigt **oder** „zurückgestellt: Flash, gemessen +n Byte"), Gate-Ergebnis, Ergebnis S.7 (einschliesslich der Nachkommabit-Frage), B35 für Zeitserver/Zeitzone, **B36** | `doc-writer` | S.26 | S10 läuft durch; jedes „erledigt" mit Datei:Zeile dieses Commits | ☐ | — |
+| S.27 | `BEFUNDE.md` nachführen: A39, A42/L260, A35 Teil 1, C26, A16, C31, A46, N1, **A5/L38 (STM- und ESP-Teil samt Legacy; PWA-Teil folgt in P3)**, **L-Befund Nachkommabit** (geschlossen mit Prüfstand, oder mit Begründung aus S.7 widerlegt), **E17**, **B17 Spur 3** (Beobachtung aus S.11; danach B17 geschlossen oder mit Beleg offen), alle K-Punkte mit Träger S (erledigt **oder** „zurückgestellt: Flash, gemessen +n Byte"), Gate-Ergebnis, Ergebnis S.7, B35 für Zeitserver/Zeitzone, **B36** | `doc-writer` | S.26 | S10 läuft durch; jedes „erledigt" mit Datei:Zeile dieses Commits | ☐ | — |
 
 **Einspielreihenfolge: erst ESP (S.10), dann STM (S.24).** Dazwischen die Zwischenabnahme
 S.11.
@@ -181,7 +191,8 @@ zurückzustellen hiesse, eine Entscheidung für ihn zu treffen.
 
 **Warum eine eigene kleine Runde nach S:** Der PWA-Teil von A5 liest eine Variable, die erst
 die Firmware aus S liefert. **Firmware vor PWA** (L241). Er gehört nicht in P2, weil P2
-gebaut wird, bevor es Index 49 gibt, und nicht in F, weil F eine reine ESP-Runde ist.
+gebaut wird, bevor es Index 49 gibt, und nicht in F, weil F eine reine ESP-Runde ist. **Die
+Legacy-Seite zeigt Minusgrade schon ab S** (S.4b), weil der ESP sie selbst ausliefert.
 
 **Testdurchlauf:** **kein eigener**; F.12 läuft gegen einen Stand mit P3. Minusgrade sind am
 Gerät nicht herstellbar — tragend ist die Vorschauprobe P3.2.
@@ -190,11 +201,11 @@ Gerät nicht herstellbar — tragend ist die Vorschauprobe P3.2.
 |---|---|---|---|---|---|---|
 | P3.1 | **A5, PWA-Teil:** RTC-Temperatur aus Index 49 lesen (`int16` im Zweierkomplement, halbe Grad), **mit Rückfall auf Index 21**, wenn Index 49 fehlt (alter ESP) oder `0x8000` trägt (alter STM). Formatierung **vorzeichenrichtig** — `formatHalfDegreeValue()` rechnet heute mit `Math.floor` und `%`, das bei negativen Werten falsch rundet (−3 halbe Grad ergäbe „−2.5" statt „−1.5") | `pwa-developer` | S.23 | **AKP3.1** | ☐ | ☐ |
 | P3.2 | **Probe A5** unter `tools/ui-mess/proben/`: Vorschau mit nachgebildeten `numvars` — Index 49 mit den Werten −20 (−10,0 °C), −1 (−0,5 °C), 0, +49 (+24,5 °C), `0x8000`, fehlend | Lead | P3.1 | Jeder Fall zeigt den erwarteten Text; **einmal fehlgeschlagen** gegen den Stand vor P3 (DIR-014), Fallzahl gemeldet (sechs) | ☐ | — |
-| P3.3 | Review | `code-reviewer` | P3.2 | Rückfall auf Index 21 in **beiden** Fällen (fehlt, `0x8000`); keine zweite Formatierfunktion neben der bestehenden; DS18xx-Anzeige unverändert (A2 ist nicht Teil) | — | ☐ |
+| P3.3 | Review | `code-reviewer` | P3.2 | Rückfall auf Index 21 in **beiden** Fällen (fehlt, `0x8000`); keine zweite Formatierfunktion neben der bestehenden; **PWA und Legacy formatieren gleich** (−3 halbe Grad ⇒ „−1.5 °C" in beiden); DS18xx-Anzeige unverändert (A2 ist nicht Teil) | — | ☐ |
 | P3.4 | `APP_VERSION` **und** `CACHE_NAME`; Build, Release-ZIP, Rollout, **Commit + Tag + Push** | `release-engineer`, dann Lead | P3.3 | wie P2.5/P2.6 | ☐ | — |
 | P3.5 | **Nutzer:** `./tools/install-app.sh --check`, `./tools/install-app.sh` | **Nutzer** | P3.4 | neue App-Version | — | — |
-| P3.6 | Abnahme | Lead | P3.5 | `check-pwa.sh` ohne Fehler; die RTC-Temperatur in der PWA ist bei Raumtemperatur **dieselbe** wie vor P3 (Index 49 = Index 21) | — | ☐ |
-| P3.7 | `BEFUNDE.md`: A5/L38 geschlossen (alle drei Teile), mit dem Vermerk, dass Minusgrade nur am Prüfstand und in der Vorschau belegt sind | `doc-writer` | P3.6 | S10 läuft durch | ☐ | — |
+| P3.6 | Abnahme | Lead | P3.5 | `check-pwa.sh` ohne Fehler; die RTC-Temperatur in der PWA ist bei Raumtemperatur **dieselbe** wie auf der Legacy-Seite und wie Index 21 | — | ☐ |
+| P3.7 | `BEFUNDE.md`: A5/L38 geschlossen (alle drei Teile), mit dem Vermerk, dass Minusgrade nur am Prüfstand und in der Vorschau belegt sind und die Uhranzeige bei Minusgraden nach Ent-8 weiterhin 0 °C zeigt | `doc-writer` | P3.6 | S10 läuft durch | ☐ | — |
 
 **Einspielreihenfolge:** nur PWA, **nach** S.24.
 
@@ -230,7 +241,7 @@ laufen deshalb **seriell** in der Reihenfolge der Tabelle.
 | F.8 | Build, Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | F.7, F.5f, C4.3 | `guardrails.sh --full` Exit 0 | ☐ | — |
 | F.9 | **Nutzer-Sitzung F1:** ESP einspielen | **Nutzer** | F.8 | neue ESP-Version in `/api/update_status` | — | — |
 | F.10 | Abnahme am Gerät | Lead | F.9, F.4 | Smoketest **mit der neuen Stufe**, grün; Legacy-Seite **lesend**: Liste zeigt nur passende Dateien; `fs_show` auf eine vorhandene Datei liefert sie unverändert; Release Notes laden (C9k); `/api/stm32_log` ist gültiges JSON in UTF-8 (C23); WLAN unverändert verbunden; Legacy-Overlayseite lädt (C6u); `install-app.sh --check`; Update-Quelle (DIR-009); `watch-log.sh` mitgelesen | — | ☐ |
-| F.11 | **Nutzer-Sitzung F2:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh` (derselbe STM-Stand wie nach S), **dann M2** (entfällt als Nutzerschritt, wenn B19 erledigt ist) | **Nutzer** | F.10 | **AKF.5:** erwartete STM-Version; M2 liegt vor | — | — |
+| F.11 | **Nutzer-Sitzung F2:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh` (derselbe STM-Stand wie nach S), **dann M2** (entfällt als Nutzerschritt, sobald die Passwortdatei aus B19 angelegt ist) | **Nutzer** | F.10 | **AKF.5:** erwartete STM-Version; M2 liegt vor | — | — |
 | F.12 | **Testdurchlauf Phasen 0–4 und 9** — gegen einen Stand mit P3 | `pwa-tester` | F.11 | **AKZ.4.** Bericht nennt die enthaltenen Punkte. **Kein** schreibender Aufruf auf `network_client_set` | — | — |
 | F.13 | Abschlussbilanz in `BEFUNDE.md`: C9c6, L179, **L272 (eigene Zeile, durch F.1 geschlossen)**, C38/L323, Ent-4, Ent-5, C23, C6u, K-Punkte mit Träger F und W, **C4** | `doc-writer` | F.12 | S10 läuft durch; jeder im Paket berührte Befund trägt Status und Beleg | ☐ | ☐ |
 
@@ -269,7 +280,7 @@ Entwurfsfrage. Gerüst und Regeln in `design.md` §6.
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | K.0 | **Abzählung:** K-Punkte aus dem Bericht der Prüfer gegen die Tabellen unten | Lead | — | **AKK.2.** Zahl im Bericht = Zeilen unten (eingeplant, erledigt, geschlossen, wartend; Mehrfachkennungen einzeln gezählt). **Offen:** Der Prüfer nennt 13 STM-K-Punkte, die Liste enthält jetzt 11 Kennungen (mit A9; A5 ist kein K-Punkt mehr) — abgleichen. Abweichung ⇒ zurück an den `spec-writer` | — | — |
-| K.W | **[K] Werkzeug:** E20, E11, E14-Rest, E24-Teil DIR-002, B20, **B19**, **E2** | Lead | — | je Zeile ihr Abnahmesatz. **E11 und F.4 schreiben dieselbe Datei** (`smoke-device.sh`) — nacheinander | ☐ | — |
+| K.W | **[K] Werkzeug:** E20, E11, E14-Rest, E24-Teil DIR-002, B20. **B19 und E2 sind erledigt** | Lead | — | je Zeile ihr Abnahmesatz. **E11 und F.4 schreiben dieselbe Datei** (`smoke-device.sh`) — nacheinander | ☐ | — |
 
 ### K-Tabelle — eingeplant oder erledigt
 
@@ -299,18 +310,18 @@ von S, **gemessen** (Ent-2); **F** = ESP-OTA von F; **W** = Werkzeug ohne Flash.
 | **C6u** | Legacy-Overlay-Formular: `type`, `date_code`, `days` mit blankem `atoi` — **ja, in F** (07.10.2026) | `http.cpp`, `http_overlays()` | F | F.5j | `esp-developer` | … die drei Felder ausserhalb ihres Bereichs mit derselben Abweisungsform wie die API (C18) abgewiesen werden und nichts geschrieben wird | — |
 | **Overlay-Text, PWA** | fehlt in `TEXT_FIELD_LIMITS` | `app.js` | **P2** | P2.1 | `pwa-developer` | … die Vorschauproben aus P2.1 bestehen und `TEXT_FIELD_LIMITS` zehn Werte führt | — |
 | **B26** | `formatLittleFs()` und zwei Kennungen | `app.js` | **P — erledigt** | — | — | **Erledigt mit PWA 1.4.91**, mit Gegenprobe. `files-panel` und `local-update-panel` **bleiben** | — |
+| **B19** | Phase 0 ohne Nutzer | `tools/snapshot-device.sh` | W — **erledigt** | — | Lead | **Erledigt mit `e121058`** (Meldung des Leads): `snapshot-device.sh` liest `SNAPSHOT_PASS`, dann `~/.config/wordclock/snapshot.pass` (`SNAPSHOT_PASS_FILE`), dann das Terminal; Abbruch bei einer Datei im Repo, bei Modus ≠ `x00` und bei einer leeren Datei; das Passwort läuft über `env:`/`file:` statt über die Prozessliste. **Offen bleibt nur die Datei selbst — die legt der Nutzer an**; bis dahin bleibt M2 ein Nutzerschritt. Die alte Sicherung bleibt | — |
+| **E2** | Vier tote Bundle-Dateien | `ESP8266/ESP-uclock/` | W — **erledigt** | — | Lead | **Erledigt mit `8dfba36`** (Meldung des Leads): Die Dateien lagen **nicht** unter `data/app/`, sondern unter `ESP8266/ESP-uclock/` — `APP-BUNDLE.md`, `data/app-bundle.txt`, `tools/*.py\|sh` — und gehörten damit in das Revier des Leads bzw. des `doc-writer` | — |
 | **E20** | Besitz-Hook auf Schreibpositionen | `tools/hooks/file-ownership.py` | W | K.W | Lead | … zwei Gegenproben bestehen: fremder Pfad nur im Meldungstext ⇒ läuft durch; Schreiben in eine fremde Datei ⇒ abgewiesen (DIR-014) | — |
 | **E11** | Smoketest: Versionen gegen den Repo-Sollstand, leerer Logring als eigener Zustand | `tools/smoke-device.sh` | W | K.W | Lead | … beide Fälle einmal mit festem Testwert ausgelöst und gemeldet | — |
 | **E14-Rest** | Override-Option in `vermessen.mjs` für das DFPlayer-Modul | `tools/ui-mess/` | W | K.W | Lead | … ein Vorschaulauf mit der Option die drei `.chip-toggle` des DFPlayer-Moduls misst | — |
 | **E24, Teil DIR-002** | Kurzregel nennt ihre Kennung nicht | `CLAUDE.md` | W | K.W | Lead | … die Kurzregel in `CLAUDE.md` „DIR-002" nennt und die Direktiven-Stufe durchläuft | — |
 | **B20** | Kein `git add -A`, solange Agenten laufen | Lead-Verfahren | W | K.W | Lead | … die Regel am Commit-Schritt des Skills `/release` steht, mit Verweis auf L158 | — |
-| **B19** | Phase 0 ohne Nutzer — **Passwort aus einer Datei ausserhalb des Repos** (07.10.2026) | `tools/snapshot-device.sh`, `TESTPLAN-PWA.md`, `tools/device.conf.example` | W | K.W | Lead | … `snapshot-device.sh` das Passwort aus einer Datei **ausserhalb** des Repos liest (Pfad über `tools/device.conf`, die Datei selbst nirgends im Repo); ohne die Datei bricht es **vor** dem ersten Abruf ab (L300 bleibt); `TESTPLAN-PWA.md` Phase 0 sagt, dass der Agent M2 selbst anlegt; **das Passwort erscheint in keinem Mitschnitt, keiner Prozessliste und keiner Logzeile** (Gegenprobe: `ps` während des Laufs, Skriptausgabe); die alte Sicherung `vor-durchlauf-3.2.15.tar.gz.enc` **bleibt** | — |
-| **E2** | Vier tote Bundle-Dateien — **löschen** (07.10.2026) | laut L1 | W | K.W | Lead | … die vier Dateien entfernt sind, `install-app.sh --check` und `APP_INSTALL_ASSETS` sie nicht nennen und Guardrails sowie `check-pwa.sh` durchlaufen. **Vorher prüfen, wem die Dateien nach R3 gehören** — liegen sie unter `data/app/`, gehört das Löschen dem dortigen Besitzer, nicht dem Lead | — |
 
 Schon in den Kernrunden geführt und deshalb **nicht doppelt** gezählt: **C9c6, C28**
 (F.1), **B33** (ausgeliefert mit P). **B40/L321**, die **SSID-Auswahl**, **Massnahme 4**,
-**L303/L306**, **C38/L323** und **A5** sind keine K-Punkte aus der Nachzählung — sie stehen
-als eigene Tasks in P2, S, P3 bzw. F.
+**P2-Review N1/N2**, **L303/L306**, **C38/L323**, **A5** und der **L-Befund Nachkommabit**
+sind keine K-Punkte aus der Nachzählung — sie stehen als eigene Tasks in P2, S, P3 bzw. F.
 
 ### K-Tabelle — entschieden, ohne Umsetzung
 
@@ -319,13 +330,15 @@ als eigene Tasks in P2, S, P3 bzw. F.
 | **C2** | Request-Zeile **bleibt bewusst unbedingt** — geschlossen | `doc-writer`, P2.9 |
 | **C9c4** | Heap-Zeile **bleibt** — geschlossen | `doc-writer`, P2.9 |
 | **C4** | Umschrift ASCII — **eigener Schritt C4**, nicht mit S | Schritt C4 |
-| **A5** | **Echte Minusgrade, nicht klemmen** — kein K-Punkt mehr, sondern Protokolländerung: S.4b, S.18b, P3 | `design.md` §7 |
+| **A5** | **Echte Minusgrade in PWA und Legacy**, Uhranzeige unverändert (Ent-8) — kein K-Punkt mehr, sondern Protokolländerung: S.4b, S.18b, P3 | `design.md` §7 |
+| **B17** | Spuren 1 und 2 im Code abgedeckt; Spur 3 wird in S.11 beobachtet; P2.2/P2.3 entfallen | `doc-writer`, P2.9 und S.27 |
 
 ### K-Tabelle — wartet auf den Nutzer
 
 | Kennung | Offene Frage | Hinweis |
 |---|---|---|
 | **E3** | Kondensatorwert `C116` in KiCad | Der Nutzer sieht nach; ausserhalb dieses Repos |
+| **B19, Rest** | Die Passwortdatei `~/.config/wordclock/snapshot.pass` anlegen | Handlung des Nutzers; danach fährt der Agent Phase 0 selbst |
 
 ---
 
@@ -333,7 +346,7 @@ als eigene Tasks in P2, S, P3 bzw. F.
 
 **Erlaubt:**
 
-- P2.1, P2.1b, P2.1d und P2.1f nacheinander (ein `pwa-developer`, dieselbe Datei); P2.2 und
+- P2.1, P2.1b, P2.1d, P2.1f und P2.1h nacheinander (ein `pwa-developer`, dieselbe Datei);
   P2.1e (Lead) gleichzeitig dazu — P2.1e arbeitet mit einem zurückgebauten Stand im
   Scratchpad, nicht im Arbeitsbaum.
 - S.7 und S.12 (lesend) jederzeit, auch während P2.
@@ -352,7 +365,8 @@ als eigene Tasks in P2, S, P3 bzw. F.
 - **S.14 vor S.11** — die Zwischenabnahme muss den reinen ESP-Stand sehen.
 - **S.15b zusammen mit einer anderen Änderung** — die Umbenennung ist ein eigener Diff.
 - **Zwei Schreiber in derselben Datei.** `app.js` nur `pwa-developer`; `src/**` in S.14 bis
-  S.19i nacheinander, C4.1 erst danach; `http.cpp` in S.5 und in F.1 bis F.5j nacheinander.
+  S.19i nacheinander, C4.1 erst danach; `http.cpp` in S.4b, S.5 und in F.1 bis F.5j
+  nacheinander.
 - **Ein zurückgebauter Prüfstand im Arbeitsbaum** (L268).
 - **Kein Teammate führt `make` aus** (R1); Versionen nur über den `release-engineer` (R4).
 - **Hardware ist exklusiv** (R5). **`network_client_set` bleibt in jedem Gerätetest dieses

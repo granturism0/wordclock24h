@@ -1,13 +1,15 @@
 # Design — Paket 2026-10-06 (Runden P, P2, S, P3, F, C4, verteilte Runde K)
 
 **Erstellt:** 2026-10-06, Stand `401aae2`. **Nachgeführt** am 06.10.2026 nach der
-Auslieferung von P und dem Gerätetest (L324), am **07.10.2026** mit den Entscheidungen des
-Nutzers. **Freigegeben am 07.10.2026** (Ent-1). Momentaufnahme (DIR-006).
+Auslieferung von P und dem Gerätetest (L324), am **07.10.2026** in zwei Durchgängen mit den
+Entscheidungen des Nutzers. **Freigegeben am 07.10.2026** (Ent-1). Momentaufnahme (DIR-006).
 
 **Rundenfolge:** **P (ausgeliefert) → P2 → S → P3 → F**, dazu **C4** ohne Flash nach S.
-Runde K fährt mit (§6). Kennungen: „N1"/„N2" sind Befunde der Nachzählung; **B40/L321**,
-**C38/L323**, **L324** aus dem Gerätetest von 1.4.91; „Ent-n" sind Entscheidungen
-(`requirements.md`). **`vars.h` ohne Pfad meint `ESP8266/ESP-uclock/vars.h`.**
+Runde K fährt mit (§6). Kennungen: „N1"/„N2" ohne Zusatz sind Befunde der Nachzählung,
+„P2-Review N1/N2" die zwei Befunde aus dem Review von P2; **B40/L321**, **C38/L323**, **L324**
+aus dem Gerätetest von 1.4.91; „L-Befund Nachkommabit" (Nummer vergibt der Lead); „Ent-n"
+sind Entscheidungen (`requirements.md`). **`vars.h` ohne Pfad meint
+`ESP8266/ESP-uclock/vars.h`.**
 
 ---
 
@@ -20,12 +22,12 @@ Runde K fährt mit (§6). Kennungen: „N1"/„N2" sind Befunde der Nachzählung
 | Reihenfolge | … → S → P → U → F | **P → P2 → S → P3 → F**, C4 ohne Flash | Nutzer; P2 aus dem Rest von P; P3 für A5 |
 | Runde K | — | **neu**, ohne eigenen Flash | Nutzer, Nachzählung |
 | Runde P | B33, B24 | **ausgeliefert als 1.4.91** | — |
-| Runde P2 | — | Overlay-Text, **B40**, **SSID-Auswahl**, **Massnahme 4**, B17, Probe L303/L306 | L324 |
-| Runde S | A39, L260, A35 T1, C26, A16 | dasselbe **plus C31, A46, N1, E17, A5** und neun STM-K-Punkte; **zweistufiges Flash-Gate**, Reserve 1'024 Byte | L298, L291, Nachzählung, L296, Entscheidungen vom 07.10. |
+| Runde P2 | — | Overlay-Text, **B40**, **SSID-Auswahl**, **Massnahme 4 (nur vier Netzwerkfelder)**, **P2-Review N1/N2**, Probe L303/L306 | L324, Review |
+| Runde S | A39, L260, A35 T1, C26, A16 | dasselbe **plus C31, A46, N1, E17, A5 (mit Legacy) samt Nachkommabit** und neun STM-K-Punkte; **zweistufiges Flash-Gate**, Reserve 1'024 Byte; **B17 Spur 3** als Beobachtung | L298, L291, Nachzählung, L296, Entscheidungen vom 07.10. |
 | Runde P3 | — | **A5 in der PWA** | Firmware vor PWA (L241) |
 | Runde F | C9c6, 65535-Liste, Smoketest | dasselbe **plus C28, C38, Ent-4, Ent-5, C23, C6u** und K-Punkte | §3, §6 |
 | Schritt C4 | — | Umschrift ASCII, **`.hex`-Gleichheit, kein Flash** | Nutzer, §8 |
-| Testdurchlauf | eine Abnahme je Runde | **je Runde ein eigener Task**; P2 und P3 begründet ohne; **M2 nach B19 durch den Agenten** | L302, §5 |
+| Testdurchlauf | eine Abnahme je Runde | **je Runde ein eigener Task**; P2 und P3 begründet ohne; **M2 durch den Agenten, sobald die Passwortdatei aus B19 liegt** | L302, §5 |
 | Zähler C26 | „Logring **oder** `/api/device_ready`" | **nur Logring** | §4.2 |
 | Prüfstände, Proben | vom Umsetzer abgelegt | Umsetzer baut, **Lead legt ab** | `tools/**` |
 | STM-Guards | Gerätetest | **nur Prüfstand** (S15) | über HTTP nicht herstellbar |
@@ -59,78 +61,82 @@ Zahl, die das Gerät prüft.**
 | Update-Host / -Pfad | je 63 | `:192-193` | weist ab | prüft |
 | **Overlay-Text** | 32 | `:414` | **kürzt still** — K-Punkt F | **fehlt — P2.1** |
 
-**Der Overlay-Text gehört in dieselbe Tabelle**, obwohl das Gerät ihn heute noch kürzt —
-bis zum F-OTA ist die PWA der einzige Schutz. **Die Prüfung sitzt an der Endpunktgrenze,
-nicht am Eingabefeld**, weil Eingabefeld, Kartenauswahl, Overlay-Editor und Backup-Import
-dieselben Endpunkte beschreiben (L179 in der PWA). `index.html` bleibt unverändert.
+Die Prüfung sitzt **an der Endpunktgrenze**, nicht am Eingabefeld (L179 in der PWA).
+`index.html` bleibt unverändert.
 
-### 1.2 R1 und R2 — Kennung 6 aus `fs_remove` ist doppelt belegt
+### 1.2 R1 und R2 — Kennung 6 aus `fs_remove`
 
-`http_api_fs_remove()` meldet Kennung 6 für „file not found" (`:11536`) **und** „remove
-failed" (`:11545`). **Regel (ausgeliefert):** Kennung 6 erst nach erneutem Listenabruf
-deuten. **Ent-4 = ja:** F.2 gibt „remove failed" eine eigene Kennung; die PWA-Regel bleibt
-richtig, und bis zu einer Übersetzung zeigt `describeApiError()` den Rückfalltext mit Detail.
+Ausgeliefert: Kennung 6 erst nach erneutem Listenabruf deuten. **Ent-4 = ja:** F.2 gibt
+„remove failed" eine eigene Kennung; bis zu einer Übersetzung zeigt `describeApiError()` den
+Rückfalltext mit Detail.
 
-### 1.3 B36, 1.4 B34, 1.5 R3, R4, B33, B27, B26, B32, B17
+### 1.3 bis 1.5 — B36, B34, R3, R4, B33, B27, B26, B32
 
-Ausgeliefert wie entworfen: B36 über den Rückgabewert von `runButtonRequest()`; B34 über
-den Schutz gefüllter Flächen in `applyTranslations()`; R3 einmal je Sitzung sichtbar (löst
-C32 nicht); R4 überspringt und nennt; B33 zeigt „binär"; B27 mit „Sekunden am
-Ambilight-Ring weich ausblenden"; B26 entfernt, die Kennungen `files-panel` und
-`local-update-panel` bleiben als Panelnamen von `tools/ui-mess`; B32 gefahren. **B17** ist
-nicht gemacht und steht in P2 (nur wenn klein).
+Ausgeliefert wie entworfen. **B17** ist nicht in P und **nicht in P2** — siehe §1.11.
 
 ### 1.6 E31 ist erledigt — mit einem Vorbehalt
 
-Ob die STM-Indexguards greifen, ist über HTTP nicht zeigbar, weil der ESP jeden Index vorher
-abweist. **Abnahme von STM-Guards über den Prüfstand** (AKK.6).
+STM-Indexguards sind über HTTP nicht zeigbar; Abnahme über den Prüfstand (AKK.6).
 
-### 1.7 P2: Einspielen, und warum P2 keinen eigenen Testdurchlauf hat
+### 1.7 P2: warum vor S, und warum ohne eigenen Testdurchlauf
 
 **P2 vor S**, weil jeder S-Build `app-gz` mitbaut (§4.1). **Kein eigener
-`pwa-tester`-Durchlauf**, aber nicht mehr wegen der Grösse:
-
-- **B40 und die SSID-Auswahl sind Wettläufe.** Ein Gerätelauf träfe sie zufällig und meldete
-  bei Verfehlen grün. In der Vorschau mit verzögerter `network_scan`-Antwort sind sie gezielt
-  herstellbar — **Probe P2.1c**, einmal gegen 1.4.91 fehlgeschlagen.
-- **L303 und L306** brauchen eine Fehlerantwort, die an einer produktiven Uhr nicht folgenlos
-  entsteht — **Probe P2.1e** mit nachgebildeter Antwort (§1.10).
-- **Massnahme 4** ist in der Vorschau vollständig prüfbar.
-- **Am Gerät lesend, ohne Speichern** (P2.8); **S.26** prüft B35 am Zeitserver mit
-  Speichern.
-
-**Offen bleibt ausdrücklich:** Zwischen P2-Upload und S.26 sind B40 und die SSID-Auswahl am
-Gerät nur lesend belegt; L303 und L306 nie mit echtem Fehlschlag.
+`pwa-tester`-Durchlauf:** B40 und die SSID-Auswahl sind **Wettläufe** — ein Gerätelauf
+träfe sie zufällig und meldete bei Verfehlen grün; die **Probe P2.1c** stellt sie in der
+Vorschau gezielt her. L303 und L306 brauchen eine nachgebildete Fehlerantwort (**P2.1e**).
+Massnahme 4 ist in der Vorschau prüfbar. Am Gerät lesend ohne Speichern (P2.8); **S.26**
+prüft B35 am Zeitserver mit Speichern. **Offen bleibt ausdrücklich:** Zwischen P2-Upload und
+S.26 sind B40 und die SSID-Auswahl am Gerät nur lesend belegt; L303/L306 nie mit echtem
+Fehlschlag.
 
 ### 1.8 B40 / L321 und die SSID-Auswahl — eine Regel, drei Stellen
 
-**B40:** `updateNetworkControlsFromMeta()` setzt Zeitserver und Zeitzone nach **jeder**
-`network_scan`-Antwort ohne Bedingung; „Speichern" schickt danach still den alten Wert.
-**SSID-Auswahl** (P2.1f): `network-ssid-select` wird bei jedem Scan per `innerHTML` neu
-aufgebaut, mit `selected` auf der Geräte-SSID — eine ungespeicherte Auswahl geht verloren.
+Zeitserver und Zeitzone (B40) und die SSID-Auswahl (P2.1f) werden nach jeder
+`network_scan`-Antwort neu gesetzt bzw. neu aufgebaut. **Lösung für alle drei:** **dieselbe**
+`prefillDeviceValue()`-Regel wie bei der AP-SSID (L34) — ein Gerätewert setzt nur, was weder
+fokussiert noch vom Nutzer geändert ist; bei der Auswahlliste wird eine abweichende,
+ungespeicherte Auswahl nach dem Neuaufbau wiederhergestellt. **Keine zweite und keine dritte
+Fassung** (L179, L289). SSID-Namen gehen nie roh per `innerHTML` ins DOM.
 
-**Lösung für beide:** **dieselbe** `prefillDeviceValue()`-Regel wie bei der AP-SSID (L34):
-Ein Gerätewert setzt nur, was weder fokussiert noch vom Nutzer geändert ist. Bei der
-Auswahlliste heisst das: Die Liste darf neu aufgebaut werden, aber eine vom Gerätewert
-abweichende, ungespeicherte Auswahl wird danach wiederhergestellt. **Keine zweite und keine
-dritte Fassung** (L179, L289). SSID-Namen sind Fremddaten aus der Luft — sie gehen weiter
-über `escapeHtml` oder DOM-Knoten ins DOM, nie roh per `innerHTML`.
+### 1.9 Massnahme 4 in engerer Form — nur die vier vorbefüllten Netzwerkfelder
 
-### 1.9 Massnahme 4 in engerer Form — ändern heisst abweichen
+**Befund (L324):** `handleDirtyFormInteraction()` setzt `hasUnsavedEdits` bei jeder Eingabe.
+**Entscheidung des Leads (07.10.2026): Die Vergleichsregel gilt nur für die vier
+vorbefüllten Netzwerkfelder.** Dort ist geändert, was **vom Ausgangswert abweicht**, mit
+**demselben** Ausgangswert, den `prefillDeviceValue()` aus §1.8 kennt. **An allen anderen
+Feldern bleibt das Verhalten, wie es ist** — eine Eingabe gilt dort weiter als Änderung.
 
-`handleDirtyFormInteraction()` setzt `hasUnsavedEdits` bei jeder Eingabe. Künftig: geändert
-ist, was **vom Ausgangswert abweicht** — und der Ausgangswert ist **derselbe**, den
-`prefillDeviceValue()` aus §1.8 kennt. Zwei Antworten auf „was ist der Gerätewert" liefen
-auseinander, sobald eine geändert wird.
+**Warum so eng:** Genau an diesen vier Feldern gibt es einen Gerätewert, den die Oberfläche
+vorbefüllt und gegen den sich „unverändert" sauber entscheiden lässt. Bei allen anderen
+Feldern müsste der Ausgangswert erst eingeführt werden — das wäre ein Umbau der
+Dirty-Erkennung, nicht ihre Korrektur.
+
+**Was daraus für die Dokumentation folgt:** `BEFUNDE.md` führt Massnahme 4 als
+**eingeschränkt** umgesetzt (P2.9). Stünde sie als „erledigt", glaubte der nächste Leser,
+der Dialog sei überall genau — und das ist er nicht.
+
+**Die zwei Befunde aus dem P2-Review (P2.1h)** betreffen genau diese Regel: **P2-Review N1**
+(Ersatz-Ausgangswert `networks[0]`) und **P2-Review N2** (`unsavedEditFields` nach dem
+Vorbefüllen). Sie werden vor dem Review P2.4 behoben; die Probe P2.1c muss danach erneut grün
+laufen.
 
 ### 1.10 L303 und L306 — Nachweis über eine nachgebildete Fehlerantwort
 
-Hinter `runConfirmedButtonAction` stehen `downloadUpdateAssets`, `resetStm32` und
+Hinter `runConfirmedButtonAction` stehen `downloadUpdateAssets`, `resetStm32`,
 `formatLittleFsFromFiles` — nichts davon lässt man an einer produktiven Uhr scheitern; ein
-Flag-Umschalten (L306) scheitert nicht über einen zu langen Text. **Probe P2.1e** bildet die
-Fehlerantwort nach. **Einmal fehlgeschlagen gegen einen künstlich zurückgebauten Stand**, im
-Scratchpad (L268), weil 1.4.91 die Korrekturen schon enthält. **Warum das genügt:** Beide
-Befunde betreffen die **Darstellung** einer Fehlerantwort, nicht ihr Zustandekommen.
+Flag-Umschalten (L306) scheitert nicht über einen zu langen Text. **Probe P2.1e**, einmal
+gegen einen künstlich zurückgebauten Stand fehlgeschlagen (Scratchpad, L268). Beide Befunde
+betreffen die **Darstellung** einer Fehlerantwort, nicht ihr Zustandekommen.
+
+### 1.11 B17 — aus P2 heraus, Spur 3 wird in S beobachtet
+
+**Entscheidung des Leads (07.10.2026):** Die Spuren 1 und 2 aus L142 — verschluckter Fehler,
+hängendes `stm32LogRefreshInFlight` — sind im Code abgedeckt. **P2.2 und P2.3 entfallen.**
+Offen ist **Spur 3:** ein leerer Logring nach einem ESP-Neustart, den das Logfenster nicht
+als solchen erkennbar macht. **Der ESP-OTA von S ist genau dieser Auslöser** — deshalb wird
+Spur 3 in **S.11** lesend beobachtet: PWA unmittelbar nach dem Neustart laden, Modul
+`system`, Logfenster ohne Reload, mit Zeitstempeln. Ergebnis an S.27: B17 geschlossen oder
+mit Beleg offen. **Kein zusätzlicher Gerätezugriff** — der Neustart passiert ohnehin.
 
 ---
 
@@ -138,178 +144,100 @@ Befunde betreffen die **Darstellung** einer Fehlerantwort, nicht ihr Zustandekom
 
 ### 2.0 Zwei Richtungen
 
-`CAP var-crc` und `FIRMWARE` laufen **ESP → STM**; Prüfsummen-Marke **STM → ESP**; Quittung
-`.` und `!v` **ESP → STM**. **Alle Neuerungen dieser Runde laufen STM → ESP**, und dafür gibt
-es keinen Fähigkeitskanal. **Die Information reist im Strom mit.** Das gilt auch für A5
-(§7): Die neue Variable trägt ihren eigenen „unbekannt"-Wert, statt dass eine Fähigkeit
-gemeldet wird.
+`CAP var-crc` und `FIRMWARE` laufen **ESP → STM**; die Neuerungen dieser Runde **STM → ESP**,
+ohne Fähigkeitskanal. **Die Information reist im Strom mit** — auch bei A5: Die neue
+Variable trägt ihren eigenen „unbekannt"-Wert (§7).
 
 ### 2.1 A39 / L259 — kein verschachtelter 194er-Stoss mehr
 
-✔ `src/main.c:3217` ruft im `IPADDRESS`-Zweig direkt `var_send_all_variables()`; der
-`SYNCVARS`-Zweig (`:3243-3266`) merkt vor. **Variante (b):** vormerken, im Hauptloop senden
-(`:3946-3949`), **danach** den IP-Lauftext setzen. **`pending_weather_ticker_restore`
-wandert mit dem Ticker mit.** A39 schützt zugleich den Empfangsring für §2.4.
+✔ `src/main.c:3217`. **Variante (b):** vormerken, im Hauptloop senden, **danach** den
+IP-Lauftext setzen; **`pending_weather_ticker_restore` wandert mit**. A39 schützt zugleich
+den Empfangsring für §2.4.
 
 ### 2.1b E17 — die Umbenennung, als eigener Diff nach A39
 
-**Entscheidung des Nutzers (07.10.2026): mit S.** Die frühere Empfehlung dieser Spec war
-„nicht mit S", weil eine Umbenennung im selben Flash den Diff von A39 unlesbar macht. **Die
-Entscheidung lässt sich so umsetzen, dass dieser Einwand entfällt:**
-
-- **S.15 (A39) bleibt beim alten Namen.** Sein Diff zeigt nur die Verschiebung.
-- **S.15b ist die Umbenennung allein** — `pending_weather_ticker_restore` →
-  `pending_ticker_restore` (Vorschlag; der Name sagt, was L217 belegt: Das Flag trägt alle
-  Ticker). **Keine andere Änderung.** Der Lead prüft mit `git diff --word-diff`; jede
-  Zeile, die mehr als den Bezeichner ändert, ist ein Fehlschlag.
-- **S.15c/S.15d ziehen die Dokumente nach:** `CLAUDE.md` (Lead), `knowledge/quick-reference.md`
-  und `knowledge/architecture-checklist.md` (`doc-writer`), dazu `tools/**` (Lead), falls
-  ein Werkzeug den Namen sucht. **Commitet mit S.23**, damit Code und Invariante nie
-  auseinanderstehen.
-- **Kein Flash:** Bezeichner erscheinen im Fabrikat nicht. Der Testbau S.18 dient zugleich
-  als Gegenprobe — ein Zuwachs durch S.15b wäre ein Hinweis, dass mehr geändert wurde.
+**Entscheidung des Nutzers: mit S.** So eingeordnet, dass der Diff von A39 lesbar bleibt:
+**S.15** bleibt beim alten Namen; **S.15b** ist die Umbenennung allein
+(`pending_weather_ticker_restore` → `pending_ticker_restore`, Vorschlag), geprüft mit
+`git diff --word-diff`; **S.15c/S.15d** ziehen `CLAUDE.md`, `tools/**`,
+`knowledge/quick-reference.md` und `knowledge/architecture-checklist.md` nach, **commitet mit
+S.23**. Kein Flash — der Testbau S.18 dient als Gegenprobe.
 
 ### 2.2 L260 / A42 — ein Erfolgskriterium, das den ganzen Satz prüft
 
-`var_sync_check()` (`ESP-uclock.ino:753`) prüft nur das dritte von rund 194 Kommandos.
-**Eröffnungszeile und Abschlussmarke im Strom**; ohne Eröffnungszeile gilt das heutige
-Kriterium. Kosten: zwei Kommandos.
-
-#### Die Prämisse — drei Punkte (L269)
-
-1. **`var_cmd_min_len()` liefert für einen unbekannten Buchstaben `0`** (`vars.cpp:914`),
-   von E2.1 ausdrücklich erhalten (L265).
-2. **`var_set_parameter()` hat keinen `default:`-Zweig.**
-3. **Die gefährliche Zeigerarithmetik steht nur in den `case`-Rümpfen** — versionsrobust.
-
-#### Auflagen und Verpackung
-
-Kommandobuchstabe ausserhalb `N n S T D A C M O t a l I`; Nutzlast endet nicht auf `*` +
-vier Hexziffern; Nutzlast unter 72 Zeichen. **Verpackung `var <Buchstabe>…` über
-`var_send_buf()`, verbindlich:**
+Eröffnungszeile und Abschlussmarke im Strom; ohne Eröffnungszeile gilt das heutige
+Kriterium. **Prämisse in drei Punkten** (L269): `var_cmd_min_len()` liefert für einen
+unbekannten Buchstaben `0` (von E2.1 erhalten), `var_set_parameter()` hat keinen
+`default:`-Zweig, die Zeigerarithmetik steht nur in den `case`-Rümpfen. **Auflagen:**
+Buchstabe ausserhalb `N n S T D A C M O t a l I`; Nutzlast nicht auf `*` + vier Hexziffern;
+unter 72 Zeichen; **Verpackung `var <Buchstabe>…`**:
 
 > **Ein eigenes Top-Level-Präfix wäre gefährlich.** Die ESP-Kette hat **kein
-> abschliessendes `else`** — auf ein unbekanntes Präfix antwortet der ESP **gar nicht**,
-> `var_send_buf()` läuft je Zeile 3 Sekunden leer, **ohne `watchdog_reload()`**. **Das ist
-> exakt die Mechanik aus L266.**
+> abschliessendes `else`**, `var_send_buf()` liefe je Zeile 3 Sekunden leer, **ohne
+> `watchdog_reload()`**. **Das ist exakt die Mechanik aus L266.**
 
-### 2.3 C26 / L253 — Zähler **und** Markenpflicht
+### 2.3 C26, 2.4 A35, 2.5 die beiden Warnungen, 2.6 A16
 
-Zähler über den Logring; Markenpflicht für `HARDWARE_CONFIGURATION`, Update-Host,
-Update-Pfad, Abweisung mit **`!v`**, nicht mit Schweigen. Liste **aufgezählt**.
+Wie in der vorigen Fassung: Zähler über den Logring und Markenpflicht mit `!v`; `ACK <xy>` als
+eigene Zeile vor jeder Quittung; *„Ein Mechanismus, dessen Sicherheit an einem
+Hardware-Nebeneffekt hängt, ist nicht abgesichert"* und *„Die `var `-Verpackung ist nicht
+stumm, sondern regulär quittiert"*; A16 mit Spiellauf des Nutzers (Ent-6).
 
-### 2.4 A35 / L233 — Zuordnung der Quittung
+### 2.7 Das Flash-Gate, zweistufig (Ent-2, Ent-7)
 
-`ACK <xy>` als **eigene Zeile vor** jeder Quittung; ein alter STM verwirft sie und liest den
-Punkt unverändert. Herkunft der zwei Zeichen in S.2 festzulegen. Kosten rund 1,5 kB je
-Vollabgleich. **Teil 2 nicht in diesem Paket.**
+**Lage:** 1'924 Byte frei, **Reserve 1'024 Byte** — für S also **rund 900 Byte**. Darin: der
+Kern, **A5 samt Nachkommabit**, neun STM-K-Punkte.
 
-### 2.5 Zwei Warnungen (aus der alten Spec §6.5)
-
-> **Ein Mechanismus, dessen Sicherheit an einem Hardware-Nebeneffekt hängt, ist nicht
-> abgesichert — er hat bisher Glück gehabt.**
-
-> **Die `var `-Verpackung ist nicht stumm, sondern regulär quittiert — und gerade das
-> rettet den Entwurf.**
-
-### 2.6 A16 / L106 — Tetris und Snake
-
-Vom Nutzer bestätigt (Ent-6), samt 60 Sekunden Spiellauf. S7 führt zwei Stellen mehr.
-
-### 2.7 Das Flash-Gate, zweistufig (Ent-2 entschieden, Ent-7 entschieden)
-
-**Lage:** 1'924 Byte frei auf dem F103; **Reserve 1'024 Byte** (Ent-2). Verfügbar für S
-also **rund 900 Byte**. Darin: der Kern, **A5**, und neun STM-K-Punkte (mit A9).
-
-**Stufe 1 — Vorabschätzung (S.12).** Zweck: erkennen, ob **schon der Kern** nicht passt.
-
-**Stufe 2 — Testbauten (S.18, dann nach S.18b und jedem S.19x).** Nur F103, ohne ZIP, durch
-den Lead, seriell, zwischen abgeschlossenen Tasks. **Ent-7:** R1 soll paralleles Bauen
-verhindern; das bleibt gewahrt. „Einmal am Ende" stammt aus einer Zeit ohne Flash-Gate.
-
-**Reihenfolge und Regel (Ent-2):**
+**Stufe 1 (S.12):** Vorabschätzung — passt **schon der Kern**? **Stufe 2:** Testbauten nach
+dem Kern und nach jedem weiteren Teil; nur F103, ohne ZIP, durch den Lead, seriell.
+**Ent-7:** R1 soll paralleles Bauen verhindern; das bleibt gewahrt.
 
 | # | Teil | Bei Unterschreitung der Reserve |
 |---|---|---|
-| S.18b | **A5** | **anhalten und vorlegen** — Festlegung dieser Spec (§7.6) |
+| S.18b | **A5** (mit Nachkommabit, falls bestätigt) | **anhalten und vorlegen** — Festlegung dieser Spec (§7.6) |
 | S.19a | A20 | anhalten und vorlegen |
 | S.19b | A13+A47 | anhalten und vorlegen |
 | S.19c | A3+A48 | anhalten und vorlegen |
-| S.19d | A24 | zurückstellen, weiter |
-| S.19e | A45 | zurückstellen, weiter |
-| S.19f | A14 | zurückstellen, weiter |
-| S.19g | A46 | zurückstellen, weiter |
-| S.19h | A49 | zurückstellen, weiter |
+| S.19d–S.19h | A24, A45, A14, A46, A49 | zurückstellen, weiter |
 | S.19i | A9 | zurückstellen |
 
-Ein zurückgestellter Punkt wird **ganz** zurückgenommen, **erneut gemessen** und steht mit
-seiner Zahl in der K-Tabelle. **Gegenprobe S.23:** S8b neben Schätzung und Testbauten.
+**Gegenprobe S.23:** S8b neben Schätzung und Testbauten.
 
-### 2.8 C31 / L298 — keine Schlüssel auf der UART
+### 2.8 bis 2.10 — C31, A46/A47, C32
 
-„gesetzt"/„leer", kein Wert, keine Länge. Zweitweg über die STM-Logausgabe in S.7.
-
-### 2.9 A46; A47 mit A13
-
-A46 schliesst AKH.4 für die Datenpfade; A47 fährt mit A13 (L96: je Stelle den Verbraucher
-prüfen). Beide ändern nichts an angenommenen Zeilen.
-
-### 2.10 C32 — bewusst nicht in S
-
-Anderer Gegenstand, offene Entwurfsfrage. **Aber die Lehre aus C32 trägt A5** (§7.2).
+C31 „gesetzt"/„leer"; A46 schliesst AKH.4 für die Datenpfade; A47 mit A13 (L96); C32 nicht
+in S — **die Lehre aus C32 trägt A5** (§7.2).
 
 ### 2.11 Einspielen
 
-**Erst ESP (S.10), dann STM (S.24);** dazwischen der Rückfallnachweis S.11. Nach dem ESP-OTA
-`install-app.sh --check` und Update-Quelle (DIR-009).
+**Erst ESP (S.10), dann STM (S.24);** dazwischen der Rückfallnachweis S.11 — und dort auch die
+Beobachtung zu B17 Spur 3 (§1.11).
 
 ### 2.12 N1 — der Legacy-Overlayindex, und warum er mit S fährt
 
-✔ `http_overlays()` (`http.cpp:4689-4717`): `oidx` aus `atoi`, nur gegen `0xff` geprüft,
-Schreibzugriff über 32 Plätze, auch per `<img>` von einer fremden Seite. **Typbreite** (L256):
-`uint_fast8_t` ist auf Xtensa breiter als ein Byte. **Fix:** `oidx < MAX_OVERLAYS && oidx <=
+`http_overlays()` (`http.cpp:4689-4717`): `oidx` aus `atoi`, nur gegen `0xff` geprüft,
+Schreibzugriff über 32 Plätze, auch per `<img>`. **Fix:** `oidx < MAX_OVERLAYS && oidx <=
 n_overlays` vor jedem Schreibzugriff und vor `n_overlays++`. **Mit S**, weil S-ESP der
-nächste ESP-Flash ist. STM-Seite über A3+A48 (S.19c), abgenommen über den Prüfstand.
-**C6u** (F.5j) fasst später dieselbe Funktion an — nacheinander, nie gleichzeitig.
+nächste ESP-Flash ist. STM-Seite über A3+A48, abgenommen über den Prüfstand. **C6u** (F.5j)
+fasst später dieselbe Funktion an.
 
 ---
 
 ## 3. Runde F — Flash-Überwachung
 
-### 3.1 Eine Funktion für drei Stellen
+**3.1** Legacy-Flashzweig, Legacy-Liste und `fname + 6` über
+`http_remote_stm32_filename_matches()` (F.1); **Ent-5 = ja:** auch die API-Liste (F.3), bei
+65535 leer. **3.2** Smoketest-Stufe 65535; E11 schreibt dieselbe Datei. **3.3** F zuletzt —
+ein STM-Flash mit vorhersagbarem Ergebnis ist die ehrlichste Probe; der Legacy-Pfad wird
+nicht scharf gefahren. **3.4** Nur ESP, danach der STM-Flash als Probe.
 
-`http_remote_stm32_filename_matches()` gibt ohne Filter und bei kurzen Namen `0` zurück.
-Legacy-Flashzweig, Legacy-Liste und `fname + 6` (C28) über dieselbe Funktion (F.1). **Ent-5
-= ja:** auch die API-Liste (F.3) — bei 65535 **leer**. F.6 prüft, wie die PWA eine leere
-Liste darstellt; braucht sie eine Anpassung, kommt sie **nach** dem F-OTA (L241).
+**3.5 C38** — abweisen statt kürzen; Abnahme nur am Quelltext und am Prüfstand.
 
-### 3.2 Smoketest-Stufe — 65535 als Fehlschlag; E11 schreibt dieselbe Datei.
+**3.6 C23** — `/api/stm32_log` in UTF-8 mit JSON-Escapen, zeichenweise in den Ausgabestrom
+(L175). Leser in F.5f nachziehen; die PWA profitiert ohne Änderung.
 
-### 3.3 Warum F zuletzt — ein STM-Flash mit vorhersagbarem Ergebnis ist die ehrlichste Probe.
-
-### 3.4 Einspielen — nur ESP, danach der STM-Flash als Probe.
-
-### 3.5 C38 / L323 — abweisen statt still kürzen
-
-Über `http_check_strvar_len()` oder dieselbe Byte-Regel. **Abnahme nur am Quelltext und am
-Prüfstand** — `network_client_set` bleibt gesperrt.
-
-### 3.6 C23 — `/api/stm32_log` in UTF-8 mit Escapen
-
-**Entscheidung (07.10.2026): wandeln und escapen**, nicht ersetzen. Die STM-Zeilen kommen in
-ISO-8859-1; der Endpunkt wandelt je Byte über `0x7F` nach UTF-8 und escapet `"`, `\` und
-Steuerzeichen nach JSON. **Zeichenweise in den Ausgabestrom**, nicht über einen `String`
-(L175). **Wechselwirkung:** Jedes Werkzeug, das den Logring liest (`watch-log.sh`,
-`check-pwa.mjs`), wird in F.5f nachgezogen. **Die PWA profitiert ohne Änderung** — sie
-parst JSON, und gültiges JSON war genau das, was fehlte.
-
-### 3.7 C6u — Legacy-Overlay-Formular ohne blankes `atoi`
-
-**Entscheidung (07.10.2026): ja, in F.** `type`, `date_code` und `days` werden geprüft und
-mit derselben Abweisungsform wie die API (C18) abgewiesen. **Dieselbe Funktion wie N1**, das
-in S schon einen Indexguard bekommt — deshalb erst in F, und der Review prüft, dass beide
-Eingriffe zusammenpassen. **C19 als Ganzes bleibt offen** — `saveuphost` wird nicht
-mitgezogen.
+**3.7 C6u** — `type`, `date_code`, `days` im Legacy-Overlayformular geprüft, Abweisungsform
+wie C18; dieselbe Funktion wie N1, deshalb in F; C19 als Ganzes bleibt offen.
 
 ---
 
@@ -317,86 +245,58 @@ mitgezogen.
 
 ### 4.1 Inhaltlich unabhängig heisst nicht baulich unabhängig
 
-`release-zip` baut STM, ESP und `app-gz` aus dem **gemeinsamen** Arbeitsbaum. **Kein
-Release-Build, solange irgendein Produktcode-Task offen ist.** Daraus die Kette:
-**P2.6 → S.1**, **S.23 → P3.1**, **P3.4 → F.1**, **C4.3 → F.8**.
+`release-zip` baut STM, ESP und `app-gz` aus dem gemeinsamen Arbeitsbaum. **Kein
+Release-Build, solange irgendein Produktcode-Task offen ist.** Kette: **P2.6 → S.1**,
+**S.23 → P3.1**, **P3.4 → F.1**, **C4.3 → F.8**.
 
 ### 4.2 S und F
 
-S fasst `http.cpp` nur für N1 an; F danach in seriellen Tasks. Nicht parallel: S.11
-verspricht einen isolierten ESP-Stand.
+**S fasst `http.cpp` an zwei Stellen an:** N1 (`http_overlays()`) und **der Legacy-Teil von
+A5** (RTC-Anzeige und das Nachrechnen bei einer Korrekturänderung, §7.3). Beides in einer
+Funktion bzw. einem Abschnitt, den F nicht berührt; F folgt danach seriell. **Nicht
+parallel:** S.11 verspricht einen isolierten ESP-Stand.
 
 ### 4.3 `src/**`
 
-S.14 bis S.19i nacheinander durch den `stm-developer`, Testbauten dazwischen. **C4.1 erst
-nach S.23** — dann ist `src/**` für S abgeschlossen, und C4 darf neben der F-Entwicklung
-laufen, weil F nur ESP-Dateien schreibt.
+S.14 bis S.19i nacheinander, Testbauten dazwischen. **C4.1 erst nach S.23**, dann parallel
+zur F-Entwicklung.
 
 ---
 
 ## 5. Testdurchlauf und M2
 
-**Bis B19 umgesetzt ist:** M2 legt der Nutzer im eigenen Terminal an, in derselben Sitzung
-wie das Einspielen. **Nach B19 (Entscheidung vom 07.10.2026):** `snapshot-device.sh` liest
-das Passwort aus einer **Datei ausserhalb des Repos**, deren Pfad in `tools/device.conf`
-steht (gitignored); der `pwa-tester` legt M2 in Phase 0 selbst an. **Was dabei gelten muss:**
-Das Passwort erscheint in keiner Prozessliste (nicht als Argument, sondern über Datei oder
-Umgebung an `openssl`), in keinem Mitschnitt und in keiner Logzeile; fehlt die Datei, bricht
-das Skript **vor** dem ersten Abruf ab (L300 bleibt). Die alte Sicherung
-`vor-durchlauf-3.2.15.tar.gz.enc` **bleibt**.
+**B19 ist umgesetzt** (`e121058`, Meldung des Leads): `snapshot-device.sh` liest das
+Passwort aus `SNAPSHOT_PASS`, dann aus `~/.config/wordclock/snapshot.pass`
+(`SNAPSHOT_PASS_FILE`), dann vom Terminal; es bricht ab bei einer Datei im Repo, bei einem
+Modus ungleich `x00` und bei einer leeren Datei; das Passwort läuft über `env:`/`file:` an
+`openssl`, nicht über die Prozessliste. **Die Datei legt der Nutzer an.** Bis dahin bleibt
+M2 ein Nutzerschritt in derselben Sitzung wie das Einspielen; danach fährt der
+`pwa-tester` Phase 0 selbst. Die alte Sicherung bleibt.
 
 **Je Runde:** Einspielen (Nutzer), Gerätabnahme (Lead), `pwa-tester` Phasen 0–4 und 9.
-**Unvollständig ist nicht abgenommen.** **P2 und P3** ohne eigenen Durchlauf, begründet
-(§1.7, §7.5).
+**Unvollständig ist nicht abgenommen.** **P2 und P3** ohne eigenen Durchlauf (§1.7, §7.5).
 
 **S.26 trägt zusätzlich:** B35 am Zeitserver (Phase 2) und **B36** über einen zu langen
-Update-Host, den der ESP mit `error=2` abweist — Phase 9 belegt den unveränderten
-Gerätewert. **L303 und L306 nicht** (§1.10).
+Update-Host mit `error=2` — Phase 9 belegt den unveränderten Gerätewert. **L303 und L306
+nicht** (§1.10).
 
-**Was ein Durchlauf nicht leisten kann:** STM-Guards (§1.6), Wettläufe (§1.7),
-Fehlerantworten nicht scheiterbarer Aktionen (§1.10), schreibende WLAN-Aufrufe (§3.5) und
-**Minusgrade** (§7.5). Dafür stehen Prüfstände und Proben.
+**Was ein Durchlauf nicht leisten kann:** STM-Guards, Wettläufe, Fehlerantworten nicht
+scheiterbarer Aktionen, schreibende WLAN-Aufrufe, **Minusgrade**. Dafür stehen Prüfstände
+und Proben.
 
 ---
 
 ## 6. Runde K — Kleinkram, verteilt auf die vorhandenen Flashes
 
-### 6.1 Warum keine eigene Runde
-
-Jeder Flash kostet eine Sitzung, ein M2, einen Durchlauf und beim ESP ein OTA-Risiko.
-Kleinkram fährt mit. **Der Preis ist Zuordenbarkeit**; §6.2 hält K-Punkte von den Stellen
-fern, deren Isolation die Spec zusagt.
-
-### 6.2 Welcher Punkt mit welchem Flash fährt
-
-| Träger | Dateien | Fährt mit | Tasks |
-|---|---|---|---|
-| **P2** | `app.js`, `sw.js`, `i18n/*.json`, Markup | nächster PWA-Upload | P2.1 |
-| **S-ESP** | ESP-Quellen **mit Brückenbezug** | ESP-OTA von S | — (N1 als Ausnahme, S.5) |
-| **S-STM** | `src/**` | STM-Flash von S, **gemessen** | S.19a–S.19i |
-| **F** | ESP-Quellen **ohne Brückenbezug** | ESP-OTA von F | F.5a–F.5e, F.5i, F.5j |
-| **W** | `tools/**`, `.claude/**`, `CLAUDE.md` | kein Flash | K.W |
-
-**Warum ESP-Punkte ohne Brückenbezug mit F:** S.11 sagt einen isolierten Rückfallnachweis
-zu. **N1 ist die eine Ausnahme** (kritisch, aus dem LAN). **STM-K-Punkte im Brückenpfad**
-markiert S.21; **im Anzeigepfad** (A24, A45) bekommt S.25 einen Blick auf die Uhr.
-
-**Wo es nicht passt:** schreibender Gerätezugriff zur Abnahme (R5); STM-Guards (Prüfstand);
-nach S.18 entschiedene S-STM-Punkte (nächste STM-Runde); **C4** — jetzt eigener Schritt (§8).
-
-### 6.3 Was ein K-Punkt ist — höchstens rund zehn Zeilen **und** keine Entwurfsfrage.
-
-**A5 war als K-Punkt gemeldet und ist keiner mehr:** Mit „echte Minusgrade" ist er eine
-Protokolländerung über drei Laufzeiten (§7). **A9** bleibt K: Nur der **gesendete** Wert
-wird ungeklammert; die Automatik rechnet mit ihrem eigenen Wert weiter.
-
-### 6.4 Die Abnahme je Punkt ist Pflicht
-
-Vorher „erledigt, wenn …"; nachher Beleg dieses Commits oder Messwert; **geschlossen durch
-Entscheidung** (C2, C9c4) mit Datum und Wortlaut der Entscheidung — sonst ist in einer Woche
-nicht mehr zu unterscheiden, ob er bewusst stehen bleibt oder vergessen wurde.
-
-### 6.5 Testdurchlauf und Versionen — im Durchlauf des Trägers; keine eigenen Versionen.
+**6.1** Kleinkram fährt mit; der Preis ist Zuordenbarkeit. **6.2 Träger:** P2 (PWA), S-ESP
+(ESP mit Brückenbezug; **N1** als Ausnahme), S-STM (gemessen), F (ESP ohne Brückenbezug), W
+(Werkzeug). STM-K-Punkte im Brückenpfad markiert S.21, im Anzeigepfad (A24, A45) ein Blick
+auf die Uhr in S.25. **6.3** K heisst höchstens rund zehn Zeilen und keine Entwurfsfrage;
+**A5** ist deshalb kein K-Punkt mehr. **6.4** Abnahme je Punkt Pflicht; **geschlossen durch
+Entscheidung** (C2, C9c4) mit Datum; **erledigt gemeldete Werkzeugpunkte** mit Commit — B19
+`e121058`, **E2 `8dfba36`** (die Dateien lagen unter `ESP8266/ESP-uclock/` — `APP-BUNDLE.md`,
+`data/app-bundle.txt`, `tools/*.py|sh` —, nicht unter `data/app/`). **6.5** Im Durchlauf des
+Trägers; keine eigenen Versionen.
 
 ---
 
@@ -406,146 +306,102 @@ nicht mehr zu unterscheiden, ob er bewusst stehen bleibt oder vergessen wurde.
 
 | Stelle | Heute | Fundstelle |
 |---|---|---|
-| Messung | `buffer[0]` als `uint8_t`, beim DS3231 vorzeichenbehaftet; Ergebnis auf **0..250** halbe Grad begrenzt, 255 = Fehler | `src/rtc/rtc.c:352-384` |
-| Brücke | `RTC_TEMP_INDEX_NUM_VAR` = **Index 21**, 16 Bit (`N<idx><lo><hi>`), gesendet bei Änderung und im Vollabgleich | `src/vars/vars.h:63`, `src/vars/vars.c:836`, `:1356-1358`, `src/main.c:4304-4320` |
-| ESP | speichert den Wert ungeprüft in `numvars[21]`; prüft den **Index** gegen `MAX_NUM_VARIABLES` | `ESP8266/ESP-uclock/vars.cpp:1061-1072` |
-| Legacy-Seite | `temp_index / 2` „,5" — **und rechnet bei einer Korrekturänderung den Index selbst nach**, begrenzt auf 0..255 | `http.cpp:3684-3747` |
-| PWA | `formatHalfDegreeValue()`: `Math.floor (value / 2)`, `value % 2`, 255 = ungültig | `app.js`, Funktion `formatHalfDegreeValue()` |
-| Anzeige an der Uhr | Wortanzeige nur für Index 20..79 (10–40 °C); Ziffernanzeige `"%02u"` | `src/display/display.c:6358-6425`, `:6437-6477` |
-
-**Der Index 21 hat vier Leser** — Legacy-Seite, PWA, Wortanzeige, Ziffernanzeige —, und
-jeder nimmt an, dass er vorzeichenlos ist und 255 „Fehler" heisst.
+| Messung | `buffer[0]` als `uint8_t`, beim DS3231 vorzeichenbehaftet; Ergebnis auf **0..250** halbe Grad begrenzt, 255 = Fehler; **halbes Grad aus Bit 1** von Register `0x12` (● vermutlich falsch, §7.4) | `src/rtc/rtc.c:352-384` |
+| Brücke | `RTC_TEMP_INDEX_NUM_VAR` = **Index 21**, 16 Bit, bei Änderung und im Vollabgleich | `src/vars/vars.h:63`, `src/vars/vars.c:836`, `:1356-1358`, `src/main.c:4304-4320` |
+| ESP | speichert den Wert in `numvars[21]`; prüft den **Index** gegen `MAX_NUM_VARIABLES` | `ESP8266/ESP-uclock/vars.cpp:1061-1072` |
+| Legacy-Seite | `temp_index / 2` „,5"; **rechnet bei einer Korrekturänderung den Index selbst nach** | `http.cpp:3684-3747`, Korrektur-Endpunkt `:9549` ff. |
+| PWA | `formatHalfDegreeValue()`: `Math.floor (value / 2)`, `value % 2`, 255 = ungültig | `app.js` |
+| Anzeige an der Uhr | Wortanzeige nur für Index 20..79 (10–40 °C); Ziffern `"%02u"` | `src/display/display.c:6358-6477` |
 
 ### 7.2 Entwurf: eine neue Variable am Ende, die alte bleibt
 
-**Nicht** Index 21 umdeuten. Eine alte PWA auf neuer Firmware läse dann einen
-Zweierkomplement-Wert als vorzeichenlos — −5 °C wären −10 halbe Grad = `0xFFF6`, und die PWA
-zeigte „32763 °C" oder „ungültig". **Das wäre schlechter als heute**, und genau das schliesst
-die Bedingung des Nutzers aus.
+**Nicht** Index 21 umdeuten — eine alte PWA zeigte dann Unsinn. **Keinen obsoleten Index
+wiederverwenden** — die Lehre aus C32/L299. **Stattdessen:**
 
-**Auch keinen obsoleten Index wiederverwenden** (`OBSOLETE_3_NUMVAR` usw.). **Das ist die
-Lehre aus C32/L299:** Index 9 bedeutet auf beiden Seiten etwas anderes, und das kostet seit
-Monaten. Ein wiederverwendeter Index trägt diese Gefahr, sobald eine Seite älter ist als die
-andere.
-
-**Stattdessen:**
-
-- **Neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` am Ende** beider Enums, unmittelbar vor
-  `MAX_NUM_VARIABLES` — **Index 49** (heute ist `UPTIME_SECONDS_HI_NUM_VAR` Index 48, in
-  beiden Dateien gleich; ✔ abgezählt).
-- **Format:** `int16` im Zweierkomplement, **halbe Grad**, über das bestehende `N`-Kommando
-  mit 16 Bit. Bereich des DS3231: −40..+85 °C ⇒ −80..+170, weit innerhalb von `int16`.
-- **„Kein Messwert": `0x8000`** (`INT16_MIN`). Nie ein gültiger Messwert, und nicht `0`,
-  weil `0` eine echte Temperatur ist.
-- **Der Index 21 bleibt bitgleich** wie heute: begrenzt auf 0..250, 255 bei Fehler. Er
-  speist weiterhin Legacy-Seite, alte PWA und die Anzeige an der Uhr.
+- **Neue Variable `RTC_TEMP_HALF_DEG_NUM_VAR` am Ende** beider Enums — **Index 49** (heute ist
+  `UPTIME_SECONDS_HI_NUM_VAR` Index 48; ✔ in beiden Dateien abgezählt).
+- **Format:** `int16` im Zweierkomplement, halbe Grad, über das bestehende `N`-Kommando.
+- **„Kein Messwert": `0x8000`.** Nie gültig, und nicht `0`, weil `0` eine echte Temperatur ist.
+- **Index 21 bleibt begrenzt auf 0..250** und speist weiter die alte PWA und die Anzeige an
+  der Uhr. **Ent-8:** Die Uhr zeigt bei Minusgraden 0 °C, wie heute.
 
 ### 7.3 Wer was ändert
 
 | Laufzeit | Änderung | Task | Datei |
 |---|---|---|---|
-| **ESP** | Enum um `RTC_TEMP_HALF_DEG_NUM_VAR` erweitern (Index 49); in `vars_init()` mit `0x8000` vorbelegen. **Sonst nichts** — der ESP reicht `numvars` an die API weiter | S.4b | `ESP8266/ESP-uclock/vars.h`, `vars.cpp` |
-| **STM** | Vorzeichenbehaftet rechnen (`(int8_t) buffer[0]`); den Wert in halben Grad in einem neuen Feld halten; Index 21 **daraus** begrenzt ableiten; neue Variable senden — im Vollabgleich und **bei Änderung des vorzeichenbehafteten Werts** | S.18b | `src/rtc/rtc.c`, `rtc.h`, `src/vars/vars.c`, `vars.h`, `src/main.c` |
-| **PWA** | Index 49 lesen, vorzeichenrichtig formatieren; **Rückfall auf Index 21**, wenn Index 49 fehlt oder `0x8000` trägt | P3.1 | `app.js` |
+| **ESP** | Enum um Index 49 erweitern, mit `0x8000` vorbelegen. **Legacy-Seite zeigt Minusgrade** (Ent-8): Die RTC-Anzeige liest Index 49 vorzeichenrichtig, Rückfall auf Index 21 bei `0x8000`. **An beiden Stellen, die den Index bei einer Korrekturänderung selbst nachrechnen** (Legacy `savetcorrrtc` und der Korrektur-Endpunkt), wird Index 49 **im selben Schritt und über dieselbe Hilfsfunktion** nachgerechnet — sonst zeigten Legacy und PWA nach einer Korrektur kurz verschiedene Werte | S.4b | `ESP8266/ESP-uclock/vars.h`, `vars.cpp`, `http.cpp` |
+| **STM** | Vorzeichenbehaftet rechnen (`(int8_t) buffer[0]`); **halbes Grad aus Bit 7**, falls S.7 es bestätigt (§7.4); Wert in halben Grad in einem neuen Feld; Index 21 daraus begrenzt ableiten; neue Variable senden — im Vollabgleich und **bei Änderung des vorzeichenbehafteten Werts** | S.18b | `src/rtc/rtc.c`, `rtc.h`, `src/vars/vars.c`, `vars.h`, `src/main.c` |
+| **PWA** | Index 49 lesen, vorzeichenrichtig formatieren, **gleich wie die Legacy-Seite**; Rückfall auf Index 21, wenn Index 49 fehlt oder `0x8000` trägt | P3.1 | `app.js` |
 
-**Die Änderungserkennung ist der eine Fallstrick im STM-Teil.** Heute sendet `main.c:4315`
-nur bei geändertem **Index**. Unter null ist der Index immer 0 — von −1 °C auf −8 °C änderte
-sich nichts, und die neue Variable bliebe stehen. **Verglichen wird künftig der
-vorzeichenbehaftete Wert**, und bei einer Änderung gehen **beide** Variablen hinaus.
+**Der Fallstrick im STM-Teil:** Heute sendet `main.c` um Zeile 4315 nur bei geändertem
+**Index**. Unter null ist der Index immer 0 — von −1 °C auf −8 °C änderte sich nichts.
+**Verglichen wird künftig der vorzeichenbehaftete Wert.**
 
-**Was der ESP bewusst nicht tut:** Die Legacy-Seite und der Korrektur-Endpunkt rechnen den
-Index bei einer Korrekturänderung selbst nach (`http.cpp:3686-3704`, `:9549`). Für die neue
-Variable unterbleibt das: Der STM liest bei jeder Korrekturänderung sofort neu
-(`main.c:1893`) und sendet beide Werte, die PWA zeigt also nach einem Bruchteil einer
-Sekunde den richtigen. **Das hält A5 aus `http.cpp` heraus** und S damit bei der einen
-Ausnahme N1.
+**Gegenüber der vorigen Fassung geändert:** Dort blieb A5 aus `http.cpp` heraus, und die
+Legacy-Seite zeigte weiter Index 21. **Ent-8 verlangt Minusgrade auch in Legacy** — damit
+gehört die Legacy-Anzeige in den ESP-Teil, und mit ihr das Nachrechnen bei einer Korrektur.
+Wer die Legacy-Anzeige umstellt und das Nachrechnen nicht, erzeugt zwei Wahrheiten.
 
-### 7.4 Rückfalllagen — keine Oberfläche wird schlechter
+### 7.4 Rückfalllagen — und das Nachkommabit
 
 | Lage | Index 21 | Index 49 | Alte PWA | Neue PWA (P3) | Legacy |
 |---|---|---|---|---|---|
 | alter ESP, alter STM (heute) | 0..250 | gibt es nicht | wie heute | Rückfall auf 21 | wie heute |
-| **neuer ESP, alter STM** (S.10–S.24) | 0..250 | `0x8000` | wie heute | Rückfall auf 21 | wie heute |
-| neuer ESP, neuer STM | 0..250, begrenzt | mit Vorzeichen | **wie heute** (liest 21) | **Minusgrade** | wie heute |
-| alter ESP, neuer STM (darf nicht vorkommen, ESP zuerst) | 0..250 | vom ESP **verworfen** — `vars.cpp:1069` prüft den Index gegen `MAX_NUM_VARIABLES` | wie heute | Rückfall auf 21 | wie heute |
+| **neuer ESP, alter STM** (S.10–S.24) | 0..250 | `0x8000` | wie heute | Rückfall auf 21 | **Rückfall auf 21**, wie heute |
+| neuer ESP, neuer STM | 0..250, begrenzt | mit Vorzeichen | wie heute (liest 21) | **Minusgrade** | **Minusgrade** |
+| alter ESP, neuer STM (darf nicht vorkommen) | 0..250 | vom ESP **verworfen** (`vars.cpp:1069`) | wie heute | Rückfall | wie heute |
 
-**Die vierte Zeile ist die wichtigste Sicherheit:** Selbst wenn die Reihenfolge einmal
-verletzt würde, schreibt der alte ESP nicht über sein Array hinaus — ✔ am Code
-(`vars.cpp:1069`). Und der Vollabgleich wird um ein Kommando länger (rund 197), was C26/A35
-nicht berührt.
+**L-Befund Nachkommabit.** `src/rtc/rtc.c:364` liest das halbe Grad als
+`(buffer[1] & 0x02) >> 1` — Bit 1. Beim DS3231 trägt Register `0x12` die Nachkommastelle
+nach Datenblatt in **Bit 7 (0,5 °C) und Bit 6 (0,25 °C)**; Bit 1 ist dort immer 0. Stimmt
+das, war der Index **nie ungerade**. **Entscheidung des Nutzers (07.10.2026): Bestätigt S.7
+den Fehler, wird er in S.18b mit A5 korrigiert.** Die Korrektur ändert **beide** Ausgänge —
+Index 21 und Index 49 zeigen danach auch halbe Grad. **Das ist die einzige gewollte Änderung,
+die auch eine alte PWA sieht** (AKP3.2): Sie zeigt dann „,5", wo vorher nie eines stand —
+richtiger, nicht schlechter. Das 0,25-°C-Bit (Bit 6) bleibt unberücksichtigt; der Index hat
+halbe Grad als Auflösung.
 
-**Der Nachkommabit-Verdacht (S.7 (4)).** `(buffer[1] & 0x02) >> 1` liest Bit 1; beim DS3231
-stehen die Nachkommabits nach Datenblatt in Bit 7 und 6 — ● ungeprüft. Bestätigt sich das,
-hat die Uhr **nie** „,5 °C" gemeldet. **Die Korrektur änderte angezeigte Werte**, deshalb ist
-sie ein **eigener Befund** und geht nur mit Freigabe des Nutzers in S.18b. Die neue Variable
-wird so gebaut, dass sie das richtige Bit nimmt, **sobald** es geklärt ist — sie erbt den
-Fehler nicht stillschweigend.
+**Abnahme des Nachkommabits** (AKS.17): **Prüfstand mit Registerbytes**, der den Fall Bit 7
+ausdrücklich enthält und **gegen das alte `rtc.c` fehlschlägt**: +24,0 °C mit Bit 7 ⇒
+Index 49; mit Bit 6 allein ⇒ Index 48; −0,5 °C ⇒ −1. Am Gerät **nur als Beobachtung** — ein
+ungerader Index tritt auf, wenn die Raumtemperatur ihn hergibt; das ist kein Nachweis, weil
+es von der Temperatur abhängt.
 
 ### 7.5 Abnahme — Minusgrade sind am Gerät nicht herstellbar
 
-Die Uhr steht drinnen. **Tragend sind deshalb zwei Proben:**
+**Tragend sind Proben:** STM-Prüfstand (S.18b), Legacy-Formatierung (S.4b) und PWA-Probe
+(P3.2) — jede mit −20, −1, 0, +49 halben Grad, `0x8000` und (PWA) fehlendem Index. Die
+heutige PWA-Formatierung rundet negative Werte falsch (−3 ⇒ „−2.5" statt „−1.5"), **die Probe
+muss genau das einmal fangen**. **Am Gerät lesend:** S.11 (Index 49 = `0x8000`, Legacy und PWA
+unverändert), S.25 (Index 49 = Index 21, Legacy = PWA), P3.6.
 
-- **STM-Prüfstand** (S.18b, abgelegt in S.20): `rtc_get_temperature_index()` mit
-  Registerbytes für −10,0 °C, −0,5 °C, 0,0 °C, +24,5 °C, mit Korrektur ±20 und mit
-  Lesefehler; geprüft werden **beide** Ausgänge — Index 21 bleibt bei allen negativen Werten
-  0 —, und dass eine Änderung von −1 °C auf −8 °C einen Versand auslöst.
-- **PWA-Probe** (P3.2): nachgebildete `numvars` mit −20, −1, 0, 49, `0x8000`, fehlend. Die
-  heutige Formatierung rechnet mit `Math.floor` und `%` und rundet negative Werte falsch
-  (−3 halbe Grad ⇒ „−2.5" statt „−1.5") — **die Probe muss genau das einmal fangen**.
+### 7.6 A5 in S — bestätigt
 
-**Am Gerät lesend:** zwischen S.10 und S.24 steht Index 49 auf `0x8000` (32768); danach ist
-Index 49 bei Raumtemperatur = Index 21; die PWA zeigt vor und nach P3 dieselbe Temperatur.
+**Ent-8 hält A5 in S:** Die Uhranzeige bleibt unverändert, also gibt es keinen Eingriff in
+den Anzeigepfad und kein Minuszeichen im Zeichensatz. **Was dazukommt** — Legacy-Anzeige und
+Nachrechnen auf dem ESP, das Nachkommabit auf dem STM — sind wenige Zeilen in Dateien, die S
+ohnehin anfasst.
 
-### 7.6 Passt A5 in S? — Ja, unter drei Bedingungen
+**Flash:** A5 steht als S.18b direkt nach dem Kern, mit der Regel **anhalten und vorlegen** —
+A5 ist eine ausdrückliche Bestellung des Nutzers, sie still zurückzustellen hiesse, für ihn
+zu entscheiden. **Erwarteter Bedarf** (● nicht gemessen): ein `int16`-Feld, eine
+Vorzeichenerweiterung, eine geänderte Bitmaske, ein zweiter Vergleich, ein weiterer
+Sendeaufruf, kein neuer Text — eher Dutzende als Hunderte Byte. Das entscheiden S.12 und der
+Testbau.
 
-**Ja.** A5 ist inhaltlich dieselbe Art Änderung wie S — eine neue Zeile im Vollabgleich,
-getragen vom Strom statt von einer Fähigkeit —, und S flasht ESP und STM ohnehin. Eine
-eigene Runde nach F kostete zwei zusätzliche Flashes samt Sitzungen und Durchläufen.
-
-**Die Bedingungen:**
-
-1. **Der STM-Teil steht im Flash-Gate**, direkt nach dem Kern (S.18b), mit der Regel
-   **anhalten und vorlegen**. A5 ist eine ausdrückliche Bestellung des Nutzers; ihn still
-   zurückzustellen hiesse, für den Nutzer zu entscheiden. **Erwarteter Bedarf**, ● nicht
-   gemessen: ein `int16`-Feld, eine Vorzeichenerweiterung, ein zweiter Vergleich, ein
-   weiterer `var_send_num_variable()`-Aufruf und kein neuer Text — **eher Dutzende als
-   Hunderte Byte**. Das entscheidet S.12 und der Testbau, nicht diese Schätzung.
-2. **Der PWA-Teil fährt nicht mit S**, sondern als **P3** danach — Firmware vor PWA (L241).
-   Er gehört nicht in P2 (das vor S gebaut wird) und nicht in F (eine reine ESP-Runde).
-3. **Die Anzeige an der Uhr bleibt, wie sie ist** (Ent-8). Minusgrade auf der Wort- oder
-   Ziffernanzeige bräuchten ein Minuszeichen im Lauftextzeichensatz und mehr Flash — damit
-   würde A5 S sprengen.
-
-**Würde A5 S sprengen, wenn Bedingung 3 fällt?** Wahrscheinlich ja — dann wäre es eine
-Änderung am Anzeigepfad mit eigener Abnahme an der Uhr und unbekanntem Flashbedarf. **Dann
-gehört der Anzeigeteil in eine eigene Runde nach F**; der Transport (dieser Entwurf) bliebe
-in S.
-
-**DS18xx** (A2) nutzt dieselbe Index-Logik und kann den Entwurf mit einer weiteren
-angehängten Variable übernehmen. Nicht Teil dieses Pakets.
+**PWA-Teil als P3** nach S (L241). **DS18xx** (A2) kann den Entwurf mit einer weiteren
+angehängten Variable übernehmen.
 
 ---
 
 ## 8. Schritt C4 — Umschrift ohne Flash
 
-**Entscheidung (07.10.2026):** ASCII-Umschrift der acht ISO-8859-1-Dateien unter `src/**`
-(L166), **eigener Schritt**, Nachweis über **gleiche `.hex`**, **nicht mit S**.
-
-**Warum nicht mit S:** Der Nachweis „das Fabrikat ist dasselbe" gelingt nur, wenn **sonst
-nichts** geändert ist. In S ändert sich das Fabrikat absichtlich.
-
-**Warum ohne Flash:** Sind die `.hex` vor und nach C4 gleich, gibt es nichts einzuspielen und
-nichts zu versionieren (DIR-004 verlangt eine Erhöhung nur für geänderte Komponenten). Ein
-Flash wäre ein Risiko ohne Gegenstand.
-
-**Wie:** byteweise ersetzen, Zeilenenden je Datei unverändert (DIR-015). F103 **und** F411
-bauen, beide Fabrikate vergleichen. **Weicht eines ab, stand Nicht-ASCII doch ausserhalb
-eines Kommentars** — dann Halt, zurück, Befund. Der Bestand aus C4 („62 Zeilen, alle in
-Kommentaren") wird damit nicht angenommen, sondern geprüft.
-
-**Wann:** nach S.23 — `src/**` ist dann für S abgeschlossen —, parallel zur F-Entwicklung,
-**vor F.8**, weil der F-Release-Build auch den STM aus dem Baum baut. **Gewinn:** B21/L166
-(`grep` überspringt diese Dateien) verliert seinen Grund.
+ASCII-Umschrift der acht ISO-8859-1-Dateien unter `src/**` (L166), **eigener Schritt**,
+Nachweis über **gleiche `.hex`** von F103 und F411, **nicht mit S** (dort ändert sich das
+Fabrikat absichtlich), **ohne Flash und ohne Versionserhöhung** (das Fabrikat ist dasselbe).
+Byteweise, Zeilenenden unverändert (DIR-015). Weicht ein `.hex` ab, stand Nicht-ASCII doch
+ausserhalb eines Kommentars — Halt, zurück, Befund. **Wann:** nach S.23, parallel zu F, vor
+F.8. **Achtung:** C4 fasst auch `rtc.c` an, das S.18b ändert — deshalb strikt nach S.23.
 
 ---
 
@@ -553,28 +409,28 @@ Kommentaren") wird damit nicht angenommen, sondern geprüft.
 
 | Datei | Änderung | Zuständiger Agent | Runde |
 |---|---|---|---|
-| `BEFUNDE.md` | je Runde nachführen; C2, C9c4 geschlossen; E3 offen | `doc-writer` | P, P2, S, P3, F |
-| `app.js` | **P2:** Overlay-Text, B40, SSID-Auswahl, Massnahme 4, B17. **P3:** A5 | `pwa-developer` | P2, P3 |
+| `BEFUNDE.md` | je Runde nachführen; C2, C9c4 geschlossen; B19, E2 erledigt; Massnahme 4 eingeschränkt; E3 offen | `doc-writer` | P, P2, S, P3, F |
+| `app.js` | **P2:** Overlay-Text, B40, SSID-Auswahl, Massnahme 4 (vier Felder), P2-Review N1/N2. **P3:** A5 | `pwa-developer` | P2, P3 |
 | `tools/ui-mess/proben/` | Proben B40+SSID (P2.1c), L303/L306 (P2.1e), A5 (P3.2) | Lead | P2, P3 |
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | Eröffnung/Abschluss, Zuordnung, Markenpflicht, Zähler | `esp-developer` | S |
 | `ESP8266/ESP-uclock/eepromdata.cpp` | C31 | `esp-developer` | S |
 | `ESP8266/ESP-uclock/vars.h`, `vars.cpp` | **A5:** Index 49, Vorgabe `0x8000` | `esp-developer` | S |
-| `ESP8266/ESP-uclock/http.cpp` | **S:** N1. **F:** F.1–F.3, C27+N2, E12, C25, Overlay-Text, C38, C23, C6u | `esp-developer` | S, F |
+| `ESP8266/ESP-uclock/http.cpp` | **S:** N1; **A5-Legacy** (RTC-Anzeige, Nachrechnen bei Korrektur, eine Hilfsfunktion). **F:** F.1–F.3, C27+N2, E12, C25, Overlay-Text, C38, C23, C6u | `esp-developer` | S, F |
 | `ESP8266/ESP-uclock/httpclient.cpp` | C9k | `esp-developer` | F |
-| `src/vars/vars.c`, `vars.h` | Eröffnung/Abschluss; A20; A14; **A5** (Index 49, Senden) | `stm-developer` | S |
-| `src/rtc/rtc.c`, `rtc.h` | **A5** vorzeichenbehaftet | `stm-developer` | S |
+| `src/vars/vars.c`, `vars.h` | Eröffnung/Abschluss; A20; A14; **A5** | `stm-developer` | S |
+| `src/rtc/rtc.c`, `rtc.h` | **A5** vorzeichenbehaftet; **Nachkommabit** (falls bestätigt) | `stm-developer` | S |
 | `src/main.c` | A39; **E17**; A3+A48; A49; A46-Anteil; **A5** (Änderungserkennung) | `stm-developer` | S |
-| `src/esp8266/esp8266.c` | Zuordnung; A13+A47 | `stm-developer` | S |
-| `src/tables/tables.c`, `src/display/display.c`, `src/tftled/`, `src/esp-spiffs/`, `src/tetris/`, `src/ldr/ldr.c` | A24, A45, A46, A16, **A9** | `stm-developer` | S |
+| weitere `src/**` | A13+A47, A24, A45, A46, A16, **A9** | `stm-developer` | S |
 | acht Dateien aus L166 | **C4** Umschrift | `stm-developer` | C4 |
 | `CLAUDE.md`, `tools/**` | **E17** | Lead | S |
 | `knowledge/quick-reference.md`, `knowledge/architecture-checklist.md` | **E17** | `doc-writer` | S |
-| `tools/checks/` | Prüfstände AKS.5, AKS.14, **AKS.15**, C38; S13, S15, S7 | Lead | S, F |
+| `tools/checks/` | Prüfstände AKS.5, AKS.14, **AKS.15** (STM und Legacy), **AKS.17**, C38; S13, S15, S7 | Lead | S, F |
 | `tools/smoke-device.sh`, `tools/watch-log.sh`, `tools/check-pwa.mjs` | Stufe 65535, E11; C25- und C23-Format | Lead | F, K |
-| `tools/snapshot-device.sh`, `TESTPLAN-PWA.md`, `tools/device.conf.example` | **B19** | Lead | K |
-| die vier Bundle-Dateien aus L1 | **E2** löschen — **vorher Besitz nach R3 prüfen** | Lead bzw. Besitzer | K |
-| `tools/hooks/file-ownership.py`, `tools/ui-mess/`, Skill `/release` | E20, E14-Rest, E24, B20 | Lead | K |
 | Versionsdateien | je Einspielschritt | `release-engineer` | je Runde |
+
+**Erledigt und nicht mehr Teil der Planung:** `tools/snapshot-device.sh` (B19, `e121058`);
+`APP-BUNDLE.md`, `data/app-bundle.txt`, `tools/*.py|sh` unter `ESP8266/ESP-uclock/` (E2,
+`8dfba36`).
 
 **Kodierung und Zeilenenden vor jedem Patch feststellen** (DIR-015). **`grep -a` in
 `src/**`** (B21) — bis C4 erledigt ist.
@@ -586,126 +442,94 @@ Kommentaren") wird damit nicht angenommen, sondern geprüft.
 ### Proper architecture
 
 **PWA parallel zu Legacy?** Ja. F stärkt den Legacy-Flashpfad; N1 und C6u härten das
-Legacy-Overlayformular; **A5 lässt die Legacy-Seite bitgleich** (sie liest Index 21 wie
-heute). Legacy bleibt die Stabilitäts-Referenz.
+Legacy-Overlayformular; **A5 bringt die Minusgrade in beide Oberflächen gleich** (Ent-8) —
+Legacy zeigt nicht weniger als die PWA, und beide formatieren denselben Wert gleich (AKP3.3).
+Legacy bleibt die Stabilitäts-Referenz.
 
 **Wetter-Endpunkte?** Unberührt.
 
-**Restore-Bedingung um `pending_weather_ticker_restore`?** **A39 und E17 berühren sie.** A39
-verschiebt den Ort des Setzens, das Flag wandert mit; E17 benennt es danach um, **in einem
-eigenen Diff ohne jede andere Änderung** (§2.1b). Keine der vier Teilbedingungen wird
-vereinfacht; `CLAUDE.md`, Kurzreferenz und Checkliste werden **im selben Commit** wie der
-Code nachgezogen, damit die Invariante nie einen Namen nennt, den es nicht gibt.
+**Restore-Bedingung?** A39 verschiebt den Ort des Setzens, das Flag wandert mit; E17 benennt
+es danach um, in einem eigenen Diff; Code und Dokumente im selben Commit.
 
 **Nur `.gz`?** Ja. C27 stärkt „Grösse > 0".
 
 **Richtige Schicht?** B35, B40, SSID-Auswahl, Massnahme 4, L303/L306 in der Oberfläche; C38,
-C23, C6u, N1 auf dem ESP; **A5 an der Quelle** — der STM rechnet mit Vorzeichen, weil nur er
-das Register kennt; ESP reicht durch, PWA formatiert. **Eine Umrechnung im ESP oder in der
-PWA aus dem begrenzten Index wäre die falsche Schicht** — die Information ist dort schon
-verloren.
+C23, C6u, N1 auf dem ESP; **A5 und das Nachkommabit an der Quelle** — nur der STM kennt das
+Register. Eine Umrechnung im ESP oder in der PWA aus dem begrenzten Index wäre die falsche
+Schicht; die Information ist dort schon verloren. **Das Nachrechnen bei einer
+Korrekturänderung bleibt auf dem ESP**, wo es heute schon für Index 21 geschieht — eine
+zweite, abweichende Stelle dafür wäre schlechter als die bestehende.
 
 ### Scalable systems
 
-**STM-Kommandos?** Vollabgleich rund **197** (Eröffnung, Abschluss, A5). A5 sendet
-zusätzlich nur bei Änderung, also selten. N1 und B35/R4 **verhindern** Kommandos.
+**STM-Kommandos?** Vollabgleich rund **197**. A5 sendet zusätzlich nur bei Änderung. Die
+Nachkommabit-Korrektur kann die Änderungsrate leicht erhöhen — Wechsel im halben Grad statt
+im ganzen —, also wenige zusätzliche `N`-Kommandos je Stunde.
 
-**UART-Last?**
+**UART-Last?** Zuordnungszeile rund 1,5 kB je Vollabgleich; A5 rund 10 Byte je
+Temperaturänderung (zwei Variablen); C31 und A20 weniger; A46/A49 gedrosselt.
 
-| Posten | Richtung | Kosten |
-|---|---|---|
-| Eröffnung + Abschluss | STM → ESP | rund 22 Byte je Vollabgleich |
-| Zuordnungszeile | ESP → STM | **rund 1,5 kB je Vollabgleich** |
-| A5 | STM → ESP | ein `N`-Kommando (rund 10 Byte) je Temperaturänderung |
-| C31, A20 | — | weniger |
-| A46, A49 | STM → ESP | gedrosselt |
+**Unter 20 s?** Ausbleibende Quittung bleibt der gefährlichste Pfad — eigene Zeile, `!v`,
+`var …`. A16 beseitigt zwei Pfade über 20 s.
 
-**Unter 20 s?** Gefährlichster Pfad: die ausbleibende Quittung — daher eigene Zeile, `!v`,
-`var …`. A5 nutzt das bestehende quittierte `N`-Kommando. A16 beseitigt zwei Pfade über 20 s.
-
-**Polling?** Unverändert. **Hauptloop?** AKS.2.
-
-**Hartkodierte Grenzen?** `TEXT_FIELD_LIMITS` einmal; STM-Guards aus `sizeof`; A5 hängt am
-Enum-Ende statt an einer festen Zahl, und **beide Enums müssen gleich lang bleiben** — S.21
-prüft das. **Härteste Grenze: F103-Flash** (§2.7).
+**Hartkodierte Grenzen?** A5 hängt am Enum-Ende; **beide Enums müssen gleich lang bleiben** —
+S.21 prüft das. **Härteste Grenze: F103-Flash** (§2.7).
 
 ### Secure by design
 
-**`innerHTML`?** B33; **P2.1f** baut die SSID-Liste neu — SSID-Namen sind Fremddaten aus der
-Luft und gehen nie ungeschützt ins DOM.
-
-**Fremddaten?** **N1** ist der schärfste Fall. **C23** escapet Logzeilen nach JSON — eine
-STM-Zeile mit `"` oder Steuerzeichen bräche heute das JSON, und das Escapen schliesst
-zugleich eine Injektion in die Antwort.
-
-**Credentials?** **C31, A20 — und B19:** Das Passwort für M2 liegt in einer Datei ausserhalb
-des Repos und darf in keiner Prozessliste, keinem Mitschnitt und keiner Logzeile erscheinen
-(§5). **Dass ein Agent M2 anlegen darf, ändert, wer das Passwort benutzt, nicht wer es
-kennt** — der Agent liest es nie.
-
-**Konfiguration schreibende Endpunkte?** Keine neuen. E12, C38, C6u, F.2, F.3 ändern
-Antworten bzw. Abweisungen.
+**`innerHTML`?** SSID-Namen nie roh (P2.1f). **Fremddaten?** N1 als schärfster Fall; C23
+escapet Logzeilen. **Credentials?** C31, A20 — **und B19**: Das Passwort für M2 liegt
+ausserhalb des Repos, läuft über `env:`/`file:` statt über die Prozessliste, und der Agent
+liest es nie. **Neue schreibende Endpunkte?** Keine.
 
 ### Stable & reliable
 
 **Fehler ausgewertet?** P: B36, R1–R4, L303/L306. Brücke: A35. F: E12, Overlay-Text, C38,
-C6u, Ent-4. **A5:** „kein Messwert" ist `0x8000`, nicht `0` — ein fehlender Wert darf nie
-als 0 °C erscheinen.
+C6u, Ent-4. **A5:** „kein Messwert" ist `0x8000`, nicht `0`.
 
 **Leere `catch`?** R3 beseitigt einen; zwei bleiben bewusst (`localStorage`).
 
-**Stille Verwerfungen?** C26-Zähler, gezählte unpassende Quittung, A46, A49, C25. Der alte
-ESP verwirft Index 49 über die Bereichsprüfung — beabsichtigt und ohne Folgen (§7.4).
+**Stille Verwerfungen?** C26, A35, A46, A49, C25; Index 49 auf einem alten ESP verworfen —
+beabsichtigt.
 
-**Still zurechtgebogen?** **A5 beseitigt genau das:** Unter 0 °C meldete die Uhr 0 °C. B40
-und die SSID-Auswahl tauschten Eingaben still gegen alte Werte; Overlay-Text und C38 kürzten
-still. Massnahme 4 ist die Gegenrichtung — eine Warnung ohne Grund.
+**Still zurechtgebogen?** **A5 beseitigt die Klemmung auf 0 °C** in PWA und Legacy; **das
+Nachkommabit** beseitigt ein stilles Abrunden auf ganze Grad. B40 und die SSID-Auswahl
+tauschten Eingaben still; Overlay-Text und C38 kürzten still. **Massnahme 4** ist die
+Gegenrichtung — und bewusst nur dort korrigiert, wo es einen Ausgangswert gibt.
 
-**Zustand nach Abbruch?** Import, Layout-Restore, L306 (Knopf zurück auf seinen Zustand),
-Vollabgleich, Zuordnung, N1, C38, zurückgestellte K-Punkte — wie in den Abschnitten oben.
-**C4:** Weicht ein `.hex` ab, wird die Umschrift ganz zurückgenommen.
+**Zustand nach Abbruch?** Wie in den Abschnitten oben; **C4:** Weicht ein `.hex` ab, wird die
+Umschrift ganz zurückgenommen.
 
-**Flags aufgelöst?** IP-Ticker-Vormerker, Zuordnung, Markenerwartung im selben Durchlauf;
-`prefillDeviceValue()`-Zustand bis Speichern oder Neuladen; `hasUnsavedEdits` fällt auch bei
-wiederhergestelltem Ausgangswert; Busy-Zustand fällt im Fehlerpfad; A49-Maske bewusst nie.
+**Flags aufgelöst?** Wie zuvor; der „geändert"-Zustand der vier Netzwerkfelder fällt bei
+wiederhergestelltem Ausgangswert.
 
 ---
 
 ## Verworfene Alternativen
 
-**A5: Index 21 umdeuten.** Eine alte PWA zeigte Unsinn bei Minusgraden — schlechter als
-heute (§7.2).
+**A5: Index 21 umdeuten; einen obsoleten Index wiederverwenden; Vorzeichen als eigenes Flag;
+Offset-Kodierung.** §7.2 bzw. vorige Fassung.
 
-**A5: einen obsoleten Index wiederverwenden.** Die Gattung aus C32/L299 (§7.2).
+**A5: Legacy weiter auf Index 21 lassen.** Durch **Ent-8** überholt — der Nutzer will
+Minusgrade auch in Legacy.
 
-**A5: Vorzeichen als eigenes Flag neben Index 21.** Zwei Variablen, die zusammen gelesen
-werden müssen, kommen über die Brücke nicht atomar — ein Leser sähe den neuen Betrag mit dem
-alten Vorzeichen. Ein `int16` ist eine Zeile.
+**A5: ESP rechnet Index 49 bei einer Korrekturänderung nicht nach.** Verworfen, seit Legacy
+Index 49 zeigt: Legacy und PWA zeigten nach einer Korrektur kurz verschiedene Werte (§7.3).
 
-**A5: Offset-Kodierung (z. B. +128).** Ebenfalls lesbar, aber jeder Leser müsste den Offset
-kennen; Zweierkomplement in 16 Bit ist das, was der Wert ist.
+**Nachkommabit: Bit 6 (0,25 °C) mit auswerten.** Der Index hat halbe Grad als Auflösung; ein
+Viertelgrad bräuchte ein anderes Format. Nicht Teil.
 
-**A5: ESP rechnet die neue Variable bei Korrekturänderung nach.** Zöge `http.cpp` in S; der
-STM liefert den richtigen Wert ohnehin sofort (§7.3).
+**Nachkommabit am Gerät abnehmen.** Hängt von der Raumtemperatur ab; Prüfstand.
 
-**A5 mit P2 ausliefern.** P2 wird vor S gebaut; die PWA läse eine Variable, die es noch
-nicht gibt. Der Rückfall wäre harmlos, aber die Probe gegen echte Firmware fehlte.
+**Massnahme 4 allgemein.** Entscheidung des Leads: nur die vier vorbefüllten Netzwerkfelder
+(§1.9).
 
-**A5 als eigene Runde nach F.** Zwei Flashes mehr für eine Zeile im Vollabgleich (§7.6) —
-**es sei denn, die Anzeige an der Uhr soll mit** (Ent-8).
+**B17 in P2 umsetzen.** Spuren 1 und 2 sind abgedeckt; Spur 3 braucht einen ESP-Neustart, und
+den liefert S ohnehin (§1.11).
 
-**E17 im selben Diff wie A39.** Unlesbar; daher S.15b als reiner Umbenennungsdiff.
-
-**C4 mit S.** Der `.hex`-Gleichheitsnachweis gelingt nur ohne andere Änderung (§8).
-
-**C4 mit Flash.** Ein Flash ohne geändertes Fabrikat ist Risiko ohne Gegenstand.
-
-**B19: Passwort als Kommandozeilenargument oder Umgebung im Repo.** Prozessliste bzw.
-Repo; beides schliesst die Entscheidung aus.
-
-**P2 mit eigenem Durchlauf; L303/L306 in S.26; C38 am Gerät; Flash-Gate nur als Schätzung
-oder nur am Ende; K als eigene Runde; F parallel zu S** — wie in der vorigen Fassung
-begründet.
+**E17 im selben Diff wie A39; C4 mit S oder mit Flash; P2 mit eigenem Durchlauf; L303/L306 in
+S.26; C38 am Gerät; Flash-Gate nur als Schätzung oder nur am Ende; K als eigene Runde; F
+parallel zu S** — wie in der vorigen Fassung begründet.
 
 Aus der alten Spec weiter gültig: eigenes Top-Level-Präfix, Zuordnung an den Punkt (`.c3`),
 Fähigkeitsmeldung für die Marke, Markenpflicht für alle Kommandoarten, Schweigen statt `!v`,
@@ -722,8 +546,8 @@ Version ihres Trägers; Testbauten und C4 heben keine Version an.
 |---|---|---|---|---|
 | P — **ausgeliefert** (1.4.91) | — | — | ☑ | ☑ |
 | P2 | — | — | ☐ | ☐ |
-| S, ESP-Teil (N1, A5-ESP) | — | ☐ | — | — |
-| S, STM-Teil (E17, A5, gemessene K-Punkte) | ☐ | — | — | — |
+| S, ESP-Teil (N1, A5 mit Legacy) | — | ☐ | — | — |
+| S, STM-Teil (E17, A5 samt Nachkommabit, gemessene K-Punkte) | ☐ | — | — | — |
 | P3 (A5-PWA) | — | — | ☐ | ☐ |
 | C4 | — | — | — | — |
 | F | — | ☐ | — | — |
