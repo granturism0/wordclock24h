@@ -643,6 +643,12 @@ tetris (void)
 
     do
     {
+        /* A16 / L106: Das Spiel haelt den Hauptloop fuer seine ganze Dauer an, und sein Kopf ist die
+         * einzige regulaere Reload-Stelle. Ohne diese Zeile setzte der Watchdog nach rund 20 s zurueck,
+         * also nach rund 3,6 Steinen. Ein Durchlauf dauert hoechstens loops x 10 ms plus den
+         * Fallzug ('m'), weit unter dem Fenster. Den Bestand der Aufrufstellen fuehrt Guardrail S7.
+         */
+        watchdog_reload ();
         display_refresh_display_leds ();
         ch = 0;
 

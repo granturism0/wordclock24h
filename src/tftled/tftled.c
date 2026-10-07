@@ -151,7 +151,7 @@ tftled_layout_get_line (char * str)
 
     if (len < 2)                                                                    // zu kurz fuer die Zeilennummer
     {
-        log_printf ("disp line rejected, len=%u<2\r\n", (unsigned int) len);
+        esp8266_cmd_reject ("D", len, 2);                                          // A46 / L291: gemeinsamer Zaehler und Drosselung, Meldung "'D' len=n<2"
         return;
     }
 

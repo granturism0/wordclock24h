@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Auszugs-Pruefstaende: echter Firmware-Code, ausgeschnitten und auf dem Rechner
+# uebersetzt -- nativ UND mit den Typbreiten des Ziels (pruefstand.h, L256).
+#
+#   ./tools/checks/auszug.sh            alle gegen den aktuellen Baum
+#   ./tools/checks/auszug.sh --gegen R  alle gegen den Stand von Revision R (Gegenprobe)
+#
+# Entstanden in Runde S (Paket 2026-10-06, S.20). Jeder Pruefstand ist beim Bauen einmal
+# gegen die alte Fassung fehlgeschlagen (DIR-014); --gegen macht das wiederholbar, z. B.
+#   ./tools/checks/auszug.sh --gegen release/3.2.21-3.2.25-1.4.92
+# muss fuer die STM-Pruefstaende anschlagen, weil dieser Stand die Korrekturen nicht hat.
+#
+# Die Pruefstaende schreiben Zwischendateien neben sich. Deshalb laufen sie in einer
+# Kopie unter $TMPDIR, nicht im Arbeitsbaum.
+#
+# Ausgabe: je Pruefstand eine Zeile OK/FEHL, am Ende "N von M bestanden". Exit 1, wenn
+# einer fehlschlaegt, 2, wenn einer sich nicht uebersetzen laesst.
+set -uo pipefail
+ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel) || exit 2
+export ROOT
+QUELLE="$ROOT"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/auszug.XXXXXX") || exit 2
+trap 'rm -rf "$TMP"' EXIT
+if [ "${1:-}" = "--gegen" ]; then
+  REV=${2:?Revision fehlt}
+  QUELLE="$TMP/baum"; mkdir -p "$QUELLE"
+  git -C "$ROOT" archive "$REV" src ESP8266/ESP-uclock | tar -x -C "$QUELLE" || exit 2
+  echo "Gegenprobe gegen $REV"
+fi
+cp -R "$ROOT/tools/checks/auszug" "$TMP/a"
+A="$TMP/a"; S="$QUELLE/src"; E="$QUELLE/ESP8266/ESP-uclock"
+
+# Name | Aufruf (ohne Kopie-Praefix). "neu" ist die Bezeichnung in der Ausgabe.
+LAUF=(
+  "AKS.5 Quittungszuordnung (STM)|stm/run.sh $S neu"
+  "A13+A47 Abschlussbyte (STM)|stm/a13/run.sh $S neu"
+  "A20 keine Werte im Timeout-Log (STM)|stm/a20/run.sh $S neu"
+  "A5+L325 RTC-Temperatur (STM)|stm/a5/run.sh $S/rtc/rtc.c neu -DHAVE_HALF"
+  "A3+A48+A51 Overlay-Grenzen (STM)|stm/a3/run.sh $S/main.c $S/overlay/overlay.c neu"
+  "A14 Index maskiert (STM)|stm/k/a14/run.sh $S/vars/vars.c neu"
+  "A24 Wortindizes (STM)|stm/k/a24/run.sh $S/tables/tables.c neu"
+  "A46 Verwerfungspfade (STM)|stm/k/a46/run.sh $S/main.c $S/tftled/tftled.c $S/esp-spiffs/esp-spiffs.c $S/esp8266 neu"
+  "A49 erste Meldung je Grund (STM)|stm/k/a49/run.sh $S/main.c neu"
+  "A9 LDR ungeklammert, Kennlinie gleich (STM)|stm/k/a9/run.sh $S/ldr/ldr.c neu"
+  "S.1-S.3 Bruecke (ESP)|esp/t1/run.sh $E/ESP-uclock.ino $E/vars.h neu"
+  "C31 keine Schluessel im Log (ESP)|esp/t2/run.sh $E/eepromdata.cpp neu"
+  "A5 Legacy-Temperatur (ESP)|esp/t3/run.sh $E neu"
+  "N1 Overlay-Index (ESP)|esp/t4/run.sh $E neu"
+)
+ok=0; fehl=0; kaputt=0
+for z in "${LAUF[@]}"; do
+  name=${z%%|*}; cmd=${z#*|}
+  out=$(cd "$A" && sh "$A"/$cmd 2>&1); rc=$?
+  case $rc in
+    0) ok=$((ok+1)); printf '  OK    %s\n' "$name" ;;
+    1) fehl=$((fehl+1)); printf '  FEHL  %s\n' "$name"; printf '%s\n' "$out" | grep -a -E "FEHL|Fail|FAIL" | head -3 | sed 's/^/          /' ;;
+    *) kaputt=$((kaputt+1)); printf '  KAPUTT %s (rc=%s)\n' "$name" "$rc"; printf '%s\n' "$out" | tail -4 | sed 's/^/          /' ;;
+  esac
+done
+echo "  $ok von ${#LAUF[@]} bestanden, $fehl fehlgeschlagen, $kaputt nicht uebersetzbar"
+[ "$kaputt" -gt 0 ] && exit 2
+[ "$fehl" -gt 0 ] && exit 1
+exit 0

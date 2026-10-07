@@ -1476,15 +1476,16 @@ static uint_fast8_t     show_overlay_idx            = MAX_OVERLAYS;
 static uint_fast8_t     icon_duration               = 0;
 /* Nachgezogener Display-Restore fuer JEDEN nicht blockierenden Ticker, nicht mehr nur fuer
  * den Wetterticker: Es laufen jetzt auch ticker_set, der IP-Ticker der Startsequenz, das
- * Ticker-Overlay und der Datumsticker mit do_wait = 0 (BEFUNDE.md L204, L211, L216). Der
- * Name bleibt unveraendert, weil CLAUDE.md und knowledge/quick-reference.md ihn woertlich
- * als Architektur-Invariante fuehren.
+ * Ticker-Overlay und der Datumsticker mit do_wait = 0 (BEFUNDE.md L204, L211, L216). Seit
+ * E17 sagt der Name das auch; CLAUDE.md und knowledge/ fuehren die Restore-Bedingung als
+ * Architektur-Invariante.
  */
-static uint_fast8_t     pending_weather_ticker_restore = 0;
+static uint_fast8_t     pending_ticker_restore = 0;
 static uint32_t         show_icon_stop_time         = 0;
 static uint32_t         local_uptime                = 0;
 static uint_fast8_t     ir_export_idx               = N_REMOTE_IR_CMDS;     // Abzug der IR-Codes: naechster Index, N == nichts zu tun
 static uint_fast8_t     var_sync_pending            = 0;                    // SYNCVARS gesehen: Vollabgleich im Hauptloop faellig
+static uint_fast8_t     ip_ticker_pending           = 0;                    // IPADDRESS gesehen: IP-Lauftext NACH dem Vollabgleich (A39)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set_overlay_idx () - used by external NIC function wc_display_overlay()
@@ -1649,6 +1650,19 @@ schedule_esp8266_remote_procedure (char * parameters)
         }
     }
 }
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Vorwaertsdeklaration fuer esp8266_idx_ok () (A44 / L289, A3)
+ *
+ * Die Pruefung steht samt Begruendung bei ihrer Definition weiter unten, zusammen mit dem
+ * Zaehler, den sie sich mit esp8266_cmd_reject () teilt. Die Handler ab hier brauchen sie
+ * aber frueher -- seit A3 schon schedule_esp8266_numeric_variable (). Deklaration statt
+ * Verschiebung: Der Compiler haelt beide Seiten zusammen, eine verschobene Funktion haette
+ * einen Diff ueber rund 150 Zeilen erzeugt -- und ein Diff, den niemand mehr pruefen kann,
+ * ist in diesem Projekt schon einmal teuer geworden.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static __attribute__((noinline)) uint_fast8_t esp8266_idx_ok (uint_fast8_t, uint_fast8_t, const char *);
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_numeric_variable () - schedule ESP8266 numeric variables
@@ -1988,7 +2002,17 @@ schedule_esp8266_numeric_variable (char * parameters)
         }
         case OVERLAY_N_OVERLAYS_NUM_VAR:
         {
-            overlay_set_n_overlays (val);
+            /* A3: n kommt als 16-Bit-Wert und ging ungeprueft in overlay_set_n_overlays(). Mit
+             * n > 32 liefen alle Schleifen "< n_overlays" ueber die 32 Plaetze hinaus. Gueltig ist
+             * n <= 32 -- 32 ist ein regulaerer Zustand, den die API erzeugt. Abgewiesen und
+             * gezaehlt, nicht geklemmt: Ein geklemmter Wert waere ein stiller falscher.
+             * val ist 16 Bit, idx in esp8266_idx_ok() uint_fast8_t: auf dem Ziel beides 32 Bit,
+             * 256 bleibt also 256. Auf einer Plattform mit 8-Bit-uint_fast8_t nicht (L256).
+             */
+            if (esp8266_idx_ok (val, sizeof (overlay.overlays) / sizeof (overlay.overlays[0]) + 1, "novl"))
+            {
+                overlay_set_n_overlays (val);
+            }
             debug_log_printf ("cmd: set number of overlays %d\r\n", val);
             break;
         }
@@ -2204,10 +2228,10 @@ schedule_esp8266_string_variable (char * parameters)
              *
              * Hier steht bewusst KEIN display_clock_flag: Es wuerde den Ticker im naechsten
              * Durchlauf sofort zumalen. Den Restore zieht die Bedingung um
-             * pending_weather_ticker_restore nach, sobald display_ticker_active() falsch ist.
+             * pending_ticker_restore nach, sobald display_ticker_active() falsch ist.
              */
             display_set_ticker ((unsigned char *) parameters, 0);
-            pending_weather_ticker_restore = 1;
+            pending_ticker_restore = 1;
             debug_log_printf ("cmd: print ticker: '%s'\r\n", parameters);
             break;
         }
@@ -2427,19 +2451,6 @@ schedule_esp8266_display_variable (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
- * Vorwaertsdeklaration fuer esp8266_idx_ok () (A44 / L289)
- *
- * Die Pruefung steht samt Begruendung bei ihrer Definition weiter unten, zusammen mit dem
- * Zaehler, den sie sich mit esp8266_cmd_reject () teilt. Die drei Handler ab hier brauchen
- * sie aber frueher. Deklaration statt Verschiebung: Der Compiler haelt beide Seiten
- * zusammen, eine verschobene Funktion haette einen Diff ueber rund 150 Zeilen erzeugt --
- * und ein Diff, den niemand mehr pruefen kann, ist in diesem Projekt schon einmal teuer
- * geworden.
- *-------------------------------------------------------------------------------------------------------------------------------------------
- */
-static __attribute__((noinline)) uint_fast8_t esp8266_idx_ok (uint_fast8_t, uint_fast8_t, const char *);
-
-/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_animation_variable () - schedule ESP8266 animation variables
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2609,6 +2620,15 @@ schedule_esp8266_overlay (char * parameters)
     var_idx = htoi (parameters, 2);
     parameters += 2;
 
+    /* A48: gegen die FELDGROESSE, nicht gegen n_overlays -- die Setter in overlay.c pruefen
+     * idx < n_overlays still, und das bleibt. Hier wird die ganze Zeile gezaehlt verworfen,
+     * wie bei den Handlern aus A44.
+     */
+    if (! esp8266_idx_ok (var_idx, sizeof (overlay.overlays) / sizeof (overlay.overlays[0]), "ovl"))
+    {
+        return;
+    }
+
     switch (cmd_code)
     {
         case 'T':                                                       // OT: Overlay Type
@@ -2736,14 +2756,21 @@ static uint32_t     esp8266_cmd_reject_cnt = 0;                 // gemeinsam mit
 static __attribute__((noinline)) uint_fast8_t
 esp8266_idx_ok (uint_fast8_t idx, uint_fast8_t limit, const char * was)
 {
+    static uint8_t  gemeldet = 0;                               // A49 / L294: erster Fall DIESES Grundes schon gemeldet?
     uint_fast8_t    ok = 1;
 
     if (idx >= limit)
     {
         esp8266_cmd_reject_cnt++;
 
-        if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0)
+        /* A49 / L294: Die Drosselung gilt fuer die SUMME (L109), der ERSTE Fall je Grund wird aber
+         * immer gemeldet -- sonst verbrauchten vier fruehe Laengenabweisungen das Kontingent, und
+         * diese Indexabweisung stuende nur noch im Zaehler. Je Funktion ein Byte, weil jede genau
+         * einen Grund meldet; esp8266_cmd_reject() traegt das Gegenstueck.
+         */
+        if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0 || ! gemeldet)
         {
+            gemeldet = 1;
             log_printf ("cmd rejected #%lu %s idx %u>%u\r\n",
                         (unsigned long) esp8266_cmd_reject_cnt, was,
                         (unsigned int) idx, (unsigned int) limit);
@@ -2991,14 +3018,18 @@ esp8266_cmd_min_len (const char * line)
  * Abweisungsgruende gilt und nicht je Grund getrennt.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+void                                                                // A46 / L291: nicht mehr static -- tftled.c und esp-spiffs.c zaehlen mit
 esp8266_cmd_reject (const char * line, uint_fast8_t have, uint_fast8_t want)
 {
+    static uint8_t  gemeldet = 0;                               // A49 / L294: erster Laengen-Fall schon gemeldet? Siehe esp8266_idx_ok()
+
     esp8266_cmd_reject_cnt++;
 
-    if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0)
+    if (esp8266_cmd_reject_cnt <= 4 || (esp8266_cmd_reject_cnt % 50) == 0 || ! gemeldet)
     {
         char    c = have ? line[0] : '-';
+
+        gemeldet = 1;
 
         if (c < 0x20 || c > 0x7E)
         {
@@ -3209,41 +3240,30 @@ schedule_esp8266_messages (void)
         }
         case ESP8266_IPADDRESS:                                                 // ESP8266 got new ip address
         {
-            unsigned char buf[32];
-
-            sprintf ((char *) buf, "IP %s", esp8266.ipaddress);
             log_printf ("info: ip address = %s\r\n", esp8266.ipaddress);
             log_flush ();
-            var_send_all_variables ();
-            debug_log_message ("info: configuration sent");
-            log_flush ();
-            /* Nicht blockierend (BEFUNDE.md L211): Das ist der Pfad, den CLAUDE.md seit
-             * Monaten als "teils Haenger exakt bei Anzeige von 'IP' in der Startsequenz"
-             * fuehrt -- mit do_wait = 1 standen hier dieselben 13 bis 20 s Hauptloop-
-             * Stillstand wie bei ticker_set (L204: 204 Iterationen a rund 93 ms bei
-             * 32 Zeichen).
+            /* A39 / L259, Variante (b): nur VORMERKEN, wie der SYNCVARS-Zweig darunter.
              *
-             * Das Muster traegt an dieser Stelle, und zwar nachgesehen statt angenommen:
-             * schedule_esp8266_messages() wird erst aus dem while (1) weiter unten gerufen,
-             * timer2_init() laeuft lange davor, und der Zweig
-             * "if (animation_flag) display_animation()" steckt im selben Loop -- der
-             * periodische Zweig steht hier also bereits zur Verfuegung. Der Ticker wird
-             * zudem erst NACH var_send_all_variables() gesetzt, dessen Warteschleife
-             * display_animation() nicht ruft.
+             * Hier stand ein direkter var_send_all_variables(). schedule_esp8266_messages() wird
+             * aber auch aus der Warteschleife von var_send_buf() gerufen (vars.c); kam die
+             * IPADDRESS-Zeile dort an, lief der Vollabgleich VERSCHACHTELT -- rund 194 Kommandos
+             * ohne eine einzige Quittungspruefung, und die zurueckkommenden Punkte quittierten der
+             * Reihe nach fremde Kommandos (L102). Begruendung im Detail beim SYNCVARS-Zweig.
              *
-             * buf ist lokal: display_set_ticker() kopiert den Text nach ticker_str, der
-             * Zeiger darf nach der Rueckkehr ungueltig werden.
-             *
-             * Kein display_clock_flag hier, sonst malt display_clock() den Ticker sofort zu.
+             * Der IP-Lauftext kommt wie bisher NACH dem Abgleich, nur jetzt im Hauptloop
+             * (ip_ticker_pending, siehe dort). Damit bleibt die Reihenfolge erhalten, und
+             * pending_ticker_restore wandert mit dem Ticker dorthin. Die Adresse wird dort
+             * aus esp8266.ipaddress neu gebildet; das Feld bleibt bis zur naechsten
+             * IPADDRESS-Zeile gueltig, ein lokaler Puffer ist nicht mehr noetig.
              */
-            display_set_ticker (buf, 0);
-            pending_weather_ticker_restore = 1;
+            var_sync_pending  = 1;
+            ip_ticker_pending = 1;
             break;
         }
         case ESP8266_SYNCVARS:                                                  // ESP8266 bittet um den vollen Variablensatz
         {
-            /* Nur vormerken, NICHT hier senden -- genau darin muss sich dieser Zweig vom
-             * IPADDRESS-Zweig darueber unterscheiden.
+            /* Nur vormerken, NICHT hier senden -- seit A39 genau wie der IPADDRESS-Zweig
+             * darueber, der hier bis dahin direkt sendete.
              *
              * schedule_esp8266_messages() wird auch aus der Warteschleife von var_send_buf()
              * gerufen (vars.c). Ein direkter var_send_all_variables() liefe von dort
@@ -3295,14 +3315,14 @@ schedule_esp8266_messages (void)
         {
             log_printf ("info: weather = %s\r\n", esp8266.u.weather);
             display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
-            pending_weather_ticker_restore = 1;
+            pending_ticker_restore = 1;
             break;
         }
         case ESP8266_WEATHER_FC:
         {
             log_printf ("info: weather forecast = %s\r\n", esp8266.u.weather);
             display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
-            pending_weather_ticker_restore = 1;
+            pending_ticker_restore = 1;
             break;
         }
         case ESP8266_WEATHER_ICON:
@@ -3864,7 +3884,7 @@ main (void)
             diag_last_loop = diag_loop_cnt;                                             // bei JEDER Zeile: sonst feuerte der Rueckfall in jedem weiteren Durchlauf
             diag_seq++;
 
-            log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u v=%u/%u\r\n",
+            log_printf ("diag %lu l=%lu t=%lu u=%lu r=%lu w=%u rx=%u/%u d=%u o=%u v=%u/%u a=%u\r\n",
                         (unsigned long) diag_seq,
                         (unsigned long) diag_loop_cnt,
                         (unsigned long) diag_tick_now,
@@ -3876,7 +3896,8 @@ main (void)
                         (unsigned int)  esp8266_uart_rxdrops (),
                         (unsigned int)  esp8266_uart_rxore (),
                         (unsigned int)  var_send_timeout_count (),
-                        (unsigned int)  var_send_nested_count ());
+                        (unsigned int)  var_send_nested_count (),
+                        (unsigned int)  esp8266_ack_drops);                             // S.16: verworfene Quittungen (fremde Zuordnung)
         }
 
         static uint_fast8_t icon_freeze_state = 0;                                      // DIAGNOSIS ONLY: do_display_icon freeze, see specs/bundle-guardrails-icon
@@ -3947,7 +3968,30 @@ main (void)
         {
             var_sync_pending = 0;
             var_send_all_variables ();
-            log_message ("info: syncvars, configuration sent");
+            log_message ("info: configuration sent");                         // SYNCVARS bzw. IPADDRESS steht davor im Log
+        }
+
+        /* IP-Lauftext der Startsequenz (A39, Variante b): erst NACH dem Vollabgleich. Steht
+         * var_sync_pending schon wieder, kam waehrend des Abgleichs eine weitere IPADDRESS- oder
+         * SYNCVARS-Zeile -- dann wartet der Ticker auf deren Abgleich im naechsten Durchlauf.
+         *
+         * Nicht blockierend (BEFUNDE.md L211): Mit do_wait = 1 stand hier frueher derselbe 13- bis
+         * 20-s-Stillstand wie bei ticker_set (L204) -- der Pfad hinter "teils Haenger exakt bei
+         * Anzeige von 'IP' in der Startsequenz". Den Restore zieht die Bedingung um
+         * pending_ticker_restore weiter unten nach; sie ist unveraendert.
+         *
+         * buf ist lokal: display_set_ticker() kopiert den Text nach ticker_str, der Zeiger darf nach
+         * der Rueckkehr ungueltig werden. Kein display_clock_flag hier, sonst malt display_clock()
+         * den Ticker sofort zu.
+         */
+        if (ip_ticker_pending && ! var_sync_pending)
+        {
+            unsigned char buf[32];
+
+            ip_ticker_pending = 0;
+            sprintf ((char *) buf, "IP %s", esp8266.ipaddress);
+            display_set_ticker (buf, 0);
+            pending_ticker_restore = 1;
         }
 
         /* Abzug der IR-Codes: genau EIN Kommando je Hauptloop-Durchlauf. Der RPC
@@ -4391,10 +4435,10 @@ main (void)
                      *
                      * Kein display_clock_flag hier, sonst malt display_clock() den Ticker im
                      * naechsten Durchlauf sofort zu. Den Restore zieht die Bedingung um
-                     * pending_weather_ticker_restore nach.
+                     * pending_ticker_restore nach.
                      */
                     display_set_ticker ((unsigned char *) overlay.overlays[show_overlay_idx].text, 0);
-                    pending_weather_ticker_restore = 1;
+                    pending_ticker_restore = 1;
                     break;
                 }
                 case OVERLAY_TYPE_MP3:                                                                      // mp3
@@ -4529,10 +4573,10 @@ main (void)
              * naechsten Durchlauf sofort zu.
              */
             display_set_ticker ((unsigned char *) datebuf, 0);
-            pending_weather_ticker_restore = 1;
+            pending_ticker_restore = 1;
         }
 
-        if (pending_weather_ticker_restore &&
+        if (pending_ticker_restore &&
             ! display_ticker_active () &&
             ! display.do_display_icon &&
             show_icon_stop_time == 0 &&
@@ -4540,7 +4584,7 @@ main (void)
         {
             if (! display_clock_flag)                                                   // only consume the flag if the restore can take effect
             {
-                pending_weather_ticker_restore = 0;                                     // else keep it pending and retry next iteration
+                pending_ticker_restore = 0;                                     // else keep it pending and retry next iteration
                 display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
             }
         }

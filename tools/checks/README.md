@@ -40,6 +40,15 @@ Bereichsprüfung 288 als 32 an, die auf dem Gerät abweist (in Runde S zweimal g
 |---|---|---|
 | `var-crc.c` | die Brücken-Prüfsumme, als unabhängige dritte Umsetzung gegen STM und ESP | A32 |
 | `pruefstand.h` | die Typbreiten der Zielplattform | L256 |
+| `auszug.sh` + `auszug/` | 14 Auszugs-Prüfstände aus Runde S: echter Code aus `src/**` bzw. `ESP8266/ESP-uclock/`, ausgeschnitten und nativ **und** mit Zieltypen übersetzt. Läuft als Stufe S16. `--gegen <rev>` fährt die Gegenprobe gegen einen alten Stand | AKS.5, A3, A5, A9, A13, A14, A20, A24, A46, A47, A48, A49, A51, C31, L308, L325 |
+
+**Wie ein Auszugs-Prüfstand gebaut ist:** Ein `extract.py` schneidet die geprüften
+Funktionen aus der Quelldatei (Latin-1 gelesen, CRLF entfernt), ein `run.sh` übersetzt sie
+mit dem Prüfrahmen (`-DSNIPPET=…`) zweimal, nativ und mit `-DZIELTYPEN`, und gibt Exit 1
+bei einem Fehlschlag. Weil die Skripte Zwischendateien neben sich schreiben, kopiert
+`auszug.sh` den Ordner vor jedem Lauf nach `$TMPDIR`. Schneidet ein `extract.py` nach einer
+Codeänderung nichts mehr aus, meldet der Lauf „nicht übersetzbar“ (Exit 2) — das ist ein
+Pflegefall des Prüfstands, kein bestandener Test.
 
 Die `.mjs`-Dateien daneben sind keine Prüfstände, sondern **Guardrail-Stufen**: Sie lesen den
 Quelltext und melden Abweichungen, statt Logik nachzurechnen.

@@ -74,7 +74,8 @@ Der Makefile liest diese Werte per `grep` aus (Targets `stm-version-file`,
 - Wetter läuft über `/api/weather_get_now` und `/api/weather_get_forecast`.
   Der frühere Legacy-Bypass (`/weather?action=...`) wurde bewusst entfernt.
   **Nicht zurückbauen.**
-- Wetter-Ticker ist asynchron: `pending_weather_ticker_restore` in `src/main.c`.
+- Ticker sind asynchron: `pending_ticker_restore` in `src/main.c` (früher
+  `pending_weather_ticker_restore` — er trägt seit L211 alle Ticker, nicht nur den Wetterticker).
   Display-Restore erst wenn Ticker inaktiv, kein Icon aktiv, kein Icon-Stop-Timer
   offen, kein Overlay aktiv. Diese Bedingung nicht vereinfachen.
 

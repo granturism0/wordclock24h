@@ -52,21 +52,28 @@ ldr_poll_brightness  (void)
 
     if (rtc)
     {
-        if (ldr.ldr_raw_value < ldr.ldr_min_value)
+        /* A9 / L77 (Entscheidung vom 07.10.2026): ldr.ldr_raw_value bleibt der UNGEKLAMMERTE Messwert --
+         * genau der geht ueber LDR_RAW_VALUE_NUM_VAR an den ESP. Hier wurde er an Ort und Stelle auf
+         * min..max geklammert, und die Oberflaeche sah beim Kalibrieren nie einen Wert jenseits der
+         * alten Grenzen. Die Automatik rechnet unveraendert mit einer geklammerten KOPIE.
+         */
+        uint_fast16_t   raw = ldr.ldr_raw_value;
+
+        if (raw < ldr.ldr_min_value)
         {
-            ldr.ldr_raw_value = ldr.ldr_min_value;
+            raw = ldr.ldr_min_value;
         }
 
-        if (ldr.ldr_raw_value > ldr.ldr_max_value)
+        if (raw > ldr.ldr_max_value)
         {
-            ldr.ldr_raw_value = ldr.ldr_max_value;
+            raw = ldr.ldr_max_value;
         }
 
         if (ldr.ldr_max_value > ldr.ldr_min_value)
         {
             uint_fast8_t ldr_value;
 
-            ldr_value = ((MAX_LDR_BRIGHTNESS + 1) * (ldr.ldr_raw_value - ldr.ldr_min_value)) / (ldr.ldr_max_value - ldr.ldr_min_value);
+            ldr_value = ((MAX_LDR_BRIGHTNESS + 1) * (raw - ldr.ldr_min_value)) / (ldr.ldr_max_value - ldr.ldr_min_value);
 
             if (ldr_value > MAX_LDR_BRIGHTNESS)                         // if (ldr_raw_value == ldr.ldr_max_value) then ldr.ldr_value is 32
             {

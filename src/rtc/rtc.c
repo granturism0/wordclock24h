@@ -57,7 +57,8 @@ RTC_GLOBALS                     grtc =
 {
     0,                                                              // rtc_is_up
     0,                                                              // rtc_temp_correction
-    0xFF                                                            // rtc_temperature_index
+    0xFF,                                                           // rtc_temperature_index
+    RTC_TEMP_HALF_DEG_NONE                                          // rtc_temp_half_deg: noch kein Messwert, NICHT 0 (das waere 0 Grad)
 
 };
 
@@ -355,14 +356,26 @@ rtc_get_temperature_index (void)
     uint_fast8_t    index = 0xFF;
     int_fast16_t    corrected;
 
+    grtc.rtc_temp_half_deg = RTC_TEMP_HALF_DEG_NONE;                    // A5: bleibt so bei Lesefehler und ohne RTC
+
     if (grtc.rtc_is_up)
     {
         index = rtc_read (DS3231_TEMP_REG_HI, buffer, 2);
 
         if (index)
         {
-            corrected = (buffer[0] << 1) | ((buffer[1] & 0x02) >> 1); // multiply integer part by 2, add 1 if fractional part >= 2
+            /* A5 / L38 und L325 (S.18b). Register 0x11 ist der ganzzahlige Teil im Zweierkomplement,
+             * Register 0x12 traegt die Nachkommastellen in Bit 7 (0,5 Grad) und Bit 6 (0,25 Grad).
+             * Hier stand (buffer[0] << 1) | ((buffer[1] & 0x02) >> 1): vorzeichenlos, also wurde aus
+             * -1 Grad ein Index von 510 und daraus 125 Grad, und das halbe Grad kam aus Bit 1, das
+             * der DS3231 nie setzt -- 5'028 Messungen am Geraet ohne ein einziges halbes Grad (L325).
+             *
+             * Gerechnet wird mit * 2 und nicht mit << 1: Linksschieben eines negativen Werts ist in C
+             * undefiniert. Bit 6 (0,25 Grad) bleibt unberuecksichtigt, der Index kennt nur halbe Grad.
+             */
+            corrected = (int8_t) buffer[0] * 2 + (buffer[1] >> 7);
             corrected -= grtc.rtc_temp_correction;                    // correct temperature due to self-heating
+            grtc.rtc_temp_half_deg = (uint16_t) corrected;            // Index 49: vorzeichenbehaftet, VOR der Begrenzung unten
 
             // Der Index kennt nur 0..250 (0..125 Grad), 255 ist der Fehlerwert. Zwischenrechnung
             // deshalb vorzeichenbehaftet und breiter, und das Ergebnis begrenzt statt umlaufen

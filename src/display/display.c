@@ -2075,8 +2075,8 @@ display_animation_snake (void)
     static uint8_t          snakepos_x[SNAKE_LEN];
     static uint_fast16_t    snake_y;
     static uint_fast16_t    snake_x;
-    static uint_fast16_t    next_y;
-    static uint_fast16_t    next_x;
+    static uint_fast8_t     next_y;                                 // A45 / L290: Typ wie der Parameter von animation_snake_search_next_word()
+    static uint_fast8_t     next_x;
     static uint_fast16_t    len = 0;
 
     if (display.animation_start_flag)

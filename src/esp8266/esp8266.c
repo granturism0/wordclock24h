@@ -241,6 +241,101 @@ esp8266_scan_token (const char * token, uint_fast8_t * posp, uint_fast8_t ch)
     return 0;
 }
 
+/* Zuordnung der Quittung (A35 Teil 1, S.16; specs/paket-2026-10-05/design.md 6.4).
+ *
+ * Der ESP sendet vor JEDER Quittung einer var-Zeile, dem Punkt wie dem "!v", eine eigene Zeile
+ * "ACK xy": xy ist das hoehere Byte der Pruefsummenmarke, die er mit der Zeile EMPFANGEN hat, klein
+ * geschrieben -- also das Byte, das var_send_buf() selbst gesendet hat; der ESP rechnet nichts nach.
+ * "ACK --" heisst: keine Zuordnung, werten wie bisher -- NICHT "passt nicht".
+ *
+ * Bisher trug die Quittung keine Zuordnung: Eine verspaetete Quittung bestaetigte das NAECHSTE
+ * Kommando, eine verspaetete Abweisung liess ein fremdes nachsenden (L233). Jetzt gilt:
+ *
+ *   - Die Zuordnung gilt NUR fuer die unmittelbar folgende Zeile. Jede vollstaendige Zeile
+ *     verbraucht sie; folgt keine Quittung, ist sie weg und geht nicht auf ein spaeteres
+ *     Kommando ueber (AKS.5).
+ *   - Passt sie nicht zum Kommando, auf das var_send_buf() gerade wartet, wird der PUNKT
+ *     VERWORFEN (ESP8266_ACK_DROP) und gezaehlt (diag a=). Das Kommando laeuft in seinen Timeout
+ *     und wird von A32 nachgesendet -- das verspaetete genau einmal, das wartende gar nicht.
+ *   - Ein "!v" geht dagegen IMMER als ESP8266_NAK durch, auch mit fremder Zuordnung (Review S.21,
+ *     H1). Beim "!v" wegen falscher Pruefsumme sendet der ESP die EMPFANGENE Marke zurueck; war
+ *     genau deren hohes Byte verfaelscht, machte die Zuordnung aus dem NAK einen DROP -- 3 s ohne
+ *     watchdog_reload() und eine spaete statt einer sofortigen Nachsendung. Ein fremdes "!v" kostet
+ *     schlimmstenfalls eine ueberfluessige, gleichwertige Nachsendung des wartenden Kommandos.
+ *   - Keine Zuordnung ("--", keine ACK-Zeile, verstuemmelte Zeile), oder niemand wartet mit Marke
+ *     (esp8266_ack_expect == ESP8266_ACK_NONE): wie bisher. Beide Regeln folgen demselben Grundsatz:
+ *     Im Zweifel gilt der Stand vor S, nicht ein 3-s-Timeout ohne watchdog_reload().
+ *
+ * Eigener Zweig in der Praefixkette, VOR dem Zweig, der unbekannte Zeilen loggt: Sonst kostete jede
+ * ACK-Zeile einen log_flush()-Busy-Wait (L266), rund 194 je Vollabgleich.
+ */
+uint_fast16_t           esp8266_ack_expect = ESP8266_ACK_NONE;          // gesetzt von var_send_buf(), waehrend es wartet
+uint16_t                esp8266_ack_drops  = 0;                         // verworfene Quittungen, saettigend
+static uint_fast16_t    esp8266_ack_tag    = ESP8266_ACK_NONE;          // aus der vorigen Zeile, gilt nur fuer die naechste
+
+static uint_fast16_t
+esp8266_ack_parse (const char * p)                                      // genau zwei Hexziffern, klein, wie der ESP sie sendet
+{
+    uint_fast16_t   val = 0;
+    uint_fast8_t    i;
+    uint_fast8_t    ch;
+
+    for (i = 0; i < 2; i++)                                             // liest p[1] nur, wenn p[0] eine Hexziffer war
+    {
+        ch = (uint_fast8_t) p[i];
+
+        if (ch >= '0' && ch <= '9')
+        {
+            ch -= '0';
+        }
+        else if (ch >= 'a' && ch <= 'f')
+        {
+            ch -= 'a' - 10;
+        }
+        else
+        {
+            return ESP8266_ACK_NONE;                                    // "--" und alles Verstuemmelte
+        }
+
+        val = (val << 4) | ch;
+    }
+
+    return p[2] ? ESP8266_ACK_NONE : val;
+}
+
+static uint_fast8_t
+esp8266_ack_check (uint_fast8_t rtc, uint_fast16_t tag)
+{
+    if (tag != ESP8266_ACK_NONE && esp8266_ack_expect != ESP8266_ACK_NONE && tag != esp8266_ack_expect)
+    {
+        if (esp8266_ack_drops < 0xFFFF)                                 // saettigend
+        {
+            esp8266_ack_drops++;
+        }
+
+        return ESP8266_ACK_DROP;
+    }
+
+    return rtc;
+}
+
+/* strncpy MIT Abschlussbyte, fuer jedes Feld der Union esp8266.u (A13 / L96, A47 / L292).
+ *
+ * strncpy schreibt bei voller Laenge KEIN Nullbyte. Alle Felder liegen in derselben Union; ohne
+ * Abschluss stuende hinter einem vollen Feld noch der Rest des vorigen, laengeren Inhalts, und jede
+ * Stringfunktion laese ueber das Feld hinaus -- bei u.cmd war das Befund L90. Jedes Feld ist
+ * [len + 1] gross, dst[len] liegt also immer im Feld.
+ *
+ * Eine Funktion statt je einer Abschlusszeile an 16 Stellen: Auf dem F103 ist das rund 90 Byte
+ * billiger als acht weitere Zeilen, und es kann keine Stelle mehr den Abschluss vergessen.
+ */
+static void
+esp8266_copy (char * dst, const char * src, uint_fast8_t len)
+{
+    strncpy (dst, src, len);
+    dst[len] = 0;
+}
+
 /*--------------------------------------------------------------------------------------------------------------------------------------
  * get message from ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
@@ -282,11 +377,14 @@ esp8266_get_message (void)
 
                 if (answer_pos > 0)
                 {
+                    uint_fast16_t   ack_tag = esp8266_ack_tag;                              // Zuordnung aus der VORIGEN Zeile ...
+
+                    esp8266_ack_tag = ESP8266_ACK_NONE;                                     // ... gilt nur fuer diese, was immer sie ist
                     answer_pos = 0;
 
                     if (answer[0] == '.' && answer[1] == '\0')                              // dot as "silent ok"
                     {
-                        rtc = ESP8266_OK;
+                        rtc = esp8266_ack_check (ESP8266_OK, ack_tag);
                         break;
                     }
                     else if (answer[0] == '!' && answer[1] == 'v' && answer[2] == '\0')     // "!v": Zeile abgelehnt
@@ -297,18 +395,24 @@ esp8266_get_message (void)
                          * zur Nachsendung vor. Still wie der Punkt: Gemeldet hat es bereits der ESP selbst,
                          * und jede zusaetzliche Zeile laege auf derselben ueberlasteten Leitung (L109).
                          */
-                        rtc = ESP8266_NAK;
+                        rtc = ESP8266_NAK;                                                  // ohne Zuordnungspruefung, H1: siehe esp8266_ack_check()
+                        break;
+                    }
+                    else if (! strncmp (answer, "ACK ", 4))                                 // Zuordnung der folgenden Quittung, still
+                    {
+                        esp8266_ack_tag = esp8266_ack_parse (answer + 4);
+                        rtc = ESP8266_ACK;
                         break;
                     }
                     else if (! strncmp (answer, "FILE ", 5))                                // FILE: keep silent
                     {
-                        strncpy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
+                        esp8266_copy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
                         rtc = ESP8266_FILEDATA;
                         break;
                     }
                     else if (! strncmp (answer, "ICON ", 5))                                // ICON: keep silent
                     {
-                        strncpy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
+                        esp8266_copy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
                         rtc = ESP8266_ICONDATA;
                         break;
                     }
@@ -321,38 +425,33 @@ esp8266_get_message (void)
                         }
                         else if (! strncmp (answer + 3, "INFO ", 5))                        // TABINFO
                         {
-                            strncpy (esp8266.u.tabinfo, answer + 8, ESP8266_TABINFO_LEN);
-                            esp8266.u.tabinfo[ESP8266_TABINFO_LEN] = '\0';
+                            esp8266_copy (esp8266.u.tabinfo, answer + 8, ESP8266_TABINFO_LEN);
                             rtc = ESP8266_TABINFO;
                             break;
                         }
                         else if (! strncmp (answer + 3, "ILLU ", 5))                        // TABILLU
                         {
-                            strncpy (esp8266.u.tabillu, answer + 8, ESP8266_TABILLU_LEN);
-                            esp8266.u.tabillu[ESP8266_TABILLU_LEN] = '\0';
+                            esp8266_copy (esp8266.u.tabillu, answer + 8, ESP8266_TABILLU_LEN);
                             rtc = ESP8266_TABILLU;
                             break;
                         }
 #if WCLOCK24H == 1
                         else if (! strncmp (answer + 3, "T ", 2))                           // TABT
                         {
-                            strncpy (esp8266.u.tabt, answer + 5, ESP8266_TABT_LEN);
-                            esp8266.u.tabt[ESP8266_TABT_LEN] = '\0';
+                            esp8266_copy (esp8266.u.tabt, answer + 5, ESP8266_TABT_LEN);
                             rtc = ESP8266_TABT;
                             break;
                         }
 #endif
                         else if (! strncmp (answer + 3, "H ", 2))                           // TABH
                         {
-                            strncpy (esp8266.u.tabh, answer + 5, ESP8266_TABH_LEN);
-                            esp8266.u.tabh[ESP8266_TABH_LEN] = '\0';
+                            esp8266_copy (esp8266.u.tabh, answer + 5, ESP8266_TABH_LEN);
                             rtc = ESP8266_TABH;
                             break;
                         }
                         else if (! strncmp (answer + 3, "M ", 2))                           // TABM
                         {
-                            strncpy (esp8266.u.tabm, answer + 5, ESP8266_TABM_LEN);
-                            esp8266.u.tabm[ESP8266_TABM_LEN] = '\0';
+                            esp8266_copy (esp8266.u.tabm, answer + 5, ESP8266_TABM_LEN);
                             rtc = ESP8266_TABM;
                             break;
                         }
@@ -412,7 +511,7 @@ esp8266_get_message (void)
                         }
                         else if (! strncmp (answer, "DISP ", 5))
                         {
-                            strncpy (esp8266.u.disp, answer + 5, ESP8266_DISP_LEN);
+                            esp8266_copy (esp8266.u.disp, answer + 5, ESP8266_DISP_LEN);
                             rtc = ESP8266_DISP;
                             break;
                         }
@@ -474,33 +573,31 @@ esp8266_get_message (void)
                         }
                         else if (! strncmp (answer, "TIME ", 5))
                         {
-                            strncpy (esp8266.u.time, answer + 5, ESP8266_MAX_TIME_LEN);
+                            esp8266_copy (esp8266.u.time, answer + 5, ESP8266_MAX_TIME_LEN);
                             rtc = ESP8266_TIME;
                             break;
                         }
                         else if (! strncmp (answer, "WEATHER ", 8))
                         {
-                            strncpy (esp8266.u.weather, answer + 8, ESP8266_MAX_WEATHER_LEN);
+                            esp8266_copy (esp8266.u.weather, answer + 8, ESP8266_MAX_WEATHER_LEN);
                             rtc = ESP8266_WEATHER;
                             break;
                         }
                         else if (! strncmp (answer, "WEATHER_FC ", 11))
                         {
-                            strncpy (esp8266.u.weather, answer + 11, ESP8266_MAX_WEATHER_LEN);
+                            esp8266_copy (esp8266.u.weather, answer + 11, ESP8266_MAX_WEATHER_LEN);
                             rtc = ESP8266_WEATHER_FC;
                             break;
                         }
                         else if (! strncmp (answer, "WICON ", 6))
                         {
-                            strncpy (esp8266.u.weather, answer + 6, 2);                         // copy only 2 characters ("02d" -> "02")
-                            esp8266.u.weather[2] = '\0';
+                            esp8266_copy (esp8266.u.weather, answer + 6, 2);                         // copy only 2 characters ("02d" -> "02")
                             rtc = ESP8266_WEATHER_ICON;
                             break;
                         }
                         else if (! strncmp (answer, "WICON_FC ", 9))
                         {
-                            strncpy (esp8266.u.weather, answer + 9, 2);                         // copy only 2 characters ("02d" -> "02")
-                            esp8266.u.weather[2] = '\0';
+                            esp8266_copy (esp8266.u.weather, answer + 9, 2);                         // copy only 2 characters ("02d" -> "02")
                             rtc = ESP8266_WEATHER_FC_ICON;
                             break;
                         }
@@ -513,24 +610,23 @@ esp8266_get_message (void)
                         }
                         else if (! strncmp (answer, "CMD ", 4))
                         {
-                            strncpy (esp8266.u.cmd, answer + 4, ESP8266_MAX_CMD_LEN);
+                            esp8266_copy (esp8266.u.cmd, answer + 4, ESP8266_MAX_CMD_LEN);
                             /* Befund L90: strncpy schreibt bei voller Laenge KEIN Nullbyte. u.cmd liegt in einer
-                             * union mit u.filedata; ohne diese Zeile steht an Position 127 noch ein Byte des
-                             * vorangegangenen Dateikommandos, und jede Stringfunktion liest ueber das Feld hinaus.
+                             * union mit u.filedata; ohne Abschluss steht an Position 127 noch ein Byte des
+                             * vorangegangenen Dateikommandos. Den Abschluss setzt esp8266_copy().
                              */
-                            esp8266.u.cmd[ESP8266_MAX_CMD_LEN] = '\0';
                             rtc = ESP8266_CMD;
                             break;
                         }
                         else if (! strncmp (answer, "OPEN ", 5))
                         {
-                            strncpy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
+                            esp8266_copy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
                             rtc = ESP8266_FILEOPEN;
                             break;
                         }
                         else if (! strncmp (answer, "FILE ", 5))
                         {
-                            strncpy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
+                            esp8266_copy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
                             rtc = ESP8266_FILEDATA;
                             break;
                         }

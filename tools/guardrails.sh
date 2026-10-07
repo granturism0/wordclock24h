@@ -249,11 +249,17 @@ fi
 # Begruendung falsch -- genau der Zustand, der eine Warnung ihre Ursache ueberleben
 # laesst (CLAUDE.md, "Behobene Falle im Release-Build"). Gemeldet hat es ein Agent,
 # der beim Nachzaehlen der Aufrufstellen hiergeblieben ist.
-WD_EXPECTED=8
+#
+# 10 seit 07.10.2026: dazu Tetris und Snake (A16). Und seither warnt die Stufe auch bei
+# MEHR Stellen als erwartet: Mit erwarteten 8 und tatsaechlich 10 haetten zwei Stellen
+# verlorengehen koennen, ohne dass sie anschlaegt -- gemeldet vom stm-developer bei S.17.
+WD_EXPECTED=10
 n=$($GREP -rc 'watchdog_reload ()\s*;' src --include='*.c' 2>/dev/null | $GREP -v ':0$' | awk -F: '{s+=$2} END {print s+0}')
 n=${n:-0}
 if [ "$n" -lt "$WD_EXPECTED" ]; then
-  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x, var_send_buf nach Quittung, display_wait_for_tables)"
+  warn "watchdog_reload() hat nur $n Aufrufstellen, erwartet sind $WD_EXPECTED — ist ein Fix verlorengegangen? (Hauptloop, remote_ir_learn, display_test 2x, Ticker-Warteschleife 2x, var_send_buf nach Quittung, display_wait_for_tables, Tetris, Snake)"
+elif [ "$n" -gt "$WD_EXPECTED" ]; then
+  warn "watchdog_reload() hat $n Aufrufstellen, erwartet sind $WD_EXPECTED — Bestand in S7 nachfuehren, sonst faellt ein Verlust erst spaet auf"
 else
   ok "watchdog_reload(): $n Aufrufstellen, Bestand vollstaendig"
 fi
@@ -521,6 +527,17 @@ step S14 "Hook-Gegenproben in beide Richtungen"
 # --------------------------------------- S15 Indexguards stehen und wirken
 step S15 "Indexpruefung gegen Schreibzugriffe ueber den Arrayrand"
 ./tools/checks/idx-guard.sh || CRIT=$((CRIT+1))
+
+# ------------------------------------- S16 Auszugs-Pruefstaende gegen den Baum
+# Echter Firmware-Code, ausgeschnitten und auf dem Rechner uebersetzt, nativ und mit
+# den Zieltypen. 14 Pruefstaende aus Runde S (Paket 2026-10-06, S.20), jeder einmal
+# gegen die alte Fassung fehlgeschlagen. Gegenprobe jederzeit wiederholbar:
+#   ./tools/checks/auszug.sh --gegen release/3.2.21-3.2.24-1.4.92   (muss anschlagen)
+# Die Overlay-Grenzen (A3+A48) und die Wortindizes (A24) stehen hier, nicht in S15:
+# S15 schneidet esp8266_idx_ok() ueber seine woertliche Signatur aus und kennt die
+# Aufrufer nicht; die Auszuege pruefen die Aufrufer selbst.
+step S16 "Auszugs-Pruefstaende (Runde S) gegen den aktuellen Baum"
+./tools/checks/auszug.sh || CRIT=$((CRIT+1))
 
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"

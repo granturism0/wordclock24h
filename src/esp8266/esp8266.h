@@ -50,6 +50,10 @@
 #define ESP8266_STATUS                  25                                      // "OK ..." vom ESP: Statusmeldung, KEINE Quittung
 #define ESP8266_NAK                     26                                      // "!v" vom ESP: Zeile abgelehnt, Pruefsumme stimmte nicht
 #define ESP8266_SYNCVARS                27                                      // "SYNCVARS" vom ESP: bitte den vollen Variablensatz
+#define ESP8266_ACK                     28                                      // "ACK xy" vom ESP: Zuordnung der FOLGENDEN Quittung, selbst keine
+#define ESP8266_ACK_DROP                29                                      // Quittung verworfen: Zuordnung passt nicht zum wartenden Kommando
+
+#define ESP8266_ACK_NONE                0x100                                   // keine Zuordnung, siehe esp8266.c
 
 #define ESP8266_UNSPECIFIED             0xFF
 
@@ -112,6 +116,9 @@ typedef struct
 extern ESP8266_GLOBALS                  esp8266;
 
 extern volatile uint_fast8_t            esp8266_ten_ms_tick;
+extern uint_fast16_t                    esp8266_ack_expect;                     // gesetzt von var_send_buf(), waehrend es wartet
+extern uint16_t                         esp8266_ack_drops;                      // verworfene Quittungen, saettigend (diag a=)
+extern void                             esp8266_cmd_reject (const char *, uint_fast8_t, uint_fast8_t);  // in main.c: gemeinsamer Zaehler, gedrosselt (A46)
 
 extern uint_fast8_t                     esp8266_get_message (void);
 extern void                             esp8266_send_cmd (const char *, const char *, uint_fast8_t);

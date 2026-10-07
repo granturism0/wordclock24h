@@ -330,6 +330,11 @@ snake (void)
 
         while (1)
         {
+            /* A16 / L106: Das Spiel haelt den Hauptloop fuer seine ganze Dauer an; ohne diese Zeile
+             * setzte der Watchdog nach rund 20 s zurueck. Ein Zug dauert hoechstens delay_loops x
+             * 10 ms (get_next_move). Den Bestand der Aufrufstellen fuehrt Guardrail S7.
+             */
+            watchdog_reload ();
             display_snake ();
             display_food ();
             display_refresh_display_leds ();

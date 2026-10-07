@@ -88,6 +88,7 @@ typedef enum
     OVERLAY_N_OVERLAYS_NUM_VAR,
     UPTIME_SECONDS_LO_NUM_VAR,
     UPTIME_SECONDS_HI_NUM_VAR,
+    RTC_TEMP_HALF_DEG_NUM_VAR,                                              // 49, A5: int16 halbe Grad, 0x8000 = kein Messwert; gleicher Index wie im ESP
     MAX_NUM_VARIABLES                                                       // must be the last member
 } NUM_VARIABLE;
 

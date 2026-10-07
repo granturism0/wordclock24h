@@ -454,7 +454,15 @@ tables_fill_words (uint8_t * words, uint_fast8_t hh, uint_fast8_t mm)
     const MINUTEDISPLAY *   tbl_minute;
     const uint8_t *         word_idx_p;
     uint_fast16_t           idx;
+    uint_fast8_t            w;                                      // A24: Wortindex, an EINER Stelle je Schleife geprueft
 
+    /* A24 / L162: Die Wortindizes kommen als Tabelle vom ESP, zwei Hexziffern, also 0..255, und
+     * wurden ungeprueft in words[WP_COUNT] geschrieben -- ein Schreibzugriff bis 127 Byte hinter das
+     * Feld des Aufrufers. tables_idx_ok() beim Transfer prueft nur den Zeilenindex, nicht die Werte.
+     * Jetzt wird jeder Index vor dem Schreiben geprueft; ein ungueltiges Wort faellt weg, der Rest
+     * der Anzeige bleibt. Die Meldung ist ungedrosselt wie beim Transfer: Die Funktion laeuft je
+     * Anzeigeaufbau, nicht je Bildwechsel, und nur eine beschaedigte Tabelle loest sie aus.
+     */
     if (tables.complete)
     {
         memset (words, 0, WP_COUNT);
@@ -462,7 +470,12 @@ tables_fill_words (uint8_t * words, uint_fast8_t hh, uint_fast8_t mm)
 
         for (idx = 0; idx < tables.max_minute_words && tbl_minute->word_idx[idx] != 0; idx++)
         {
-            words[tbl_minute->word_idx[idx]] = 1;
+            w = tbl_minute->word_idx[idx];
+
+            if (tables_idx_ok (w, WP_COUNT, "word"))
+            {
+                words[w] = 1;
+            }
         }
 
         if (tbl_minute->flags & MDF_HOUR_OFFSET_1)
@@ -488,33 +501,22 @@ tables_fill_words (uint8_t * words, uint_fast8_t hh, uint_fast8_t mm)
 
         for (idx = 0; idx < MAX_HOUR_WORDS && word_idx_p[idx] != 0; idx++)
         {
-            if (word_idx_p[idx] == WP_IF_MINUTE_IS_0)               // if minute is null take word index + 1, otherwise word index + 2
-            {                                                       // this handles "EIN UHR" instead of "EINS UHR" at 01:00 & 13:00
-                if (mm == 0)
-                {
-                    words[word_idx_p[idx + 1]] = 1;
-                }
-                else
-                {
-                    words[word_idx_p[idx + 2]] = 1;
-                }
-                idx += 2;
-            }
-            else if (word_idx_p[idx] == WP_IF_HOUR_IS_0)            // if hour is null take word index + 1, otherwise word index + 2
-            {                                                       // this handles "MINUIT" instead of "MIDI" at 00:00 in french moede
-                if (is_midnight)
-                {
-                    words[word_idx_p[idx + 1]] = 1;
-                }
-                else
-                {
-                    words[word_idx_p[idx + 2]] = 1;
-                }
-                idx += 2;
-            }
-            else
+            w = word_idx_p[idx];
+
+            /* WP_IF_MINUTE_IS_0: "EIN UHR" statt "EINS UHR" um 01:00 und 13:00 -- bei Minute 0 das
+             * Wort idx + 1, sonst idx + 2. WP_IF_HOUR_IS_0: "MINUIT" statt "MIDI" um 00:00 im
+             * franzoesischen Modus -- um Mitternacht idx + 1, sonst idx + 2. Beides wie bisher, nur
+             * als EIN berechneter Index, damit das Schreiben eine einzige Pruefung hat (A24).
+             */
+            if (w == WP_IF_MINUTE_IS_0 || w == WP_IF_HOUR_IS_0)
             {
-                words[word_idx_p[idx]] = 1;
+                w = word_idx_p[idx + (((w == WP_IF_MINUTE_IS_0) ? (mm == 0) : is_midnight) ? 1 : 2)];
+                idx += 2;
+            }
+
+            if (tables_idx_ok (w, WP_COUNT, "word"))
+            {
+                words[w] = 1;
             }
         }
     }

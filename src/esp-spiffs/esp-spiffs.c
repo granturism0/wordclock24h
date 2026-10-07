@@ -199,8 +199,7 @@ esp_diffs_read_icon (DISPLAY_ICON * dip)
 
         if (len < ICON_HEAD_LEN)
         {
-            log_printf ("icon head rejected, len=%u<%u\r\n",
-                        (unsigned int) len, (unsigned int) ICON_HEAD_LEN);
+            esp8266_cmd_reject ("I", len, ICON_HEAD_LEN);                         // A46 / L291: gemeinsamer Zaehler und Drosselung
             return 0;                                                               // 0 = Fehler, siehe Kopf
         }
 
@@ -268,6 +267,14 @@ esp_diffs_read_icon (DISPLAY_ICON * dip)
             }
 
             p += 2;
+        }
+
+        /* A46 / L291: Ein ungerades Restbyte blieb bisher wortlos liegen. Jetzt wird es gezaehlt und
+         * gedrosselt gemeldet ("'I' len=1<2"), wie jede andere verworfene Zeile (AKH.4).
+         */
+        if (p < ende && *p)
+        {
+            esp8266_cmd_reject ("I", 1, 2);
         }
 
         if (p == esp8266.u.filedata || color_len + anim_on_len + anim_off_len == color_idx + anim_on_idx + anim_off_idx)

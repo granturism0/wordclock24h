@@ -11,7 +11,7 @@ Multi-Tenant, Datenvolumen) sind hier gegenstandslos und ersetzt.
 
 - Bleibt die PWA **parallel** zur Legacy-Oberfläche? Legacy bleibt funktionsfähig und ist die Stabilitäts-Referenz beim Debuggen
 - Werden die Wetter-Endpunkte `/api/weather_get_now` und `/api/weather_get_forecast` verwendet? Kein Rückbau auf den entfernten Legacy-Bypass
-- Bleibt die Restore-Bedingung um `pending_weather_ticker_restore` vollständig? Keine der vier Teilbedingungen ist redundant
+- Bleibt die Restore-Bedingung um `pending_ticker_restore` vollständig? Keine der vier Teilbedingungen ist redundant
 - Werden App-Assets ausschliesslich als `.gz` ausgeliefert, ohne Plain-Fallback?
 - Greift die Änderung an der richtigen Schicht an? Ein Stabilitätsproblem, dessen Ursache auf dem ESP liegt, wird nicht in `app.js` umgangen
 

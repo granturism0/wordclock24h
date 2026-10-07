@@ -24,7 +24,10 @@ typedef struct
     uint_fast8_t                rtc_is_up;
     int_fast8_t                 rtc_temp_correction;
     uint_fast8_t                rtc_temperature_index;
+    uint16_t                    rtc_temp_half_deg;          // A5: halbe Grad mit Vorzeichen, Zweierkomplement; RTC_TEMP_HALF_DEG_NONE = kein Messwert
 } RTC_GLOBALS;
+
+#define RTC_TEMP_HALF_DEG_NONE      0x8000                  // nie ein Messwert: der Bereich ist -276..+275 halbe Grad
 
 extern RTC_GLOBALS              grtc;
 

@@ -39,7 +39,7 @@ overlay_read_config_from_eep (uint32_t eep_version)
 
             eep_read (EEPROM_DATA_OFFSET_N_OVERLAYS,  &n_overlays8, EEPROM_DATA_SIZE_N_OVERLAYS);
 
-            if (n_overlays8 >= MAX_OVERLAYS)
+            if (n_overlays8 > MAX_OVERLAYS)                                    // A51: 32 ist gueltig und muss einen Neustart ueberleben
             {
                 n_overlays8 = 0;
             }
@@ -326,8 +326,11 @@ overlay_calc_dates (uint_fast8_t idx, uint_fast16_t year)
 void
 overlay_set_n_overlays (uint_fast8_t n)
 {
-    overlay.n_overlays = n;
-    overlay_save_n_overlays ();
+    if (n <= MAX_OVERLAYS)                                                      // A3: der Aufrufer weist gezaehlt ab; hier nur die zweite Linie
+    {
+        overlay.n_overlays = n;
+        overlay_save_n_overlays ();
+    }
 }
 
 void

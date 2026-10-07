@@ -1,5 +1,107 @@
 # Changelog
 
+## 2026-10-08 Runde S, STM-Teil: Brücke mit Abschlussmarke, Spiele ohne Watchdog-Reset, halbe Grad (STM 3.2.22)
+
+Nur der STM, ESP und PWA unverändert. Release-ZIP
+`wordclock-release-2026-10-08-001731.zip`, Tag `release/3.2.22-3.2.25-1.4.92`. Umfang:
+Runde S aus `specs/paket-2026-10-06/`, STM-Teil. Am 08.10.2026 um 00:18 per
+`flash-stm.sh` auf den F411 geflasht.
+
+**Einspielreihenfolge: erst ESP 3.2.25, dann der STM — beides ist erledigt.** Der ESP
+musste zuerst kommen, weil er die neuen Brückenzeilen dieses Releases verstehen muss.
+
+### Die Brücke weiss jetzt, wann der Abgleich vollständig ist
+
+- **Der Vollabgleich hat einen Rahmen.** Der STM eröffnet ihn mit `VB` und schliesst ihn
+  mit der Abschlussmarke `VE`. Bisher hielt sich der ESP für geheilt, sobald die
+  Hardwarekennung angekommen war — das dritte von rund 194 Kommandos (A42, L260).
+  **Die Marke heisst „STM durchgelaufen“, nicht „alles quittiert“** (Review H4).
+- **Eine verspätete Quittung bestätigt nicht mehr das falsche Kommando.** Der STM liest
+  die Zuordnungszeile `ACK xy` und verwirft eine Quittung mit fremder Zuordnung, statt
+  sie dem wartenden Kommando gutzuschreiben. Gezählt wird das im neuen Diag-Feld `a=`
+  (A35, Teil 1). Ein `!v` geht immer als Ablehnung durch (Review H1).
+- **Die Markenpflicht des ESP greift jetzt** für Hardwarekennung, Update-Host und
+  Update-Pfad (C26). Für die übrigen Zeilenarten bleibt es beim bisherigen Verhalten.
+
+Am Gerät nach dem Flash: „Variablensatz vollständig … (Abschlussmarke)“, unmarkierte
+Zeilen 0, `a=0`.
+
+Offen bleibt A35 Teil 2: Der Punkt heisst weiter „gelesen“, nicht „übernommen“.
+
+### Der IP-Lauftext kommt nach dem Abgleich
+
+Beim Start lief die IP-Adresse bisher mitten in den Variablenabgleich hinein, und der
+Abgleich lief dabei verschachtelt. Jetzt merkt der STM ihn nur vor und zeigt die
+Adresse danach (A39). Dazu heisst `pending_weather_ticker_restore` jetzt
+`pending_ticker_restore`, weil es längst alle Ticker trägt; die Restore-Bedingung ist
+unverändert (E17).
+
+### Tetris und Snake reissen den Watchdog nicht mehr
+
+Beide Spiele hielten den Hauptloop an, ohne den Watchdog zu bedienen; nach rund 20 s
+setzte er die Uhr zurück (A16). **Am Gerät belegt:** Tetris lief 75 s (00:22:25 bis
+00:23:40) ohne Watchdog-Reset, die Uptime lief durch, `diag` 21 → 22. Ein erster Lauf
+ohne Eingabe endete nach rund 18 s mit Game Over und belegt deshalb nichts; erst der
+zweite Lauf mit Bewegungsbefehlen. Am Gerät belegt ist Tetris, nicht Snake.
+
+Noch offen ist A53: Während eines Spiels gehen ESP-Zeilen verloren, und dieses Fenster
+begrenzt jetzt kein Watchdog mehr.
+
+### Die RTC-Temperatur kann jetzt halbe Grad zeigen — und Minusgrade
+
+- **Das halbe Grad kommt aus dem richtigen Bit** (Bit 7 statt Bit 1). Die Uhr hat vorher
+  nie ein halbes Grad gemeldet, belegt mit 5'028 Messungen (A54, L325).
+- **Echte Minusgrade gehen als Index 49 über die Brücke**, in halben Grad mit Vorzeichen
+  (A5). Die Legacy-Temperaturseite des ESP 3.2.25 zeigt sie damit an.
+- **Die Anzeige an der Uhr bleibt, wie sie war** — mit einer Ausnahme: Bei Minusgraden
+  zeigt sie jetzt 0 °C statt 125 °C (Ent-8).
+
+Am Gerät: Index 49 = Index 21 = 58, also 29 °C; die Legacy-Seite zeigt dasselbe. Die
+PWA zeigt Index 49 noch nicht, das folgt in Runde P3.
+
+### Sicherheit und Robustheit
+
+- **Keine Werte mehr in der Timeout-Meldung** (A20). Bisher konnte dort der Wetter-Schlüssel
+  oder der Update-Host im Klartext stehen; jetzt nur Kennung, Index und Länge.
+- **Overlays:** Die Anzahl ist auf 32 begrenzt und der Overlay-Index wird gegen die
+  Feldgrösse geprüft (A3, A48). Das schliesst die STM-Seite der Overlay-Lücke, deren
+  ESP-Seite ESP 3.2.25 geschlossen hat. **Wer genau 32 Overlays hat, behält sie jetzt
+  über einen Neustart** — bisher gingen dann alle verloren (A51).
+- **Abschlussbyte bei allen 16 Kopien** in den gemeinsamen Empfangspuffer (A13, A47).
+- **Wortindizes** der Zeittabellen werden vor dem Schreiben geprüft (A24), der
+  Variablenindex beim Senden maskiert (A14).
+- **Drei Verwerfungspfade** laufen jetzt über den gemeinsamen Zähler (A46), und der erste
+  Fall je Grund wird gemeldet statt nur gezählt (A49).
+- **Der LDR-Rohwert geht ungeklammert an den ESP** (A9). Beim Kalibrieren siehst Du damit
+  auch Werte jenseits der alten Grenzen. Die Kennlinie der Automatik ist byte-gleich.
+- Dazu eine Typbereinigung in der Snake-Animation (A45), auf dem Ziel ohne Wirkung.
+
+### Flash
+
+F103: +236 Byte gegenüber 3.2.21, 1'688 Byte frei, die Reserve von 1'024 Byte ist
+eingehalten. Kein Punkt zurückgestellt. Je Schritt gemessen: Kern +168, A5 +28,
+A20 −40, A13+A47 −32, A3+A48+A51 +48, die übrigen sechs +92.
+
+**Abweichung von der Spec:** Die letzten sechs Punkte liefen in einem Zug mit **einem**
+Testbau statt je einem. Die Schätzung lag bei höchstens 320 Byte bei 728 Byte Luft; die
+Gesamtmessung (+92) bestätigt die Einzelschätzung (+91).
+
+### Intern
+
+14 Auszugs-Prüfstände laufen als neue Guardrail-Stufe S16 (`tools/checks/auszug.sh`),
+gegen den aktuellen Stand 14 von 14. Gegen den Stand vor Runde S
+(`release/3.2.21-3.2.24-1.4.92`) schlagen alle 14 an, jeder an seinem eigenen Gegenstand.
+Im ersten Anlauf liessen sich drei dort gar nicht übersetzen, weil ihr Aufruf den neuen
+Zähler fest voraussetzte; jetzt leiten sie das aus dem geprüften Stand ab.
+`tools/diff-snapshot.sh` führt Index 48 jetzt als flüchtig (L332).
+
+Smoketest 30/0, `check-pwa.sh` 8/0.
+
+### Was zu flashen ist
+
+**Nur der STM**, bereits eingespielt — nach ESP 3.2.25. Die PWA bleibt, wie sie ist.
+
+
 ## 2026-10-07 Runde S, ESP-Teil: Overlay-Index geprüft, keine Schlüssel im Mitschnitt (ESP 3.2.25)
 
 Nur der ESP, STM und PWA unverändert. Release-ZIP

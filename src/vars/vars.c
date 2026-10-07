@@ -253,9 +253,13 @@ static uint_fast8_t     var_retry_full_logged = 0;              // erste Meldung
 static uint_fast8_t     var_retry_attempts_in = 0;              // vom Drain gesetzt: Zahl der Versuche DIESES Aufrufs von var_send_buf()
 
 /* Vier saettigende Zaehler, dieselbe Bauart wie var_send_timeout_cnt: 65535 heisst "mindestens
- * 65535". Sie werden NICHT in die Diagnosezeile aufgenommen -- die steht bei 118 von 119 Zeichen
- * (main.c), es passt kein Feld mehr hinein. Sichtbar werden sie ereignisgetrieben ueber die drei
- * Logzeilen unten; die Zugriffsfunktionen gibt es fuer den Tag, an dem jemand Platz schafft.
+ * 65535". Sie werden NICHT in die Diagnosezeile aufgenommen (main.c, "diag ..."): Mit allen Feldern
+ * auf ihrem Hoechstwert ist sie seit a= (S.16) 124 Zeichen lang, ohne a= waren es 116; typisch sind
+ * es rund 80. Der ESP-Logring haelt 120 Zeichen und kuerzt dahinter mit '~' (STM32_LOG_LINE_LEN in
+ * ESP-uclock.ino). Gemessen am 08.10.2026 mit dem echten Formatstring; die Zahl veraltet mit jedem
+ * neuen Feld -- nachmessen, nicht abschreiben. Sichtbar werden die vier Zaehler ereignisgetrieben
+ * ueber die drei Logzeilen unten; die Zugriffsfunktionen gibt es fuer den Tag, an dem jemand Platz
+ * schafft.
  */
 static uint16_t     var_retry_ok_cnt = 0;                       // Nachsendungen, die quittiert wurden
 static uint16_t     var_retry_gaveup_cnt = 0;                   // nach VAR_RETRY_MAX_ATTEMPTS aufgegeben
@@ -359,7 +363,7 @@ var_retry_is_worth_it (const char * buf)
 
         if (idx == UPTIME_SECONDS_LO_NUM_VAR || idx == UPTIME_SECONDS_HI_NUM_VAR ||
             idx == LDR_RAW_VALUE_NUM_VAR ||
-            idx == RTC_TEMP_INDEX_NUM_VAR || idx == DS18XX_TEMP_INDEX_NUM_VAR)
+            idx == RTC_TEMP_INDEX_NUM_VAR || idx == RTC_TEMP_HALF_DEG_NUM_VAR || idx == DS18XX_TEMP_INDEX_NUM_VAR)
         {
             return 0;
         }
@@ -503,6 +507,8 @@ var_send_buf (char * buf, uint_fast8_t idlen)
     uint_fast8_t    applied;                                    // nur Punkt: der Wert ist gesetzt
     uint_fast8_t    timed_out;
     uint_fast8_t    msg_rtc;
+    uint_fast16_t   ack_expect = ESP8266_ACK_NONE;              // S.16: Zuordnung, die die Quittung tragen muss
+    uint_fast8_t    queued;
 
     attempts = var_retry_attempts_in;                           // vom Drain gesetzt, gilt genau fuer diesen Aufruf
     var_retry_attempts_in = 0;
@@ -525,8 +531,11 @@ var_send_buf (char * buf, uint_fast8_t idlen)
      */
     if (esp8266.cap_var_crc)
     {
-        sprintf (crc_buf, "*%04x", (unsigned int) var_crc (buf));
+        uint_fast16_t   crc = var_crc (buf);
+
+        sprintf (crc_buf, "*%04x", (unsigned int) crc);
         esp8266_uart_puts (crc_buf);
+        ack_expect = crc >> 8;                                  // der ESP sendet dieses Byte in "ACK xy" zurueck (esp8266.c)
     }
 
     esp8266_uart_puts ("\r\n");
@@ -568,6 +577,7 @@ var_send_buf (char * buf, uint_fast8_t idlen)
     var_send_cur_buf     = buf;
     var_send_cur_idlen   = idlen;
     var_send_superseded  = 0;
+    esp8266_ack_expect   = ack_expect;                          // S.16: Quittung mit fremder Zuordnung -> ESP8266_ACK_DROP, weiter warten
 
     if (! var_send_reload_armed)                                // erster wartender Aufruf seit dem Loopkopf: Budget beginnt hier
     {
@@ -617,6 +627,9 @@ var_send_buf (char * buf, uint_fast8_t idlen)
     var_send_nested = 0;
     var_send_cur_buf = (const char *) 0;
     var_send_cur_idlen = 0;
+    esp8266_ack_expect = ESP8266_ACK_NONE;                      // niemand wartet: Quittungen wieder wie vor S.16
+
+    queued = 0;
 
     if (applied)
     {
@@ -624,34 +637,31 @@ var_send_buf (char * buf, uint_fast8_t idlen)
     }
     else if (! var_send_superseded)
     {
-        uint_fast8_t    queued;
-
         queued = var_retry_queue (buf, idlen, attempts, got_answer ? uptime : uptime + VAR_RETRY_DELAY_SEC);
-
-        if (timed_out)
-        {
-            if (var_send_timeout_cnt < 0xFFFF)                  // saettigend: 65535 heisst "mindestens 65535"
-            {
-                var_send_timeout_cnt++;
-            }
-
-            /* Hier stand "weiter ohne" -- nach der Nachsendeliste waere das eine Falschaussage.
-             * Der Wert bleibt wie er war (A20/L115 ist nicht Teil dieser Aenderung), nur das Wort
-             * sagt jetzt, was wirklich geschieht: entweder vorgemerkt oder eben doch verworfen.
-             */
-            log_printf ("var_send_buf: keine Quittung nach %ds, %s: %s\r\n",
-                        VAR_SEND_TIMEOUT_SEC, queued ? "vorgemerkt" : "verworfen", buf);
-        }
     }
-    else if (timed_out)
+
+    if (timed_out)                                              // nie zusammen mit applied: der Punkt beendet die Schleife vorher
     {
-        if (var_send_timeout_cnt < 0xFFFF)                      // saettigend
+        char        key[VAR_RETRY_KEY_LEN + 1];
+
+        if (var_send_timeout_cnt < 0xFFFF)                      // saettigend: 65535 heisst "mindestens 65535"
         {
             var_send_timeout_cnt++;
         }
 
-        log_printf ("var_send_buf: keine Quittung nach %ds, inzwischen neuer Wert: %s\r\n",
-                    VAR_SEND_TIMEOUT_SEC, buf);
+        /* A20 / L115: NUR Kennung (mit Index) und Laenge, NIE den Wert. Hier stand zweimal der ganze
+         * buf -- und die Zeichenkettenvariablen tragen Zugangsdaten, Update-Host und App-Schluessel
+         * (S..). Die Zeile steht in jedem Fabrikat und feuert ausgerechnet im Schadensfall, landet
+         * also im Logring, den die Oberflaeche anzeigt. Dieselbe Regel wie bei "var retry" oben
+         * (var_retry_key). Eine Zeile fuer beide Faelle statt zwei -- das spart Flash.
+         *
+         *   vorgemerkt / verworfen   wie bisher: von der Nachsendeliste angenommen oder nicht
+         *   neu                      inzwischen neuer Wert gesendet, der alte wird nicht nachgesendet
+         */
+        var_retry_key (key, buf, idlen);
+        log_printf ("var_send_buf: keine Quittung nach %ds, %s len=%u: %s\r\n",
+                    VAR_SEND_TIMEOUT_SEC, key, (unsigned int) strlen (buf),
+                    var_send_superseded ? "neu" : (queued ? "vorgemerkt" : "verworfen"));
     }
 
     /* Watchdog NUR bei eingetroffener Antwort bedienen, niemals nach dem Timeout.
@@ -776,7 +786,7 @@ var_send_byte (const char * id, uint_fast32_t var, uint_fast8_t value)
 {
     char            buf[32];
 
-    sprintf (buf, "%s%02x%02x", id, (int) var, value);
+    sprintf (buf, "%s%02x%02x", id, (unsigned int) (var & 0xFF), value);   // A14 / L97: %02x ist eine MINDESTbreite
     var_send_buf (buf, (uint_fast8_t) (strlen (id) + 2));                 // Kennung: <id><idx:2>
 }
 
@@ -785,7 +795,7 @@ var_send_short (const char * id, uint_fast32_t var, uint_fast16_t value)
 {
     char            buf[32];
 
-    sprintf (buf, "%s%02x%04x", id, (int) var, value & 0xFFFF);
+    sprintf (buf, "%s%02x%04x", id, (unsigned int) (var & 0xFF), value & 0xFFFF);   // A14
     var_send_buf (buf, (uint_fast8_t) (strlen (id) + 2));                 // Kennung: <id><idx:2>
 }
 
@@ -810,7 +820,7 @@ var_send_string (const char * id, uint_fast32_t var, const char * value)
     char            buf[160];
     int             len;
 
-    len = snprintf (buf, sizeof (buf), "%s%02x%s", id, (int) var, value);
+    len = snprintf (buf, sizeof (buf), "%s%02x%s", id, (unsigned int) (var & 0xFF), value);   // A14: wie L66, die Gegenseite liest genau zwei Ziffern
 
     if (len < 0 || (size_t) len >= sizeof (buf))
     {
@@ -1356,6 +1366,7 @@ void
 var_send_rtc_temp_index (void)
 {
     var_send_num_variable (RTC_TEMP_INDEX_NUM_VAR, grtc.rtc_temperature_index);
+    var_send_num_variable (RTC_TEMP_HALF_DEG_NUM_VAR, grtc.rtc_temp_half_deg);     // A5: immer mit, im Vollabgleich und bei jedem RTC-Lesen
 }
 
 static void
@@ -1692,11 +1703,53 @@ var_send_ir_code (uint_fast8_t idx)
  * Hier steht bewusst KEIN var_send_ir_code(). Diese Funktion laeuft ohne einen einzigen
  * watchdog_reload() durch (Befund L85) und haengt am Startpfad; die 20 IR-Kommandos gehen
  * deshalb nur auf ausdrueckliche Anforderung raus, getaktet vom Hauptloop.
+ *
+ * ABGLEICHRAHMEN (L260/A42, S.14): Die erste Zeile ist die Eroeffnung "VBffnn", die letzte die
+ * Abschlussmarke "VEnn". Der ESP haelt den Abgleich erst mit der Marke fuer vollstaendig, statt mit
+ * HARDWARE_CONFIGURATION, dem dritten von rund 194 Kommandos (ESP-uclock.ino, var_frame_line()).
+ *
+ *   ff  0x02 immer: dieser Abgleich endet mit der Abschlussmarke.
+ *       0x01, wenn die Zeilen DIESES Abgleichs die Pruefsummenmarke tragen (esp8266.cap_var_crc).
+ *   nn  Abgleichnummer, je Vollabgleich +1. Die Eroeffnung gilt nur fuer IHREN Abgleich.
+ *
+ * Vier Auflagen (specs/paket-2026-10-06/design.md 2.2), hier stehen sie, damit niemand sie beim
+ * naechsten Umbau verliert:
+ *   1. 'V' liegt ausserhalb von N n S T D A C M O t a l I. Ein alter ESP findet keinen case dafuer,
+ *      var_cmd_min_len() liefert 0, und var_set_parameter() hat keinen default-Zweig (L269).
+ *   2. Die Nutzlast endet NICHT auf '*' + vier Hexziffern -- sonst laese der ESP sie als Pruefsumme.
+ *   3. Sie bleibt weit unter VAR_RETRY_CMD_LEN (72): sechs bzw. vier Zeichen, nachsendefaehig.
+ *   4. KEIN eigenes Top-Level-Praefix, sondern "var V..." ueber var_send_buf(). Die Kette im ESP
+ *      hat kein abschliessendes else; ein eigenes Praefix bliebe unquittiert, und var_send_buf()
+ *      liefe je Zeile 3 s leer, ohne watchdog_reload() -- die Mechanik aus L266. Die var-Verpackung
+ *      ist dagegen regulaer quittiert, auch von einem alten ESP.
+ *
+ * Die Nummer beginnt NICHT bei einem festen Wert: Der ESP ignoriert eine Eroeffnung, deren Nummer
+ * dem eben abgeschlossenen Abgleich gleicht (nachgesendete Zeile, 30 s Frist). Startete der STM
+ * immer mit derselben Nummer, verschluckte der ESP nach einem STM-Neustart innerhalb dieser Frist
+ * die erste Eroeffnung. Der Startwert kommt deshalb aus der Uhrzeit (Sekunde in der Stunde) plus
+ * uptime -- nach einem Neustart steht die Uhr mindestens um die Bootdauer weiter.
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
+static uint8_t      var_sync_seq        = 0;                    // Abgleichnummer, siehe oben
+static uint_fast8_t var_sync_seq_valid  = 0;                    // Startwert gesetzt?
+
 void
 var_send_all_variables (void)
 {
+    char            frame[8];                                   // "VBffnn" bzw. "VEnn" + Nullbyte
+    uint8_t         seq;
+
+    if (! var_sync_seq_valid)
+    {
+        var_sync_seq_valid = 1;
+        var_sync_seq = (uint8_t) (uptime + gmain.minute * 60U + gmain.second);
+    }
+
+    seq = ++var_sync_seq;                                       // lokal: die Marke traegt die Nummer IHRER Eroeffnung
+
+    sprintf (frame, "VB%02x%02x", (unsigned int) (esp8266.cap_var_crc ? 0x03 : 0x02), (unsigned int) seq);
+    var_send_buf (frame, 2);                                    // Kennung: "VB"
+
     var_send_use_rgbw ();
     var_send_eep_is_up ();
     var_send_hardware_configuration ();
@@ -1762,5 +1815,8 @@ var_send_all_variables (void)
 #if defined (BLACK_BOARD) // STM32F407VE
     var_send_ssd1963_flags ();
 #endif
+
+    sprintf (frame, "VE%02x", (unsigned int) seq);
+    var_send_buf (frame, 2);                                    // Kennung: "VE"; letztes Kommando des Abgleichs
 }
 
