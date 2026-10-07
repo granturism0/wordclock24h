@@ -165,7 +165,7 @@ static void f_rahmen_verstuemmelt (void)
 /* var_sync_check(): Ablauf ueber die Zeit */
 static void tick (zp_millis ms) { fake_ms += ms; var_sync_check (); }
 static int syncvars (void) { int n = 0; size_t p = 0; while ((p = Serial.out.find ("SYNCVARS", p)) != std::string::npos) { n++; p++; } return n; }
-static void start_ip (void) { strcpy (wifi_ip_address, "10.0.0.2"); numvars[HARDWARE_CONFIGURATION_NUM_VAR] = 0xFFFF; Serial.out.clear (); var_sync_check (); }
+static void start_ip (void) { strcpy (wifi_ip_address, "192.0.2.2"); numvars[HARDWARE_CONFIGURATION_NUM_VAR] = 0xFFFF; Serial.out.clear (); var_sync_check (); }
 
 static void f_sync_wartet_auf_marke (void)      /* AKS.3: Erfolgszeile erst NACH der Abschlussmarke */
 {
