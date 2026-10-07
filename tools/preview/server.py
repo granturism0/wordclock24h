@@ -25,7 +25,10 @@ APP = os.path.join(REPO, "ESP8266", "ESP-uclock", "data", "app")
 NUM = {0:1, 1:1, 2:1, 3:1, 4:0, 5:0, 6:10, 7:1, 8:3, 9:1, 10:0, 11:0, 12:0, 13:0,
        14:8, 15:0, 16:0, 17:1, 18:0, 19:0, 20:1, 21:44, 22:0, 23:45, 24:0, 25:0,
        26:0, 27:3, 28:0, 29:0, 30:0, 31:0, 32:0, 33:0, 34:0, 35:0, 36:0, 37:0,
-       38:0, 39:0}
+       38:0, 39:0,
+       # 49: RTC-Temperatur in halben Grad mit Vorzeichen (A5, ab STM 3.2.22/ESP 3.2.25),
+       # gleich wie Index 21 = 44 (22,0 °C). Ein Geraet mit altem STM liefert 32768.
+       49:44}
 STR = {0:"", 1:"3.2.5", 2:"1.0", 3:"3.2.1", 4:"ch.pool.ntp.org", 5:"",
        6:"Bern", 7:"7.4474", 8:"46.9480", 9:"update.wordclock.ch",
        10:"/firmware/", 11:"%d.%m.%Y", 12:"wc24h-de-ch.txt"}
