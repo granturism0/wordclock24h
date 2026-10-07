@@ -56,6 +56,7 @@ basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
 basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
 letzte_d=""
 letzte_a=""
+letzte_vt=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
@@ -164,6 +165,18 @@ while :; do
     fi
   fi
   [ -n "$a" ] && letzte_a=$a
+
+  # v=<timeouts>/<verschachtelt>: var_send-Zeitueberschreitungen des STM. Der Kopf sagte
+  # "Sprung in v= -- Variablenverluste" seit seiner Entstehung zu, ausgewertet wurde v
+  # aber nie -- es stand nur in der Ruhezeile. Im Testdurchlauf S.26 (08.10.2026) liefen
+  # zwei Anstiege (v=0 -> 1 -> 2, je ein Wetterabruf) als "ruhig" durch. Eine Zusage im
+  # Kopf, die der Code nicht haelt, ist dieselbe Gattung wie DIR-014.
+  vt=${v#v=}; vt=${vt%%/*}
+  if [ -n "$vt" ] && [ -n "$letzte_vt" ] && [ "$vt" -gt "$letzte_vt" ] 2>/dev/null; then
+    printf '  %s  Bruecke: %d var_send-Zeitueberschreitung(en) (v=%s)\n' "$stamp" "$((vt - letzte_vt))" "${v#v=}"
+    alarm=1
+  fi
+  [ -n "$vt" ] && letzte_vt=$vt
 
   # Luecke in der diag-Folge: der zeitgesteuerte Zweig des STM hat ausgesetzt.
   # Genau das Bild aus dem mitgeschnittenen Haenger (L14) -- Hauptloop laeuft,
