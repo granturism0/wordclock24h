@@ -249,14 +249,18 @@ eeprom_read (void)
             Serial.print ("EEPROM ssid: ");
             Serial.println (eeprom_ssid);
 
+            /* C31 (L298): Die Schluessel NIE im Klartext -- diese Zeilen gehen ueber die einzige UART,
+             * also ueber die Bruecke, und landen im seriellen Mitschnitt auf dem Pi. Nur ob einer
+             * gesetzt ist; das genuegt zur Diagnose.
+             */
             Serial.print ("EEPROM ssidkey: ");
-            Serial.println (eeprom_ssidkey);
+            Serial.println (eeprom_ssidkey[0] ? "gesetzt" : "leer");
 
             Serial.print ("EEPROM AP ssid: ");
             Serial.println (eeprom_ap_ssid);
 
             Serial.print ("EEPROM AP ssidkey: ");
-            Serial.println (eeprom_ap_ssidkey);
+            Serial.println (eeprom_ap_ssidkey[0] ? "gesetzt" : "leer");                                // C31, siehe oben
 
             Serial.print ("EEPROM flags: ");
             Serial.println (eeprom_flags);

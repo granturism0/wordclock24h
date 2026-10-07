@@ -1865,6 +1865,93 @@ http_clamp_temp_correction (int temp_corr)
     return temp_corr;
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * A5 (S.4b, design 7.2/7.3): RTC-Temperatur mit Vorzeichen
+ *
+ * Index 49 (RTC_TEMP_HALF_DEG_NUM_VAR) traegt sie als int16 im Zweierkomplement in halben Grad,
+ * 0x8000 = kein Messwert. Index 21 bleibt, wie er ist: 0..250, unter null 0 -- er speist die alte
+ * PWA und die Anzeige an der Uhr (Ent-8).
+ *
+ * Solange der STM Index 49 nicht sendet (alter STM, S.10 bis S.24), steht dort die Vorbelegung
+ * 0x8000 aus vars_init(), und die Legacy-Seite zeigt Index 21 wie bisher.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define RTC_TEMP_HALF_DEG_UNKNOWN   0x8000
+
+/* Anzuzeigende RTC-Temperatur in halben Grad: Index 49 mit Vorzeichen, sonst Index 21. */
+static int
+http_rtc_temp_half_deg (void)
+{
+    unsigned int    raw = get_numvar (RTC_TEMP_HALF_DEG_NUM_VAR) & 0xFFFF;
+
+    if (raw == RTC_TEMP_HALF_DEG_UNKNOWN)
+    {
+        return (int) get_numvar (RTC_TEMP_INDEX_NUM_VAR);
+    }
+
+    return (int) (int16_t) raw;
+}
+
+/* Halbe Grad als Text, vorzeichenrichtig: -3 => "-1.5", -1 => "-0.5", 49 => "24.5", 48 => "24".
+ * Gerechnet wird mit dem BETRAG -- "/ 2" und "% 2" auf einem negativen Wert ergaeben -1 und -1,
+ * also "-1-.5" bzw. mit floor "-2.5" (derselbe Fehler steckt in formatHalfDegreeValue() der PWA, P3.1).
+ */
+static void
+http_format_half_deg (char * buf, size_t len, int half_deg)
+{
+    unsigned int    mag = (half_deg < 0) ? (unsigned int) (-half_deg) : (unsigned int) half_deg;
+
+    snprintf (buf, len, "%s%u%s", (half_deg < 0) ? "-" : "", mag / 2, (mag % 2) ? ".5" : "");
+}
+
+/* Index 49 nach einer Korrekturaenderung nachrechnen -- im selben Schritt und mit derselben
+ * Differenz wie Index 21, an BEIDEN Stellen, die das tun (Legacy "savetcorrrtc" und
+ * http_api_temperature_correction_set()). Sonst zeigten Legacy und PWA nach einer Korrektur bis zur
+ * naechsten Messung verschiedene Werte (design 7.3: "zwei Wahrheiten").
+ *
+ * Nur lokal, KEIN set_numvar(): Der Wert gehoert dem STM, er sendet ihn mit der naechsten Messung
+ * neu. "Kein Messwert" bleibt "kein Messwert", und 0x8000 wird nie als Ergebnis erzeugt.
+ */
+static void
+http_rtc_temp_half_deg_correct (int delta)
+{
+    unsigned int    raw = numvars[RTC_TEMP_HALF_DEG_NUM_VAR] & 0xFFFF;
+    long            val;
+
+    if (raw == RTC_TEMP_HALF_DEG_UNKNOWN)
+    {
+        return;
+    }
+
+    val = (long) (int16_t) raw - delta;
+
+    if (val < -32767)
+    {
+        val = -32767;
+    }
+    else if (val > 32767)
+    {
+        val = 32767;
+    }
+
+    numvars[RTC_TEMP_HALF_DEG_NUM_VAR] = (unsigned int) (uint16_t) (int16_t) val;
+}
+
+/* Overlay-Anzahl zum LESEN, begrenzt auf das Feld (S.5, Ergaenzung zu N1).
+ *
+ * n_overlays kommt ueber die Bruecke und ist auf dieser Seite nicht begrenzt; meldet der STM mehr als
+ * MAX_OVERLAYS -- ueber eine verstuemmelte N-Zeile, oder heute ueber Legacy selbst --, laese die Liste
+ * hinter overlays[]. Lesestellen begrenzen deshalb, Schreibstellen weisen ab
+ * (http_overlays(), http_api_overlay_delete()).
+ */
+static uint_fast8_t
+http_n_overlays_for_read (void)
+{
+    unsigned int    n = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    return (n > MAX_OVERLAYS) ? MAX_OVERLAYS : n;
+}
+
 static uint_fast8_t
 http_app (const char * path)
 {
@@ -3689,6 +3776,7 @@ http_temperature (void)
 
             rtc_temperature_correction = temp_corr;
 
+            http_rtc_temp_half_deg_correct (rtc_temperature_correction - old_correction);    // A5: Index 49 im selben Schritt
             temp_index -= (rtc_temperature_correction - old_correction);
 
             if (temp_index < 0)
@@ -3736,14 +3824,10 @@ http_temperature (void)
 
     if (rtc_is_up)
     {
-        temp_index = get_numvar (RTC_TEMP_INDEX_NUM_VAR);
-        sprintf (rtc_temp, "%d", temp_index / 2);
-
-        if (temp_index % 2)
-        {
-            strcat (rtc_temp, ".5");
-        }
-
+        /* A5 (Ent-8): Minusgrade aus Index 49, Rueckfall auf Index 21 bei 0x8000. Platz: hoechstens
+         * "-16383.5" (8 Zeichen) plus "&deg;C" (6) plus Nullbyte, rtc_temp hat 16.
+         */
+        http_format_half_deg (rtc_temp, sizeof (rtc_temp) - 6, http_rtc_temp_half_deg ());
         strcat (rtc_temp, "&deg;C");
     }
     else
@@ -4682,7 +4766,19 @@ http_overlays (void)
         if (! strncmp (action, "disp", 4))
         {
             overlay_idx = atoi (action + 4);
-            set_numvar (DISPLAY_OVERLAY_NUM_VAR, overlay_idx);
+
+            /* S.5: auch hier ungeprueft gewesen. Kein Schreibzugriff auf overlays[], aber der Index ging
+             * unbesehen an den STM; dort faengt ihn nur main.c (show_overlay_idx < MAX_OVERLAYS) ab.
+             * Die Liste bietet ohnehin nur belegte Plaetze an.
+             */
+            if (overlay_idx < n_overlays && overlay_idx < MAX_OVERLAYS)
+            {
+                set_numvar (DISPLAY_OVERLAY_NUM_VAR, overlay_idx);
+            }
+            else
+            {
+                message = "Invalid overlay index, nothing displayed";
+            }
         }
         else if (! strncmp (action, "saveoid", 7))
         {
@@ -4693,7 +4789,16 @@ http_overlays (void)
             oidx = atoi (action + 3);
         }
 
-        if (oidx != 0xff)
+        /* N1 (S.5, design 2.12): oidx kommt per atoi aus der URL -- auch per <img> --, und uint_fast8_t
+         * ist auf dem ESP 32 Bit breit: "oid40" schrieb overlays[40], "oid-1" overlays[4294967295].
+         * Geprueft wird VOR jedem Schreibzugriff und vor n_overlays++. oidx == n_overlays haengt an,
+         * eine Luecke dahinter nicht -- dieselbe Regel wie http_api_overlay_set().
+         */
+        if (oidx != 0xff && (oidx >= MAX_OVERLAYS || oidx > n_overlays))
+        {
+            message = "Invalid overlay index, nothing saved";
+        }
+        else if (oidx != 0xff)
         {
             uint_fast8_t  val;
             uint_fast8_t  valmm;
@@ -4783,7 +4888,7 @@ http_overlays (void)
     message_icon_files_missing ();
     message_tables_file_missing ();
 
-    n_overlays = get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    n_overlays = http_n_overlays_for_read ();                                   // S.5: Lesen begrenzen
 
     if (n_overlays > 0)
     {
@@ -9524,6 +9629,11 @@ http_api_temperature_correction_set (NUM_VARIABLE index_var, NUM_VARIABLE correc
     temp_index = (int) get_numvar (index_var);
     old_correction = (int) http_decode_temp_correction (get_numvar (correction_var));
 
+    if (index_var == RTC_TEMP_INDEX_NUM_VAR)
+    {
+        http_rtc_temp_half_deg_correct (temp_corr - old_correction);           // A5: Index 49 im selben Schritt
+    }
+
     temp_index -= (temp_corr - old_correction);
 
     if (temp_index < 0)
@@ -11120,7 +11230,7 @@ http_api_overlay_set ()
 static uint_fast8_t
 http_get_overlay_idx_param (int * idxp)
 {
-    int n_overlays = (int) get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+    int n_overlays = (int) http_n_overlays_for_read ();                         // S.5: Lesen begrenzen
 
     if (! http_get_int_param ("idx", idxp))
     {
@@ -11167,6 +11277,15 @@ http_api_overlay_delete ()
     }
 
     n_overlays = (int) get_numvar (OVERLAY_N_OVERLAYS_NUM_VAR);
+
+    /* S.5: Schreiben abweisen. Mit mehr als MAX_OVERLAYS vom STM liefe das Nachruecken hinter
+     * overlays[] und memset() schriebe dahinter. Der idx selbst ist oben schon begrenzt.
+     */
+    if (n_overlays > MAX_OVERLAYS)
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, "overlay count reported by STM32 out of range");
+        return 0;
+    }
 
     for (i = idx; i < n_overlays - 1; i++)
     {

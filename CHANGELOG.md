@@ -1,5 +1,73 @@
 # Changelog
 
+## 2026-10-07 Runde S, ESP-Teil: Overlay-Index geprüft, keine Schlüssel im Mitschnitt (ESP 3.2.25)
+
+Nur der ESP, STM und PWA unverändert. Release-ZIP
+`wordclock-release-2026-10-07-231825.zip`, Tag `release/3.2.21-3.2.25-1.4.92`. Umfang:
+Runde S aus `specs/paket-2026-10-06/`, Tasks S.1 bis S.5. Am 07.10.2026 um 23:19 per
+OTA eingespielt.
+
+**Einspielreihenfolge: ESP zuerst — das ist erledigt.** Der STM folgt in derselben
+Runde; die Brückenteile dieses Releases warten auf ihn.
+
+### Eine Lücke aus dem ganzen LAN geschlossen
+
+Die Overlay-Seite der Legacy-Oberfläche schrieb mit einem ungeprüften Index in die
+Overlay-Tabelle des ESP. Auslösbar war das aus dem ganzen Heimnetz, auch über ein
+eingebettetes Bild auf einer fremden Seite. **Jetzt prüft `http_overlays()` den Index,
+bevor irgendetwas geschrieben wird**, auch im Zweig, der ein Overlay anzeigt. Zusätzlich
+begrenzt der ESP eine vom STM gemeldete Overlay-Zahl über 32 beim Lesen auf 32 und weist
+sie beim Löschen ab (`BEFUNDE.md`, L308). Die Gegenseite im STM folgt mit dem
+STM-Release dieser Runde.
+
+### Deine WLAN-Schlüssel stehen nicht mehr im Mitschnitt
+
+Beim Start gab der ESP den WLAN- und den AP-Schlüssel im Klartext aus. Diese Zeilen
+laufen über die Brücke zum STM und landeten so im seriellen Mitschnitt auf dem Pi.
+**Jetzt steht dort nur noch „gesetzt“ oder „leer“.** Am Gerät belegt im Mitschnitt von
+23:19:12 (`BEFUNDE.md`, L298). Bereits abgelegte Logdateien enthalten die Schlüssel
+weiterhin; was mit ihnen geschieht, entscheidest Du.
+
+### Die Brücke ist für den nächsten STM vorbereitet
+
+Mit dem heutigen STM 3.2.21 ändert sich am Verhalten nichts. Der ESP versteht jetzt:
+
+- die **Eröffnungszeile** `VBffnn` und die **Abschlussmarke** `VEnn` des Vollabgleichs.
+  Daran erkennt er, ob der Variablensatz nach einem Neustart vollständig angekommen ist;
+- eine **Zuordnungszeile** `ACK xy` vor jedem Quittungspunkt und jedem `!v`, damit eine
+  verspätete Quittung nicht mehr das nächste Kommando bestätigt (A35, Teil 1);
+- eine **Markenpflicht** für Hardwarekennung, Update-Host und Update-Pfad, sobald der
+  STM seine Zeilen mit Prüfsumme markiert (C26). Eine beschädigte Zeile dieser drei Arten
+  wird dann abgewiesen statt übernommen.
+
+**Die Markenpflicht hebt sich nach drei unmarkierten Zeilen in Folge selbst auf.** Das
+kam aus dem Review (H1): Ohne diese Rückfallregel hätte die Pflicht nach einem
+ESP-Update Hardwarekennung und Update-Quelle sperren können — genau die beiden Werte,
+deren Verlust die Uhr auf den Update-Server des Ursprungsprojekts zeigen lässt.
+
+Am Gerät belegt: Der ESP meldete nach dem OTA „Variablensatz vollständig … (ohne
+Eröffnungszeile)“, also den bisherigen Rückfallweg. Der alte STM schreibt die
+`ACK`-Zeilen nur auf seine Debug-UART; im Mitschnitt stehen 325 davon.
+
+### Minusgrade auf der Legacy-Temperaturseite, sobald der STM sie liefert
+
+Der ESP kennt eine neue Variable, Index 49: die RTC-Temperatur in halben Grad **mit
+Vorzeichen**, `0x8000` heisst „unbekannt“. Die Legacy-Temperaturseite zeigt damit
+Minusgrade, sobald der STM diesen Wert sendet (A5, ESP-Teil). **Bis dahin fällt sie auf
+den bisherigen Wert zurück** — am Gerät unverändert 29 °C.
+
+### Intern
+
+Vier Prüfstände, jeder einmal gegen die alte Fassung fehlgeschlagen und gegen die neue
+bestanden: Brücke 22/22, Schlüsselausgabe 4/4, Index 49 14/14 und 2/2, Overlay-Index
+21/21.
+
+### Was zu flashen ist
+
+**Nur der ESP**, bereits eingespielt. Die PWA bleibt, wie sie ist. Der STM folgt in
+derselben Runde.
+
+
 ## 2026-10-07 Runde P2: Eingaben im Netzwerkmodul bleiben stehen (PWA 1.4.92)
 
 Nur die PWA, STM und ESP unverändert. **Keine Firmware vorausgesetzt.** Release-ZIP

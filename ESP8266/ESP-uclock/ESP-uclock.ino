@@ -536,6 +536,10 @@ esp_heap_log (void)
 #define VAR_CRC_MARK        '*'                                             // Trenner vor der Pruefsumme
 #define VAR_CRC_MARK_LEN    5                                               // '*' + vier Hexziffern
 
+#define VAR_CRC_BAD         0                                               // Marke da, Pruefsumme falsch: abgewiesen
+#define VAR_CRC_NONE        1                                               // keine Marke: wie bisher annehmen
+#define VAR_CRC_GOOD        2                                               // Marke da und richtig, abgeschnitten
+
 /* Prototypen von Hand, zwingend: arduino-cli erzeugt fuer jede .ino-Funktion ohne eigenen
  * Prototyp selbst einen -- und zwar OHNE static. "extern deklariert, spaeter static" ist ein
  * Fehler, der Bau bricht ab; genau daran scheiterte esp_heap_log() am 04.10.2026 (L177).
@@ -543,7 +547,7 @@ esp_heap_log (void)
 static uint16_t         var_crc (const char * payload, size_t len);
 static int              var_crc_hexval (char ch);
 static void             var_crc_reject (unsigned int len);
-static uint_fast8_t     var_crc_check_and_strip (char * parameters);
+static uint_fast8_t     var_crc_check_and_strip (char * parameters, int * mark_val);
 
 /* Fletcher-artig, ohne Tabelle und ohne Division. Die LAENGE ist der Startwert -- damit wirkt
  * sich eine Laengenaenderung aus, und genau die ist der belegte Schadensfall: Der Empfangsring
@@ -634,8 +638,14 @@ var_crc_reject (unsigned int len)
 
 /* Marke erkennen, pruefen, abschneiden.
  *
- * Rueckgabe: 1 = Zeile darf angewandt werden (ohne Marke, oder Pruefsumme stimmte),
- *            0 = abgewiesen. Dann ist die Zeile UNVERAENDERT und wurde NICHT angewandt.
+ * Rueckgabe: VAR_CRC_NONE (1) = ohne Marke, darf angewandt werden wie bisher,
+ *            VAR_CRC_GOOD (2) = Pruefsumme stimmte, Marke abgeschnitten, darf angewandt werden,
+ *            VAR_CRC_BAD  (0) = abgewiesen. Dann ist die Zeile UNVERAENDERT und wurde NICHT angewandt.
+ *            Ungleich 0 heisst also weiterhin "anwenden"; GOOD und NONE unterscheidet erst Runde S
+ *            (Markenpflicht, C26).
+ *
+ * *mark_val: der Wert der Marke (0..0xFFFF), sobald sie formal gueltig ist -- also auch bei
+ *            VAR_CRC_BAD --, sonst -1. Daraus bildet var_ack_send() die Zuordnungszeile (A35).
  *
  * Abgeschnitten wird VOR dem Aufruf von var_set_parameter(): Dessen Laengenpruefung aus L237
  * zaehlt sonst die fuenf Zeichen der Marke als Nutzlast mit und laesst eine zu kurze Zeile durch.
@@ -648,7 +658,7 @@ var_crc_reject (unsigned int len)
  * beschaedigter nicht (L205). Betroffen waere nur freier Text (ON/xN/S) mit genau diesem Ende.
  */
 static uint_fast8_t
-var_crc_check_and_strip (char * parameters)
+var_crc_check_and_strip (char * parameters, int * mark_val)
 {
     size_t          len;
     size_t          payload_len;
@@ -657,18 +667,19 @@ var_crc_check_and_strip (char * parameters)
     int             i;
     uint_fast16_t   want;
 
+    *mark_val = -1;
     len = strlen (parameters);
 
     if (len < VAR_CRC_MARK_LEN)
     {
-        return 1;                                                           // zu kurz fuer eine Marke -- wie bisher behandeln
+        return VAR_CRC_NONE;                                                // zu kurz fuer eine Marke -- wie bisher behandeln
     }
 
     mark = parameters + (len - VAR_CRC_MARK_LEN);
 
     if (*mark != VAR_CRC_MARK)
     {
-        return 1;                                                           // keine Marke: rueckwaertskompatibel annehmen
+        return VAR_CRC_NONE;                                                // keine Marke: rueckwaertskompatibel annehmen
     }
 
     want = 0;
@@ -679,23 +690,398 @@ var_crc_check_and_strip (char * parameters)
 
         if (digit < 0)
         {
-            return 1;                                                       // '*' ohne vier Hexziffern dahinter ist Nutztext
+            return VAR_CRC_NONE;                                            // '*' ohne vier Hexziffern dahinter ist Nutztext
         }
 
         want = (uint_fast16_t) ((want << 4) | (uint_fast16_t) digit);
     }
 
+    *mark_val   = (int) want;                                               // formal gueltig: Angabe des STM, auch wenn falsch
     payload_len = len - VAR_CRC_MARK_LEN;
 
     if (want != (uint_fast16_t) var_crc (parameters, payload_len))
     {
         var_crc_reject ((unsigned int) payload_len);
-        return 0;
+        return VAR_CRC_BAD;
     }
 
     *mark = '\0';                                                           // Marke abschneiden, siehe Kopfkommentar
 
+    return VAR_CRC_GOOD;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * Abgleichrahmen, Markenpflicht und Zuordnung der Quittung (Runde S, specs/paket-2026-10-06,
+ * design.md 2.2-2.4; Entwurf und Begruendungen in specs/paket-2026-10-05/design.md 6.2-6.5)
+ *
+ * Alle drei Neuerungen laufen STM -> ESP und tragen ihre Voraussetzung IM STROM mit, nicht in einer
+ * Faehigkeitsmeldung -- die zeigt in die Gegenrichtung (design.md 2.0). Ein alter STM sendet nichts
+ * davon; dann verhaelt sich hier alles wie bisher.
+ *
+ * 1. ABGLEICHRAHMEN (L260/A42, S.1). Der STM rahmt seinen Vollabgleich mit zwei var-Zeilen ein:
+ *
+ *       Eroeffnung:      "var VBffnn"     ff = Flags, nn = Abgleichnummer, je zwei Hexziffern
+ *       Abschlussmarke:  "var VEnn"       nn = dieselbe Abgleichnummer
+ *
+ *    Flags: 0x01 = die Zeilen DIESES Abgleichs tragen die Pruefsummenmarke,
+ *           0x02 = DIESER Abgleich endet mit der Abschlussmarke.
+ *    Die Pruefsummenmarke haengt der STM an beide Zeilen wie an jede andere ("var VB0307*xxxx").
+ *
+ *    Bewusst "var V..." und KEIN eigenes Top-Level-Praefix: Die Kette im Hauptloop hat kein
+ *    abschliessendes else, ein unbekanntes Praefix bliebe unquittiert, und var_send_buf() liefe je Zeile
+ *    3 Sekunden leer, ohne watchdog_reload() -- die Mechanik aus L266. Ein alter ESP quittiert
+ *    "var V..." regulaer und verwirft nur die Wirkung: var_cmd_min_len() liefert fuer 'V' 0, und
+ *    var_set_parameter() hat keinen default-Zweig (L269).
+ *
+ *    Die Abgleichnummer zaehlt der STM je Abgleich weiter (Ueberlauf erlaubt). Sie macht NACHGESENDETE
+ *    Rahmenzeilen unschaedlich, denn A32 sendet jede unquittierte var-Zeile nach, auch diese beiden:
+ *    Eine Eroeffnung, deren Abgleich eben erst abgeschlossen wurde, wird ignoriert, und eine
+ *    Abschlussmarke zaehlt nur fuer IHRE Eroeffnung.
+ *
+ *    var_sync_check() verlangt die Abschlussmarke NUR, wenn die Eroeffnung mit Flag 0x02 kam. Ohne
+ *    Eroeffnung -- alter STM, oder die Zeile ging verloren -- gilt das bisherige Kriterium
+ *    HARDWARE_CONFIGURATION != 0xFFFF unveraendert (Rueckfall AKS.3/AKS.6).
+ *
+ * 2. MARKENPFLICHT (C26/L253, S.3). Eine Zeile OHNE Pruefsummenmarke, waehrend Marken erwartet
+ *    werden, wird gezaehlt und gedrosselt in den Logring geschrieben (AKS.7). Erwartet werden Marken
+ *      - sobald in dieser Sitzung eine Zeile mit RICHTIGER Marke kam. Eine falsche zaehlt nicht: Sie
+ *        koennte Nutztext sein, der zufaellig auf '*' + vier Hexziffern endet;
+ *      - innerhalb eines Abgleichs, dessen Eroeffnung Flag 0x01 traegt -- sofort, also schon fuer das
+ *        dritte Kommando des Stosses, HARDWARE_CONFIGURATION. Diese Erwartung endet mit der
+ *        Abschlussmarke IHRES Abgleichs und spaetestens VAR_FRAME_RUN_MAX_MS nach der Eroeffnung.
+ *    Eine Eroeffnung OHNE Flag 0x01 loescht die Sitzungserwartung: Der STM sagt damit selbst, dass er
+ *    nicht markiert (etwa nach einem Neustart, der den ESP nicht mitgerissen hat). Ohne diese Regel
+ *    haette die Pflicht keinen Ausgang ausser einem ESP-Neustart -- genau der Dauerzustand, vor dem
+ *    L253 warnt, und seine Abwesenheit hinge sonst allein an L183 (Warnung 1 in design 6.5).
+ *
+ *    VORAUSSETZUNG der Sitzungserwartung: Der STM markiert WEITERHIN. Das ist nicht gesichert
+ *    (Review S.6, H1): Nach einem ESP-Neustart, etwa dem OTA, behaelt der STM cap_var_crc bis zur
+ *    naechsten FIRMWARE-Zeile; eine markierte Zeile kann noch ankommen, und geht danach "CAP var-crc"
+ *    im Ring verloren (L103), latcht der STM 0 und markiert nicht mehr. Ein alter STM sendet keine
+ *    Eroeffnung, also gaebe es keinen Ausweg, und HARDWARE_CONFIGURATION, Update-Host und -Pfad
+ *    wuerden die ganze Sitzung abgewiesen: Kennung 65535, STM-Flash gesperrt, Update-Quelle leer
+ *    (L42). Die Pflicht haette CAP-Verlust zur unsicheren Richtung gemacht.
+ *    Deshalb loest sich die Sitzungserwartung selbst auf: VAR_MARK_LOST_RUN unmarkierte Zeilen IN
+ *    FOLGE, ohne markierte dazwischen, heissen "der STM markiert nicht mehr" -- Erwartung weg, eine
+ *    Zeile im Logring. Die abgewiesene Pflichtzeile zaehlt selbst mit, und geprueft wird VOR der
+ *    Entscheidung ueber sie: Sonst bliebe der reine Host/Pfad-Fall haengen, denn dort kommt sonst
+ *    nichts. Mit 3 nimmt der ESP spaetestens die dritte Sendung derselben Zeile an -- der STM sendet
+ *    hoechstens dreimal (VAR_RETRY_MAX_ATTEMPTS 2, src/vars/vars.c). Ein markierender STM mit einer
+ *    einzelnen beschaedigten Zeile verliert die Erwartung nicht: Die Nachsendung ist markiert und
+ *    setzt die Folge zurueck. Und eine faelschlich aufgeloeste Erwartung kehrt mit der naechsten
+ *    markierten Zeile zurueck -- der Fehler in diese Richtung kostet hoechstens den Stand vor S.
+ *    Die Erwartung INNERHALB eines Abgleichs mit Flag 0x01 bleibt davon unberuehrt: Dort hat der STM
+ *    fuer genau diesen Abgleich erklaert, dass er markiert.
+ *
+ *    Pflicht ist die Marke fuer GENAU DREI Kommandoarten: HARDWARE_CONFIGURATION, Update-Host,
+ *    Update-Pfad. Aufgezaehlt, nicht gemustert -- ein Muster verschluckt irgendwann eine vierte. Eine
+ *    unmarkierte Zeile davon wird NICHT angewandt und mit "!v" abgewiesen, nicht beschwiegen:
+ *    Schweigen kostete den STM je Fall 3 Sekunden ohne watchdog_reload() (L266). Der Grund der
+ *    Pflicht: Ein leerer Update-Host holte zuletzt fremde Firmware (L42, DIR-009).
+ *
+ * 3. ZUORDNUNG (A35 Teil 1, L233/L266, S.2). Vor JEDER Quittung einer var-Zeile, dem Punkt wie dem
+ *    "!v", steht eine eigene Zeile "ACK xy". Der Punkt bleibt ein nackter Punkt: Der STM vergleicht
+ *    dort auf genau ein Zeichen, eine Form ".xy" fiele durch seine ganze Praefixkette, liefe in den
+ *    3-s-Timeout ohne watchdog_reload() und setzte ihn nach rund sieben Kommandos zurueck (L266).
+ *
+ *       xy = die ERSTEN zwei Hexziffern der Pruefsummenmarke der quittierten Zeile, klein geschrieben --
+ *            das hoehere Byte der Pruefsumme, wie der STM es mit "*%04x" gesendet hat;
+ *       xy = "--", wenn die Zeile keine (formal gueltige) Marke trug: keine Zuordnung, wie bisher.
+ *
+ *    Warum die Pruefsumme: Sie ist die einzige Kennung, die beide Seiten zu jeder Zeile schon haben;
+ *    eine laufende Nummer kennt das Zeilenformat nicht. Das HOEHERE Byte, weil das niedrige nur Laenge
+ *    plus Bytesumme ist und bei benachbarten Kommandos des Vollabgleichs leicht gleich ausfaellt
+ *    ("N1d0100" und "N1e0000" haben dieselbe Summe); das hoehere haengt zusaetzlich an der Position.
+ *    Bei "!v" wegen falscher Pruefsumme steht die EMPFANGENE Marke da, keine selbst gerechnete: Sie ist
+ *    die Angabe des STM, und nur mit ihr ordnet er die Abweisung seinem Kommando zu und sendet sofort
+ *    nach statt nach einem Timeout.
+ *
+ *    Warum "--" und keine selbst gerechnete Pruefsumme, wenn die Marke fehlt: Eine unmarkierte Zeile
+ *    kommt entweder unbeschaedigt von einem STM, der nicht markiert -- dann gibt es keine Verwechslung,
+ *    die es nicht heute schon gaebe --, oder sie hat mit dem Zeilenende ihre Marke verloren. Dann waere
+ *    eine gerechnete Pruefsumme falsch, der STM verwuerfe die Quittung, und jeder solche Fall kostete
+ *    ihn 3 Sekunden ohne watchdog_reload(); fuer die drei Pflichtkommandos ginge zudem das sofortige
+ *    Nachsenden auf "!v" verloren. "--" heisst: genau wie heute.
+ *
+ *    Ein alter STM verwirft "ACK xy" als unbekannte Zeile und liest den Punkt unveraendert (AKS.6).
+ *
+ * Alle Meldungen AUSSCHLIESSLICH ueber stm32_log_append(): RAM-Ring, null Byte auf der STM-UART (L109).
+ * Keine Werte in den Zeilen, nur Zaehler und Laengen (A20/L115).
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define VAR_FRAME_CODE              'V'                                     // Kommandobuchstabe der Rahmenzeilen
+#define VAR_FRAME_BEGIN             'B'                                     // "VBffnn"
+#define VAR_FRAME_END               'E'                                     // "VEnn"
+#define VAR_FRAME_FLAG_MARKED       0x01                                    // Zeilen dieses Abgleichs sind markiert
+#define VAR_FRAME_FLAG_END_MARK     0x02                                    // Abgleich endet mit der Abschlussmarke
+#define VAR_FRAME_RUN_MAX_MS        30000UL                                 // laengste Wartezeit auf die Abschlussmarke
+#define VAR_MARK_LOST_RUN           3                                       // H1: so viele unmarkierte in Folge => STM markiert nicht mehr
+
+#define VAR_FRAME_NONE              0                                       // keine Eroeffnung gesehen: bisheriges Kriterium
+#define VAR_FRAME_RUNNING           1                                       // Eroeffnung gesehen, Abschlussmarke steht aus
+#define VAR_FRAME_DONE              2                                       // Abschlussmarke zur Eroeffnung gesehen
+
+#define VAR_NUMVAR_CODE             'N'                                     // wie CMD_CODE_NUMERIC_VAR in vars.cpp
+#define VAR_STRVAR_CODE             'S'                                     // wie CMD_CODE_STRING_VAR in vars.cpp
+
+static uint_fast8_t     var_frame_state     = VAR_FRAME_NONE;
+static uint_fast8_t     var_frame_flags     = 0;
+static uint_fast8_t     var_frame_seq       = 0;
+static unsigned long    var_frame_millis    = 0;                            // Zeitpunkt der Eroeffnung bzw. Abschlussmarke
+static uint_fast8_t     var_mark_seen       = 0;                            // richtige Marke in dieser Sitzung gesehen
+static uint_fast8_t     var_unmarked_run    = 0;                            // H1: unmarkierte in Folge seit der letzten Marke
+static uint32_t         var_unmarked_cnt    = 0;                            // C26: unmarkiert, waehrend Marken erwartet
+static uint32_t         var_mark_reject_cnt = 0;                            // davon wegen Markenpflicht abgewiesen
+
+/* Prototypen von Hand, zwingend -- siehe oben bei var_crc (L177). */
+static int              var_hex2 (const char * p);
+static int              var_frame_line (const char * parameters);
+static uint_fast8_t     var_marks_expected (void);
+static void             var_mark_lost_check (void);
+static uint_fast8_t     var_mark_required (const char * parameters);
+static void             var_unmarked_note (unsigned int len, uint_fast8_t rejected);
+static void             var_ack_send (int mark_val);
+
+/* Zwei strenge Hexziffern, -1 wenn keine. Liest p[1] nur, wenn p[0] eine Hexziffer war -- also nie
+ * hinter den Terminator.
+ */
+static int
+var_hex2 (const char * p)
+{
+    int     hi;
+    int     lo;
+
+    hi = var_crc_hexval (p[0]);
+
+    if (hi < 0)
+    {
+        return -1;
+    }
+
+    lo = var_crc_hexval (p[1]);
+
+    if (lo < 0)
+    {
+        return -1;
+    }
+
+    return (hi << 4) | lo;
+}
+
+/* Rahmenzeile auswerten (S.1).
+ *
+ * Rueckgabe: -1 = keine Rahmenzeile, weiter an var_set_parameter(),
+ *             1 = verarbeitet, mit dem Punkt quittieren,
+ *             0 = Rahmenzeile mit verstuemmeltem Kopf: "!v", der STM sendet sie nach.
+ * Ein unbekannter Unterbuchstabe hinter 'V' wird quittiert und ignoriert -- so, wie ein alter ESP
+ * jede 'V'-Zeile behandelt. Ein kuenftiger STM bekommt damit keine Nachsendeschleife.
+ */
+static int
+var_frame_line (const char * parameters)
+{
+    int     flags;
+    int     seq;
+    char    line[STM32_LOG_LINE_LEN + 1];
+
+    if (parameters[0] != VAR_FRAME_CODE)
+    {
+        return -1;
+    }
+
+    if (parameters[1] == VAR_FRAME_BEGIN)
+    {
+        flags = var_hex2 (parameters + 2);
+        seq   = (flags < 0) ? -1 : var_hex2 (parameters + 4);
+
+        if (seq < 0)
+        {
+            return 0;
+        }
+
+        if (var_frame_state == VAR_FRAME_DONE && (uint_fast8_t) seq == var_frame_seq &&
+            (millis () - var_frame_millis) < VAR_FRAME_RUN_MAX_MS)
+        {
+            return 1;                                                       // nachgesendete Eroeffnung, Abgleich ist durch
+        }
+
+        if (! (flags & VAR_FRAME_FLAG_MARKED))
+        {
+            var_mark_seen = 0;                                              // der STM sagt selbst: ich markiere nicht
+        }
+
+        var_frame_state  = VAR_FRAME_RUNNING;
+        var_frame_flags  = (uint_fast8_t) flags;
+        var_frame_seq    = (uint_fast8_t) seq;
+        var_frame_millis = millis ();
+        return 1;
+    }
+
+    if (parameters[1] == VAR_FRAME_END)
+    {
+        seq = var_hex2 (parameters + 2);
+
+        if (seq < 0)
+        {
+            return 0;
+        }
+
+        /* Zur laufenden Eroeffnung -- oder zu einer, deren Wartezeit abgelaufen ist: Dann ging die
+         * Eroeffnung des NEUEN Abgleichs verloren, und seine Marke belegt trotzdem, dass er durchlief.
+         */
+        if (var_frame_state == VAR_FRAME_RUNNING &&
+            ((uint_fast8_t) seq == var_frame_seq || (millis () - var_frame_millis) >= VAR_FRAME_RUN_MAX_MS))
+        {
+            var_frame_state  = VAR_FRAME_DONE;
+            var_frame_seq    = (uint_fast8_t) seq;
+            var_frame_millis = millis ();
+
+            snprintf (line, sizeof (line), "- var sync: Abschlussmarke %02x, unmarkiert %lu, davon abgewiesen %lu",
+                      (unsigned int) seq, (unsigned long) var_unmarked_cnt, (unsigned long) var_mark_reject_cnt);
+        }
+        else
+        {
+            /* M1 (Review S.6): Laeuft KEIN Abgleich, ging die Eroeffnung verloren -- die Marke belegt
+             * trotzdem einen vollstaendigen. Sie schliesst ihn unter IHRER Nummer, damit eine danach
+             * nachgesendete Eroeffnung derselben Nummer keinen Phantom-Abgleich oeffnet, der bis zum
+             * Ablauf der Frist auf eine Marke wartet, die schon da war. Laeuft dagegen ein frischer
+             * Abgleich mit anderer Nummer, ist dies die nachgesendete Marke eines frueheren: ignorieren.
+             */
+            if (var_frame_state != VAR_FRAME_RUNNING)
+            {
+                var_frame_state  = VAR_FRAME_DONE;
+                var_frame_seq    = (uint_fast8_t) seq;
+                var_frame_millis = millis ();
+            }
+
+            snprintf (line, sizeof (line), "- var sync: Abschlussmarke %02x ohne passende Eroeffnung", (unsigned int) seq);
+        }
+
+        stm32_log_append (line);
+        return 1;
+    }
+
     return 1;
+}
+
+/* Werden Marken erwartet? Siehe Kopfkommentar, Punkt 2. */
+static uint_fast8_t
+var_marks_expected (void)
+{
+    if (var_mark_seen)
+    {
+        return 1;
+    }
+
+    if (var_frame_state == VAR_FRAME_RUNNING && (var_frame_flags & VAR_FRAME_FLAG_MARKED) &&
+        (millis () - var_frame_millis) < VAR_FRAME_RUN_MAX_MS)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/* H1 (Review S.6): Eine unmarkierte Zeile, waehrend die SITZUNG Marken erwartet. Die wievielte in
+ * Folge? Bei VAR_MARK_LOST_RUN gilt: Der STM markiert nicht mehr -- Erwartung aufloesen. Aufgerufen
+ * VOR der Pflichtentscheidung ueber dieselbe Zeile (Kopfkommentar, Punkt 2, "VORAUSSETZUNG").
+ */
+static void
+var_mark_lost_check (void)
+{
+    char    line[96];
+
+    if (! var_mark_seen)
+    {
+        return;
+    }
+
+    var_unmarked_run++;
+
+    if (var_unmarked_run >= VAR_MARK_LOST_RUN)
+    {
+        var_mark_seen    = 0;
+        var_unmarked_run = 0;
+
+        snprintf (line, sizeof (line), "- var: %u unmarkierte Zeilen in Folge -- STM markiert nicht mehr, Markenpflicht aufgehoben",
+                  (unsigned int) VAR_MARK_LOST_RUN);
+        stm32_log_append (line);
+    }
+}
+
+/* Ist die Zeile eine der drei markenpflichtigen Kommandoarten?
+ *
+ * Der Index wird GENAU WIE IM PARSER bestimmt, mit htoi() (vars.cpp, var_set_parameter()), nicht
+ * strenger (Review S.6, M2): htoi() wertet ein Nicht-Hexzeichen als 0, aus "S?9..." wird also
+ * UPDATE_HOST_VAR. Laese die Pruefung hier strenger, gaelte die Zeile als nicht pflichtig und
+ * wuerde trotzdem als Update-Host angewandt -- Pruefung und Wirkung saehen verschiedene Ziele.
+ * htoi() haelt am Nullbyte; zu kurze Zeilen weist var_set_parameter() ohnehin ab.
+ */
+static uint_fast8_t
+var_mark_required (const char * parameters)
+{
+    unsigned int    idx;
+
+    if (parameters[0] == VAR_NUMVAR_CODE)
+    {
+        idx = htoi ((char *) parameters + 1, 2);
+        return (idx == HARDWARE_CONFIGURATION_NUM_VAR) ? 1 : 0;
+    }
+
+    if (parameters[0] == VAR_STRVAR_CODE)
+    {
+        idx = htoi ((char *) parameters + 1, 2);
+        return (idx == UPDATE_HOST_VAR || idx == UPDATE_PATH_VAR) ? 1 : 0;
+    }
+
+    return 0;
+}
+
+/* Unmarkierte Zeile zaehlen (C26, AKS.7). Gedrosselt wie var_crc_reject(): die ersten vier einzeln,
+ * danach jede fuenfzigste; die Abweisungen wegen Markenpflicht mit eigenem Zaehler, damit sie nicht in
+ * der Drosselung der harmlosen Faelle verschwinden. Der Stand beider Zaehler steht zusaetzlich in der
+ * Zeile zu jeder Abschlussmarke.
+ */
+static void
+var_unmarked_note (unsigned int len, uint_fast8_t rejected)
+{
+    char    line[80];
+
+    var_unmarked_cnt++;
+
+    if (rejected)
+    {
+        var_mark_reject_cnt++;
+
+        if (var_mark_reject_cnt <= 4 || (var_mark_reject_cnt % 50) == 0)
+        {
+            snprintf (line, sizeof (line), "- var ohne Marke abgewiesen #%lu (unmarkiert #%lu) len=%u",
+                      (unsigned long) var_mark_reject_cnt, (unsigned long) var_unmarked_cnt, len);
+            stm32_log_append (line);
+        }
+    }
+    else if (var_unmarked_cnt <= 4 || (var_unmarked_cnt % 50) == 0)
+    {
+        snprintf (line, sizeof (line), "- var unmarkiert #%lu len=%u", (unsigned long) var_unmarked_cnt, len);
+        stm32_log_append (line);
+    }
+}
+
+/* Zuordnungszeile VOR der Quittung (S.2). Siehe Kopfkommentar, Punkt 3. */
+static void
+var_ack_send (int mark_val)
+{
+    char    line[8];                                                        // "ACK xy" + Nullbyte
+
+    if (mark_val >= 0)
+    {
+        snprintf (line, sizeof (line), "ACK %02x", (unsigned int) ((mark_val >> 8) & 0xFF));
+    }
+    else
+    {
+        strcpy (line, "ACK --");
+    }
+
+    Serial.println (line);
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
@@ -757,6 +1143,8 @@ var_sync_check (void)
     static uint_fast8_t     tries       = 0;
     static uint_fast8_t     done        = 0;                                // stillgelegt: Erfolg oder aufgegeben
     char                    line[STM32_LOG_LINE_LEN + 1];
+    uint_fast8_t            awaiting_end;                                   // S.1: Eroeffnung da, Abschlussmarke nicht
+    const char *            how;
 
     if (done)
     {
@@ -782,18 +1170,47 @@ var_sync_check (void)
 
     last_millis = millis ();
 
-    if (numvars[HARDWARE_CONFIGURATION_NUM_VAR] != 0xFFFF)                  // Vollabgleich ist angekommen
+    /* S.1 (L260/A42): Kam eine Eroeffnung, die eine Abschlussmarke ankuendigt, ist der Abgleich erst mit
+     * dieser Marke vollstaendig -- nicht schon mit HARDWARE_CONFIGURATION, dem dritten von rund 194
+     * Kommandos. Laeuft er noch, wird gewartet statt ein zweites Mal angefordert (design 6.2 der vorigen
+     * Fassung: der Abstand bleibt, die Marke kommt als Bedingung dazu). Gewartet wird hoechstens
+     * VAR_FRAME_RUN_MAX_MS ab der Eroeffnung; danach gilt der Abgleich als unvollstaendig.
+     *
+     * RUECKFALL: Ohne Eroeffnung -- alter STM, oder die Zeile ging verloren -- ist awaiting_end 0, und
+     * es gilt allein das bisherige Kriterium HARDWARE_CONFIGURATION != 0xFFFF (AKS.3, AKS.6).
+     */
+    awaiting_end = (var_frame_state == VAR_FRAME_RUNNING && (var_frame_flags & VAR_FRAME_FLAG_END_MARK)) ? 1 : 0;
+
+    if (awaiting_end && (millis () - var_frame_millis) < VAR_FRAME_RUN_MAX_MS)
+    {
+        return;                                                             // Abgleich laeuft, Marke steht noch aus
+    }
+
+    if (! awaiting_end && numvars[HARDWARE_CONFIGURATION_NUM_VAR] != 0xFFFF) // Vollabgleich ist angekommen
     {
         done = 1;
 
-        if (tries)
+        if (var_frame_state == VAR_FRAME_DONE)
         {
-            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig nach %u Anforderung(en)",
-                      (unsigned int) tries);
+            how = "Abschlussmarke";
+        }
+        else if (var_frame_state == VAR_FRAME_NONE)
+        {
+            how = "ohne Eroeffnungszeile";                                  // bisheriges Kriterium
         }
         else
         {
-            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig, keine Anforderung noetig");
+            how = "Abgleich ohne Abschlussmarke";                           // Eroeffnung ohne Flag 0x02
+        }
+
+        if (tries)
+        {
+            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig nach %u Anforderung(en) (%s)",
+                      (unsigned int) tries, how);
+        }
+        else
+        {
+            snprintf (line, sizeof (line), "- var sync: Variablensatz vollstaendig, keine Anforderung noetig (%s)", how);
         }
 
         stm32_log_append (line);
@@ -803,14 +1220,22 @@ var_sync_check (void)
     if (tries >= VAR_SYNC_MAX_TRIES)                                        // nach dem letzten Versuch noch einmal geprueft
     {
         done = 1;
-        stm32_log_append ("- var sync: dreimal erfolglos, Hardware-Konfiguration unbekannt -- kein STM32-Flash, Rueckweg tools/flash-stm.sh");
+
+        if (numvars[HARDWARE_CONFIGURATION_NUM_VAR] == 0xFFFF)
+        {
+            stm32_log_append ("- var sync: dreimal erfolglos, Hardware-Konfiguration unbekannt -- kein STM32-Flash, Rueckweg tools/flash-stm.sh");
+        }
+        else
+        {
+            stm32_log_append ("- var sync: dreimal erfolglos, Abschlussmarke fehlt -- Variablensatz moeglicherweise lueckenhaft");
+        }
         return;
     }
 
     tries++;
 
-    snprintf (line, sizeof (line), "- var sync: Variablensatz unvollstaendig, Vollabgleich angefordert (Versuch %u von %u)",
-              (unsigned int) tries, (unsigned int) VAR_SYNC_MAX_TRIES);
+    snprintf (line, sizeof (line), "- var sync: Variablensatz unvollstaendig%s, Vollabgleich angefordert (Versuch %u von %u)",
+              awaiting_end ? " (Abschlussmarke fehlt)" : "", (unsigned int) tries, (unsigned int) VAR_SYNC_MAX_TRIES);
     stm32_log_append (line);
 
     Serial.println ("SYNCVARS");                                            // still: kein Ticker, anders als bei IPADDRESS
@@ -856,6 +1281,10 @@ loop()
             {
                 char *          parameter;
                 uint_fast8_t    ok;
+                uint_fast8_t    crc_state;
+                uint_fast8_t    required;
+                int             mark_val;
+                int             frame;
 
                 parameter = cmd_buffer + 4;
 
@@ -864,9 +1293,41 @@ loop()
                  * erreichen, sonst zaehlt dessen Laengenpruefung (L237) fuenf Zeichen mit,
                  * die nicht zur Nutzlast gehoeren.
                  */
-                ok = var_crc_check_and_strip (parameter);
+                crc_state = var_crc_check_and_strip (parameter, &mark_val);
+                ok        = (crc_state != VAR_CRC_BAD) ? 1 : 0;
 
-                if (ok)
+                /* S.3 (C26): Marke gesehen, oder fehlt sie, waehrend Marken erwartet werden?
+                 * Eine der drei Pflichtarten ohne Marke wird nicht angewandt, sondern mit "!v"
+                 * abgewiesen -- der STM sendet sie sofort nach (Kopfkommentar, Punkt 2).
+                 */
+                if (crc_state != VAR_CRC_NONE)
+                {
+                    var_unmarked_run = 0;                                   // H1: Marke da (auch falsche) -- Folge endet
+
+                    if (crc_state == VAR_CRC_GOOD)
+                    {
+                        var_mark_seen = 1;
+                    }
+                }
+                else if (var_marks_expected ())
+                {
+                    var_mark_lost_check ();                                 // H1: VOR der Pflichtentscheidung
+                    required = var_marks_expected () ? var_mark_required (parameter) : 0;
+                    var_unmarked_note ((unsigned int) strlen (parameter), required);
+
+                    if (required)
+                    {
+                        ok = 0;
+                    }
+                }
+
+                frame = ok ? var_frame_line (parameter) : -1;               // S.1: Rahmenzeile "var V..."?
+
+                if (frame >= 0)
+                {
+                    ok = (uint_fast8_t) frame;
+                }
+                else if (ok)
                 {
                     /* Rueckgabewert seit L237: 1 = formal verwertbar, 0 = verworfen, weil die
                      * Zeile zu kurz fuer ihre Kommandoart war. AUCH DAS wird abgelehnt -- sonst
@@ -881,9 +1342,11 @@ loop()
                     ok = var_set_parameter (parameter);
                 }
 
+                var_ack_send (mark_val);                                    // S.2: Zuordnung VOR der Quittung, eigene Zeile
+
                 if (ok)
                 {
-                    Serial.println (".");                                   // "silent" OK
+                    Serial.println (".");                                   // "silent" OK -- bleibt ein nackter Punkt (AKS.4)
                 }
                 else
                 {

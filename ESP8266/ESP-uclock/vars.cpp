@@ -1509,6 +1509,12 @@ vars_init (void)
     numvars[HARDWARE_CONFIGURATION_NUM_VAR] = 0xFFFF;
     numvars[AMBILIGHT_IS_UP_NUM_VAR] = 1;
 
+    /* A5 (design 7.2): "unbekannt" ist 0x8000, NICHT 0 -- 0 ist eine echte Temperatur. Ein alter STM
+     * sendet Index 49 nie; dann bleibt dieser Wert stehen, und Legacy wie PWA fallen auf Index 21
+     * zurueck. 0x8000 ist als int16 -32768 halbe Grad und damit nie ein gueltiger Messwert.
+     */
+    numvars[RTC_TEMP_HALF_DEG_NUM_VAR] = 0x8000;
+
     /* strvar 3 war in jedem Abzug leer: Der STM32 fuellt ihn nicht (var_send_esp8266_version
      * ist leer) und weist ein Setzen als readonly zurueck - niemand war zustaendig (L55).
      * Die eigene Version kennt nur der ESP, also fuellt er den Platz selbst. Bewusst ohne
