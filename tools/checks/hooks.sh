@@ -50,6 +50,23 @@ probe "fremde Datei schreiben"        file-ownership.py stm-developer Edit "$(pw
 probe "fremde Datei per Bash patchen" file-ownership.py stm-developer Bash \
       "python3 -c \"import io; io.open('ESP8266/ESP-uclock/data/app/app.js','w').write(x)\"" deny
 probe "fremde Datei lesen"            file-ownership.py stm-developer Read "$(pwd)/ESP8266/ESP-uclock/data/app/app.js" allow
+# E20/L258 (08.10.2026): Nur die SCHREIBposition zaehlt, nicht jede Erwaehnung.
+probe "fremde Datei als cp-Quelle"    file-ownership.py stm-developer Bash \
+      "cp ESP8266/ESP-uclock/data/app/app.js /tmp/kopie.js" allow
+probe "fremde Datei als cp-Ziel"      file-ownership.py stm-developer Bash \
+      "cp /tmp/kopie.js ESP8266/ESP-uclock/data/app/app.js" deny
+probe "Python: fremd lesen, eigen schreiben" file-ownership.py stm-developer Bash \
+      "python3 - <<'PY'
+q='ESP8266/ESP-uclock/data/app/app.js'
+t=open(q).read()
+p='src/main.c'
+open(p,'w').write(t)
+PY" allow
+probe "Python: fremde Variable schreiben" file-ownership.py stm-developer Bash \
+      "python3 - <<'PY'
+p='ESP8266/ESP-uclock/data/app/app.js'
+open(p,'w').write('x')
+PY" deny
 
 echo "  --- no-danger.py (AKW.4): Aufruf verboten, Erwaehnung erlaubt"
 probe "lesender Endpunkt"             no-danger.py "" Bash 'curl -s http://1.2.3.4/api/update_status' allow

@@ -109,7 +109,7 @@ WRITE_HINTS = re.compile(
     r">>?\s*['\"]?%s"                   # Umlenkung DIREKT in die Datei
     r"|sed\s+-i[^|;]*%s"                # sed in-place
     r"|tee\s+[^|;]*%s"                  # tee
-    r"|(?:cp|mv|install)\s+[^|;]*%s"    # kopieren/verschieben AUF die Datei
+    r"|(?:cp|mv|install)\s+[^|;&\n]*?\s['\"]?%s['\"]?\s*(?:$|[|;&\n])"  # NUR das Ziel (letztes Argument)
     r"|open\s*\(\s*['\"]%s['\"]\s*,\s*['\"][wa]"   # Python open('pfad', 'w'/'a')
 )
 
@@ -121,8 +121,18 @@ def bash_writes_to(command, path):
     if re.search(pattern, command, re.S):
         return True
     # Python-Heredoc mit Variablenzuweisung: p='…/app.js' … open(p,'wb')
-    if re.search(r"=\s*['\"][^'\"]*%s['\"]" % quoted, command) and re.search(r"open\s*\([^)]*['\"][wa]", command):
-        return True
+    #
+    # Bis zum 08.10.2026 genuegte IRGENDEINE Zuweisung des Pfades plus IRGENDEIN
+    # open(…,'w') im selben Befehl (E20, L258). Damit wurde abgewiesen, wer eine fremde
+    # Datei nur LAS und in die eigene schrieb -- der haeufigste Fall beim Abgleich zweier
+    # Seiten. Jetzt muss genau die Variable, die den Pfad haelt, zum Schreiben geoeffnet
+    # oder mit write_text/write_bytes beschrieben werden.
+    for m in re.finditer(r"\b([A-Za-z_]\w*)\s*=\s*['\"][^'\"]*%s['\"]" % quoted, command):
+        var = re.escape(m.group(1))
+        if re.search(r"open\s*\(\s*%s\s*,\s*(?:mode\s*=\s*)?['\"](?:[wax]|r\+)" % var, command):
+            return True
+        if re.search(r"\b%s\b[^\n]*\.write_(?:text|bytes)\s*\(" % var, command):
+            return True
     return False
 
 

@@ -105,7 +105,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
 - **Kein Build ohne Versionserhöhung der geänderten Komponenten (DIR-004).** Kein
   Gleichschritt — ändert ein Release nur den STM-Code, steigt nur dessen Version.
   `APP_VERSION` und `CACHE_NAME` gehören dagegen immer zusammen.
-- **Nach jeder relevanten Änderung kompletter Build und Release-ZIP**, nicht nur
+- **Nach jeder relevanten Änderung kompletter Build und Release-ZIP (DIR-002)**, nicht nur
   `app-gz`. Immer explizit sagen, was zu flashen ist — **und in welcher Reihenfolge,
   wenn eine Komponente die andere voraussetzt.** Setzt eine PWA-Änderung eine
   Firmware-Änderung voraus, kommt die **Firmware zuerst**. Am 04.10.2026 belegt: Die
@@ -308,6 +308,14 @@ Grund — alle Build-Targets schreiben in geteilte Verzeichnisse:
 anderer Agent `app.js` noch editiert, entsteht eine **`.gz` einer halb
 geschriebenen Datei** — genau der White-Screen-Fehlerfall aus R-Invarianten.
 Vor `app-gz`: `git status` prüfen, alle Editier-Tasks müssen abgeschlossen sein.
+
+## R2b — Der Lead committet mit Pfaden, solange Agenten laufen
+
+Kein `git add -A` und kein `git commit -a`, solange ein Agent am Baum arbeitet. Die Pfade
+werden einzeln genannt, oder es wird gewartet. Sonst landet halbfertige fremde Arbeit
+unter einer Botschaft, die sie nicht erwähnt, und `git blame` zeigt danach auf den
+falschen Commit (`BEFUNDE.md`, L158). Am 07./08.10.2026 so gehandhabt, als STM-, ESP- und
+PWA-Agenten gleichzeitig liefen; festgeschrieben als B20.
 
 ## R3 — Jede Datei hat genau einen Schreiber, **den Lead eingeschlossen**
 

@@ -57,6 +57,19 @@ stm=$(printf '%s' "$sx" | grep -o '<strvar idx="1" value="[^"]*"' | sed 's/.*val
 esp=$(curl -s -m "$TIMEOUT" "$U/update" 2>/dev/null | grep -oE '3\.[0-9]+\.[0-9]+' | sed -n 2p)
 [ -n "$esp" ] && pass "ESP-Version gemeldet" "$esp" || fail "ESP-Version gemeldet"
 
+# Gegen den Repo-Sollstand (E11/L105). Nur ein Hinweis, kein Fehlschlag: Zwischen Build
+# und Flash weicht das Geraet gewollt ab, und das soll den Smoketest nicht rot machen.
+# Aber man soll es SEHEN -- am 02.10.2026 lief auf dem Geraet tagelang 1.4.69, waehrend
+# das Repo bei 1.4.71 stand, und niemand hat es bemerkt (CLAUDE.md, DIR-017).
+repo_stm=$(grep '^#define VERSION' src/main.h | head -1 | cut -d'"' -f2)
+repo_esp=$(grep '^#define ESP_VERSION' ESP8266/ESP-uclock/version.h | head -1 | cut -d'"' -f2)
+for v in "STM|$stm|$repo_stm" "ESP|$esp|$repo_esp"; do
+  IFS='|' read -r k ist soll <<< "$v"
+  if [ -n "$ist" ] && [ -n "$soll" ] && [ "$ist" != "$soll" ]; then
+    printf '  INFO  %-34s %s\n' "$k-Version gegen Repo" "Geraet $ist, Repo $soll — noch nicht eingespielt?"
+  fi
+done
+
 # -------------------------------------------------------- PWA-Assets ausliefern
 for a in "" app.js styles.css index.html sw.js manifest.webmanifest; do
   path="/app/$a"
@@ -83,6 +96,23 @@ elif [ -n "${DEVICE_UPDATE_HOST:-}" ] && { [ "$uh" != "$DEVICE_UPDATE_HOST" ] ||
   fail "Update-Quelle" "$uh/$up — erwartet $DEVICE_UPDATE_HOST/${DEVICE_UPDATE_PATH:-}"
 else
   pass "Update-Quelle" "$uh/$up"
+fi
+
+# ----------------------------------- Hardwarekennung bekannt (DIR-010, AKF.4)
+# Steht HARDWARE_CONFIGURATION (Index 29) auf 65535, bildet der ESP keinen
+# Dateinamenfilter und weist JEDEN STM-Flash ab -- still, mit error_code. Diesen Zustand
+# hinterlaesst ein ESP-Neustart, wenn der Vollabgleich die Kennung nicht durchbringt
+# (BEFUNDE.md, L42). Bis zum 08.10.2026 sah man es erst beim naechsten flash-stm.sh.
+# SMOKE_HW_OVERRIDE setzt fuer die Gegenprobe einen festen Wert ein (DIR-014) -- nur
+# zum Pruefen der Stufe selbst, nie im echten Lauf.
+hw=$(printf '%s' "$sx" | grep -o '<numvar idx="29" value="[0-9]*"' | sed 's/.*value="//;s/"//')
+[ -n "${SMOKE_HW_OVERRIDE:-}" ] && hw=$SMOKE_HW_OVERRIDE
+if [ -z "$hw" ]; then
+  fail "Hardwarekennung" "nicht gemeldet"
+elif [ "$hw" = "65535" ]; then
+  fail "Hardwarekennung" "65535 — STM-Flash gesperrt (DIR-010). Erst STM zuruecksetzen, dann pruefen"
+else
+  pass "Hardwarekennung" "$hw${SMOKE_HW_OVERRIDE:+ (Testwert)}"
 fi
 
 # ------------------------------------------------- Lesende API, Antwort gueltig
@@ -232,6 +262,13 @@ def ver(s):
         return ()
 
 stm, since = ver(os.environ.get("STM", "")), ver(os.environ["SINCE"])
+
+if not lines(os.environ["DIAG"]):
+    # E11/L104: Ein LEERER Ring ist kein fehlendes Messinstrument, sondern ein frisch
+    # gestarteter ESP -- der Ring lebt im ESP-RAM und fuellt sich erst wieder.
+    print("  INFO  Diagnosezeile                      Logring leer — ESP gerade neu gestartet? "
+          "In einer Minute nochmals laufen lassen")
+    sys.exit(0)
 
 if not seqs:
     if stm and since and stm < since:
