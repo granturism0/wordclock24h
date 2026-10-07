@@ -151,9 +151,17 @@ while :; do
   fi
   [ -n "$d" ] && letzte_d=$d
 
+  # Ein EINZELNER Anstieg ist auch im gesunden Betrieb moeglich: Loest ein ESP-Kommando
+  # waehrend eines Abgleichs ein verschachteltes var aus, trifft dessen Quittung das
+  # naechste Kommando und wird richtigerweise verworfen (Review S.21, H3). Deshalb erst
+  # ab drei je Abfrage Alarm; darunter nur ein Hinweis, damit man es trotzdem sieht.
   if [ -n "$a" ] && [ -n "$letzte_a" ] && [ "$a" -gt "$letzte_a" ]; then
-    printf '  %s  Bruecke: %d Quittung(en) verworfen, Zuordnung passte nicht (a=%s)\n' "$stamp" "$((a - letzte_a))" "$a"
-    alarm=1
+    if [ "$((a - letzte_a))" -ge 3 ]; then
+      printf '  %s  Bruecke: %d Quittung(en) verworfen, Zuordnung passte nicht (a=%s)\n' "$stamp" "$((a - letzte_a))" "$a"
+      alarm=1
+    else
+      printf '  %s  Hinweis: %d Quittung verworfen (a=%s), einzeln unbedenklich\n' "$stamp" "$((a - letzte_a))" "$a"
+    fi
   fi
   [ -n "$a" ] && letzte_a=$a
 
