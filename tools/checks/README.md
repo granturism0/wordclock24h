@@ -17,6 +17,11 @@ die Differenz dort nicht überlief (`BEFUNDE.md`, L256).
 Deshalb: **`#include "pruefstand.h"`** und die `zp_*`-Typen benutzen. Der Header prüft seine
 eigenen Breiten beim Übersetzen und bricht ab, statt still falsch zu rechnen.
 
+**Firmware-Code mit `uint_fast8_t`/`uint_fast16_t`** braucht zusätzlich
+`-DPRUEFSTAND_SCHNELLE_TYPEN`, und der Header muss **vor** dem Firmware-Code stehen. Auf
+dem Ziel sind beide Typen 32 Bit, auf dem Mac 8 bzw. 16 — ohne den Schalter nimmt eine
+Bereichsprüfung 288 als 32 an, die auf dem Gerät abweist (in Runde S zweimal gesehen).
+
 ## Was ein Prüfstand hier erfüllen muss
 
 1. **Er entsteht vor oder unabhängig von der Umsetzung, die er prüft.** Wer seine Vektoren

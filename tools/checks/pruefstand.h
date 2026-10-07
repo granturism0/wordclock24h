@@ -45,4 +45,27 @@ typedef uint32_t    zp_millis;
 typedef char zp_breiten_pruefung[
     (sizeof(zp_ulong) == 4 && sizeof(zp_size) == 4 && sizeof(zp_millis) == 4) ? 1 : -1];
 
+/* DIE SCHNELLEN TYPEN -- die zweite Haelfte von L256, nachgetragen am 07.10.2026.
+ *
+ * Auf arm-none-eabi sind uint_fast8_t und uint_fast16_t beide `unsigned int`, also
+ * 32 Bit (L290, mit dem Compiler belegt). Auf dem Mac sind sie 8 bzw. 16 Bit. Ein
+ * Pruefstand, der Firmware-Code mit uint_fast8_t-Parametern auf dem Host uebersetzt,
+ * kuerzt deshalb still: 256 wird 0, 288 wird 32 -- und eine Bereichspruefung, die auf
+ * dem Geraet abweist, nimmt auf dem Pruefstand an. In Runde S zweimal gesehen (A3,
+ * Feldzaehler in esp8266.c); beide Male hat der Agent es im eigenen Pruefstand
+ * angeglichen, weil dieser Header es nicht tat.
+ *
+ * Opt-in, weil es die Standardnamen per Makro umbiegt: VOR dem Einbinden des
+ * Firmware-Codes `#define PRUEFSTAND_SCHNELLE_TYPEN` setzen (oder -D...). Dieser
+ * Header muss dann VOR dem Firmware-Code stehen -- danach greift das Makro nicht mehr.
+ * Typedefs lassen sich nicht umdefinieren; ein Makro ersetzt den Namen im Text, der
+ * danach kommt. */
+#ifdef PRUEFSTAND_SCHNELLE_TYPEN
+#define uint_fast8_t    uint32_t
+#define uint_fast16_t   uint32_t
+#define int_fast8_t     int32_t
+#define int_fast16_t    int32_t
+typedef char zp_schnelle_pruefung[(sizeof(uint_fast8_t) == 4 && sizeof(uint_fast16_t) == 4) ? 1 : -1];
+#endif
+
 #endif /* PRUEFSTAND_H */
