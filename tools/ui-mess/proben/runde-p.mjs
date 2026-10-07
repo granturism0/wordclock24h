@@ -11,6 +11,7 @@
 //
 // Gegenprobe (DIR-014): Eine zweite Vorschau, die eine alte app.js ausliefert, und
 // --alt. Gemessen am 05.10.2026: neu 84/0, Stand vor B33/B26 77/6, HEAD 22/38.
+// Am 07.10.2026 gegen 1.4.90 (vor Runde P): 23/38, darunter L303 und L306 (P2.1e).
 //
 // Einige Pruefungen vergleichen deutsche Texte woertlich. Aendert sich ein Wortlaut,
 // schlaegt die Probe an -- das ist dann ein Probenpflegefall, kein Fehler im Code.
@@ -110,8 +111,11 @@ try {
   st = await b.js(`window.__status`);
   pruef("Pfad-Abweisung: kein ok danach", !st.some(([t]) => t === "ok") && (st[st.length - 1] || [])[0] === "error", JSON.stringify(st));
 
-  // formatLittleFsFromFiles: Fehlschlag darf nicht "formatiert" schreiben
-  if (!altPfad) {
+  // formatLittleFsFromFiles: Fehlschlag darf nicht "formatiert" schreiben (L303).
+  // Lief bis zum 07.10.2026 nur ohne --alt -- also gerade in der Gegenprobe nicht, und
+  // damit war die Pruefung nie fehlgeschlagen (DIR-014). Gegen 1.4.90 meldet sie jetzt
+  // "LittleFS wurde formatiert." trotz Fehlerantwort, wie sie soll.
+  {
     await b.js(`(async () => {
       window.confirm = () => true;
       window.__reject["/api/maintenance_format_fs"] = { ok: false, error: 3, detail: "busy" };

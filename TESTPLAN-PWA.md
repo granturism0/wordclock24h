@@ -153,6 +153,13 @@ Verschlüsseln gelöscht.
 > `device.conf` und in keiner Sitzung. Geht es verloren, ist der Abzug verloren — es
 > gibt keinen Weg, ihn aufzubrechen. Das ist der Preis dafür, dass eine Datei mit dem
 > WLAN-Schlüssel gefahrlos herumliegen darf.
+>
+> **Damit ein Agent M2 trotzdem anlegen kann** (B19, entschieden am 07.10.2026), liest
+> `snapshot-device.sh` das Passwort aus einer Datei **ausserhalb des Repos**, Vorgabe
+> `~/.config/wordclock/snapshot.pass`, anderer Ort über `SNAPSHOT_PASS_FILE`. Die Datei
+> legt der Nutzer einmal an (`chmod 600`). Das Skript bricht ab, wenn sie im Repo liegt
+> oder für andere lesbar ist, und nennt bei jedem Lauf, woher das Passwort kam. In
+> der Sitzung steht nur der Pfad, nie das Passwort.
 
 **M1 ist das einzige Medium mit einem automatischen Rückweg.** Nur die PWA kann eine
 Sicherung wieder einspielen. M2 ist Handarbeit: entpacken, Werte ablesen, über die

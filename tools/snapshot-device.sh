@@ -45,6 +45,44 @@ fi
 U="http://$HOST"
 TIMEOUT=${TIMEOUT:-15}
 
+# Woher das Passwort fuer --restore und --oeffnen kommt (B19, Entscheid des Nutzers vom
+# 07.10.2026). Reihenfolge:
+#
+#   1. SNAPSHOT_PASS in der Umgebung
+#   2. die Datei SNAPSHOT_PASS_FILE, Vorgabe ~/.config/wordclock/snapshot.pass
+#   3. Abfrage im Terminal
+#
+# Weg 2 ist der, ueber den ein Agent Phase 0 selbst fahren darf: Das Passwort steht in
+# keiner Sitzung, nur der Pfad. Die Datei muss AUSSERHALB des Repos liegen und darf nur
+# fuer den Eigentuemer lesbar sein -- sonst Abbruch, nicht stiller Rueckfall auf das
+# Terminal. Ein Rueckfall wuerde einen Konfigurationsfehler als "fragt halt nach"
+# verkleiden.
+#
+# openssl bekommt das Passwort ueber env: bzw. file:, nicht mehr ueber pass:. Mit pass:
+# stand es waehrend des Laufs in der Prozessliste, lesbar fuer jeden Nutzer der Maschine.
+PASSARG=()
+PASSQUELLE="Terminal"
+PASSFILE=${SNAPSHOT_PASS_FILE:-$HOME/.config/wordclock/snapshot.pass}
+if [ -n "${SNAPSHOT_PASS:-}" ]; then
+  export SNAPSHOT_PASS
+  PASSARG=(-pass env:SNAPSHOT_PASS)
+  PASSQUELLE="SNAPSHOT_PASS"
+elif [ -e "$PASSFILE" ]; then
+  REPO=$(pwd -P)
+  ABS=$(cd "$(dirname "$PASSFILE")" && pwd -P)/$(basename "$PASSFILE")
+  case "$ABS" in
+    "$REPO"/*) echo "Abbruch: Die Passwortdatei liegt im Repo ($ABS). Sie gehoert ausserhalb." >&2; exit 2 ;;
+  esac
+  MODUS=$(stat -f %Lp "$ABS" 2>/dev/null || stat -c %a "$ABS" 2>/dev/null)
+  case "$MODUS" in
+    ?00|?00?) : ;;
+    *) echo "Abbruch: $ABS ist fuer andere lesbar (Modus $MODUS). Erwartet: chmod 600." >&2; exit 2 ;;
+  esac
+  [ -s "$ABS" ] || { echo "Abbruch: $ABS ist leer." >&2; exit 2; }
+  PASSARG=(-pass "file:$ABS")
+  PASSQUELLE="Datei $ABS"
+fi
+
 # --oeffnen zuerst: braucht kein Geraet.
 if [ "${1:-}" = "--oeffnen" ]; then
   ENC=${2:-}
@@ -53,7 +91,7 @@ if [ "${1:-}" = "--oeffnen" ]; then
   TARGET="${TARGET%.tar.gz}-entpackt"
   mkdir -p "$TARGET"
   if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$ENC" \
-       ${SNAPSHOT_PASS:+-pass "pass:$SNAPSHOT_PASS"} | tar xzf - -C "$TARGET"; then
+       ${PASSARG[@]+"${PASSARG[@]}"} | tar xzf - -C "$TARGET"; then
     echo "Entpackt nach: $TARGET"
     echo "ACHTUNG: enthaelt Zugangsdaten im Klartext. Nach Gebrauch loeschen."
     exit 0
@@ -78,12 +116,13 @@ if [ "${1:-}" = "--restore" ]; then
   # Schluessel auf die Platte gelegt.
   #
   # /dev/tty statt [ -t 0 ]: openssl liest das Passwort vom Terminal, nicht von stdin.
-  if [ -z "${SNAPSHOT_PASS:-}" ] && ! { : < /dev/tty; } 2>/dev/null; then
-    echo "Abbruch vor dem ersten Abruf: kein Passwort (SNAPSHOT_PASS) und kein Terminal." >&2
+  if [ "${#PASSARG[@]}" -eq 0 ] && ! { : < /dev/tty; } 2>/dev/null; then
+    echo "Abbruch vor dem ersten Abruf: kein Passwort (SNAPSHOT_PASS oder $PASSFILE) und kein Terminal." >&2
     echo "Ohne Passwort wuerde der WLAN-Schluessel unverschluesselt liegen bleiben." >&2
     echo "Im eigenen Terminal ausfuehren, dort wird das Passwort abgefragt." >&2
     exit 2
   fi
+  echo "Passwort aus: $PASSQUELLE"
 fi
 
 NAME=${1:-$(date '+%Y-%m-%d-%H%M%S')}
@@ -150,7 +189,7 @@ if [ "$SECRETS" -eq 1 ]; then
   ENC="tools/snapshots/$NAME.tar.gz.enc"
   if tar czf - -C tools/snapshots "$NAME" \
      | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -out "$ENC" \
-         ${SNAPSHOT_PASS:+-pass "pass:$SNAPSHOT_PASS"}; then
+         ${PASSARG[@]+"${PASSARG[@]}"}; then
     rm -rf "$OUT"
     echo
     printf '  Verschluesselt: %s  (%s Byte)\n' "$ENC" "$(wc -c < "$ENC" | tr -d ' ')"
