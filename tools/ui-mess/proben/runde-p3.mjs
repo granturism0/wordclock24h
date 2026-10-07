@@ -9,6 +9,7 @@
 // Minusgrade sind am Geraet nicht herstellbar -- diese Probe ist der tragende Nachweis.
 // B41: Eine WLAN-Auswahl ohne Ausgangswert uebersteht ein Speichern in derselben Sektion.
 //
+// M1/M2 (Review P3.3, 34 Faelle): gegen den Stand vor M1/M2 7 FAIL, gegen 1.4.92 14 FAIL.
 // Gegenprobe (DIR-014), 08.10.2026, gegen PWA 1.4.92: 16 OK, 10 FAIL -- darunter die vier
 // Werte -20, -1, 0, +49 und der Rundungsfehler von formatHalfDegreeValue (-3 ergab -2.5).
 // Die beiden Rueckfallfaelle bestehen dort zwangslaeufig, weil 1.4.92 immer Index 21 liest.
@@ -34,6 +35,7 @@ await b.cdp("Page.addScriptToEvaluateOnNewDocument", { source: `
   const of = window.fetch.bind(window);
   window.fetch = async (url, opts) => {
     const u = String(url && url.url ? url.url : url);
+    if (u.indexOf('/api/network_client_set') >= 0) (window.__clientCalls = window.__clientCalls || []).push(u);
     if (u.indexOf('/api/network_client_set') >= 0 && localStorage.getItem('__p3ClientFail') === '1') {
       return new Response('fail', { status: 500 });
     }
@@ -117,14 +119,31 @@ try {
   await scanN(["Bravo", "Delta"], "Alpha");
   s = await selN();
   pruef("B41: ... auch wenn Charlie danach aus dem Scan faellt", s.v === "Charlie" && s.opts.includes("Charlie"), JSON.stringify(s));
-  // 2. Erfolgreiches WLAN-Speichern loescht das Merkmal
+  // 2. (M1, Review P3.3) Erfolgreiches WLAN-Speichern: Die Wahl gilt, bis das Geraet sie meldet.
+  //    Bis zum 08.10.2026 loeschte das Speichern das Merkmal sofort -- dann sprang die Liste
+  //    beim verzoegerten Neulesen auf den ersten Eintrag, und ein zweites Speichern nur des
+  //    Schluessels schickte ssid=Bravo statt Charlie.
   await b.js(`(document.getElementById("network-client-save-button").click(), true)`); await sleep(600);
   s = await selN();
-  pruef("B41: nach erfolgreichem WLAN-Speichern kein Merkmal mehr", s.uc === undefined, JSON.stringify(s));
-  await sleep(2000);
-  await scanN(["Bravo", "Delta"], "Alpha");
+  pruef("M1: nach erfolgreichem WLAN-Speichern bleibt das Merkmal", s.uc === "1", JSON.stringify(s));
+  await sleep(2500);                          // verzoegertes loadData (reloadDelayMs 1500) ist gelaufen
   s = await selN();
-  pruef("B41: danach ist der angezeigte erste Eintrag wieder blosse Anzeige", s.v === "Bravo" && !s.opts.includes("Charlie"), JSON.stringify(s));
+  pruef("M1: nach dem verzoegerten Neulesen steht weiter Charlie", s.v === "Charlie", JSON.stringify(s));
+  await scanN(["Bravo", "Delta"], "Alpha");   // Geraet meldet die Wahl (noch) nicht
+  s = await selN();
+  pruef("M1: Geraet meldet Charlie nicht -> Charlie bleibt gewaehlt", s.v === "Charlie" && s.uc === "1", JSON.stringify(s));
+  await b.js(`(window.__clientCalls = [], true)`);
+  await tippe("network-key-input", "neuerSchluessel"); await verlasse();
+  await b.js(`(document.getElementById("network-client-save-button").click(), true)`); await sleep(600);
+  const calls = await b.js(`window.__clientCalls || []`);
+  pruef("M1: Speichern nur des Schluessels schickt Charlie", calls.length === 1 && /ssid=Charlie(&|$)/.test(calls[0]), JSON.stringify(calls));
+  await sleep(2500);
+  await scanN(["Bravo", "Charlie", "Delta"], "Charlie");   // Geraet meldet die Wahl
+  s = await selN();
+  pruef("M1: Geraet meldet Charlie -> Ausgangswert Charlie, Merkmal weg", s.v === "Charlie" && s.base === "Charlie" && s.uc === undefined, JSON.stringify(s));
+  await scanN(["Bravo", "Charlie", "Delta"], "Delta");
+  s = await selN();
+  pruef("M1: danach folgt die Liste wieder dem Geraet", s.v === "Delta", JSON.stringify(s));
   // 3. Gescheitertes WLAN-Speichern laesst das Merkmal stehen
   await netzStart(true);
   await scanN(["Bravo", "Charlie"], "Alpha");
@@ -149,6 +168,23 @@ try {
   await speichereZeitserver();
   await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
   pruef("B41: mit Ausgangswert bleibt die Wahl ebenfalls", (await selN()).v === "Bravo", JSON.stringify(await selN()));
+
+  // 6. (M2, Review P3.3) Verwerfen beim Modulwechsel gibt die Wahl auf
+  await netzStart();
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  await waehle("network-ssid-select", "c"); await verlasse();
+  await b.js(`(window.__confirms = 0, window.confirm = () => { window.__confirms++; return true }, true)`);
+  await b.js(`(document.querySelector('.module-chip[data-module-target="climate"]').click(), true)`); await sleep(500);
+  pruef("M2: Modulwechsel fragt nach", (await b.js(`window.__confirms`)) === 1);
+  s = await selN();
+  pruef("M2: Verwerfen entfernt das Merkmal", s.uc === undefined && (await b.js(`hasUnsavedEdits`)) === false, JSON.stringify(s));
+  await b.js(`(document.querySelector('.module-chip[data-module-target="network"]').click(), true)`); await sleep(500);
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  s = await selN();
+  pruef("M2: ohne Ausgangswert ist danach der erste Eintrag blosse Anzeige", s.v === "Bravo", JSON.stringify(s));
+  await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
+  s = await selN();
+  pruef("M2: die Liste folgt wieder dem Geraet", s.v === "Alpha" && s.base === "Alpha", JSON.stringify(s));
 
   pruef("keine Seitenfehler", (await b.js(`(window.__pageErrors||[]).length`)) === 0, JSON.stringify(await b.js(`window.__pageErrors`)));
 } finally {
