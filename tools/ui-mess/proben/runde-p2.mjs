@@ -9,6 +9,8 @@
 // durch direkten Aufruf von updateNetworkControlsFromMeta() nach; den echten Weg ueber
 // eine zurueckgehaltene network_scan-Antwort geht b40-spaeter-scan.mjs.
 //
+// H1 (Nachreview P2.1h, 07.10.2026): 7 Faelle. Gegen den Stand vor der Korrektur 3 FAIL;
+// mit kuenstlich entferntem Ausgangswert-Teil in keepSelection 5 FAIL (47/52).
 // P2.1h (Review-Befunde N1/N2, 14 Faelle mehr): gegen den Stand vor P2.1h 39/6, genau
 // die N1- und N2-Faelle. Gegenprobe (DIR-014), 07.10.2026: gegen 1.4.91 17 von 31 fehlgeschlagen. Die drei
 // SSID-Gegenfaelle (unberuehrt, kein verwaister Eintrag, zurueckgewaehlt) bestehen auch
@@ -165,6 +167,38 @@ try {
   pruef("N1: Wahl ohne Ausgangswert bleibt, auch verschwunden", n1.v === "Charlie" && n1.opts.includes("Charlie"), JSON.stringify(n1));
   await scanN(["Alpha", "Bravo", "Charlie"], "Alpha");
   pruef("N1: Wahl ohne Ausgangswert übersteht Rückkehr des Geräts", (await selN()).v === "Charlie", JSON.stringify(await selN()));
+
+  // H1 aus dem Nachreview P2.1h (07.10.2026): Steht die Geraete-SSID im ersten Scan NICHT
+  // vorn, darf trotzdem sie gewaehlt sein -- sonst schickt "Speichern" mit neuem Schluessel
+  // das fremde erste Netz, und die Uhr verlaesst ihr WLAN. Bis dahin stand die Geraete-SSID
+  // in jedem ersten Scan dieser Probe vorn, deshalb sah sie es nicht.
+  console.log("H1 / Geraete-SSID nicht an erster Stelle");
+  await netzStart();
+  await scanN(["Bravo", "Alpha"], "Alpha");
+  let h1 = await selN();
+  pruef("H1: Geraete-SSID an zweiter Stelle wird vorausgewaehlt", h1.v === "Alpha", JSON.stringify(h1));
+  pruef("H1: Geraete-SSID wird Ausgangswert", h1.base === "Alpha", JSON.stringify(h1));
+  await scanN(["Charlie", "Bravo", "Alpha"], "Alpha");
+  h1 = await selN();
+  pruef("H1: auch im naechsten Scan, Geraet an dritter Stelle", h1.v === "Alpha", JSON.stringify(h1));
+  pruef("H1: nicht als geaendert gezaehlt", await b.js(`hasUnsavedEdits`) === false);
+
+  // Zwei Faelle, die der pwa-developer beim Beheben von H1 als ungedeckt gemeldet hat.
+  // Sie tragen den Teil von keepSelection, der am Ausgangswert haengt -- ein Rueckbau
+  // auf "nur bei Nutzerwahl" fiele sonst niemandem auf.
+  console.log("H1 / Rueckweg des Geraetenetzes, verwaiste Eintraege");
+  await netzStart();
+  await scanN(["Alpha", "Bravo"], "Alpha");
+  await scanN(["Xray", "Bravo"], "Alpha");
+  await scanN(["Bravo", "Alpha"], "Alpha");
+  let rw = await selN();
+  pruef("H1: Geraetenetz faellt aus dem Scan und kehrt zurueck -> wieder gewaehlt", rw.v === "Alpha", JSON.stringify(rw));
+  pruef("H1: dabei kein verwaister Eintrag Xray", !rw.opts.includes("Xray"), JSON.stringify(rw));
+  await netzStart();
+  await scanN(["Bravo", "Charlie"], "Alpha");
+  await scanN(["Charlie", "Delta"], "Alpha");
+  rw = await selN();
+  pruef("H1: ohne Ausgangswert nur angezeigter Eintrag faellt weg, kein verwaister Eintrag", !rw.opts.includes("Bravo"), JSON.stringify(rw));
 
   console.log("P2.1h / N2 Feld kehrt über den Scan auf den Ausgangswert zurück");
   await netzStart();
