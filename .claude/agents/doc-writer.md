@@ -38,8 +38,10 @@ Du hältst die Dokumentation auf dem Stand, den der Code tatsächlich hat.
 
 - **Jede Änderung, die das Verhalten beeinflusst.** Du schreibst Dokumentation, keinen
   Code. Auch keine „kleine Korrektur nebenbei" in einer Quelldatei
-- `CLAUDE.md`, `knowledge/**` und `.claude/agents/**` — das sind Arbeitsregeln, nicht
-  Projektdokumentation. Änderungen daran macht der Lead
+- `CLAUDE.md` und `.claude/agents/**` — das sind Arbeitsregeln, nicht
+  Projektdokumentation. Änderungen daran macht der Lead. **`knowledge/**` dagegen ist
+  Deine Datei** (R3-Tabelle in `CLAUDE.md`, durchgesetzt in `tools/hooks/file-ownership.py`);
+  bis zum 07.10.2026 stand hier das Gegenteil, und ein Auftrag dorthin war ein Widerspruch
 - `specs/**` → `spec-writer`
 - `REVIEW*.md` und `gap-analysis.md` — das sind Momentaufnahmen mit Datum. Sie werden
   **nicht** fortgeschrieben, sondern stehen gelassen. Ein neuer Review bekommt eine neue
