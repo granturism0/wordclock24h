@@ -8,6 +8,7 @@
 //   node tools/ui-mess/vermessen.mjs --vorschau 390x844 1280x820
 //   node tools/ui-mess/vermessen.mjs --geraet   390x844
 //   node tools/ui-mess/vermessen.mjs --vorschau --module display,timers 390x844
+//   node tools/ui-mess/vermessen.mjs --vorschau --module dfplayer 390x844    (Override automatisch)
 //
 // Legt je Lauf eine Ergebnisdatei unter tools/ui-mess/ergebnisse/ an. AUSSCHLIESSLICH
 // LESEND -- es werden Module geoeffnet und Werte abgelesen, nichts gespeichert, keine
@@ -23,6 +24,16 @@ const ziel = args.includes("--geraet") ? "geraet" : "vorschau";
 const mi = args.indexOf("--module");
 const MODULE = mi >= 0 ? args[mi + 1].split(",") : ["display", "animations", "overlays", "timers"];
 const VIEWS = args.filter((a) => /^\d+x\d+$/.test(a)).map((s) => s.split("x").map(Number));
+
+// Ansichts-Overrides der PWA (System > Ansichts-Overrides, localStorage
+// "wordclock-app-debug-overrides"), z. B. --override dfplayer=on,ambilight=on.
+// E14/L119: Die Vorschau meldet keinen DFPlayer, das Modul ist dort ausgeblendet und
+// misst 0 x 0 px -- wer es vermessen wollte, mass nichts und merkte es nicht. Steht
+// dfplayer unter --module, setzt die VORSCHAU den Override deshalb von selbst. Am
+// Geraet nie automatisch: Dort soll die Messung zeigen, was der Nutzer sieht.
+const oi = args.indexOf("--override");
+const OVERRIDES = {};
+if (oi >= 0) for (const kv of args[oi + 1].split(",")) { const [k, v] = kv.split("="); OVERRIDES[k] = v; }
 if (!VIEWS.length) VIEWS.push([390, 844]);
 
 let BASIS;
@@ -37,6 +48,7 @@ if (ziel === "geraet") {
   BASIS = `http://${host.trim().replace(/^["']|["']$/g, "")}`;
 } else {
   BASIS = `http://127.0.0.1:${process.env.PORT || 8099}`;
+  if (MODULE.includes("dfplayer") && !OVERRIDES.dfplayer) OVERRIDES.dfplayer = "on";
   try { await fetch(`${BASIS}/app/`); }
   catch { console.error(`Vorschau-Server antwortet nicht auf ${BASIS}.\n  python3 tools/preview/server.py 8099`); process.exit(2); }
 }
@@ -53,6 +65,8 @@ try {
     for (const modul of MODULE) {
       await b.gehe(`${BASIS}/app/`);
       await b.js(`localStorage.setItem('wordclock-app-active-module', ${JSON.stringify(modul)})`);
+      if (Object.keys(OVERRIDES).length)
+        await b.js(`localStorage.setItem('wordclock-app-debug-overrides', ${JSON.stringify(JSON.stringify(OVERRIDES))})`);
       await b.gehe(`${BASIS}/app/`);
       await sleep(ziel === "geraet" ? 3500 : 1500);
 
