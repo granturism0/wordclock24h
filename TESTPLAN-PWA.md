@@ -382,6 +382,13 @@ gelesen. Die Zeile ist über `/api/stm32_log` erreichbar; STM-Zeilen kommen dort
 dem Präfix `LOG ` an, ESP-eigene Zeilen mit `- `. Beide Werte — vorher und nachher —
 gehören ins Protokoll, auch wenn sie gleich sind.
 
+**Die Nachher-Messung wartet auf eine frische Zeile.** Die Diagnosezeile kommt nur etwa
+alle 10 s. Wer direkt nach dem letzten Setter liest, liest oft eine Zeile, die **vor**
+den Settern entstand — und meldet „`d` unverändert“ für ein Fenster, das er gar nicht
+gemessen hat. Gültig ist erst eine Zeile mit höherer `diag`-Nummer, deren Zeitstempel
+nach dem letzten Setter liegt. Im Testdurchlauf S.26 (08.10.2026) genau so passiert und
+vom Tester selbst bemerkt. Mitlesen: `d=`, `v=` und `a=`.
+
 | Befund | Bedeutung |
 |---|---|
 | `d` unverändert | In diesem Fenster ist kein Zeichen verworfen worden. Die Kommandos sind beim STM angekommen; ESP-Kopie und STM-Zustand dürfen als gleich gelten |
@@ -811,6 +818,13 @@ Für jedes Eingabefeld dieselben acht Klassen. Nicht stichprobenartig — **jede
 **Auch hier gilt V1 aus Abschnitt 5b:** `d=` vor und nach jeder Feldreihe. Ein
 abgewiesener Wert ist erst dann belegt abgewiesen, wenn im selben Fenster nichts
 verworfen wurde.
+
+**Zwischen zwei Fällen wird die Seite neu geladen** — oder das Feld nachweislich auf
+seinen Ausgangswert gesetzt. Ein Prüfskript, das Werte in Nachbarfeldern stehen lässt,
+schreibt sie beim nächsten Speichern mit. Im Testdurchlauf S.26 (08.10.2026) stand so die
+Zeitzone auf 10, und weil die PWA nach dem Speichern der Zeitzone selbst die Netzzeit holt
+(`saveTimezone()`), lief die Produktivuhr drei Minuten auf 10:18. Felder mit Nebenwirkung
+nach dem Speichern — Zeitzone, Datum, Uhrzeit — **zuletzt** und einzeln.
 
 | | Eingabe | Erwartung |
 |---|---|---|
