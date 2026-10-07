@@ -183,13 +183,28 @@ check_api overlay_icons      json
 # das war vor der Korrektur zu L147 gar nicht feststellbar. Fehlen die Felder, laeuft
 # eine aeltere Firmware; das ist kein Fehlschlag, sondern eine Luecke in der Aussage,
 # und die gehoert benannt statt stillschweigend als "bestanden" verbucht.
-dr=$(curl -s -m "$TIMEOUT" "$U/api/device_ready" 2>/dev/null)
+#
+# Seit ESP-Firmware mit C25 trennt der ESP die Ursache (write_lost_gone /
+# write_lost_failed). "gone" heisst: Die Gegenstelle hatte die Verbindung schon
+# abgebaut -- typisch ein Browser, der einen Abruf abbricht. Das ist L270 und kein
+# Geraetefehler; es machte diese Stufe in jedem Lauf rot ("29/1"), bis man es nicht
+# mehr las. Fehlschlag ist jetzt nur noch "failed": Verbindung stand, Schreiben scheiterte.
+# SMOKE_DR_OVERRIDE setzt die device_ready-Antwort fuer die Gegenprobe ein (DIR-014).
+dr=${SMOKE_DR_OVERRIDE:-$(curl -s -m "$TIMEOUT" "$U/api/device_ready" 2>/dev/null)}
 lb=$(printf '%s' "$dr" | grep -o '"write_lost_bytes":[0-9]*'  | cut -d: -f2)
 lk=$(printf '%s' "$dr" | grep -o '"write_lost_blocks":[0-9]*' | cut -d: -f2)
+lg=$(printf '%s' "$dr" | grep -o '"write_lost_gone":[0-9]*'   | cut -d: -f2)
+lf=$(printf '%s' "$dr" | grep -o '"write_lost_failed":[0-9]*' | cut -d: -f2)
 if [ -z "$lb" ] || [ -z "$lk" ]; then
   printf '  --    %-34s %s\n' "Antwortverluste" "Zaehler fehlen, Firmware aelter als die L147-Korrektur"
 elif [ "$lb" = "0" ] && [ "$lk" = "0" ]; then
   pass "Antwortverluste" "keine - kein Block ging verloren"
+elif [ -n "$lf" ] && [ -n "$lg" ]; then
+  if [ "$lf" = "0" ]; then
+    pass "Antwortverluste" "kein Schreibfehler; $lg Mal Verbindung schon abgebaut (Browserabbruch, L270)"
+  else
+    fail "Antwortverluste" "$lf Mal Schreiben gescheitert bei stehender Verbindung (dazu $lg Abbrueche)"
+  fi
 else
   fail "Antwortverluste" "$lk Block(e), $lb Byte verloren - Antworten kamen unvollstaendig an"
 fi

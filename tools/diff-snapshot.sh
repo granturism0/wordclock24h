@@ -86,6 +86,7 @@ FLUECHTIG = {
     "free_heap", "max_free_block", "heap_frag",
     "no_request_aborts", "no_request_timeouts",
     "write_lost_bytes", "write_lost_blocks", "update_cache_hits",
+    "write_lost_gone", "write_lost_failed",                     # C25, ab der F-Firmware
     "update_server_down_count",
 }
 FLUECHTIG_PRAEFIX = ("tmvar[idx=0].",)   # Uhrzeit vollstaendig
