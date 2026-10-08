@@ -3,6 +3,10 @@
 #
 #   ./tools/flash-stm.sh            flashen und zuruecksetzen
 #   ./tools/flash-stm.sh --check    nur pruefen, ob alles bereitliegt
+#   ./tools/flash-stm.sh --gleich   auch flashen, wenn Geraet und Server gleich stehen --
+#                                   nur als Probe des Flashwegs (z. B. nach einem ESP-Update,
+#                                   Paket 2026-10-06 F.11). Sonst schuetzt die Gleichheit davor,
+#                                   ohne Gegenwert zu flashen.
 #
 # WARUM ES DIESES SKRIPT GIBT
 #
@@ -39,7 +43,9 @@ if [ -z "$HOST" ]; then
 fi
 U="http://$HOST"
 CHECK_ONLY=0
+GLEICH=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
+[ "${1:-}" = "--gleich" ] && GLEICH=1
 
 fail() { printf '  ABBRUCH: %s\n' "$1" >&2; exit 1; }
 
@@ -89,11 +95,13 @@ printf '  Auf dem Server         HTTP 200, %s Byte\n' "$size"
 want=$(curl -s -m 20 "http://$uh/$up/wc.txt" 2>/dev/null | tr -d '\r\n')
 printf '  Version auf dem Server %s\n' "${want:-unbekannt}"
 
-if [ "$want" = "$cur" ]; then
+if [ "$want" = "$cur" ] && [ "$GLEICH" -eq 0 ]; then
   echo
   echo "  Geraet und Server stehen beide auf $cur — nichts zu flashen."
+  echo "  (Probe des Flashwegs trotzdem: --gleich)"
   exit 0
 fi
+[ "$want" = "$cur" ] && echo "  --gleich: flashe denselben Stand $cur als Probe des Flashwegs"
 
 if [ "$CHECK_ONLY" -eq 1 ]; then
   echo

@@ -56,7 +56,7 @@ static char * http_get_param (const char * n)
     char * b = parambuf[parami++ % 16]; snprintf (b, 64, "%s", params.count (n) ? params[n].c_str () : ""); return b;
 }
 static int  http_get_checkbox_param (const char * n) { return params.count (n) ? 1 : 0; }
-static int  http_get_int_param (const char * n, int * v) { if (! params.count (n)) return 0; *v = atoi (params[n].c_str ()); return 1; }
+/* http_get_int_param () und http_get_opt_int_param () kommen seit F.5j echt aus http.cpp (C6u: "abc" muss scheitern) */
 static int  last_error = -1;
 static void http_json_error (int code, const char *) { last_error = code; }
 static void http_json_ok (void) { last_error = 0; }
@@ -141,6 +141,28 @@ static void f_del_33 (void)      { api_del (0, 33); expect (guard_intact () && n
 static void f_del_255 (void)     { api_del (0, 255); expect (guard_intact () && numvars[OVERLAY_N_OVERLAYS_NUM_VAR] == 255 && last_error == HTTP_API_ERROR_OUT_OF_RANGE, "loeschen bei gemeldetem n 255 => abgewiesen", "Fehler " + num (last_error)); }
 static void f_disp_api_33 (void) { fill (33); params.clear (); params["idx"] = "32"; http_api_overlay_display (); expect (sent_display == -1 && last_error == HTTP_API_ERROR_OUT_OF_RANGE, "overlay_display idx 32 bei n 33 => abgewiesen", num (sent_display)); }
 
+/* ---------------------------------------------------------------- F.5j / C6u: Felder im Legacy-Formular */
+static void c6u (const char * action, unsigned n, std::map<std::string, std::string> extra)
+{
+    fill (n); params.clear (); params["action"] = action; params["oint"] = "7"; params["oname"] = "X";
+    for (auto & kv : extra) params[kv.first] = kv.second;
+    http_overlays ();
+}
+static bool nichts (unsigned n, int i) { return numvars[OVERLAY_N_OVERLAYS_NUM_VAR] == n && overlay_mem[i].type == 1 && max_set_overlay_var < 0 && guard_intact (); }
+static void f_c6u_typ99 (void)   { c6u ("saveoid2", 3, {{"otype","99"}});              expect (nichts (3, 2), "type 99 => abgewiesen, nichts geschrieben"); }
+static void f_c6u_typabc (void)  { c6u ("saveoid2", 3, {{"otype","abc"}});             expect (nichts (3, 2), "type abc => abgewiesen (atoi haette 0 gemacht)"); }
+static void f_c6u_typleer (void) { c6u ("saveoid2", 3, {});                            expect (nichts (3, 2), "type fehlt => abgewiesen"); }
+static void f_c6u_typneg (void)  { c6u ("saveoid2", 3, {{"otype","-1"}});              expect (nichts (3, 2), "type -1 => abgewiesen"); }
+static void f_c6u_typ10 (void)   { c6u ("saveoid2", 3, {{"otype","10"}});              expect (overlay_mem[2].type == 10 && max_set_overlay_var == 2, "type 10 (Grenzwert) => angenommen"); }
+static void f_c6u_anh (void)     { c6u ("saveoid3", 3, {{"otype","11"}});              expect (nichts (3, 3), "anhaengen mit type 11 => n bleibt 3 (Pruefung VOR n_overlays++)"); }
+static void f_c6u_dc7 (void)     { c6u ("saveoid2", 3, {{"otype","6"},{"odc","7"}});   expect (nichts (3, 2), "date_code 7 => abgewiesen"); }
+static void f_c6u_dc6 (void)     { c6u ("saveoid2", 3, {{"otype","6"},{"odc","6"},{"od","3"}}); expect (overlay_mem[2].date_code == 6 && overlay_mem[2].days == 3, "date_code 6, days 3 => angenommen"); }
+static void f_c6u_dcleer (void)  { c6u ("saveoid2", 3, {{"otype","6"}});              expect (overlay_mem[2].type == 6 && overlay_mem[2].date_code == 0 && overlay_mem[2].days == 1, "date_code und days fehlen (Formular 'New overlay') => 0 und 1"); }
+static void f_c6u_od0 (void)     { c6u ("saveoid2", 3, {{"otype","6"},{"od","0"}});    expect (nichts (3, 2), "days 0 => abgewiesen (bisher still 1)"); }
+static void f_c6u_od256 (void)   { c6u ("saveoid2", 3, {{"otype","6"},{"od","256"}});  expect (nichts (3, 2), "days 256 => abgewiesen"); }
+static void f_c6u_od255 (void)   { c6u ("saveoid2", 3, {{"otype","6"},{"od","255"}});  expect (overlay_mem[2].days == 255, "days 255 (Grenzwert) => angenommen"); }
+static void f_c6u_idx (void)     { c6u ("saveoid40", 3, {{"otype","99"}});             expect (guard_intact () && max_set_overlay_var < 0, "Index 40 und type 99 => Indexguard (N1) greift zuerst, nichts geschrieben"); }
+
 struct Fall { const char * name; void (*fn) (void); };
 static Fall faelle[] = {
     { "Legacy: anhaengen oid == n",                 f_anhaengen },
@@ -164,6 +186,19 @@ static Fall faelle[] = {
     { "API loeschen, n = 33 (vom STM)",             f_del_33 },
     { "API loeschen, n = 255 (vom STM)",            f_del_255 },
     { "API anzeigen idx 32, n = 33",                f_disp_api_33 },
+    { "C6u: type 99",                               f_c6u_typ99 },
+    { "C6u: type abc",                              f_c6u_typabc },
+    { "C6u: type fehlt",                            f_c6u_typleer },
+    { "C6u: type -1",                               f_c6u_typneg },
+    { "C6u: type 10",                               f_c6u_typ10 },
+    { "C6u: anhaengen mit type 11",                 f_c6u_anh },
+    { "C6u: date_code 7",                           f_c6u_dc7 },
+    { "C6u: date_code 6, days 3",                   f_c6u_dc6 },
+    { "C6u: date_code und days fehlen",             f_c6u_dcleer },
+    { "C6u: days 0",                                f_c6u_od0 },
+    { "C6u: days 256",                              f_c6u_od256 },
+    { "C6u: days 255",                              f_c6u_od255 },
+    { "C6u: Index 40 und type 99",                  f_c6u_idx },
 };
 int main (void)
 {

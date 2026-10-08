@@ -1,5 +1,92 @@
 # Changelog
 
+## 2026-10-08 Runde F: Flash-Überwachung, Abweisen statt Kürzen (ESP 3.2.26)
+
+Nur der ESP, STM und PWA unverändert. Release-ZIP
+`wordclock-release-2026-10-08-015454.zip`, Tag `release/3.2.22-3.2.26-1.4.93`. Umfang:
+Runde F aus `specs/paket-2026-10-06/`. Am 08.10.2026 um 01:56 per OTA eingespielt, Abnahme F.10 bestanden (Smoketest 31/0, zum ersten Mal ohne den Verlustzähler aus L270), Probeflash des STM über den neuen Flashweg bestanden (F.11).
+
+**Einspielreihenfolge: nur der ESP.** Danach wird derselbe STM-Stand 3.2.22 noch einmal
+geflasht, als Probe des neuen Flashwegs (F.11). Die PWA-Anpassungen — Meldungen für die
+Kennungen 7 und 8, die leere Liste bei unbekannter Hardware, die Feldlängen für SSID und
+Schlüssel — folgen in einer eigenen Runde **nach** diesem OTA, damit die Firmware zuerst
+auf dem Gerät ist (L241). Bis dahin zeigt die PWA für 7 und 8 ihren allgemeinen
+Fehlertext samt Detail.
+
+### Die Legacy-Seite flasht nur noch passende STM-Dateien (C9c6, L179, C28/L272)
+
+Am 04.10.2026 landete über die Legacy-Seite ein F103-Abbild auf dem F411 und legte die
+Uhr still. Die API prüfte den Dateinamen, die Legacy-Seite nicht. **Jetzt gehen Flashzweig
+und Auswahlliste der Legacy-Seite über dieselbe Prüfung wie die API.** Ein unpassender
+Name wird abgewiesen, und die Seite sagt „Nicht geflasht“.
+
+Ist die Hardware nicht erkannt (Kennung 65535, etwa nach einem ESP-Neustart), bietet die
+Liste **keine** Datei an statt aller. Darunter steht ein Hinweis mit einem Knopf „Reset
+STM32“, der die Kennung zurückholt, und dem Rückweg über „Local Update“, falls der Reset
+nicht hilft.
+
+Dazu passt jetzt der Präfix `uc-` (uclock-Layouts): Bisher setzte die Prüfung ein
+sechs Zeichen langes Präfix voraus, und ein `uc-`-Name passte nie, auch der eigene
+Standardname nicht (Review A2). Jeder Name, der bisher passte, passt weiter.
+
+### Eigene Kennungen für „fehlgeschlagen“ und „leer“ (Ent-4, C27, C34)
+
+- **Kennung 7 heisst „Aktion fehlgeschlagen“.** `fs_remove` meldete ein gescheitertes
+  Löschen bisher mit Kennung 6, also wie „Datei gibt es nicht“. Kennung 6 heisst jetzt nur
+  noch „nicht gefunden“. Auch eine Datei, die `fs_show` nicht öffnen kann, meldet 7.
+- **Kennung 8 heisst „Datei ist leer“.** `fs_show` lieferte eine 0-Byte-Datei bisher als
+  200 OK mit leerem Rumpf aus — ausgerechnet den Zustand, der in der PWA zum weissen
+  Bildschirm führt (C27, L271).
+- Bei einem Lesefehler drehte `fs_show` endlos, bis der Soft-Watchdog den ESP neu
+  startete. Jetzt bricht es ab (C34, L309).
+
+### Die API-Liste bei unbekannter Hardware ist leer (Ent-5)
+
+Bei Kennung 65535 liefert auch `/api/update_status` keine STM-Dateien mehr, und der
+Abruf beim Update-Server entfällt ganz, weil das Ergebnis ohnehin feststeht (F.3).
+
+### Abweisen statt still kürzen
+
+- **SSID und WLAN-Schlüssel** über 31 bzw. 63 Byte werden abgewiesen, statt gekürzt
+  gespeichert und mit Erfolg quittiert (C38, L323, Review A4). Das gilt für den Client,
+  den Accesspoint, den EEPROM-Satz und die Legacy-WLAN-Seite. Bisher verband sich das
+  Gerät mit dem vollen Wert und speicherte den gekürzten — die nächste Verbindung kam
+  dann nicht zustande, ohne dass eine Oberfläche einen Grund nannte. Beim EEPROM-Satz
+  werden alle vier Werte geprüft, bevor einer geschrieben wird.
+- **Der Overlay-Text** über der Grenze wird abgewiesen statt gekürzt (L319). Die PWA
+  prüfte das schon, der ESP kürzte an ihr vorbei.
+- **TFT- und DFPlayer-Glocken-Flags:** Fehlt einer der Parameter, wird der Aufruf
+  abgewiesen. Bisher hiess „fehlt“ dort „aus“, und ein unvollständiger Aufruf löschte
+  Flags (E12).
+- **Das Legacy-Overlay-Formular** prüft `type`, `date_code` und `days` wie die API, mit
+  demselben Wortlaut. Bisher wurde „abc“ zu 0, und Typ 99 ging unbesehen an den STM
+  (C6u).
+
+### Diagnose und Abrufe
+
+- **Der Verlustzähler trennt die Ursachen (C25).** „Verbindung schon abgebaut“ — meist
+  ein Browser, der den Abruf abbricht (L270) — und „Schreiben gescheitert“ werden getrennt
+  gezählt. `device_ready` meldet beide Zahlen, und der Smoketest wertet nur noch das
+  gescheiterte Schreiben als Fehler.
+- **`/api/stm32_log` liefert gültiges JSON in UTF-8 (C23).** Bytes aus dem STM
+  (ISO-8859-1, etwa „Überwiegend bewölkt“) werden gewandelt, Steuerzeichen als `\u00XX`
+  maskiert. Strenge JSON-Leser brachen hier bisher ab.
+- **Der Kopf einer Serverantwort wird abgewartet (C9k, Review A3).** Kam er in zwei
+  Teilen, galt er bisher nach dem ersten als fertig. Jetzt wartet der ESP auf jedes
+  Zeichen, und der Kopf als Ganzes ist zeitlich begrenzt; ein abgerissener Kopf gilt als
+  Fehlschlag.
+- **Dateinamen vom Update-Server werden auf der Legacy-Seite maskiert** (Review A6).
+  Sie kommen von einem einstellbaren Host über HTTP und gingen bisher roh ins HTML.
+
+### Intern
+
+Die Prüfstufe S16 umfasst jetzt 21 Prüfstände. Die acht neuen der Runde F schlagen gegen
+ESP 3.2.25 an und bestehen gegen 3.2.26. Der Prüfstand t11 prüft die Dateinamensregel
+über alle 4096 Hardwarekennungen, zusammen 1'574'304 Einzelprüfungen.
+
+**Gerätetest offen:** Abnahme F.10 und Testdurchlauf F.12 stehen aus; erst danach werden
+die Befunde in `BEFUNDE.md` geschlossen (F.13).
+
 ## 2026-10-08 Runde P3: Minusgrade und halbe Grad in der PWA (PWA 1.4.93)
 
 Nur die PWA. Setzt STM 3.2.22 und ESP 3.2.25 voraus — beide sind seit dem 07./08.10.2026

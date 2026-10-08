@@ -167,12 +167,14 @@ static char     http_response[MAX_HTTP_RESPONSE_LEN + 1];
 static int      http_response_len = 0;
 
 /* Auslieferungsdiagnose: Antwortbyte, die nicht in die Verbindung gelangt sind.
- * Kostet 7 Byte im statischen Bereich, nichts vom Heap. http_write_broken gilt je
- * Verbindung und wird beim Annehmen in http_server_loop () zurueckgesetzt; die beiden
+ * Kostet 11 Byte im statischen Bereich, nichts vom Heap. http_write_broken gilt je
+ * Verbindung und wird beim Annehmen in http_server_loop () zurueckgesetzt; die vier
  * Zaehler laufen seit dem Start und stehen in /api/device_ready.
  */
 static uint32_t     http_write_lost_bytes  = 0;
 static uint16_t     http_write_lost_blocks = 0;
+static uint16_t     http_write_lost_gone   = 0;     // C25/L270: verlorene Bloecke, Gegenstelle hatte schon abgebaut (Tab zu, Abbruch)
+static uint16_t     http_write_lost_failed = 0;     // C25/L270: verlorene Bloecke bei stehender Verbindung - das Geraet bekam nichts los
 static uint_fast8_t http_write_broken      = 0;
 
 /* Verbindungen, die angenommen wurden, aber nie eine Anfrage brachten. Zwei
@@ -257,6 +259,19 @@ static uint16_t     http_no_request_aborts   = 0;
  */
 #define HTTP_API_ERROR_NOT_FOUND                    6
 
+/* Die Aktion selbst ist am Geraet fehlgeschlagen, obwohl der Request stimmte und das Ziel
+ * existiert - etwa LittleFS.remove() mit false (Ent-4, AKF.7). Bis dahin trug dieser Fall
+ * die Kennung 6 und sah fuer die PWA aus wie "Datei gibt es nicht". Die PWA kennt die
+ * Kennung noch nicht und zeigt ihren Rueckfalltext samt "detail" (describeApiError()).
+ */
+#define HTTP_API_ERROR_ACTION_FAILED                7
+
+/* Die Datei existiert, ist aber 0 Byte gross (C27/L271). fs_show lieferte sie als
+ * 200 OK mit leerem Rumpf aus, und eine leere Datei ist der belegte Weisschirm-Fall der
+ * Architektur-Invariante - also ein eigener, benannter Zustand statt eines leeren Rumpfs.
+ */
+#define HTTP_API_ERROR_FILE_EMPTY                   8
+
 /* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK und
  * ALARM_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen. Die Masken haben 3 Bit, also 0..7 -
  * belegt sind aber nur So..Sa, also 0..6. Stand bis C17/L197 unmittelbar vor
@@ -270,10 +285,12 @@ static void             http_json_error (unsigned int error_code, const char * d
 static uint_fast8_t     http_get_int_param (const char * name, int * valuep);
 static uint_fast8_t     http_get_opt_int_param (const char * name, int * valuep, int lo, int hi);
 static uint_fast8_t     http_get_string_param (const char * name, char ** valuep);
+static uint_fast8_t     http_strvar_len_ok (const char * value, unsigned int maxlen);
 static uint_fast8_t     http_check_strvar_len (const char * name, const char * value, unsigned int maxlen);
 static void             http_json_error_range (const char * name, int lo, int hi);
 static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
+static int              http_get_on_off_required (const char * param);
 static void             http_build_stm32_default_filename (char * stm32_default_filename, size_t max_len, const char ** filter);
 static int              http_api_stm32_log ();
 static int              http_api_stm32_log_clear ();
@@ -372,6 +389,7 @@ static const char *     http_find_existing_filename (const char * preferred, con
 #define HTTP_ESCAPE_XML         0                       // wie sanitize_xml_string (): & < > " ' als Entity, ungueltiges UTF-8 als '?'
 #define HTTP_ESCAPE_JSON        1                       // wie sanitize_json_string (): \\ " \r \n \t mit Rueckstrich maskiert
 #define HTTP_ESCAPE_SCAN        2                       // XML-Entities INNERHALB von JSON, wie /api/network_scan es seit jeher liefert
+#define HTTP_ESCAPE_JSON_LOG    3                       // C23: wie JSON, dazu \u00XX fuer Steuerzeichen und ISO-8859-1 nach UTF-8
 
 static void             http_send_escaped (const char * s, uint_fast8_t mode);
 static void             http_send_json_escaped (const char * s);
@@ -975,20 +993,52 @@ http_remote_stm32_filename_matches (const char * actual)
 {
     char            default_filename[MAX_UPDATE_FILENAME_LEN];
     const char *    filter = (const char *) NULL;
+    const char *    p;
+    size_t          prefix_len;
+    size_t          filter_len;
+    size_t          actual_len;
 
     if (! actual || ! *actual)
     {
         return 0;
     }
 
+    actual_len = strlen (actual);
+
     http_build_stm32_default_filename (default_filename, sizeof (default_filename), &filter);
 
-    if (! filter || strlen (actual) < 6)
+    if (! filter)
     {
         return 0;
     }
 
-    return ! strncmp (actual + 6, filter, strlen (filter)) ? 1 : 0;
+    filter_len = strlen (filter);
+
+    /* Bisherige Regel, unveraendert: sechs Zeichen Layoutpraefix (wc24h-, wc12h-), dahinter der
+     * Chip. Sie laesst den Wechsel zwischen wc12h und wc24h zu und bleibt deshalb stehen - jeder
+     * Name, der hier bisher passte, passt weiter (Review F.6, A2).
+     */
+    if (actual_len >= 6 && ! strncmp (actual + 6, filter, filter_len))
+    {
+        return 1;
+    }
+
+    /* A2: Das Praefix ist nicht immer sechs Zeichen lang - "uc-" (HW_UCLOCK) hat drei, und ein
+     * uc-Name passte damit nie, auch der eigene Standardname nicht. Zusaetzlich gilt deshalb: Der
+     * Name beginnt mit dem Praefix DIESES Geraets, und direkt dahinter steht der Chip. Das Praefix
+     * steht im Standardnamen vor dem Filter; http_build_stm32_default_filename () setzt beide so
+     * zusammen. Ein leeres Praefix (unbekannte Layoutkennung) laesst nichts zusaetzlich durch.
+     */
+    p          = strstr (default_filename, filter);
+    prefix_len = p ? (size_t) (p - default_filename) : 0;
+
+    if (prefix_len > 0 && actual_len >= prefix_len + filter_len
+        && ! strncmp (actual, default_filename, prefix_len) && ! strncmp (actual + prefix_len, filter, filter_len))
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 static uint_fast8_t
@@ -1225,6 +1275,18 @@ http_flush (void)
                 http_write_lost_blocks++;
             }
 
+            if (! http_client.connected ())                     // C25: Browser-Abbau und Schreibversagen getrennt zaehlen
+            {
+                if (http_write_lost_gone < 0xFFFF)
+                {
+                    http_write_lost_gone++;
+                }
+            }
+            else if (http_write_lost_failed < 0xFFFF)
+            {
+                http_write_lost_failed++;
+            }
+
             if (! http_write_broken)
             {
                 /* Genau eine Zeile je Verbindung. Jede Zeile hier geht auf die
@@ -1237,18 +1299,20 @@ http_flush (void)
                  * EINMAL formatieren, ZWEIMAL ausgeben: Mitschnitt und API duerfen
                  * nicht auseinanderlaufen. snprintf in einen Stackpuffer, KEIN
                  * String - dessen Aufbau ist nach L175 der benannte Treiber der
-                 * Fragmentierung. Laengste Form: "- http write lost 4294967295"
-                 * = 28 Zeichen.
+                 * Fragmentierung. Laengste Form: "- http write lost 4294967295
+                 * gone=65535 fail=65535" = 50 Zeichen (C25: beide Zaehler, Stand nach
+                 * diesem Verlust - welcher gestiegen ist, nennt den Grund).
                  *
                  * Ohne das stm32_log_append () war diese Zeile nur mit
                  * angeschlossenem Mitschnitt zu sehen; ueber /api/stm32_log kam
                  * nichts an (C14, L185).
                  */
-                char line[40];
+                char line[64];
 
                 http_write_broken = 1;
 
-                snprintf (line, sizeof (line), "- http write lost %lu", (unsigned long) rest);
+                snprintf (line, sizeof (line), "- http write lost %lu gone=%u fail=%u",
+                          (unsigned long) rest, (unsigned) http_write_lost_gone, (unsigned) http_write_lost_failed);
 
                 Serial.println (line);
                 Serial.flush ();
@@ -3451,6 +3515,7 @@ http_network (void)
     char *                      action;
     const char *                message = (const char *) 0;
     const char *                alert_message = (const char *) 0;
+    char                        alert_buf[80];
     const char *                esp_firmware_version;
     char                        timezone_str[16]; // MAX_TIMEZONE_LEN too small
     int                         networks;
@@ -3485,7 +3550,17 @@ http_network (void)
 
     if (*action)
     {
-        if (! strcmp (action, "savewlanlist"))
+        /* C38 / Review F.6 A4: dieselbe Regel wie die API (EEPROM_*_LEN - 1 Byte, mehr nimmt
+         * toCharArray () nicht) - abweisen statt still kuerzen, VOR wifi_connect ().
+         */
+        if (! strcmp (action, "savewlanlist")
+            && (! http_strvar_len_ok (http_get_param ("ssidlist"), EEPROM_SSID_LEN - 1) || ! http_strvar_len_ok (http_get_param ("keylist"), EEPROM_SSID_KEY_LEN - 1)))
+        {
+            snprintf (alert_buf, sizeof (alert_buf), "SSID max. %u bytes, key max. %u bytes - nothing saved!",
+                      (unsigned) (EEPROM_SSID_LEN - 1), (unsigned) (EEPROM_SSID_KEY_LEN - 1));
+            alert_message = alert_buf;
+        }
+        else if (! strcmp (action, "savewlanlist"))
         {
             char * ssid = http_get_param ("ssidlist");
             char * key  = http_get_param ("keylist");
@@ -3526,6 +3601,12 @@ http_network (void)
             if (strlen (key) < 10)
             {
                 alert_message = "Minimum length of key is 10!";
+            }
+            else if (! http_strvar_len_ok (ssid, EEPROM_AP_SSID_LEN - 1) || ! http_strvar_len_ok (key, EEPROM_AP_SSID_KEY_LEN - 1))
+            {
+                snprintf (alert_buf, sizeof (alert_buf), "AP SSID max. %u bytes, key max. %u bytes - nothing saved!",
+                          (unsigned) (EEPROM_AP_SSID_LEN - 1), (unsigned) (EEPROM_AP_SSID_KEY_LEN - 1));
+                alert_message = alert_buf;                  // C38 / A4
             }
             else
             {
@@ -4734,6 +4815,40 @@ const char * overlay_types[N_OVERLAY_TYPES] =
     "Temperature as Digits",
 };
 
+/* C6u: type, date_code und days des Legacy-Overlayformulars kamen per blankem atoi herein -
+ * "abc" wurde 0, type 99 und date_code 300 gingen unbesehen an den STM, days 0 still zu 1.
+ * Jetzt dieselbe Regel wie in http_api_overlay_set () und derselbe Wortlaut wie C18 ("<feld>
+ * out of range (lo..hi)"): type muss stehen, date_code und days duerfen fehlen - das Formular
+ * "New overlay" schickt nur otype, eine Zeile ohne Datum schickt kein od. Liefert 1, wenn alles
+ * passt; sonst 0 und die Meldung in msg. Es wird NICHTS geschrieben - das ist Sache des Aufrufers.
+ */
+static uint_fast8_t
+http_overlays_get_fields (int * typep, int * date_codep, int * daysp, char * msg, size_t msg_len)
+{
+    *date_codep = OVERLAY_DATE_CODE_NONE;
+    *daysp      = 1;
+
+    if (! http_get_int_param ("otype", typep) || *typep < OVERLAY_TYPE_NONE || *typep > OVERLAY_TYPE_TEMPERATURE_DIGITS)
+    {
+        snprintf (msg, msg_len, "type out of range (%d..%d), nothing saved", OVERLAY_TYPE_NONE, OVERLAY_TYPE_TEMPERATURE_DIGITS);
+        return 0;
+    }
+
+    if (! http_get_opt_int_param ("odc", date_codep, OVERLAY_DATE_CODE_NONE, OVERLAY_DATE_CODE_ADVENT4))
+    {
+        snprintf (msg, msg_len, "date_code out of range (%d..%d), nothing saved", OVERLAY_DATE_CODE_NONE, OVERLAY_DATE_CODE_ADVENT4);
+        return 0;
+    }
+
+    if (! http_get_opt_int_param ("od", daysp, 1, 255))
+    {
+        snprintf (msg, msg_len, "days out of range (1..255), nothing saved");
+        return 0;
+    }
+
+    return 1;
+}
+
 static uint_fast8_t
 http_overlays (void)
 {
@@ -4751,6 +4866,10 @@ http_overlays (void)
     uint_fast8_t        idx;
     uint_fast8_t        oidx = 0xFF;
     uint_fast8_t        rtc = 0;
+    int                 otype = OVERLAY_TYPE_NONE;
+    int                 odc = OVERLAY_DATE_CODE_NONE;
+    int                 odays = 1;
+    char                msgbuf[64];
 
     action = http_get_param ("action");
 
@@ -4798,6 +4917,10 @@ http_overlays (void)
         {
             message = "Invalid overlay index, nothing saved";
         }
+        else if (oidx != 0xff && ! http_overlays_get_fields (&otype, &odc, &odays, msgbuf, sizeof (msgbuf)))
+        {
+            message = msgbuf;                                                   // C6u: nach dem Indexguard, vor n_overlays++
+        }
         else if (oidx != 0xff)
         {
             uint_fast8_t  val;
@@ -4819,7 +4942,7 @@ http_overlays (void)
                 overlays[oidx].flags &= ~OVERLAY_FLAG_ACTIVE;
             }
             
-            overlays[oidx].type = atoi (http_get_param ("otype"));
+            overlays[oidx].type = otype;
             val = atoi (http_get_param ("oint"));
 
             if (val == 0)
@@ -4842,7 +4965,7 @@ http_overlays (void)
 
             overlays[oidx].duration = val;
 
-            overlays[oidx].date_code   = atoi (http_get_param ("odc"));
+            overlays[oidx].date_code   = odc;
 
             valmm = atoi (http_get_param ("odstmm"));
             valdd = atoi (http_get_param ("odstdd"));
@@ -4856,16 +4979,7 @@ http_overlays (void)
                 overlays[oidx].date_start  = (valmm << 8) | valdd;
             }
 
-            val = atoi (http_get_param ("od"));
-
-            if (val < 1)
-            {
-                overlays[oidx].days = 1;
-            }
-            else
-            {
-                overlays[oidx].days = val;
-            }
+            overlays[oidx].days = odays;
 
             if (overlays[oidx].type == OVERLAY_TYPE_MP3)
             {
@@ -7033,6 +7147,7 @@ http_update (void)
     char                stm32_default_filename[MAX_UPDATE_FILENAME_LEN];
     int                 do_update = 0;
     int                 do_reset = 0;
+    int                 flash_rejected = 0;
     STR_VAR *           sv;
     char *              version;
     char *              update_host;
@@ -7073,8 +7188,17 @@ http_update (void)
         }
         else if (! strcmp (action, "flash"))
         {
-            strncpy (flash_stm32_filename, http_get_param ("stm32_filenames"), MAX_UPDATE_FILENAME_LEN - 1);
-            flash_stm32_filename[MAX_UPDATE_FILENAME_LEN - 1] = '\0';
+            char * fn = http_get_param ("stm32_filenames");
+
+            if (http_remote_stm32_filename_matches (fn))                // dieselbe Pruefung wie /api/remote_stm32_flash (C9c6/L179)
+            {
+                strncpy (flash_stm32_filename, fn, MAX_UPDATE_FILENAME_LEN - 1);
+                flash_stm32_filename[MAX_UPDATE_FILENAME_LEN - 1] = '\0';
+            }
+            else
+            {
+                flash_rejected = 1;
+            }
         }
         else if (! strcmp (action, "reset"))
         {
@@ -7218,6 +7342,9 @@ http_update (void)
                 char    new_esp_version[16];
                 char    new_wc_version[16];
                 int     len;
+                const char * filter;
+
+                http_build_stm32_default_filename (stm32_default_filename, sizeof (stm32_default_filename), &filter);
     
                 new_esp_version[0] = '\0';
                 new_wc_version[0] = '\0';
@@ -7363,60 +7490,10 @@ http_update (void)
                 if (len > 0)
                 {
                     char fname[MAX_UPDATE_FILENAME_LEN];
-                    const char * filter = NULL;
                     int ch;
                     int l = 0;
-    
-                    stm32_default_filename[0] = '\0';
 
-                    if (hardware_configuration != 0xFFFF)
-                    {
-                        switch (hardware_configuration & HW_WC_MASK)
-                        {
-                            case HW_WC_24H:                       strcat (stm32_default_filename, "wc24h-");          break;
-                            case HW_WC_12H:                       strcat (stm32_default_filename, "wc12h-");          break;
-                            case HW_UCLOCK:                       strcat (stm32_default_filename, "uc-");             break;
-                        }
-
-                        switch (hardware_configuration & HW_STM32_MASK)
-                        {
-                            case HW_STM32_F103C8:                 strcat (stm32_default_filename, "stm32f103-");        filter = "stm32f103-"; break;
-                            case HW_STM32_F401RE:                 strcat (stm32_default_filename, "stm32f401-");        filter = "stm32f401-"; break;
-                            case HW_STM32_F411RE:                 strcat (stm32_default_filename, "stm32f411-");        filter = "stm32f411-"; break;
-                            case HW_STM32_F446RE:                 strcat (stm32_default_filename, "stm32f446-");        filter = "stm32f446-"; break;
-                            case HW_STM32_F407VE:                 strcat (stm32_default_filename, "stm32f407-");        filter = "stm32f407-"; break;
-                            case HW_STM32_F401CC:
-                            {
-                                switch (hardware_configuration & HW_OSC_FREQUENCY_MASK)
-                                {
-                                    case HW_OSC_FREQUENCY_8MHZ:   strcat (stm32_default_filename, "stm32f401cc-8-");    filter = "stm32f401cc-8-";    break;
-                                    case HW_OSC_FREQUENCY_25MHZ:  strcat (stm32_default_filename, "stm32f401cc-25-");   filter = "stm32f401cc-25-";   break;
-                                }
-                                break;
-                            }
-                            case HW_STM32_F411CE:
-                            {
-                                switch (hardware_configuration & HW_OSC_FREQUENCY_MASK)
-                                {
-                                    case HW_OSC_FREQUENCY_8MHZ:   strcat (stm32_default_filename, "stm32f411ce-8-");    filter = "stm32f411ce-8-";    break;
-                                    case HW_OSC_FREQUENCY_25MHZ:  strcat (stm32_default_filename, "stm32f411ce-25-");   filter = "stm32f411ce-25-";   break;
-                                }
-                                break;
-                            }
-                        }
-        
-                        switch (hardware_configuration & HW_LED_MASK)
-                        {
-                            case HW_LED_WS2812_GRB_LED:     strcat (stm32_default_filename, "ws2812-grb.hex");  break;
-                            case HW_LED_WS2812_RGB_LED:     strcat (stm32_default_filename, "ws2812-rgb.hex");  break;
-                            case HW_LED_APA102_RGB_LED:     strcat (stm32_default_filename, "apa102-grb.hex");  break;
-                            case HW_LED_SK6812_RGB_LED:     strcat (stm32_default_filename, "sk6812-rgb.hex");  break;
-                            case HW_LED_SK6812_RGBW_LED:    strcat (stm32_default_filename, "sk6812-rgbw.hex"); break;
-                            case HW_LED_TFTLED_RGB_LED:     strcat (stm32_default_filename, "tftled-rgb.hex");  break;
-                        }
-                    }
-
-                    if (hardware_configuration == 0xFFFF)
+                    if (! filter)
                     {
                         http_send_FS ("<option value=\"\" selected>&lt;unknown&gt;</option>\r\n");
                     }
@@ -7441,20 +7518,14 @@ http_update (void)
                             fname[l] = '\0';
                             l = 0;
 
-                            show_option = 1;
-
-                            if (filter)
-                            {
-                                if (strncmp (fname + 6, filter, strlen (filter)) != 0)
-                                {
-                                    show_option = 0;
-                                }
-                            }
+                            show_option = http_remote_stm32_filename_matches (fname);   // dieselbe Pruefung wie Flashzweig und API (C9c6, L272)
 
                             if (show_option)
                             {
+                                // A6 (Review F.6): fname kommt aus wc-list.txt vom Update-Server - nicht
+                                // vertrauenswuerdig (konfigurierbarer Host, HTTP). Maskiert wie die API-Liste.
                                 http_send_FS ("<option value=\"");
-                                http_send (fname);
+                                http_send_xml_escaped (fname);
         
                                 if (! strcmp (fname, stm32_default_filename))
                                 {
@@ -7465,7 +7536,7 @@ http_update (void)
                                     http_send_FS ("\">");
                                 }
         
-                                http_send (fname);
+                                http_send_xml_escaped (fname);
                                 http_send_FS ("</option>\r\n");
                             }
                         }
@@ -7484,6 +7555,28 @@ http_update (void)
                 http_send_FS ("<button type=\"submit\" name=\"action\" value=\"flash\">Flash STM32</button>"
                               "</form>"
                               "<P>\r\n");
+
+                if (flash_rejected)
+                {
+                    http_send_FS ("<P><font color=red><B>Abgewiesen: Die STM32-Datei passt nicht zur erkannten Hardware. Nicht geflasht.</B></font><BR>\r\n");
+                }
+
+                /* 65535 oder unbekannter Typ: Liste leer, Rueckweg nennen (AKF.2). Der Reset holt die
+                 * Hardwarekennung zurueck; tools/flash-stm.sh hilft hier NICHT, es bricht bei 65535 ab
+                 * (Review F.6, A1). Der Weg ueber "Local Update" (flash_stm32_local) prueft keinen
+                 * Dateinamen und bleibt deshalb offen - der Endpunkt /api/local_stm32_upload dagegen
+                 * weist bei 65535 ab.
+                 */
+                if (! filter)
+                {
+                    http_send_FS ("<P><font color=red>Hardware nicht erkannt - keine STM32-Datei angeboten. "
+                                  "Zuerst den STM zur&uuml;cksetzen und die Seite neu laden. "
+                                  "Hilft das nicht: unter &bdquo;Local Update&ldquo; eine .hex hochladen.</font><BR>\r\n"
+                                  "<form method=\"GET\" action=\"/update\">\r\n"
+                                  "<button type=\"submit\" name=\"action\" value=\"reset\">Reset STM32</button>"
+                                  "</form>"
+                                  "<P>\r\n");
+                }
             }
 
             end_box ();
@@ -7591,6 +7684,15 @@ utf8_sequence_len (const char * str, unsigned int len, unsigned int pos)
  *                    \\ " \r \n \t werden mit Rueckstrich maskiert, alles andere bleibt
  *                    roh. Bewusst OHNE UTF-8-Pruefung - die Ausgabe soll sich an den
  *                    bestehenden Aufrufstellen nicht aendern.
+ * HTTP_ESCAPE_JSON_LOG  Nur /api/stm32_log (C23/L207). Wie HTTP_ESCAPE_JSON, dazu
+ *                    zweierlei, damit die Antwort gueltiges JSON in UTF-8 ist: Steuer-
+ *                    zeichen unter 0x20 ausser \r \n \t werden \u00XX, und ein Byte ab
+ *                    0x80, das KEINE gueltige UTF-8-Folge beginnt, gilt als ISO-8859-1
+ *                    und wird in seine Zwei-Byte-Form gewandelt. Gueltige UTF-8-Folgen
+ *                    bleiben stehen: Im Ring liegen neben den STM-Zeilen (ISO-8859-1)
+ *                    auch ESP-Zeilen, und var_cmd_reject () (vars.cpp) zitiert dort
+ *                    Kommandotext, der UTF-8 sein kann - pauschal gewandelt waere der
+ *                    doppelt kodiert.
  * HTTP_ESCAPE_SCAN   Die Mischform, die /api/network_scan seit jeher liefert: XML-
  *                    Entities innerhalb eines JSON-Strings. Dazu zwei Ergaenzungen, die
  *                    nur dort greifen, wo die Antwort bisher ohnehin unbrauchbar war -
@@ -7627,8 +7729,9 @@ http_escape_text (const char * src, unsigned int src_len, char * out, size_t out
         unsigned char   uc  = (unsigned char) src[i];
         const char *    esc = (const char *) 0;
         unsigned int    seq = 1;
+        char            conv[8];
 
-        if (mode == HTTP_ESCAPE_JSON)
+        if (mode == HTTP_ESCAPE_JSON || mode == HTTP_ESCAPE_JSON_LOG)
         {
             switch (uc)
             {
@@ -7638,6 +7741,28 @@ http_escape_text (const char * src, unsigned int src_len, char * out, size_t out
                 case '\n': esc = "\\n";  break;
                 case '\t': esc = "\\t";  break;
                 default:   break;
+            }
+
+            if (! esc && mode == HTTP_ESCAPE_JSON_LOG)                              // C23
+            {
+                if (uc < 0x20)
+                {
+                    snprintf (conv, sizeof (conv), "\\u%04x", uc);                  // roh waere ungueltiges JSON
+                    esc = conv;
+                }
+                else if (uc >= 0x80)
+                {
+                    seq = utf8_sequence_len (src, src_len, i);
+
+                    if (! seq)                                                      // kein UTF-8: ISO-8859-1-Byte, zwei Byte UTF-8
+                    {
+                        conv[0] = (char) (0xC0 | (uc >> 6));
+                        conv[1] = (char) (0x80 | (uc & 0x3F));
+                        conv[2] = '\0';
+                        esc = conv;
+                        seq = 1;
+                    }
+                }
             }
         }
         else if (uc >= 0x80)
@@ -8759,6 +8884,16 @@ http_api_network_client_set ()
     char * ssid = http_get_param ("ssid");
     char * key  = http_get_param ("key");
 
+    /* C38/L323: abweisen statt still kuerzen - VOR wifi_connect () und vor jedem Schreibzugriff.
+     * Die Grenze ist das, was toCharArray () unten tatsaechlich uebernimmt: Puffergroesse
+     * EEPROM_*_LEN, also hoechstens EEPROM_*_LEN - 1 Byte (31 bzw. 63). Bisher verband sich das
+     * Geraet mit dem vollen Wert und speicherte den gekuerzten.
+     */
+    if (! http_check_strvar_len ("ssid", ssid, EEPROM_SSID_LEN - 1) || ! http_check_strvar_len ("key", key, EEPROM_SSID_KEY_LEN - 1))
+    {
+        return 0;
+    }
+
     wifi_connect (ssid, key, true);
 
     String pssid = ssid;
@@ -8799,6 +8934,14 @@ http_api_network_ap_set ()
     if (strlen (key) < 10)
     {
         http_json_error (HTTP_API_ERROR_TOO_SHORT, "ap key too short (min. 10 characters)");
+        return 0;
+    }
+
+    /* C38 / Review F.6 A4: dieselbe Regel wie http_api_network_client_set () - abweisen statt
+     * still kuerzen, vor jedem Schreibzugriff und vor wifi_ap ().
+     */
+    if (! http_check_strvar_len ("ssid", ssid, EEPROM_AP_SSID_LEN - 1) || ! http_check_strvar_len ("key", key, EEPROM_AP_SSID_KEY_LEN - 1))
+    {
         return 0;
     }
 
@@ -8879,6 +9022,19 @@ http_api_eeprom_settings_set ()
      * Wer eine Zugangskennung wirklich entfernen will, setzt eine neue -- ein
      * versehentlich leeres Feld darf eine funktionierende Konfiguration nie loeschen.
      */
+
+    /* C38/L323: zu lange Werte abweisen statt still kuerzen, ALLE VIER vor dem ersten
+     * Schreibzugriff - sonst stuende nach einer Abweisung ein halber Satz im EEPROM. Grenze wie
+     * in http_api_network_client_set (): EEPROM_*_LEN - 1, mehr nimmt toCharArray () nicht.
+     */
+    if (! http_check_strvar_len ("ssid", ssid, EEPROM_SSID_LEN - 1)
+     || ! http_check_strvar_len ("key", key, EEPROM_SSID_KEY_LEN - 1)
+     || ! http_check_strvar_len ("ap_ssid", ap_ssid, EEPROM_AP_SSID_LEN - 1)
+     || ! http_check_strvar_len ("ap_key", ap_key, EEPROM_AP_SSID_KEY_LEN - 1))
+    {
+        return 0;
+    }
+
     if (pssid.length () > 0 && ! pssid.equals (eeprom_ssid))
     {
         pssid.toCharArray (eeprom_ssid, EEPROM_SSID_LEN);
@@ -10081,18 +10237,25 @@ static int
 http_api_tft_flags_set ()
 {
     uint_fast8_t flags = 0;
+    int          rgb, hflip, vflip;
 
-    if (! strcmp (http_get_param ("rgb"), "on"))
+    // E12: ein fehlender Parameter loeschte bisher sein Flag - jetzt Abweisung, nichts geschrieben
+    if ((rgb = http_get_on_off_required ("rgb")) < 0 || (hflip = http_get_on_off_required ("hflip")) < 0 || (vflip = http_get_on_off_required ("vflip")) < 0)
+    {
+        return 0;
+    }
+
+    if (rgb)
     {
         flags |= SSD1963_GLOBAL_FLAGS_RGB_ORDER;
     }
 
-    if (! strcmp (http_get_param ("hflip"), "on"))
+    if (hflip)
     {
         flags |= SSD1963_GLOBAL_FLAGS_FLIP_HORIZONTAL;
     }
 
-    if (! strcmp (http_get_param ("vflip"), "on"))
+    if (vflip)
     {
         flags |= SSD1963_GLOBAL_FLAGS_FLIP_VERTICAL;
     }
@@ -10457,10 +10620,20 @@ http_get_string_param (const char * name, char ** valuep)
  * Die Fehlerantwort ist bereits gesendet, wenn 0 zurueckkommt; der Aufrufer bricht nur
  * noch ab -- dieselbe Form wie bei http_get_color_component().
  */
+/* Die Regel selbst, ohne Antwort - fuer Wege, die keine JSON-Fehlerantwort senden koennen, wie
+ * die Legacy-WLAN-Seite (Review F.6, A4). http_check_strvar_len () benutzt sie ebenfalls, damit
+ * es genau EINE Byte-Regel gibt.
+ */
+static uint_fast8_t
+http_strvar_len_ok (const char * value, unsigned int maxlen)
+{
+    return strlen (value) <= maxlen ? 1 : 0;
+}
+
 static uint_fast8_t
 http_check_strvar_len (const char * name, const char * value, unsigned int maxlen)
 {
-    if (strlen (value) > maxlen)
+    if (! http_strvar_len_ok (value, maxlen))
     {
         char detail[64];
 
@@ -10526,6 +10699,27 @@ http_get_on_off_value (const char * param, uint_fast8_t current_value)
     }
 
     return current_value;
+}
+
+/* E12: wie http_get_on_off_value(), aber ohne Vorgabewert. Liefert 1 fuer "on", 0 fuer "off";
+ * fehlt der Parameter, gibt es Kennung 1, steht etwas anderes darin, Kennung 2 - dann ist die
+ * Fehlerantwort gesendet und das Ergebnis -1. Fuer Setter, die mehrere Flags in EINEM Wert
+ * schreiben: Dort hiess "fehlt" bisher "aus", und ein unvollstaendiger Request loeschte Flags.
+ */
+static int
+http_get_on_off_required (const char * param)
+{
+    uint_fast8_t    value = http_get_on_off_value (param, 2);                        // 2: weder "on" noch "off"
+    char            detail[40];
+
+    if (value != 2)
+    {
+        return value;
+    }
+
+    snprintf (detail, sizeof (detail), "%s must be on or off", param);
+    http_json_error (*http_get_param (param) ? HTTP_API_ERROR_OUT_OF_RANGE : HTTP_API_ERROR_MISSING_VALUE, detail);
+    return -1;
 }
 
 /* Gibt HTTP_COLOR_COMPONENT_OK zurueck, wenn der Farbanteil im Request stand und im
@@ -10848,16 +11042,23 @@ static int
 http_api_dfplayer_bell_flags_set ()
 {
     uint_fast8_t flags = DFPLAYER_MODE_BELL_FLAG_NONE;
+    int          m15, m30, m45;
 
-    if (http_get_on_off_value ("m15", 0))
+    // E12: ein fehlender Parameter loeschte bisher sein Flag - jetzt Abweisung, nichts geschrieben
+    if ((m15 = http_get_on_off_required ("m15")) < 0 || (m30 = http_get_on_off_required ("m30")) < 0 || (m45 = http_get_on_off_required ("m45")) < 0)
+    {
+        return 0;
+    }
+
+    if (m15)
     {
         flags |= DFPLAYER_MODE_BELL_FLAG_15;
     }
-    if (http_get_on_off_value ("m30", 0))
+    if (m30)
     {
         flags |= DFPLAYER_MODE_BELL_FLAG_30;
     }
-    if (http_get_on_off_value ("m45", 0))
+    if (m45)
     {
         flags |= DFPLAYER_MODE_BELL_FLAG_45;
     }
@@ -11177,6 +11378,17 @@ http_api_overlay_set ()
         return 0;
     }
 
+    text = http_get_param ("value");
+
+    /* Overlay-Text, ESP (L319): ein Text ueber OVERLAY_MAX_TEXT_LEN Byte wurde still gekuerzt
+     * und mit {"ok":true} quittiert. Jetzt Abweisung mit Kennung 2 ueber dieselbe Byte-Regel wie
+     * die Stringsetter (C22) - und VOR der ersten Zuweisung, damit nichts geschrieben wird.
+     */
+    if (! http_check_strvar_len ("value", text, OVERLAY_MAX_TEXT_LEN))
+    {
+        return 0;
+    }
+
     if (idx == n_overlays)
     {
         n_overlays++;
@@ -11207,12 +11419,12 @@ http_api_overlay_set ()
         overlays[idx].date_start = (month << 8) | day;
     }
 
-    text = http_get_param ("value");
-
     /* Overlay-Texte stehen ebenfalls in der settings_xml und kennen dieselbe
      * Byte-gegen-Zeichen-Grenze wie die Stringsetter (L46). Das frueher hier stehende
      * "if (text)" war die POSITIVFORM einer toten NULL-Pruefung (C20/L199) -- ein
      * fehlender Parameter liefert den leeren String, und der wurde ohnehin kopiert.
+     * Die Laenge ist oben geprueft; utf8_copy_truncated() bleibt nur als letztes Netz
+     * stehen und kuerzt hier nichts mehr - wie set_strvar() hinter den Stringsettern.
      */
     utf8_copy_truncated (overlays[idx].text, text, OVERLAY_MAX_TEXT_LEN);
 
@@ -11556,7 +11768,8 @@ http_api_fs_list ()
  * Unterschieden wird am Content-Type, nicht am Rumpfanfang:
  *   Parameter fehlt oder leer  -> application/json, error 1
  *   Datei existiert nicht      -> application/json, error 6
- *   Datei existiert, Groesse 0 -> text/plain, Rumpflaenge 0 -- wie bisher, jetzt eindeutig
+ *   existiert, oeffnet nicht   -> application/json, error 7 (Review F.6; bis dahin 6)
+ *   Datei existiert, Groesse 0 -> application/json, error 8 (C27; bis ESP 3.2.25 text/plain, leer)
  *   Datei existiert mit Inhalt -> text/plain mit Inhalt -- unveraendert
  * Eine Pruefung auf {"ok":false am Rumpfanfang waere falsch, sobald eine angezeigte Datei
  * genau so beginnt.
@@ -11594,7 +11807,15 @@ http_api_fs_show ()
     if (! fp)                                                               // existiert, laesst sich aber nicht oeffnen
     {
         LittleFS.end ();
-        http_json_error (HTTP_API_ERROR_NOT_FOUND, "file not found");
+        http_json_error (HTTP_API_ERROR_ACTION_FAILED, "open failed");      // Review F.6: nicht "gibt es nicht" (6), sondern 7
+        return 0;
+    }
+
+    if (fp.size () == 0)                                                    // C27: leer ist ein eigener Zustand, kein 200 OK ohne Rumpf
+    {
+        fp.close ();
+        LittleFS.end ();
+        http_json_error (HTTP_API_ERROR_FILE_EMPTY, "file empty");
         return 0;
     }
 
@@ -11615,6 +11836,10 @@ http_api_fs_show ()
                 cbuf[1] = '\0';
                 http_send (cbuf);
             }
+        }
+        else
+        {
+            break;                                                          // C34/L309: Lesefehler, sonst dreht available() endlos bis zum Soft-WDT
         }
     }
 
@@ -11661,7 +11886,7 @@ http_api_fs_remove ()
 
     if (! removed)
     {
-        http_json_error (HTTP_API_ERROR_NOT_FOUND, "remove failed");
+        http_json_error (HTTP_API_ERROR_ACTION_FAILED, "remove failed");
         return 0;
     }
 
@@ -12151,7 +12376,10 @@ http_api_update_status ()
     http_json_send_string_field (FS("stm32_default"), stm32_default_filename);
     http_send (FS(",\"stm32_files\":["));
 
-    len = update_server_open (update_host, update_path, WC_LIST_TXT);
+    /* Ent-5 (F.3): Ohne Filter (65535 oder unbekannter Typ) bleibt die Liste ohnehin leer -
+     * dann den Abruf ganz sparen statt bis zu drei Zeitgrenzen fuer ein feststehendes Ergebnis.
+     */
+    len = filter ? update_server_open (update_host, update_path, WC_LIST_TXT) : 0;
 
     if (len > 0)
     {
@@ -12174,20 +12402,12 @@ http_api_update_status ()
             }
             else if (ch == '\n')
             {
-                int show_option = 1;
+                int show_option;
 
                 fname[l] = '\0';
                 l = 0;
 
-                if (filter)
-                {
-                    int fname_len = strlen (fname);
-
-                    if (fname_len < 6 || strncmp (fname + 6, filter, strlen (filter)) != 0)
-                    {
-                        show_option = 0;
-                    }
-                }
+                show_option = http_remote_stm32_filename_matches (fname);  // Ent-5: dieselbe Pruefung wie Flash und Legacy-Liste; bei 65535 leer (AKF.8)
 
                 if (show_option)
                 {
@@ -12274,6 +12494,8 @@ http_api_device_ready ()
      */
     http_json_send_uint_field (FS("write_lost_bytes"), (unsigned long) http_write_lost_bytes);
     http_json_send_uint_field (FS("write_lost_blocks"), (unsigned long) http_write_lost_blocks);
+    http_json_send_uint_field (FS("write_lost_gone"), (unsigned long) http_write_lost_gone);        // C25: Teil von write_lost_blocks, Client weg
+    http_json_send_uint_field (FS("write_lost_failed"), (unsigned long) http_write_lost_failed);    // C25: Teil von write_lost_blocks, Schreibversagen
     /* Angenommene Verbindungen ohne Anfrage (L160). Steigt no_request_aborts im
      * Takt der PWA-Zyklen, bricht die Gegenstelle ab; steigt no_request_timeouts,
      * haelt jemand Verbindungen auf Vorrat offen. Vorher war beides nur an einer
@@ -13046,7 +13268,7 @@ http_api_stm32_log ()
         }
 
         http_send (FS("\""));
-        http_send_json_escaped (stm32_log_get_line (idx));
+        http_send_escaped (stm32_log_get_line (idx), HTTP_ESCAPE_JSON_LOG);       // C23: UTF-8 und vollstaendig maskiert
         http_send (FS("\""));
     }
 

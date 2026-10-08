@@ -5,7 +5,7 @@
 #   ./tools/checks/auszug.sh            alle gegen den aktuellen Baum
 #   ./tools/checks/auszug.sh --gegen R  alle gegen den Stand von Revision R (Gegenprobe)
 #
-# Entstanden in Runde S (Paket 2026-10-06, S.20). Jeder Pruefstand ist beim Bauen einmal
+# Entstanden in Runde S (Paket 2026-10-06, S.20), erweitert in Runde F (F.5h, sieben ESP-Pruefstaende). Jeder Pruefstand ist beim Bauen einmal
 # gegen die alte Fassung fehlgeschlagen (DIR-014); --gegen macht das wiederholbar, z. B.
 #   ./tools/checks/auszug.sh --gegen release/3.2.21-3.2.25-1.4.92
 # muss fuer die STM-Pruefstaende anschlagen, weil dieser Stand die Korrekturen nicht hat.
@@ -45,7 +45,14 @@ LAUF=(
   "S.1-S.3 Bruecke (ESP)|esp/t1/run.sh $E/ESP-uclock.ino $E/vars.h neu"
   "C31 keine Schluessel im Log (ESP)|esp/t2/run.sh $E/eepromdata.cpp neu"
   "A5 Legacy-Temperatur (ESP)|esp/t3/run.sh $E neu"
-  "N1 Overlay-Index (ESP)|esp/t4/run.sh $E neu"
+  "N1 Overlay-Index, C6u Formularfelder (ESP)|esp/t4/run.sh $E neu"
+  "C38 SSID und Schluessel abgewiesen, auch AP und Legacy (ESP)|esp/t5/run.sh $E neu"
+  "C23 Logring als UTF-8-JSON (ESP)|esp/t6/run.sh $E neu"
+  "E12 Flag-Setter ohne Parameter (ESP)|esp/t7/run.sh $E neu"
+  "C25 Verlustzaehler getrennt (ESP)|esp/t8/run.sh $E neu"
+  "C9k Kopf in zwei Segmenten (ESP)|esp/t9/run.sh $E neu"
+  "Overlay-Text abgewiesen (ESP)|esp/t10/run.sh $E neu"
+  "A2 Praefix uc-/wc beim STM-Dateinamen (ESP)|esp/t11/run.sh $E neu"
 )
 ok=0; fehl=0; kaputt=0
 for z in "${LAUF[@]}"; do

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Pruefstand S.5 (N1). Aufruf: run.sh <verzeichnis mit http.cpp, vars.h> <bezeichnung>
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); Q=$1; B=$2
-{ python3 "$S/extract.py" func "$Q/http.cpp" http_n_overlays_for_read
+{ python3 "$S/extract.py" func "$Q/http.cpp" http_get_int_param http_get_opt_int_param   # F.5j/C6u: echter Code statt atoi-Attrappe
+  python3 "$S/extract.py" func "$Q/http.cpp" http_n_overlays_for_read
   python3 - "$Q/http.cpp" <<'PY'
 import sys
 L = open(sys.argv[1], 'rb').read().decode('utf-8').split('\n')

@@ -72,10 +72,11 @@
 /* 32 statt 64 Zeilen: spart 3'872 Byte im statischen Bereich (BEFUNDE.md L175/L176).
  * Der freie Haufen ist nicht das Problem, der GROESSTE ZUSAMMENHAENGENDE BLOCK ist es -
  * er faellt im Betrieb um rund 44 Prozent. Was hier an BSS frei wird, steht dem Haufen
- * dauerhaft zur Verfuegung. Die ZEILENLAENGE bleibt bei 120: unsere Diagnosezeile ist
- * 118 Zeichen lang, dort waere nichts zu holen, ohne das aussagekraeftigste Protokoll
- * zu beschneiden. Die 32 sind ausdruecklich gewaehlt und nicht 24 - die Rueckschau
- * wird gerade gebraucht.
+ * dauerhaft zur Verfuegung. Die ZEILENLAENGE bleibt bei 120, dort waere nichts zu holen,
+ * ohne das aussagekraeftigste Protokoll zu beschneiden: Die Diagnosezeile des STM kann mit
+ * dem Feld a= bei gesaettigten Zaehlern 124 Zeichen erreichen (L333, C41) - dann kappt der
+ * Ring mit LOG_TRUNC_MARK, und verloren ginge a=. Die 32 sind ausdruecklich gewaehlt
+ * und nicht 24 - die Rueckschau wird gerade gebraucht.
  */
 #define STM32_LOG_LINES     32
 #define STM32_LOG_LINE_LEN  120

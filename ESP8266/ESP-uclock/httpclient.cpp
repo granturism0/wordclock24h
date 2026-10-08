@@ -99,15 +99,33 @@ httpclient_read_header (int * lenp)
     int     ch;
     int     len = 0;
     int     errorcode = 0;
+    int     complete = 0;
+    unsigned long   start_millis = millis ();                   // A3: Zeitgrenze fuer den GANZEN Kopf
 
-    while (client.available())                           // skip http header
+    // C9k/L172: ueber den Helfer aus L152 warten statt nur zu lesen, was schon da ist - ein Kopf
+    // in zwei Segmenten galt sonst als fertig, und ohne Content-Length kam len = 0 zurueck
+    while (httpclient_wait_for_data ())                  // skip http header
     {
+        // A3 (Review F.6): httpclient_wait_for_data () begrenzt nur das Warten auf das NAECHSTE Zeichen.
+        // Ein Kopf ohne Leerzeile - endlos oder tropfend - hielte loop () sonst unbegrenzt an. Ueber den
+        // ganzen Kopf gilt deshalb dieselbe Zeitgrenze; laengster Fall knapp zwei Zeitgrenzen.
+        if ((millis () - start_millis) >= HTTPCLIENT_READ_TIMEOUT)
+        {
+            break;                                      // complete bleibt 0: Fehlschlag
+        }
+
         ch = client.read();
+
+        if (ch < 0)
+        {
+            break;
+        }
 
         if (ch == '\n')
         {
             if (cnt == 0)
             {
+                complete = 1;                           // Leerzeile: Kopf vollstaendig
                 break;
             }
 
@@ -153,7 +171,7 @@ httpclient_read_header (int * lenp)
     }
 
     *lenp = len;
-    return errorcode;
+    return complete ? errorcode : -1;                   // abgerissener Kopf ist ein Fehlschlag, kein 200
 }
 
 int
