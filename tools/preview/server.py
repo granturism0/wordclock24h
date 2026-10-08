@@ -74,7 +74,11 @@ JSON_API = {
   "update_status": {"ok":True,"host":"update.wordclock.ch","path":"/firmware/",
       "stm32_filename":"wc12h-stm32f411ce-25-sk6812-rgbw.hex","esp_filename":"ESP-WordClock-4M.bin",
       "stm32_version":"3.2.5","esp_version":"3.2.1","releaseNotes":"Version 3.2.5",
-      "update_available":False,"remote_esp_update_url":"/api/remote_esp_update"},
+      "update_available":False,"remote_esp_update_url":"/api/remote_esp_update",
+      # Seit ESP 3.2.26 (Runde F): Standardname und gefilterte Liste. PREVIEW_HW_UNBEKANNT=1
+      # stellt den Zustand HARDWARE_CONFIGURATION 65535 nach (leerer Standard, leere Liste).
+      "stm32_default":"" if os.environ.get("PREVIEW_HW_UNBEKANNT") else "wc12h-stm32f411ce-25-sk6812-rgbw.hex",
+      "stm32_files":[] if os.environ.get("PREVIEW_HW_UNBEKANNT") else ["wc12h-stm32f411ce-25-sk6812-rgbw.hex"]},
   "update_table_files": {"ok":True,"files":["wc24h-de-ch.txt"],"current":"wc24h-de-ch.txt"},
   "eeprom_settings": {"ok":True,"ssid":"Heimnetz","key":"geheim1234","ap_ssid":"WordClock",
       "ap_key":"wordclock24","boot_as_ap":False},
@@ -161,6 +165,20 @@ class H(BaseHTTPRequestHandler):
                 return self._send(settings_xml(), "text/xml; charset=utf-8")
             if name in ("display_power", "ambilight_power"):
                 return self._send("on", "text/plain")
+            # fs_show/fs_remove wie ESP 3.2.26: Kennung 6 "nicht gefunden", 7 "Aktion
+            # fehlgeschlagen", 8 "Datei leer" -- ueber das Praefix des Dateinamens, damit eine
+            # Probe jeden Fall ohne fetch-Huelle herstellen kann. Sonst Inhalt bzw. ok.
+            if name in ("fs_show", "fs_remove"):
+                from urllib.parse import parse_qs
+                fn = parse_qs(urlparse(self.path).query).get("filename", [""])[0]
+                if fn.startswith("leer") and name == "fs_show":
+                    return self._send(json.dumps({"ok":False,"error":8,"detail":"file empty"}), "application/json")
+                if fn.startswith("kaputt"):
+                    return self._send(json.dumps({"ok":False,"error":7,"detail":"open failed" if name == "fs_show" else "remove failed"}), "application/json")
+                if fn.startswith("fehlt"):
+                    return self._send(json.dumps({"ok":False,"error":6,"detail":"file not found"}), "application/json")
+                if name == "fs_show":
+                    return self._send("Inhalt von " + fn, "text/plain; charset=utf-8")
             if name in JSON_API:
                 return self._send(json.dumps(JSON_API[name]), "application/json")
             return self._send(json.dumps({"ok":True}), "application/json")
