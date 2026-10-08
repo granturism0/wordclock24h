@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.93";
+const APP_VERSION = "1.4.94";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -486,6 +486,7 @@ const I18N_DE = {
   "maintenance.no_files": "Noch keine Dateien im LittleFS gefunden.",
   "maintenance.special_display_target": "TFT-Sonderfall",
   "maintenance.no_stm32_files": "keine STM32-Dateien gefunden",
+  "maintenance.stm32_hardware_unknown": "Hardware nicht erkannt — setz zuerst den STM zurück (Wartung) und lade die App dann neu.",
   "maintenance.no_release_notes": "Keine Release Notes vom Server gelesen.",
   "maintenance.fs_total": "Gesamt",
   "maintenance.fs_used": "Belegt",
@@ -561,6 +562,7 @@ const I18N_DE = {
   "status.data_load_failed": "Daten konnten nicht geladen werden",
   "input.number_required": "Bitte einen Wert zwischen {min} und {max} eintragen. Ein leeres Feld wird nicht gespeichert.",
   "input.number_range": "Der Wert {value} liegt ausserhalb des erlaubten Bereichs {min} bis {max}. Es wurde nichts gespeichert — bitte korrigiere die Eingabe.",
+  "input.integer_required": "Das ist keine ganze Zahl. Trag eine ganze Zahl zwischen {min} und {max} ein, ohne Komma, Dezimalpunkt oder Exponent. Es wurde nichts gespeichert.",
   "input.text_too_long": "Zu lang für {field}: Der Text belegt {bytes} Byte, die Uhr speichert höchstens {max}. Umlaute und Akzente zählen doppelt, manche Sonderzeichen dreifach. Es wurde nichts gespeichert — bitte kürze die Eingabe.",
   "status.settings_parse_error": "Die Konfiguration des Geräts ist beschädigt und konnte nicht gelesen werden. Ein Anführungszeichen in Ort, Tickertext, AppID oder Update-Host ist die häufigste Ursache — korrigiere es über die Legacy-Oberfläche.",
   "overview.display_mode": "Display-Modus",
@@ -642,6 +644,7 @@ const I18N_DE = {
   "backup.ir_reason_invalid": "die Uhr unbrauchbare Werte geliefert hat",
   "backup.ir_reason_download": "sich die Datei nicht herunterladen liess",
   "backup.network_skipped_empty_ssid": "WLAN-Zugangsdaten übersprungen: In der Sicherung steht keine SSID. Die bestehenden Einstellungen bleiben unverändert.",
+  "backup.network_skipped_too_long": "WLAN-Zugangsdaten nicht geschrieben: Mindestens ein Wert aus der Sicherung ist länger, als die Uhr speichern kann, und die Uhr nimmt die vier Werte nur zusammen an. Die bestehenden Netzwerkeinstellungen bleiben unverändert.",
   "backup.choose_file_first": "Bitte zuerst eine Sicherungsdatei auswählen.",
   "backup.invalid_format": "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei.",
   "backup.incompatible_version": "Inkompatible Backup-Version – Datei mit einer neueren App erstellt.",
@@ -695,6 +698,10 @@ const I18N_DE = {
   "backup.import_skipped_fields": "Übersprungen, weil in der Sicherung leer: {fields}. Diese Werte sind auf der Uhr unverändert geblieben.",
   "backup.import_stage_failed": "Abgebrochene Importschritte: {stages}. Was in ihnen noch folgen sollte, ist nicht geschrieben worden — sieh dir diese Bereiche an.",
   "backup.field.timeserver": "Zeitserver",
+  "backup.field.wifi_ssid": "WLAN-Name (SSID)",
+  "backup.field.wifi_key": "WLAN-Passwort",
+  "backup.field.ap_ssid": "Name des Zugangspunkts (SSID)",
+  "backup.field.ap_key": "Passwort des Zugangspunkts",
   "backup.field.weather_appid": "Wetter-API-Schlüssel",
   "backup.field.weather_location": "Ort und Koordinaten für das Wetter",
   "backup.field.date_ticker_format": "Datumsformat des Tickers",
@@ -841,6 +848,7 @@ const I18N_DE = {
   "maintenance.stm32_flash_success": "STM32-Update erfolgreich abgeschlossen.",
   "maintenance.fs_showing": "Datei „{file}“ wird angezeigt.",
   "maintenance.fs_show_empty": "Datei „{file}“ ist leer — 0 Byte. Das ist kein Fehler, die Datei gibt es.",
+  "maintenance.fs_show_empty_gz": "Datei „{file}“ ist leer — 0 Byte. Die Datei gibt es, aber eine leere .gz führt in der App zum weissen Bildschirm. Lade sie neu hoch.",
   "maintenance.fs_show_binary": "Datei „{file}“ ist eine Binärdatei ({size}) und wird nicht als Text angezeigt.",
   "maintenance.fs_deleted": "Datei „{file}“ wurde gelöscht.",
   "maintenance.fs_delete_confirm": "Datei „{file}“ wirklich löschen?",
@@ -878,6 +886,8 @@ const I18N_DE = {
   "api.warning.ldr_min_max": "Der Minimalwert der automatischen Helligkeit liegt nicht unter dem Maximalwert. Solange das so bleibt, regelt die Uhr die Helligkeit gar nicht — und meldet dazu nichts weiter. Setz das Minimum unter das Maximum.",
   "api.error.5": "Dafür fehlen noch Angaben: Trage unter Klima den Wetter-API-Schlüssel ein und dazu entweder einen Ort oder ein vollständiges Koordinatenpaar. Im eigenen Accesspoint hat die Uhr keinen Weg ins Internet.",
   "api.error.6": "Diese Datei gibt es auf dem Gerät nicht.",
+  "api.error.7": "Das Gerät konnte den Schritt nicht ausführen, obwohl die Anfrage stimmte — etwa weil sich eine Datei nicht öffnen oder nicht löschen lässt. Versuch es noch einmal; bleibt es dabei, sieh dir das Dateisystem unter Wartung an.",
+  "api.error.8": "Die Datei gibt es, aber sie ist leer — 0 Byte.",
   "common.saving": "speichert...",
   "common.loading": "lädt...",
   "common.running": "läuft...",
@@ -6059,6 +6069,14 @@ const TEXT_FIELD_LIMITS = Object.freeze({
   timeserver: { maxBytes: 16, labelKey: "backup.field.timeserver" }, //                 MAX_TIMESERVER_NAME_LEN
   update_host: { maxBytes: 63, labelKey: "backup.field.update_host" }, //               MAX_UPDATE_HOST_LEN (64 - 1)
   update_path: { maxBytes: 63, labelKey: "backup.field.update_path" }, //               MAX_UPDATE_PATH_LEN (64 - 1)
+  // C38/L323: WLAN und Zugangspunkt. Seit ESP 3.2.26 weist das Gerät ab, was toCharArray()
+  // nicht ganz übernähme (EEPROM_*_LEN - 1, eepromdata.h); bis dahin verband es sich mit dem
+  // vollen Wert und speicherte den gekürzten. Dieselben vier Grenzen gelten in
+  // network_client_set, network_ap_set und eeprom_settings_set (Backup-Import).
+  wifi_ssid: { maxBytes: 31, labelKey: "backup.field.wifi_ssid" }, //                  EEPROM_SSID_LEN (32 - 1)
+  wifi_key: { maxBytes: 63, labelKey: "backup.field.wifi_key" }, //                    EEPROM_SSID_KEY_LEN (64 - 1)
+  ap_ssid: { maxBytes: 31, labelKey: "backup.field.ap_ssid" }, //                      EEPROM_AP_SSID_LEN (32 - 1)
+  ap_key: { maxBytes: 63, labelKey: "backup.field.ap_key" }, //                        EEPROM_AP_SSID_KEY_LEN (64 - 1)
   // P2.1: Der Overlay-Text ist der zehnte Wert. Er steht nicht in vars.h:183-194, sondern
   // als OVERLAY_MAX_TEXT_LEN in ESP8266/ESP-uclock/vars.h:414 (gleich src/overlay/overlay.h:35).
   // Anders als bei den neun oben weist der ESP hier nicht ab, sondern kürzt still
@@ -6112,10 +6130,18 @@ function describeTextFieldOverflow(overflow) {
 // einen anderen Server (L124).
 function readTextInputOrReport(input, fieldName, statusElement) {
   const value = input && input.value !== null && input.value !== undefined ? String(input.value) : "";
+
+  return checkTextValueOrReport(value, fieldName, input, statusElement) ? value : null;
+}
+
+// Wie readTextInputOrReport, aber für einen Wert, der nicht wörtlich im Feld steht -- etwa
+// die SSID, die getrimmt aus dem freien Feld oder aus der Trefferliste kommt (C38).
+// Der Fokus geht an das Element, aus dem der Wert stammt.
+function checkTextValueOrReport(value, fieldName, input, statusElement) {
   const overflow = getTextFieldOverflow(fieldName, value);
 
   if (!overflow) {
-    return value;
+    return true;
   }
 
   const message = describeTextFieldOverflow(overflow);
@@ -6127,7 +6153,7 @@ function readTextInputOrReport(input, fieldName, statusElement) {
   if (input && input.focus) {
     input.focus();
   }
-  return null;
+  return false;
 }
 
 // Der Backup-Import schreibt dieselben Felder. Seit E2.3 bricht ein zu langer Wert dort
@@ -6404,6 +6430,23 @@ async function importNetworkSettings(network) {
   // Zeitserver und Zeitzone sind oben bereits importiert, die sind ungefaehrlich.
   if (!network.wifi_ssid) {
     setSettingsBackupNote(translate("backup.network_skipped_empty_ssid"), "warn");
+    return;
+  }
+
+  // C38: Das Gerät prüft alle vier Werte, bevor es einen schreibt, und weist bei einem zu
+  // langen die ganze Anfrage ab. Ein Teil davon lässt sich auch nicht gefahrlos allein
+  // schreiben: Ein neuer Schlüssel ohne die SSID, zu der er gehört, trennt die Uhr vom
+  // WLAN. Deshalb hier dasselbe -- alle vier prüfen, jeden zu langen nennen, und dann
+  // gar nichts senden. Die Prüfung läuft absichtlich über alle vier, nicht bis zum ersten.
+  const wlanFits = [
+    acceptImportTextOrNote("wifi_ssid", String(network.wifi_ssid || "")),
+    acceptImportTextOrNote("wifi_key", String(network.wifi_key || "")),
+    acceptImportTextOrNote("ap_ssid", String(network.ap_ssid || "")),
+    acceptImportTextOrNote("ap_key", String(network.ap_key || ""))
+  ];
+
+  if (wlanFits.includes(false)) {
+    setSettingsBackupNote(translate("backup.network_skipped_too_long"), "warn");
     return;
   }
 
@@ -7397,10 +7440,19 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
 
   renderList("update-status-list", summary.items);
 
+  // Ent-5: Kennt der ESP die Hardware nicht (stm32_default leer, HARDWARE_CONFIGURATION
+  // 65535, etwa nach einem ESP-Neustart, L42), bildet er keinen Namensfilter und weist
+  // JEDEN Namen ab (DIR-010) -- auch dann, wenn die Liste gefüllt ist. Ein freigegebener
+  // Knopf täte still nichts. Deshalb in diesem Fall keine Auswahl, sondern der Rückweg:
+  // STM zurücksetzen. Fehlt das Feld ganz (kein Status geladen), gilt das nicht, und eine
+  // leere Liste behält den bisherigen Satz.
+  const stm32Selectable = view.stm32Files.length > 0 && !view.stm32HardwareUnknown;
+  const noStm32FilesText = translate(view.stm32HardwareUnknown ? "maintenance.stm32_hardware_unknown" : "maintenance.no_stm32_files");
   const select = document.getElementById("update-stm32-select");
-  select.innerHTML = view.stm32Files.length
+  select.innerHTML = stm32Selectable
     ? view.stm32Files.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === view.stm32Default ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
-    : '<option value="">' + escapeHtml(translate("maintenance.no_stm32_files")) + '</option>';
+    : '<option value="">' + escapeHtml(noStm32FilesText) + '</option>';
+  select.title = stm32Selectable ? "" : noStm32FilesText;
 
   const tableField = document.getElementById("update-table-field");
   const tableSelect = document.getElementById("update-table-select");
@@ -7422,7 +7474,7 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
 
   renderReleaseNotes(document.getElementById("update-release-notes"), view.releaseNotes);
   document.getElementById("update-esp-button").disabled = !view.canUpdate;
-  document.getElementById("update-stm32-button").disabled = !view.stm32Files.length;
+  document.getElementById("update-stm32-button").disabled = !stm32Selectable;
   tableButton.disabled = !serverFilesMeta.tableAvailable || !serverFilesMeta.tableActionSupported;
   assetsButton.disabled = !serverFilesMeta.assetsAvailable;
   appFilesButton.disabled = !serverFilesMeta.appFilesAvailable;
@@ -7802,6 +7854,7 @@ function getUpdateUiViewMeta(updateMeta) {
   return {
     canUpdate: !!(updateMeta && updateMeta.summary && updateMeta.summary.canUpdate),
     stm32Default: updateMeta && updateMeta.summary ? updateMeta.summary.stm32Default : "",
+    stm32HardwareUnknown: !!(updateMeta && updateMeta.summary && updateMeta.summary.stm32HardwareUnknown),
     stm32Files: updateMeta && updateMeta.summary ? updateMeta.summary.stm32Files : [],
     releaseNotes: updateMeta && updateMeta.summary ? updateMeta.summary.releaseNotes : ""
   };
@@ -8963,6 +9016,14 @@ async function saveNetworkClient() {
     return;
   }
 
+  // C38: Das Gerät nimmt höchstens 31 bzw. 63 Byte an und weist sonst ab. Geprüft wird
+  // die SSID so, wie sie gesendet wird -- auch eine aus der Trefferliste kann 32 Byte haben.
+  const keyInput = document.getElementById("network-key-input");
+  if (!checkTextValueOrReport(ssid, "wifi_ssid", manualSsid ? manualInput : selectElement) ||
+      !checkTextValueOrReport(key, "wifi_key", keyInput)) {
+    return;
+  }
+
   await runQueryButtonRequestById("network-client-save-button", {
     endpoint: getNetworkClientSetUrl(),
     query: { ssid, key },
@@ -8976,8 +9037,17 @@ async function saveNetworkClient() {
 }
 
 async function saveNetworkAp() {
-  const ssid = document.getElementById("network-ap-ssid-input").value || "";
-  const key = document.getElementById("network-ap-key-input").value || "";
+  // C38: wie beim WLAN-Client, 31 bzw. 63 Byte.
+  const ssid = readTextInputOrReport(document.getElementById("network-ap-ssid-input"), "ap_ssid");
+  if (ssid === null) {
+    return;
+  }
+
+  const key = readTextInputOrReport(document.getElementById("network-ap-key-input"), "ap_key");
+  if (key === null) {
+    return;
+  }
+
   await runQueryButtonRequestById("network-ap-save-button", {
     endpoint: getNetworkApSetUrl(),
     query: { ssid, key },
@@ -10596,6 +10666,14 @@ function getUpdateStm32Default(updateStatus) {
   return getUpdateAvailableVersion(updateStatus, "stm32_default");
 }
 
+// Der ESP schickt stm32_default immer mit; leer heisst "Hardware nicht erkannt"
+// (HARDWARE_CONFIGURATION 65535). Fehlt das Feld, ist nichts bekannt -- das ist kein
+// Hinweis auf die Hardware.
+function isUpdateStm32HardwareUnknown(updateStatus) {
+  const status = getNormalizedUpdateStatus(updateStatus);
+  return !!status && typeof status.stm32_default === "string" && !status.stm32_default.trim();
+}
+
 function getUpdateStm32Files(updateStatus) {
   return getUpdateStatusArray(updateStatus, "stm32_files");
 }
@@ -10692,6 +10770,7 @@ function getUpdateSummaryMeta(updateStatus, settings) {
   return {
     canUpdate: versionMeta.canUpdate,
     stm32Default,
+    stm32HardwareUnknown: isUpdateStm32HardwareUnknown(updateStatus),
     stm32Files,
     releaseNotes,
     items: [
@@ -11131,6 +11210,21 @@ function showFsBinaryNotice(fileName, size) {
   announceStatus(status);
 }
 
+// Eine leere Datei ist ein gültiges Ergebnis (L187). Eine leere .gz dagegen ist genau der
+// Weissbildschirm-Fall der Architektur-Invariante -- dort warnt die Meldung.
+function showFsEmptyFile(fileName) {
+  const preview = document.getElementById("fs-preview-content");
+  const isGz = /\.gz$/i.test(String(fileName || ""));
+  const status = translateFormat(isGz ? "maintenance.fs_show_empty_gz" : "maintenance.fs_show_empty", { file: fileName });
+
+  if (preview) {
+    preview.textContent = translate("maintenance.preview_empty");
+  }
+
+  setFsActionStatus(status);
+  announceStatus(status, isGz ? "warn" : "ok");
+}
+
 async function showFsFile(fileName, knownSize) {
   if (!fileName) {
     return;
@@ -11165,19 +11259,28 @@ async function showFsFile(fileName, knownSize) {
       return;
     }
 
-    const isEmpty = buffer.byteLength === 0;
-
-    if (preview) {
-      preview.textContent = isEmpty ? translate("maintenance.preview_empty") : text;
+    // Leerer Rumpf ohne Fehlerkennung: Firmware vor ESP 3.2.26 (C27). Bleibt gültig.
+    if (buffer.byteLength === 0) {
+      showFsEmptyFile(fileName);
+      return;
     }
 
-    const status = isEmpty
-      ? translateFormat("maintenance.fs_show_empty", { file: fileName })
-      : translateFormat("maintenance.fs_showing", { file: fileName });
+    if (preview) {
+      preview.textContent = text;
+    }
+
+    const status = translateFormat("maintenance.fs_showing", { file: fileName });
 
     setFsActionStatus(status);
     announceStatus(status, "ok");
   } catch (error) {
+    // C27/L271: Seit ESP 3.2.26 meldet fs_show die leere Datei als Kennung 8 statt mit
+    // leerem Rumpf. Sie ist kein Fehler, sondern derselbe Zustand wie bisher.
+    if (error && error.apiErrorCode === 8) {
+      showFsEmptyFile(fileName);
+      return;
+    }
+
     // describeApiError kennt Fehlercode 6 seit Runde 1 ("Diese Datei gibt es auf dem
     // Geraet nicht."). Ohne diesen Aufruf stuende hier derselbe allgemeine Satz wie
     // bei jedem anderen Fehlschlag -- und genau diese Unterscheidung ist der Zweck.
@@ -11209,7 +11312,12 @@ async function deleteFsFile(fileName) {
     setFsActionStatus(translateFormat("maintenance.fs_deleted", { file: fileName }));
     await loadData();
   } catch (error) {
-    announceStatus(translate("maintenance.file_delete_failed"), "error");
+    // Ent-4: Kennung 6 ("gibt es nicht") und 7 ("Löschen fehlgeschlagen") sagen
+    // Verschiedenes -- ohne describeApiError sahen beide gleich aus.
+    const message = describeApiError(error, translate("maintenance.file_delete_failed"));
+
+    setFsActionStatus(message);
+    announceStatus(message, "error");
   }
 }
 
@@ -14774,19 +14882,43 @@ function toggleHidden(id, hidden) {
 // die Oberflaeche log. Die Klammerung im ESP bleibt davon unberuehrt; sie ist das Netz
 // fuer die Legacy-Oberflaeche und fuer direkte API-Aufrufe.
 //
-// Gerundet wird hier bewusst NICHT: die Temperaturkorrektur rechnet in halben Grad,
-// ein Abrunden wuerde sie still zerstoeren. Geprueft wird nur die Lage im Bereich.
+// Gerundet wird hier bewusst NICHT -- weder still abgerundet noch zur Ganzzahl gezogen.
+// B42/L341: Alle Felder, die hier durchlaufen, sind Ganzzahlfelder; der ESP liest sie mit
+// http_get_int_param und weist "8.5" mit error 1 ab ("darf nicht leer sein" -- die
+// falsche Meldung). Die Temperaturkorrektur ist keine Ausnahme: Sie zählt halbe Grad als
+// ganze Schritte (-20..20, step="1"). Geprüft wird die Zeichenkette, wie sie im Feld
+// steht, nicht Number(): Number("1e1") ist 10 und Number("8.0") ist 8, und das hat der
+// Nutzer so nicht eingegeben. Ein Feld mit Dezimalwerten gehört nicht hierher --
+// Koordinaten laufen über readTextInputOrReport.
+//
+// Review P4, M1: Ein type="number"-Feld liefert value === "", sobald der Browser die
+// Eingabe nicht als Zahl lesen kann ("5-", "1e", in manchen Gebietsschemas "8,5") --
+// dann ist validity.badInput gesetzt. Das Feld ist NICHT leer, "darf nicht leer sein"
+// wäre die falsche Meldung. Der eingegebene Text ist dann nicht lesbar, deshalb nennt
+// die Meldung ihn nicht. Nur ein wirklich leeres Feld meldet number_required.
+const INTEGER_INPUT_PATTERN = /^[+-]?[0-9]+$/;
+
 function readNumberInputOrReport(input, min, max) {
   const raw = input && input.value !== null && input.value !== undefined ? String(input.value).trim() : "";
-  const number = Number(raw);
+  const badInput = !!(input && input.validity && input.validity.badInput);
 
-  if (!raw || !Number.isFinite(number)) {
+  if (!raw && !badInput) {
     announceStatus(translateFormat("input.number_required", { min, max }), "error");
     if (input && input.focus) {
       input.focus();
     }
     return null;
   }
+
+  if (badInput || !INTEGER_INPUT_PATTERN.test(raw)) {
+    announceStatus(translateFormat("input.integer_required", { min, max }), "error");
+    if (input && input.focus) {
+      input.focus();
+    }
+    return null;
+  }
+
+  const number = Number(raw);
 
   if (number < min || number > max) {
     announceStatus(translateFormat("input.number_range", { value: raw, min, max }), "error");

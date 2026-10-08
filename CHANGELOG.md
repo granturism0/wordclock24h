@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-08 Runde P4: Die PWA versteht ESP 3.2.26 (PWA 1.4.94)
+
+Nur die PWA, setzt ESP 3.2.26 voraus — der ist seit 01:56 auf dem Gerät, die Reihenfolge
+Firmware vor PWA (L241) ist eingehalten. Release-ZIP `wordclock-release-2026-10-08-075038.zip`,
+Tag `release/3.2.22-3.2.26-1.4.94`. Am 08.10.2026 per `install-app.sh` aufgespielt,
+`check-pwa.sh` 8/0, Smoketest 31/0.
+
+- **Leere Datei (C27):** ESP 3.2.26 meldet sie als Fehler 8. Die PWA zeigt sie wieder als
+  „leer — kein Fehler“, und bei einer leeren `.gz` jetzt mit Warnung: die führt in der App zum
+  weissen Bildschirm. Gilt auch für ältere Firmware.
+- **Löschen (Ent-4):** „Datei nicht gefunden“ (6) und „Löschen fehlgeschlagen“ (7) sind jetzt
+  unterscheidbar, mit der Begründung des Geräts.
+- **Unbekannte Hardware (Ent-5):** Statt „keine STM32-Dateien gefunden“ steht „Hardware nicht
+  erkannt — setz zuerst den STM zurück“, und der Flash-Knopf ist gesperrt — auch wenn doch eine
+  Liste kommt, denn der ESP würde dann jeden Namen abweisen (DIR-010).
+- **WLAN (C38):** SSID und Schlüssel werden vor dem Senden auf 31 bzw. 63 Byte geprüft, auch
+  im Backup-Import (alles oder nichts — ein halber WLAN-Satz würde die Uhr trennen). Die
+  Passwortfelder nehmen jetzt bis 63 Zeichen an statt 32.
+- **Ganzzahlfelder (L341):** „8.5“, „1e1“ und unlesbare Eingaben werden mit „keine ganze Zahl“
+  abgewiesen statt an den ESP geschickt.
+- **Im Review gefunden und vor der Auslieferung behoben (H1):** `maxlength` gleich der Grenze
+  hätte einen eingefügten 64-Zeichen-WLAN-Schlüssel unsichtbar auf 63 gekürzt, die Prüfung hätte
+  ihn durchgelassen, und die Uhr hätte das WLAN verloren. Die Felder stehen jetzt eins über der
+  Grenze, sodass die Byte-Prüfung jeden zu langen Wert mit Meldung abweist.
+
+Probe `tools/ui-mess/proben/runde-p4.mjs` 89/0, gegen 1.4.93 schlagen 44 von 71 Fällen der ersten
+Fassung an. Alle übrigen Proben grün.
+
 ## 2026-10-08 Runde F: Flash-Überwachung, Abweisen statt Kürzen (ESP 3.2.26)
 
 Nur der ESP, STM und PWA unverändert. Release-ZIP
