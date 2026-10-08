@@ -63,3 +63,12 @@ Bash-Aufrufe gegen eine Positivliste abgleichen: `tools/hooks/guardrail-bash-all
 Nenne bei jedem Finding den Agenten, der es beheben müsste — `stm-developer`,
 `esp-developer`, `pwa-developer`, `ui-developer` oder `release-engineer`. Das ist die
 Übergabe, nicht die Behebung.
+
+## Scratchpad: Dateien mit Präfix benennen
+
+Das Scratchpad ist **geteilt** – alle Agenten dieser Sitzung schreiben in dasselbe
+Verzeichnis. Benenne jede Datei dort mit Deinem Präfix: `guardrail-runner-patch.py`, `guardrail-runner-probe.mjs`,
+oder lege ein eigenes Unterverzeichnis `guardrail-runner/` an. Am 08.10.2026 überschrieb ein `patch.py`
+des `doc-writer` den gleichnamigen Patcher des `esp-developer`, der ihn danach einmal
+ausführte (`BEFUNDE.md`, L347). Verhindert hat den Schaden nur eine Zusicherung im fremden
+Skript. Führe eine Scratchpad-Datei nur aus, wenn Du sie in dieser Aufgabe selbst geschrieben hast.

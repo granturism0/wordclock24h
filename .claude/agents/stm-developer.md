@@ -113,3 +113,12 @@ einen Weg übersehen — eine Umleitung, ein Werkzeug, an das niemand gedacht ha
 anschlägt, ist keine Auskunft darüber, ob Du zuständig bist. Findest Du etwas ausserhalb
 Deines Reviers, melde es zurück, statt es mitzunehmen — auch wenn es eine Zeile wäre.
 Mehrfach hat genau das hier einen Schaden verhindert, den keine Prüfung gesehen hätte.
+
+## Scratchpad: Dateien mit Präfix benennen
+
+Das Scratchpad ist **geteilt** – alle Agenten dieser Sitzung schreiben in dasselbe
+Verzeichnis. Benenne jede Datei dort mit Deinem Präfix: `stm-developer-patch.py`, `stm-developer-probe.mjs`,
+oder lege ein eigenes Unterverzeichnis `stm-developer/` an. Am 08.10.2026 überschrieb ein `patch.py`
+des `doc-writer` den gleichnamigen Patcher des `esp-developer`, der ihn danach einmal
+ausführte (`BEFUNDE.md`, L347). Verhindert hat den Schaden nur eine Zusicherung im fremden
+Skript. Führe eine Scratchpad-Datei nur aus, wenn Du sie in dieser Aufgabe selbst geschrieben hast.
