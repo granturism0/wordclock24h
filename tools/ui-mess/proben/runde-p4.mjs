@@ -12,6 +12,8 @@
 //
 // Gegenprobe (DIR-014), 08.10.2026: gegen 1.4.93 26 OK / 41 FAIL (67 Faelle), gegen den
 // Stand vor dem B3-Nachtrag 68/3. Neu 71/0. Geschrieben vom pwa-developer.
+// Review P4 (H1 maxlength 32/64 statt 31/63, M1 badInput): Stand davor mit Markup 31/63
+// 75/14 (89 Faelle), nachher 89/0.
 import { starteBrowser } from "../wirt.mjs";
 import { tmpdir } from "node:os";
 import { readFileSync } from "node:fs";
@@ -183,6 +185,59 @@ try {
   r = await ap("A".repeat(31), "w".repeat(63));
   pruef("AP 31/63 Byte -> gesendet", r.n === 1, JSON.stringify(r));
 
+  // H1 (Review P4): maxlength gleich der Grenze kuerzte beim Einfuegen still auf 31/63 --
+  // die Pruefung sah dann einen passenden Wert und sendete ihn gekuerzt. Mit 32/64 bleibt
+  // ein Byte zu viel im Feld stehen, und die Byte-Pruefung weist ab. Echtes Einfuegen per
+  // Input.insertText, nicht .value: Nur so wirkt maxlength.
+  console.log("H1 Einfuegen bis maxlength (32/64)");
+  await sleep(2000);   // verzoegertes loadData aus den Sendefaellen oben abwarten, sonst steht dessen Meldung zuletzt
+  await b.js(`(document.querySelector('.module-chip[data-module-target="network"]').click(), true)`); await sleep(600);
+  const einfuegen = async (id, text) => {
+    await b.js(`(() => { const e = document.getElementById(${JSON.stringify(id)}); e.value = ""; e.focus(); return true })()`);
+    await b.cdp("Input.insertText", { text }, b.sessionId);
+    return b.js(`document.getElementById(${JSON.stringify(id)}).value.length`);
+  };
+  const ml = await b.js(`["network-ssid-manual-input", "network-key-input", "network-ap-ssid-input", "network-ap-key-input"].map(i => document.getElementById(i).maxLength)`);
+  pruef("H1: maxlength 32/64/32/64", JSON.stringify(ml) === "[32,64,32,64]", JSON.stringify(ml));
+  // Die Meldung "Zu lang" suchen statt die letzte nehmen: Ein Neuladen nach einem Sendefall
+  // kann "Aktualisiert ..." dahinter schreiben.
+  const zuLangMeldung = () => b.js(`(window.__ann.find(x => /^Zu lang/.test(x[0])) || window.__ann[window.__ann.length - 1] || null)`);
+  const clientEin = async (ssid, key) => {
+    const ls = await einfuegen("network-ssid-manual-input", ssid);
+    const lk = await einfuegen("network-key-input", key);
+    await b.js(`(window.__calls = [], window.__ann = [], true)`);
+    await b.js(`saveNetworkClient()`); await sleep(200);
+    return { ls, lk, n: (await calls("/api/network_client_set")).length, a: await zuLangMeldung() };
+  };
+  const apEin = async (ssid, key) => {
+    const ls = await einfuegen("network-ap-ssid-input", ssid);
+    const lk = await einfuegen("network-ap-key-input", key);
+    await b.js(`(window.__calls = [], window.__ann = [], true)`);
+    await b.js(`saveNetworkAp()`); await sleep(200);
+    return { ls, lk, n: (await calls("/api/network_ap_set")).length, a: await zuLangMeldung() };
+  };
+  const meldet = (r, bytes, max) => zuLang(r) && r.a[0].indexOf(bytes + " Byte") >= 0 && r.a[0].indexOf("höchstens " + max) >= 0;
+  r = await clientEin("S".repeat(32), "geheim1234");
+  pruef("H1: SSID 32 Zeichen eingefuegt -> 32 Byte, hoechstens 31, kein Abruf", r.ls === 32 && meldet(r, 32, 31), JSON.stringify(r));
+  r = await clientEin("S".repeat(33), "geheim1234");
+  pruef("H1: SSID 33 eingefuegt -> Browser kuerzt auf 32, trotzdem abgewiesen", r.ls === 32 && meldet(r, 32, 31), JSON.stringify(r));
+  r = await clientEin("Netz", "k".repeat(64));
+  pruef("H1: WLAN-Schluessel 64 eingefuegt -> 64 Byte, hoechstens 63, kein Abruf", r.lk === 64 && meldet(r, 64, 63), JSON.stringify(r));
+  r = await clientEin("Netz", "k".repeat(65));
+  pruef("H1: WLAN-Schluessel 65 eingefuegt -> gekuerzt auf 64, trotzdem abgewiesen", r.lk === 64 && meldet(r, 64, 63), JSON.stringify(r));
+  r = await clientEin("S".repeat(31), "k".repeat(63));
+  pruef("H1: Client 31/63 eingefuegt -> gesendet", r.ls === 31 && r.lk === 63 && r.n === 1, JSON.stringify(r));
+  r = await apEin("A".repeat(32), "wordclock24");
+  pruef("H1: AP-SSID 32 eingefuegt -> abgewiesen", r.ls === 32 && meldet(r, 32, 31), JSON.stringify(r));
+  r = await apEin("A".repeat(33), "wordclock24");
+  pruef("H1: AP-SSID 33 eingefuegt -> gekuerzt auf 32, abgewiesen", r.ls === 32 && meldet(r, 32, 31), JSON.stringify(r));
+  r = await apEin("WordClock", "w".repeat(64));
+  pruef("H1: AP-Schluessel 64 eingefuegt -> abgewiesen", r.lk === 64 && meldet(r, 64, 63), JSON.stringify(r));
+  r = await apEin("WordClock", "w".repeat(65));
+  pruef("H1: AP-Schluessel 65 eingefuegt -> gekuerzt auf 64, abgewiesen", r.lk === 64 && meldet(r, 64, 63), JSON.stringify(r));
+  r = await apEin("A".repeat(31), "w".repeat(63));
+  pruef("H1: AP 31/63 eingefuegt -> gesendet", r.ls === 31 && r.lk === 63 && r.n === 1, JSON.stringify(r));
+
   const imp = async (net) => {
     await b.js(`(window.__calls = [], resetTooLongImportFields(), true)`);
     await b.js(`importNetworkSettings(${JSON.stringify(net)})`);
@@ -214,12 +269,41 @@ try {
   }
   r = await zahl("", 0, 15);
   pruef("leer -> number_required wie bisher", r.n === null && /Bitte einen Wert zwischen 0 und 15/.test(r.a[0]), JSON.stringify(r));
+  // M1: nicht leer, aber keine Zahl -> ganze Zahl erwartet (bis Review P4: number_required)
   r = await zahl("abc", 0, 15);
-  pruef("abc -> number_required wie bisher", r.n === null && /Bitte einen Wert zwischen 0 und 15/.test(r.a[0]), JSON.stringify(r));
+  pruef("abc -> ganze Zahl erwartet (M1)", ganz(r), JSON.stringify(r));
+  r = await zahl("+", 0, 15);
+  pruef("'+' -> ganze Zahl erwartet (M1)", ganz(r), JSON.stringify(r));
   r = await zahl("16", 0, 15);
   pruef("16 -> ausserhalb des Bereichs wie bisher", r.n === null && /ausserhalb des erlaubten Bereichs/.test(r.a[0]), JSON.stringify(r));
   r = await zahl("-21", -20, 20);
   pruef("-21 bei Korrektur -> ausserhalb", r.n === null && /ausserhalb/.test(r.a[0]), JSON.stringify(r));
+
+  // M1 (Review P4): Ein type=number-Feld liefert value "" bei unlesbarer Eingabe
+  // (validity.badInput). Das Feld ist nicht leer -- "ganze Zahl erwartet", nicht
+  // "darf nicht leer sein". Echtes Tippen per Input.insertText.
+  console.log("M1 badInput im type=number-Feld");
+  await b.js(`(document.querySelector('.module-chip[data-module-target="display"]').click(), true)`); await sleep(600);
+  const tippeZahl = async (text) => {
+    await b.js(`(() => { const e = document.getElementById("ticker-deceleration-input"); e.value = ""; e.focus(); return true })()`);
+    if (text) await b.cdp("Input.insertText", { text }, b.sessionId);
+    const z = await b.js(`(() => { const e = document.getElementById("ticker-deceleration-input"); return { v: e.value, bad: e.validity.badInput } })()`);
+    await b.js(`(window.__calls = [], window.__ann = [], true)`);
+    await b.js(`saveTickerDeceleration()`); await sleep(200);
+    return { ...z, n: (await calls("ticker_deceleration")).length, a: await ann() };
+  };
+  for (const t of ["5-", "1e", "--1"]) {
+    r = await tippeZahl(t);
+    pruef("M1: " + JSON.stringify(t) + " (badInput) -> ganze Zahl erwartet, kein Abruf", r.v === "" && r.bad === true && r.n === 0 && ganz({ n: null, a: r.a }), JSON.stringify(r));
+  }
+  // "8,5" haengt am Gebietsschema: Chrome (en-US, headless) liest es als 8.5, andere als
+  // badInput. Beides muss "ganze Zahl erwartet" ergeben, keins darf senden.
+  r = await tippeZahl("8,5");
+  pruef("M1: \"8,5\" -> ganze Zahl erwartet, kein Abruf (v=" + JSON.stringify(r.v) + ", badInput=" + r.bad + ")", r.n === 0 && ganz({ n: null, a: r.a }), JSON.stringify(r));
+  r = await tippeZahl("");
+  pruef("M1: wirklich leer -> number_required, kein Abruf", r.v === "" && r.bad === false && r.n === 0 && /Bitte einen Wert zwischen 0 und 255/.test(r.a && r.a[0]), JSON.stringify(r));
+  r = await tippeZahl("12");
+  pruef("M1: 12 getippt -> gesendet", r.v === "12" && r.n === 1, JSON.stringify(r));
   // Ende zu Ende: ein echtes type=number-Feld, kein Abruf
   await b.js(`(window.__calls = [], window.__ann = [], document.getElementById("ticker-deceleration-input").value = "1e1", true)`);
   const roh = await b.js(`document.getElementById("ticker-deceleration-input").value`);
