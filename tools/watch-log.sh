@@ -144,7 +144,7 @@ while :; do
     while IFS= read -r z; do
       case "$z" in
         *"- weather fc="*)
-          # - weather fc=<0|1> ms=<n> <ok|dns|connfail|timeout|leer>   (design.md §1.4)
+          # - weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>   (design.md §1.4)
           wms=$(printf '%s' "$z" | grep -aoE 'ms=[0-9]+' | head -1 | cut -d= -f2)
           werg=$(printf '%s' "$z" | sed -E 's/.*- weather fc=[0-9]+ ms=[0-9]+ ([a-z]+).*/\1/')
           if [ "$werg" != "ok" ] || [ "${wms:-0}" -ge 1000 ]; then

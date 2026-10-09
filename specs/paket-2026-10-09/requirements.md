@@ -1,10 +1,11 @@
 # Anforderungen — Paket 2026-10-09 „Brückenlast" (L338/C43, L339/A58, Prüfsumme ESP→STM)
 
 **Status: Freigegeben am 09.10.2026.** Alle Entscheidungen sind getroffen (Ent-1 bis Ent-8).
-**Erstellt:** 2026-10-09, Stand `dea187a` (Zweig `pwa-decoupling`); am selben Tag zweimal
+**Erstellt:** 2026-10-09, Stand `dea187a` (Zweig `pwa-decoupling`); am selben Tag dreimal
 **nachgeführt**: mit Teil D, dann mit den Ergebnissen aus V.1 und den Entscheidungen Ent-5 bis
-Ent-8 (Wetter zweistufig, Seitengrösse je Ziel). Ausgangsstand am Gerät: STM 3.2.22, ESP 3.2.26,
-PWA 1.4.94.
+Ent-8 (Wetter zweistufig, Seitengrösse je Ziel), zuletzt mit dem Ergebnis des Reviews E.5
+(`design.md` §7: M1 Ergebnis `fehler` — **AKE.1, AKE.6, neu AKE.6b**; M2 ausgeklammert; N3, N4,
+Marker `?...`). Ausgangsstand am Gerät: STM 3.2.22, ESP 3.2.26, PWA 1.4.94.
 **Auslöser:** Testdurchlauf S.26 (L336) aus `specs/paket-2026-10-06/`; die Ursachen von L338 und
 L339 sind seit dem 09.10.2026 belegt (Analyse des `firmware-analyst` und Mitschnitt S.26,
 Nachtrag in `BEFUNDE.md`). Teil D ist der in L339 benannte fehlende Schutz.
@@ -21,7 +22,8 @@ Messzeile und Wetterwarten), **C3** (STM-Release, seitenweises Schreiben) und **
 **Teil A** hat zwei Stufen: **A1** (ESP liest die Wetterantwort vollständig) und **A2** (STM
 wartet während eines Wetterabrufs auf die Antwort). Gerätenachweise heissen **G1 bis G4**,
 Entscheidungen **Ent-1 bis Ent-8**. **„CMC"** ist das Präfix für markierte Kommandos
-(`design.md` §5.3). **„L-Befund 200 ms"** ist neu; seine Nummer vergibt der Lead.
+(`design.md` §5.3). **„L-Befund 200 ms"** ist neu; seine Nummer vergibt der Lead. Ebenso
+**„Befund M2"** (Längengrenze der Wetter-Lesehilfe, `design.md` §7).
 
 ---
 
@@ -130,6 +132,14 @@ kein Werkzeug aus; `tools/watch-log.sh:128` genügt der Pfad.
   (`esp8266.c:638-641`), nicht angewandt.
 - **Die `diag`-Zeile ist voll** (`main.c:3802-3814`).
 
+### 5. Review E.5, M1 — `ok` auch bei einer Fehlerantwort des Wetterdiensts
+
+**✔ verifiziert am Code (Stand `95ba131`, `weather.cpp:181-314`, `:468-470`):** Die Messzeile
+meldete `ok`, sobald der Parser **irgendeine** Endzeile gesendet hatte — auch
+`WEATHER Wetter heute: Error 401` (falsche `appid`) oder `WEATHER Wetter heute: Parse Error`.
+`tools/watch-log.sh` meldet nur Ergebnisse ungleich `ok` und schlug in diesen Fällen deshalb
+**nicht** an. **Entscheidung des Nutzers:** jetzt mitnehmen (`design.md` §7).
+
 ---
 
 ## Ziel
@@ -137,7 +147,8 @@ kein Werkzeug aus; `tools/watch-log.sh:128` genügt der Pfad.
 1. **Das Wetter kommt immer an**, wenn der Dienst antwortet: Der ESP liest die Antwort, bis der
    Dienst schliesst; der STM wartet während eines Abrufs auf die Antwort. Ein Abruf dauert laut
    Messzeile typisch **unter 1 s**, und **während eines Abrufs steigt `v` nicht** — auch nicht,
-   wenn gerade ein quittungspflichtiges Kommando unterwegs ist.
+   wenn gerade ein quittungspflichtiges Kommando unterwegs ist. **Antwortet der Dienst mit einem
+   Fehler, sagt die Messzeile das** (`fehler`), statt `ok` zu melden.
 2. Ein Zeichenketten-Setter blockiert den STM-Hauptloop **je EEPROM-Seite einen
    Schreibzyklus** statt je Byte — mit **byte-genau demselben EEPROM-Inhalt** wie heute.
 3. Kein Anfragewert geht mehr als Debug-Echo über die Brücke.
@@ -159,11 +170,14 @@ herstellbar ist, wird nicht am Gerät verlangt.**
 ### Schritt E — ESP (A1 und Teil C)
 
 - [ ] **AKE.1 (Messzeile Wetter)** — Jeder Aufruf von `query_weather()` endet mit **genau
-      einer** Zeile `- weather fc=<0|1> ms=<n> <ergebnis>`, `<ergebnis>` aus `ok`, `dns`,
-      `connfail`, `timeout`, `leer`. Sie geht **beide Wege** — `Serial` **und**
-      `stm32_log_append()` — wie die Heap-Zeile (`ESP-uclock.ino:494-506`, C14/L185), und
-      enthält **weder** `appid` **noch** Ort, Koordinaten oder URL. *Instrument:* Prüfstand t12;
-      am Gerät in G1 im Mitschnitt **und** in `/api/stm32_log`.
+      einer** Zeile `- weather fc=<0|1> ms=<n> <ergebnis>`, `<ergebnis>` aus `ok`, `fehler`,
+      `dns`, `connfail`, `timeout`, `leer` (Bedeutung je Wert: `design.md` §1.4). **`ok` nur,
+      wenn die Endzeile die Erfolgsform hat** (Zweig `cod == 200` des Parsers); **`fehler`**,
+      wenn genau eine Endzeile entstanden ist, die einen Fehler meldet (AKE.6b). Sie geht
+      **beide Wege** — `Serial` **und** `stm32_log_append()` — wie die Heap-Zeile
+      (`ESP-uclock.ino:494-506`, C14/L185), und enthält **weder** `appid` **noch** Ort,
+      Koordinaten oder URL. *Instrument:* Prüfstand t12; am Gerät in G1 im Mitschnitt **und** in
+      `/api/stm32_log`.
 - [ ] **AKE.2 (vollständig lesen, Sicherheitsnetz)** — Der ESP liest die Antwort, **bis der
       Dienst die Verbindung schliesst**, ohne festes Warten. Die Gesamtfrist von **5 s** ist
       **nur ein Sicherheitsnetz**: DNS und Verbindungsaufbau sind **getrennt** über die Restfrist
@@ -189,9 +203,25 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       Zeile, an der der STM das Ende des Abrufs erkennt: `WEATHER …`, `WEATHER_FC …`,
       `WICON …`, `WICON_FC …` — oder, wenn keine davon entstand, `ERROR weather <ergebnis>`.
       Heute endet nur `connfail` mit `ERROR` (`weather.cpp:425`); bei leerer oder nicht
-      ausgewerteter Antwort kommt nichts. *Instrument:* Prüfstand t12 zählt je Fall die
-      Endzeilen (genau eine). **Gegenprobe:** Der Fall „Antwort nach 250 ms" liefert gegen das
-      alte `weather.cpp` **keine** Endzeile ⇒ FEHL.
+      ausgewerteter Antwort kommt nichts. **Die Endzeile ist vom Ergebnis der Messzeile
+      unabhängig**: Auch beim Ergebnis `fehler` ist sie die Zeile des Parsers, byte-gleich mit
+      dem Stand vor dem Nachtrag M1; `ERROR weather fehler` gibt es nicht. *Instrument:*
+      Prüfstand t12 zählt je Fall die Endzeilen (genau eine). **Gegenprobe:** Der Fall „Antwort
+      nach 250 ms" liefert gegen das alte `weather.cpp` **keine** Endzeile ⇒ FEHL.
+- [ ] **AKE.6b (Fehler-Endzeile ⇒ `fehler`)** — *Nachtrag 09.10.2026, Review E.5 M1.* Sendet der
+      Parser eine Endzeile, die einen Fehler meldet — `… Error <cod>` (cod ≠ 200) oder
+      `… Parse Error` (kein `cod`) —, lautet das Ergebnis der Messzeile **`fehler`**, nicht
+      `ok`. (1) Das Ergebnis meldet der Parser über seinen **Rückgabewert**; `query_weather()`
+      und `weather_read_answer()` vergleichen **keinen** gesendeten Text. (2) Die Endzeile ist
+      **byte-gleich** mit dem Stand `95ba131`. (3) Genau eine Endzeile, genau eine Messzeile.
+      *Instrument:* Prüfstand t12 mit den **echten** Parsern, Fälle je für `fc=0` und `fc=1`,
+      jeweils Wetter und Icon: cod 200 (⇒ `ok`), cod 401 (⇒ `fehler`), cod `"404"` als
+      Zeichenkette (⇒ `fehler`), Antwort ohne `cod` (⇒ `fehler`), cod 200 ohne `icon` im
+      Icon-Abruf (⇒ `leer`, `ERROR weather leer`); Fallzahl gemeldet, Endzeilen gegen `95ba131`
+      verglichen. Für (1) zusätzlich am Quelltext (Abnahme E.1): `grep` in
+      `weather_read_answer()` und `query_weather()` findet keinen Vergleich auf `Error` oder
+      `Parse`, und `git diff` zeigt in den Parsern keine geänderte `Serial`-Ausgabe.
+      **Gegenprobe:** gegen `95ba131` liefern die Fälle cod 401 und „ohne `cod`" `ok` ⇒ FEHL.
 - [ ] **AKE.7 (Gerät, A1)** — Nach dem ESP-Einspielen je **ein** `weather_get_now` und
       **ein** `weather_get_forecast` (G1): Die Messzeile zeigt `ok` und `ms` **unter 1'000**;
       ihr Wert stimmt auf **±150 ms** mit dem Abstand zwischen `weather` und `WEATHER` im
@@ -200,11 +230,14 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       (≥ 3 automatische Abrufe, Wetter und Icons): Abrufdauer laut Messzeile **typisch unter
       1 s** (Median und grösster Wert gemeldet), kein `v`-Anstieg im 6-s-Fenster nach einem
       Abruf. Ein Anstieg durch einen ESP-Neustart (L327) zählt nicht und wird getrennt berichtet.
+      Ein `fehler` am Gerät ist **kein** Fehlschlag von A1, sondern eine Auskunft über den
+      Dienst oder die `appid` — er wird mit der Endzeile berichtet.
 - [ ] **AKE.8 (Echo ohne Werte)** — Beide Echo-Stellen laufen über **eine** Funktion; die Zeile
-      enthält Methode und Pfad und, falls ein Querystring vorhanden ist, den Marker `?…` —
-      **kein Zeichen aus dem Querystring**. *Instrument:* Prüfstand t13 (Setter mit Wert,
-      `appid`, `GET /?a`, ohne Query, nur `?`, POST mit Query); **statische Prüfung**: kein
-      `Serial.print*` mit `sRequest` oder `sParam` in `http.cpp` — **schlägt gegen den
+      enthält Methode und Pfad und, falls ein Querystring vorhanden ist, den Marker `?...` —
+      **drei ASCII-Punkte**, nicht `…`, weil die Zeile über die Brücke geht (Nachtrag Review
+      E.5) — und **kein Zeichen aus dem Querystring**. *Instrument:* Prüfstand t13 (Setter mit
+      Wert, `appid`, `GET /?a`, ohne Query, nur `?`, POST mit Query); **statische Prüfung**:
+      kein `Serial.print*` mit `sRequest` oder `sParam` in `http.cpp` — **schlägt gegen den
       Ausgangsstand an**.
 - [ ] **AKE.9 (Gerät, Echo)** — Im Mitschnitt von G1 bis G4 enthält **keine** Zeile
       `- request` ein `=`; Zahl der geprüften Zeilen gemeldet (> 0).
@@ -330,11 +363,18 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       eine Sicherheitsaussage, die dort **bestehen soll**.
 - [ ] **AKD.9 (Flash)** — Testbau F103 nach D.1: Rest **≥ 1'024 Byte**. Darunter: **anhalten und
       vorlegen**.
-- [ ] **AKD.10 (Gerät, G4, lesend)** — **In G1** (neuer ESP, alter STM): nur `CMD`, Eröffnungen
-      ohne `0x04`, keine Logzeile „Fähigkeit an". **Nach D:** Eröffnung mit `0x04`; „Fähigkeit
-      an" im Logring; jede Speicheraktion des `pwa-tester`-Durchlaufs als `(CMC …*hhhh)` im
+- [ ] **AKD.10 (Gerät, G4, lesend)** — **Suchtext für die Logzeile: `Faehigkeit an`** bzw.
+      `Faehigkeit aus` — in Umschrift, so wie der ESP sie als `- cmd Faehigkeit an (<grund>)`
+      schreibt (`ESP-uclock.ino:758`, DIR-015); eine Suche nach „Fähigkeit" fände nie etwas
+      (Review E.5, N3). **In G1** (neuer ESP, alter STM): nur `CMD`, Eröffnungen ohne `0x04`,
+      keine Logzeile `Faehigkeit an`. **Nach D:** Eröffnung mit `0x04`; `Faehigkeit an` im
+      Logring; jede Speicheraktion des `pwa-tester`-Durchlaufs als `(CMC …*hhhh)` im
       Mitschnitt; Phase 9 zeigt die Werte angewandt; **null** Abweisungen. Zahl der `CMC`- und
-      `CMD`-Zeilen gemeldet (> 0). **Die Abweisung belegt der Prüfstand.**
+      `CMD`-Zeilen gemeldet (> 0). **Die Abweisung belegt der Prüfstand.** **Gewollt, kein
+      Fehlschlag (Review E.5, N4):** Nach einem reinen ESP-Neustart sendet der ESP `CMD` ohne
+      Prüfsumme, bis der STM wieder einen Vollabgleich eröffnet (`design.md` §5.2). Fällt ein
+      solches Fenster in den Lauf, wird es mit Zeitpunkt und Zahl der `CMD`-Zeilen getrennt
+      berichtet.
 
 ### Für alle Schritte
 
@@ -349,7 +389,8 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       (D.9; wird D am Flash-Gate angehalten, nach C3). Unvollständig ⇒ **nicht abgenommen**.
 - [ ] **AKZ.5** — `./tools/watch-log.sh` läuft bei jedem Gerätelauf mit (DIR-013) und meldet
       nach E.4 auch `- weather` mit Ergebnis ungleich `ok` oder `ms` ≥ 1'000, `eep`-Zeilen mit
-      `ms` ≥ 200 und `cmd abgewiesen`.
+      `ms` ≥ 200 und `cmd abgewiesen`. **Das neue Ergebnis `fehler` ist damit ohne Änderung an
+      `watch-log.sh` erfasst** (es ist ungleich `ok`).
 - [ ] **AKZ.6** — Jedes ausgerollte Release **sofort** committet, getaggt, **gepusht** (DIR-011).
 - [ ] **AKZ.7** — Die Einspielzeile nennt die **Reihenfolge**, fertig zum Einfügen.
 - [ ] **AKZ.8** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015):
@@ -365,8 +406,12 @@ herstellbar ist, wird nicht am Gerät verlangt.**
 |---|---|
 | **Eine feste Wetterfrist unter 3 s** | **Abgelehnt** vom Nutzer (Ent-8): Das Wetter soll ankommen. Die 5 s sind nur Sicherheitsnetz |
 | **Asynchroner Wetterabruf** | Grösserer Umbau; mit A1 und A2 nicht nötig |
+| **Längengrenze je Zeile in `weather_read_line()`** (Review E.5, M2) | **Ausdrücklich ausgeklammert**, Entscheidung des Nutzers: **Befund in `BEFUNDE.md`**, Nummer vergibt der Lead. Ein feindlicher Server (nur über MITM oder DNS-Fälschung, Klartext-HTTP) könnte in 4,7 s den Heap (rund 9 KB frei) ausschöpfen; **keine Regression**, `readStringUntil` war genauso. Eine Grenze setzt eine **Messung der grössten echten Vorhersageantwort am Gerät** voraus |
+| **Änderung der Wetter-Endzeilen** (`… Error <cod>`, `… Parse Error`) | Der STM sieht dieselben Bytes wie vorher; M1 ändert nur die Messzeile |
+| **Änderung an `tools/watch-log.sh` für `fehler`** | Nicht nötig, es meldet jedes Ergebnis ausser `ok` |
 | **(d) Grösserer Empfangsring** | Nur Notbehelf |
 | **(a) Quittung für jedes `CMD`**, **N3 gezielte Nachsendung** | Bewertet in `design.md` §5.4; entschieden ist N1 (Ent-5) |
+| **Prüfsumme sofort nach einem reinen ESP-Neustart** | Gewollt nicht (Review E.5, N4): Der ESP lernt die Fähigkeit erst mit der nächsten Eröffnung; bis dahin `CMD` wie heute, die sichere Richtung |
 | **Ein eigenes `diag`-Feld für Teil D** | Die Zeile ist voll (`main.c:3802-3814`) |
 | **Die STM-eigene Ausgabe `(CMD …)` mit Werten auf der Log-UART** (`esp8266.c:466-469`) | **Gemeldet**, neuer Befund (Z.1) |
 | **Längenrechnung der `diag`-Zeile ohne `a=`** | **Gemeldet**, neuer Befund (Z.1) |
@@ -378,6 +423,7 @@ herstellbar ist, wird nicht am Gerät verlangt.**
 | **Schreibende Tests auf Update-Host und -Pfad** | Ausgeschlossen |
 | **Gerätetest auf einem F103** | Kein Gerät; Prüfstand für P = 8 |
 | **Eine verstümmelte Zeile oder ein langsamer Wetterdienst am Gerät** | Nicht gezielt herstellbar; Prüfstände |
+| **Eine Fehlerantwort des Wetterdiensts am Gerät erzwingen** (z. B. falsche `appid` setzen) | Schreibend auf eine Einstellung, nicht freigegeben; AKE.6b belegt der Prüfstand |
 | **PWA, Legacy-Oberfläche** | Unverändert |
 
 ---
@@ -417,3 +463,6 @@ Stand **09.10.2026** — **alle entschieden**.
   immer ankommen. **Zweistufig:** A1 auf dem ESP (vollständig lesen, 5 s nur als Sicherheitsnetz,
   L-Befund 200 ms im selben Task), A2 auf dem STM (Warten auf die Antwort, längstens 6 s). A2
   fährt im **M-Release** (Vorschlag des Leads; Begründung nach R3b in `design.md` §1.6).
+- **Review E.5 (09.10.2026), Entscheidungen des Nutzers:** **M1 jetzt mitnehmen** (Ergebnis
+  `fehler`, AKE.6b); **M2 später, als Befund** (ausgeklammert). N3, N4 und der Marker `?...` nur
+  vermerkt. Begründung und Wirkung: `design.md` §7.

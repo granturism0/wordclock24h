@@ -1,8 +1,9 @@
 # Design — Paket 2026-10-09 „Brückenlast" (L338/C43, L339/A58, Prüfsumme ESP→STM)
 
 **Erstellt:** 2026-10-09, Stand `dea187a`. **Freigegeben**, alle Entscheidungen getroffen
-(Ent-1 bis Ent-8). Am selben Tag zweimal nachgeführt: mit Teil D, dann mit den Ergebnissen aus
-V.1 und Ent-5 bis Ent-8. Momentaufnahme (DIR-006).
+(Ent-1 bis Ent-8). Am selben Tag dreimal nachgeführt: mit Teil D, dann mit den Ergebnissen aus
+V.1 und Ent-5 bis Ent-8, zuletzt mit dem Ergebnis des Reviews E.5 (§7: M1 Ergebnis `fehler`,
+M2 als Befund ausgeklammert, N3, N4, Marker `?...`). Momentaufnahme (DIR-006).
 
 **Schrittfolge:** **V (erledigt) → E (ESP: A1, C, D-ESP) → M (STM: Messzeile, A2) → C3 (STM,
 seitenweise) → D (STM, Prüfsumme) → Z**.
@@ -58,6 +59,8 @@ keine zweite Variante daneben:
 höchstens 20 Zeilen; eine Körperzeile, unter 10 Zeichen die nächste). Endet der Körper ohne
 `\n`, gilt das Verbindungsende als Zeilenende — der Abruf ist fertig, sobald der Dienst schliesst.
 
+**Ohne Längengrenze je Zeile — bewusst ausgeklammert (Review E.5, M2, §7).**
+
 ### 1.3 Das Sicherheitsnetz: 5 s, ohne Doppelzählung
 
 **`WEATHER_TOTAL_TIMEOUT_MS` = 5'000 ms**, gemessen ab dem Beginn von `query_weather()` —
@@ -80,7 +83,7 @@ höchstens 20 Zeilen; eine Körperzeile, unter 10 Zeichen die nächste). Endet d
 **Messzeile** am Ende **jedes** Pfads:
 
 ```
-- weather fc=<0|1> ms=<n> <ok|dns|connfail|timeout|leer>
+- weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>
 ```
 
 Aufbau wie `esp_heap_log()` (`ESP-uclock.ino:483-511`): **einmal** per `snprintf` in einen
@@ -88,11 +91,41 @@ Stackpuffer, **zweimal** ausgegeben — `Serial.println` **und** `stm32_log_appe
 `String` (L175). Keine `appid`, kein Ort, keine Koordinaten, keine URL. Bleibt im Fabrikat
 (Ent-2).
 
+**Die Ergebnisse, abschliessend (Nachtrag 09.10.2026, Review E.5 M1):**
+
+| Ergebnis | Bedeutung | Endzeile |
+|---|---|---|
+| `ok` | Antwort gelesen, Parser hat die Endzeile in **Erfolgsform** gesendet: der Zweig `cod == 200` von `parse_weather()` bzw. `parse_weather_fc()` — `WEATHER Wetter heute: …`, `WEATHER_FC Wetter morgen: …`, `WICON <icon>`, `WICON_FC <icon>` | aus dem Parser |
+| `fehler` | **Neu.** Antwort gelesen, Parser hat **genau eine** Endzeile gesendet, die aber einen **Fehler** meldet: `… Error <cod>` (cod ≠ 200, z. B. 401 bei falscher `appid`) oder `… Parse Error` (kein `cod` in der Antwort) | aus dem Parser, **unverändert** |
+| `dns` | Namensauflösung gescheitert | `ERROR weather dns` |
+| `connfail` | Verbindungsaufbau gescheitert | `ERROR weather connfail` |
+| `timeout` | Sicherheitsnetz abgelaufen | `ERROR weather timeout` |
+| `leer` | gelesen, aber keine Endzeile aus dem Parser (leerer Körper; Icon nicht gefunden) | `ERROR weather leer` |
+
+**Warum `fehler` (M1):** Bis zum Review hiess `ok` nur „eine Endzeile ist entstanden". Eine
+Antwort mit cod 401 oder ohne `cod` lieferte deshalb `ok`, und `tools/watch-log.sh` schlug nicht
+an — genau der Fall, den die Messzeile sichtbar machen soll (falsche `appid`, Dienst liefert
+Fehlerseite).
+
+**Wie das Ergebnis entsteht:** Der Parser meldet es über seinen **Rückgabewert** —
+drei Werte statt bisher zwei: keine Endzeile / Endzeile in Erfolgsform / Endzeile mit Fehler.
+**Kein Textvergleich** der gesendeten Zeile. Die Namen der Werte wählt der `esp-developer`.
+Die Zweige von `parse_weather()` und `parse_weather_fc()` bleiben in Reihenfolge und Ausgabe
+**byte-gleich**; neu ist nur der Rückgabewert je Zweig. Ein `cod == 200`-Zweig, in dem `temp`
+oder `description` fehlen, sendet heute trotzdem die Erfolgsform und zählt deshalb als `ok` —
+die Parselogik bleibt unverändert (§1.2).
+
 **Endzeile (neu, für A2):** Jeder Abruf sendet **genau eine** Zeile, an der der STM das Ende
 erkennt: `WEATHER …`, `WEATHER_FC …`, `WICON …`, `WICON_FC …` (heute aus `parse_weather*()`,
 `weather.cpp:196-299`) — oder, wenn keine davon entstand, **`ERROR weather <ergebnis>`**. Der STM
 liest `ERROR …` schon heute als `ESP8266_ERROR`, ohne Folgeaktion. Ohne diese Zeile wartete A2 bei
-jedem leeren Abruf die volle Frist ab.
+jedem leeren Abruf die volle Frist ab. **Durch M1 ändert sich an der Endzeile nichts** — der STM
+sieht bei `fehler` dieselben Bytes wie zuvor bei dem als `ok` gemeldeten Fehlerfall, und
+`ERROR weather fehler` entsteht **nie** (die Fehler-Endzeile kommt ja aus dem Parser).
+
+**`tools/watch-log.sh` braucht dafür keine Änderung:** Es meldet jedes Ergebnis ausser `ok`
+(`watch-log.sh:149-150`, Muster `[a-z]+`), also auch `fehler`. Nur der Kommentar dort
+(`:147`) nennt die Ergebnisliste ohne `fehler` — Sache des Leads, keine Prüfänderung.
 
 ### 1.5 Prüfstand t12
 
@@ -100,8 +133,13 @@ Vom `esp-developer` im Scratchpad gebaut, vom Lead unter `tools/checks/auszug/es
 abgelegt. Auszug von `query_weather()` aus dem echten `weather.cpp`; nachgebildet: `WiFiClient`
 mit **Core-Semantik** (`readStringUntil` wartet bis zum Timeout auch nach Verbindungsende),
 `hostByName`, `millis ()`/`delay ()`/`yield ()` auf **simulierter Zeit**, `parse_weather*()` als
-Rekorder, `Serial` als Rekorder der Endzeilen. Fälle: AKE.1 bis AKE.6. **Gegenprobe gegen den
+Rekorder, `Serial` als Rekorder der Endzeilen. Fälle: AKE.1 bis AKE.6b. **Gegenprobe gegen den
 Ausgangsstand** über `auszug.sh --gegen`.
+
+**Nachtrag M1:** Für AKE.6b bindet t12 die **echten** Parser ein (nicht den Rekorder), damit
+der Rückgabewert und die unveränderten Endzeilen am selben Fall geprüft werden. **Gegenprobe**
+gegen den Stand des Reviews E.5 (`95ba131`): Die Fälle cod 401 und „Parse Error" liefern dort
+`ok` ⇒ FEHL.
 
 ### 1.6 Stufe A2 (STM): auf die Wetterantwort warten
 
@@ -257,11 +295,13 @@ Eine Funktion gibt die Echo-Zeile aus; **beide** Stellen rufen sie (`http.cpp:14
 `:14129-14143` GET):
 
 ```
-- request <IP> [<label>]: GET /api/weather_city_set?…
+- request <IP> [<label>]: GET /api/weather_city_set?...
 - request <IP> [<label>]: GET /app/
 ```
 
-Methode und Pfad bleiben, alles ab `?` wird zu `?…`, die HTTP-Version entfällt. **Eine Regel
+Methode und Pfad bleiben, alles ab `?` wird zu `?...` — **drei ASCII-Punkte**, nicht das
+Auslassungszeichen `…`, weil die Zeile über die Brücke geht und auf der Log-UART landet
+(Nachtrag Review E.5; DIR-015). Die HTTP-Version entfällt. **Eine Regel
 für alle Anfragen** — keine Setterliste (Gattung L179). `tools/watch-log.sh:128` zeigt vor einer
 `Exception (29)` weiterhin den letzten Endpunkt. E.2 meldet weitere Stellen, die Anfragewerte
 über `Serial` ausgeben — **nicht mitkorrigiert**.
@@ -280,7 +320,10 @@ Die statische Prüfung trägt die Gegenprobe; t13 ist gegen den Ausgangsstand ni
 Abstand: Messzeile (Mitschnitt **und** `/api/stm32_log`), `ms` unter 1'000, gleich dem Abstand
 `weather`→`WEATHER` auf ±150 ms, Endzeile vorhanden, `v` im 6-s-Fenster unverändert. Danach
 **60 Minuten lesend**, mit Median und grösstem Wert der Abrufdauer. `- request`-Zeilen ohne `=`.
-**Teil D, lesend:** Eröffnungen ohne `0x04`, nur `CMD`-Zeilen, keine Logzeile „Fähigkeit an".
+**Teil D, lesend:** Eröffnungen ohne `0x04`, nur `CMD`-Zeilen, keine Logzeile
+`- cmd Faehigkeit an` — **Suchtext in Umschrift**, so wie der ESP sie schreibt
+(`ESP-uclock.ino:758`, DIR-015); eine Suche nach „Fähigkeit" fände nie etwas und bestünde damit
+immer.
 
 ### 4.2 G2 / G3 — L339, Setter-Burst auf dem Wetterort
 
@@ -341,6 +384,13 @@ Flag-Bits** (✔ `ESP-uclock.ino:894-916`).
 **Lernen bei jedem STM-Neustart:** Der STM setzt beim Start den ESP zurück (`esp8266.c:974-989`);
 der ESP startet ohne Fähigkeit und lernt sie beim Vollabgleich. **Verlorene Eröffnung ⇒ kein
 Markieren** — die sichere Richtung, kein Dauerzustand.
+
+**Nach einem reinen ESP-Neustart (Review E.5, N4) — gewollt, kein Fehler:** Startet nur der ESP
+neu (OTA, Absturz, Watchdog des ESP), ohne dass der STM neu startet, beginnt der ESP nach Weg (a)
+ohne Fähigkeit und sendet `CMD` **ohne** Prüfsumme, bis der STM das nächste Mal einen
+Vollabgleich eröffnet. Das ist die sichere Richtung aus diesem Abschnitt: Der STM nimmt `CMD` wie
+heute an. In G1 und G4 ist ein solches Fenster deshalb **kein** Befund; es wird nur getrennt
+berichtet, wenn es in einen Gerätelauf fällt.
 
 **Verlieren — vier Wege:** (a) ESP-Start; (b) Eröffnung ohne `0x04`; (c) **vor** jedem STM-Reset
 und (d) **vor** jedem STM-Flash, den der ESP auslöst (Liste aus V.1 (7)). (c) und (d) stehen da,
@@ -450,9 +500,11 @@ markierte Zeile ⇒ FEHL.
 
 ### 5.9 G4 — Gerätenachweis, lesend
 
-In G1: keine Fähigkeit, nur `CMD`. Nach dem D-Flash: Eröffnung mit `0x04`, „Fähigkeit an". Im
-`pwa-tester`-Durchlauf: jede Speicheraktion als `(CMC …*hhhh)`, Phase 9 angewandt, null
-Abweisungen. **Die Abweisung belegt der Prüfstand.**
+In G1: keine Fähigkeit, nur `CMD`. Nach dem D-Flash: Eröffnung mit `0x04`, Logzeile
+`- cmd Faehigkeit an` (Suchtext in Umschrift, §4.1). Im `pwa-tester`-Durchlauf: jede
+Speicheraktion als `(CMC …*hhhh)`, Phase 9 angewandt, null Abweisungen. **Die Abweisung belegt
+der Prüfstand.** Ein Fenster mit `CMD` nach einem reinen ESP-Neustart ist gewollt (§5.2, N4) und
+wird getrennt berichtet, nicht als Fehlschlag gewertet.
 
 ---
 
@@ -471,11 +523,25 @@ Abweisungen. **Die Abweisung belegt der Prüfstand.**
 
 ---
 
+## 7. Ergebnis des Reviews E.5 (eingearbeitet, 09.10.2026)
+
+**Bestanden**, mit zwei Befunden mittlerer Schwere. Entscheidungen des Nutzers:
+
+| Punkt | Inhalt | Entscheidung | Wirkung in dieser Spec |
+|---|---|---|---|
+| **M1** | `ok` hiess nur „eine Endzeile ist entstanden", auch bei `… Parse Error` und `… Error <cod>`; die Logwache schlug dann nicht an | **Jetzt mitnehmen** | §1.4: neues Ergebnis `fehler`, gemeldet über den Rückgabewert des Parsers, Endzeile byte-gleich; AKE.1, AKE.6, **AKE.6b**; Nachtrag in E.1 |
+| **M2** | `weather_read_line()` hat **keine Längengrenze je Zeile**. Ein feindlicher Server — nur über MITM oder DNS-Fälschung erreichbar, weil Klartext-HTTP — könnte in den 4,7 s Arbeitsfrist den Heap (rund 9 KB frei) ausschöpfen. **Keine Regression**: `readStringUntil` war genauso | **Später, als Befund** | **Ausdrücklich ausgeklammert** (requirements „Nicht Teil dieser Änderung"). Befund in `BEFUNDE.md`, Nummer vergibt der Lead. Eine Grenze setzt eine **Messung der grössten echten Vorhersageantwort am Gerät** voraus — ohne sie schnitte eine Grenze womöglich gültige Vorhersagen ab |
+| **N3** | Die Logzeile heisst `- cmd Faehigkeit an/aus` (Umschrift, DIR-015); G4 und AKD.10 suchten „Fähigkeit an" | nur vermerken | Suchtext in §4.1, §5.9, AKD.10, E.9, D.8 auf `Faehigkeit an` |
+| **N4** | Nach einem reinen ESP-Neustart sendet der ESP `CMD` ohne Prüfsumme, bis der STM wieder einen Vollabgleich eröffnet | nur vermerken: **gewollt** | §5.2, §5.9, AKD.10 — kein Fehler in G1/G4 |
+| Marker | `?...` statt `?…`, weil ASCII auf der Brücke | nur vermerken | §3, AKE.8, E.2 |
+
+---
+
 ## Betroffene Module
 
 | Datei | Änderung | Zuständiger Agent | Schritt |
 |---|---|---|---|
-| `ESP8266/ESP-uclock/weather.cpp` | A1: Lesehilfe, DNS/Verbindung getrennt begrenzt, 5 s Sicherheitsnetz, Messzeile, Endzeile | `esp-developer` | E |
+| `ESP8266/ESP-uclock/weather.cpp` | A1: Lesehilfe, DNS/Verbindung getrennt begrenzt, 5 s Sicherheitsnetz, Messzeile, Endzeile; **Nachtrag M1:** Ergebnis `fehler` über den Rückgabewert der Parser | `esp-developer` | E |
 | `ESP8266/ESP-uclock/http.cpp` | Echo über eine Funktion; Fähigkeit vor STM-Reset löschen | `esp-developer` | E |
 | `ESP8266/ESP-uclock/vars.cpp`, `udpsrv.cpp` | ein Kommandoabsender, `CMC` nach Fähigkeit | `esp-developer` | E |
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | `var_crc()` sichtbar; `0x04`; Logzeile | `esp-developer` | E |
@@ -485,10 +551,10 @@ Abweisungen. **Die Abweisung belegt der Prüfstand.**
 | `src/main.c` | Lesezugriff auf `diag_tick_cnt` für die Messzeile (M); Vormerken mit Drossel (D) | `stm-developer` | M, D |
 | `src/vars/vars.c`, `vars.h` | `var_crc()` sichtbar; Flag `0x04` | `stm-developer` | D |
 | `src/esp8266/esp8266.c` | Zweig `CMC` | `stm-developer` | D |
-| `tools/checks/auszug/esp/t12/`, `t13/`, `t14/`, `stm/w2/`, `stm/c3/`, `stm/d/`, `auszug.sh` | Prüfstände; zwei statische Prüfungen | Lead | E, M, C3, D |
-| `tools/watch-log.sh` | Wetter-Ergebnis ≠ `ok` oder `ms` ≥ 1'000, `eep … ms` ≥ 200, `cmd abgewiesen` | Lead | E |
+| `tools/checks/auszug/esp/t12/`, `t13/`, `t14/`, `stm/w2/`, `stm/c3/`, `stm/d/`, `auszug.sh` | Prüfstände; zwei statische Prüfungen; **t12 um AKE.6b erweitert** (Nachtrag M1) | Lead | E, M, C3, D |
+| `tools/watch-log.sh` | Wetter-Ergebnis ≠ `ok` oder `ms` ≥ 1'000, `eep … ms` ≥ 200, `cmd abgewiesen`. **`fehler` braucht keine Änderung** — es ist ≠ `ok` | Lead | E |
 | `knowledge/architecture-checklist.md` | EEPROM-Kosten je Seite; Ringgrösse mit Verweis; Frage nach dem zentralen Kommandoabsender | `doc-writer` | Z |
-| `BEFUNDE.md` | L338/C43, L-Befund 200 ms, L339/A58, C3, Befund Teil D, Nebenbefunde | `doc-writer` | Z |
+| `BEFUNDE.md` | L338/C43, L-Befund 200 ms, L339/A58, C3, Befund Teil D, Befund M2 (Längengrenze), Nebenbefunde | `doc-writer` | Z |
 | `CLAUDE.md` | „Offene technische Themen" Nr. 2, Hardware-Abschnitt („16 ms pro Byte") | Lead | Z |
 | Versionsdateien | ESP (E), STM (M, C3, D) | `release-engineer` | je Schritt |
 
@@ -510,14 +576,16 @@ wartet. Kein Rückbau auf `/weather?action=…`.
 
 **Restore-Bedingung um `pending_ticker_restore`?** Nicht berührt. A2 hält nur die Quittungswartezeit
 offen, nicht den Wetterticker. Ein Abruf mit `ERROR weather …` liefert keinen Ticker — derselbe
-Zustand wie heute bei einem Verbindungsfehler; V.1 (6): kein Flag bleibt offen.
+Zustand wie heute bei einem Verbindungsfehler; V.1 (6): kein Flag bleibt offen. Das Ergebnis
+`fehler` ändert die Endzeile nicht und damit auch nichts an der Restore-Bedingung.
 
 **Nur `.gz`?** Nicht berührt.
 
 **Richtige Schicht?** L338 an **beiden** Enden, wo die Ursache sitzt: Der ESP wartete auf ein
 `\n`, das nie kommt (A1), und der STM gab bei einem lebenden, aber beschäftigten ESP auf (A2). A2
 allein verlängerte die Blockade nur; A1 allein liesse einen langsamen Dienst wieder `v` kosten.
-L339 in `eeprom_write()`; das Echo, wo es entsteht; die Prüfsumme an der Leitung.
+L339 in `eeprom_write()`; das Echo, wo es entsteht; die Prüfsumme an der Leitung. Das Ergebnis
+`fehler` entsteht im Parser, der den Fehler erkennt, und nicht durch einen Textvergleich danach.
 
 ### Scalable systems
 
@@ -539,16 +607,20 @@ längeres Warten auf einen **lebenden** ESP statt eines verlorenen Einmal-Werts 
 
 **Hartkodierte Grenzen?** `EEPROM_PAGE_SIZE` je Ziel (Ent-7); `WEATHER_TOTAL_TIMEOUT_MS` (5 s)
 und die A2-Frist (6 s) hängen aneinander — Kommentar an beiden; die längste markierte Nutzlast
-muss in `ESP8266_MAX_CMD_LEN` passen.
+muss in `ESP8266_MAX_CMD_LEN` passen. **Keine** Zeilenlänge in `weather_read_line()` — M2, §7.
 
 ### Secure by design
 
 **`innerHTML`?** Nicht berührt.
 
-**Fremddaten?** Die Wetterantwort bleibt nicht vertrauenswürdig; ● E.5 prüft, ob die Lesehilfe
-eine Längengrenze braucht. Der STM prüft die Marke streng und das Präfix exakt. **Die Prüfsumme
-ist kein Sicherheitsmerkmal**, nur ein Schutz gegen Übertragungsfehler. A2 wartet nur auf
-Zeilenarten, nicht auf Inhalte; ein ESP, der nie antwortet, kostet höchstens 6 s je Abruf.
+**Fremddaten?** Die Wetterantwort bleibt nicht vertrauenswürdig. **E.5 (5) ist beantwortet:**
+Eine Längengrenze je Zeile fehlt; ein feindlicher Server könnte den Heap ausschöpfen, aber nur
+über MITM oder DNS-Fälschung, und der Ausgangsstand verhielt sich gleich. **Ausgeklammert als
+Befund (M2, §7)**, weil eine Grenze erst nach einer Messung der grössten echten
+Vorhersageantwort am Gerät gesetzt werden kann. Der STM prüft die Marke streng und das Präfix
+exakt. **Die Prüfsumme ist kein Sicherheitsmerkmal**, nur ein Schutz gegen Übertragungsfehler. A2
+wartet nur auf Zeilenarten, nicht auf Inhalte; ein ESP, der nie antwortet, kostet höchstens 6 s
+je Abruf.
 
 **Credentials in Logausgaben?** Teil C beseitigt sie aus dem Echo. Mess-, End- und
 Abweisungszeilen enthalten **keine** Werte. ● Die STM-eigene Ausgabe `(CMD …)` mit Werten auf
@@ -558,9 +630,11 @@ der Log-UART bleibt — gemeldet.
 
 ### Stable & reliable
 
-**Fehler ausgewertet?** Wetter: `ok`, `dns`, `connfail`, `timeout`, `leer` und **immer** eine
-Endzeile. EEPROM: unlesbar gilt als verschieden, Schreibfehler liefert 0. Kommandos: falsche
-Marke ⇒ nicht angewandt.
+**Fehler ausgewertet?** Wetter: `ok`, `fehler`, `dns`, `connfail`, `timeout`, `leer` und
+**immer** eine Endzeile. **Seit M1** ist ein Dienst, der mit einer Fehlerseite antwortet
+(cod ≠ 200, „Parse Error"), von einem Erfolg unterscheidbar, und die Logwache meldet ihn.
+EEPROM: unlesbar gilt als verschieden, Schreibfehler liefert 0. Kommandos: falsche Marke ⇒ nicht
+angewandt.
 
 **Leere `catch`?** Nicht berührt.
 
@@ -569,7 +643,8 @@ Marke ⇒ nicht angewandt.
 gemeldet. Ein alter STM verwirft `CMC` ohne Zähler — der Fall mit drei Bedingungen aus §5.2, die
 sichere Richtung.
 
-**Still zurechtgebogen?** Nein. N1 verhindert die stille Abweichung nach einer Abweisung.
+**Still zurechtgebogen?** Nein. N1 verhindert die stille Abweichung nach einer Abweisung. M1
+beseitigt ein still beschönigtes `ok`.
 
 **Zustand nach Abbruch?** Wetter: `stop ()`, Endzeile, nichts geparst; A2 endet mit der Endzeile
 oder der Frist. EEPROM: Seiten-Präfix. Kommando: nicht angewandt, alter Wert bleibt, Abgleich
@@ -577,8 +652,8 @@ vorgemerkt.
 
 **Flags aufgelöst?** **A2:** Der Abrufzustand wird durch die Endzeile **oder** nach 6 s gelöscht,
 auf jedem Pfad; ein zweiter Anstoss verlängert nicht. **D:** Die Fähigkeit im ESP wird auf vier
-Wegen gelöscht; eine verlorene Eröffnung lässt ihn in der sicheren Richtung. Die N1-Drossel ist
-ein Zeitstempel.
+Wegen gelöscht; eine verlorene Eröffnung lässt ihn in der sicheren Richtung, ebenso ein reiner
+ESP-Neustart (N4). Die N1-Drossel ist ein Zeitstempel.
 
 ---
 
@@ -590,6 +665,11 @@ Verschleierte jeden echten Ausfall und verlängerte **jede** Blockade; A2 verlä
 eines Abrufs. **Nur A1 oder nur A2.** Siehe „Richtige Schicht". **Asynchroner Wetterabruf.**
 Umbau mit eigenem Risiko, nach A1 und A2 nicht nötig. **Nur `setTimeout()` herabsetzen.** Bliebe
 beim Warten nach Verbindungsende, und DNS/`connect` blieben unbegrenzt (V.1 (5)).
+
+**M1: Ergebnis per Textvergleich der gesendeten Zeile** (`Error`/`Parse Error` suchen). Verworfen
+auf Wunsch des Nutzers: Der Parser weiss, welchen Zweig er nimmt; ein Textvergleich hinge an
+Wortlaut, der sich ändern kann, und ginge still kaputt. **M1: eigene Endzeile `ERROR weather
+fehler` statt der Parser-Zeile.** Verworfen: Der STM sähe andere Bytes als heute.
 
 **A2 als eigenes Release.** Brächte keinen zusätzlichen Gerätebeleg (§1.6).
 
