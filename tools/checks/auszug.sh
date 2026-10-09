@@ -5,7 +5,7 @@
 #   ./tools/checks/auszug.sh            alle gegen den aktuellen Baum
 #   ./tools/checks/auszug.sh --gegen R  alle gegen den Stand von Revision R (Gegenprobe)
 #
-# Entstanden in Runde S (Paket 2026-10-06, S.20), erweitert in Runde F (F.5h, sieben ESP-Pruefstaende). Jeder Pruefstand ist beim Bauen einmal
+# Entstanden in Runde S (Paket 2026-10-06, S.20), erweitert in Runde F (F.5h, sieben ESP-Pruefstaende) und in Paket 2026-10-09 (E.3, t12-t14). Jeder Pruefstand ist beim Bauen einmal
 # gegen die alte Fassung fehlgeschlagen (DIR-014); --gegen macht das wiederholbar, z. B.
 #   ./tools/checks/auszug.sh --gegen release/3.2.21-3.2.25-1.4.92
 # muss fuer die STM-Pruefstaende anschlagen, weil dieser Stand die Korrekturen nicht hat.
@@ -53,10 +53,23 @@ LAUF=(
   "C9k Kopf in zwei Segmenten (ESP)|esp/t9/run.sh $E neu"
   "Overlay-Text abgewiesen (ESP)|esp/t10/run.sh $E neu"
   "A2 Praefix uc-/wc beim STM-Dateinamen (ESP)|esp/t11/run.sh $E neu"
+  "L338 Wetterabruf vollstaendig, 5-s-Netz (ESP)|esp/t12/run.sh $E neu"
+  "Teil C Echo ohne Querystring (ESP)|esp/t13/run.sh $E neu|nurneu"
+  "Teil C keine Anfragewerte ueber Serial, statisch (ESP)|esp/t13/static.sh $E neu"
+  "Teil D ein Kommandoabsender CMD/CMC (ESP)|esp/t14/run.sh $E neu"
+  "Teil D keine CMD-Zeile ausserhalb des Absenders, statisch (ESP)|esp/t14/static.sh $E neu"
 )
-ok=0; fehl=0; kaputt=0
+# Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht
+# gab. Gegen eine alte Revision laesst er sich nicht uebersetzen, und das ist kein Befund --
+# er wird dort ausgelassen und AUSDRUECKLICH genannt, nicht still und nicht als KAPUTT.
+ok=0; fehl=0; kaputt=0; ausgelassen=0
 for z in "${LAUF[@]}"; do
-  name=${z%%|*}; cmd=${z#*|}
+  name=${z%%|*}; cmd=${z#*|}; art=""
+  case $cmd in *"|"*) art=${cmd##*|}; cmd=${cmd%|*} ;; esac
+  if [ "$art" = "nurneu" ] && [ -n "${REV:-}" ]; then
+    ausgelassen=$((ausgelassen+1)); printf '  AUSGELASSEN %s (gegen %s nicht uebersetzbar, zaehlt nicht)\n' "$name" "$REV"
+    continue
+  fi
   out=$(cd "$A" && sh "$A"/$cmd 2>&1); rc=$?
   case $rc in
     0) ok=$((ok+1)); printf '  OK    %s\n' "$name" ;;
@@ -64,7 +77,7 @@ for z in "${LAUF[@]}"; do
     *) kaputt=$((kaputt+1)); printf '  KAPUTT %s (rc=%s)\n' "$name" "$rc"; printf '%s\n' "$out" | tail -4 | sed 's/^/          /' ;;
   esac
 done
-echo "  $ok von ${#LAUF[@]} bestanden, $fehl fehlgeschlagen, $kaputt nicht uebersetzbar"
+echo "  $ok von ${#LAUF[@]} bestanden, $fehl fehlgeschlagen, $kaputt nicht uebersetzbar${ausgelassen:+, $ausgelassen ausgelassen}"
 [ "$kaputt" -gt 0 ] && exit 2
 [ "$fehl" -gt 0 ] && exit 1
 exit 0
