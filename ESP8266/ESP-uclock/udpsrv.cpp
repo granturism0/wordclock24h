@@ -266,9 +266,7 @@ udp_server_loop (void)
                 case LISTENER_TETRIS_CODE:
                 {
                     udp_server_packet_buffer[0] = 'G';                                  // gTx -> gTx
-                    Serial.print ("CMD ");
-                    Serial.print (udp_server_packet_buffer);
-                    Serial.print ("\r\n");
+                    stm_cmd_send (udp_server_packet_buffer);                    // Teil D: der eine Kommandoabsender
                     Serial.flush ();
                     break;                                                                  // L92: kein Durchfall nach DISCOVER
                 }

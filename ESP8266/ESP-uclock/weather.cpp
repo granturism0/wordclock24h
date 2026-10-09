@@ -174,11 +174,22 @@ parse_json (const char * str, const char * pattern, int cnt, char * result, int 
 #define MAX_LEN_DESCRIPTION     32
 #define MAX_LEN_ICON            8
 
+/* Rueckgabe der Parser (L338, Nachtrag M1 aus Review E.5): Genau eine Endzeile oder keine, und WELCHE.
+ * Die Messzeile leitet ihr Ergebnis hieraus ab, NICHT aus dem Text der Endzeile.
+ *   WEATHER_END_NONE   keine Endzeile gesendet (Icon verlangt, aber keines in der Antwort)
+ *   WEATHER_END_OK     Endzeile in Erfolgsform: WEATHER/WEATHER_FC mit Wetter, WICON/WICON_FC mit Icon
+ *   WEATHER_END_ERROR  Endzeile meldet einen Fehler: "... Error <cod>" (cod != 200) oder "... Parse Error"
+ *                      (kein "cod" in der Antwort) -- in beiden Parsern, auch wenn ein Icon verlangt war
+ */
+#define WEATHER_END_NONE        0
+#define WEATHER_END_OK          1
+#define WEATHER_END_ERROR       2
+
 /*----------------------------------------------------------------------------------------------------------------------------------------
  * parse_weather () - parse the answer for forecast and store the valuse in weather_fc struct
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+static int
 parse_weather (const char * answer, uint_fast8_t do_get_icon)
 {
     char cod[MAX_LEN_COD];
@@ -195,6 +206,10 @@ parse_weather (const char * answer, uint_fast8_t do_get_icon)
                 {
                     Serial.print("WICON ");
                     Serial.println (icon);
+                }
+                else
+                {
+                    return WEATHER_END_NONE;                                                            // keine Endzeile (L338)
                 }
             }
             else
@@ -226,16 +241,21 @@ parse_weather (const char * answer, uint_fast8_t do_get_icon)
         {
             Serial.print ("WEATHER Wetter heute: Error ");
             Serial.println (cod);
+            return WEATHER_END_ERROR;
         }
     }
     else
     {
         Serial.println ("WEATHER Wetter heute: Parse Error");
+        return WEATHER_END_ERROR;
     }
+
+    return WEATHER_END_OK;
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
  * parse_weather_fc () - parse the answer for forecast and store the valuse in weather_fc struct
+ * Rueckgabe (beide Parser): WEATHER_END_NONE, _OK oder _ERROR, siehe dort (L338, M1).
  * we get 9 of max. 36 records:
  * 0 : current weather
  * 1 : current weather + 3h
@@ -244,7 +264,7 @@ parse_weather (const char * answer, uint_fast8_t do_get_icon)
  * 8 : current weather + 24h
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-static void
+static int
 parse_weather_fc (const char * answer, uint_fast8_t do_get_icon)
 {
     char cod[MAX_LEN_COD];
@@ -261,6 +281,10 @@ parse_weather_fc (const char * answer, uint_fast8_t do_get_icon)
                 {
                     Serial.print("WICON_FC ");
                     Serial.println (icon);
+                }
+                else
+                {
+                    return WEATHER_END_NONE;                                                            // keine Endzeile (L338)
                 }
             }
             else
@@ -292,23 +316,203 @@ parse_weather_fc (const char * answer, uint_fast8_t do_get_icon)
         {
             Serial.print ("WEATHER_FC Wetter morgen: Error ");
             Serial.println (cod);
+            return WEATHER_END_ERROR;
         }
     }
     else
     {
         Serial.println ("WEATHER_FC Wetter morgen: Parse Error");
+        return WEATHER_END_ERROR;
+    }
+
+    return WEATHER_END_OK;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * Fristen des Wetterabrufs (L338, Paket 2026-10-09 A1)
+ *
+ * WEATHER_TOTAL_TIMEOUT_MS ist NUR ein Sicherheitsnetz fuer einen Dienst, der nicht antwortet oder nicht
+ * schliesst. Im Normalfall endet der Abruf am Verbindungsende (der ESP sendet "Connection: close"),
+ * gemessen 0,13 bis 0,24 s. Gemessen ab dem Beginn von query_weather ().
+ *
+ * DIE FRIST HAENGT AN DER A2-FRIST IM STM (6 s ab dem Anstoss, var_send_buf () in src/vars/vars.c):
+ * Wer sie hier anhebt, muss die STM-Seite mitziehen, sonst gibt der STM auf, waehrend der ESP noch liest.
+ *
+ * DNS, Verbindungsaufbau, Senden und Lesen teilen sich EINE Frist; jeder Schritt bekommt nur den Rest.
+ * connect (hostname, ...) taugt dafuer nicht: Es begrenzt DNS und Verbindungsaufbau JE mit der vollen
+ * Frist (Core 3.1.2, WiFiClient.cpp:130-137 und :145-163, ClientContext.h:129-159), die Frist wirkte
+ * doppelt. Deshalb WiFi.hostByName (..., rest) und connect (ip, ...) getrennt.
+ *
+ * WEATHER_STOP_RESERVE_MS: stop () wartet bis WIFICLIENT_MAX_FLUSH_WAIT_MS (300 ms) auf die Quittung
+ * des Gesendeten (WiFiClient.cpp:306-325). Die Arbeitsfrist endet um so viel frueher, damit der
+ * Abruf in jedem Fall nach hoechstens WEATHER_TOTAL_TIMEOUT_MS zurueckkehrt.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define WEATHER_TOTAL_TIMEOUT_MS        5000
+#define WEATHER_STOP_RESERVE_MS         300
+#define WEATHER_WORK_LIMIT_MS           (WEATHER_TOTAL_TIMEOUT_MS - WEATHER_STOP_RESERVE_MS)
+
+#define WEATHER_LINE_NL                 0                                                           // Zeile mit '\n' beendet
+#define WEATHER_LINE_CLOSED             1                                                           // Verbindungsende, Zeile ggf. ohne '\n'
+#define WEATHER_LINE_TIMEOUT            2                                                           // Arbeitsfrist abgelaufen
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * weather_rest_ms () - verbleibende Arbeitsfrist, 0 = abgelaufen. Differenzbildung ist ueberlaufsicher.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t
+weather_rest_ms (uint32_t start_ms)
+{
+    uint32_t    elapsed = (uint32_t) millis () - start_ms;
+
+    return (elapsed < WEATHER_WORK_LIMIT_MS) ? (WEATHER_WORK_LIMIT_MS - elapsed) : 0;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * weather_read_line () - die EINE Lesehilfe des Wetterabrufs (L338)
+ *
+ * Liest Zeichen, solange available () || connected () und die Arbeitsfrist laeuft. Endet bei '\n',
+ * beim Verbindungsende oder bei Fristablauf. Die Zeile kommt wie bei readStringUntil ('\n') an: ohne
+ * das '\n', ein '\r' davor bleibt stehen - der Parser bekommt dieselbe Zeichenkette wie bisher.
+ *
+ * Anders als readStringUntil () wartet sie nach dem Verbindungsende NICHT bis zur Frist
+ * (Stream::timedRead prueft connected () nicht) - ein Koerper ohne '\n' ist damit sofort fertig.
+ * In jedem Durchlauf ohne Zeichen gibt sie die Kontrolle ab (Soft-Watchdog).
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static int
+weather_read_line (String & line, uint32_t start_ms)
+{
+    line = "";
+
+    for (;;)
+    {
+        if (weather_rest_ms (start_ms) == 0)
+        {
+            return WEATHER_LINE_TIMEOUT;
+        }
+
+        if (openweather_client.available ())
+        {
+            int ch = openweather_client.read ();
+
+            if (ch == '\n')
+            {
+                return WEATHER_LINE_NL;
+            }
+
+            if (ch >= 0)
+            {
+                line += (char) ch;
+            }
+        }
+        else if (! openweather_client.connected ())
+        {
+            return WEATHER_LINE_CLOSED;
+        }
+        else
+        {
+            delay (1);                                                                              // Kontrolle abgeben
+        }
     }
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * weather_read_answer () - Kopf bis zur Leerzeile (hoechstens 20 Zeilen), dann eine Koerperzeile, unter
+ * 10 Zeichen (Chunk-Laenge) die naechste. Parselogik wie bisher, nur ueber weather_read_line ().
+ * Rueckgabe: Ergebnis fuer die Messzeile; *endline = 1, wenn der Parser eine Endzeile gesendet hat.
+ * "ok" nur bei einer Endzeile in Erfolgsform, "fehler" bei einer Endzeile, die einen Fehler meldet (M1).
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static const char *
+weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * endline)
+{
+    String          line;
+    int             cnt = 0;
+    int             rc;
+    int             end;
+    const char *    p;
+
+    do
+    {
+        rc = weather_read_line (line, start_ms);
+
+        if (rc == WEATHER_LINE_TIMEOUT)
+        {
+            return "timeout";
+        }
+
+        p = line.c_str();
+
+        while (*p == '\r' || *p == '\n')
+        {
+            p++;
+        }
+
+        if (! *p)
+        {
+            break;                                                                                  // Leerzeile: Kopfende
+        }
+        cnt++;
+    } while (rc == WEATHER_LINE_NL && cnt < 20);
+
+    rc = weather_read_line (line, start_ms);
+
+    if (rc == WEATHER_LINE_TIMEOUT)
+    {
+        return "timeout";
+    }
+
+    p = line.c_str();
+
+    if (strlen (p) < 10 && rc == WEATHER_LINE_NL)                                                   // 1st data line is length of following line in Hex, e.g. "1da"
+    {
+        rc = weather_read_line (line, start_ms);                                                    // read next data line
+
+        if (rc == WEATHER_LINE_TIMEOUT)
+        {
+            return "timeout";
+        }
+
+        p = line.c_str();
+    }
+
+    if (! *p)
+    {
+        return "leer";
+    }
+
+    end = fc ? parse_weather_fc (p, do_get_icon) : parse_weather (p, do_get_icon);
+    *endline = (end != WEATHER_END_NONE);
+
+    if (end == WEATHER_END_OK)
+    {
+        return "ok";
+    }
+
+    return (end == WEATHER_END_ERROR) ? "fehler" : "leer";
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * query_weather () - query weather for a coordinate or city
+ *
+ * Endet auf JEDEM Pfad mit genau einer Endzeile fuer den STM (WEATHER, WEATHER_FC, WICON, WICON_FC aus
+ * dem Parser, sonst "ERROR weather <ergebnis>") und genau einer Messzeile
+ * "- weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>" - ohne appid, Ort, Koordinaten oder URL.
+ * "fehler": Die Endzeile kam vom Parser, meldet aber einen Fehler (cod != 200, Parse Error); die Endzeile
+ * bleibt dabei unveraendert, es kommt KEIN zusaetzliches "ERROR weather ..." (M1).
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 static void
 query_weather (char * appid, char * lon, char * lat, char * city, int do_get_icon, int fc)
 {
+    uint32_t        start_ms = (uint32_t) millis ();
     const char *    hostname = "api.openweathermap.org";
     String          url;
+    IPAddress       ip;
+    const char *    result;
+    uint_fast8_t    endline = 0;
+    char            logline[48];                                                                    // "- weather fc=1 ms=4294967295 connfail" = 37
 
     if (fc)
     {
@@ -350,80 +554,45 @@ query_weather (char * appid, char * lon, char * lat, char * city, int do_get_ico
         url += "&cnt=9";                                                                                    // forecast: we need only 9 records of 36 records, limit output
     }
 
-    if (openweather_client.connect(hostname, 80))
+    if (! WiFi.hostByName (hostname, ip, weather_rest_ms (start_ms)))                               // DNS mit der Restfrist
     {
-        debugmsg ("Connected to server");
-        openweather_client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + hostname + "\r\n" + "Connection: close\r\n\r\n");
-        // debugmsg (String("GET ") + url + " HTTP/1.1<CR><LF>" + "Host: " + hostname + "<CR><LF>" + "Connection: close<CR><LF><CR><LF>");
-
-        delay (200);    // 100 results in timeout sometimes
-
-        if (openweather_client.available())
-        {
-            String          line;
-            int             cnt = 0;
-            const char *    p;
-
-            do
-            {
-                line = openweather_client.readStringUntil('\n');
-                p = line.c_str();
-
-                if (p)
-                {
-                    while (*p == '\r' || *p == '\n')
-                    {
-                        p++;
-                    }
-
-                    // debugmsg ("answer", p);
-
-                    if (! *p)
-                    {
-                        // debugmsg ("empty answer line found");
-                        break;
-                    }
-                    cnt++;
-                }
-                else
-                {
-                    debugmsg ("null");
-                }
-            } while (openweather_client.available() && cnt < 20);
-
-            if (openweather_client.available())
-            {
-                line = openweather_client.readStringUntil('\n');
-                p = line.c_str();
-                // debugmsg ("data0", p);
-
-                if (p && strlen (p) < 10 && openweather_client.available())       // 1st data line is length of following line in Hex, e.g. "1da"
-                {
-                    line = openweather_client.readStringUntil('\n');            // read next data line
-                    p = line.c_str();
-                    // debugmsg ("data1", p);
-                }
-
-                if (p)
-                {
-                    if (fc)
-                    {
-                        parse_weather_fc (p, do_get_icon);
-                    }
-                    else
-                    {
-                        parse_weather (p, do_get_icon);
-                    }
-                }
-            }
-        }
-
-        openweather_client.stop ();
+        result = "dns";
+    }
+    else if (weather_rest_ms (start_ms) == 0)
+    {
+        result = "timeout";
     }
     else
     {
-        Serial.println(String ("ERROR connection to ") + hostname + " failed");
+        openweather_client.setTimeout (weather_rest_ms (start_ms));                                 // begrenzt connect (ip, ...)
+
+        if (openweather_client.connect (ip, 80))
+        {
+            debugmsg ("Connected to server");
+            openweather_client.setTimeout (weather_rest_ms (start_ms));                             // begrenzt print ()
+            openweather_client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + hostname + "\r\n" + "Connection: close\r\n\r\n");
+            // debugmsg (String("GET ") + url + " HTTP/1.1<CR><LF>" + "Host: " + hostname + "<CR><LF>" + "Connection: close<CR><LF><CR><LF>");
+
+            result = weather_read_answer (start_ms, do_get_icon, fc, &endline);                     // kein fester delay () mehr (L-Befund 200 ms)
+            openweather_client.stop ();
+        }
+        else
+        {
+            result = "connfail";
+        }
     }
+
+    if (! endline)                                                                                  // genau eine Endzeile je Abruf (A2)
+    {
+        snprintf (logline, sizeof (logline), "ERROR weather %s", result);
+        Serial.println (logline);
+    }
+
+    /* EINMAL formatieren, ZWEIMAL ausgeben, wie esp_heap_log () (C14/L185) */
+    snprintf (logline, sizeof (logline), "- weather fc=%d ms=%lu %s",
+              fc ? 1 : 0, (unsigned long) ((uint32_t) millis () - start_ms), result);
+    Serial.println (logline);
+    stm32_log_append (logline);
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------

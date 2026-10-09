@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-10-09 Paket „Brückenlast“, Schritt E: Wetterabruf, Echo, Prüfsumme vorbereitet (ESP 3.2.27)
+
+Nur der ESP, STM und PWA unverändert. Release-ZIP
+`wordclock-release-2026-10-09-232827.zip`, Tag `release/3.2.22-3.2.27-1.4.94`. Umfang: Schritt E aus
+`specs/paket-2026-10-09/` (L338, Teil C, ESP-Seite von Teil D).
+
+**Einspielreihenfolge: nur der ESP.** PWA und STM bleiben, wie sie sind.
+
+### Der Wetterabruf blockiert nicht mehr (L338)
+
+- Der Abruf liest bis zum Ende der Verbindung, statt nach der letzten Zeile 5 s auf ein
+  `\n` zu warten, das nie kommt.
+- Das feste `delay(200)` ist entfernt. Eine Antwort, die später als 200 ms kam, wurde
+  bisher gar nicht gelesen.
+- Die Gesamtfrist beträgt 5 s und ist ein Sicherheitsnetz. DNS und Verbindungsaufbau
+  bekommen nur noch die Restfrist, das Schliessen der Verbindung ist eingerechnet. Vorher
+  lag der schlimmste Fall bei über 20 s.
+- Auf jedem Pfad geht genau eine Endzeile an den STM — die Wetterdaten oder
+  `ERROR weather <ergebnis>`.
+- Neue Messzeile im Mitschnitt und im Logring:
+  `- weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>`. Sie enthält weder
+  Schlüssel noch Ort, Koordinaten oder URL. `fehler` steht, wenn openweathermap einen
+  Fehlercode liefert oder die Antwort nicht lesbar ist (Review, M1).
+- Nebenbei behoben: Ein Server, der tröpfchenweise sendet, konnte den alten Abruf
+  unbegrenzt festhalten.
+
+### Kein Echo der Setterwerte mehr (Teil C)
+
+Die Debugzeile `- request …` zeigt nur noch Methode und Pfad, der Querystring wird zu
+`?...`. Bisher ging jeder Setterwert zweimal über die STM-UART, einmal als Echo und
+einmal als Kommando.
+
+### Prüfsumme für Kommandos an den STM, vorerst ruhend (Teil D)
+
+- Alle 33 Kommandoformen gehen jetzt über einen einzigen Absender.
+- Er sendet `CMC <nutzlast>*hhhh` mit Prüfsumme, aber nur, wenn der STM die Fähigkeit in
+  der Rahmeneröffnung mit Flag `0x04` ankündigt. Bei jedem STM-Reset und jedem STM-Flash
+  nimmt der ESP die Fähigkeit zurück, bevor er den STM anspricht.
+- **Mit dem heutigen STM bleibt alles byte-gleich `CMD …`.** Wirksam wird Teil D erst mit
+  einem späteren STM-Release.
+- Jeder Wechsel steht im Logring als „Faehigkeit an“ bzw. „Faehigkeit aus“.
+
+### Werkzeug (intern)
+
+- `tools/watch-log.sh` meldet einen Wetterabruf, der nicht `ok` ist oder 1 s und länger
+  dauert, EEPROM-Schreiben ab 200 ms und abgewiesene Kommandos.
+- Neue Auszugsprüfstände t12, t13 und t14 sowie zwei statische Prüfungen.
+  `auszug.sh --gegen` lässt Prüfstände, die sich gegen den alten Stand nicht übersetzen
+  lassen, ausdrücklich aus.
+
 ## 2026-10-08 Runde P4: Die PWA versteht ESP 3.2.26 (PWA 1.4.94)
 
 Nur die PWA, setzt ESP 3.2.26 voraus — der ist seit 01:56 auf dem Gerät, die Reihenfolge

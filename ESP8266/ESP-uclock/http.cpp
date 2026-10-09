@@ -13927,6 +13927,50 @@ http_post(const String& sPath)
  * http server
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * http_log_request () - die EINE Echo-Zeile je Anfrage, fuer POST und GET (Paket 2026-10-09, Teil C)
+ *
+ *   - request <IP> [<label>]: GET /api/weather_city_set?...
+ *   - request <IP> [<label>]: GET /app/
+ *
+ * Methode und Pfad bleiben, alles ab '?' wird zu "?...", die HTTP-Version entfaellt. EINE Regel fuer
+ * alle Anfragen, keine Setterliste (L179): Der Querystring traegt Werte - Wetterort, appid, Texte -,
+ * und diese Zeile geht ueber die STM-UART in jeden Mitschnitt. watch-log.sh zeigt vor einer
+ * Exception weiterhin den letzten Endpunkt. Marker in ASCII, damit auf der Bruecke kein Mehrbyte-
+ * Zeichen landet. Ohne Leerzeichen nach der Methode gilt dieselbe Regel ab dem Zeilenanfang.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+http_log_request (const String & remote_ip, const char * label, const String & request)
+{
+    const char *    r   = request.c_str ();
+    const char *    sp  = strchr (r, ' ');                                  // Ende der Methode
+    size_t          n   = sp ? (size_t) (sp + 1 - r) : 0;
+
+    n += strcspn (r + n, " ?");                                             // Methode, Leerzeichen, Pfad
+
+    Serial.print ("- request");
+    if (remote_ip.length ())
+    {
+        Serial.print (" ");
+        Serial.print (remote_ip);
+    }
+    if (label)
+    {
+        Serial.print (" [");
+        Serial.print (label);
+        Serial.print ("]");
+    }
+    Serial.print (": ");
+    Serial.write ((const uint8_t *) r, n);
+    if (r[n] == '?')
+    {
+        Serial.print ("?...");
+    }
+    Serial.println ();
+    Serial.flush ();
+}
+
 void
 http_server_loop (void)
 {
@@ -14068,15 +14112,7 @@ http_server_loop (void)
 
     if (start_position == 0)
     {
-        Serial.print ("- request");
-        if (sRemoteIp.length ())
-        {
-            Serial.print (" ");
-            Serial.print (sRemoteIp);
-        }
-        Serial.print (": ");
-        Serial.println (sRequest);
-        Serial.flush ();
+        http_log_request (sRemoteIp, http_get_request_browser_label (), sRequest);  // Teil C: ohne Querystring
 
         start_position += sPoststart.length ();
         end_position_space = sRequest.indexOf (" ", start_position);
@@ -14126,21 +14162,7 @@ http_server_loop (void)
             }
         }
 
-        Serial.print ("- request");
-        if (sRemoteIp.length ())
-        {
-            Serial.print (" ");
-            Serial.print (sRemoteIp);
-        }
-        if (http_get_request_browser_label ())
-        {
-            Serial.print (" [");
-            Serial.print (http_get_request_browser_label ());
-            Serial.print ("]");
-        }
-        Serial.print (": ");
-        Serial.println (sRequest);
-        Serial.flush ();
+        http_log_request (sRemoteIp, http_get_request_browser_label (), sRequest);  // Teil C: ohne Querystring
 
         start_position = sRequest.indexOf(sGetstart);
 

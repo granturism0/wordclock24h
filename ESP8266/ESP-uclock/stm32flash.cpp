@@ -1341,6 +1341,8 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
 static void
 stm32_activate_bootloader (void)
 {
+    stm_cmd_cap_set (0, "STM-Flash");                              // Teil D (c/d): Faehigkeit VOR dem Zugriff auf den STM loeschen
+
     digitalWrite(STM32_BOOT0_PIN1, HIGH);                   // activate BOOT0 GPIO4
     digitalWrite(STM32_BOOT0_PIN2, HIGH);                   // activate BOOT0 GPIO5
     pinMode(STM32_RESET_PIN, OUTPUT);                       // RESET to output
@@ -1413,6 +1415,8 @@ stm32_flash_from_server (const char * host, const char * path, const char * file
 void
 stm32_reset (void)
 {
+    stm_cmd_cap_set (0, "STM-Reset");                              // Teil D (c/d): Faehigkeit VOR dem Zugriff auf den STM loeschen
+
     digitalWrite(STM32_BOOT0_PIN1, LOW);                    // deactivate BOOT0 GPIO4
     digitalWrite(STM32_BOOT0_PIN2, LOW);                    // deactivate BOOT0 GPIO5
     pinMode(STM32_RESET_PIN, OUTPUT);                       // RESET to output

@@ -30,6 +30,9 @@ extern void             debugmsg (String);
 extern void             debugmsg (const char *);
 extern void             debugmsg (const char *, const char *);
 extern void             stm32_log_append (const char *);
+extern void             stm_cmd_printf (const char *, ...) __attribute__ ((format (printf, 1, 2)));   // Teil D: der eine Kommandoabsender
+extern void             stm_cmd_send (const char *);
+extern void             stm_cmd_cap_set (uint_fast8_t, const char *);
 extern void             stm32_log_clear (void);
 extern uint16_t         stm32_log_get_count (void);
 extern const char *     stm32_log_get_line (uint16_t);

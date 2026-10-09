@@ -64,7 +64,7 @@ rpc (RPC_VARIABLE var)
 
     if (var < MAX_RPC_VARIABLES)
     {
-        Serial.printf ("CMD R%02x\r\n", (int) var);
+        stm_cmd_printf ("R%02x", (int) var);
         Serial.flush ();
         rtc = 1;
     }
@@ -95,7 +95,7 @@ set_numvar (NUM_VARIABLE var, unsigned int value)
     if (var < MAX_NUM_VARIABLES)
     {
         numvars[var] = value;
-        Serial.printf ("CMD N%02x%02x%02x\r\n", (int) var, value & 0xFF, (value >> 8) & 0xFF);
+        stm_cmd_printf ("N%02x%02x%02x", (int) var, value & 0xFF, (value >> 8) & 0xFF);
         Serial.flush ();
         rtc = 1;
     }
@@ -147,7 +147,7 @@ set_num8_array (NUM8_ARRAY var, uint32_t idx, uint_fast8_t value)
             if (idx < MAX_BRIGHTNESS + 1)
             {
                 dimmed_display_colors[idx] = value;
-                Serial.printf ("CMD n%02x%02x%02x\r\n", (int) var, idx, value);
+                stm_cmd_printf ("n%02x%02x%02x", (int) var, idx, value);
                 Serial.flush ();
                 rtc = 1;
             }
@@ -158,7 +158,7 @@ set_num8_array (NUM8_ARRAY var, uint32_t idx, uint_fast8_t value)
             if (idx < MAX_BRIGHTNESS + 1)
             {
                 dimmed_ambilight_colors[idx] = value;
-                Serial.printf ("CMD n%02x%02x%02x\r\n", (int) var, idx, value);
+                stm_cmd_printf ("n%02x%02x%02x", (int) var, idx, value);
                 Serial.flush ();
                 rtc = 1;
             }
@@ -200,7 +200,7 @@ set_num16_array (NUM16_ARRAY var, uint32_t idx, uint_fast16_t value)
             if (idx < MAX_PLAYLIST_TRACKS)
             {
                 dfplayer_playlist[idx] = value;
-                Serial.printf ("CMD m%02x%02x%02x%02x\r\n", (int) var, idx, value & 0xFF, (value >> 8) & 0xFF);
+                stm_cmd_printf ("m%02x%02x%02x%02x", (int) var, idx, value & 0xFF, (value >> 8) & 0xFF);
                 Serial.flush ();
                 rtc = 1;
             }
@@ -322,7 +322,7 @@ set_strvar (STR_VARIABLE var, const char * p)
         /* Der STM32 bekommt denselben gekuerzten Wert - sonst schneidet er mit seinen
          * eigenen Grenzen erneut und erzeugt genau das halbe Zeichen wieder (L46).
          */
-        Serial.printf ("CMD S%02x%s\r\n", (int) var, strvars[var].str);
+        stm_cmd_printf ("S%02x%s", (int) var, strvars[var].str);
         Serial.flush ();
         rtc =  1;
     }
@@ -354,7 +354,7 @@ set_tm_var (TM_VARIABLE var, TM * tm)
     if (var < MAX_TM_VARIABLES)
     {
         memcpy (&tmvars[var], tm, sizeof (TM));
-        Serial.printf ("CMD T%02x%04d%02d%02d%02d%02d%02d\r\n", (int) var, tm->tm_year, tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+        stm_cmd_printf ("T%02x%04d%02d%02d%02d%02d%02d", (int) var, tm->tm_year, tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
         Serial.flush ();
         rtc =  1;
     }
@@ -389,11 +389,11 @@ set_dsp_color_var (DSP_COLOR_VARIABLE var, DSP_COLORS * s, int use_rgbw)
 
         if (use_rgbw)
         {
-            Serial.printf ("CMD DC%02x%02x%02x%02x%02x\r\n", (int) var, s->red, s->green, s->blue, s->white);
+            stm_cmd_printf ("DC%02x%02x%02x%02x%02x", (int) var, s->red, s->green, s->blue, s->white);
         }
         else
         {
-            Serial.printf ("CMD DC%02x%02x%02x%02x\r\n", (int) var, s->red, s->green, s->blue);
+            stm_cmd_printf ("DC%02x%02x%02x%02x", (int) var, s->red, s->green, s->blue);
         }
 
         Serial.flush ();
@@ -426,7 +426,7 @@ set_display_animation_name (uint_fast8_t var, char * name)
     if (var < MAX_DISPLAY_ANIMATION_VARIABLES)
     {
         strncpy (displayanimationvars[var].name, name, MAX_DISPLAY_ANIMATION_NAME_LEN);
-        Serial.printf ("CMD AN%02x%s\r\n", (int) var, name);
+        stm_cmd_printf ("AN%02x%s", (int) var, name);
         Serial.flush ();
         rtc =  1;
     }
@@ -442,7 +442,7 @@ set_display_animation_deceleration (uint_fast8_t var, uint_fast8_t deceleration)
     if (var < MAX_DISPLAY_ANIMATION_VARIABLES)
     {
         displayanimationvars[var].deceleration = deceleration;
-        Serial.printf ("CMD AD%02x%02x\r\n", (int) var, deceleration);
+        stm_cmd_printf ("AD%02x%02x", (int) var, deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -458,7 +458,7 @@ set_display_animation_default_deceleration (uint_fast8_t var, uint_fast8_t defau
     if (var < MAX_DISPLAY_ANIMATION_VARIABLES)
     {
         displayanimationvars[var].default_deceleration = default_deceleration;
-        Serial.printf ("CMD AE%02x%02x\r\n", (int) var, default_deceleration);
+        stm_cmd_printf ("AE%02x%02x", (int) var, default_deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -474,7 +474,7 @@ set_display_animation_flags (uint_fast8_t var, uint_fast8_t flags)
     if (var < MAX_DISPLAY_ANIMATION_VARIABLES)
     {
         displayanimationvars[var].flags = flags;
-        Serial.printf ("CMD AF%02x%02x\r\n", (int) var, flags);
+        stm_cmd_printf ("AF%02x%02x", (int) var, flags);
         Serial.flush ();
         rtc =  1;
     }
@@ -505,7 +505,7 @@ set_color_animation_name (COLOR_ANIMATION_VARIABLE var, char * name)
     if (var < MAX_COLOR_ANIMATION_VARIABLES)
     {
         strncpy (coloranimationvars[var].name, name, MAX_COLOR_ANIMATION_NAME_LEN);
-        Serial.printf ("CMD CN%02x%s\r\n", (int) var, name);
+        stm_cmd_printf ("CN%02x%s", (int) var, name);
         Serial.flush ();
         rtc =  1;
     }
@@ -521,7 +521,7 @@ set_color_animation_deceleration (COLOR_ANIMATION_VARIABLE var, uint_fast8_t dec
     if (var < MAX_COLOR_ANIMATION_VARIABLES)
     {
         coloranimationvars[var].deceleration = deceleration;
-        Serial.printf ("CMD CD%02x%02x\r\n", (int) var, deceleration);
+        stm_cmd_printf ("CD%02x%02x", (int) var, deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -537,7 +537,7 @@ set_color_animation_default_deceleration (COLOR_ANIMATION_VARIABLE var, uint_fas
     if (var < MAX_COLOR_ANIMATION_VARIABLES)
     {
         coloranimationvars[var].default_deceleration = default_deceleration;
-        Serial.printf ("CMD CE%02x%02x\r\n", (int) var, default_deceleration);
+        stm_cmd_printf ("CE%02x%02x", (int) var, default_deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -553,7 +553,7 @@ set_color_animation_flags (COLOR_ANIMATION_VARIABLE var, uint_fast8_t flags)
     if (var < MAX_COLOR_ANIMATION_VARIABLES)
     {
         coloranimationvars[var].flags = flags;
-        Serial.printf ("CMD CF%02x%02x\r\n", (int) var, flags);
+        stm_cmd_printf ("CF%02x%02x", (int) var, flags);
         Serial.flush ();
         rtc =  1;
     }
@@ -584,7 +584,7 @@ set_ambilight_mode_name (AMBILIGHT_MODE_VARIABLE var, char * name)
     if (var < MAX_AMBILIGHT_MODE_VARIABLES)
     {
         strncpy (ambilightmodevars[var].name, name, MAX_AMBILIGHT_MODE_VARIABLES);
-        Serial.printf ("CMD MN%02x%s\r\n", (int) var, name);
+        stm_cmd_printf ("MN%02x%s", (int) var, name);
         Serial.flush ();
         rtc =  1;
     }
@@ -600,7 +600,7 @@ set_ambilight_mode_deceleration (AMBILIGHT_MODE_VARIABLE var, uint_fast8_t decel
     if (var < MAX_AMBILIGHT_MODE_VARIABLES)
     {
         ambilightmodevars[var].deceleration = deceleration;
-        Serial.printf ("CMD MD%02x%02x\r\n", (int) var, deceleration);
+        stm_cmd_printf ("MD%02x%02x", (int) var, deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -616,7 +616,7 @@ set_ambilight_mode_default_deceleration (AMBILIGHT_MODE_VARIABLE var, uint_fast8
     if (var < MAX_AMBILIGHT_MODE_VARIABLES)
     {
         ambilightmodevars[var].default_deceleration = default_deceleration;
-        Serial.printf ("CMD ME%02x%02x\r\n", (int) var, default_deceleration);
+        stm_cmd_printf ("ME%02x%02x", (int) var, default_deceleration);
         Serial.flush ();
         rtc =  1;
     }
@@ -632,7 +632,7 @@ set_ambilight_mode_flags (AMBILIGHT_MODE_VARIABLE var, uint_fast8_t flags)
     if (var < MAX_AMBILIGHT_MODE_VARIABLES)
     {
         ambilightmodevars[var].flags = flags;
-        Serial.printf ("CMD MF%02x%02x\r\n", (int) var, flags);
+        stm_cmd_printf ("MF%02x%02x", (int) var, flags);
         Serial.flush ();
         rtc =  1;
     }
@@ -654,14 +654,14 @@ set_ambilight_mode_flags (AMBILIGHT_MODE_VARIABLE var, uint_fast8_t flags)
 unsigned int
 set_overlay_var (uint_fast8_t idx)
 {
-    Serial.printf ("CMD OT%02x%02x\r\n", idx & 0xFF, overlays[idx].type & 0xFF);
-    Serial.printf ("CMD OI%02x%02x\r\n", idx & 0xFF, overlays[idx].interval & 0xFF);
-    Serial.printf ("CMD OD%02x%02x\r\n", idx & 0xFF, overlays[idx].duration & 0xFF);
-    Serial.printf ("CMD OC%02x%02x\r\n", idx & 0xFF, overlays[idx].date_code & 0xFF);
-    Serial.printf ("CMD OS%02x%04x\r\n", idx & 0xFF, overlays[idx].date_start & 0xFFFF);
-    Serial.printf ("CMD OY%02x%02x\r\n", idx & 0xFF, overlays[idx].days & 0xFF);
-    Serial.printf ("CMD ON%02x%s\r\n",   idx & 0xFF, overlays[idx].text);
-    Serial.printf ("CMD OF%02x%02x\r\n", idx & 0xFF, overlays[idx].flags & 0xFF);
+    stm_cmd_printf ("OT%02x%02x", idx & 0xFF, overlays[idx].type & 0xFF);
+    stm_cmd_printf ("OI%02x%02x", idx & 0xFF, overlays[idx].interval & 0xFF);
+    stm_cmd_printf ("OD%02x%02x", idx & 0xFF, overlays[idx].duration & 0xFF);
+    stm_cmd_printf ("OC%02x%02x", idx & 0xFF, overlays[idx].date_code & 0xFF);
+    stm_cmd_printf ("OS%02x%04x", idx & 0xFF, overlays[idx].date_start & 0xFFFF);
+    stm_cmd_printf ("OY%02x%02x", idx & 0xFF, overlays[idx].days & 0xFF);
+    stm_cmd_printf ("ON%02x%s",   idx & 0xFF, overlays[idx].text);
+    stm_cmd_printf ("OF%02x%02x", idx & 0xFF, overlays[idx].flags & 0xFF);
     Serial.flush ();
 
     return 1;
@@ -701,13 +701,13 @@ set_night_time_var (uint_fast8_t is_ambilight, NIGHT_TIME_VARIABLE var, uint_fas
         {
             ambilightnighttimevars[var].minutes = minutes;
             ambilightnighttimevars[var].flags = flags;
-            Serial.printf ("CMD a%02x%02x%02x%02x\r\n", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
+            stm_cmd_printf ("a%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
         }
         else
         {
             nighttimevars[var].minutes = minutes;
             nighttimevars[var].flags = flags;
-            Serial.printf ("CMD t%02x%02x%02x%02x\r\n", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
+            stm_cmd_printf ("t%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
         }
         Serial.flush ();
         rtc =  1;
@@ -740,7 +740,7 @@ set_alarm_time_var (ALARM_TIME_VARIABLE var, uint_fast16_t minutes, uint_fast8_t
     {
         alarmtimevars[var].minutes = minutes;
         alarmtimevars[var].flags = flags;
-        Serial.printf ("CMD l%02x%02x%02x%02x\r\n", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
+        stm_cmd_printf ("l%02x%02x%02x%02x", (int) var, minutes & 0xFF, (minutes >> 8) & 0xFF, flags);
         Serial.flush ();
         rtc =  1;
     }
@@ -848,7 +848,7 @@ set_ir_code_var (uint_fast8_t idx, uint_fast8_t protocol, uint_fast16_t address,
 
     if (idx < MAX_IR_CODES)
     {
-        Serial.printf ("CMD I%02x%02x%04x%04x\r\n",
+        stm_cmd_printf ("I%02x%02x%04x%04x",
                        (unsigned int) (idx & 0xFF),
                        (unsigned int) (protocol & 0xFF),
                        (unsigned int) (address & 0xFFFF),

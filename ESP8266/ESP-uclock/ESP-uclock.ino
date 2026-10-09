@@ -545,7 +545,7 @@ esp_heap_log (void)
  * Prototyp selbst einen -- und zwar OHNE static. "extern deklariert, spaeter static" ist ein
  * Fehler, der Bau bricht ab; genau daran scheiterte esp_heap_log() am 04.10.2026 (L177).
  */
-static uint16_t         var_crc (const char * payload, size_t len);
+uint16_t                var_crc (const char * payload, size_t len);           // ohne static: auch fuer stm_cmd_send () (Teil D, L177)
 static int              var_crc_hexval (char ch);
 static void             var_crc_reject (unsigned int len);
 static uint_fast8_t     var_crc_check_and_strip (char * parameters, int * mark_val);
@@ -557,7 +557,7 @@ static uint_fast8_t     var_crc_check_and_strip (char * parameters, int * mark_v
  * Die Laenge wird uebergeben und nicht mit strlen() geholt: Gerechnet wird ueber die Nutzlast
  * OHNE "var " und OHNE die Marke selbst, und die steht beim Pruefen noch in der Zeile.
  */
-static uint16_t
+uint16_t
 var_crc (const char * payload, size_t len)
 {
     uint8_t     sum1;
@@ -712,6 +712,123 @@ var_crc_check_and_strip (char * parameters, int * mark_val)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * Kommandoabsender ESP -> STM, mit Pruefsumme (Teil D, specs/paket-2026-10-09, design.md 5.2/5.3)
+ *
+ * EIN Absender fuer ALLE Kommandozeilen an den STM (vars.cpp, udpsrv.cpp). Ausserhalb von
+ * stm_cmd_send () beginnt keine Serial-Ausgabe eine Zeile mit "CMD " -- wer ein neues Kommando
+ * braucht, ruft stm_cmd_printf () oder stm_cmd_send ().
+ *
+ *   ohne Faehigkeit:  "CMD <nutzlast>\r\n"         byte-gleich wie bisher
+ *   mit Faehigkeit:   "CMC <nutzlast>*hhhh\r\n"    hhhh = var_crc () ueber die Nutzlast ohne Praefix und
+ *                                                  Marke, Laenge als Startwert -- DIESELBE Rechnung wie fuer
+ *                                                  die var-Zeilen, keine zweite
+ *
+ * Eigenes Praefix statt einer Marke an "CMD": Ein STM ohne Pruefung verwirft "CMC" (ESP8266_UNSPECIFIED),
+ * statt einen Wert samt "*hhhh" zu speichern. "CMD" ist nie markiert, "CMC" immer -- keine Markenpflicht,
+ * kein Grenzfall "Nutztext endet auf *hhhh".
+ *
+ * Die FAEHIGKEIT lernt der ESP NUR aus der Eroeffnung "var VBffnn" mit Flag 0x04 (var_frame_line ()).
+ * Er verliert sie (a) beim eigenen Start (Vorgabe 0), (b) mit jeder Eroeffnung ohne 0x04, (c) vor jedem
+ * STM-Reset (stm32_reset ()) und (d) vor jedem STM-Flash (stm32_activate_bootloader ()) -- beide in
+ * stm32flash.cpp, durch sie laufen ALLE Reset- und Flash-Wege des ESP. (c) und (d) stehen da, damit die
+ * Sicherheit nicht allein am Reset-Puls haengt, mit dem ein STM-Neustart den ESP mitreisst (design.md
+ * 5.2; Paket 2026-10-05, design 6.5). Eine verlorene Eroeffnung heisst: kein Markieren -- die sichere
+ * Richtung.
+ *
+ * Jeder Wechsel steht als Zeile im Logring, AUSSCHLIESSLICH ueber stm32_log_append () (L109). Kein Wert.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define STM_CMD_BUF_LEN     136                                             // laengste regulaere Nutzlast: 'S' + 2 + 63; laenger: Heap wie Print::printf ()
+
+static uint_fast8_t     stm_cmd_crc_cap = 0;                                // (a): ESP-Start ohne Faehigkeit
+
+void
+stm_cmd_cap_set (uint_fast8_t on, const char * why)
+{
+    char    line[48];                                                       // "- cmd Faehigkeit aus (Eroeffnung)" = 33
+
+    on = on ? 1 : 0;
+
+    if (on == stm_cmd_crc_cap)
+    {
+        return;                                                             // nur Wechsel melden; nachgesendete Eroeffnung aendert nichts
+    }
+
+    stm_cmd_crc_cap = on;
+    snprintf (line, sizeof (line), "- cmd Faehigkeit %s (%s)", on ? "an" : "aus", why);
+    stm32_log_append (line);
+}
+
+/* Nutzlast nullterminiert: Alle Aufrufer uebergeben eine Zeichenkette (vsnprintf-Ausgabe, Paketpuffer),
+ * und keine Kommandoform erzeugt ein NUL (kein %c) -- Serial.print () sendet damit dieselben Bytes wie
+ * vorher Serial.printf ().
+ */
+void
+stm_cmd_send (const char * payload)
+{
+    if (stm_cmd_crc_cap)
+    {
+        char    mark[8];
+
+        snprintf (mark, sizeof (mark), "*%04x", (unsigned int) var_crc (payload, strlen (payload)));
+        Serial.print ("CMC ");
+        Serial.print (payload);
+        Serial.print (mark);
+        Serial.print ("\r\n");
+    }
+    else
+    {
+        Serial.print ("CMD ");
+        Serial.print (payload);
+        Serial.print ("\r\n");
+    }
+}
+
+/* Wie Serial.printf () (Print::printf (), Core 3.1.2 Print.cpp:50-71): erst ein Stackpuffer, ist die
+ * Zeile laenger, ein Heappuffer; scheitert der, wird nichts gesendet. So bleibt jede Zeile ohne
+ * Faehigkeit byte-gleich mit der bisherigen.
+ */
+void
+stm_cmd_printf (const char * fmt, ...)
+{
+    char        buf[STM_CMD_BUF_LEN];
+    char *      p = buf;
+    va_list     ap;
+    int         len;
+
+    va_start (ap, fmt);
+    len = vsnprintf (buf, sizeof (buf), fmt, ap);
+    va_end (ap);
+
+    if (len < 0)
+    {
+        return;
+    }
+
+    if ((size_t) len >= sizeof (buf))
+    {
+        p = (char *) malloc ((size_t) len + 1);
+
+        if (! p)
+        {
+            return;
+        }
+
+        va_start (ap, fmt);
+        vsnprintf (p, (size_t) len + 1, fmt, ap);
+        va_end (ap);
+    }
+
+    stm_cmd_send (p);
+
+    if (p != buf)
+    {
+        free (p);
+    }
+}
+
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * Abgleichrahmen, Markenpflicht und Zuordnung der Quittung (Runde S, specs/paket-2026-10-06,
  * design.md 2.2-2.4; Entwurf und Begruendungen in specs/paket-2026-10-05/design.md 6.2-6.5)
  *
@@ -726,6 +843,8 @@ var_crc_check_and_strip (char * parameters, int * mark_val)
  *
  *    Flags: 0x01 = die Zeilen DIESES Abgleichs tragen die Pruefsummenmarke,
  *           0x02 = DIESER Abgleich endet mit der Abschlussmarke.
+ *           0x04 = dieser STM prueft markierte Kommandos ESP -> STM ("CMC", Teil D, specs/paket-2026-10-09).
+ *                  Setzt die Faehigkeit des Kommandoabsenders, eine Eroeffnung ohne 0x04 loescht sie.
  *    Die Pruefsummenmarke haengt der STM an beide Zeilen wie an jede andere ("var VB0307*xxxx").
  *
  *    Bewusst "var V..." und KEIN eigenes Top-Level-Praefix: Die Kette im Hauptloop hat kein
@@ -815,6 +934,7 @@ var_crc_check_and_strip (char * parameters, int * mark_val)
 #define VAR_FRAME_END               'E'                                     // "VEnn"
 #define VAR_FRAME_FLAG_MARKED       0x01                                    // Zeilen dieses Abgleichs sind markiert
 #define VAR_FRAME_FLAG_END_MARK     0x02                                    // Abgleich endet mit der Abschlussmarke
+#define VAR_FRAME_FLAG_CMD_CRC      0x04                                    // Teil D: STM prueft "CMC"-Kommandos
 #define VAR_FRAME_RUN_MAX_MS        30000UL                                 // laengste Wartezeit auf die Abschlussmarke
 #define VAR_MARK_LOST_RUN           3                                       // H1: so viele unmarkierte in Folge => STM markiert nicht mehr
 
@@ -904,6 +1024,8 @@ var_frame_line (const char * parameters)
         {
             return 1;                                                       // nachgesendete Eroeffnung, Abgleich ist durch
         }
+
+        stm_cmd_cap_set ((flags & VAR_FRAME_FLAG_CMD_CRC) ? 1 : 0, "Eroeffnung");  // Teil D: lernen (b: ohne 0x04 verlieren)
 
         if (! (flags & VAR_FRAME_FLAG_MARKED))
         {
