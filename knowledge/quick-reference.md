@@ -61,9 +61,11 @@ bricht den Bau wieder.
 
 | Ich sehe… | Ich tue… | Schweregrad |
 |---|---|---|
-| Neue unbedingte Debugausgabe pro HTTP-Request auf die STM-UART | Unterdrücken oder bedingt machen. Der RX-Ring des STM ist 256 Byte und verwirft bei Überlauf **still** (`uart-driver.h:698`, kein `else`-Zweig) | Kritisch |
+| Neue unbedingte Debugausgabe pro HTTP-Request auf die STM-UART | Unterdrücken oder bedingt machen. Der Empfangsring des STM für die ESP-Brücke fasst 1024 Byte (`UART_RXBUFLEN` in `src/esp8266/esp8266-uart.c`, BEFUNDE A21) und verwirft bei Überlauf. Gezählt wird das inzwischen (`uart_rxdrops` im `else`-Zweig der Empfangs-ISR in `src/uart/uart-driver.h`, `d=` in der Diagnosezeile), quittiert oder gemeldet an den ESP nicht. Hier stand bis zum 10.10.2026 „256 Byte, still, kein `else`-Zweig“ — alle drei Angaben waren überholt | Kritisch |
 | Neuer Endpunkt, der pro Aufruf mehrere STM-Kommandos erzeugt | Kommandozahl und EEPROM-Kosten pro Aufruf abschätzen und dokumentieren | Hoch |
 | Warteschleife auf eine STM-Quittung ohne Abbruchbedingung | Timeout ergänzen | Hoch |
+| Leseschleife über `WiFiClient`, die bei `connected() == 0` sofort aufhört | Nach `connected() == 0` `available()` **noch einmal** fragen, erst dann gilt das Ende. Im Core 3.1.2 kommt `available()` aus der Abgabe `optimistic_yield(100)` mit dem alten Pufferstand 0 zurück, obwohl der Treiber währenddessen Rest und FIN zugestellt hat (`WiFiClient.cpp:246-257`); `connected()` meldet in CLOSE_WAIT 0 trotz gepufferter Daten (`WiFiClient.cpp:327-333`, `ClientContext.h:363-371`). Belegt dreimal: L173, L353, L356/C53 | Hoch |
+| Kommentar oder Begründung „`connected()` liefert true, solange noch Daten anstehen“ | Berichtigen. Die Zusage ist falsch (siehe Zeile darüber), und genau sie hat L173 verursacht | Mittel |
 | Neuer Endpunkt ohne Eintrag in der Endpunktliste der PWA | Beide Seiten gemeinsam ändern, sonst schweigender 404 | Mittel |
 
 ## PWA (`data/app/app.js`, `sw.js`)
@@ -163,6 +165,14 @@ der **falschen Plattform** läuft. Bemerkt hat es der Umsetzer selbst; er lässt
 
 **Betroffen ist alles, was plattformabhängig breit ist:** `unsigned long`, `int`, `size_t`,
 Zeigerbreite, `time_t`. Prüfstand bauen heisst: erst die Breiten festnageln, dann messen.
+
+**Dasselbe gilt für das Verhalten von Bibliotheken, nicht nur für Typbreiten.** Eine Attrappe
+von `WiFiClient` muss die Core-Semantik nachbilden: Zustellung nur an Abgabepunkten,
+`connected()` nach FIN 0. Die Attrappe in t12 (`tools/checks/auszug/esp/t12`) lieferte
+`connected()` als `!geschlossen || available()` und stellte vor dem Lesen des Pufferstands zu —
+also genau die Zusage, die L173 schon widerlegt hatte. Sie war grün, während der Wetterabruf
+auf dem Gerät nach dem ersten Segment abriss (L353). Seit der Korrektur meldet sie gegen den
+fehlerhaften Stand genau das Gerätebild.
 
 ## Zwei Warnungen für jeden künftigen Entwurf an der STM↔ESP-Brücke
 

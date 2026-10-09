@@ -20,10 +20,10 @@ Multi-Tenant, Datenvolumen) sind hier gegenstandslos und ersetzt.
 Nicht Datenvolumen oder Nutzerzahl. Die harten Grenzen dieses Systems sind:
 
 - **Wie viele STM-Kommandos** erzeugt die Aktion? Einzeln oder als Burst?
-- **Wie viele Byte pro Minute** landen zusätzlich auf der UART? Der RX-Ring ist 256 Byte und verwirft still
+- **Wie viele Byte pro Minute** landen zusätzlich auf der UART? Der STM-Empfangsring für die ESP-Brücke fasst 1024 Byte (`UART_RXBUFLEN` in `src/esp8266/esp8266-uart.c`, BEFUNDE A21) — bei 115200 Baud rund 89 ms Hauptloop-Blockade. Was darüber hinausgeht, wird verworfen; gezählt wird es (`uart_rxdrops`, `d=` in der Diagnosezeile), quittiert nicht
 - **Bleibt jeder ausgelöste Pfad unter 20 s?** Watchdog-Timeout. Regulär bedient wird der Watchdog nur am Kopf des Hauptloops; den Bestand aller Aufrufstellen nennt Guardrail S7
 - **Wie oft pollt die PWA?** Jeder HTTP-Request kostet den STM Debugtext, auch ohne Kommando
-- **Wie lange blockiert der Hauptloop?** EEPROM-Schreibzugriffe kosten rund 16 ms pro Byte
+- **Wie lange blockiert der Hauptloop?** EEPROM-Schreibzugriffe kosten rund 16 ms je **geändertem** Byte; unveränderte überspringt `eeprom_write()` nach einem Vergleichslesen (`src/eeprom/eeprom.c`, BEFUNDE C3). Geschrieben wird weiter Byte für Byte, nicht seitenweise
 - Gibt es hartkodierte Grenzen, die beim Wachsen der Layouttabellen oder Overlays brechen?
 
 ## 3. Secure by design
@@ -41,3 +41,5 @@ Nicht Datenvolumen oder Nutzerzahl. Die harten Grenzen dieses Systems sind:
 - Werden Werte still zurechtgebogen und danach als „gespeichert“ gemeldet?
 - Ist der Zustand nach einem Abbruch mitten in einer Sequenz definiert? Besonders bei Overlay-Import, wo ein Fehlschlag alle folgenden Indizes verschiebt
 - Wird ein gesetztes Flag garantiert wieder aufgelöst, auf **jedem** Pfad?
+- **Nimmt eine ESP-Leseschleife über `WiFiClient` ein Verbindungsende erst an, nachdem sie `available()` nach `connected() == 0` noch einmal abgefragt hat?** Die Zusage „`connected()` liefert true, solange noch Daten anstehen“ ist falsch. Im Core 3.1.2 liest `WiFiClient::available()` den Pufferstand, **bevor** es mit `optimistic_yield(100)` die Kontrolle abgibt (`WiFiClient.cpp:246-257`); in dieser Abgabe stellt der Treiber die restlichen Segmente samt FIN zu, zurück kommt die alte 0. `connected()` meldet in CLOSE_WAIT 0, auch wenn noch Daten im Puffer liegen (`WiFiClient.cpp:327-333`, `ClientContext.h:363-371`) — das `|| available()` wird dann nie erreicht. Dreimal dieselbe Annahme: L173 (`httpclient.cpp`, Release Notes nach genau einem TCP-Segment von 536 Byte abgeschnitten), L353 (Wetterabruf nach dem ersten Segment abgeschnitten, „Parse Error“), L356/C53 (erste Anfragezeile in `http.cpp`, offen)
+- **Bildet eine Attrappe von `WiFiClient` im Prüfstand diese Semantik nach?** Zustellung nur an Abgabepunkten, `connected()` nach FIN 0. Eine Attrappe, die `connected()` als `!geschlossen || available()` liefert, setzt genau die widerlegte Zusage voraus und sieht den Fehler nicht — so geschehen bei t12 (`tools/checks/auszug/esp/t12`, BEFUNDE L353)
