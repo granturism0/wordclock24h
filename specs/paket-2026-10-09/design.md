@@ -3,7 +3,9 @@
 **Erstellt:** 2026-10-09, Stand `dea187a`. **Freigegeben**, alle Entscheidungen getroffen
 (Ent-1 bis Ent-8). Am selben Tag dreimal nachgeführt: mit Teil D, dann mit den Ergebnissen aus
 V.1 und Ent-5 bis Ent-8, zuletzt mit dem Ergebnis des Reviews E.5 (§7: M1 Ergebnis `fehler`,
-M2 als Befund ausgeklammert, N3, N4, Marker `?...`). Momentaufnahme (DIR-006).
+M2 als Befund ausgeklammert, N3, N4, Marker `?...`). **Am 10.10.2026 nachgeführt** mit dem
+Stand der Umsetzung, wie ihn der Umsetzer gemeldet hat: A2 (§1.6, eine Lücke im Entwurf im Code
+geschlossen), W2 (§1.7), Messzeile (§2.2), Flash-Gate M.2 (§5.7). Momentaufnahme (DIR-006).
 
 **Schrittfolge:** **V (erledigt) → E (ESP: A1, C, D-ESP) → M (STM: Messzeile, A2) → C3 (STM,
 seitenweise) → D (STM, Prüfsumme) → Z**.
@@ -150,14 +152,17 @@ Kurz danach sendet der STM irgendein quittungspflichtiges Kommando — in S.26 `
 (`:619`), zählt `v` und merkt die Zeile zur Nachsendung vor. **V.1 (6), ✔:** Bleibt `WEATHER`
 aus, bleibt beim STM heute nichts hängen.
 
-**Entwurf:**
+**Entwurf** (Stand 09.10.2026; zwei Punkte sind durch den Nachtrag unten **überholt** und dort
+markiert):
 
 - `weather_query()` merkt sich beim Senden den **Anstoss** (Zeitpunkt, Abruf läuft).
 - `var_send_buf()` gibt, solange ein Abruf läuft, erst auf, wenn **beides** abgelaufen ist: die
   normalen 3 s ab dem eigenen Start **und** 6 s ab dem Anstoss. Die Warteschleife ruft ohnehin
   `schedule_esp8266_messages()`; trifft dort die Endzeile ein (`ESP8266_WEATHER`,
   `ESP8266_WEATHER_FC`, `ESP8266_WEATHER_ICON`, `ESP8266_WEATHER_FC_ICON`, `ESP8266_ERROR`), ist
-  der Abruf beendet, und es gilt wieder die normale Wartezeit.
+  der Abruf beendet, und es gilt wieder die normale Wartezeit. **Überholt (10.10.2026):** Die
+  normale Wartezeit gilt ab der Endzeile nur für **folgende** Kommandos — siehe „Lücke im
+  Entwurf" unten.
 - **Frist 6 s**, mindestens **echte** 6 s: `uptime` zählt ganze Sekunden; der `stm-developer`
   wählt die Zeitbasis so, dass die Frist nicht zu kurz ausfällt (z. B. 7 Sekundenschritte oder
   eine Millisekundenbasis) und nennt sie im Bericht. **Herleitung:** Sicherheitsnetz des ESP
@@ -168,9 +173,47 @@ aus, bleibt beim STM heute nichts hängen.
   beliebig verlängern).
 - **Watchdog:** keine neue Aufrufstelle. 6 s Warten liegen weit unter den 20 s; nach der
   Quittung gilt der bestehende Reload im Rahmen von `VAR_SEND_RELOAD_BUDGET_SEC` (`vars.c:79`,
-  `:698-701`).
+  `:698-701`). **Überholt (10.10.2026):** höchstens **7 s** je Warten, weiterhin weit unter 20 s.
 - **Kein neues Logtext-Format**; die Wirkung zeigt sich am Ausbleiben von `v` und an der
   ESP-Messzeile.
+
+**Stand der Umsetzung (Nachtrag 10.10.2026)** — gemeldet vom `stm-developer`, vom `spec-writer`
+am Arbeitsbaum abgeglichen (`src/vars/vars.c:484-538`, `:568-569`, `:656-695`;
+`src/weather/weather.c:253`, `:287`; `src/main.c:3214`), ✔ am Code:
+
+| Punkt | Umsetzung |
+|---|---|
+| Anstoss | `var_weather_query_start()` (`vars.c:521-529`), gerufen an beiden Sendestellen von `weather_query()` (`weather.c:253`, `:287`). Setzt Zustand und Zeitpunkt **nur**, wenn kein Abruf läuft oder dessen Frist um ist — ein zweiter Anstoss verschiebt die Frist nicht |
+| Endzeile | `var_weather_query_end()` (`vars.c:531-538`) mit einer Maske über die fünf Nachrichtenarten, gerufen in `schedule_esp8266_messages()` (`main.c:3214`) — also im Hauptloop **und** in der Warteschleife |
+| Zeitbasis | `uptime`, **`VAR_WEATHER_WAIT_SEC` = 7 Sekundenschritte** (`vars.c:514`). Echte Frist **6 bis 7 s**, am Prüfstand W2 **6'001 bis 7'000 ms**. Begründung im Code: Der Abschnitt läuft unverändert im Tischprüfstand, der genau `uptime` nachbildet; keine Millisekundenbasis, kein neuer Zugriff |
+| Frist um | Beim Abbruch nach Zeitüberschreitung wird der Zustand gelöscht (`vars.c:691`); ausserdem rechnet jede Abfrage die Frist aus `uptime` neu, ein liegengebliebener Zustand bleibt ohne Wirkung. Ein ESP-Neustart mitten im Abruf lässt deshalb nichts zurück |
+
+**Lücke im Entwurf, im Code geschlossen.** Der ESP schickt die Endzeile (`WEATHER` usw.)
+**unmittelbar vor** dem `.` des wartenden Kommandos: Er sendet die Endzeile, kehrt in seine
+Hauptschleife zurück und quittiert erst dann die wartende `var`-Zeile. Gälte für das bereits
+wartende Kommando ab der Endzeile wieder die normale Frist, gäbe `var_send_buf()` nach 5 s
+**sofort** auf — Millisekunden vor seiner Quittung. Genau der Fall, gegen den A2 antritt, wäre
+damit nicht behoben. Gefunden am Prüfstand W2. **Lösung:** Das wartende Kommando hält den
+gesehenen Anstoss **lokal** fest (`weather_seen`/`weather_start`, `vars.c:568-569`, gesetzt
+**vor** dem Abholen der Nachricht, `:658-662`) und behält seine verlängerte Frist. Die Endzeile
+löscht den Zustand nur für **folgende** Kommandos.
+
+**Folge, ausdrücklich:** Schweigt der ESP nach der Endzeile, wartet das laufende Kommando **bis
+7 s statt 3 s**. Der Entwurf versprach „danach gilt wieder die normale Wartezeit" — das gilt jetzt
+nur noch für folgende Kommandos.
+
+**Obergrenze: 7 Sekundenschritte je Warten, ab dem eigenen Start** (`vars.c:685-686`:
+`uptime - start_uptime < VAR_WEATHER_WAIT_SEC`). Ein **verschachtelter** Anstoss — RPC
+„get weather" über `schedule_esp8266_cmd()` während des Wartens — verlängert nicht; er bekommt nur
+die **Restzeit** bis zu dieser Grenze. Kein Warten dauert damit länger als 7 s.
+
+● **Beobachtung des `spec-writer` für das Review M.3, nur am Code gelesen, nicht am Prüfstand
+belegt:** Der Abbruch nach Zeitüberschreitung löscht den Zustand pauschal (`vars.c:691`) — auch
+den eines Abrufs, der erst **während** dieses Wartens verschachtelt angestossen wurde und dessen
+Frist noch läuft (etwa wenn der Anstoss in derselben Schleifenrunde fällt, in der die 3 s oder die
+Obergrenze erreicht werden; `weather_seen` ist dann noch 0). Folge: Das **nächste** Kommando
+wartet für diesen Abruf nur 3 s. Das ist die sichere Richtung — nichts bleibt hängen —, aber A2
+greift für diesen Abruf nicht. M.3 entscheidet, ob das so gewollt ist.
 
 **Warum im M-Release (R3b):** Der Vorschlag des Leads ist vertretbar. A2 und die EEPROM-Messzeile
 teilen keine Funktion und keinen Zähler: A2 wirkt nur in `var_send_buf()` und nur, während ein
@@ -189,6 +232,10 @@ Auszug von `var_send_buf()` — der Abschnitt, den der bestehende Tischprüfstan
 (`vars.c:782`) — mit nachgebildeter Zeit und Nachrichtenfolge. Fälle aus AKW.1 und AKW.2.
 **Gegenprobe:** gegen den E-Stand zählt der Fall „Abruf läuft, ESP schweigt 5 s, dann Quittung"
 einen Timeout ⇒ FEHL.
+
+**Stand 10.10.2026 (gemeldet):** W2 liegt unter `tools/checks/auszug/stm/w2/`, **37 Fälle**.
+Gegenprobe gegen `release/3.2.22-3.2.28-1.4.94` **FEHL**, Kernfall „Timeout nach 3000 ms". W2
+hat die Lücke aus §1.6 gefunden.
 
 ---
 
@@ -229,6 +276,26 @@ eep a=<start_addr> n=<cnt> z=<schreibzyklen> ms=<dauer> d=<rxdrops vorher>/<rxdr
 - **Kein Inhaltsbyte.** `log_printf()` geht über die Log-UART **und** als `LOG …` zum ESP.
 - Ein Füllstand des Rings ist **erwünscht, nicht Pflicht** (höchstens rund 40 Byte Flash).
 - **Bleibt im Fabrikat** (Ent-2).
+
+**Stand der Umsetzung (Nachtrag 10.10.2026)** — gemeldet vom `stm-developer`, vom `spec-writer`
+am Arbeitsbaum abgeglichen (`src/eeprom/eeprom.c:205-267`, `src/main.c:655-675`), ✔ am Code:
+
+- **Zeitbasis:** `diag_tick_cnt` über den neuen Lesezugriff `diag_ticks()` (`main.c:670-674`)
+  und die Konstante `diag_ticks_per_ms = F_INTERRUPTS / 1000` (`main.c:668`); beide nur ohne
+  `BLACK_BOARD`, wie `eeprom.c`. **Unabhängig** von `eeprom_ms_tick`, Begründung im Kommentar
+  (`main.c:658-667`).
+- **Auflösung:** ein Zeitgeber-Interrupt, **66,7 µs** (bei `F_INTERRUPTS` = 15'000). Die Zeile
+  rechnet ganzzahlig und **schneidet auf ganze Millisekunden ab** (`eeprom.c:266`), zeigt also bis
+  knapp 1 ms **zu wenig**. Deshalb bekommt **AKM.2 1 ms zusätzliche Toleranz** — nur nach unten,
+  denn das Abschneiden verschiebt nie nach oben.
+- `z` zählt nach jedem `eeprom_waitstates()` (`eeprom.c:250-251`); ein gescheitertes
+  `i2c_write()` bricht vorher ab und zählt nicht.
+- Ausgabe nur bei `z ≥ 1` (`eeprom.c:263-267`), kein Inhaltsbyte, **kein Füllstand**.
+- ● **Für das Review M.3, nur am Code gelesen:** `rtc` ist jetzt mit 1 vorbelegt
+  (`eeprom.c:221`, „vorher war rtc hier uninitialisiert"). Bei `cnt == 0` lieferte die alte
+  Fassung einen undefinierten Wert, die neue 1. Das ist streng genommen eine Verhaltensänderung
+  gegen „ohne jede Verhaltensänderung", aber die Beseitigung von undefiniertem Verhalten und
+  entspricht AKC.4 (`cnt == 0` ⇒ 1). M.3 bestätigt das ausdrücklich.
 
 ### 2.3 Stufe 2 (Schritt C3): seitenweise
 
@@ -473,10 +540,21 @@ ungünstigsten Fall wird die Grenze von 119 Zeichen überschritten.
 ist eine Bestellung des Nutzers ⇒ bei Unterschreitung der Reserve **anhalten und vorlegen**.
 Gegenprobe S8b in M.5, C3.6 und D.6, kein Rollout unter 1'024 Byte.
 
+**Gemessen in M.2 (Nachtrag 10.10.2026, gemeldet):** Testbau F103 mit Messzeile **und** A2:
+**1'420 Byte frei** (vorher 1'688), Zuwachs **268 Byte**. Gate (≥ 1'024) **bestanden**. Für C3
+und D bleiben damit **396 Byte** über der Reserve. Gegen die Schätzung: Der Zuwachs von M ohne
+C3 liegt schon im oberen Teil des gemeinsamen Bereichs „M und C3" (130 bis 340) zuzüglich A2
+(30 bis 80). Rechnet man den C3-Anteil (bis rund 340 − Messzeile) und D (150 bis 300) dazu, kann
+die Reserve **bei D.2** unterschritten werden — dann gilt die Regel oben (anhalten und vorlegen,
+Sparstufen). Eine Entscheidung ist dafür **jetzt nicht** nötig; sie fällt erst, wenn C3.3 oder
+D.2 darunter liegt.
+
 **Sparstufen, in dieser Reihenfolge vorzuschlagen** (keine ohne Nutzer): (1) Füllstand in der
 Messzeile weglassen; (2) Texte der Messzeile und der Abweisungszeile kürzen; (3) A2 über
 `uptime` statt einer Millisekundenbasis (gröber, dafür ohne neuen Zugriff); (4) Messzeile **nach**
-G3 entfernen — widerspricht Ent-2, braucht eine neue Entscheidung.
+G3 entfernen — widerspricht Ent-2, braucht eine neue Entscheidung. **Stand 10.10.2026:** Stufe (1)
+und (3) sind durch die Umsetzung bereits verbraucht — die Messzeile hat keinen Füllstand, A2 läuft
+über `uptime`. Bleiben (2) und (4).
 
 ### 5.8 Prüfstände t14 (ESP) und D (STM)
 
@@ -547,7 +625,7 @@ wird getrennt berichtet, nicht als Fehlschlag gewertet.
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | `var_crc()` sichtbar; `0x04`; Logzeile | `esp-developer` | E |
 | `ESP8266/ESP-uclock/stm32flash.cpp` | Fähigkeit vor dem Flash löschen | `esp-developer` | E |
 | `src/eeprom/eeprom.c` | M: Messzeile; C3: seitenweise, P je Ziel | `stm-developer` | M, C3 |
-| `src/weather/weather.c`, `src/vars/vars.c` (ggf. `src/main.c`) | A2: Anstoss merken, verlängertes Warten, Endzeile löscht | `stm-developer` | M |
+| `src/weather/weather.c`, `src/vars/vars.c` (ggf. `src/main.c`) | A2: Anstoss merken, verlängertes Warten, Endzeile löscht für folgende Kommandos (Nachtrag 10.10.2026: `main.c:3214` ruft `var_weather_query_end()`) | `stm-developer` | M |
 | `src/main.c` | Lesezugriff auf `diag_tick_cnt` für die Messzeile (M); Vormerken mit Drossel (D) | `stm-developer` | M, D |
 | `src/vars/vars.c`, `vars.h` | `var_crc()` sichtbar; Flag `0x04` | `stm-developer` | D |
 | `src/esp8266/esp8266.c` | Zweig `CMC` | `stm-developer` | D |
@@ -595,19 +673,23 @@ L339 in `eeprom_write()`; das Echo, wo es entsteht; die Prüfsumme an der Leitun
 selben Burst spart); Wetterzeile rund 35 Byte je Abruf; Endzeile `ERROR weather …` nur bei
 Fehlschlag; EEPROM-Zeile rund 45 Byte je Schreibvorgang. Der Empfangsring ist **1'024 Byte**.
 
-**Unter 20 s Watchdog?** Ja. A2 verlängert das Warten von `var_send_buf()` auf **höchstens 6 s**,
-nur während eines Abrufs und ohne neuen Reload — weit unter 20 s. Nach C3 kostet ein Setter
+**Unter 20 s Watchdog?** Ja. A2 verlängert das Warten von `var_send_buf()` auf **höchstens 6 s**
+— **Nachtrag 10.10.2026: höchstens 7 s** (7 Sekundenschritte ab dem eigenen Start, §1.6) —, nur
+während eines Abrufs und ohne neuen Reload — weit unter 20 s. Nach C3 kostet ein Setter
 höchstens einige Seiten statt rund 1 s Busy-Wait. Auf dem ESP sinkt die längste Blockade im
 Wetterpfad im Normalfall von über 5 s auf rund 0,2 s; das Sicherheitsnetz bleibt bei 5 s.
 
 **Wie lange blockiert der Hauptloop?** EEPROM: **Seitenzahl × 16 ms**. **A2, ausdrücklich:**
-Während eines Abrufs kann `var_send_buf()` den Hauptloop bis zu 6 s halten statt 3 s — aber nur,
-wenn der ESP so lange schweigt, und der Normalfall dauert 0,2 s. Der Preis ist bewusst: ein
-längeres Warten auf einen **lebenden** ESP statt eines verlorenen Einmal-Werts (L42).
+Während eines Abrufs kann `var_send_buf()` den Hauptloop bis zu 6 s halten statt 3 s —
+**Nachtrag 10.10.2026: bis zu 7 s**, und zwar auch dann, wenn die Endzeile schon da ist und der
+ESP danach schweigt (§1.6, „Lücke im Entwurf") — aber nur, wenn der ESP so lange schweigt, und der
+Normalfall dauert 0,2 s. Der Preis ist bewusst: ein längeres Warten auf einen **lebenden** ESP
+statt eines verlorenen Einmal-Werts (L42).
 
 **Hartkodierte Grenzen?** `EEPROM_PAGE_SIZE` je Ziel (Ent-7); `WEATHER_TOTAL_TIMEOUT_MS` (5 s)
-und die A2-Frist (6 s) hängen aneinander — Kommentar an beiden; die längste markierte Nutzlast
-muss in `ESP8266_MAX_CMD_LEN` passen. **Keine** Zeilenlänge in `weather_read_line()` — M2, §7.
+und die A2-Frist (6 s; umgesetzt als `VAR_WEATHER_WAIT_SEC` = 7 Sekundenschritte, echte 6 bis 7 s)
+hängen aneinander — Kommentar an beiden; die längste markierte Nutzlast muss in
+`ESP8266_MAX_CMD_LEN` passen. **Keine** Zeilenlänge in `weather_read_line()` — M2, §7.
 
 ### Secure by design
 
@@ -620,7 +702,7 @@ Befund (M2, §7)**, weil eine Grenze erst nach einer Messung der grössten echte
 Vorhersageantwort am Gerät gesetzt werden kann. Der STM prüft die Marke streng und das Präfix
 exakt. **Die Prüfsumme ist kein Sicherheitsmerkmal**, nur ein Schutz gegen Übertragungsfehler. A2
 wartet nur auf Zeilenarten, nicht auf Inhalte; ein ESP, der nie antwortet, kostet höchstens 6 s
-je Abruf.
+je Abruf (**Nachtrag 10.10.2026: höchstens 7 s**).
 
 **Credentials in Logausgaben?** Teil C beseitigt sie aus dem Echo. Mess-, End- und
 Abweisungszeilen enthalten **keine** Werte. ● Die STM-eigene Ausgabe `(CMD …)` mit Werten auf
@@ -651,9 +733,12 @@ oder der Frist. EEPROM: Seiten-Präfix. Kommando: nicht angewandt, alter Wert bl
 vorgemerkt.
 
 **Flags aufgelöst?** **A2:** Der Abrufzustand wird durch die Endzeile **oder** nach 6 s gelöscht,
-auf jedem Pfad; ein zweiter Anstoss verlängert nicht. **D:** Die Fähigkeit im ESP wird auf vier
-Wegen gelöscht; eine verlorene Eröffnung lässt ihn in der sicheren Richtung, ebenso ein reiner
-ESP-Neustart (N4). Die N1-Drossel ist ein Zeitstempel.
+auf jedem Pfad; ein zweiter Anstoss verlängert nicht. **Nachtrag 10.10.2026:** Frist 7
+Sekundenschritte (echte 6 bis 7 s); die Endzeile löscht den gemeinsamen Zustand, das gerade
+wartende Kommando behält seine lokal festgehaltene Frist; ein Anstoss nach einem ESP-Neustart
+ohne Endzeile verfällt über die neu gerechnete Frist (§1.6). **D:** Die Fähigkeit im ESP wird
+auf vier Wegen gelöscht; eine verlorene Eröffnung lässt ihn in der sicheren Richtung, ebenso ein
+reiner ESP-Neustart (N4). Die N1-Drossel ist ein Zeitstempel.
 
 ---
 
@@ -672,6 +757,10 @@ Wortlaut, der sich ändern kann, und ginge still kaputt. **M1: eigene Endzeile `
 fehler` statt der Parser-Zeile.** Verworfen: Der STM sähe andere Bytes als heute.
 
 **A2 als eigenes Release.** Brächte keinen zusätzlichen Gerätebeleg (§1.6).
+
+**A2: Endzeile beendet auch das gerade wartende Kommando** (Entwurf vom 09.10.2026). Verworfen
+am 10.10.2026 nach W2: Die Endzeile kommt unmittelbar vor der Quittung; das wartende Kommando gäbe
+nach 5 s Millisekunden vor ihr auf (§1.6).
 
 **L339:** grösserer Ring; nur zwei Aufrufer kürzen; ganze Seite schreiben; ESP rahmt Setter.
 **Eine Seitengrösse für beide Ziele.** 32 auf F103 wäre unbelegt und im Fehlfall Datenverlust; 8

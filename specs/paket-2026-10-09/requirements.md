@@ -6,6 +6,11 @@
 Ent-8 (Wetter zweistufig, Seitengrösse je Ziel), zuletzt mit dem Ergebnis des Reviews E.5
 (`design.md` §7: M1 Ergebnis `fehler` — **AKE.1, AKE.6, neu AKE.6b**; M2 ausgeklammert; N3, N4,
 Marker `?...`). Ausgangsstand am Gerät: STM 3.2.22, ESP 3.2.26, PWA 1.4.94.
+**Am 10.10.2026 nachgeführt** mit dem Stand der Umsetzung, wie ihn der Umsetzer gemeldet hat:
+**AKM.2** (1 ms Toleranz wegen Abschneiden), **AKW.1 bis AKW.3** (Endzeile beendet das Warten
+nur für folgende Kommandos; Frist 7 Sekundenschritte, Obergrenze je Warten), **AKM.4** (Gate
+bestanden). Der ESP steht seit Schritt E auf **3.2.28** (3.2.27 war ein Rückschritt, L353;
+`tasks.md` E.9).
 **Auslöser:** Testdurchlauf S.26 (L336) aus `specs/paket-2026-10-06/`; die Ursachen von L338 und
 L339 sind seit dem 09.10.2026 belegt (Analyse des `firmware-analyst` und Mitschnitt S.26,
 Nachtrag in `BEFUNDE.md`). Teil D ist der in L339 benannte fehlende Schutz.
@@ -33,7 +38,7 @@ Entscheidungen **Ent-1 bis Ent-8**. **„CMC"** ist das Präfix für markierte K
 |---|---|---|---|---|
 | **V** | Vorbereitung, rein lesend — **erledigt** (Ergebnisse in `design.md` §6) | — | — | — |
 | **E** | **A1** (L338, L-Befund 200 ms): Wetterantwort lesen, bis der Dienst schliesst, Sicherheitsnetz 5 s, Messzeile, Endzeile; **Teil C**: Debug-Echo ohne Querystring; **Teil D, ESP-Seite**: ein Kommandoabsender, Marke nur nach angekündigter Fähigkeit — **ohne Wirkung bis zum STM-Teil** | ESP | **zuerst**, ein Release | **G1** |
-| **M** | **Teil B, Stufe 1** (L339): Messzeile in `eeprom_write()`; **A2** (L338): `var_send_buf()` wartet während eines Wetterabrufs auf die Antwort, längstens 6 s | STM | nach E | **G2** (Vorher L339), Wetterabrufe |
+| **M** | **Teil B, Stufe 1** (L339): Messzeile in `eeprom_write()`; **A2** (L338): `var_send_buf()` wartet während eines Wetterabrufs auf die Antwort, längstens 6 s (umgesetzt: 7 Sekundenschritte, echte 6 bis 7 s, `design.md` §1.6) | STM | nach E | **G2** (Vorher L339), Wetterabrufe |
 | **C3** | **Teil B, Stufe 2** (L339): EEPROM seitenweise, **32 Byte auf F411, 8 Byte auf F103** | STM | nach M | **G3** (Nachher), Integritätsprüfung |
 | **D** | **Teil D, STM-Seite**: Fähigkeit ankündigen, markierte Kommandos prüfen, abweisen, zählen, Vollabgleich vormerken | STM | nach C3, **eigenes Release** (Ent-6) | **G4** (lesend), `pwa-tester` |
 | **Z** | `BEFUNDE.md`, Checkliste, `CLAUDE.md` nachführen | Doku | — | — |
@@ -256,11 +261,16 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       Selbstprüfung leer und kann nie fehlschlagen (V.1 (3), DIR-014). In G2 gilt für jede Zeile
       `15·z ≤ ms ≤ 17·z + 10`, bei einer gröberen Auflösung als 1 ms um diese Auflösung
       erweitert. **Verfehlt ⇒ Halt.**
+      **Nachtrag 10.10.2026 (Stand der Umsetzung, gemeldet, ✔ am Code `eeprom.c:226`, `:266`,
+      `main.c:655-675`):** Zeitbasis ist `diag_tick_cnt` über `diag_ticks()`, ein Tick
+      **66,7 µs**. Die Zeile **schneidet auf ganze Millisekunden ab** und zeigt deshalb bis knapp
+      1 ms zu wenig. Die Prüfung in G2 lautet damit **`15·z − 1 ≤ ms ≤ 17·z + 10`** — 1 ms
+      zusätzliche Toleranz, nur nach unten, weil das Abschneiden nie nach oben verschiebt.
 - [ ] **AKM.3 (Vorher, G2)** — Der Setter-Burst auf den Wetterort (`design.md` §4.2) liefert
       sieben Messzeilen mit `a` = Offset des Wetterorts, `n=32`, **`z ≥ 25`** bei jedem Wechsel
       lang↔kurz und **`ms ≥ 400`**. `d` wird berichtet, ein Anstieg ist **nicht** verlangt;
       bleibt `d` bei 0, wird G2 einmal mit 14 Aufrufen in rund 3 s wiederholt.
-- [ ] **AKW.1 (A2: Warten auf die Wetterantwort)** — Hat der STM einen Wetterabruf angestossen
+- [x] **AKW.1 (A2: Warten auf die Wetterantwort)** — Hat der STM einen Wetterabruf angestossen
       (`weather_query()`, `src/weather/weather.c:213-285`: `weather`, `weather_fc`, `wicon`,
       `wicon_fc`), wartet `var_send_buf()` bis zum Eintreffen der Endzeile (`WEATHER`,
       `WEATHER_FC`, `WICON`, `WICON_FC` oder `ERROR`), **längstens 6 s ab dem Anstoss**, statt nach
@@ -268,23 +278,41 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       *Instrument:* Prüfstand W2 (Auszug von `var_send_buf()` mit nachgebildeter Zeit und
       Nachrichtenfolge): Abruf läuft, ESP schweigt 5 s, dann Quittung ⇒ angenommen, **kein**
       Timeout gezählt. **Gegenprobe:** gegen den E-Stand Timeout nach 3 s ⇒ FEHL.
-- [ ] **AKW.2 (A2: nichts bleibt hängen)** — Kommt **keine** Endzeile, endet das verlängerte
+      **Nachtrag 10.10.2026 (Stand der Umsetzung, `design.md` §1.6):** (1) **Die Endzeile
+      beendet das Warten nur für folgende Kommandos.** Der ESP sendet sie unmittelbar **vor** dem
+      `.` des wartenden Kommandos; das wartende Kommando hält den gesehenen Anstoss lokal fest und
+      behält seine verlängerte Frist. Der Satz „Danach gilt wieder die normale Wartezeit" gilt
+      damit für **folgende** Kommandos, nicht für das gerade wartende. Folge: Schweigt der ESP
+      nach der Endzeile, wartet das laufende Kommando bis 7 s statt 3 s. (2) **Frist:**
+      `uptime`, 7 Sekundenschritte, echte **6 bis 7 s** (am Prüfstand 6'001 bis 7'000 ms) statt
+      „längstens 6 s". **Erfüllt am Prüfstand W2** (37 Fälle; Gegenprobe gegen
+      `release/3.2.22-3.2.28-1.4.94` FEHL, Kernfall „Timeout nach 3000 ms"); abgelegt in M.2b.
+- [x] **AKW.2 (A2: nichts bleibt hängen)** — Kommt **keine** Endzeile, endet das verlängerte
       Warten nach der Frist, der Abrufzustand ist danach gelöscht, und jedes weitere Kommando
       wartet wieder normal (V.1 (6): heute bleibt ohne `WEATHER` nichts hängen — das muss so
       bleiben). Kein Abruf angestossen ⇒ 3 s wie heute. Eine Endzeile ohne angestossenen Abruf
       ändert nichts. Ein zweiter Anstoss während eines laufenden Abrufs verlängert die Frist
       **nicht** über 6 s ab dem ersten hinaus. *Instrument:* Prüfstand W2, jeder dieser Fälle.
+      **Nachtrag 10.10.2026:** „6 s ab dem ersten" heisst umgesetzt **7 Sekundenschritte ab dem
+      ersten Anstoss**. Dazu eine **Obergrenze je Warten: 7 Sekundenschritte ab dem eigenen
+      Start** des wartenden Kommandos. Ein **verschachtelter** Anstoss (während des Wartens)
+      verlängert nicht, er bekommt nur die Restzeit bis zu dieser Grenze. **Erfüllt am
+      Prüfstand W2** (wie AKW.1). ● Eine Randfolge — der Zeitüberschreitungs-Abbruch löscht auch
+      den Zustand eines erst während des Wartens angestossenen Abrufs — ist in `design.md` §1.6
+      für das Review M.3 benannt; sie liegt in der sicheren Richtung.
 - [ ] **AKW.3 (A2: Watchdog)** — **Keine neue `watchdog_reload()`-Aufrufstelle** (Guardrail S7
       zeigt denselben Bestand). Das verlängerte Warten bleibt mit 6 s weit unter dem
       Watchdog-Timeout von 20 s; nach eingetroffener Antwort gilt der bestehende Reload im
       Rahmen von `VAR_SEND_RELOAD_BUDGET_SEC` (`vars.c:79`, `:698-701`). *Instrument:* Review M.3,
-      S7.
+      S7. **Nachtrag 10.10.2026:** Das längste Warten ist **7 s** (Obergrenze je Warten, AKW.2),
+      weiterhin weit unter 20 s. Offen bis Review M.3.
 - [ ] **AKW.4 (A2, Gerät)** — Nach dem M-Flash: je ein `weather_get_now` und
       `weather_get_forecast` und **60 Minuten lesend** (wie AKE.7): kein `v`-Anstieg nach einem
       Abruf, kein Watchdog-Reset. **Am Gerät nicht herstellbar** ist ein langsamer Dienst; dass
       `v` auch bei einer Antwort nach 5 s nicht steigt, belegt der Prüfstand W2.
-- [ ] **AKM.4 (Flash)** — Testbau F103 nach M.1 und nach M.1b: Rest **≥ 1'024 Byte**. Darunter:
-      anhalten und vorlegen.
+- [x] **AKM.4 (Flash)** — Testbau F103 nach M.1 und nach M.1b: Rest **≥ 1'024 Byte**. Darunter:
+      anhalten und vorlegen. **Erfüllt 10.10.2026 (M.2, gemeldet):** 1'420 Byte frei (vorher
+      1'688), Zuwachs 268 Byte für Messzeile und A2 zusammen.
 
 ### Schritt C3 — STM, seitenweise schreiben
 
@@ -463,6 +491,9 @@ Stand **09.10.2026** — **alle entschieden**.
   immer ankommen. **Zweistufig:** A1 auf dem ESP (vollständig lesen, 5 s nur als Sicherheitsnetz,
   L-Befund 200 ms im selben Task), A2 auf dem STM (Warten auf die Antwort, längstens 6 s). A2
   fährt im **M-Release** (Vorschlag des Leads; Begründung nach R3b in `design.md` §1.6).
+  *Vermerk 10.10.2026:* Umgesetzt mit 7 Sekundenschritten (echte 6 bis 7 s) — die Wahl der
+  Zeitbasis hatte das Design dem `stm-developer` überlassen („z. B. 7 Sekundenschritte"). Die
+  Endzeile beendet das Warten nur für folgende Kommandos (`design.md` §1.6, AKW.1).
 - **Review E.5 (09.10.2026), Entscheidungen des Nutzers:** **M1 jetzt mitnehmen** (Ergebnis
   `fehler`, AKE.6b); **M2 später, als Befund** (ausgeklammert). N3, N4 und der Marker `?...` nur
   vermerkt. Begründung und Wirkung: `design.md` §7.

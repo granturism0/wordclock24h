@@ -69,9 +69,21 @@ void esp8266_uart_puts (const char * s)
             txline[txlen - 2] = '\0'; txlen = 0;
             if (! strncmp (txline, "var ", 4))
             {
+                const char *    star = strrchr (txline, '*');
+                char            ack[16];
+                uint32_t        due = ack_at ? ack_at : sim_ms + (uint32_t) ack_delay;
+
                 var_lines++;
-                if (ack_at)              rx_push (ack_at, ".\r\n");
-                else if (ack_delay >= 0) rx_push (sim_ms + (uint32_t) ack_delay, ".\r\n");
+                if (ack_at || ack_delay >= 0)
+                {
+                    /* Wie der ESP: mit Marke zuerst "ACK xy" (hoeheres Byte der EMPFANGENEN Marke), dann der Punkt. */
+                    if (star && strlen (star) == 5)
+                    {
+                        snprintf (ack, sizeof (ack), "ACK %02x\r\n", (unsigned) ((strtol (star + 1, 0, 16) >> 8) & 0xFF));
+                        rx_push (due, ack);
+                    }
+                    rx_push (due, ".\r\n");
+                }
             }
         }
     }
@@ -139,11 +151,13 @@ main_loop (uint32_t ms)
 
 static uint32_t     dauer;          /* ms, die der letzte send() in var_send_buf() stand */
 static int          angenommen;     /* Rueckgabe des letzten send() */
+static uint32_t     normal;         /* ms bis zum dritten Sekundenschritt ab dem Start des letzten send(): die normale Wartezeit */
 
 static void
 send (const char * p)
 {
     char b[32]; uint32_t t0 = sim_ms;
+    normal = ((t0 / 1000) + VAR_SEND_TIMEOUT_SEC) * 1000 - t0;
     strcpy (b, p);
     var_send_reload_budget_reset ();
     angenommen = var_send_buf (b, 3);
@@ -158,7 +172,7 @@ reset (uint32_t offset_ms)
     memset (var_retry_slots, 0, sizeof (var_retry_slots));
     var_send_timeout_cnt = var_send_nested_cnt = 0;
     esp8266.cap_var_crc = 0;
-    ack_delay = -1; ack_at = 0; var_lines = 0; weather_cmds = 0; wd_reloads = 0;
+    ack_delay = -1; ack_at = 0; var_lines = 0; weather_cmds = 0; wd_reloads = 0; esp8266_ack_drops = 0;
     nested_query_at = 0; nested_spam = 0;
     strcpy (weather.appid, "0123456789abcdef");
     strcpy (weather.city, "Zuerich");
@@ -172,6 +186,7 @@ reset (uint32_t offset_ms)
 }
 
 static int fails, cases;
+static unsigned drops (void) { return esp8266_ack_drops; }     /* verworfene Quittungen: Zuordnung passte nicht */
 #define CHECK(name, cond) do { cases++; if (cond) printf ("  OK    %s\n", name); else { fails++; printf ("  FEHL  %s\n", name); } } while (0)
 
 int
@@ -179,9 +194,11 @@ main (void)
 {
     static const char * endzeilen[] = { "WEATHER Zuerich 12 Grad\r\n", "WEATHER_FC Zuerich morgen 9 Grad\r\n",
                                         "WICON 02d\r\n", "WICON_FC 10n\r\n", "ERROR weather leer\r\n" };
+    static const char * messzeilen[] = { "- weather fc=0 ms=4990 ok\r\n", "- weather fc=1 ms=4990 ok\r\n",
+                                         "- weather fc=0 ms=4990 ok\r\n", "- weather fc=1 ms=4990 ok\r\n", "- weather fc=0 ms=4990 leer\r\n" };
     char        n[160];
     uint32_t    t0;
-    int         i;
+    int         i, cap;
 
     printf ("[0] statisch: main.c reicht jede Nachricht an var_weather_query_end() weiter\n");
     CHECK ("schedule_esp8266_messages(): var_weather_query_end (msg_rtc) direkt nach esp8266_get_message()", MAIN_HOOK == 1);
@@ -248,44 +265,56 @@ main (void)
     snprintf (n, sizeof (n), "ohne App-Kennung geht nichts raus und es gilt nichts als angestossen (%u ms)", (unsigned) dauer);
     CHECK (n, weather_cmds == 0 && dauer == 3000);
 
-    printf ("[7] Endzeile je Art nach 5 s, Quittung 30 ms danach (Reihenfolge wie beim ESP)\n");
-    for (i = 0; i < 5; i++)
+    /* [7] Reihenfolge wie weather.cpp:602-613 und die Hauptschleife des ESP: Endzeile, Messzeile
+     * "- weather fc=.. ms=.. <ergebnis>", dann -- erst nach Rueckkehr in die Schleife -- bei Marke
+     * "ACK xy" und der Punkt. Einmal ohne (cap_var_crc=0), einmal mit Pruefsumme (cap_var_crc=1). */
+    for (cap = 0; cap < 2; cap++)
     {
-        reset (0); t0 = sim_ms;
-        weather_query (i == 2 ? WEATHER_QUERY_ID_ICON : i == 3 ? WEATHER_QUERY_ID_ICON_FC : i == 1 ? WEATHER_QUERY_ID_TEXT_FC : WEATHER_QUERY_ID_TEXT);
-        rx_push (t0 + 5000, endzeilen[i]);
-        ack_at = t0 + 5030;
-        send ("N0d0001");
-        snprintf (n, sizeof (n), "%.*s: wartendes Kommando angenommen (%u ms)", (int) strcspn (endzeilen[i], "\r"), endzeilen[i], (unsigned) dauer);
-        CHECK (n, angenommen == 1 && var_send_timeout_cnt == 0);
-        /* Endzeile frueh (1 s), Quittung 30 ms danach, dann schweigt der ESP: Das NAECHSTE Kommando muss
-         * nach drei Sekundenschritten aufgeben (2'969 ms ab Start bei +1'031). Wirkte der Abruf fort,
-         * wartete es bis 7 s nach dem Anstoss (5'969 ms). */
-        reset (0); t0 = sim_ms;
-        weather_query (WEATHER_QUERY_ID_TEXT);
-        rx_push (t0 + 1000, endzeilen[i]);
+        printf ("[7] Endzeile je Art nach 5 s, Messzeile, Quittung 30 ms danach, cap_var_crc=%d\n", cap);
+        for (i = 0; i < 5; i++)
+        {
+            reset (0); esp8266.cap_var_crc = (uint_fast8_t) cap; t0 = sim_ms;
+            weather_query (i == 2 ? WEATHER_QUERY_ID_ICON : i == 3 ? WEATHER_QUERY_ID_ICON_FC : i == 1 ? WEATHER_QUERY_ID_TEXT_FC : WEATHER_QUERY_ID_TEXT);
+            rx_push (t0 + 5000, endzeilen[i]);
+            rx_push (t0 + 5000, messzeilen[i]);
+            ack_at = t0 + 5030;
+            send ("N0d0001");
+            snprintf (n, sizeof (n), "%.*s: wartendes Kommando angenommen (%u ms)", (int) strcspn (endzeilen[i], "\r"), endzeilen[i], (unsigned) dauer);
+            CHECK (n, angenommen == 1 && var_send_timeout_cnt == 0 && drops () == 0);
+            /* Endzeile frueh (1 s), Quittung 30 ms danach, dann schweigt der ESP: Das NAECHSTE Kommando muss
+             * nach drei Sekundenschritten aufgeben (rund 2'969 ms ab Start bei +1'031; mit "ACK xy" liest die
+             * Nachbildung eine Zeile mehr, dann 2'968). Wirkte der Abruf fort, wartete es bis 7 s nach dem
+             * Anstoss (rund 5'969 ms). */
+            reset (0); esp8266.cap_var_crc = (uint_fast8_t) cap; t0 = sim_ms;
+            weather_query (WEATHER_QUERY_ID_TEXT);
+            rx_push (t0 + 1000, endzeilen[i]);
+            rx_push (t0 + 1000, messzeilen[i]);
+            ack_at = t0 + 1030;
+            send ("N0d0002");
+            CHECK ("  fruehe Endzeile: wartendes Kommando angenommen", angenommen == 1 && drops () == 0);
+            ack_at = 0; ack_delay = -1;
+            send ("N0d0003");
+            snprintf (n, sizeof (n), "  Abruf beendet: naechstes Kommando wartet normal (%u ms, erwartet %u)", (unsigned) dauer, (unsigned) normal);
+            CHECK (n, angenommen == 0 && dauer == normal && dauer < 3000);
+        }
+        reset (0); esp8266.cap_var_crc = (uint_fast8_t) cap; t0 = sim_ms;
+        weather_query (WEATHER_QUERY_ID_ICON);
+        rx_push (t0 + 1000, "WEATHER Fehler 401\r\n");
+        rx_push (t0 + 1000, "- weather fc=0 ms=990 fehler\r\n");
         ack_at = t0 + 1030;
-        send ("N0d0002");
-        ack_at = 0; ack_delay = -1;
-        send ("N0d0003");
-        snprintf (n, sizeof (n), "  Abruf beendet: naechstes Kommando wartet normal (%u ms, erwartet 2969)", (unsigned) dauer);
-        CHECK (n, angenommen == 0 && dauer == 2969);
+        send ("N0d0004");
+        ack_at = 0;
+        send ("N0d0005");
+        snprintf (n, sizeof (n), "Icon angefragt, WEATHER-Zeile (Fehler-cod) beendet: danach normal (%u ms, erwartet %u)", (unsigned) dauer, (unsigned) normal);
+        CHECK (n, var_send_timeout_cnt == 1 && dauer == normal && dauer < 3000);
+        reset (0); esp8266.cap_var_crc = (uint_fast8_t) cap; t0 = sim_ms;
+        weather_query (WEATHER_QUERY_ID_TEXT);
+        rx_push (t0 + 1000, "WEATHER Zuerich 12 Grad\r\n");
+        rx_push (t0 + 1000, "- weather fc=0 ms=990 ok\r\n");
+        send ("N0d0006");
+        snprintf (n, sizeof (n), "Endzeile, danach schweigt der ESP: wartendes Kommando gibt %u ms nach dem Anstoss auf", (unsigned) (sim_ms - t0));
+        CHECK (n, sim_ms - t0 >= 6000 && sim_ms - t0 <= 7000 && var_send_timeout_cnt == 1);
     }
-    reset (0); t0 = sim_ms;
-    weather_query (WEATHER_QUERY_ID_ICON);
-    rx_push (t0 + 1000, "WEATHER Fehler 401\r\n");
-    ack_at = t0 + 1030;
-    send ("N0d0004");
-    ack_at = 0;
-    send ("N0d0005");
-    snprintf (n, sizeof (n), "Icon angefragt, WEATHER-Zeile (Fehler-cod) beendet: danach normal (%u ms, erwartet 2969)", (unsigned) dauer);
-    CHECK (n, var_send_timeout_cnt == 1 && dauer == 2969);
-    reset (0); t0 = sim_ms;
-    weather_query (WEATHER_QUERY_ID_TEXT);
-    rx_push (t0 + 1000, "WEATHER Zuerich 12 Grad\r\n");
-    send ("N0d0006");
-    snprintf (n, sizeof (n), "Endzeile, danach schweigt der ESP: wartendes Kommando gibt %u ms nach dem Anstoss auf", (unsigned) (sim_ms - t0));
-    CHECK (n, sim_ms - t0 >= 6000 && sim_ms - t0 <= 7000 && var_send_timeout_cnt == 1);
 
     printf ("[8] Endzeile beendet den Abruf -- im Hauptloop, vor dem Kommando\n");
     reset (0); t0 = sim_ms;

@@ -15,6 +15,7 @@
 #include "esp8266.h"
 #include "eep.h"
 #include "eeprom-data.h"
+#include "vars.h"                                                               // var_weather_query_start(), A2
 
 /*--------------------------------------------------------------------------------------------------------------------------------------
  * globals:
@@ -248,6 +249,8 @@ weather_query (uint_fast8_t query_id)
                     break;
                 }
             }
+
+            var_weather_query_start ();                                         // A2: Anstoss merken, siehe vars.c
         }
         else if (*weather.city)
         {
@@ -280,6 +283,8 @@ weather_query (uint_fast8_t query_id)
                     break;
                 }
             }
+
+            var_weather_query_start ();                                         // A2: Anstoss merken, siehe vars.c
         }
     }
 }

@@ -653,6 +653,26 @@ static volatile uint_fast8_t    show_time_flag              = 0;        // flag:
 static volatile uint_fast8_t    half_minute_flag            = 0;        // flag: it is hh:mm:30
 volatile uint32_t               uptime                      = 0;        // uptime in seconds
 static volatile uint32_t        diag_tick_cnt               = 0;        // DIAGNOSE: zaehlt JEDEN Zeitgeber-Interrupt, nicht die Sekunden
+
+#ifndef BLACK_BOARD                                                     // eeprom.c gibt es nur ohne Black Board
+/* Lesezugriff fuer die Messzeile "eep ..." in eeprom_write() (Paket 2026-10-09, M.1, AKM.2).
+ *
+ * Bewusst NICHT eeprom_ms_tick: Das ist ein Merker, den eeprom_waitstates() selbst loescht und
+ * zaehlt. Mass die Zeile mit demselben Merker, kaeme per Konstruktion ms = 16 * z heraus, und die
+ * Pruefung 15*z <= ms <= 17*z + 10 koennte nie fehlschlagen (DIR-014). diag_tick_cnt laeuft frei
+ * mit, niemand setzt ihn zurueck; die Differenz zweier Staende ist umlaufsicher.
+ *
+ * Aufloesung: ein Zeitgeber-Interrupt, 1/F_INTERRUPTS s (66,7 us bei 15'000). Die Zeile rechnet
+ * ganzzahlig auf Millisekunden ab, zeigt also bis knapp 1 ms zu wenig.
+ */
+const uint32_t                  diag_ticks_per_ms           = F_INTERRUPTS / 1000;
+
+uint32_t
+diag_ticks (void)
+{
+    return diag_tick_cnt;
+}
+#endif
 #if 0
 static volatile uint_fast8_t    wday                        = 0;        // current weekday, 0=Sunday
 static volatile uint_fast16_t   year                        = 0;        // current year;
@@ -3191,6 +3211,7 @@ schedule_esp8266_messages (void)
     uint_fast8_t            msg_rtc;
 
     msg_rtc = esp8266_get_message ();
+    var_weather_query_end (msg_rtc);                                        // A2: Endzeile beendet einen laufenden Wetterabruf (vars.c)
 
     switch (msg_rtc)
     {

@@ -26,4 +26,11 @@ extern uint_fast8_t             eeprom_get_address (void);
 extern uint_fast8_t             eeprom_read (uint_fast16_t, uint8_t *, uint_fast16_t);
 extern uint_fast8_t             eeprom_write (uint_fast16_t, uint8_t *, uint_fast16_t);
 
+/* Zeitbasis der Messzeile in eeprom_write(), definiert in main.c (Paket 2026-10-09, M.1). Hier und
+ * nicht in main.h: main.c bindet diesen Header ueber eep.h ein, der Compiler gleicht die beiden
+ * Deklarationen also gegen die Definition ab -- und main.h ist eine Versionsdatei (R4).
+ */
+extern uint32_t                 diag_ticks (void);
+extern const uint32_t           diag_ticks_per_ms;
+
 #endif

@@ -14,6 +14,11 @@
 
 #include "eeprom.h"
 #include "i2c.h"
+#include "log.h"                                                // Messzeile in eeprom_write()
+
+#undef  UART_PREFIX                                             // log.h hat UART_PREFIX auf "log" gesetzt
+#define UART_PREFIX             esp8266                         // esp8266_uart_rxdrops() fuer d= der Messzeile
+#include "uart.h"                                               // absichtlich ohne Include-Guard, je Praefix neu einbindbar
 
 #define SHOW_SIZES              0
 
@@ -196,12 +201,29 @@ eeprom_read (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
  * fehlgeschlagener SCHREIBzugriff bricht ab und liefert 0, wie bisher.
  *
  * Nebeneffekt, nicht Zweck: Das EEPROM hat eine endliche Zahl Schreibzyklen je Zelle.
+ *
+ * Messzeile (Paket 2026-10-09, M.1, AKM.1): Nach jedem Aufruf mit mindestens einem Schreibzyklus
+ * genau eine Zeile "eep a=<start> n=<anzahl> z=<zyklen> ms=<dauer> d=<vorher>/<nachher>", ohne
+ * weitere Schwelle -- es gibt keine periodischen Schreiber (V.1 (2)). Kein Inhaltsbyte: Die
+ * Bereiche tragen Zugangsdaten, und log_printf() geht auch als LOG-Zeile zum ESP.
+ *   z   Aufrufe von eeprom_waitstates(), also Schreibzyklen
+ *   ms  ueber diag_ticks() aus main.c, UNABHAENGIG von eeprom_ms_tick (Begruendung dort)
+ *   d   verworfene Zeichen der ESP-Bruecke vor und nach dem Schreiben. Die Abhaengigkeit von der
+ *       ESP-UART ist gewollt: Genau dieser Ring laeuft waehrend des Busy-Waits ueber (L144).
+ * Die Schreiblogik selbst ist unveraendert; neu sind nur die Zaehlung und die Zeile danach.
+ * Vor log_init() kann hier kein Zyklus laufen: eeprom_is_up wird erst in eeprom_init() gesetzt,
+ * und main() ruft eep_init() nach log_init() und nach timer2_init().
  *--------------------------------------------------------------------------------------------------------------------------------------
  */
 uint_fast8_t
 eeprom_write (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
 {
     uint_fast8_t rtc = 1;                                   // cnt == 0 ist kein Fehler; vorher war rtc hier uninitialisiert
+    uint_fast16_t   m_a  = start_addr;                      // Messzeile: Werte vor der Schleife festhalten
+    uint_fast16_t   m_n  = cnt;
+    uint_fast16_t   m_z  = 0;
+    uint_fast16_t   m_d  = esp8266_uart_rxdrops ();
+    uint32_t        m_t  = diag_ticks ();
 
     if (eeprom_is_up)
     {
@@ -226,6 +248,7 @@ eeprom_write (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
                     break;
                 }
                 eeprom_waitstates ();
+                m_z++;
             }
 
             start_addr++;
@@ -235,6 +258,12 @@ eeprom_write (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
     else
     {
         rtc = 0;
+    }
+
+    if (m_z)
+    {
+        log_printf ("eep a=%u n=%u z=%u ms=%lu d=%u/%u\r\n", (unsigned int) m_a, (unsigned int) m_n, (unsigned int) m_z,
+                    (unsigned long) ((diag_ticks () - m_t) / diag_ticks_per_ms), (unsigned int) m_d, (unsigned int) esp8266_uart_rxdrops ());
     }
     return rtc;
 }

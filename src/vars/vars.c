@@ -481,6 +481,62 @@ var_retry_queue (const char * buf, uint_fast8_t idlen, uint_fast8_t attempts, ui
     return 0;
 }
 
+/* A2 -- Warten auf die Wetterantwort (Paket 2026-10-09, design.md 1.6, AKW.1 bis AKW.3).
+ *
+ * weather_query() stoesst beim ESP einen Abruf an und wartet nicht. Bei einem langsamen Dienst
+ * (Sicherheitsnetz des ESP: 5'000 ms) kommt der Punkt fuer das naechste var-Kommando spaeter als
+ * VAR_SEND_TIMEOUT_SEC; ohne A2 laeuft dieses Kommando in den Timeout, zaehlt v und wird
+ * nachgesendet (L338). Solange ein Abruf laeuft, gibt var_send_buf() deshalb erst auf, wenn BEIDES
+ * abgelaufen ist: VAR_SEND_TIMEOUT_SEC ab dem eigenen Start und VAR_WEATHER_WAIT_SEC ab dem Anstoss.
+ *
+ * Frist: echte 6 s (5'000 + 100 ms beim ESP, dazu die Zeile ueber die Bruecke). uptime zaehlt ganze
+ * Sekunden, der Anstoss kann kurz vor einem Schritt liegen -- 7 Schritte sind mindestens 6 s und
+ * hoechstens 7 s. uptime und keine Millisekundenbasis, weil dieser Abschnitt unveraendert im
+ * Tischpruefstand laeuft (tools/checks/auszug/stm), der genau uptime nachbildet.
+ *
+ * Die Endzeile kommt UNMITTELBAR VOR dem Punkt: Der ESP schickt WEATHER & Co., kehrt in seine
+ * Hauptschleife zurueck und quittiert erst dann die wartende var-Zeile. Gaelte fuer das bereits
+ * wartende Kommando ab der Endzeile wieder die normale Wartezeit, gaebe es nach 5 s sofort auf --
+ * Millisekunden vor seiner Quittung (am Pruefstand W2 gefunden). Deshalb haelt var_send_buf()
+ * den Anstoss, den es gesehen hat, lokal fest und behaelt seine Frist; die Endzeile beendet den
+ * Abruf fuer jedes FOLGENDE Kommando.
+ *
+ * Nichts bleibt haengen (AKW.2): Der Abruf endet mit der Endzeile -- var_weather_query_end() aus
+ * schedule_esp8266_messages(), also im Hauptloop UND in der Warteschleife -- oder mit der Frist,
+ * die bei jeder Abfrage aus uptime neu gerechnet wird. Ein ESP-Neustart mitten im Abruf, nach dem
+ * keine Endzeile mehr kommt, laesst darum nichts zurueck. Ein zweiter Anstoss waehrend eines
+ * laufenden Abrufs verschiebt die Frist nicht. Ein Anstoss WAEHREND des Wartens (RPC "get weather",
+ * verschachtelt ueber schedule_esp8266_cmd()) verlaengert dieses Warten hoechstens bis
+ * VAR_WEATHER_WAIT_SEC ab seinem eigenen Start -- sonst koennte eine Kette solcher Anstoesse es
+ * beliebig strecken. Kein Warten dauert damit laenger als 7 s, weit unter den 20 s des Watchdogs;
+ * keine neue watchdog_reload()-Stelle, nach einer Quittung gilt das Budget unten wie bisher.
+ */
+#define VAR_WEATHER_WAIT_SEC    7                               // uptime-Schritte: mindestens 6 s echte Frist
+#define VAR_WEATHER_END_MASK    ((1UL << ESP8266_WEATHER) | (1UL << ESP8266_WEATHER_FC) | (1UL << ESP8266_WEATHER_ICON) | \
+                                 (1UL << ESP8266_WEATHER_FC_ICON) | (1UL << ESP8266_ERROR))
+
+static uint32_t     var_weather_start = 0;                      // uptime beim Anstoss
+static uint_fast8_t var_weather_busy  = 0;                      // Abruf angestossen, weder Endzeile noch Frist
+
+void
+var_weather_query_start (void)
+{
+    if (! var_weather_busy || uptime - var_weather_start >= VAR_WEATHER_WAIT_SEC)   // laufender Abruf: Frist bleibt
+    {
+        var_weather_busy  = 1;
+        var_weather_start = uptime;
+    }
+}
+
+void
+var_weather_query_end (uint_fast8_t msg)
+{
+    if (msg < 32 && ((1UL << msg) & VAR_WEATHER_END_MASK))    // WEATHER, WEATHER_FC, WICON, WICON_FC, ERROR
+    {
+        var_weather_busy = 0;
+    }
+}
+
 /* Das Kommando, auf dessen Quittung gerade gewartet wird. Zeigt in den Stapelrahmen des wartenden
  * Aufrufs und ist nur waehrend der Warteschleife gueltig.
  *
@@ -509,6 +565,8 @@ var_send_buf (char * buf, uint_fast8_t idlen)
     uint_fast8_t    msg_rtc;
     uint_fast16_t   ack_expect = ESP8266_ACK_NONE;              // S.16: Zuordnung, die die Quittung tragen muss
     uint_fast8_t    queued;
+    uint32_t        weather_start = 0;                          // A2: Anstoss, den dieses Warten gesehen hat
+    uint_fast8_t    weather_seen = 0;
 
     attempts = var_retry_attempts_in;                           // vom Drain gesetzt, gilt genau fuer diesen Aufruf
     var_retry_attempts_in = 0;
@@ -597,6 +655,12 @@ var_send_buf (char * buf, uint_fast8_t idlen)
      */
     while (1)
     {
+        if (var_weather_busy)                                   // A2: VOR der Nachricht festhalten, die Endzeile loescht ihn
+        {
+            weather_seen  = 1;
+            weather_start = var_weather_start;
+        }
+
         msg_rtc = schedule_esp8266_messages ();
 
         if (msg_rtc == ESP8266_OK)
@@ -618,6 +682,13 @@ var_send_buf (char * buf, uint_fast8_t idlen)
 
         if (uptime - start_uptime >= VAR_SEND_TIMEOUT_SEC)
         {
+            if (weather_seen && uptime - weather_start < VAR_WEATHER_WAIT_SEC &&
+                uptime - start_uptime < VAR_WEATHER_WAIT_SEC)
+            {
+                continue;                                       // A2: Wetterabruf laeuft, der ESP quittiert erst danach
+            }
+
+            var_weather_busy = 0;                               // A2: Frist um, der Abruf gilt als beendet
             timed_out = 1;
             break;                                              // got_answer bleibt 0
         }
@@ -660,7 +731,7 @@ var_send_buf (char * buf, uint_fast8_t idlen)
          */
         var_retry_key (key, buf, idlen);
         log_printf ("var_send_buf: keine Quittung nach %ds, %s len=%u: %s\r\n",
-                    VAR_SEND_TIMEOUT_SEC, key, (unsigned int) strlen (buf),
+                    (int) (uptime - start_uptime), key, (unsigned int) strlen (buf),   // gewartete Dauer: mit A2 bis 7 s (N1)
                     var_send_superseded ? "neu" : (queued ? "vorgemerkt" : "verworfen"));
     }
 

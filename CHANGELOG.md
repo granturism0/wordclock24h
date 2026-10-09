@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-10-10 Paket „Brückenlast“, Schritt M: Messzeile beim EEPROM-Schreiben, Warten auf den Wetterabruf (STM 3.2.23)
+
+Nur der STM, ESP (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-010946.zip`, Tag `release/3.2.23-3.2.28-1.4.94`. Umfang: Schritt M aus `specs/paket-2026-10-09/` (M.1 Teil B,
+M.1b mit A2, Review N1).
+
+**Einspielreihenfolge: nur der STM**, über `./tools/flash-stm.sh`. ESP und PWA bleiben, wie
+sie sind. Die Prüfung am Gerät (G2) steht nach dem Einspielen noch aus.
+
+### Messzeile beim EEPROM-Schreiben (M.1, Teil B)
+
+- Neue Zeile im Mitschnitt und im Logring:
+  `eep a=<Adresse> n=<Bytes> z=<Schreibzyklen> ms=<Dauer> d=<verworfene Zeichen vorher>/<nachher>`.
+  Sie kommt aus `eeprom_write()`, und nur dann, wenn mindestens ein Schreibzyklus stattfand.
+- Gemessen wird mit einer eigenen Zeitbasis (`diag_tick_cnt`, 66,7 µs), unabhängig vom
+  Wartezähler des EEPROM. Sonst käme per Konstruktion immer 16 ms je Zyklus heraus. Die Dauer
+  ist auf ganze Millisekunden abgeschnitten.
+- Die Zeile enthält kein Inhaltsbyte, die Bereiche tragen auch Zugangsdaten.
+- Zweck: L339 belegen — wie lange ein Schreibvorgang blockiert und ob genau dann Zeichen der
+  ESP-Brücke verloren gehen — und danach C3 vorher/nachher vergleichen. Die Zeile bleibt im
+  Fabrikat.
+
+### Warten auf den Wetterabruf (M.1b, A2)
+
+- Während eines Wetterabrufs gibt der STM ein Kommando an den ESP erst nach 6 bis 7 s ab dem
+  Anstoss auf, statt nach 3 s. Der ESP bedient die Brücke während des Abrufs nicht, und der
+  Abruf darf bis 5 s dauern. Bisher lief das nächste Kommando dabei in den Timeout und wurde
+  nachgesendet (L338).
+- Die Endzeile des ESP (`WEATHER`, `WEATHER_FC`, `WICON`, `WICON_FC`, `ERROR`) beendet den
+  Abruf.
+- Eine Lücke in der Spezifikation ist im Code geschlossen: Der ESP schickt die Endzeile
+  unmittelbar vor der Quittung des wartenden Kommandos. Dieses behält darum seine verlängerte
+  Frist; die Endzeile wirkt nur auf folgende Kommandos. Sonst hätte es Millisekunden vor der
+  Quittung aufgegeben. Gefunden am Prüfstand W2.
+- Ein zweiter Anstoss verlängert die Frist nicht, und jedes Warten ist auf 7 s ab dem eigenen
+  Start begrenzt. Damit bleibt es weit unter den 20 s des Watchdogs; es gibt keine neue
+  `watchdog_reload()`-Stelle.
+
+### Timeout-Zeile (Review N1)
+
+`var_send_buf: keine Quittung nach Ns` nennt jetzt die tatsächlich gewartete Dauer statt fest
+3 s.
+
+### Werkzeug (intern)
+
+Prüfstand W2 für das Wetterwarten (59 Fälle; gegen 3.2.22 meldet er FEHL mit dem Kernfall
+„Timeout nach 3000 ms“), das Messwerkzeug `tools/mess-stabilitaet.sh` für das Messpaket
+„Stabilität ESP“, und die Logwache meldet `eep …` ab `ms` ≥ 200.
+
+Flash F103: 1'408 Byte frei im Release-Build, vorher 1'688 (Testbau ohne N1: 1'420).
+
 ## 2026-10-10 Paket „Brückenlast“, Korrektur zu Schritt E: Wetterabruf liest wieder die ganze Antwort (ESP 3.2.28)
 
 Nur der ESP, STM (3.2.22) und PWA (1.4.94) unverändert. Release-ZIP

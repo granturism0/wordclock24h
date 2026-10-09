@@ -298,6 +298,12 @@ extern void         var_send_all_variables (void);
  */
 extern void         var_send_reload_budget_reset (void);
 
+/* A2, Warten auf die Wetterantwort (Paket 2026-10-09). Anstoss aus weather_query(), Ende ueber jede
+ * Nachricht aus schedule_esp8266_messages() -- sonst ruft sie niemand. Begruendung in vars.c.
+ */
+extern void         var_weather_query_start (void);
+extern void         var_weather_query_end (uint_fast8_t);
+
 /* Die beiden Messfelder der Diagnosezeile, v=<timeouts>/<verschachtelt>. Saettigende uint16_t,
  * kumulativ seit dem STM-Start. Welchen der beiden Verlustwege aus L107 sie unterscheiden und
  * wie ihr Stand zu deuten ist, steht bei ihrer Definition in vars.c.
