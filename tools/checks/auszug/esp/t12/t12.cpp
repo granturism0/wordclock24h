@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 static uint32_t now;
 static long spin;                                         /* Aufrufe ohne Zeitfortschritt */
@@ -116,8 +117,13 @@ static int parse_weather_fc (const char *, uint_fast8_t);
 #include "weather_code.inc"
 
 static std::vector<std::string> parsed;                   /* Eingaben an die Parser */
-static int parse_weather (const char * a, uint_fast8_t i)    { parsed.push_back (a); size_t b = Serial.lines.size (); real_parse_weather (a, i);    return Serial.lines.size () > b; }
-static int parse_weather_fc (const char * a, uint_fast8_t i) { parsed.push_back (a); size_t b = Serial.lines.size (); real_parse_weather_fc (a, i); return Serial.lines.size () > b; }
+/* Den ECHTEN Rueckgabewert durchreichen (M1: 0 keine, 1 Erfolg, 2 Fehler). Die alte Fassung ist void --
+ * dort zaehlt nur, ob eine Zeile entstand (so wurde sie auch benutzt). */
+template <class F> static int rufe (F f, const char * a, uint_fast8_t i) {
+  size_t b = Serial.lines.size ();
+  if constexpr (std::is_void_v<decltype (f (a, i))>) { f (a, i); return Serial.lines.size () > b; } else return f (a, i); }
+static int parse_weather (const char * a, uint_fast8_t i)    { parsed.push_back (a); return rufe (real_parse_weather, a, i); }
+static int parse_weather_fc (const char * a, uint_fast8_t i) { parsed.push_back (a); return rufe (real_parse_weather_fc, a, i); }
 
 static int fails, n, checks;
 static const char * APPID = "GEHEIMAPPID0123", * LON = "8.5417", * LAT = "47.3769";
@@ -130,7 +136,7 @@ static bool endzeile (const std::string & l) {
 
 /* soll_parse: erwartete Parser-Eingabe, nullptr = Parser darf nicht laufen; sofort: Dauer ohne stop ()
  * hoechstens bis zum letzten Datenbyte + 5 ms */
-static void fall (const char * name, Szenario s, int fc, int icon, const char * soll_erg, const char * soll_parse, bool city = false, bool sofort = false)
+static void fall (const char * name, Szenario s, int fc, int icon, const char * soll_erg, const char * soll_parse, bool city = false, bool sofort = false, const char * soll_end = nullptr)
 {
   sz = s; n++; Serial = FakeSerial (); logring.clear (); parsed.clear (); openweather_client = WiFiClient ();
   now = 1000000; spin = 0; spin_at = 0; spin_fail = false; uint32_t start = now;
@@ -155,7 +161,8 @@ static void fall (const char * name, Szenario s, int fc, int icon, const char * 
   int ez = 0; std::string ezeile;
   for (auto & l : Serial.lines) if (endzeile (l)) { ez++; ezeile = l; }
   PRUEF (ez == 1, "%d Endzeilen statt 1 (AKE.6)", ez);
-  if (ez == 1 && strcmp (soll_erg, "ok")) PRUEF (ezeile == std::string ("ERROR weather ") + soll_erg, "Endzeile '%s' (AKE.6)", ezeile.c_str ());
+  if (ez == 1 && soll_end) PRUEF (ezeile == soll_end, "Endzeile '%s', erwartet '%s' (AKE.6/M1)", ezeile.c_str (), soll_end);
+  if (ez == 1 && strcmp (soll_erg, "ok") && strcmp (soll_erg, "fehler")) PRUEF (ezeile == std::string ("ERROR weather ") + soll_erg, "Endzeile '%s' (AKE.6)", ezeile.c_str ());
   /* AKE.3/AKE.4 */
   if (soll_parse) PRUEF (parsed.size () == 1 && parsed[0] == soll_parse, "Parser bekam %zu Eingaben, erste %.40s... (AKE.3/4)", parsed.size (), parsed.empty () ? "-" : parsed[0].c_str ());
   else PRUEF (parsed.empty (), "Parser lief %zu mal, sollte nicht (AKE.6)", parsed.size ());
@@ -231,6 +238,25 @@ int main ()
   { Szenario s; s.segs.push_back ({30, hdr_cl (0)}); s.close_at = 30; fall ("Kopf ohne Koerper", s, 0, 0, "leer", nullptr); }
   { Szenario s = cl (noicon, 40); fall ("Icon verlangt, Antwort ohne Icon", s, 0, 1, "leer", noicon.c_str ()); }
   { Szenario s = cl (noicon, 40); fall ("Icon morgen verlangt, Antwort ohne Icon", s, 1, 1, "leer", noicon.c_str ()); }
+
+  /* --- M1 (Review E.5): Endzeile meldet einen Fehler => Messzeile "fehler", Endzeile UNVERAENDERT, kein ERROR weather --- */
+  std::string e401 = "{\"cod\":401, \"message\": \"Invalid API key. Please see https://openweathermap.org/faq#error401 for more info.\"}";
+  std::string e401fc = "{\"cod\":\"401\",\"message\":\"Invalid API key.\"}";
+  std::string e404 = "{\"cod\":\"404\",\"message\":\"city not found\"}";
+  std::string html = "<html><head><title>502 Bad Gateway</title></head><body>openresty</body></html>";
+  { Szenario s = cl (e401, 40);   fall ("cod 401 (falsche appid), Wetter", s, 0, 0, "fehler", e401.c_str (), false, false, "WEATHER Wetter heute: Error 401"); }
+  { Szenario s = cl (e401fc, 40); fall ("cod 401, Vorhersage", s, 1, 0, "fehler", e401fc.c_str (), false, false, "WEATHER_FC Wetter morgen: Error 401"); }
+  { Szenario s = cl (html, 40);   fall ("Parse Error, Wetter", s, 0, 0, "fehler", html.c_str (), false, false, "WEATHER Wetter heute: Parse Error"); }
+  { Szenario s = cl (html, 40);   fall ("Parse Error, Vorhersage", s, 1, 0, "fehler", html.c_str (), false, false, "WEATHER_FC Wetter morgen: Parse Error"); }
+  { Szenario s = cl (e401, 40);   fall ("Icon heute, cod 401", s, 0, 1, "fehler", e401.c_str (), false, false, "WEATHER Wetter heute: Error 401"); }
+  { Szenario s = cl (e404, 40);   fall ("Icon morgen, cod 404", s, 1, 1, "fehler", e404.c_str (), true, false, "WEATHER_FC Wetter morgen: Error 404"); }
+  { Szenario s = cl (html, 40);   fall ("Icon heute, Parse Error", s, 0, 1, "fehler", html.c_str (), false, false, "WEATHER Wetter heute: Parse Error"); }
+  /* Erfolgsform exakt, und der Grenzfall cod 200 ohne temp/description: Erfolgsform, also ok */
+  { Szenario s = cl (now_json, 40); fall ("Erfolg Wetter, Endzeile exakt", s, 0, 0, "ok", now_json.c_str (), false, false, "WEATHER Wetter heute: 13 Grad, klarer Himmel"); }
+  { Szenario s = cl (now_json, 40); fall ("Erfolg Icon, Endzeile exakt", s, 0, 1, "ok", now_json.c_str (), false, false, "WICON 01d"); }
+  { Szenario s = cl (fc_json, 40);  fall ("Erfolg Icon morgen, Endzeile exakt", s, 1, 1, "ok", fc_json.c_str (), false, false, "WICON_FC 10d"); }
+  { std::string leer200 = "{\"cod\":200}"; Szenario s = cl (leer200, 40);
+    fall ("cod 200 ohne temp/description (Erfolgsform)", s, 0, 0, "ok", leer200.c_str (), false, false, "WEATHER Wetter heute: "); }
 
   printf ("%s (%s): %d Faelle, %d Pruefungen, %d Fehler\n", fails ? "FEHLGESCHLAGEN" : "OK", BEZEICHNUNG, n, checks, fails);
   return fails ? 1 : 0;
