@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-10-10 Paket „Brückenlast“, Korrektur zu Schritt E: Wetterabruf liest wieder die ganze Antwort (ESP 3.2.28)
+
+Nur der ESP, STM (3.2.22) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-003501.zip`, Tag `release/3.2.22-3.2.28-1.4.94`. Umfang: Korrektur des Rückschritts aus ESP 3.2.27 (L353).
+
+**Einspielreihenfolge: nur der ESP.** PWA und STM bleiben, wie sie sind.
+
+### Rückschritt aus ESP 3.2.27 behoben (L353)
+
+Unter 3.2.27 kam die Antwort des Wetterabrufs zwar in unter 100 ms, aber ohne Inhalt: Das
+aktuelle Wetter zeigte „Parse Error“, der Vorhersagetext blieb leer, die Icons fehlten.
+Betroffen waren alle vier Abrufarten.
+
+**Ursache, belegt an der Core-Quelle 3.1.2** — dieselbe Falle wie L173 vom 04.10.2026:
+
+- `WiFiClient::available()` liest den Pufferstand, bevor es die Kontrolle abgibt. Während
+  dieser Abgabe stellt der Treiber die restlichen Segmente samt Verbindungsende zu, zurück
+  kommt aber die alte 0.
+- Danach meldet `connected()` 0, weil der Zustand CLOSE_WAIT als „geschlossen“ gilt, auch
+  wenn noch Daten im Puffer liegen.
+- Die Leseschleife hielt das für das Ende und gab nur das erste TCP-Segment (536 Byte)
+  weiter.
+
+**Korrektur:** Bevor die Leseschleife das Ende annimmt, fragt sie `available()` noch einmal
+ab. Die Endzeile an den STM und die Messzeile `- weather …` bleiben unverändert. Die
+Prüfung am Gerät (G1) steht nach dem Einspielen noch aus.
+
+### Werkzeug (intern)
+
+Der Prüfstand t12 bildete den Core falsch nach und sah den Fehler deshalb nicht. Jetzt stellt
+er Segmente nur an Abgabepunkten zu, `connected()` ist nach dem Verbindungsende 0, und acht
+Fälle verwenden die echte Serverantwort. Gegen 3.2.27 meldet er genau das Bild vom Gerät.
+
 ## 2026-10-09 Paket „Brückenlast“, Schritt E: Wetterabruf, Echo, Prüfsumme vorbereitet (ESP 3.2.27)
 
 Nur der ESP, STM und PWA unverändert. Release-ZIP

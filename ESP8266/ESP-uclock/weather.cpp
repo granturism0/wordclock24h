@@ -372,7 +372,9 @@ weather_rest_ms (uint32_t start_ms)
  * weather_read_line () - die EINE Lesehilfe des Wetterabrufs (L338)
  *
  * Liest Zeichen, solange available () || connected () und die Arbeitsfrist laeuft. Endet bei '\n',
- * beim Verbindungsende oder bei Fristablauf. Die Zeile kommt wie bei readStringUntil ('\n') an: ohne
+ * beim Verbindungsende oder bei Fristablauf. Das Verbindungsende gilt erst, wenn NACH connected () == 0
+ * auch available () 0 meldet (Rueckschritt ESP 3.2.27, G1 10.10.2026; Begruendung an der Stelle).
+ * Die Zeile kommt wie bei readStringUntil ('\n') an: ohne
  * das '\n', ein '\r' davor bleibt stehen - der Parser bekommt dieselbe Zeichenkette wie bisher.
  *
  * Anders als readStringUntil () wartet sie nach dem Verbindungsende NICHT bis zur Frist
@@ -408,6 +410,22 @@ weather_read_line (String & line, uint32_t start_ms)
         }
         else if (! openweather_client.connected ())
         {
+            /* Rueckschritt ESP 3.2.27 (G1 10.10.2026): NOCHMAL nachsehen, bevor das Verbindungsende gilt.
+             * available () erhebt den Puffer ZUERST und gibt erst DANACH per optimistic_yield (100) ab
+             * (WiFiClient.cpp:246-257). Waehrend dieser Abgabe stellt der WLAN-Treiber die restlichen Segmente samt FIN zu -- die 0 von eben
+             * ist dann veraltet. connected () meldet danach 0, obwohl Daten im Puffer liegen: state ()
+             * zaehlt CLOSE_WAIT als CLOSED (ClientContext.h:363-371), und WiFiClient::connected () kehrt
+             * in diesem Fall zurueck, ohne available () zu fragen (WiFiClient.cpp:327-333). Am Geraet
+             * brach so jeder Koerper nach dem ersten 536-Byte-Segment ab (ESP 3.2.27).
+             * Ist connected () einmal 0, kommt nichts mehr nach: Das FIN folgt den Daten in Reihenfolge,
+             * und ClientContext::_recv () behaelt den Puffer beim FIN (ClientContext.h:600-615). Was
+             * available () JETZT meldet, ist also endgueltig.
+             */
+            if (openweather_client.available ())
+            {
+                continue;
+            }
+
             return WEATHER_LINE_CLOSED;
         }
         else
