@@ -24,6 +24,9 @@
 #   Luecke in diag          der zeitgesteuerte Zweig des STM steht (Haenger aus L14)
 #   Sprung in d=            verworfene Zeichen auf der Bruecke, also Ueberlastung
 #   Sprung in v=            Variablenverluste
+#   - weather ... <nicht ok> Wetterabruf gescheitert, oder ms >= 1000 (ESP ab Paket 2026-10-09)
+#   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
+#   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
 #
 # AUSSCHLIESSLICH LESEND. Das Skript spricht nicht mit dem Geraet, es liest nur mit.
 
@@ -33,7 +36,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 2
 # Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
 # nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
 # blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
-mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
+[ -z "${WATCHLOG_QUELLE:-}" ] && mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
   && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
 
 ONCE=0
@@ -46,7 +49,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-LOG=./tools/logger/log.sh
+# WATCHLOG_QUELLE ersetzt den Mitschnitt durch ein Skript, das wie log.sh auf "tail <n>"
+# antwortet -- nur fuer die Gegenprobe der Meldungen (DIR-014), nie im Geraetelauf.
+LOG=${WATCHLOG_QUELLE:-./tools/logger/log.sh}
 [ -x "$LOG" ] || { echo "tools/logger/log.sh fehlt oder ist nicht ausfuehrbar." >&2; exit 2; }
 
 # Ausgangsstand, damit nur NEUES gemeldet wird. Ohne diese Grundlinie meldet der
@@ -56,6 +61,13 @@ basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
 basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
 letzte_d=""
 letzte_a=""
+
+# Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
+# Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
+# Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen'
+GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
+"$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
@@ -122,6 +134,36 @@ while :; do
 
   stamp=$(date '+%H:%M:%S')
   alarm=0
+
+  # Neue Ereigniszeilen. grep -Fxv -f mit leerer Musterdatei liefert nichts -- deshalb
+  # eine Zeile, die im Mitschnitt nie vorkommt, als Platzhalter.
+  [ -s "$GESEHEN" ] || printf '%s\n' '#watch-log-leer#' > "$GESEHEN"
+  neu=$(printf '%s' "$roh" | grep -aE -e "$EREIGNIS_MUSTER" | grep -aFxv -f "$GESEHEN")
+  if [ -n "$neu" ]; then
+    printf '%s\n' "$neu" >> "$GESEHEN"
+    while IFS= read -r z; do
+      case "$z" in
+        *"- weather fc="*)
+          # - weather fc=<0|1> ms=<n> <ok|dns|connfail|timeout|leer>   (design.md §1.4)
+          wms=$(printf '%s' "$z" | grep -aoE 'ms=[0-9]+' | head -1 | cut -d= -f2)
+          werg=$(printf '%s' "$z" | sed -E 's/.*- weather fc=[0-9]+ ms=[0-9]+ ([a-z]+).*/\1/')
+          if [ "$werg" != "ok" ] || [ "${wms:-0}" -ge 1000 ]; then
+            printf '  %s  Wetter: %s nach %s ms   <%s>\n' "$stamp" "$werg" "${wms:-?}" "$z"
+            alarm=1
+          fi ;;
+        *"cmd abgewiesen"*)
+          printf '  %s  Bruecke: Kommando abgewiesen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *)
+          # eep a=<adr> n=<cnt> z=<zyklen> ms=<dauer> d=<vorher>/<nachher>  (design.md §2.2)
+          ems=$(printf '%s' "$z" | grep -aoE ' ms=[0-9]+' | head -1 | cut -d= -f2)
+          if [ "${ems:-0}" -ge 200 ]; then
+            printf '  %s  EEPROM: Schreibvorgang %s ms   <%s>\n' "$stamp" "$ems" "$z"
+            alarm=1
+          fi ;;
+      esac
+    done <<< "$neu"
+  fi
 
   if [ "$exc" -gt "$basis_exc" ]; then
     printf '  %s  *** %d NEUE Exception(s) ***\n' "$stamp" "$((exc - basis_exc))"
