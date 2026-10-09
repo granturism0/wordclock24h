@@ -7,7 +7,17 @@
  * Attrappe mit Core-3.1.2-Semantik (Pfade in den Kommentaren):
  *  - connect (host, port): hostByName (host, ip, _timeout) UND connect (ip) mit _timeout, je mit der
  *    vollen Frist (WiFiClient.cpp:130-137, :145-163, ClientContext.h:129-159)
- *  - connected (): ESTABLISHED || available () (WiFiClient.cpp:327-333)
+ *  - ZUSTELLUNG nur an Abgabepunkten: Der WLAN-Treiber reicht Segmente erst an lwIP und ClientContext::_recv
+ *    weiter, wenn der Sketch abgibt -- delay (), yield () und das optimistic_yield (100) IN available ()
+ *  - available (): erhebt getSize () ZUERST und gibt DANACH ab, wenn 0 (WiFiClient.cpp:246-257): Ein Segment,
+ *    das waehrend dieser Abgabe zugestellt wird, steckt im Puffer, obwohl der Rueckgabewert 0 lautet
+ *  - connected (): "if (!_client || state () == CLOSED) return 0" (WiFiClient.cpp:327-333), und state ()
+ *    meldet CLOSE_WAIT als CLOSED (ClientContext.h:363-371). Nach dem FIN des Servers also 0, AUCH WENN
+ *    noch Daten im Puffer liegen -- das "|| available ()" dahinter wird in CLOSE_WAIT nie erreicht.
+ *    Die erste Fassung dieses Pruefstands hatte hier "!geschlossen || available ()" und lieferte bei
+ *    jedem available () sofort zu; deshalb sah sie den Rueckschritt von ESP 3.2.27 nicht.
+ *  - Lesen kostet Zeit (50 Zeichen je ms, String waechst Zeichen fuer Zeichen), OHNE abzugeben: Folgesegmente
+ *    werden waehrenddessen faellig, aber erst an der naechsten Abgabe zugestellt
  *  - readStringUntil (): timedRead wartet je Zeichen bis _timeout und prueft connected () NICHT
  *    (Stream.cpp:30-42, :255-263); Vorgabe _timeout 5000 (WiFiClient.cpp:80)
  *  - stop (): bis WIFICLIENT_MAX_FLUSH_WAIT_MS = 300 ms (WiFiClient.cpp:306-325), hier immer voll
@@ -32,8 +42,9 @@ static uint32_t spin_at;
 static bool spin_fail;
 static void tick () { if (now != spin_at) { spin_at = now; spin = 0; } else if (++spin > 200000) { spin_fail = true; now += 1000; } }   /* Wache meldet UND rueckt vor, damit der Lauf endet */
 static uint32_t millis () { return now; }
-static void delay (unsigned long ms) { now += ms; }
-static void yield () { now += 1; }                       /* Core: Kontext abgeben; hier 1 ms */
+static void sdk ();                                       /* Zustellung an den Abgabepunkten */
+static void delay (unsigned long ms) { now += ms; sdk (); }
+static void yield () { now += 1; sdk (); }               /* Core: Kontext abgeben; hier 1 ms */
 
 struct String : std::string {
   String () {}
@@ -81,32 +92,33 @@ struct FakeWiFi {
 } WiFi;
 
 struct WiFiClient {
-  unsigned long _timeout = 5000; bool open = false; uint32_t t0 = 0; std::string buf; size_t got = 0, pos = 0;
+  unsigned long _timeout = 5000; bool open = false; bool fin = false; uint32_t t0 = 0; std::string buf; size_t got = 0, pos = 0; unsigned rd = 0;
   uint32_t tropf_next = 0;
   void setTimeout (unsigned long t) { _timeout = t; }
   int connect (IPAddress, int) {
     if (sz.conn_abgewiesen) { now += 5; return 0; }
     if (sz.conn_haengt || sz.conn_ms > _timeout) { now += _timeout; return 0; }
-    now += sz.conn_ms; open = true; t0 = NIE; buf.clear (); got = pos = 0; return 1; }
+    now += sz.conn_ms; open = true; fin = false; t0 = NIE; buf.clear (); got = pos = 0; rd = 0; return 1; }
   int connect (const char * host, int port) {            /* Core: DNS UND Verbindung je mit _timeout */
     IPAddress ip; if (WiFi.hostByName (host, ip, _timeout)) return connect (ip, port); return 0; }
   void print (const std::string &) { t0 = now; si = 0; tropf_next = 0; }
   size_t si = 0;
-  void pull () {                                          /* angekommene Bytes in den Puffer */
-    if (t0 == NIE) return;
+  void pull () {                                          /* Zustellung: faellige Segmente, danach ggf. das FIN */
+    if (t0 == NIE || ! open) return;
     while (si < sz.segs.size () && now >= t0 + sz.segs[si].at) { buf += sz.segs[si].s; si++; }
+    if (closed () && si >= sz.segs.size ()) fin = true;   /* FIN nur nach allen Daten, in Reihenfolge */
     if (sz.tropfen && si >= sz.segs.size () && ! bremse ()) {
       uint32_t base = sz.segs.empty () ? t0 : t0 + sz.segs.back ().at;
       if (! tropf_next) tropf_next = base + sz.tropfen;
       while (now >= tropf_next) { buf += 'x'; tropf_next += sz.tropfen; } } }
-  int available () { tick (); pull (); return (int) (buf.size () - pos); }
-  int read () { if (! available ()) return -1; return (unsigned char) buf[pos++]; }
+  int available () { tick (); int r = (int) (buf.size () - pos); if (! r) pull (); return r; }   /* erst erheben, dann abgeben */
+  int read () { if (! available ()) return -1; if (++rd % 50 == 0) now += 1; return (unsigned char) buf[pos++]; }
   /* NOTBREMSE: Ab 60 s Pruefstandzeit nach dem Senden verstummt die Attrappe und schliesst; so endet
    * auch eine Fassung ohne Gesamtfrist (readStringUntil haelt einen Tropfer endlos fest) und schlaegt an,
    * statt den Pruefstand anzuhalten. */
   bool bremse () const { return t0 != NIE && now >= t0 + 60000; }
   bool closed () { if (bremse ()) return true; return sz.close_at != NIE && t0 != NIE && now >= t0 + sz.close_at && ! sz.tropfen; }
-  int connected () { if (! open) return 0; return ! closed () || available (); }
+  int connected () { if (! open || fin) return 0; return 1; }        /* CLOSE_WAIT => CLOSED => 0, Puffer egal */
   int timedRead () { uint32_t st = millis (); do { int c = read (); if (c >= 0) return c; if (_timeout == 0) return -1; yield (); } while (millis () - st < _timeout); return -1; }
   String readStringUntil (char term) { String r; int c = timedRead (); while (c >= 0 && c != term) { r += (char) c; c = timedRead (); } return r; }
   void stop () { now += 300; open = false; }
@@ -115,6 +127,7 @@ struct WiFiClient {
 static int parse_weather (const char *, uint_fast8_t);
 static int parse_weather_fc (const char *, uint_fast8_t);
 #include "weather_code.inc"
+static void sdk () { openweather_client.pull (); }
 
 static std::vector<std::string> parsed;                   /* Eingaben an die Parser */
 /* Den ECHTEN Rueckgabewert durchreichen (M1: 0 keine, 1 Erfolg, 2 Fehler). Die alte Fassung ist void --
@@ -167,9 +180,9 @@ static void fall (const char * name, Szenario s, int fc, int icon, const char * 
   if (soll_parse) PRUEF (parsed.size () == 1 && parsed[0] == soll_parse, "Parser bekam %zu Eingaben, erste %.40s... (AKE.3/4)", parsed.size (), parsed.empty () ? "-" : parsed[0].c_str ());
   else PRUEF (parsed.empty (), "Parser lief %zu mal, sollte nicht (AKE.6)", parsed.size ());
   if (sofort) {
-    uint32_t letzt = 0; for (auto & g : s.segs) letzt = g.at > letzt ? g.at : letzt;
+    uint32_t letzt = 0; size_t bytes = 0; for (auto & g : s.segs) { letzt = g.at > letzt ? g.at : letzt; bytes += g.s.size (); }
     uint32_t vor_print = s.dns_ms + s.conn_ms;
-    PRUEF (dauer <= vor_print + letzt + 300 + 5, "nicht sofort fertig: %u ms, Daten bis %u ms (AKE.2)", (unsigned) dauer, (unsigned) (vor_print + letzt));
+    PRUEF (dauer <= vor_print + letzt + 300 + 5 + bytes / 50,           /* Lesen kostet 1 ms je 50 Zeichen */ "nicht sofort fertig: %u ms, Daten bis %u ms (AKE.2)", (unsigned) dauer, (unsigned) (vor_print + letzt));
   }
   /* keine Werte */
   for (auto & l : Serial.lines) PRUEF (! strstr (l.c_str (), APPID) && ! strstr (l.c_str (), "Zuerich") && ! strstr (l.c_str (), LON) && ! strstr (l.c_str (), LAT), "Wert auf Serial: '%s'", l.c_str ());
@@ -257,6 +270,42 @@ int main ()
   { Szenario s = cl (fc_json, 40);  fall ("Erfolg Icon morgen, Endzeile exakt", s, 1, 1, "ok", fc_json.c_str (), false, false, "WICON_FC 10d"); }
   { std::string leer200 = "{\"cod\":200}"; Szenario s = cl (leer200, 40);
     fall ("cod 200 ohne temp/description (Erfolgsform)", s, 0, 0, "ok", leer200.c_str (), false, false, "WEATHER Wetter heute: "); }
+
+  /* --- G1-Fall vom 10.10.2026 (ESP 3.2.27). Kopf 367 Byte, 9 Kopfzeilen, Content-Length, Koerper
+   * EINE Zeile ohne '\n'; Wetter: "cod":200 ganz am Ende, Vorhersage: "cod":"200" am Anfang. Lieferung in
+   * Segmenten zu 536 Byte (MSS des ESP), Folgesegmente 1 ms nacheinander, FIN mit dem letzten Segment. Das
+   * zweite Segment wird faellig, waehrend das erste noch gelesen wird, und erst im optimistic_yield von
+   * available () zugestellt -- samt FIN. 3.2.27 sah dann available () == 0 und connected () == 0. --- */
+  auto kopf = [] (size_t len) { std::string h = "HTTP/1.1 200 OK\r\nServer: openresty\r\nDate: Fri, 10 Oct 2026 00:14:02 GMT\r\n"
+      "Content-Type: application/json; charset=utf-8\r\nContent-Length: " + std::to_string (len) + "\r\nConnection: close\r\n"
+      "X-Cache-Key: /data/2.5/weather?lang=de&lat=47.38&lon=8.54&units=metric&xx=0000000000000000\r\nAccess-Control-Allow-Origin: *\r\n"
+      "Access-Control-Allow-Credentials: true\r\nAccess-Control-Allow-Methods: GET, POST\r\n\r\n"; return h; };
+  auto mss = [] (const std::string & all, uint32_t at, uint32_t gap) { Szenario s; size_t p = 0; uint32_t t = at;
+      while (p < all.size ()) { s.segs.push_back ({t, all.substr (p, 536)}); p += 536; t += gap; } s.close_at = s.segs.back ().at; return s; };
+  std::string w_body = "{\"coord\":{\"lon\":8.5417,\"lat\":47.3769},\"weather\":[{\"id\":804,\"main\":\"Clouds\",\"description\":\"Bedeckt\",\"icon\":\"04n\"}],"
+      "\"base\":\"stations\",\"main\":{\"temp\":13.6,\"feels_like\":13.1,\"temp_min\":12.4,\"temp_max\":14.5,\"pressure\":1019,\"humidity\":81,"
+      "\"grnd_level\":957},\"visibility\":10000,\"wind\":{\"speed\":1.54,\"deg\":230},\"clouds\":{\"all\":100},"
+      "\"dt\":1760054042,\"sys\":{\"type\":2,\"id\":2019269,\"country\":\"CH\",\"sunrise\":1760074503,\"sunset\":1760114712},"
+      "\"timezone\":7200,\"id\":2657896,\"name\":\"Zurich\",\"cod\":200}";
+  /* Groessen wie am Server gemessen: Kopf 367, Wetter-Koerper 501, Vorhersage-Koerper 3979 Byte. Aufgefuellt
+   * wird VOR "cod" (Wetter) bzw. im "city"-Objekt am Ende (Vorhersage) -- die Lage von "cod" bleibt die echte. */
+  auto fuell = [] (std::string s, size_t soll, size_t vor) { std::string f = "\"pad\":\""; if (s.size () + f.size () + 2 > soll) { printf ("FEHL Pruefstand: Fuellung %zu > %zu\n", s.size (), soll); exit (2); } size_t n = soll - s.size () - f.size () - 2;
+      s.insert (vor, f + std::string (n, 'x') + "\","); return s; };
+  w_body = fuell (w_body, 501, w_body.find ("\"cod\""));
+  std::string f_body = fuell (fc_json, 3979, fc_json.find ("\"name\":\"Zurich\"}"));
+  std::string w_all = kopf (w_body.size ()) + w_body;
+  std::string f_all = kopf (f_body.size ()) + f_body;
+  printf ("  (G1-Fall: Kopf %zu Byte, Wetter %zu Byte in %zu Segmenten, Vorhersage %zu Byte in %zu Segmenten)\n",
+          kopf (w_body.size ()).size (), w_all.size (), (w_all.size () + 535) / 536, f_all.size (), (f_all.size () + 535) / 536);
+  { Szenario s = mss (w_all, 30, 1); fall ("G1 Wetter, 536er Segmente, cod am Ende", s, 0, 0, "ok", w_body.c_str (), false, false, "WEATHER Wetter heute: 14 Grad, Bedeckt"); }
+  { Szenario s = mss (w_all, 30, 1); fall ("G1 Icon heute, 536er Segmente", s, 0, 1, "ok", w_body.c_str (), false, false, "WICON 04n"); }
+  { Szenario s = mss (f_all, 30, 1); fall ("G1 Vorhersage, 536er Segmente, cod am Anfang", s, 1, 0, "ok", f_body.c_str (), true, false, "WEATHER_FC Wetter morgen: 18 Grad, Leichter Regen"); }
+  { Szenario s = mss (f_all, 30, 1); fall ("G1 Icon morgen, 536er Segmente", s, 1, 1, "ok", f_body.c_str (), false, false, "WICON_FC 10d"); }
+  { Szenario s = mss (w_all, 30, 0); fall ("G1 Wetter, Segmente gleichzeitig zugestellt", s, 0, 0, "ok", w_body.c_str ()); }
+  { Szenario s = mss (w_all, 30, 25); fall ("G1 Wetter, Folgesegment nach 25 ms", s, 0, 0, "ok", w_body.c_str ()); }
+  { Szenario s = mss (f_all, 30, 3); fall ("G1 Vorhersage, Folgesegmente alle 3 ms", s, 1, 0, "ok", f_body.c_str ()); }
+  { std::string h = kopf (w_body.size ()); Szenario s; s.segs.push_back ({30, h.substr (0, 200)}); s.segs.push_back ({31, h.substr (200) + w_body}); s.close_at = 31;
+    fall ("G1 Kopf ueber die Segmentgrenze", s, 0, 0, "ok", w_body.c_str ()); }
 
   printf ("%s (%s): %d Faelle, %d Pruefungen, %d Fehler\n", fails ? "FEHLGESCHLAGEN" : "OK", BEZEICHNUNG, n, checks, fails);
   return fails ? 1 : 0;
