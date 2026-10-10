@@ -73,7 +73,9 @@ heap_seit() {
 }
 
 ESP_V=$(curl -s -m 5 "$U/api/update_status" | grep -oE '"esp_version":"[^"]*"' | cut -d'"' -f4)
-STM_V=$(curl -s -m 5 "$U/api/update_status" | grep -oE '"stm_version":"[^"]*"' | cut -d'"' -f4)
+# Die STM-Version steht in update_status nicht als stm_version, sondern als strvar 1 in
+# settings_xml -- der erste Lauf am 10.10.2026 zeigte deshalb "STM ?".
+STM_V=$(curl -s -m 5 "$U/api/settings_xml" | grep -oE '<strvar idx="1" value="[^"]*"' | sed -E 's/.*value="([^"]*)"/\1/')
 printf '  Geraet: ESP %s, STM %s\n' "${ESP_V:-?}" "${STM_V:-?}"
 
 basis_exc=$(zaehle 'Exception (')
