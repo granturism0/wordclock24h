@@ -31,7 +31,7 @@ NUM = {0:1, 1:1, 2:1, 3:1, 4:0, 5:0, 6:10, 7:1, 8:3, 9:1, 10:0, 11:0, 12:0, 13:0
        49:44}
 STR = {0:"", 1:"3.2.5", 2:"1.0", 3:"3.2.1", 4:"ch.pool.ntp.org", 5:"",
        6:"Bern", 7:"7.4474", 8:"46.9480", 9:"update.wordclock.ch",
-       10:"/firmware/", 11:"%d.%m.%Y", 12:"wc24h-de-ch.txt"}
+       10:"/firmware/", 11:"D.M.Y", 12:"wc24h-de-ch.txt"}
 
 MODES = ["ESisT","ESisT ohne Vorlauf","Berndeutsch","Wallis","Ostschweiz"]
 ANIMS = ["Kein","Ueberblenden","Rollen","Explodieren","Schlange","Wuerfel","Fernschreiber","Zufall"]
