@@ -1,0 +1,531 @@
+/*---------------------------------------------------------------------------------------------------------------------------------------------------
+ * base.c - base routines
+ *
+ * Copyright (c) 2016-2026 Frank Meyer - frank(at)uclock.de
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *---------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#include <stdio.h>
+#include "base.h"
+
+#ifdef unix
+#define log_printf printf
+#else
+#include "log.h"
+#endif
+
+const char *                wdays_en[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
+const char *                wdays_de[7] = { "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" };
+
+#define SUNDAY               0                                              // first day of a unix week
+#define HOURS_PER_DAY       24                                              // hours per day
+#define DAYS_PER_WEEK        7                                              // days per week
+
+#define IS_LEAP_YEAR(y)     ((((y) % 4) == 0) && ((((y) % 100) != 0) || (((y) % 400) == 0)))
+
+static int                  g_days_per_month[]    = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+#define INT(x)              (x)                                             // integer function
+
+#define TO_MMDD(mm,dd)      ((mm) << 8 | (dd))
+
+static uint_fast16_t        date_codes[N_DATE_CODES];
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * add_days () - add n days
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+add_days (uint_fast16_t mmdd, int start_year, int n_days)
+{
+    int start_day;
+    int start_month;
+    int days_this_month;
+
+    start_month = (mmdd >> 8) & 0xFF;
+    start_day   = mmdd & 0xFF;
+
+    while (n_days > 0)
+    {
+        start_day += n_days;
+
+        days_this_month = g_days_per_month[start_month - 1];
+
+        if (start_month == 1 && IS_LEAP_YEAR(start_year))
+        {
+            days_this_month++;
+        }
+
+        if (start_day > days_this_month)
+        {
+            n_days      = start_day - days_this_month - 1;
+            start_day   = 1;
+            start_month++;
+
+            if (start_month > 12)
+            {
+                start_month = 1;
+                start_year++;
+            }
+        }
+        else
+        {
+            n_days = 0;
+        }
+    }
+
+    while (n_days < 0)
+    {
+        start_day += n_days;
+
+        if (start_day <= 0)
+        {
+            n_days = start_day;
+
+            start_month--;
+
+            if (start_month == 0)
+            {
+                start_month = 12;
+                start_year--;
+            }
+
+            days_this_month = g_days_per_month[start_month - 1];
+
+            if (start_month == 1 && IS_LEAP_YEAR(start_year))
+            {
+                days_this_month++;
+            }
+
+            start_day = days_this_month;
+        }
+        else
+        {
+            n_days = 0;
+        }
+    }
+
+    return (start_month << 8) | start_day;
+} // add_days (start_day, start_month, start_year, n_days, new_day_p, new_month_p)
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * get day of week (0=Sunday, 1=Monday, ... 6=Saturday)
+ *
+ *  day         - day of month
+ *  month       - month beginning with 1
+ *  year        - greater than 2000
+ *
+ *  example:    int rtc = dayofweek (tm->tm_mday, tm->tm_mon + 1, tm->tm_year + 1900);
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+int
+dayofweek (int d, int m, int y)
+{
+   return (d += m < 3 ? y-- : y - 2 , 23 * m / 9 + d + 4 + y / 4 - y / 100 + y / 400) % 7;
+}
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * get days of month
+ *
+ *  month       - month beginning with 1
+ *  year        - greater than 2000
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
+days_of_month (uint_fast8_t month, uint_fast16_t year)
+{
+    uint_fast8_t    days = g_days_per_month[month - 1];
+
+    if (month == 2 && IS_LEAP_YEAR(year))
+    {
+        days++;
+    }
+    return days;
+}
+
+static unsigned int
+get_easter (int year)
+{
+    int         a, b, c, d, e;
+    int         m, s, M, N, D;
+    int         offset;
+    int         ostern_day;
+    int         ostern_month;
+
+    a = year % 19;
+    b = year % 4;
+    c = year % 7;
+
+    m = INT ((8 * INT (year/100) + 13) / 25) - 2;
+    s = INT (year/100) - INT (year/400) - 2;
+
+    M = (15 + s - m) % 30;
+    N = (6 + s) % 7;
+
+    d = (M + 19 * a) % 30;
+
+    if (d == 29)
+    {
+        D = 28;
+    }
+    else if (d == 28 && a >= 11)
+    {
+        D = 27;
+    }
+    else
+    {
+        D = d;
+    }
+
+    e = (2 * b + 4 * c + 6 * D + N) % 7;
+
+    offset = D + e + 1;
+
+    ostern_day = 21 + offset;
+    ostern_month = 3;
+
+    while (ostern_day > 31)
+    {
+        ostern_day -= 31;
+        ostern_month++;
+    }
+
+    return (ostern_month << 8) | ostern_day;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * init_date_codes () - set date codes for special days
+ *
+ *  day         - day of month
+ *  month       - month beginning with 1
+ *  year        - greater than 2000
+ *
+ *  example:    int rtc = is_holiday (tm->tm_mday, tm->tm_mon + 1, tm->tm_year + 1900);
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+init_date_codes (int year)
+{
+    static int      last_year;
+    static int      day_of_xmas;
+    uint_fast16_t   mmdd;
+
+    if (last_year != year)
+    {
+        last_year = year;
+
+        mmdd = get_easter (year);
+
+        date_codes[DATE_CODE_NEW_YEAR]          = TO_MMDD( 1,  1);                      // Neujahr
+        date_codes[DATE_CODE_THREE_MAGI]        = TO_MMDD( 1,  6);                      // Heilige drei Koenige
+        date_codes[DATE_CODE_FIRST_MAY]         = TO_MMDD( 5,  1);                      // Maifeiertag
+        date_codes[DATE_CODE_GERMANY_UNITY_DAY] = TO_MMDD(10,  3);                      // Tag der deutschen Einheit
+        date_codes[DATE_CODE_CHRISTMAS_DAY1]    = TO_MMDD(12, 25);                      // 1. Weihnachtsfeiertag
+        date_codes[DATE_CODE_CHRISTMAS_DAY2]    = TO_MMDD(12, 26);                      // 1. Weihnachtsfeiertag
+
+        date_codes[DATE_CODE_CARNIVAL_MONDAY]   = add_days (mmdd, year, -48);
+        date_codes[DATE_CODE_GOOD_FRIDAY]       = add_days (mmdd, year,  -2);
+        date_codes[DATE_CODE_EASTER_SUNDAY]     = add_days (mmdd, year,   0);
+        date_codes[DATE_CODE_EASTER_MONDAY]     = add_days (mmdd, year,   1);
+        date_codes[DATE_CODE_ASCENSION_DAY]     = add_days (mmdd, year,  39);
+        date_codes[DATE_CODE_PENTECOST_SUNDAY]  = add_days (mmdd, year,  49);
+        date_codes[DATE_CODE_PENTECOST_MONDAY]  = add_days (mmdd, year,  50);
+        date_codes[DATE_CODE_CORPUS_CHRISTI]    = add_days (mmdd, year,  60);
+
+        day_of_xmas = dayofweek (24, 12, year);
+        date_codes[DATE_CODE_ADVENT1] = add_days (TO_MMDD(12, 24), year, -day_of_xmas - 21);
+        date_codes[DATE_CODE_ADVENT2] = add_days (TO_MMDD(12, 24), year, -day_of_xmas - 14);
+        date_codes[DATE_CODE_ADVENT3] = add_days (TO_MMDD(12, 24), year, -day_of_xmas -  7);
+        date_codes[DATE_CODE_ADVENT4] = add_days (TO_MMDD(12, 24), year, -day_of_xmas);
+
+        debug_log_printf ("new year            %2d %04d-%02u-%02u\r\n", DATE_CODE_NEW_YEAR, year, date_codes[DATE_CODE_NEW_YEAR] >> 8, date_codes[DATE_CODE_NEW_YEAR] & 0xFF);
+        debug_log_printf ("three magi          %2d %04d-%02u-%02u\r\n", DATE_CODE_THREE_MAGI, year, date_codes[DATE_CODE_THREE_MAGI] >> 8, date_codes[DATE_CODE_THREE_MAGI] & 0xFF);
+        debug_log_printf ("first may           %2d %04d-%02u-%02u\r\n", DATE_CODE_FIRST_MAY, year, date_codes[DATE_CODE_FIRST_MAY] >> 8, date_codes[DATE_CODE_FIRST_MAY] & 0xFF);
+        debug_log_printf ("germany unity day   %2d %04d-%02u-%02u\r\n", DATE_CODE_GERMANY_UNITY_DAY, year, date_codes[DATE_CODE_GERMANY_UNITY_DAY] >> 8, date_codes[DATE_CODE_GERMANY_UNITY_DAY] & 0xFF);
+        debug_log_printf ("christmas day1      %2d %04d-%02u-%02u\r\n", DATE_CODE_CHRISTMAS_DAY1, year, date_codes[DATE_CODE_CHRISTMAS_DAY1] >> 8, date_codes[DATE_CODE_CHRISTMAS_DAY1] & 0xFF);
+        debug_log_printf ("christmas day2      %2d %04d-%02u-%02u\r\n", DATE_CODE_CHRISTMAS_DAY2, year, date_codes[DATE_CODE_CHRISTMAS_DAY2] >> 8, date_codes[DATE_CODE_CHRISTMAS_DAY2] & 0xFF);
+        debug_log_printf ("carnival monday     %2d %04d-%02u-%02u\r\n", DATE_CODE_CARNIVAL_MONDAY, year, date_codes[DATE_CODE_CARNIVAL_MONDAY] >> 8, date_codes[DATE_CODE_CARNIVAL_MONDAY] & 0xFF);
+        debug_log_printf ("good friday         %2d %04d-%02u-%02u\r\n", DATE_CODE_GOOD_FRIDAY, year, date_codes[DATE_CODE_GOOD_FRIDAY] >> 8, date_codes[DATE_CODE_GOOD_FRIDAY] & 0xFF);
+        debug_log_printf ("easter sunday       %2d %04d-%02u-%02u\r\n", DATE_CODE_EASTER_SUNDAY, year, date_codes[DATE_CODE_EASTER_SUNDAY] >> 8, date_codes[DATE_CODE_EASTER_SUNDAY] & 0xFF);
+        debug_log_printf ("easter monday       %2d %04d-%02u-%02u\r\n", DATE_CODE_EASTER_MONDAY, year, date_codes[DATE_CODE_EASTER_MONDAY] >> 8, date_codes[DATE_CODE_EASTER_MONDAY] & 0xFF);
+        debug_log_printf ("ascension day       %2d %04d-%02u-%02u\r\n", DATE_CODE_ASCENSION_DAY, year, date_codes[DATE_CODE_ASCENSION_DAY] >> 8, date_codes[DATE_CODE_ASCENSION_DAY] & 0xFF);
+        debug_log_printf ("pentecost sunday    %2d %04d-%02u-%02u\r\n", DATE_CODE_PENTECOST_SUNDAY, year, date_codes[DATE_CODE_PENTECOST_SUNDAY] >> 8, date_codes[DATE_CODE_PENTECOST_SUNDAY] & 0xFF);
+        debug_log_printf ("pentecost monday    %2d %04d-%02u-%02u\r\n", DATE_CODE_PENTECOST_MONDAY, year, date_codes[DATE_CODE_PENTECOST_MONDAY] >> 8, date_codes[DATE_CODE_PENTECOST_MONDAY] & 0xFF);
+        debug_log_printf ("corpus christi      %2d %04d-%02u-%02u\r\n", DATE_CODE_CORPUS_CHRISTI, year, date_codes[DATE_CODE_CORPUS_CHRISTI] >> 8, date_codes[DATE_CODE_CORPUS_CHRISTI] & 0xFF);
+        debug_log_printf ("advent1             %2d %04d-%02u-%02u\r\n", DATE_CODE_ADVENT1, year, date_codes[DATE_CODE_ADVENT1] >> 8, date_codes[DATE_CODE_ADVENT1] & 0xFF);
+        debug_log_printf ("advent2             %2d %04d-%02u-%02u\r\n", DATE_CODE_ADVENT2, year, date_codes[DATE_CODE_ADVENT2] >> 8, date_codes[DATE_CODE_ADVENT2] & 0xFF);
+        debug_log_printf ("advent3             %2d %04d-%02u-%02u\r\n", DATE_CODE_ADVENT3, year, date_codes[DATE_CODE_ADVENT3] >> 8, date_codes[DATE_CODE_ADVENT3] & 0xFF);
+        debug_log_printf ("advent4             %2d %04d-%02u-%02u\r\n", DATE_CODE_ADVENT4, year, date_codes[DATE_CODE_ADVENT4] >> 8, date_codes[DATE_CODE_ADVENT4] & 0xFF);
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * get_date_code () - get date code of a day
+ *
+ *  day         - day of month
+ *  month       - month beginning with 1
+ *  year        - greater than 2000
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
+get_date_code (uint_fast16_t mmdd, int year)
+{
+    static uint_fast8_t     date_code;
+    static uint_fast16_t    last_mmdd;
+    uint_fast8_t            idx;
+
+    if (last_mmdd != mmdd)
+    {
+        init_date_codes (year);
+
+        date_code = 0;
+
+        for (idx = 1; idx < N_DATE_CODES; idx++)
+        {
+            if (date_codes[idx] == mmdd)
+            {
+                date_code = idx;
+                break;
+            }
+        }
+    }
+
+    return date_code;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * get_date_by_date_code () - get date mmdd by date code
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast16_t
+get_date_by_date_code (uint_fast8_t date_code, int year)
+{
+    init_date_codes (year);
+
+    if (date_code < N_DATE_CODES)
+    {
+        return date_codes[date_code];
+    }
+    return 0;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * hex to integer
+ *
+ * Die Schleifenbedingung prueft buf[i] und NICHT *buf -- Befund L232, dieselbe eine Zeile, die
+ * auf der ESP-Seite bereits korrigiert ist (ESP8266/ESP-uclock/base.cpp). Kein Schoenheits-
+ * fehler: *buf ist immer buf[0], der Zeiger wandert nie. Die Abbruchbedingung waere damit nach
+ * dem ersten Zeichen bedeutungslos, und bei einer Zeichenkette kuerzer als max_digits laese die
+ * Funktion ueber das Zeilenende hinaus in den Rest des Puffers.
+ *
+ * Die Folge ist schwerer als ein Absturz: Ein auf der Bruecke verlorenes Zeichen erzeugt keinen
+ * FEHLENDEN Wert, sondern einen gueltig aussehenden FALSCHEN -- rechtsbuendig aufgefuellt mit
+ * dem, was dahinter steht. Die Kommandopuffer kommen aus strncpy() (esp8266.c:516 und
+ * Nachbarn), das bis zur vollen Breite mit Nullbytes auffuellt; der alte Wert war deshalb meist
+ * nicht zufaellig, sondern genau um den Faktor 16 je fehlender Ziffer zu gross.
+ *
+ * Nachgerechnet mit einer Attrappe, die beide Fassungen nebeneinander laufen laesst:
+ *
+ *   "OT0002"  ->  Typ  2 / Typ  2    vollstaendig, unveraendert
+ *   "OT000"   ->  Typ  0 / Typ  0    eine Ziffer fehlt, beide falsch, aber gleich falsch
+ *   "OT002"   ->  Typ 32 / Typ  2    eine Ziffer fehlt, alt schiebt die 2 ins obere Nibble
+ *   "N2A1"    ->  lo  16 / lo   1    dasselbe am numerischen Kommando des STM
+ *
+ * Steht hinter dem Terminator kein Nullbyte, sondern Resttext, ist der alte Wert beliebig:
+ * vier erwartete Ziffern, "12" angekommen, "ef" dahinter -> alt 4622, neu 18.
+ *
+ * Erschoepfend geprueft ueber alle Zeichenketten der Laenge 0..4 bei max_digits 1..4, also
+ * 11204 Faelle, Alphabet aus Hexziffern, einem Nicht-Hex-Zeichen und dem Terminator: 1688
+ * Faelle liefern einen anderen Wert, und KEIN EINZIGER davon ist wohlgeformt -- in jedem von
+ * ihnen liegt der Terminator innerhalb der erwarteten Breite. Der Fix wirkt also ausschliesslich
+ * auf Eingaben, die heute schon still falsch gelesen werden.
+ *
+ * Also bitte nicht "aufraeumen" und wieder auf *buf zurueckstellen. Betroffen ist jede Hexzahl,
+ * die der STM von der Bruecke liest -- und diese Richtung traegt keine Pruefsumme: Die Marke
+ * "*xxxx" haengt der STM nur an seine EIGENEN Sendungen an (var_send_buf(), nur bei cap_var_crc).
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint16_t
+htoi (char * buf, uint8_t max_digits)
+{
+    uint8_t     i;
+    uint8_t     x;
+    uint16_t    sum = 0;
+
+    for (i = 0; i < max_digits && buf[i]; i++)                       // buf[i], nicht *buf -- Begruendung im Kopf (L232)
+    {
+        x = buf[i];
+
+        if (x >= '0' && x <= '9')
+        {
+            x -= '0';
+        }
+        else if (x >= 'A' && x <= 'F')
+        {
+            x -= 'A' - 10;
+        }
+        else if (x >= 'a' && x <= 'f')
+        {
+            x -= 'a' - 10;
+        }
+        else
+        {
+            x = 0;
+        }
+        sum <<= 4;
+        sum += x;
+    }
+
+    return (sum);
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * substitute characters
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+strsubst (char * s, int old, int new)
+{
+    while (*s)
+    {
+        if (*s == old)
+        {
+            *s = new;
+        }
+
+        s++;
+    }
+}
+
+static uint32_t z1 = 12345;
+static uint32_t z2 = 12345;
+static uint32_t z3 = 12345;
+static uint32_t z4 = 12345;
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * my_srand (void) - see rand
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+my_srand (unsigned int z)
+{
+    z &= 0xFFFF;
+
+    z1 = z;
+    z2 = z;
+    z3 = z;
+    z4 = z;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * my_rand (void) - rand() runs on error in newer arm-none-eabi libs
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint32_t
+my_rand (void)
+{
+    uint32_t    b;
+    uint32_t    z5;
+
+    b  = ((z1 << 6) ^ z1) >> 13;
+    z1 = ((z1 & 4294967294U) << 18) ^ b;
+    b  = ((z2 << 2) ^ z2) >> 27;
+    z2 = ((z2 & 4294967288U) << 2) ^ b;
+    b  = ((z3 << 13) ^ z3) >> 21;
+    z3 = ((z3 & 4294967280U) << 7) ^ b;
+    b  = ((z4 << 3) ^ z4) >> 12;
+    z4 = ((z4 & 4294967168U) << 13) ^ b;
+    z5 = (z1 ^ z2 ^ z3 ^ z4) & 0x7FFFFFFF;          // don't return negative values!
+    return (z5);
+}
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * my_gmtime () - gmtime runs on error for newer arm_none_eabi libraries
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+struct tm *
+my_gmtime (time_t * t)
+{
+    static struct tm tm;
+    int              year;
+    int              mon;
+    int              day;
+    int              hour;
+    int              min;
+    int              sec;
+    int              yday;
+    time_t           tv = *t;
+    time_t           days_since_epoch;
+
+    year = 1970;
+    days_since_epoch = tv / 86400;
+
+    for (;;)
+    {
+        day = (IS_LEAP_YEAR (year) ? 366 : 365);
+        sec = day * 24 * 3600;
+
+        if (tv >= sec)
+        {
+            tv -= sec;
+        }
+        else
+        {
+            break;
+        }
+
+        year++;
+    }
+
+    yday = tv / (24 * 3600);
+
+    for (mon = 0; mon < 12; mon++)
+    {
+        if (mon == 1 && IS_LEAP_YEAR (year))
+        {
+            day = 29;
+        }
+        else
+        {
+            day = g_days_per_month[mon];
+        }
+
+        sec = day * 24 * 3600;
+
+        if (tv >= sec)
+        {
+            tv -= sec;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    day = tv / (24 * 3600);
+    tv -= day * (24 * 3600);
+
+    hour = tv / 3600;
+    tv -= hour * 3600;
+
+    min = tv / 60;
+    tv -= min * 60;
+
+    sec = tv;
+
+    tm.tm_year  = year - 1900;
+    tm.tm_mon   = mon;
+    tm.tm_mday  = day + 1;
+    tm.tm_hour  = hour;
+    tm.tm_min   = min;
+    tm.tm_sec   = sec;
+    tm.tm_yday  = yday;
+    tm.tm_wday  = (4 + days_since_epoch) % 7;   // 1970-01-01 war Donnerstag
+    tm.tm_isdst = 0;                            // UTC hat keine Sommerzeit
+
+    return &tm;
+}

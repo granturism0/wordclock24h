@@ -45,6 +45,7 @@ LAUF=(
   "A2 Wetterwarten bis zur Endzeile, hoechstens 6 s (STM)|stm/w2/run.sh $S"
   "C3 EEPROM seitenweise, beide Seitengroessen (STM)|stm/c3/run.sh $S neu"
   "Teil D Pruefsumme CMC, Abweisung, Vormerken (STM)|stm/d/run.sh $S neu"
+  "S0 my_gmtime 32 Bit gleich 64 Bit und gmtime_r (STM)|stm/gt/run.sh $S"
   "S.1-S.3 Bruecke (ESP)|esp/t1/run.sh $E/ESP-uclock.ino $E/vars.h neu"
   "C31 keine Schluessel im Log (ESP)|esp/t2/run.sh $E/eepromdata.cpp neu"
   "A5 Legacy-Temperatur (ESP)|esp/t3/run.sh $E neu"
