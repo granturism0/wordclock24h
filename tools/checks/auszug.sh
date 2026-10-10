@@ -43,6 +43,7 @@ LAUF=(
   "A49 erste Meldung je Grund (STM)|stm/k/a49/run.sh $S/main.c neu"
   "A9 LDR ungeklammert, Kennlinie gleich (STM)|stm/k/a9/run.sh $S/ldr/ldr.c neu"
   "A2 Wetterwarten bis zur Endzeile, hoechstens 6 s (STM)|stm/w2/run.sh $S"
+  "C3 EEPROM seitenweise, beide Seitengroessen (STM)|stm/c3/run.sh $S neu"
   "S.1-S.3 Bruecke (ESP)|esp/t1/run.sh $E/ESP-uclock.ino $E/vars.h neu"
   "C31 keine Schluessel im Log (ESP)|esp/t2/run.sh $E/eepromdata.cpp neu"
   "A5 Legacy-Temperatur (ESP)|esp/t3/run.sh $E neu"
