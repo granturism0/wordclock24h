@@ -16,6 +16,7 @@
 
 extern uint_fast8_t         http (const char *, const char *);
 extern void                 http_send (const char *);
+extern void                 http_send_attr (const char *);
 extern void                 http_flush (void);
 extern void                 http_server_loop (void);
 extern void                 http_server_begin (void);

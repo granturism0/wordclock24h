@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-10-10 Paket 2026-10-10, Schritt E: Legacy-Seite gegen XSS, Datumsformat und Koordinaten geprüft (ESP 3.2.31)
+
+Nur der ESP, STM (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-230432.zip`, Tag `release/3.2.28-3.2.31-1.4.94`. Umfang: Schritt E aus `specs/paket-2026-10-10/`
+(C47, C55, C44, Ent-11, Nachträge aus dem Review).
+
+**Einspielreihenfolge: nur der ESP.** Das OTA ist zugleich der Gerätenachweis für A55 aus STM 3.2.28:
+`v` soll beim ESP-Neustart um höchstens 1 steigen statt um 4. Der Nachweis am Gerät (G3) steht noch aus.
+
+### Legacy-Seite gibt gespeicherte Werte nicht mehr roh aus (C47, L346)
+- Jede Ausgabe eines gespeicherten oder fremden Werts (Formularfelder, SSIDs, Dateinamen und -inhalt,
+  Versionen und Dateilisten vom Update-Server, Namen vom STM, die Zwischenseite „App nicht installiert“)
+  läuft über eine eigene Maskierung von `& < > " '`; gültiges UTF-8 bleibt unverändert, ein erneutes
+  Speichern des Formulars ändert den Wert nicht.
+- Release Notes erscheinen auf der Legacy-Seite ohne HTML-Tags, der Text bleibt (Ent-2). Nebenbei behoben:
+  Zeilen über 128 Zeichen und eine letzte Zeile ohne Zeilenende gingen bisher verloren.
+
+### Datumsformat und Koordinaten werden geprüft (C55, C44)
+- Datumsformat: nur `d D m M y Y . - /` und Leerzeichen, mindestens ein Platzhalter, jeder höchstens einmal,
+  kein Leerzeichen am Rand (Ent-10). Koordinaten: Dezimalzahl, Komma wird zum Punkt, höchstens 8 Zeichen,
+  Länge ±180, Breite ±90 (Ent-12).
+- Gilt für die API **und** die Legacy-Seite; dort wurde bisher gar nicht bzw. nur gekürzt geprüft.
+  Abweisung mit Kennung 2 und Klartext.
+
+### Fehlerwerte der Temperatur (Ent-11, zu A2)
+- Der Fehlerwert 255 von DS18xx und RTC erscheint auf der Legacy-Seite als „invalid“ statt „127.5 °C“.
+- Eine Änderung der Temperaturkorrektur lässt den Fehlerwert unangetastet und klammert gültige Werte wie der
+  STM auf 0–125 °C; bisher konnte aus „invalid“ ein Wert wie „126.5 °C“ werden.
+
+### Werkzeug
+Prüfstände t16 (63 Fälle, dazu statisch jede HTML-Ausgabe: 788 Argumente an 83 Seitenfunktionen geprüft),
+t17 (147 Fälle plus Orakel) und t18 (82'944 Fälle), alle gegen 3.2.30 FEHL. Übersetzungsprobe ohne Warnung.
+
+ESP-RAM statisch +380 Byte (neue Texte).
+
 ## 2026-10-10 Paket 2026-10-10, Schritt S2: Neustart nach schwerem Fehler, Pause bei ESP-Neustart (STM 3.2.28)
 
 Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP

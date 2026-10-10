@@ -288,6 +288,15 @@ static uint_fast8_t     http_get_string_param (const char * name, char ** valuep
 static uint_fast8_t     http_strvar_len_ok (const char * value, unsigned int maxlen);
 static uint_fast8_t     http_check_strvar_len (const char * name, const char * value, unsigned int maxlen);
 static void             http_json_error_range (const char * name, int lo, int hi);
+static uint_fast8_t     http_date_ticker_format_ok (const char * value);
+static uint_fast8_t     http_coordinate_ok (const char * value, unsigned int maxlen, int limit);
+static unsigned int     http_coordinates_check (const char * lon, const char * lat, const char ** detailp);
+
+/* C55: die Meldung zur Datumsformat-Regel, fuer API und Legacy-Seite zugleich - ein Literal statt
+ * zweier (RAM). Hier oben, weil http_display () sie vor http_date_ticker_format_ok () braucht.
+ */
+static const char       http_date_ticker_format_invalid[] =
+    "date ticker format invalid (only d D m M y Y . - / space; day, month, year at most once; no space at start or end)";
 static uint_fast8_t     http_days_in_month (int year, int month);
 static uint_fast8_t     http_get_on_off_value (const char * param, uint_fast8_t current_value);
 static int              http_get_on_off_required (const char * param);
@@ -1366,6 +1375,73 @@ http_send (String s)
     http_send (s.c_str());
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * http_send_attr () - C47 (L346): einen gespeicherten oder fremden Wert maskiert in die laufende Antwort stroemen
+ *
+ * Fuer Attribut- UND Textinhalt der Legacy-Seiten; mit diesen fuenf Ersetzungen sind beide Kontexte
+ * sicher. Ersetzt werden GENAU & < > " ' - jedes andere Byte geht unveraendert hinaus.
+ *
+ * Bewusst NICHT HTTP_ESCAPE_XML: Das ersetzt ungueltiges UTF-8 durch '?' (http_escape_text ()), und
+ * ein Legacy-Formular, das einen ISO-8859-1-Wert als '?' zurueckbekaeme, schriebe ihn beim naechsten
+ * Speichern so ins Geraet - ein stiller Wertschaden durch die Korrektur selbst. Der Browser dekodiert
+ * die Entities im Attribut wieder; das Formular sendet den Wert so zurueck, wie er gespeichert ist.
+ *
+ * Stackpuffer statt String (L175), stueckweise ueber http_send () geleert. Nicht static:
+ * stm32flash.cpp gibt den Dateinamen ebenfalls darueber aus.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+http_send_attr (const char * s)
+{
+    char            buf[64];
+    unsigned int    o = 0;
+
+    if (! s)
+    {
+        return;
+    }
+
+    for ( ; *s; s++)
+    {
+        const char * esc;
+
+        switch (*s)
+        {
+            case '&':  esc = "&amp;";  break;
+            case '<':  esc = "&lt;";   break;
+            case '>':  esc = "&gt;";   break;
+            case '"':  esc = "&quot;"; break;
+            case '\'': esc = "&#39;";  break;
+            default:   esc = (const char *) 0; break;
+        }
+
+        if (o + 6 >= sizeof (buf))                                                  // laengste Entity 6 Byte, dazu die Null
+        {
+            buf[o] = '\0';
+            http_send (buf);
+            o = 0;
+        }
+
+        if (esc)
+        {
+            while (*esc)
+            {
+                buf[o++] = *esc++;
+            }
+        }
+        else
+        {
+            buf[o++] = *s;
+        }
+    }
+
+    if (o)
+    {
+        buf[o] = '\0';
+        http_send (buf);
+    }
+}
+
 /* Ein Zeichen je http_send () war nicht nur langsam, sondern legte fuer jede
  * Maskierung ueber FS() ein String-Objekt an. Jetzt laeuft alles ueber denselben
  * Stroemer wie die XML-Seite; die Ausgabe ist unveraendert.
@@ -1942,6 +2018,37 @@ http_clamp_temp_correction (int temp_corr)
  */
 #define RTC_TEMP_HALF_DEG_UNKNOWN   0x8000
 
+/* A2 (Nachtrag Schritt E): Index 21 bzw. den DS18xx-Index nach einer Korrekturaenderung nachrechnen -
+ * an ALLEN drei Stellen (Legacy "savetcorrrtc", "savetcorrds18xx", http_api_temperature_correction_set ()).
+ *
+ * 255 ist der Fehlerwert des STM (DS18xx: Lese- oder CRC-Fehler; RTC: Lesefehler) und bleibt 255 -
+ * frueher wurde er um die Differenz verschoben und stand bis zur naechsten Messung als z. B. "126.5"
+ * da. Umgekehrt klammert das Ergebnis auf 0..250 wie der STM selbst (temp_read_temp_index () in
+ * src/tempsensor/tempsensor.c, rtc_get_temperature_index () in src/rtc/rtc.c) - frueher auf 0..255, und
+ * ein gueltiger Wert konnte so zum Fehlerwert werden.
+ */
+static int
+http_temp_index_correct (int temp_index, int delta)
+{
+    if (temp_index == 255)
+    {
+        return 255;
+    }
+
+    temp_index -= delta;
+
+    if (temp_index < 0)
+    {
+        temp_index = 0;
+    }
+    else if (temp_index > 250)
+    {
+        temp_index = 250;
+    }
+
+    return temp_index;
+}
+
 /* Anzuzeigende RTC-Temperatur in halben Grad: Index 49 mit Vorzeichen, sonst Index 21. */
 static int
 http_rtc_temp_half_deg (void)
@@ -2175,7 +2282,7 @@ http_app (const char * path)
                 http_send (FS("<p><strong>Server-App verfügbar:</strong> "));
                 if (remote_app_version[0])
                 {
-                    http_send (remote_app_version);
+                    http_send_attr (remote_app_version);                // C47/M1: app-version.txt vom Update-Server, fremd
                 }
                 else
                 {
@@ -2684,7 +2791,7 @@ input_field (const char * id, const char * desc, const char * value, int maxleng
     http_send_FS ("\" name=\"");
     http_send (id);
     http_send_FS ("\" value=\"");
-    http_send (value);
+    http_send_attr (value);                                 // C47: jeder Legacy-Eingabewert laeuft hier durch
     http_send_FS ("\" maxlength=\"");
     http_send (maxlength_buf);
     http_send_FS ("\" size=\"");
@@ -2750,7 +2857,7 @@ select_field (const char * id, const char ** text, int selected_value, int min_v
         }
 
         http_send_FS (">");
-        http_send ((char *) text[i]);
+        http_send_attr (text[i]);                           // C47: Modusnamen kommen aus der Tabellendatei bzw. vom STM
         http_send_FS ("</option>");
     }
 
@@ -2880,6 +2987,27 @@ table_row (const char * col1, const char * col2, const char * col3)
     text_column (col1);
     text_column (col2);
     text_column (col3);
+    end_table_row ();
+}
+
+/* C47: Spalte bzw. Zeile mit einem gespeicherten oder fremden Wert - maskiert. text_column () und
+ * table_row () bleiben fuer Text aus dem Code, der absichtlich Markup tragen darf ("&deg;C").
+ */
+static void
+value_column (const char * value)
+{
+    begin_column ();
+    http_send_attr (value);
+    end_column ();
+}
+
+static void
+table_row_value (const char * col1, const char * value)
+{
+    begin_table_row ();
+    text_column (col1);
+    value_column (value);
+    text_column ("");
     end_table_row ();
 }
 
@@ -3417,7 +3545,7 @@ http_main (void)
         table_row ("Frequency", freq, "");
         table_row ("Hardware", hardware, "");
         table_row ("Display", led_type, "");
-        table_row ("Version", version, "");
+        table_row_value ("Version", version);                // C47: Text vom STM
         table_row ("ESP8266 version", esp_firmware_version, "");
         table_trailer ();
 
@@ -3428,7 +3556,7 @@ http_main (void)
 
         if (eeprom_is_up)
         {
-            table_row ("EEPROM Version", eeprom_version, "");
+            table_row_value ("EEPROM Version", eeprom_version);
         }
 
         table_row ("DFPlayer", dfplayer_is_up ? "online" : "offline", "");
@@ -3741,7 +3869,7 @@ http_network (void)
     http_send_FS ("</td></tr>\r\n");
 
     http_send_FS ("<tr><td>IP address</td><td>");
-    http_send (wifi_ip_address);
+    http_send_attr (wifi_ip_address);
     http_send_FS ("</td></tr></table><P>\r\n");
 
     table_header (header_cols, NETWORK_HEADER_COLS);
@@ -3757,7 +3885,7 @@ http_network (void)
         String tmp_ssid = WiFi.SSID(idx);
 
         http_send_FS ("<option value=\"");
-        http_send (tmp_ssid);
+        http_send_attr (tmp_ssid.c_str ());                 // C47: SSIDs aus dem Scan sind fremd
 
         if (! strcmp (wifi_ssid, tmp_ssid.c_str()))
         {
@@ -3768,7 +3896,7 @@ http_network (void)
             http_send_FS ("\">");
         }
 
-        http_send (tmp_ssid);
+        http_send_attr (tmp_ssid.c_str ());                 // C47: SSIDs aus dem Scan sind fremd
         http_send_FS ("</option>\r\n");
     }
 
@@ -3858,16 +3986,7 @@ http_temperature (void)
             rtc_temperature_correction = temp_corr;
 
             http_rtc_temp_half_deg_correct (rtc_temperature_correction - old_correction);    // A5: Index 49 im selben Schritt
-            temp_index -= (rtc_temperature_correction - old_correction);
-
-            if (temp_index < 0)
-            {
-                temp_index = 0;
-            }
-            else if (temp_index > 255)
-            {
-                temp_index = 255;
-            }
+            temp_index = http_temp_index_correct (temp_index, rtc_temperature_correction - old_correction);
 
             set_numvar (RTC_TEMP_INDEX_NUM_VAR, temp_index);
             set_numvar (RTC_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (rtc_temperature_correction));
@@ -3880,16 +3999,7 @@ http_temperature (void)
 
             temperature_correction = temp_corr;
 
-            temp_index -= (temperature_correction - old_correction);
-
-            if (temp_index < 0)
-            {
-                temp_index = 0;
-            }
-            else if (temp_index > 255)
-            {
-                temp_index = 255;
-            }
+            temp_index = http_temp_index_correct (temp_index, temperature_correction - old_correction);
 
             set_numvar (DS18XX_TEMP_INDEX_NUM_VAR, temp_index);
             set_numvar (DS18XX_TEMP_CORRECTION_NUM_VAR, http_encode_temp_correction (temperature_correction));
@@ -3908,8 +4018,19 @@ http_temperature (void)
         /* A5 (Ent-8): Minusgrade aus Index 49, Rueckfall auf Index 21 bei 0x8000. Platz: hoechstens
          * "-16383.5" (8 Zeichen) plus "&deg;C" (6) plus Nullbyte, rtc_temp hat 16.
          */
-        http_format_half_deg (rtc_temp, sizeof (rtc_temp) - 6, http_rtc_temp_half_deg ());
-        strcat (rtc_temp, "&deg;C");
+        if ((get_numvar (RTC_TEMP_HALF_DEG_NUM_VAR) & 0xFFFF) == RTC_TEMP_HALF_DEG_UNKNOWN && get_numvar (RTC_TEMP_INDEX_NUM_VAR) == 255)
+        {
+            /* Ent-11, fuer die RTC: Ohne Index 49 faellt die Anzeige auf Index 21 zurueck, und dort ist
+             * 255 der Fehlerwert des STM (Lesefehler, rtc_get_temperature_index ()) - keine Temperatur.
+             * Bisher stand hier "127.5&deg;C".
+             */
+            strcpy (rtc_temp, "invalid");
+        }
+        else
+        {
+            http_format_half_deg (rtc_temp, sizeof (rtc_temp) - 6, http_rtc_temp_half_deg ());
+            strcat (rtc_temp, "&deg;C");
+        }
     }
     else
     {
@@ -3921,14 +4042,25 @@ http_temperature (void)
     if (ds18xx_is_up)
     {
         temp_index = get_numvar (DS18XX_TEMP_INDEX_NUM_VAR);
-        sprintf (ds18xx_temp, "%d", temp_index / 2);
 
-        if (temp_index % 2)
+        /* A2 / Ent-11: 255 ist der Fehlerwert des STM (Lese- oder CRC-Fehler), keine Temperatur -
+         * bisher stand hier "127.5&deg;C". "offline" bleibt dem Fall IS_UP = 0 vorbehalten.
+         */
+        if (temp_index == 255)
         {
-            strcat (ds18xx_temp, ".5");
+            strcpy (ds18xx_temp, "invalid");
         }
+        else
+        {
+            sprintf (ds18xx_temp, "%d", temp_index / 2);
 
-        strcat (ds18xx_temp, "&deg;C");
+            if (temp_index % 2)
+            {
+                strcat (ds18xx_temp, ".5");
+            }
+
+            strcat (ds18xx_temp, "&deg;C");
+        }
     }
     else
     {
@@ -4001,15 +4133,26 @@ http_weather (void)
         }
         else if (! strcmp (action, "savelonlat"))
         {
-            char * newlon = http_get_param ("lon");
-            char * newlat = http_get_param ("lat");
+            char *          newlon = http_get_param ("lon");
+            char *          newlat = http_get_param ("lat");
+            const char *    detail = (const char *) 0;
 
             strsubst (newlon, ',', '.');
             strsubst (newlat, ',', '.');
 
-            set_strvar (WEATHER_LON_STR_VAR, newlon);
-            set_strvar (WEATHER_LAT_STR_VAR, newlat);
-            message = "Coordinates successfully changed.";
+            /* C44 (L340): dieselbe Pruefung wie /api/weather_coordinates_set. Bisher nahm dieser Weg
+             * alles an, ohne jede Laengenpruefung - set_strvar () kuerzte still.
+             */
+            if (http_coordinates_check (newlon, newlat, &detail))
+            {
+                alert_message = detail;
+            }
+            else
+            {
+                set_strvar (WEATHER_LON_STR_VAR, newlon);
+                set_strvar (WEATHER_LAT_STR_VAR, newlat);
+                message = "Coordinates successfully changed.";
+            }
         }
         else if (! strcmp (action, "getweather"))
         {
@@ -4327,7 +4470,7 @@ select_icons (const char * id, const char * name)
                 trim (icon_name);
         
                 http_send_FS ("<option value=\"");
-                http_send (icon_name);
+                http_send_attr (icon_name);                     // C47: aus der Icon-Datei vom Update-Server
                 http_send_FS ("\"");
         
                 if (! strcmp (name, icon_name))
@@ -4336,7 +4479,7 @@ select_icons (const char * id, const char * name)
                 }
         
                 http_send_FS (">");
-                http_send (icon_name);
+                http_send_attr (icon_name);                     // C47: aus der Icon-Datei vom Update-Server
                 http_send_FS ("</option>\r\n");
         
                 while ((ch = fp.read()) != '*' && ch >= 0)
@@ -4366,6 +4509,7 @@ http_display (void)
     const char *        header_cols[DISPLAY_HEADER_COLS]  = { "Name", "Value", "Action" };
     char *              action;
     const char *        message         = (const char *) 0;
+    const char *        alert_message   = (const char *) 0;
     uint_fast8_t        use_rgbw        = get_numvar (DISPLAY_USE_RGBW_NUM_VAR);
     DSP_COLORS          rgbw;
     const char *        ids[4]          = { "red", "green", "blue", "white" };
@@ -4461,8 +4605,18 @@ http_display (void)
         {
             char * date_ticker_format = http_get_param ("dtf");
 
-            set_strvar (DATE_TICKER_FORMAT_VAR, date_ticker_format);
-            message = "date ticker format successfully changed.";
+            /* C55 (L369): dieselbe Regel wie /api/date_ticker_format_set. Bisher pruefte dieser Weg
+             * gar nichts, auch nicht die Laenge.
+             */
+            if (! http_date_ticker_format_ok (date_ticker_format))
+            {
+                alert_message = http_date_ticker_format_invalid;
+            }
+            else
+            {
+                set_strvar (DATE_TICKER_FORMAT_VAR, date_ticker_format);
+                message = "date ticker format successfully changed.";
+            }
         }
         else if (! strcmp (action, "testdisplay"))
         {
@@ -4556,7 +4710,13 @@ http_display (void)
     button_field ("testdisplay", "Test display");
     end_form ();
 
-    if (message)
+    if (alert_message)
+    {
+        http_send_FS ("<P><font color=red><B>");
+        http_send (alert_message);
+        http_send_FS ("</B></font>\r\n");
+    }
+    else if (message)
     {
         http_send_FS ("<P><font color=green>");
         http_send (message);
@@ -4737,7 +4897,7 @@ http_animations (void)
             sprintf (decbuf, "%d", da->deceleration);
 
             begin_table_row_form (thispage);
-            text_column (da->name);
+            value_column (da->name);                                // C47: Namen kommen vom STM
             slider_column (decidbuf, decbuf, "1", "15");
             button_column (defaultidbuf, "Default");
             checkbox_column (favidbuf, "", (da->flags & ANIMATION_FLAG_FAVOURITE) ? 1 : 0);
@@ -4763,7 +4923,7 @@ http_animations (void)
             sprintf (color_decbuf, "%d", color_animation->deceleration);
 
             begin_table_row_form (thispage);
-            text_column (color_animation->name);
+            value_column (color_animation->name);
             slider_column (color_decidbuf, color_decbuf, "0", "15");
             button_column (color_defaultidbuf, "Default");
             save_column (color_animidbuf);
@@ -5468,7 +5628,7 @@ http_ambilight (void)
             sprintf (ambimode_decbuf, "%d", am->deceleration);
 
             begin_table_row_form (thispage);
-            text_column (am->name);
+            value_column (am->name);
             slider_column (ambimode_decidbuf, ambimode_decbuf, "0", "15");
             button_column (ambimode_defaultidbuf, "Default");
             save_column (ambimode_idbuf);
@@ -6621,7 +6781,7 @@ http_fs (int post = POST_ICON_NONE)
 
         begin_column ();
         http_send_FS ("<input type=\"text\" name=\"filename\" value=\"");
-        http_send (dir.fileName());
+        http_send_attr (dir.fileName ().c_str ());          // C47: Dateinamen sind hochladbar
         http_send_FS ("\" readonly>");
         end_column ();
 
@@ -6711,7 +6871,7 @@ http_fs (int post = POST_ICON_NONE)
                     {
                         char * p = tables_fname ();
                         http_send_FS ("<option value=\"");
-                        http_send (fname);
+                        http_send_attr (fname);                     // C47: aus der Tabellenliste vom Update-Server
 
                         if (p && ! strcmp (fname, p))
                         {
@@ -6721,7 +6881,7 @@ http_fs (int post = POST_ICON_NONE)
                         {
                             http_send_FS ("\">");
                         }
-                        http_send (fname);
+                        http_send_attr (fname);                     // C47: aus der Tabellenliste vom Update-Server
                         http_send_FS ("</option>\r\n");
                     }
                 }
@@ -6810,7 +6970,7 @@ http_fs (int post = POST_ICON_NONE)
 
             b[1] = '\0';
 
-            http_send (show_fname);
+            http_send_attr (show_fname);                    // C47: Anfrageparameter
             http_send_FS (":<BR><pre>\r\n");
 
             while ((ch = fp.read ()) >= 0)
@@ -6826,7 +6986,7 @@ http_fs (int post = POST_ICON_NONE)
                 else
                 {
                     b[0] = ch;
-                    http_send (b);
+                    http_send_attr (b);                     // C47: Dateiinhalt als Text, nicht als Markup
                 }
             }
 
@@ -7135,6 +7295,115 @@ http_api_app_file_upload ()
  * HTTP update
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Release Notes - C47 (L346), Ent-2 = R2: Tags entfernen, Text behalten
+ *
+ * Die Release Notes vom Update-Server sind absichtlich HTML. Der Update-Host ist aber aus dem LAN
+ * setzbar und die Verbindung HTTP; roh durchgereicht lief jedes Skript darin auf der Legacy-Seite.
+ * Jetzt:
+ *   - alles zwischen '<' und '>' entfaellt; der Zustand "im Tag" ueberdauert den Zeilenwechsel
+ *     (ein ueber zwei Zeilen geteiltes Tag)
+ *   - ein einzelnes '>' ausserhalb eines Tags wird "&gt;"
+ *   - alle anderen Zeichen bleiben, auch '&' samt Entitaet; ein Nullbyte faellt wie bisher weg
+ *   - jedes '\n' wird "<br>\n", eine Schlusszeile ohne '\n' bekommt ihr "<br>" am Ende
+ * In der Ausgabe steht damit kein '<' und kein '>' ausser im eigenen "<br>".
+ *
+ * Der 128-Byte-Puffer bleibt, er ist nur noch Ausgabepuffer: Ist er voll, geht er ab, und die Zeile
+ * laeuft im naechsten weiter. Frueher fiel alles ab dem 128. Zeichen einer Zeile still weg, und
+ * eine Schlusszeile ohne '\n' erschien nie.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+typedef struct
+{
+    char            buf[128];
+    unsigned int    len;
+    uint_fast8_t    in_tag;                                                         // zwischen '<' und '>'
+    uint_fast8_t    line_open;                                                      // seit dem letzten '\n' kam etwas an
+} HTTP_NOTES_FILTER;
+
+static void
+http_notes_filter_begin (HTTP_NOTES_FILTER * f)
+{
+    f->len          = 0;
+    f->in_tag       = 0;
+    f->line_open    = 0;
+}
+
+static void
+http_notes_filter_put (HTTP_NOTES_FILTER * f, const char * s)
+{
+    size_t n = strlen (s);
+
+    if (f->len + n >= sizeof (f->buf))
+    {
+        f->buf[f->len] = '\0';
+        http_send (f->buf);
+        f->len = 0;
+    }
+
+    memcpy (f->buf + f->len, s, n);
+    f->len += n;
+}
+
+static void
+http_notes_filter_char (HTTP_NOTES_FILTER * f, int ch)
+{
+    char one[2];
+
+    if (ch <= 0)
+    {
+        return;
+    }
+
+    if (ch == '\n')
+    {
+        http_notes_filter_put (f, "<br>\n");
+        f->line_open = 0;
+        return;
+    }
+
+    f->line_open = 1;
+
+    if (f->in_tag)
+    {
+        if (ch == '>')
+        {
+            f->in_tag = 0;
+        }
+    }
+    else if (ch == '<')
+    {
+        f->in_tag = 1;
+    }
+    else if (ch == '>')
+    {
+        http_notes_filter_put (f, "&gt;");
+    }
+    else
+    {
+        one[0] = (char) ch;
+        one[1] = '\0';
+        http_notes_filter_put (f, one);
+    }
+}
+
+static void
+http_notes_filter_end (HTTP_NOTES_FILTER * f)
+{
+    if (f->line_open)
+    {
+        http_notes_filter_put (f, "<br>\n");
+        f->line_open = 0;
+    }
+
+    if (f->len)
+    {
+        f->buf[f->len] = '\0';
+        http_send (f->buf);
+        f->len = 0;
+    }
+}
+
 static uint_fast8_t
 http_update (void)
 {
@@ -7305,7 +7574,7 @@ http_update (void)
                 update_progress_begin ("esp", "starting", "ESP-Firmware-Update wird gestartet.");
     
                 http_send_FS ("<P><B>Updating ESP firmware '");
-                http_send (path);
+                http_send_attr (path);                                          // C47: enthaelt den Update-Pfad
                 http_send_FS ("', reconnecting in 40 seconds ...</B></BR>\r\n");
                 end_box ();
                 http_trailer ();
@@ -7384,10 +7653,11 @@ http_update (void)
     
                 if (len > 0)
                 {
-                    char linebuf[128];
-                    int l = 0;
-                    int ch;
-    
+                    HTTP_NOTES_FILTER   notes;                      // C47, Ent-2 = R2: Tags entfernen, Text behalten
+                    int                 ch;
+
+                    http_notes_filter_begin (&notes);
+
                     while (len > 0)
                     {
                         ch = httpclient_read (&len);
@@ -7396,20 +7666,11 @@ http_update (void)
                         {
                             break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
                         }
-    
-                        if (l < 128 - 1 && ch > 0)
-                        {
-                            linebuf[l++] = ch;
-                        }
-    
-                        if (ch == '\n')
-                        {
-                            linebuf[l] = '\0';
-                            l = 0;
-                            http_send (linebuf);
-                        }
+
+                        http_notes_filter_char (&notes, ch);
                     }
-    
+
+                    http_notes_filter_end (&notes);
                     httpclient_stop ();
                 }
                 else
@@ -7460,7 +7721,7 @@ http_update (void)
                 http_send (ESP_VERSION);
                 http_send_FS ("</td></tr>\r\n"
                               "<tr><td>ESP firmware available</td><td>");
-                http_send (new_esp_version);
+                http_send_attr (new_esp_version);                   // C47: vom Update-Server
                 http_send_FS ("</td></tr></table>\r\n");
     
                 http_send_FS ("<form method=\"GET\" action=\"/update\">\r\n"
@@ -7472,13 +7733,13 @@ http_update (void)
                               "<td>WordClock firmware version</td>"
                               "<td>");
 
-                http_send (version);
+                http_send_attr (version);                           // C47: Text vom STM
                 http_send_FS ("</td>"
                               "</tr>"
                               "<tr>"
                               "<td>WordClock firmware available</td>"
                               "<td>");
-                http_send (new_wc_version);
+                http_send_attr (new_wc_version);                    // C47: vom Update-Server
                 http_send_FS ("</td>"
                               "</tr>"
                               "</table>"
@@ -7523,9 +7784,11 @@ http_update (void)
                             if (show_option)
                             {
                                 // A6 (Review F.6): fname kommt aus wc-list.txt vom Update-Server - nicht
-                                // vertrauenswuerdig (konfigurierbarer Host, HTTP). Maskiert wie die API-Liste.
+                                // vertrauenswuerdig (konfigurierbarer Host, HTTP). C47: ueber http_send_attr ()
+                                // statt HTTP_ESCAPE_XML - dort wuerde ungueltiges UTF-8 zu '?', und der
+                                // Dateiname kaeme so zurueck.
                                 http_send_FS ("<option value=\"");
-                                http_send_xml_escaped (fname);
+                                http_send_attr (fname);
         
                                 if (! strcmp (fname, stm32_default_filename))
                                 {
@@ -7536,7 +7799,7 @@ http_update (void)
                                     http_send_FS ("\">");
                                 }
         
-                                http_send_xml_escaped (fname);
+                                http_send_attr (fname);
                                 http_send_FS ("</option>\r\n");
                             }
                         }
@@ -8558,6 +8821,15 @@ http_api_date_ticker_format_set ()
         return 0;
     }
 
+    /* C55 (L369, Ent-10): der Inhalt, nach derselben Regel wie die Legacy-Seite. Die Laengenpruefung
+     * oben bleibt davor, damit ihre Meldung ("max. 5 bytes") unveraendert bleibt.
+     */
+    if (! http_date_ticker_format_ok (value))
+    {
+        http_json_error (HTTP_API_ERROR_OUT_OF_RANGE, http_date_ticker_format_invalid);
+        return 0;
+    }
+
     set_strvar (DATE_TICKER_FORMAT_VAR, value);
 
     http_json_ok ();
@@ -8680,9 +8952,10 @@ http_api_weather_city_set ()
 static int
 http_api_weather_coordinates_set ()
 {
-    char *      lon = http_get_param ("lon");
-    char *      lat = http_get_param ("lat");
-    STR_VAR *   city_var = get_strvar (WEATHER_CITY_STR_VAR);
+    char *          lon = http_get_param ("lon");
+    char *          lat = http_get_param ("lat");
+    const char *    detail = (const char *) 0;
+    unsigned int    error_code;
 
     if (! http_check_strvar_len ("lon", lon, MAX_WEATHER_LON_LEN) ||
         ! http_check_strvar_len ("lat", lat, MAX_WEATHER_LAT_LEN))
@@ -8690,28 +8963,16 @@ http_api_weather_coordinates_set ()
         return 0;
     }
 
-    /* Nur eine der beiden Koordinaten zu setzen ergibt nie eine Abfrage: Der STM32
-     * verlangt beide und faellt sonst auf den Ort zurueck - der halbe Wert bliebe als
-     * stiller Ballast stehen (L48).
-     */
-    if ((*lon && ! *lat) || (! *lon && *lat))
-    {
-        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "lon and lat required together");
-        return 0;
-    }
-
-    /* Leere Koordinaten sind der einzige Weg zurueck zur Ortsabfrage, denn der STM32
-     * bevorzugt die Koordinaten, sobald beide gefuellt sind. Sie sind deshalb erlaubt,
-     * solange ein Ort eingetragen bleibt (L48).
-     */
-    if (! *lon && ! *lat && (! city_var || ! *(city_var->str)))
-    {
-        http_json_error (HTTP_API_ERROR_MISSING_VALUE, "lon and lat missing or empty and no city configured");
-        return 0;
-    }
-
-    strsubst (lon, ',', '.');
+    strsubst (lon, ',', '.');                               // vor der Pruefung (C44), wie bisher vor dem Speichern
     strsubst (lat, ',', '.');
+
+    error_code = http_coordinates_check (lon, lat, &detail);  // Paar, Leerstand, Inhalt - dieselbe Pruefung wie savelonlat
+
+    if (error_code)
+    {
+        http_json_error (error_code, detail);
+        return 0;
+    }
 
     set_strvar (WEATHER_LON_STR_VAR, lon);
     set_strvar (WEATHER_LAT_STR_VAR, lat);
@@ -9790,16 +10051,7 @@ http_api_temperature_correction_set (NUM_VARIABLE index_var, NUM_VARIABLE correc
         http_rtc_temp_half_deg_correct (temp_corr - old_correction);           // A5: Index 49 im selben Schritt
     }
 
-    temp_index -= (temp_corr - old_correction);
-
-    if (temp_index < 0)
-    {
-        temp_index = 0;
-    }
-    else if (temp_index > 255)
-    {
-        temp_index = 255;
-    }
+    temp_index = http_temp_index_correct (temp_index, temp_corr - old_correction);     // A2: 255 bleibt, sonst 0..250
 
     numvars[index_var] = temp_index;
     set_numvar (correction_var, http_encode_temp_correction (temp_corr));
@@ -10643,6 +10895,165 @@ http_check_strvar_len (const char * name, const char * value, unsigned int maxle
     }
 
     return 1;
+}
+
+/* C55 (L369, Ent-10): Datumsformat - die EINE Regel fuer /api/date_ticker_format_set und die
+ * Legacy-Seite (savedtf):
+ *
+ *   gueltig  <=>  1 <= Laenge <= MAX_DATE_TICKER_FORMAT_LEN
+ *             und jedes Zeichen aus  d D m M y Y . - / Leerzeichen
+ *             und mindestens ein Platzhalter
+ *             und hoechstens ein Tag (d|D), ein Monat (m|M), ein Jahr (y|Y)
+ *             und kein Leerzeichen am Anfang oder am Ende
+ *
+ * Der STM deutet d D m M y Y als Platzhalter und uebernimmt jedes andere Zeichen woertlich - "<scri"
+ * lief also als Ticker, "yyyyy" zeigte fuenfmal das Jahr. Die PWA prueft nach DERSELBEN Regel, beide
+ * laufen gegen dieselbe Fall-Tabelle. Wer die Regel aendert, aendert zuerst die Tabelle.
+ *
+ * Die Meldung (http_date_ticker_format_invalid) steht oben bei den Prototypen.
+ */
+static uint_fast8_t
+http_date_ticker_format_ok (const char * value)
+{
+    size_t          len     = strlen (value);
+    unsigned int    days    = 0;
+    unsigned int    months  = 0;
+    unsigned int    years   = 0;
+    size_t          i;
+
+    if (len < 1 || len > MAX_DATE_TICKER_FORMAT_LEN || value[0] == ' ' || value[len - 1] == ' ')
+    {
+        return 0;
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        switch (value[i])
+        {
+            case 'd': case 'D': days++;     break;
+            case 'm': case 'M': months++;   break;
+            case 'y': case 'Y': years++;    break;
+            case '.': case '-': case '/': case ' ': break;
+            default:            return 0;
+        }
+    }
+
+    return (days + months + years > 0 && days <= 1 && months <= 1 && years <= 1) ? 1 : 0;
+}
+
+/* C44 (L340, Ent-12): eine Koordinate - die EINE Regel fuer /api/weather_coordinates_set und die
+ * Legacy-Seite (savelonlat):
+ *
+ *   gueltig  <=>  Laenge <= maxlen (8)
+ *             und Form  -?[0-9]+(\.[0-9]+)?      kein '+', kein Exponent, keine Leerzeichen
+ *             und |Wert| <= limit                180 fuer die Laenge, 90 fuer die Breite
+ *
+ * Das Komma ist beim Aufruf schon durch den Punkt ersetzt (strsubst, wie seit jeher). Gerechnet wird
+ * ohne Gleitkomma: Der ganzzahlige Teil hat hoechstens acht Ziffern und passt in 32 Bit; genau auf
+ * der Grenze ist nur ein Nachkommateil aus Nullen erlaubt ("180.0", nicht "180.5").
+ */
+static uint_fast8_t
+http_coordinate_ok (const char * value, unsigned int maxlen, int limit)
+{
+    const char *    p               = value;
+    long            whole           = 0;
+    uint_fast8_t    fraction_zero   = 1;
+
+    if (strlen (value) > maxlen)
+    {
+        return 0;
+    }
+
+    if (*p == '-')
+    {
+        p++;
+    }
+
+    if (*p < '0' || *p > '9')
+    {
+        return 0;                                                                   // leer, "-", ".5", "+5", " 5"
+    }
+
+    while (*p >= '0' && *p <= '9')
+    {
+        whole = whole * 10 + (*p - '0');
+        p++;
+    }
+
+    if (*p == '.')
+    {
+        p++;
+
+        if (*p < '0' || *p > '9')
+        {
+            return 0;                                                               // "5."
+        }
+
+        while (*p >= '0' && *p <= '9')
+        {
+            if (*p != '0')
+            {
+                fraction_zero = 0;
+            }
+
+            p++;
+        }
+    }
+
+    if (*p)
+    {
+        return 0;                                                                   // Rest: "1e2", "5 ", "1.2.3", "<"
+    }
+
+    return (whole < (long) limit || (whole == (long) limit && fraction_zero)) ? 1 : 0;
+}
+
+/* C44: ein Koordinatenpaar pruefen, gemeinsam fuer die API und die Legacy-Seite. 0 heisst
+ * speichern; sonst die Fehlerkennung, und *detailp nennt den Grund (ein Literal).
+ */
+static unsigned int
+http_coordinates_check (const char * lon, const char * lat, const char ** detailp)
+{
+    /* Nur eine der beiden Koordinaten zu setzen ergibt nie eine Abfrage: Der STM32
+     * verlangt beide und faellt sonst auf den Ort zurueck - der halbe Wert bliebe als
+     * stiller Ballast stehen (L48).
+     */
+    if ((*lon && ! *lat) || (! *lon && *lat))
+    {
+        *detailp = "lon and lat required together";
+        return HTTP_API_ERROR_MISSING_VALUE;
+    }
+
+    /* Leere Koordinaten sind der einzige Weg zurueck zur Ortsabfrage, denn der STM32
+     * bevorzugt die Koordinaten, sobald beide gefuellt sind. Sie sind deshalb erlaubt,
+     * solange ein Ort eingetragen bleibt (L48).
+     */
+    if (! *lon)
+    {
+        STR_VAR * city_var = get_strvar (WEATHER_CITY_STR_VAR);
+
+        if (! city_var || ! *(city_var->str))
+        {
+            *detailp = "lon and lat missing or empty and no city configured";
+            return HTTP_API_ERROR_MISSING_VALUE;
+        }
+
+        return 0;
+    }
+
+    if (! http_coordinate_ok (lon, MAX_WEATHER_LON_LEN, 180))
+    {
+        *detailp = "lon invalid (decimal number -180..180, e.g. 8.5400)";
+        return HTTP_API_ERROR_OUT_OF_RANGE;
+    }
+
+    if (! http_coordinate_ok (lat, MAX_WEATHER_LAT_LEN, 90))
+    {
+        *detailp = "lat invalid (decimal number -90..90, e.g. 47.3769)";
+        return HTTP_API_ERROR_OUT_OF_RANGE;
+    }
+
+    return 0;
 }
 
 /* C18/L186: Fuenfzehn Abweisungen nannten den Bereich nicht, den sie pruefen -- "idx out of
@@ -12580,7 +12991,7 @@ http_api_remote_esp_update ()
     http_header ("Update", "40", "/app/");
     begin_box ("Update");
     http_send_FS ("<P><B>Updating ESP firmware '");
-    http_send (path);
+    http_send_attr (path);                                          // C47: enthaelt den Update-Pfad
     http_send_FS ("', reconnecting in 40 seconds ...</B></BR>\r\n");
     end_box ();
     http_trailer ();

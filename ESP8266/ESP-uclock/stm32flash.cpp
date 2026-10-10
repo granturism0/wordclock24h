@@ -1270,7 +1270,7 @@ stm32_flash_download_image (const char * host, const char * path, const char * f
     bool            rtc = false;
 
     http_send_FS ("Downloading ");
-    http_send (filename);
+    http_send_attr (filename);                                          // C47: Dateiname aus der Anfrage
     http_send_FS ("... ");
     update_progress_state ("download", "STM32-Firmware wird heruntergeladen.");
     http_flush();
