@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-10 Paket 2026-10-10, Schritt S0: Datumsrechnung mit 32 Bit, rund 1 KB Flash frei (STM 3.2.26)
+
+Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-211956.zip`, Tag `release/3.2.26-3.2.30-1.4.94`. Umfang: Schritt S0
+aus `specs/paket-2026-10-10/` (Sparmassnahme vor A59/A2/A50/A55).
+
+**Einspielreihenfolge: nur der STM**, über `./tools/flash-stm.sh`. Die Prüfung am Gerät (G0:
+Uhrzeit und Datum nach einem Zeitabgleich) steht nach dem Einspielen noch aus.
+
+- `my_gmtime()` rechnet intern mit `uint32_t` statt mit 64-Bit-`time_t`. Damit linkt der F103
+  die 64-Bit-Divisionsroutinen `__udivmoddi4` und `__aeabi_ldivmod` nicht mehr: **2'176 statt
+  1'120 Byte Flash frei**. Für 1970–2106 rechnet die Funktion identisch.
+- Prüfstand GT: 692'546 Fälle (jeder Tag 1970–2106, jeder Monatswechsel, Grenzen 2000, 2038,
+  2100, 2106, Zufall), neu gegen die alte Fassung und gegen `gmtime_r()` des Rechners, null
+  Abweichungen; eine Sabotage an der Jahrhundertregel schlägt an.
+- Guardrail S8b meldet künftig, wenn eine 64-Bit-Division wieder gelinkt wird.
+- Review bestanden. Nebenbefund, unabhängig von S0: Ein leerer Zeittext vom ESP würde die Uhr auf
+  den 07.02.2036 stellen (L371/A62).
+
 ## 2026-10-10 Korrektur L357: Vorhersagezeile wird vorbelegt (ESP 3.2.30)
 
 Nur der ESP, STM (3.2.25) und PWA (1.4.94) unverändert. Release-ZIP

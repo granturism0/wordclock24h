@@ -456,10 +456,10 @@ my_gmtime (time_t * t)
     int              day;
     int              hour;
     int              min;
-    int              sec;
+    uint32_t         sec;                                                    // uint32_t wie tv: Vergleich tv >= sec ohne Vorzeichenmischung
     int              yday;
-    time_t           tv = *t;
-    time_t           days_since_epoch;
+    uint32_t         tv = (uint32_t) *t;                                     // 32 Bit genuegen bis 2106-02-07: time_t ist 64 Bit und zoege
+    uint32_t         days_since_epoch;                                       // sonst __aeabi_ldivmod/__udivmoddi4 herein (952 Byte, S0)
 
     year = 1970;
     days_since_epoch = tv / 86400;
