@@ -48,6 +48,8 @@ LAUF=(
   "S0 my_gmtime 32 Bit gleich 64 Bit und gmtime_r (STM)|stm/gt/run.sh $S"
   "A59 LDR-Grenzen per Zahl setzbar (STM)|stm/l59/run.sh $S"
   "A2 DS18xx CRC, ROM-ID, Neuerkennung (STM)|stm/ds/run.sh $S"
+  "A50 fault_reset ohne Ausgabe, 15 s geeicht (STM)|stm/fr/run.sh $S"
+  "A55 CAP setzt offline bis IPADDRESS (STM+ESP)|stm/ep/run.sh $S $E"
   "S.1-S.3 Bruecke (ESP)|esp/t1/run.sh $E/ESP-uclock.ino $E/vars.h neu"
   "C31 keine Schluessel im Log (ESP)|esp/t2/run.sh $E/eepromdata.cpp neu"
   "A5 Legacy-Temperatur (ESP)|esp/t3/run.sh $E neu"
