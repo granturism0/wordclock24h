@@ -349,9 +349,12 @@ Uhr kurz stromlos machen, wieder einschalten, eine Minute warten:
 | Im Log | Bedeutung |
 |---|---|
 | `Watchdog reset` | Ein blockierender Pfad. Bestätigt die Software-Spur |
-| `Software reset` mit `fatal fault detected` davor | HardFault — stützt die Rekursions-These |
-| `Software reset` ohne Fault | Reset über die Web-Oberfläche, harmlos |
+| `Software reset` | Reset über die Web-Oberfläche **oder** ein HardFault — die beiden sind im Log nicht zu unterscheiden (siehe unten) |
 | kein Flag | Versorgung oder Mechanik — **dann ist Befund L9 dran** |
+
+**Eine Fault-Zeile kommt nie an** (`BEFUNDE.md`, L313/A50, am Code belegt am 10.10.2026): Im
+HardFault-Handler kann die USART-ISR (Priorität 0) nicht laufen, `log_flush()` wartet ewig. Die
+frühere Zeile „`Software reset` mit `fatal fault detected` davor“ war deshalb nie erfüllbar.
 
 Der eigentliche Wert kommt später: Wenn die Uhr **von selbst** hängt, steht die Ursache
 danach im Mitschnitt, ohne dass du dabei sein musst.

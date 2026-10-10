@@ -490,7 +490,7 @@ namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommando
 
 1. **DS18xx-Messwertvalidierung im STM** (klarster nächster Fix)
    **Neu belegt (01.10.2026):** `temp_init()` läuft genau einmal beim Start
-   (`main.c:3140`). Scheitert die Erkennung dort, liefert der Sensor bis zum nächsten
+   (`temp_init()` in `main.c`). Scheitert die Erkennung dort, liefert der Sensor bis zum nächsten
    Reset nur den Fehlercode — am Gerät beobachtet, 11 Fehlerwerte vor einem Reset,
    1506 gültige danach. Es braucht deshalb **beides**: CRC-Prüfung beim Lesen **und**
    erneute Erkennung zur Laufzeit.
