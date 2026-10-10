@@ -63,7 +63,7 @@ schon durch den naechsten Patch — bei F1 ist sie durch den eigenen Eingriff vo
 | `var_send_buf()` Warten auf Quittung | `vars.c:60-65` | unbegrenzt |
 | `sk6812_refresh()` DMA-Wait | `sk6812.c:453-474` | unbegrenzt |
 | `tables.complete`-Warteschleife | `display.c:4173` | unbegrenzt, bei **jedem** Moduswechsel |
-| `eeprom_waitstates()` | `eeprom.c:38-57` | ~16 ms **pro Byte** |
+| `eeprom_waitstates()` | `eeprom.c:38-57` | ~16 ms je Zyklus, gemessen ~24 ms mit I2C (L358); seit C3 ein Zyklus je geänderter Seite |
 
 `delay_sec()` → `delay_msec()` ist reiner Busy-Wait auf SysTick, ohne Reload
 (`delay.c:61-80`).
@@ -124,8 +124,10 @@ Schutz.
 
 ## EEPROM-Kosten
 
-`eeprom_write()` schreibt **Byte für Byte** mit `EEPROM_WAITSTATES 15` Busy-Wait, rund
-16 ms pro Byte. Das Speichern der Dimmkurve aus der PWA sendet 16 Kommandos am Stück,
+`eeprom_write()` schreibt seit C3 **seitenweise** (`EEPROM_PAGE_SIZE` 32 auf F411, 8 auf F103):
+je Seite ein Vergleichslesen, höchstens ein Schreiben, ein Wartezyklus. Ein Zyklus kostet
+gemessen rund **24 ms**, nicht 16 (L358: Wartezyklus plus I2C-Zeit, der Treiber wartet je
+Byte bis 1 ms, L359). Vor C3 schrieb die Funktion Byte für Byte. Das Speichern der Dimmkurve aus der PWA sendet 16 Kommandos am Stück,
 jedes schreibt die **ganze** Kurve ⇒ rund 4,3 s, in denen `display_clock_flag`
 praktisch durchgehend auf `0x02` steht.
 

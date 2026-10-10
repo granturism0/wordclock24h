@@ -30,6 +30,25 @@
 #define EEPROM_FIRST_ADDR       0xA0                            // I2C address << 1
 #define EEPROM_WAITSTATES       15                              // we have to wait 15ms after each write cycle
 
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * Seitengroesse fuer eeprom_write() (Paket 2026-10-09, C3, Ent-7), Build-Konstante je Ziel:
+ *   F411 (Platine V2): 32 Byte -- der AT24C32 der Platine hat 32-Byte-Seiten.
+ *   F103:               8 Byte -- der Baustein des F103-Aufbaus ist nicht belegt; kleiner ist immer
+ *                                 sicher, nur langsamer. Festgelegt vom Nutzer.
+ * NIE groesser als die echte Seite: Ein Schreiben ueber das Seitenende bricht im Baustein auf den
+ * Anfang DERSELBEN Seite um und ueberschreibt dort fremde Einstellungen, ohne dass i2c_write() einen
+ * Fehler meldet. Muss 4096 teilen (Zweierpotenz), damit die Seitenrechnung auch ueber das
+ * Speicherende hinaus zur Adressumwicklung des Bausteins passt.
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+#if defined (STM32F4XX)
+#define EEPROM_PAGE_SIZE        32
+#elif defined (STM32F10X)
+#define EEPROM_PAGE_SIZE        8
+#else
+#error EEPROM_PAGE_SIZE: Ziel ohne Seitengroesse
+#endif
+
 uint_fast8_t                    eeprom_is_up = 0;
 volatile uint_fast8_t           eeprom_ms_tick;                 // should be set every 1 ms by IRQ, see main.c
 
@@ -183,22 +202,28 @@ eeprom_read (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 /*--------------------------------------------------------------------------------------------------------------------------------------
- * Ein Byte, das schon so im EEPROM steht, wird nicht geschrieben.
+ * Seitenweise (Paket 2026-10-09, C3): Der Bereich wird an den Seitengrenzen (EEPROM_PAGE_SIZE)
+ * zerlegt. Je Seite EIN Lesen zum Vergleich, hoechstens EIN Schreiben -- vom ersten bis zum letzten
+ * abweichenden Byte, also nie ueber das Seitenende -- und hoechstens EIN Wartezyklus. Eine Seite,
+ * die schon so im EEPROM steht, kostet keinen Schreibzyklus.
  *
  * Der teure Teil ist nicht der I2C-Verkehr, sondern eeprom_waitstates(): EEPROM_WAITSTATES = 15,
- * also rund 15 ms Busy-Wait je geschriebenem Byte, in denen der Hauptloop steht und niemand den
+ * nach G2 (BEFUNDE.md, L358) rund 24 ms je Zyklus samt I2C-Verkehr. Bis C3 fiel das je
+ * geschriebenem BYTE an, seither je geschriebener SEITE. Waehrend des Wartens steht der Hauptloop
+ * und niemand den
  * Empfangsring der ESP-Bruecke leert. Der Ring fasste zur Zeit dieser Messung 256 Byte und war
  * damit nach 22,2 ms voll; was danach kommt, verwirft die ISR still (BEFUNDE.md, L144: 702 Zeichen auf
  * einmal, dazu ein Einbruch der Hauptloop-Durchlaeufe auf 58 % ueber rund 4,25 s).
  *
- * Ein Lesezugriff auf dasselbe Byte kostet rund 0,1 ms und hat keine Wartezeit. Der Normalfall
- * der PWA ist "alles speichern, nichts hat sich geaendert" -- dort wird aus 240 ms fuer die
- * Dimmkurve rund 2 ms und aus 960 ms fuer den Hostnamen rund 7 ms.
+ * Ein Lesezugriff kostet rund 0,1 ms und hat keine Wartezeit. Der Normalfall der PWA ist "alles
+ * speichern, nichts hat sich geaendert" -- dort wurde mit dem Vergleich je Byte (vor C3, damalige
+ * Messung) aus 240 ms fuer die Dimmkurve rund 2 ms und aus 960 ms fuer den Hostnamen rund 7 ms.
  *
  * Der Fehlerpfad bleibt unveraendert streng, und die Richtung ist mit Absicht gewaehlt:
- * Scheitert das LESEN, wird geschrieben. Ein nicht lesbares Byte gilt nicht als gleich -- sonst
- * meldete ein I2C-Fehler "gespeichert", ohne dass je etwas im EEPROM gelandet waere. Nur ein
- * fehlgeschlagener SCHREIBzugriff bricht ab und liefert 0, wie bisher.
+ * Scheitert das LESEN, wird die ganze Seite geschrieben. Ein nicht lesbares Byte gilt nicht als
+ * gleich -- sonst meldete ein I2C-Fehler "gespeichert", ohne dass je etwas im EEPROM gelandet
+ * waere. Nur ein fehlgeschlagener SCHREIBzugriff bricht ab und liefert 0, wie bisher; danach
+ * folgt keine weitere Seite. Im EEPROM steht dann ein Seiten-Praefix statt eines Byte-Praefixes.
  *
  * Nebeneffekt, nicht Zweck: Das EEPROM hat eine endliche Zahl Schreibzyklen je Zelle.
  *
@@ -210,7 +235,7 @@ eeprom_read (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
  *   ms  ueber diag_ticks() aus main.c, UNABHAENGIG von eeprom_ms_tick (Begruendung dort)
  *   d   verworfene Zeichen der ESP-Bruecke vor und nach dem Schreiben. Die Abhaengigkeit von der
  *       ESP-UART ist gewollt: Genau dieser Ring laeuft waehrend des Busy-Waits ueber (L144).
- * Die Schreiblogik selbst ist unveraendert; neu sind nur die Zaehlung und die Zeile danach.
+ * z zaehlt seit C3 Seiten mit Schreibzyklus, weiterhin je Aufruf von eeprom_waitstates().
  * Vor log_init() kann hier kein Zyklus laufen: eeprom_is_up wird erst in eeprom_init() gesetzt,
  * und main() ruft eep_init() nach log_init() und nach timer2_init().
  *--------------------------------------------------------------------------------------------------------------------------------------
@@ -224,35 +249,52 @@ eeprom_write (uint_fast16_t start_addr, uint8_t * buffer, uint_fast16_t cnt)
     uint_fast16_t   m_z  = 0;
     uint_fast16_t   m_d  = esp8266_uart_rxdrops ();
     uint32_t        m_t  = diag_ticks ();
+    uint8_t         page[EEPROM_PAGE_SIZE];                 // Vergleichspuffer, eine Seite
+    uint_fast16_t   len;                                    // Byte bis zum Seitenende, hoechstens cnt
+    uint_fast16_t   first;                                  // erstes abweichendes Byte der Seite
+    uint_fast16_t   end;                                    // hinter dem letzten abweichenden Byte
 
     if (eeprom_is_up)
     {
-        // we must write every single byte, because we have to wait 15ms every cycle
-        while (cnt--)
+        while (cnt)
         {
-            uint8_t current;
+            len = EEPROM_PAGE_SIZE - (start_addr % EEPROM_PAGE_SIZE);   // auf einer Seitengrenze: die ganze Seite
 
-            if (i2c_read (eeprom_addr, start_addr, 1, &current, 1) == I2C_OK && current == *buffer)
+            if (len > cnt)
             {
-                rtc = 1;                                    // Byte steht bereits so im EEPROM: kein Schreibzyklus, keine 15 ms
+                len = cnt;
             }
-            else
+
+            first = 0;                                      // Lesen gescheitert: ganze Teilseite gilt als verschieden
+            end   = len;
+
+            if (i2c_read (eeprom_addr, start_addr, 1, page, len) == I2C_OK)
             {
-                if (i2c_write (eeprom_addr, start_addr, 1, buffer, 1) == I2C_OK)
+                while (first < len && page[first] == buffer[first])
                 {
-                    rtc = 1;
+                    first++;
                 }
-                else
+
+                while (end > first && page[end - 1] == buffer[end - 1])
                 {
-                    rtc = 0;
+                    end--;
+                }
+            }
+
+            if (first < end)                                // sonst steht die Seite schon so da: kein Zyklus
+            {
+                if (i2c_write (eeprom_addr, start_addr + first, 1, buffer + first, end - first) != I2C_OK)
+                {
+                    rtc = 0;                                // keine weitere Seite
                     break;
                 }
                 eeprom_waitstates ();
                 m_z++;
             }
 
-            start_addr++;
-            buffer++;
+            start_addr  += len;
+            buffer      += len;
+            cnt         -= len;
         }
     }
     else

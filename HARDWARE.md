@@ -108,10 +108,19 @@ Schiebeschalter `SW4` in der RX-Leitung.
 `src/eeprom/eeprom.c` nutzt `EEPROM_FIRST_ADDR 0xA0` und `i2c_read`/`i2c_write` mit
 16-Bit-Adressierung. Das ist der **AT24C32M** auf dem I2C-Bus, zusammen mit der RTC.
 
-Daraus folgt die oft zitierte Zahl von rund 16 ms pro Byte: Es ist der
-**Schreibzyklus des I2C-EEPROMs** (`EEPROM_WAITSTATES 15`), nicht die Flash-Programmierung
-des STM32. Siehe dazu den Befund L7 in `BEFUNDE.md` — der Baustein könnte 32 Byte in
-einem einzigen Zyklus schreiben, die Firmware schreibt byteweise.
+Die teure Grösse beim Schreiben ist der **Schreibzyklus des I2C-EEPROMs**, nicht die
+Flash-Programmierung des STM32. Die oft zitierten 16 ms sind nur der Wartezyklus
+(`EEPROM_WAITSTATES 15`). Am Gerät gemessen kostet ein Zyklus **rund 24 ms**: dazu kommen
+rund 8 ms I2C-Zeit, weil der Treiber in `i2c_wait_for_flags()` je nicht sofort gesetztem
+Flag `delay_msec(1)` wartet, statt zu pollen (`BEFUNDE.md`, L358 und L359).
+
+`eeprom_write()` schreibt **seitenweise** (Befund C3, L7). Die Seitengrösse ist eine
+Build-Konstante je Ziel, `EEPROM_PAGE_SIZE` in `src/eeprom/eeprom.c`: 32 Byte auf dem
+F411, 8 Byte auf dem F103. Je Seite liest die Firmware zuerst zum Vergleich, schreibt
+höchstens einmal vom ersten bis zum letzten geänderten Byte und wartet dann einen Zyklus ab.
+Unveränderte Seiten überspringt sie. Bis zu dieser Änderung schrieb sie byteweise, ein
+Zyklus je geändertem Byte. Die Umstellung kommt mit dem nächsten STM-Release; ihre Wirkung
+am Gerät bestätigt die Messung G3, die noch aussteht.
 
 ---
 

@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-10-10 Paket „Brückenlast“, Schritt C3: EEPROM schreibt seitenweise (STM 3.2.24)
+
+Nur der STM, ESP (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-102322.zip`, Tag `release/3.2.24-3.2.28-1.4.94`. Umfang: Schritt C3 aus `specs/paket-2026-10-09/`
+(L7, L339).
+
+**Einspielreihenfolge: nur der STM**, über `./tools/flash-stm.sh`. ESP und PWA bleiben, wie
+sie sind. Die Prüfung am Gerät (G3) steht nach dem Einspielen noch aus.
+
+### EEPROM seitenweise (C3, L7, L339)
+
+- Einstellungen speichern blockiert die Uhr deutlich kürzer. `eeprom_write()` schreibt nicht
+  mehr Byte für Byte, sondern Seite für Seite.
+- Die Seitengrösse ist eine Build-Konstante je Ziel: 32 Byte auf dem F411, 8 Byte auf dem F103.
+  Fehlt das Ziel, bricht der Bau mit `#error` ab, statt still eine falsche Grösse anzunehmen.
+- Je Seite ein Vergleichslesen und höchstens ein Schreiben, vom ersten bis zum letzten
+  geänderten Byte, danach ein Wartezyklus. Eine Seite, die schon so im EEPROM steht, kostet
+  keinen Schreibzyklus.
+- Rückgabewerte und Fehlerpfade sind wie vorher: Scheitert das Lesen, wird geschrieben;
+  scheitert ein Schreiben, liefert die Funktion 0 und schreibt keine weitere Seite.
+- Die Messzeile `eep …` zählt in `z` jetzt Seiten mit Schreibzyklus statt Bytes.
+
+### Was das bringt, und was noch nicht
+
+- **Gemessen vorher (G2, L358):** Ein 32-Byte-Wert blockierte den Hauptloop 767 ms (`z=32`).
+  Erwartet nach C3 sind rund 95–110 ms (`z=2`), errechnet von zwei Reviews — **noch nicht am
+  Gerät gemessen**.
+- Der Rest stammt aus dem I²C-Treiber, der je Byte bis 1 ms wartet (L359, A60). Den fasst
+  dieses Release bewusst nicht an, weil er auch die RTC trägt.
+- Schlimmster Fall, der Overlay-Bereich mit 1'280 Byte: vorher rund 30 s, also über dem
+  Watchdog; jetzt rund 3 s auf dem F411
+  und rund 6 s auf dem F103, deutlich unter den 20 s des Watchdogs (errechnet, nicht gemessen).
+- **Spec-Anpassung:** AKC.6 erwartete ≤ 60 ms. Wegen des I²C-Treibers gilt für G3 ≤ 130 ms
+  (F411).
+
+### Werkzeug und Doku (intern)
+
+Prüfstand C3 mit nachgebildetem AT24C32, der am Seitenende umbricht wie die Hardware, für
+beide Seitengrössen mit je rund 42'000 Fällen. Gegen 3.2.23 meldet er FEHL, drei Sabotagen
+schlagen an. `CLAUDE.md`, `HARDWARE.md`, die Architektur-Checkliste und der STM-Skill nennen
+jetzt das seitenweise Schreiben und die gemessenen 24 ms je Zyklus statt 16 ms (L358).
+
+Flash F103: 1'348 Byte frei im Release-Build, vorher 1'408 (60 Byte mehr belegt).
+
 ## 2026-10-10 Paket „Brückenlast“, Schritt M: Messzeile beim EEPROM-Schreiben, Warten auf den Wetterabruf (STM 3.2.23)
 
 Nur der STM, ESP (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP

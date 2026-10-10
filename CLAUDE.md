@@ -455,7 +455,9 @@ Quelle ist das KiCad-Projekt unter `~/Documents/WordClock-USB C - STM32F411 - V2
 Drei Punkte, die man dem Code allein nicht ansieht:
 
 - **Das EEPROM hängt am I2C** (AT24C32M, zusammen mit der DS3231-RTC). Der STM32F411
-  hat keins. Die oft zitierten „16 ms pro Byte" sind der EEPROM-Schreibzyklus.
+  hat keins. Die oft zitierten „16 ms pro Byte" sind nur der Wartezyklus: **Gemessen kostet
+  ein Schreibzyklus rund 24 ms** (`BEFUNDE.md`, L358), weil der I2C-Treiber je Byte bis
+  1 ms wartet (L359). Seit C3 wird seitenweise geschrieben, ein Zyklus je geänderter Seite.
 - **`PB0` schaltet die 5-V-Versorgung der LED-Kette.** `U3` (SN74AHCT1G125) hebt die
   Datenleitung von 3,3 V auf 5 V — das frühere Pegelproblem ist auf V2 gelöst.
 - **Der ESP hat nur einen vollwertigen UART, und das ist die Brücke zum STM.** Jede
@@ -507,8 +509,8 @@ namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommando
    der LED-Refresh läuft weiter. Das ist exakt das Bild aus dem Mitschnitt vom 30.09.2026.
    Zweimal ausgelöst, einmal kontrolliert.
 
-   **Die Spur:** Jeder dieser Setter schreibt 32 Byte ins I2C-EEPROM, bei rund 16 ms je
-   Byte sind das 0,5 Sekunden Blockade je Aufruf — zehnfach überlappend mit der
+   **Die Spur:** Jeder dieser Setter schreibt 32 Byte ins I2C-EEPROM; byteweise waren das
+   gemessen 0,77 Sekunden Blockade je Aufruf (G2, L339/L358) — zehnfach überlappend mit der
    Kommandoannahme. **Ein Nutzer löst das aus, ohne etwas Ungewöhnliches zu tun:**
    mehrfaches schnelles Speichern eines Textfelds genügt. Damit gehört es zu A1
    (`watchdog_reload()` in den langen Pfaden) und C3 (EEPROM seitenweise statt byteweise).
