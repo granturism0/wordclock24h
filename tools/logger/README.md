@@ -356,6 +356,15 @@ Uhr kurz stromlos machen, wieder einschalten, eine Minute warten:
 HardFault-Handler kann die USART-ISR (Priorität 0) nicht laufen, `log_flush()` wartet ewig. Die
 frühere Zeile „`Software reset` mit `fatal fault detected` davor“ war deshalb nie erfüllbar.
 
+**Seit A50 gibt `fault_reset()` deshalb gar nichts mehr aus.** Es wartet rund 15 s, über den
+SysTick-Zähler gepollt, und setzt dann per `NVIC_SystemReset()` zurück — im Log ebenfalls als
+`Software reset`. Die 15 s sind Absicht: Der ESP braucht nach jedem STM-Start rund 10 s und bliebe
+bei einem wiederkehrenden Fault sonst nie erreichbar. Unterscheiden lassen sich die beiden Fälle
+nur am Weg dorthin: Ein Reset über die Web-Oberfläche folgt auf den Aufruf, ein Fault auf eine
+Pause von rund 15 s, in der die `diag`-Folge stillsteht und kein `CMC` mehr quittiert wird. Läuft
+der Watchdog schon, kann er auch früher zuschlagen, je nachdem, wann er zuletzt bedient wurde;
+dann steht `Watchdog reset` im Log, ebenfalls nach einer kurzen Pause.
+
 Der eigentliche Wert kommt später: Wenn die Uhr **von selbst** hängt, steht die Ursache
 danach im Mitschnitt, ohne dass du dabei sein musst.
 
