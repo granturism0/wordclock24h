@@ -145,7 +145,7 @@ while :; do
     while IFS= read -r z; do
       case "$z" in
         *"- weather fc="*)
-          # - weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>   (design.md §1.4)
+          # - weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer> [n=<b> cl=<b|-> oom=<z>]   (design.md §1.4, C54)
           wms=$(printf '%s' "$z" | grep -aoE 'ms=[0-9]+' | head -1 | cut -d= -f2)
           werg=$(printf '%s' "$z" | sed -E 's/.*- weather fc=[0-9]+ ms=[0-9]+ ([a-z]+).*/\1/')
           # Ab ESP 3.2.29 haengen n=<koerper> cl=<content-length|-> oom=<verlorene zeichen> an (C54).

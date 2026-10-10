@@ -271,8 +271,16 @@ int main ()
   { Szenario s; s.conn_abgewiesen = true; fall ("Verbindung abgewiesen", s, 0, 0, "connfail", nullptr); }
   { Szenario s; s.segs.push_back ({50, "HTTP/1.1 200 OK\r\nServer: x\r\nContent-Type: a"}); s.close_at = 50;
     fall ("Kopf ohne Leerzeile, Server schliesst", s, 0, 0, "leer", nullptr); }
+  soll_n = 0; soll_cl = "-";
   { Szenario s; s.segs.push_back ({50, "HTTP/1.1 200 OK\r\nServer: x\r\n"}); s.close_at = NIE;
     fall ("Kopf ohne Leerzeile, Server schliesst nie", s, 0, 0, "timeout", nullptr); }
+  /* C54 (Review L1): Frist laeuft im Kopf ab => n=0, nicht die Kopfbyte; cl= aus der schon gelesenen Kopfzeile */
+  soll_n = 0; soll_cl = "500";
+  { Szenario s; s.segs.push_back ({50, "HTTP/1.1 200 OK\r\nContent-Length: 500\r\nServer: x\r\n"}); s.close_at = NIE;
+    fall ("C54 Timeout im Kopf mit Content-Length => n=0", s, 0, 0, "timeout", nullptr); }
+  soll_n = 0; soll_cl = "500";
+  { Szenario s; s.segs.push_back ({50, "HTTP/1.1 200 OK\r\nContent-Length: 500\r\nServer: x\r\n"}); s.tropfen = 40; s.close_at = NIE;
+    fall ("C54 Kopf tropft ohne Leerzeile => n=0", s, 0, 0, "timeout", nullptr); }
   { Szenario s; s.segs.push_back ({100, hdr_cl (now_json.size ())}); s.segs.push_back ({4900, now_json}); s.close_at = 4900;
     fall ("Koerper erst nach 4,9 s", s, 0, 0, "timeout", nullptr); }
 
