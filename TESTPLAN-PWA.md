@@ -351,6 +351,12 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 - **Dateiliste**: Grössen gegen die lokalen `.gz`.
 - **`stm32_log`**: Wird das Logbuch überhaupt gefüllt, und bricht die Anzeige bei
   langen Zeilen um?
+- **AP-SSID im Modul `network`**: in einer frischen Sitzung **direkt** öffnen, ohne
+  vorher die Wartung zu besuchen. Soll: Die AP-SSID steht da, Wert gegen
+  `eeprom_settings`. Am 10.10.2026 blieb sie nach 1, 5, 10 und 20 s leer, weil
+  `eeprom_settings` nur bei offener Wartung geladen wird; nach einem Besuch der Wartung
+  erschien sie (`BEFUNDE.md`, L367). Die Reihenfolge ist der Prüfgegenstand — wer
+  zuerst die Wartung öffnet, sieht den Fehler nie.
 
 ---
 
@@ -417,6 +423,27 @@ darin, und die Rahmenmessung der laufenden Phase ist unlesbar. S7 gehört deshal
 für jeden Neustart im Fenster — nach **S110**, **S113** oder **S114** ist der Ring neu,
 und der Anfangswert ist unwiederbringlich.
 
+### V1b — Zeilenform im Mitschnitt. Pflicht je Setter
+
+Seit Teil D schickt der ESP jeden Setter als prüfsummengesicherte Zeile `CMC` an den
+STM, und der STM weist eine Zeile ab, deren Prüfsumme nicht passt. Nach **jedem**
+Setter gehört deshalb in den Mitschnitt geschaut:
+
+- Die Zeile ging als **`CMC`**, nicht als `CMD`. Ein `CMD` hiesse, dass der ESP die
+  Fähigkeit des STM nicht kennt — dann prüft niemand die Zeile.
+- Danach folgt **keine** `cmd abgewiesen`. Eine Abweisung heisst: Der STM hat den Wert
+  **nicht** übernommen, auch wenn die Gegenprobe ihn zeigt (5b, ESP-Kopie).
+
+**Kein `\r` in Testwerten erzeugen** — auch nicht in Phase 4 unter E8. Der STM
+verwirft `\r` im Zeilenstrom, der ESP rechnet es in die Prüfsumme mit; die Zeile wird
+abgewiesen. Das ist die sichere Richtung, hat aber eine Nebenwirkung: Jede Abweisung
+merkt einen **Vollabgleich** aller Variablen vor, rund 194 quittierte Zeilen, und der
+läuft genau dann, wenn die Brücke ohnehin unter Last steht (`BEFUNDE.md`, L361). Ob er
+dabei an den Watchdog stösst, ist nicht gemessen.
+
+Am 10.10.2026 ergab der Mitschnitt des ganzen Durchlaufs 993 `CMC`, 0 `CMD` und
+0 `cmd abgewiesen` (L370). Das ist der Vergleichswert für den nächsten Lauf.
+
 ### V2 — Wirkungsprobe am sichtbaren Verhalten
 
 Für Werte mit optischer oder hörbarer Wirkung — Helligkeit, Display-Farbe,
@@ -457,6 +484,7 @@ Daraus folgt die Regel, ohne Ausnahme:
 | Lage | Verfahren |
 |---|---|
 | jede Setter-Phase in Phase 3 und Phase 4 | **V1**, verpflichtend, vorher und nachher |
+| jeder einzelne Setter | **V1b**, `CMC` und keine Abweisung im Mitschnitt |
 | Wert mit sichtbarer Wirkung | **V1 + V2** |
 | Wert ohne sichtbare Wirkung, Zweifel am Durchkommen | **V1**, und im Bericht offen benennen, dass die STM-Seite unbestätigt bleibt |
 | Abschluss des Durchlaufs | **V3**, einmal, mit Freigabe |
@@ -619,7 +647,7 @@ darin, zeigt die Oberfläche den Verbindungszustand richtig an.
 | **S10** | Zeitserver mit 17 Zeichen | N | `error=2`, Detail nennt die Grenze in Byte (`value too long (max. 16 bytes)`), `strvar[idx=4].value` **unverändert** | Seit ESP 3.2.24 abgewiesen statt gekürzt, am Gerät gemessen am 05.10.2026 (L302). Bis dahin stand hier die stille Kürzung auf 16 Zeichen als erwarteter Befund |
 | **S11** | Zeitzone setzen (`network_timezone_set?value=`) | S | `numvar[idx=19].value` (`TIMEZONE`) = Betrag der Zeitzone, bei negativen Werten zusätzlich Bit `0x100`, Sommerzeitbit `0x200` **unverändert** | MEZ mit Sommerzeit ergibt `513`. **Wirkt nicht sofort auf die Anzeige**, sondern erst beim nächsten NTP-Abgleich — hier stand bis zum 05.10.2026 „wirkt sofort“ |
 | **S12** | Zeitzone `15` und `-13` setzen | S | Antwort `error=2` (`OUT_OF_RANGE`), `numvar[idx=19].value` unverändert | Die Grenze prüft der ESP selbst (L28), nicht nur die Oberfläche |
-| **S13** | Sommerzeit umschalten (`network_summertime_set?value=on\|off`) | S | Bit `0x200` in `numvar[idx=19].value` gesetzt bzw. gelöscht, die unteren Bits unverändert | Gegenprobe **ohne** `value`: Der Wert muss stehen bleiben. Ein fehlender Parameter hat die Sommerzeit früher abgeschaltet und Erfolg gemeldet (L47) |
+| **S13** | Sommerzeit umschalten (`network_summertime_set?value=on\|off`) | S | Bit `0x200` in `numvar[idx=19].value` gesetzt bzw. gelöscht, die unteren Bits unverändert | **S13b**, Aufruf **ohne** `value`: Soll ist „Wert bleibt“, Bit `0x200` unverändert. Das Gerät antwortet dabei `ok:true`, ohne etwas zu ändern — das ist das Soll, belegt wird es am Rohwert, nicht an der Antwort (10.10.2026). Ein fehlender Parameter hat die Sommerzeit früher abgeschaltet und Erfolg gemeldet (L47) |
 
 ### 6.3 `climate`
 
@@ -629,9 +657,18 @@ lösen eine Anzeige auf dem Display aus und melden anschliessend bedingungslos
 **kein** Beleg dafür, dass Daten angekommen sind.
 
 Das **Kartenmodal** ist ein eigener Prüfgegenstand ohne eigenen Endpunkt: Suche, Klick
-auf die Karte, aktueller Standort, Übernahme in die Felder, Escape, Klick auf den
-Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext — über
-`http://` schlägt er fehl, und das ist **erwartetes** Verhalten.
+auf die Karte, aktueller Standort, Übernahme, Escape, Klick auf den Hintergrund,
+Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext — über `http://`
+schlägt er fehl, und das ist **erwartetes** Verhalten.
+
+**„In Wetter übernehmen“ speichert direkt am Gerät**, nicht nur in die Felder der
+Hauptmaske: `applyWeatherMapSelection()` ruft `weather_coordinates_set` und danach
+`weather_city_set`. Das ist ein Schreibvorgang wie S15 und S16, mit denselben
+Variablen. **Den Rückweg sofort danach einplanen** — Ort, Längen- und Breitengrad
+vorher aus dem Rohabzug notieren und unmittelbar nach der Übernahme zurückschreiben,
+erst die Koordinaten, dann den Ort. Beim Fokus nach einem Klick auf den Hintergrund
+ist ein Befund offen (`BEFUNDE.md`, L368): Mit Escape kehrt er richtig zurück, nach dem
+Hintergrundklick liegt er auf dem Body.
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
@@ -642,13 +679,13 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 | **S18** | Wetter jetzt abrufen (`weather_get_now`) | S | Am Display erscheint die Wetterzeile; der Ticker läuft danach wieder an | **Nicht L.** `{"ok":true}` kommt auch bei unbrauchbarer AppID (L54) — Beleg ist die Anzeige, nicht die Antwort |
 | **S19** | Vorhersage abrufen (`weather_get_forecast`) | S | wie S18 | |
 | **S20** | DS18xx-Korrektur setzen (`temperature_ds18xx_correction_set?value=`) | S | `numvar[idx=24].value` (`DS18XX_TEMP_CORRECTION`) trägt den Wert | Bereich −20..20 in halben Grad |
-| **S21** | RTC-Korrektur setzen (`temperature_rtc_correction_set?value=`) | S | `numvar[idx=22].value` (`RTC_TEMP_CORRECTION`) | |
+| **S21** | RTC-Korrektur setzen (`temperature_rtc_correction_set?value=`) | S | `numvar[idx=22].value` (`RTC_TEMP_CORRECTION`) | Negative Werte stehen im Rohwert als Zweierkomplement eines Bytes: **−2 erscheint als `254`**. Die PWA rechnet das für die Anzeige um. Kein Befund — im Protokoll Rohwert und umgerechneten Wert nennen (10.10.2026) |
 | **S22** | Korrektur `21` und `-21` setzen | S | `error=2`, beide Variablen unverändert | |
 | **S23** | Temperatur anzeigen (`temperature_display`) | S | Die Temperatur erscheint auf dem Display | Zeigt der Sensor `127.5`, ist das **keine Messung**, sondern der STM-Fehlerwert `255` |
 | **S24** | Automatische Helligkeit umschalten (`auto_brightness_set?value=on\|off`) | S | `numvar[idx=8].value` (`DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE`) 1 bzw. 0 | **Das Bedienelement liegt im Modul `climate`, nicht in `display`** — es steht im LDR-Bereich. Solange es an ist, überschreibt der LDR die Helligkeit aus S29 |
-| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`) | Fernauslösung eines STM-Kommandos; der Rohwert schwankt, deshalb unmittelbar vorher ablesen |
-| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend | |
-| **S27** | LDR-Grenzen numerisch setzen (`ldr_min_value_set`, `ldr_max_value_set`, je 0..4095) | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf |
+| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S, **nicht rücknehmbar** | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`) | **Nur mit ausdrücklicher Freigabe des Nutzers fahren**, bis A59 entschieden ist. Der STM schreibt die Grenze in RAM und EEPROM; der Rückweg über S27 wirkt am STM **nicht**, er verwirft beide Setter als readonly (`BEFUNDE.md`, L364). Der Abschlussvergleich sieht das nicht, weil `settings_xml` die ESP-Kopie liefert (5b) — nach dem Durchlauf vom 10.10.2026 zeigte der Rohabzug die alten Grenzen, der STM hielt die Testwerte. Ohne Freigabe als „ausgelassen, nicht rücknehmbar“ protokollieren. Mit Freigabe: der Rohwert schwankt, deshalb unmittelbar vorher ablesen |
+| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S, **nicht rücknehmbar** | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend | wie S25: nur mit ausdrücklicher Freigabe, Rückweg am STM nicht vorhanden (L364) |
+| **S27** | LDR-Grenzen numerisch setzen (`ldr_min_value_set`, `ldr_max_value_set`, je 0..4095) | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf. **Das Soll belegt nur die ESP-Kopie:** Der STM verwirft beide Setter als readonly (L364). Bis A59 entschieden ist, lautet das Ergebnis höchstens „ESP gespeichert, STM nicht angewandt“, nicht „bestanden“ |
 | **S28** | LDR-Grenze `4096` setzen | S | `error=2`, Variable unverändert | Früher angenommen (L67/L68) |
 
 ### 6.4 `display`
@@ -670,7 +707,7 @@ Hintergrund, Fokusrückgabe. Der Standortzugriff braucht einen sicheren Kontext 
 | **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | **Teilprüfung S41b** (`value=256`, im Protokoll vom 04.10.2026 als `S41c` geführt — siehe 6.0a): **weist heute ab** — `error=2`, Detail `value out of range (0..255)`, Variable unverändert. Früher klemmte der Wert still auf 255; am Gerät gegengeprüft (04.10.2026, ESP 3.2.21) |
 | **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error=1` |
 | **S43** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=0][idx=0..15].value` entsprechen der gewählten Vorgabe | Schreibt sechzehn Werte auf einmal — **Ausgangskurve vorher vollständig notieren**, sonst ist sie nicht rücknehmbar |
-| **S44** | TFT-Flags setzen (`tft_flags_set?rgb=&hflip=&vflip=`) | S | `numvar[idx=5].value` (`SSD1963_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | **Abweichend von allen anderen Schaltern:** Der Handler baut die Flags von `0` auf. Ein **nicht** gesendeter Parameter **löscht** das Flag. Ohne TFT als „nicht prüfbar" protokollieren |
+| **S44** | TFT-Flags setzen (`tft_flags_set?rgb=&hflip=&vflip=`) | S | `numvar[idx=5].value` (`SSD1963_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | Ohne TFT als „nicht prüfbar" protokollieren. Teilprüfung **S44a**, nur **ein** Parameter gesendet: **Abweisung** `error=1`, das Detail nennt den ersten fehlenden Parameter in der Reihenfolge `rgb`, `hflip`, `vflip` (etwa `hflip must be on or off`), `numvar[idx=5].value` unverändert. Seit ESP 3.2.26 (E12); bis dahin baute der Handler die Flags von `0` auf, und ein nicht gesendeter Parameter **löschte** das Flag |
 | **S45** | RGBW-Umschaltung (`display_use_rgbw_set?value=on\|off`) | S | `numvar[idx=0].value` (`DISPLAY_USE_RGBW`) 1 bzw. 0 | **Kein Bedienelement in der Oberfläche** — nur über den Backup-Import erreichbar. Prüfung per direktem Aufruf. Ändert die Wirkung von S35 |
 
 **Der Displaytest (`test_display`) ist Klasse G — siehe Phase 8.**
@@ -761,7 +798,7 @@ sind S86 bis S96 als „nicht prüfbar" zu protokollieren, nicht als „bestande
 | **S87** | Lautstärke `31` setzen | S | `error=2`, Detail `value out of range (0..30)`, `numvar[idx=34].value` **unverändert** | **Weist heute ab**, wie S30 — belegt im Quelltext (`http_api_dfplayer_volume_set`), **am 05.10.2026 erstmals am Gerät gemessen** (L302): `error=2`, Detail `value out of range (0..30)`, Wert unverändert. Am 03.10.2026 (ESP 3.2.15) klemmte er noch still auf 30. Der Rohwert ist auch ohne angeschlossenen DFPlayer prüfbar — nur die hörbare Gegenprobe entfällt |
 | **S88** | Modus wählen (`dfplayer_mode_set?value=`, 0..2) | S | `numvar[idx=37].value` (`DFPLAYER_MODE`): 0 aus, 1 Glocke, 2 Zeitansage | Fehlender Wert ⇒ `error=1`; leer hätte den Ton ganz abgeschaltet (L29) |
 | **S89** | Glockenflags setzen (`dfplayer_bell_flags_set?m15=&m30=&m45=`) | S | `numvar[idx=38].value` (`DFPLAYER_BELL_FLAGS`) trägt die Bits `0x01`, `0x02`, `0x04` | |
-| **S90** | Glockenflags mit nur **einem** gesendeten Parameter | S | Die beiden nicht gesendeten Bits sind **gelöscht** | Wie S44 baut der Handler die Flags von `0` auf. Die Oberfläche sendet immer alle drei — ein direkter Aufruf nicht |
+| **S90** | Glockenflags mit nur **einem** gesendeten Parameter | S | **Abweisung** `error=1` mit dem Detail `m15 must be on or off` (bzw. dem Namen des fehlenden Parameters), `numvar[idx=38].value` **unverändert** | Seit ESP 3.2.26 (E12). Bis dahin baute der Handler die Flags von `0` auf, und die nicht gesendeten Bits wurden **gelöscht** — wer das heute sieht, hat einen Rückfall. Die Oberfläche sendet immer alle drei, ein direkter Aufruf nicht |
 | **S91** | Sprechzyklus setzen (`dfplayer_speak_cycle_set?value=`, 0..255) | S | `numvar[idx=39].value` (`DFPLAYER_SPEAK_CYCLE`) | |
 | **S92** | Stille ab setzen (`dfplayer_silence_start_set?hour=&minute=`) | S | `numvar[idx=35].value` (`DFPLAYER_SILENCE_START`) = `hour*60+minute` | |
 | **S93** | Stille bis setzen (`dfplayer_silence_stop_set?hour=&minute=`) | S | `numvar[idx=36].value` (`DFPLAYER_SILENCE_STOP`) | |
@@ -826,6 +863,22 @@ Zeitzone auf 10, und weil die PWA nach dem Speichern der Zeitzone selbst die Net
 (`saveTimezone()`), lief die Produktivuhr drei Minuten auf 10:18. Felder mit Nebenwirkung
 nach dem Speichern — Zeitzone, Datum, Uhrzeit — **zuletzt** und einzeln.
 
+**Eingaben gehen als echte Ereignisse ins Feld, nicht als Zuweisung.** Das Werkzeug
+tippt über das DevTools-Protokoll (Tastenereignisse über CDP), es setzt nicht
+`input.value` per Skript. Der Grund steht in `app.js`: `handleDirtyFormInteraction()`
+ignoriert Ereignisse mit `isTrusted=false`. Ein programmatisch gesetzter Wert gilt damit
+nicht als Bearbeitung, und der nächste Abfragezyklus überschreibt ihn mit dem
+Gerätewert. Gespeichert wird dann etwas anderes, als das Protokoll behauptet. Am
+10.10.2026 hat genau das einen **Scheinbefund** erzeugt — die Abweichung lag am
+Werkzeug, nicht an der Oberfläche.
+
+**Zeitfelder sind der gefährlichste Fall davon.** Ein „Leeren“ per Skript ist kein
+echtes Ereignis: Die Abfrage füllt das Feld wieder mit der aktuellen Zeit auf, und
+gespeichert wird diese Zeit **mit Sekunde 0**. Die RTC geht danach um die verstrichenen
+Sekunden nach — am 10.10.2026 zweimal rund 17 s. Im Rohabzug sieht man das nicht, er ist
+nur minutengenau (Phase 2). **Nach jedem solchen Fall sofort die Netzzeit holen**
+(S6), nicht erst am Ende; so am 10.10.2026 korrigiert (`BEFUNDE.md`, L370).
+
 | | Eingabe | Erwartung |
 |---|---|---|
 | **E1** | leer lassen und speichern | definierte Reaktion, keine stille Löschung |
@@ -845,10 +898,11 @@ statt zu klemmen (04.10.2026, ESP 3.2.21 — Einzelheiten in Kapitel 13).
 
 **Erwartung heute:** abgewiesen **mit Meldung**, und zwar an jedem Feld. Festzuhalten
 ist nicht mehr, wo geklemmt wird, sondern **wo noch geklemmt wird** — jede solche
-Stelle ist jetzt ein Befund und keine Bestätigung. Zwei Gruppen sind dabei
-ausdrücklich noch offen und zählen nicht als Rückfall: **Zeichenketten** werden
-weiterhin still gekürzt (L206, u. a. Zeitserver und Update-Host), und der
-**Legacy-Zweig** biegt unverändert zurecht (L199).
+Stelle ist jetzt ein Befund und keine Bestätigung. Zeitserver, Update-Host, Ticker und
+Overlay-Zeile weisen seit ESP 3.2.24 nach Byte-Länge ab (S10, S99; am 10.10.2026 an allen
+Feldern bestätigt, L370) — eine stille Kürzung dort wäre ein **Rückfall**. Ausdrücklich
+noch offen und kein Rückfall ist nur der **Legacy-Zweig**, der unverändert zurechtbiegt
+(L199).
 
 Die konkreten Grenzen, aus dem Markup erhoben:
 
@@ -863,12 +917,13 @@ Die konkreten Grenzen, aus dem Markup erhoben:
 | Tickerverzögerung, Sprechzyklus, Ordner, Titel | 0..255 |
 | Ambilight LEDs und Versatz | 0..999 |
 | DFPlayer-Lautstärke | 0..30 |
-| WLAN-Schlüssel, AP-SSID, AP-Schlüssel, Zeitserver, AppID, Ort, Tickertext | 32 Zeichen |
+| AP-SSID, SSID (freies Feld), AppID, Ort, Tickertext | 32 Zeichen |
+| WLAN-Schlüssel, AP-Schlüssel | 64 Zeichen |
+| Zeitserver | 16 Zeichen |
 | Längen- und Breitengrad | 8 Zeichen |
 | Datumsformat | 5 Zeichen |
 | Update-Host und -Pfad | 63 Zeichen |
-| Kartenmodal: Suche, Ort | 64 Zeichen |
-| Kartenmodal: Längen-/Breitengrad | 16 Zeichen |
+| Kartenmodal: Suche / Ort / Längengrad / Breitengrad | 64 / 32 / 8 / 8 Zeichen |
 
 **Zusätzlich, feldübergreifend:**
 
@@ -876,9 +931,18 @@ Die konkreten Grenzen, aus dem Markup erhoben:
 - Längengrad `8,5400` mit Komma statt Punkt
 - Zeitzone `+2` mit führendem Pluszeichen
 - Zweimal schnell hintereinander auf dieselbe Speichern-Schaltfläche
-- Zwei Felder ändern, nur eines speichern, Modul wechseln — kommt die Warnung über
-  ungespeicherte Änderungen? **Hier lag die Erwartung, dass sie auch ohne offene
-  Änderung erscheint** (Massnahme 4). Am 04.10.2026 (PWA 1.4.88) nicht beobachtet:
+- **Zeitfeld im Timer leeren**, aktiv setzen, speichern — mit echten Tastenereignissen.
+  Soll: **Abweisung mit Meldung**, kein Aufruf ans Gerät. Am 10.10.2026 gespeichert als
+  aktiver Timer 00:00, ohne Meldung (`BEFUNDE.md`, L365) — ein solcher Timer schaltet die
+  Uhr jede Nacht um Mitternacht. Sofort zurückstellen und den Slot in die Aufräumliste
+  (Kapitel 2). Dieselbe Rückfallstelle steht im Code bei den DFPlayer-Alarmen; dort am
+  Gerät noch nicht geprüft.
+- **Zwei Felder ändern, eines speichern, Modul wechseln.** Soll: **Warnung** für das
+  ungespeicherte Feld. Am 10.10.2026 kam kein Dialog, die zweite Änderung ging still
+  verloren (L366): Das Speichern des einen Felds leert die Merkliste aller Felder.
+- Ohne offene Änderung das Modul wechseln — erscheint die Warnung trotzdem?
+  **Hier lag die Erwartung, dass sie auch ohne offene Änderung erscheint**
+  (Massnahme 4). Am 04.10.2026 (PWA 1.4.88) nicht beobachtet:
   vier Modulwechsel ohne Bearbeitung, null Dialoge; mit offener Änderung erschien er
   korrekt. **Der Pfad „nach normalem Speichern" ist am 05.10.2026 nachgeholt worden**
   (05.10.2026, PWA 1.4.90, L302): erst speichern, dann ohne weitere Eingabe das Modul wechseln —
@@ -1095,6 +1159,11 @@ ein aktiver DFPlayer-Alarm, zusammengeschnurrte LDR-Grenzen, zwei verbogene
 Dimmkurven und verstellte Temperaturkorrekturen. Darunter **die Dimmkurve des
 Nutzers**, überschrieben von einer abgebrochenen Vorgabe-Schleife; sie existierte
 zuletzt nur noch in Abzügen von zwei Tagen davor.
+
+**Und er vergleicht ESP-Kopien.** Was der STM anders hält als der ESP, sieht er auch
+im eigenen Lauf nicht. Am 10.10.2026 meldete er 503 von 503 Feldern gleich, während der
+STM nach S25/S26 andere LDR-Grenzen hielt als der Rohabzug (`BEFUNDE.md`, L364, L370).
+Deshalb sind S25/S26 als nicht rücknehmbar eingestuft (6.3).
 
 **Daraus folgt die Lesart jedes Berichts:** Ein Durchlauf, der „keine
 Konfigurationsabweichung" meldet, sagt damit **nichts über Altlasten**. Er sagt nur,
