@@ -11,6 +11,9 @@ Marker `?...`). Ausgangsstand am Gerät: STM 3.2.22, ESP 3.2.26, PWA 1.4.94.
 nur für folgende Kommandos; Frist 7 Sekundenschritte, Obergrenze je Warten), **AKM.4** (Gate
 bestanden). Der ESP steht seit Schritt E auf **3.2.28** (3.2.27 war ein Rückschritt, L353;
 `tasks.md` E.9).
+**Am 10.10.2026 ein zweites Mal nachgeführt — Endstand:** Abschnitt „Endstand 10.10.2026" nach
+den Akzeptanzkriterien; Vermerke an AKE.7, AKE.9, AKM.1 bis AKM.3, AKW.4, AKC.6, AKC.7, AKD.10.
+Am Gerät stehen jetzt STM 3.2.25, ESP 3.2.30, PWA 1.4.94.
 **Auslöser:** Testdurchlauf S.26 (L336) aus `specs/paket-2026-10-06/`; die Ursachen von L338 und
 L339 sind seit dem 09.10.2026 belegt (Analyse des `firmware-analyst` und Mitschnitt S.26,
 Nachtrag in `BEFUNDE.md`). Teil D ist der in L339 benannte fehlende Schutz.
@@ -172,6 +175,11 @@ Jedes Kriterium nennt sein **Instrument** und den **Weg, auf dem die Meldung ank
 Ziels (L256) und sind **einmal gegen die alte Fassung fehlgeschlagen**. **Was am Gerät nicht
 herstellbar ist, wird nicht am Gerät verlangt.**
 
+**Kästchen im Endstand:** Angekreuzt ist, was mit einem Gerätewert in `BEFUNDE.md` oder einem
+gemeldeten Prüfstandsergebnis belegt ist. Die Prüfstandskriterien von E, C3 und D sind **nicht**
+angekreuzt, obwohl die Releases sie voraussetzen — ihre Fallzahlen und Gegenproben lagen dem
+`spec-writer` nicht einzeln vor (Abschnitt „Endstand").
+
 ### Schritt E — ESP (A1 und Teil C)
 
 - [ ] **AKE.1 (Messzeile Wetter)** — Jeder Aufruf von `query_weather()` endet mit **genau
@@ -192,7 +200,10 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       mit nachgebildeter Zeit, Fälle: Körper ohne `\n` mit Verbindungsende (⇒ sofort fertig,
       `ok`); Server sendet nie; Server schliesst nie und sendet tröpfchenweise; DNS hängt;
       `connect` hängt; Kopf ohne Leerzeile. **Gegenprobe:** „Körper ohne `\n`" dauert gegen das
-      alte `weather.cpp` ≥ 5'000 ms ⇒ FEHL.
+      alte `weather.cpp` ≥ 5'000 ms ⇒ FEHL. **Endstand:** „bis der Dienst die Verbindung
+      schliesst" war unter ESP 3.2.27 falsch umgesetzt — `connected()` meldet in CLOSE_WAIT 0,
+      solange noch Daten anstehen, und der Körper wurde nach dem ersten Segment abgeschnitten
+      (L353). Korrigiert mit ESP 3.2.28; t12 bildet seither die Core-Semantik nach.
 - [ ] **AKE.3 (L-Befund 200 ms)** — Eine Antwort, deren erstes Byte nach **mehr als 200 ms**
       eintrifft, wird **gelesen und geparst**. *Instrument:* Prüfstand t12, Fälle 250 ms,
       1'500 ms und 4'000 ms; **Gegenprobe:** gegen das alte `weather.cpp` wird keiner geparst ⇒
@@ -227,7 +238,10 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       `weather_read_answer()` und `query_weather()` findet keinen Vergleich auf `Error` oder
       `Parse`, und `git diff` zeigt in den Parsern keine geänderte `Serial`-Ausgabe.
       **Gegenprobe:** gegen `95ba131` liefern die Fälle cod 401 und „ohne `cod`" `ok` ⇒ FEHL.
-- [ ] **AKE.7 (Gerät, A1)** — Nach dem ESP-Einspielen je **ein** `weather_get_now` und
+      **Endstand:** Am Gerät unter ESP 3.2.27 einmal tatsächlich `fehler` gemeldet
+      (`Parse Error`, L353) — dort als Folge des abgeschnittenen Körpers, nicht einer
+      Fehlerantwort des Diensts; die Meldung hat den Rückschritt sichtbar gemacht.
+- [x] **AKE.7 (Gerät, A1)** — Nach dem ESP-Einspielen je **ein** `weather_get_now` und
       **ein** `weather_get_forecast` (G1): Die Messzeile zeigt `ok` und `ms` **unter 1'000**;
       ihr Wert stimmt auf **±150 ms** mit dem Abstand zwischen `weather` und `WEATHER` im
       Mitschnitt überein — **das unabhängige Mass**, mit dem der Vorher-Wert aus S.26 vorliegt.
@@ -236,7 +250,11 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       1 s** (Median und grösster Wert gemeldet), kein `v`-Anstieg im 6-s-Fenster nach einem
       Abruf. Ein Anstieg durch einen ESP-Neustart (L327) zählt nicht und wird getrennt berichtet.
       Ein `fehler` am Gerät ist **kein** Fehlschlag von A1, sondern eine Auskunft über den
-      Dienst oder die `appid` — er wird mit der Endzeile berichtet.
+      Dienst oder die `appid` — er wird mit der Endzeile berichtet. **Endstand (ESP 3.2.28):**
+      Einzelabrufe `fc=0 ms=67 ok`, `fc=1 ms=98 ok`, `v` unverändert; Fenster **00:37–09:33**
+      ohne Exception und Zeitüberschreitung, `v` konstant, Wetterabrufe **98–111 ms**. Zwei
+      `leer` im Fenster gehören zu L357 (String-OOM, mit ESP 3.2.30 behoben), nicht zu A1. Der
+      ±150-ms-Abgleich und der Median sind dem `spec-writer` nicht gemeldet worden.
 - [ ] **AKE.8 (Echo ohne Werte)** — Beide Echo-Stellen laufen über **eine** Funktion; die Zeile
       enthält Methode und Pfad und, falls ein Querystring vorhanden ist, den Marker `?...` —
       **drei ASCII-Punkte**, nicht `…`, weil die Zeile über die Brücke geht (Nachtrag Review
@@ -244,17 +262,19 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       Wert, `appid`, `GET /?a`, ohne Query, nur `?`, POST mit Query); **statische Prüfung**:
       kein `Serial.print*` mit `sRequest` oder `sParam` in `http.cpp` — **schlägt gegen den
       Ausgangsstand an**.
-- [ ] **AKE.9 (Gerät, Echo)** — Im Mitschnitt von G1 bis G4 enthält **keine** Zeile
-      `- request` ein `=`; Zahl der geprüften Zeilen gemeldet (> 0).
+- [x] **AKE.9 (Gerät, Echo)** — Im Mitschnitt von G1 bis G4 enthält **keine** Zeile
+      `- request` ein `=`; Zahl der geprüften Zeilen gemeldet (> 0). **Endstand:** In G1
+      **114** Anfragezeilen, keine mit Wert (L353). Für G2 bis G4 ist keine Zahl gemeldet.
 
 ### Schritt M — STM: Messzeile (Teil B) und Wetterwarten (A2)
 
-- [ ] **AKM.1 (Messzeile EEPROM)** — `eeprom_write()` gibt nach jedem Aufruf mit mindestens
+- [x] **AKM.1 (Messzeile EEPROM)** — `eeprom_write()` gibt nach jedem Aufruf mit mindestens
       einem Schreibzyklus **genau eine** Zeile `eep a=<start> n=<anzahl> z=<zyklen>
       ms=<dauer> d=<vorher>/<nachher>` über `log_printf()` aus (Mitschnitt **und**
       `/api/stm32_log`). `d` = `uart_rxdrops` der ESP-Brücke vor und nach dem Schreiben. Kein
       Inhaltsbyte. Ohne Schreibzyklus keine Zeile; **keine weitere Schwelle** (V.1 (2): keine
-      periodischen Schreiber). *Instrument:* Quelltext (Review M.3); am Gerät G2.
+      periodischen Schreiber). *Instrument:* Quelltext (Review M.3); am Gerät G2. **Endstand:**
+      In G2 über 21 Aufrufe `n=32 z=32 ms=767` (L358); in G3 `z=2 ms=91–93`.
 - [ ] **AKM.2 (unabhängige Zeitbasis)** — `ms` wird über eine Zeitbasis gemessen, die
       **unabhängig** von `eeprom_waitstates()` und `eeprom_ms_tick` ist (Vorschlag:
       `diag_tick_cnt`, `src/main.c:655`, umgerechnet über `F_INTERRUPTS`). Sonst ist die
@@ -266,10 +286,20 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       **66,7 µs**. Die Zeile **schneidet auf ganze Millisekunden ab** und zeigt deshalb bis knapp
       1 ms zu wenig. Die Prüfung in G2 lautet damit **`15·z − 1 ≤ ms ≤ 17·z + 10`** — 1 ms
       zusätzliche Toleranz, nur nach unten, weil das Abschneiden nie nach oben verschiebt.
-- [ ] **AKM.3 (Vorher, G2)** — Der Setter-Burst auf den Wetterort (`design.md` §4.2) liefert
+      **Endstand: verfehlt — die Erwartung, nicht die Messung.** G2: `z=32 ms=767`, erlaubt
+      waren höchstens 554. Ein Zyklus kostet **24 ms statt 16 ms** (L358); die Wanduhr im
+      Mitschnitt bestätigt die Dauer unabhängig (759 ms von der Anfrage bis zur `eep`-Zeile).
+      Zu den 16 Merkern von `eeprom_waitstates()` kommen je Byte rund 8 ms I²C für
+      Vergleichslesen und Schreiben, die der Merkerzähler nicht sieht (L359). Der **erste Teil**
+      von AKM.2 — eine Zeitbasis unabhängig von `eeprom_waitstates()` — ist damit gerade belegt:
+      Eine Messung über den Merkerzähler hätte 16·z gezeigt und den Fehler verdeckt. Die Formel
+      ist falsch. Statt des vorgesehenen Halts wurde fortgefahren (`tasks.md` M.7, „☑ mit
+      Vermerk").
+- [x] **AKM.3 (Vorher, G2)** — Der Setter-Burst auf den Wetterort (`design.md` §4.2) liefert
       sieben Messzeilen mit `a` = Offset des Wetterorts, `n=32`, **`z ≥ 25`** bei jedem Wechsel
       lang↔kurz und **`ms ≥ 400`**. `d` wird berichtet, ein Anstieg ist **nicht** verlangt;
-      bleibt `d` bei 0, wird G2 einmal mit 14 Aufrufen in rund 3 s wiederholt.
+      bleibt `d` bei 0, wird G2 einmal mit 14 Aufrufen in rund 3 s wiederholt. **Endstand:**
+      `z=32 ms=767`; Wiederholung mit 14 Settern: `rx` bis **866/1024**, **`d=0`**, `v=1`.
 - [x] **AKW.1 (A2: Warten auf die Wetterantwort)** — Hat der STM einen Wetterabruf angestossen
       (`weather_query()`, `src/weather/weather.c:213-285`: `weather`, `weather_fc`, `wicon`,
       `wicon_fc`), wartet `var_send_buf()` bis zum Eintreffen der Endzeile (`WEATHER`,
@@ -305,11 +335,15 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       Watchdog-Timeout von 20 s; nach eingetroffener Antwort gilt der bestehende Reload im
       Rahmen von `VAR_SEND_RELOAD_BUDGET_SEC` (`vars.c:79`, `:698-701`). *Instrument:* Review M.3,
       S7. **Nachtrag 10.10.2026:** Das längste Warten ist **7 s** (Obergrenze je Warten, AKW.2),
-      weiterhin weit unter 20 s. Offen bis Review M.3.
+      weiterhin weit unter 20 s. Offen bis Review M.3. **Endstand:** Review M.3 hat
+      stattgefunden (L358 verweist darauf); seine Antwort zu AKW.3 lag dem `spec-writer` nicht
+      vor.
 - [ ] **AKW.4 (A2, Gerät)** — Nach dem M-Flash: je ein `weather_get_now` und
       `weather_get_forecast` und **60 Minuten lesend** (wie AKE.7): kein `v`-Anstieg nach einem
       Abruf, kein Watchdog-Reset. **Am Gerät nicht herstellbar** ist ein langsamer Dienst; dass
-      `v` auch bei einer Antwort nach 5 s nicht steigt, belegt der Prüfstand W2.
+      `v` auch bei einer Antwort nach 5 s nicht steigt, belegt der Prüfstand W2. **Endstand:**
+      Einzelabrufe unter STM 3.2.23 in **63 ms / 110 ms**, `v=0` — erfüllt. Ein
+      60-Minuten-Fenster unter STM 3.2.23 ist nicht gemeldet.
 - [x] **AKM.4 (Flash)** — Testbau F103 nach M.1 und nach M.1b: Rest **≥ 1'024 Byte**. Darunter:
       anhalten und vorlegen. **Erfüllt 10.10.2026 (M.2, gemeldet):** 1'420 Byte frei (vorher
       1'688), Zuwachs 268 Byte für Messzeile und A2 zusammen.
@@ -337,15 +371,21 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       (Host/Pfad 63 Byte ↔ kurz) — neu **höchstens 3** bei P = 32, **höchstens 9** bei P = 8;
       **Wetterort-Folge** — neu **höchstens 2** bei P = 32, **höchstens 5** bei P = 8. Die Zahlen
       gehen in den Bericht C3.8.
-- [ ] **AKC.6 (Nachher, G3)** — Derselbe Burst wie G2 **am Gerät des Nutzers (F411, P = 32)**:
+- [x] **AKC.6 (Nachher, G3)** — Derselbe Burst wie G2 **am Gerät des Nutzers (F411, P = 32)**:
       jede Messzeile mit **`z ≤ 2`** und **`ms ≤ 60`**; `d` steigt **nicht**; `diag` ohne Lücke.
       **Für F103** (P = 8, erwartet `z ≤ 5`, `ms ≤ 100`) gilt der Prüfstand; ein F103-Gerät steht
-      nicht zur Verfügung.
+      nicht zur Verfügung. **Endstand — erfüllt mit angepasster Grenze `ms ≤ 130`:** Die 60 ms
+      setzten 16 ms je Zyklus voraus; der I²C-Treiber kostet rund 1 ms je Datenbyte, weil er je
+      Flag mit `delay_msec(1)` wartet (L359/A60, bewusst nicht angefasst). G3 mit STM 3.2.24,
+      7 und 14 Setter: **`z=2 ms=91–93`**, `d=0`, `v=0`, `rx` bei der Grundlast 73/1024. Die
+      F103-Erwartung `ms ≤ 100` beruht auf derselben Annahme und ist nicht nachgerechnet.
 - [ ] **AKC.7 (Integrität am Gerät)** — (1) Abzug M2 **vor** dem C3-Flash gleich dem Abzug
       **nach** Flash und STM-Reset (`diff-snapshot.sh --soll`). (2) Nach G3 Originalwert zurück,
       STM-Reset, das Gerät zeigt den **Originalwert** — aus dem EEPROM gelesen. (3) Nach dem
       `pwa-tester`-Durchlauf (D.9) ein STM-Reset, danach zeigt Phase 9 die Einstellungen, wie
-      der Durchlauf sie hinterlassen hat.
+      der Durchlauf sie hinterlassen hat. **Endstand:** (1) **erfüllt**, `diff-snapshot.sh
+      --soll` gegen M2 ohne Abweichung. (2) nicht gemeldet. (3) **offen** — der Durchlauf brach
+      nach Phase 2 ab.
 - [ ] **AKC.8 (Flash)** — Testbau F103 nach C3.1: Rest **≥ 1'024 Byte**; Gegenprobe in C3.6
       aus S8b. Darunter: anhalten und vorlegen.
 
@@ -364,6 +404,8 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       `CMC <nutzlast>*hhhh\r\n`; `hhhh` = `var_crc()` über die Nutzlast — **dieselbe** Funktion
       wie für die `var`-Zeilen. *Instrument:* Prüfstand t14 gegen die Vektoren aus
       `tools/checks/var-crc.c`; **Gegenprobe:** Ausgangsstand ohne markierte Zeile ⇒ FEHL.
+      **Endstand, am Gerät:** `(CMC N060100*647c)`, die Marke ergibt sich unabhängig aus
+      `tools/checks/var-crc.c` (L363).
 - [ ] **AKD.4 (Fähigkeit lernen und verlieren)** — Der ESP setzt die Fähigkeit **nur** bei einer
       Eröffnung `var VBffnn` mit Flag `0x04`. Er **löscht** sie (a) bei jedem eigenen Start,
       (b) bei jeder Eröffnung **ohne** `0x04`, (c) **vor** jedem STM-Reset und (d) **vor** jedem
@@ -385,7 +427,11 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       vorgemerkt, **höchstens einer je 60 s**. *Instrument:* Prüfstand D: Marke falsch; fehlt;
       `*` mit drei Hexziffern; Nicht-Hex; verkürzte Nutzlast; zwei Zeilen verschmolzen; leere
       Nutzlast; längste Nutzlast samt Marke passt in `ESP8266_MAX_CMD_LEN`; zwei Abweisungen in
-      10 s ⇒ **ein** Vormerken; zwei im Abstand von 61 s ⇒ zwei.
+      10 s ⇒ **ein** Vormerken; zwei im Abstand von 61 s ⇒ zwei. **Endstand, zwei Abweichungen
+      in der Umsetzung** (`design.md` §5.4): Die Marke wird **kanonisch** verglichen (strenger,
+      spart Flash, **Grossbuchstaben werden abgewiesen**), und eine Nutzlast **über 127
+      Zeichen wird abgewiesen statt gekürzt**. Dazu Review D.4: L361/A61 (der vorgemerkte
+      Vollabgleich ist in Dauer und Auslöser nicht messbar; offen).
 - [ ] **AKD.8 (alter STM nimmt nie eine Marke an)** — `CMC` ergibt im **heutigen** `esp8266.c`
       `ESP8266_UNSPECIFIED`, nicht angewandt. *Instrument:* Prüfstand D gegen den Ausgangsstand —
       eine Sicherheitsaussage, die dort **bestehen soll**.
@@ -402,7 +448,12 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       Fehlschlag (Review E.5, N4):** Nach einem reinen ESP-Neustart sendet der ESP `CMD` ohne
       Prüfsumme, bis der STM wieder einen Vollabgleich eröffnet (`design.md` §5.2). Fällt ein
       solches Fenster in den Lauf, wird es mit Zeitpunkt und Zahl der `CMD`-Zeilen getrennt
-      berichtet.
+      berichtet. **Endstand — bis auf den Durchlauf erfüllt:** G1 (ESP 3.2.27): keine
+      `CMC`-Zeile, kein „Faehigkeit an" (L353). G4 (STM 3.2.25 / ESP 3.2.29): „- cmd Faehigkeit
+      an (Eroeffnung)"; zwei Speicheraktionen als `(CMC N060100*647c)`, beide angenommen, ein
+      Wetterabruf als `(CMC R08*97bd)`; **keine Abweisung**, `v=0` (L363). **Offen:** der Teil
+      im `pwa-tester`-Durchlauf (Phase 9, Zahl der `CMC`-/`CMD`-Zeilen) — D.9 brach nach Phase 2
+      ab.
 
 ### Für alle Schritte
 
@@ -412,19 +463,58 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       t14, W2, C3, D).
 - [ ] **AKZ.3** — `./tools/smoke-device.sh` nach jedem Einspielen ohne Fehlschlag, nach dem
       ESP-Update **samt Update-Quelle** (DIR-009); `./tools/install-app.sh --check` nach dem
-      ESP-Update (DIR-017). **Der Smoketest ist nicht der Test** (DIR-012).
+      ESP-Update (DIR-017). **Der Smoketest ist nicht der Test** (DIR-012). **Endstand:**
+      Smoketest 31/0 in G1 (L353) und nach ESP und STM in G4 (L363); für die übrigen
+      Einspielvorgänge nicht gemeldet.
 - [ ] **AKZ.4** — **Ein `pwa-tester`-Durchlauf Phasen 0–4 und 9 nach dem letzten STM-Release**
       (D.9; wird D am Flash-Gate angehalten, nach C3). Unvollständig ⇒ **nicht abgenommen**.
+      **Endstand: nicht abgenommen** — nach Phase 2 abgebrochen, weil M2 ohne Passwortdatei
+      nicht anzulegen war (B19, beim Nutzer). Phasen 0–2 bestanden.
 - [ ] **AKZ.5** — `./tools/watch-log.sh` läuft bei jedem Gerätelauf mit (DIR-013) und meldet
       nach E.4 auch `- weather` mit Ergebnis ungleich `ok` oder `ms` ≥ 1'000, `eep`-Zeilen mit
       `ms` ≥ 200 und `cmd abgewiesen`. **Das neue Ergebnis `fehler` ist damit ohne Änderung an
-      `watch-log.sh` erfasst** (es ist ungleich `ok`).
+      `watch-log.sh` erfasst** (es ist ungleich `ok`). **Endstand:** Eine laufende Wache
+      übernahm eine Änderung an ihrem Skript nicht und meldete den ersten belegten Fall von L357
+      nicht (L362).
 - [ ] **AKZ.6** — Jedes ausgerollte Release **sofort** committet, getaggt, **gepusht** (DIR-011).
 - [ ] **AKZ.7** — Die Einspielzeile nennt die **Reihenfolge**, fertig zum Einfügen.
 - [ ] **AKZ.8** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015):
       `weather.cpp`, `http.cpp` (UTF-8), `vars.cpp`, `udpsrv.cpp`, `stm32flash.cpp` (UTF-8),
       `ESP-uclock.ino` (**gemischt**), `src/eeprom/eeprom.c`, `src/vars/vars.c`, `vars.h`,
       `src/weather/weather.c`, `src/esp8266/esp8266.c`, ggf. `src/main.c`.
+
+---
+
+## Endstand 10.10.2026
+
+Belege: `BEFUNDE.md` (L339, L353, L357–L363, C3, C43, C53, C54, A58) und die Release-Tags.
+Einzelheiten je Task: `tasks.md`, Abschnitt „Endstand"; Gerätewerte: `design.md` §8.
+
+| Ziel | Stand |
+|---|---|
+| 1 — Wetter kommt immer an | **Erreicht** (C43 erledigt): G1 unter ESP 3.2.28 über rund 9 Stunden ohne `v`-Anstieg, Abrufe um 0,1 s. Auf dem Weg ein Rückschritt (ESP 3.2.27, L353) und ein unabhängiger Fehler am Ende langer Vorhersagen (L357, ESP 3.2.30) |
+| 2 — je Seite ein Schreibzyklus, byte-gleicher Inhalt | **Erreicht** (C3, A58 erledigt): 32-Byte-Wert `z=2` statt `z=32`, rund 90 ms statt 767 ms; Abzug gleich M2 |
+| 3 — kein Anfragewert im Echo | **Erreicht am Gerät für G1** (114 Zeilen, keine mit Wert) |
+| 4 — verstümmeltes Kommando wird nicht angewandt | **Am Gerät: der Gutfall** (`CMC` gelernt, gesendet, angenommen, L363). Die Abweisung belegt laut Spec der Prüfstand D; der zugehörige Bericht lag dem `spec-writer` nicht vor |
+| 5 — jede Wirkung einzeln, jede Messzeile einmal schlecht | **Erreicht:** E, M, C3 und D je mit eigenem Gerätenachweis; die EEPROM-Messzeile zeigte den schlechten Wert (767 ms), die Wetter-Messzeile ebenfalls (`fehler` unter 3.2.27, `leer` unter 3.2.28) |
+
+**Nicht erfüllt oder offen:**
+
+- **AKM.2 verfehlt** — die Formel setzte 16 ms je Zyklus voraus, am Gerät sind es 24 ms (L358).
+  Die Messung ist belegt, die Erwartung war falsch.
+- **AKC.6 nur mit angepasster Grenze** (`ms ≤ 130` statt `≤ 60`, L359/A60).
+- **AKZ.4, AKC.7 (3)** und der Durchlaufteil von **AKD.10** — `pwa-tester` nach Phase 2
+  abgebrochen (B19).
+- Die Prüfstandskriterien von E, C3 und D sind nicht angekreuzt (siehe Hinweis vor den
+  Kriterien).
+
+**Fundstelle:** Die in `design.md` §5.1 genannte STM-Fundstelle „`vars.c:532-538`,
+`var_crc_hexval()`" existiert nicht (L361, Nebenbefund 2); Vermerk in `design.md` §5.1.
+Problem 4 oben nennt `src/vars/vars.c:532-538` nur für das Anhängen der Marke an `var`-Zeilen,
+Stand `dea187a`.
+
+**Ausserhalb dieser Spec mitgeliefert:** ESP 3.2.29 brachte mit dem D-Release die Messzeile für
+C54 (`n=`/`cl=`/`oom=`) und die Korrektur C53 (L356); ESP 3.2.30 die Korrektur von L357 (C54).
 
 ---
 
@@ -453,6 +543,7 @@ herstellbar ist, wird nicht am Gerät verlangt.**
 | **Eine verstümmelte Zeile oder ein langsamer Wetterdienst am Gerät** | Nicht gezielt herstellbar; Prüfstände |
 | **Eine Fehlerantwort des Wetterdiensts am Gerät erzwingen** (z. B. falsche `appid` setzen) | Schreibend auf eine Einstellung, nicht freigegeben; AKE.6b belegt der Prüfstand |
 | **PWA, Legacy-Oberfläche** | Unverändert |
+| **I²C-Treiber `i2c_wait_for_flags()` pollen statt 1 ms schlafen** (L359/A60), **Mehrbyte-Lesen nach RM0008** (L360) | *Nachtrag Endstand:* Bewusst nicht angefasst — der Treiber trägt auch die RTC; eigenes Release mit eigener Messung |
 
 ---
 
@@ -468,7 +559,9 @@ herstellbar ist, wird nicht am Gerät verlangt.**
       statische Prüfungen; `watch-log.sh`
 - [x] **Dokumentation** — `BEFUNDE.md`, `knowledge/architecture-checklist.md`, `CLAUDE.md`
 - [x] **Build/Release** — **vier** Releases (ESP; STM M; STM C3; STM D), je mit Commit, Tag,
-      Push; dazu Testbauten F103 (und F411 für C3) ohne Release
+      Push; dazu Testbauten F103 (und F411 für C3) ohne Release. **Endstand: sechs** — ESP
+      3.2.27 und 3.2.28 für E, STM 3.2.23 (M), STM 3.2.24 (C3), STM 3.2.25 zusammen mit ESP
+      3.2.29 (D), ESP 3.2.30 (L357)
 
 ---
 
@@ -484,7 +577,10 @@ Stand **09.10.2026** — **alle entschieden**.
 - **Ent-4 — Prüfsumme ESP→STM. Entschieden: „Gleich mitnehmen"** (Teil D).
 - **Ent-5 — Reaktion auf eine Abweisung. Entschieden: N1** — abweisen, zählen, melden und einen
   Vollabgleich vormerken, **höchstens einer je 60 s**.
-- **Ent-6 — STM-Teil von D. Entschieden: eigenes, viertes Release nach C3.**
+- **Ent-6 — STM-Teil von D. Entschieden: eigenes, viertes Release nach C3.** *Vermerk Endstand
+  10.10.2026:* Der STM-Teil kam als STM 3.2.25 **zusammen mit ESP 3.2.29**, weil `make
+  release-zip` beide baut. Der Zweck von Ent-6 ist erfüllt, weil G3 C3 allein unter STM 3.2.24
+  mass.
 - **Ent-7 — EEPROM-Seitengrösse. Entschieden: 32 Byte auf F411 (V2), 8 Byte auf F103**, als
   Build-Konstante je Ziel. Der Prüfstand fährt beide.
 - **Ent-8 — Wetter. Entschieden:** Die Frist von 2'500 ms ist **abgelehnt**; das Wetter soll

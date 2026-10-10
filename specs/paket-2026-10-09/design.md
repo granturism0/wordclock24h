@@ -5,7 +5,9 @@
 V.1 und Ent-5 bis Ent-8, zuletzt mit dem Ergebnis des Reviews E.5 (§7: M1 Ergebnis `fehler`,
 M2 als Befund ausgeklammert, N3, N4, Marker `?...`). **Am 10.10.2026 nachgeführt** mit dem
 Stand der Umsetzung, wie ihn der Umsetzer gemeldet hat: A2 (§1.6, eine Lücke im Entwurf im Code
-geschlossen), W2 (§1.7), Messzeile (§2.2), Flash-Gate M.2 (§5.7). Momentaufnahme (DIR-006).
+geschlossen), W2 (§1.7), Messzeile (§2.2), Flash-Gate M.2 (§5.7). **Am 10.10.2026 ein zweites
+Mal nachgeführt — Endstand** (§8; Vermerke in §4.2, §5.1, §5.4, §5.7 und „Versionsfolgen").
+Momentaufnahme (DIR-006).
 
 **Schrittfolge:** **V (erledigt) → E (ESP: A1, C, D-ESP) → M (STM: Messzeile, A2) → C3 (STM,
 seitenweise) → D (STM, Prüfsumme) → Z**.
@@ -419,6 +421,11 @@ Wiederholung mit 14 Aufrufen. Bleibt `d` auch dann bei 0, steht im Bericht, dass
 **Nachher (G3, F411):** `z ≤ 2`, `ms ≤ 60`, `d` unverändert. G2 und G3 laufen **vor** dem
 STM-Teil von D — G3 misst allein C3.
 
+**Endstand 10.10.2026 (§8):** G2 zeigte **24 ms je Schreibzyklus** statt der angenommenen 16 ms
+(L358) — rund 8 ms davon kostet der I²C-Treiber, der je Flag bis 1 ms schläft (L359/A60). Die
+Grenze **`ms ≤ 60`** für G3 setzte 16 ms je Zyklus voraus und wurde deshalb auf **`ms ≤ 130`**
+angepasst. G3 hat sie mit 91–93 ms eingehalten.
+
 ### 4.3 Wetterabrufe nach M (A2)
 
 Wie G1: je ein Abruf jeder Art und 60 Minuten lesend. Erwartet: weiterhin kein `v`-Anstieg nach
@@ -439,6 +446,14 @@ braucht, lässt sich nicht herstellen; die Wirkung von A2 belegt W2.
 | Gedrosselte Abweisungszeile mit laufendem Zähler | ESP `var_crc_reject()` (`:623-638`) | **Ja**, auf dem STM über `log_printf()` |
 | `!v` und Nachsendung | ESP, STM `vars.c` | **Nein** — ersetzt durch N1 (§5.4) |
 | Markenpflicht mit Selbstauflösung (H1) | `ESP-uclock.ino:746-781` | **Entfällt** durch das eigene Präfix (§5.3) |
+
+**Vermerk 10.10.2026 zur zweiten Zeile — die STM-Fundstelle ist falsch.** „STM `vars.c:532-538`,
+`var_crc_hexval()`" existiert nicht: Eine strenge Hexprüfung `var_crc_hexval()` gibt es **nur im
+ESP** (`ESP-uclock.ino:583-602`); der STM prüft in der Gegenrichtung nichts, er hängt die Marke nur
+an. Aufgefallen im Review D.4 (`BEFUNDE.md`, L361, Nebenbefund 2). Die Aussage der Zeile —
+gleiches Format, strenge Prüfung statt `htoi()` — gilt für die Umsetzung trotzdem; der STM prüft
+die Marke in D über einen kanonischen Vergleich (§5.4, „Umsetzung"). Die Zeile bleibt als
+Momentaufnahme stehen.
 
 ### 5.2 Wie der ESP die Fähigkeit lernt — und verliert
 
@@ -507,6 +522,19 @@ Brücke kommt (L109).
 **Verworfen:** N3 (gezielte Nachsendung), (a) Quittung je Kommando — Bewertung in der vorigen
 Fassung, Entscheidung Ent-5.
 
+**Umsetzung, zwei Abweichungen vom Entwurf (Endstand 10.10.2026, gemeldet):**
+
+| Entwurf | Umsetzung | Wirkung |
+|---|---|---|
+| Punkt 1: Marke formal prüfen (strenge Hexprüfung), dann Rechnung vergleichen | **Kanonischer Vergleich** der Marke | Strenger als der Entwurf und spart Flash; eine Marke in **Grossbuchstaben wird abgewiesen** (der ESP sendet keine) |
+| Nicht festgelegt (§5.8: „längste Nutzlast passt in `ESP8266_MAX_CMD_LEN` (127)") | Eine Nutzlast **über 127 Zeichen wird abgewiesen statt gekürzt** | Kein gekürzter Wert wird angewandt — die sichere Richtung |
+
+Dazu aus dem Review D.4 (`BEFUNDE.md`, L361, offen, mittel, Massnahme A61): Der nach einer
+Abweisung vorgemerkte Vollabgleich (N1) läuft genau im Zustand, in dem Zeitüberschreitungen
+wahrscheinlich sind; ab rund 15 Zeitüberschreitungen in einem Abgleich ist ein Watchdog-Reset
+möglich, gemessen ist es nicht. Ent-5 hat das Vormerken bewusst gewählt; A61 verlangt zuerst eine
+Messung.
+
 ### 5.5 Zählen — warum nicht in der `diag`-Zeile
 
 Die `diag`-Zeile ist voll (`main.c:3802-3814`). Der Zähler steht in der Abweisungszeile selbst;
@@ -548,6 +576,10 @@ C3 liegt schon im oberen Teil des gemeinsamen Bereichs „M und C3" (130 bis 340
 die Reserve **bei D.2** unterschritten werden — dann gilt die Regel oben (anhalten und vorlegen,
 Sparstufen). Eine Entscheidung ist dafür **jetzt nicht** nötig; sie fällt erst, wenn C3.3 oder
 D.2 darunter liegt.
+
+**Endstand 10.10.2026:** C3 und D sind ausgerollt; ein Anhalten am Gate ist nicht gemeldet
+worden, die Reserve ist also nicht unterschritten. Die Restzahlen aus C3.3, D.2 und S8b lagen dem
+`spec-writer` nicht vor. Die kanonische Markenprüfung (§5.4) ist als flashsparend gemeldet.
 
 **Sparstufen, in dieser Reihenfolge vorzuschlagen** (keine ohne Nutzer): (1) Füllstand in der
 Messzeile weglassen; (2) Texte der Messzeile und der Abweisungszeile kürzen; (3) A2 über
@@ -612,6 +644,69 @@ wird getrennt berichtet, nicht als Fehlschlag gewertet.
 | **N3** | Die Logzeile heisst `- cmd Faehigkeit an/aus` (Umschrift, DIR-015); G4 und AKD.10 suchten „Fähigkeit an" | nur vermerken | Suchtext in §4.1, §5.9, AKD.10, E.9, D.8 auf `Faehigkeit an` |
 | **N4** | Nach einem reinen ESP-Neustart sendet der ESP `CMD` ohne Prüfsumme, bis der STM wieder einen Vollabgleich eröffnet | nur vermerken: **gewollt** | §5.2, §5.9, AKD.10 — kein Fehler in G1/G4 |
 | Marker | `?...` statt `?…`, weil ASCII auf der Brücke | nur vermerken | §3, AKE.8, E.2 |
+
+**Vermerk 10.10.2026:** Die Antwort des Reviews auf E.5 (1) — die Lesehilfe erkenne das
+Verbindungsende richtig — war falsch. ESP 3.2.27 schnitt den Wetterkörper nach dem ersten
+TCP-Segment ab (L353): `connected()` meldet in CLOSE_WAIT 0, obwohl noch Daten anstehen, und die
+erste `available()`-Rückgabe ist veraltet (dieselbe Ursache wie L173). Das Review der Korrektur
+(ESP 3.2.28) hat den Befund ausdrücklich zurückgenommen. Der Entwurf in §1.2 („liest, solange
+`available () || connected ()`") ist damit **unvollständig**: Nach `connected () == 0` muss
+`available ()` noch einmal gefragt werden, erst dann gilt das Ende.
+
+---
+
+## 8. Endstand 10.10.2026
+
+Belege: `BEFUNDE.md` (L339, L353, L357–L363, C3, C43, C53, C54, A58) und die Release-Tags.
+
+### 8.1 Releases
+
+| Tag | Komponente | Inhalt |
+|---|---|---|
+| `release/3.2.22-3.2.27-1.4.94` | ESP 3.2.27 | E — **mit Rückschritt L353** |
+| `release/3.2.22-3.2.28-1.4.94` | ESP 3.2.28 | Korrektur von L353 |
+| `release/3.2.23-3.2.28-1.4.94` | STM 3.2.23 | M |
+| `release/3.2.24-3.2.28-1.4.94` | STM 3.2.24 | C3 |
+| `release/3.2.25-3.2.29-1.4.94` | STM 3.2.25 + ESP 3.2.29 | D (STM-Teil); dazu ESP: Messzeile für C54, C53 |
+| `release/3.2.25-3.2.30-1.4.94` | ESP 3.2.30 | Korrektur von L357 (C54) |
+
+**D zusammen mit einem ESP-Release:** `make release-zip` baut beide Komponenten. **Ent-6** ist
+trotzdem erfüllt, denn ihr Zweck — jede Wirkung einzeln zuordenbar — hing daran, dass G3 C3
+**allein** misst, und das hat G3 unter STM 3.2.24 getan.
+
+### 8.2 Gerätenachweise
+
+| Nachweis | Stand | Ergebnis |
+|---|---|---|
+| **G1** (§4.1) | ESP 3.2.28 | Fenster **00:37–09:33**: keine Exception, keine Zeitüberschreitung, `v` konstant, Wetterabrufe **98–111 ms**. AKE.9 (114 Anfragezeilen, keine mit Wert) und Teil D in Ruhe schon unter 3.2.27 belegt (L353) |
+| **G2** (§4.2) | STM 3.2.23 | **`z=32 ms=767`** je 32-Byte-Wert; 14 Setter mit `rx` bis **866/1024**, `d=0`, `v=1`. **AKM.3 erfüllt. AKM.2 verfehlt**, weil ein Zyklus 24 statt 16 ms kostet (L358, Wanduhr bestätigt) — die Messung stimmt, die Erwartung nicht |
+| **Wetter nach M** (§4.3) | STM 3.2.23 | **63 ms / 110 ms**, `v=0` |
+| **Messpaket „Stabilität ESP"** (M.7b) | STM 3.2.23 | C9, C9e, C9c2 und A28 **nicht mehr reproduziert** |
+| **G3** (§4.2) | STM 3.2.24 | **`z=2 ms=91–93`**, `rx` 73/1024, `v=0`, `d=0`; AKC.7 (1) ohne Abweichung gegen M2. AKC.6 auf **`ms ≤ 130`** angepasst (L359/A60) |
+| **G4** (§5.9) | STM 3.2.25 / ESP 3.2.29 | „- cmd Faehigkeit an (Eroeffnung)"; `(CMC N060100*647c)` angenommen, Marke gegen `tools/checks/var-crc.c` bestätigt; **keine Abweisung** (L363) |
+| **`pwa-tester`** (D.9) | STM 3.2.25 / ESP 3.2.29 | **Nach Phase 2 abgebrochen**: M2 liess sich ohne Passwortdatei nicht anlegen (B19, beim Nutzer). Phasen 0–2 bestanden, 3, 4 und 9 offen |
+
+### 8.3 Was der Entwurf nicht vorhergesehen hat
+
+- **L353 (§1.2, §7):** Die Lesehilfe brauchte nach `connected () == 0` eine zweite
+  `available ()`-Abfrage. t12 sah es nicht, weil seine Attrappe die widerlegte Zusage aus L173
+  machte; t12 bildet seither die Core-Semantik nach.
+- **L357 (ausserhalb dieser Spec):** Die Vorhersage verlor sporadisch ihr Ende — nicht durch den
+  Lesepfad, sondern weil `String::concat` bei gescheitertem `realloc` still verwirft
+  (`oom=457` bei `n=cl=3983`). Korrigiert mit ESP 3.2.30 (`reserve (cl + 1)`), am Gerät `oom=0`.
+- **L358 (§2.2, AKM.2):** 24 ms je Schreibzyklus statt 16 ms; die Messzeile mit eigener Zeitbasis
+  hat genau das sichtbar gemacht, wofür V.1 (3) sie verlangt hatte.
+- **L359/A60 (§2.3, AKC.6):** Der I²C-Treiber schläft je Flag bis 1 ms; ein 32-Byte-Wert braucht
+  nach C3 rund 90 ms statt der angesetzten ≤ 60 ms. Der Treiber ist **bewusst nicht angefasst**,
+  weil er auch die RTC trägt.
+- **L361/A61 (§5.4):** Der N1-Vollabgleich nach einer Abweisung ist in Dauer und Auslöser nicht
+  messbar.
+- **§5.1:** Die STM-Fundstelle zu `var_crc_hexval()` existiert nicht (Vermerk dort).
+
+### 8.4 Offen
+
+- `pwa-tester` Phasen 3, 4 und 9 (D.9) — damit AKZ.4, AKC.7 (3) und der Durchlaufteil von AKD.10.
+- Z.1 bis Z.3 (Doku).
 
 ---
 
@@ -684,7 +779,9 @@ Während eines Abrufs kann `var_send_buf()` den Hauptloop bis zu 6 s halten stat
 **Nachtrag 10.10.2026: bis zu 7 s**, und zwar auch dann, wenn die Endzeile schon da ist und der
 ESP danach schweigt (§1.6, „Lücke im Entwurf") — aber nur, wenn der ESP so lange schweigt, und der
 Normalfall dauert 0,2 s. Der Preis ist bewusst: ein längeres Warten auf einen **lebenden** ESP
-statt eines verlorenen Einmal-Werts (L42).
+statt eines verlorenen Einmal-Werts (L42). **Endstand 10.10.2026:** Am Gerät kostet ein
+EEPROM-Schreibzyklus rund **24 ms**, nicht 16 ms (L358); ein 32-Byte-Wert auf F411 nach C3 rund
+**90 ms** (G3), davon der grössere Teil I²C-Treiber (L359/A60).
 
 **Hartkodierte Grenzen?** `EEPROM_PAGE_SIZE` je Ziel (Ent-7); `WEATHER_TOTAL_TIMEOUT_MS` (5 s)
 und die A2-Frist (6 s; umgesetzt als `VAR_WEATHER_WAIT_SEC` = 7 Sekundenschritte, echte 6 bis 7 s)
@@ -769,7 +866,9 @@ auf F411 verschenkte Faktor 4 — Ent-7.
 **Teil C:** Setterliste; Parameternamen ohne Werte.
 
 **Teil D:** `CMD …*hhhh` mit Markenpflicht; `CAP`-Zeile vom STM; Reset-Puls als alleinige
-Absicherung; Pflichtliste nur für Host und Pfad; eigenes `diag`-Feld; N3; (a) — §5.
+Absicherung; Pflichtliste nur für Host und Pfad; eigenes `diag`-Feld; N3; (a) — §5. **Eine zu
+lange Nutzlast kürzen** — verworfen in der Umsetzung (§5.4): Abweisen statt einen gekürzten Wert
+anwenden.
 
 ---
 
@@ -780,10 +879,11 @@ an.
 
 | Schritt | STM `src/main.h` | ESP `version.h` | `APP_VERSION` | `CACHE_NAME` |
 |---|---|---|---|---|
-| E (A1, C, D-ESP) | — | ☐ | — | — |
-| M (Messzeile, A2) | ☐ | — | — | — |
-| C3 | ☐ | — | — | — |
-| D (STM-Teil) | ☐ | — | — | — |
+| E (A1, C, D-ESP) | — | ☑ 3.2.27, Korrektur 3.2.28 | — | — |
+| M (Messzeile, A2) | ☑ 3.2.23 | — | — | — |
+| C3 | ☑ 3.2.24 | — | — | — |
+| D (STM-Teil) | ☑ 3.2.25 | ☑ 3.2.29 (mitgebaut: C54-Messzeile, C53) | — | — |
+| ausserhalb (L357/C54) | — | ☑ 3.2.30 | — | — |
 
 Nur der `release-engineer` führt das aus (R4). Der Tag `release/<stm>-<esp>-<app>` wird **je
 Einspielschritt** gesetzt und gepusht (DIR-011).
