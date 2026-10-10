@@ -180,7 +180,7 @@ static const char * const espart_name[] =
 {
     "Spec: 1 s still, CAP, FIRMWARE, 9 s still, SYNCVARS",
     "Client: CAP, WLAN in setup() nach 9 s, IPADDRESS, FIRMWARE",
-    "AP-Modus: CAP, OK ap, IPADDRESS 192.168.4.1, FIRMWARE nach rund 2 s",
+    "AP-Modus: CAP, OK ap, IPADDRESS 192.0.2.41, FIRMWARE nach rund 2 s",
     "WLAN erst nach setup(): CAP, 15 s Verbindungsversuch, FIRMWARE, IPADDRESS bei +20 s",
     "kein WLAN: CAP, 15 s Verbindungsversuch, FIRMWARE, nie IPADDRESS",
 };
@@ -263,7 +263,7 @@ lauf (ESPART art, int verlust, const int * per, int nper, int stm_start)
             ip_at = 0;
             break;
     }
-    snprintf (ip_line, sizeof (ip_line), "IPADDRESS %s\r\n", art == ESP_AP ? "192.168.4.1" : "192.168.1.50");
+    snprintf (ip_line, sizeof (ip_line), "IPADDRESS %s\r\n", art == ESP_AP ? "192.0.2.41" : "192.0.2.50");
     if (ip_at && art != ESP_SPEC && ! (verlust & L_IP)) rx_push (ip_at, ip_line);
     if (ip_at) next_check = ip_at + 10000;
 

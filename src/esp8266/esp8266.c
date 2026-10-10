@@ -548,6 +548,22 @@ esp8266_get_message (void)
                              * vertrauenswuerdige Quelle.
                              */
                             esp8266_cap_var_crc_seen = 1;
+
+                            /* A55 (BEFUNDE L327, Ent-8 = P3): Die CAP-Zeile ist das erste verlaessliche Lebenszeichen eines
+                             * startenden ESP -- setup(), rund 1 s nach dem Boot, vor jeder WLAN-Meldung und vor FIRMWARE.
+                             * Solange sein setup() laeuft (WLAN-Aufbau bis 15 s), quittiert er nichts; jede periodische
+                             * Sendung liefe in die 3 s von var_send_buf(). Gemessen: vier Zeitueberschreitungen je Neustart.
+                             *
+                             * Deshalb offline -- dasselbe Muster wie bei AP- und WPS-Taste im Hauptloop (main.c, "user button
+                             * pressed" und "wps button pressed"). Wieder online setzen IPADDRESS und SYNCVARS weiter unten,
+                             * unveraendert; beide merken den Vollabgleich vor, und der traegt alles Ausgelassene nach.
+                             *
+                             * Verliert der Ring diese Zeile, bleibt is_online stehen: genau das Verhalten von vorher. Auch
+                             * beim Start des STM kommt sie meist HIER an: Das Verwurffenster von esp8266_reset() endet nach
+                             * 500 ms Pause, der ESP schweigt vor CAP aber rund 1000 ms (delay(1000) in setup()). is_online
+                             * ist dann ohnehin noch 0 (Vorbelegung, erst IPADDRESS oder SYNCVARS setzen es).
+                             */
+                            esp8266.is_online = 0;
                             rtc = ESP8266_STATUS;                                       // Statusmeldung, KEINE Quittung
                             break;
                         }
@@ -890,9 +906,9 @@ esp8266_send_log_line (const char * line)
      * uebt bei vollem Ring von sich aus Gegendruck (uart-driver.h). Das Warten wird damit von
      * "immer" auf "nur wenn der Ring wirklich voll ist" zurueckgenommen.
      *
-     * Zusatznutzen auf dem Fehlerpfad: fault_reset() (main.c) schaltet die Interrupts AB und
-     * protokolliert danach ueber log_printf(). Der Flush hier haette dort auf eine ISR gewartet,
-     * die nicht mehr laeuft.
+     * Fruehere Begruendung, ueberholt: fault_reset() (main.c) protokollierte mit abgeschalteten
+     * Interrupts ueber log_printf(). Seit A50 gibt es dort keine Ausgabe mehr -- sie haette auch
+     * ohne diesen Flush auf eine ISR gewartet, die im HardFault nicht laeuft (log_flush()).
      */
 }
 

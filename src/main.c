@@ -584,24 +584,55 @@ watchdog_reload (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
- * log fault details and force a clean system reset instead of hanging forever
+ * fault_reset() - nach einem Fault rund 15 s warten, dann sauber zuruecksetzen (A50, BEFUNDE L313)
+ *
+ * KEINE AUSGABE, mit Absicht. Jeder Fault landet im HardFault (Prioritaet -1): MemManage, BusFault und
+ * UsageFault sind ohne SHCSR nicht freigeschaltet. Dort laeuft die USART-ISR (Prioritaet 0) nicht,
+ * log_flush() wartete ewig (uart-driver.h, UART_PREFIX_FLUSH), und NVIC_SystemReset() wurde nie
+ * erreicht. Von der frueheren Fault-Ausgabe ist nie ein Zeichen angekommen; vor watchdog_init() blieb
+ * die Uhr fuer immer stehen.
+ *
+ * WARUM WARTEN: Jeder STM-Start setzt den ESP zurueck, und der ESP braucht rund 10 s. Ein sofortiger
+ * Reset ergaebe bei einem deterministischen Fault einen Takt von 3-4 s, in dem der ESP nie erreichbar
+ * und die Uhr nicht mehr ueber das Netz flashbar waere. Daher ueber 12 s -- und unter den 20 s des
+ * Watchdogs (WATCHDOG_TIMEOUT_MS): Laeuft er, kommt er hoechstens frueher, eine laengere Wartezeit
+ * waere wirkungslos. Vor watchdog_init() ist diese Wartezeit die einzige Grenze.
+ *
+ * WIE GEEICHT: ueber das SysTick-Zaehlregister, COUNTFLAG gepollt, ohne Interrupt (TICKINT = 0). Im
+ * HardFault laeuft die SysTick-UNTERBRECHUNG nicht, der ZAEHLER schon -- er haengt am Kerntakt, nicht
+ * an der Prioritaet. SysTick ist auf Cortex-M3 (F103) und Cortex-M4 (F411) Pflichtbestandteil (PM0056
+ * bzw. PM0214, Abschnitt 4.5); der DWT-Zyklenzaehler waere optional und braeuchte TRCENA im
+ * Debugblock. SysTick wird hier NEU aufgesetzt, damit die Wartezeit auch vor delay_init() stimmt,
+ * und SystemCoreClockUpdate() liest den Takt aus dem RCC, damit sie auch vor dem Aufruf in main()
+ * stimmt (bis dahin traegt SystemCoreClock auf dem F411 den Vorgabewert 168 MHz). Ein Ueberlauf je
+ * Millisekunde: LOAD = 71'999 auf dem F103 (72 MHz), 99'999 auf dem F411 (100 MHz), beide unter der
+ * 24-Bit-Grenze; ein Pollschritt dauert wenige Takte, es geht kein Ueberlauf verloren.
+ *
+ * reason bleibt, damit die vier Handler unveraendert bleiben; gebraucht wird es nicht mehr.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+#define FAULT_RESET_WAIT_MS     15000UL                                         // ueber ESP-Bootzeit (~10 s), unter Watchdog (20 s)
+
 static void
 fault_reset (const char * reason)
 {
+    uint32_t    ms;
+
+    (void) reason;
     __disable_irq ();
 
-    log_message ("");
-    log_message ("fatal fault detected");
-    log_message (reason);
-    log_printf ("  CFSR=0x%08lX HFSR=0x%08lX ICSR=0x%08lX\r\n", SCB->CFSR, SCB->HFSR, SCB->ICSR);
-    log_printf ("  MMFAR=0x%08lX BFAR=0x%08lX\r\n", SCB->MMFAR, SCB->BFAR);
-    log_flush ();
+    SystemCoreClockUpdate ();                                                   // Takt aus dem RCC, nicht der Vorgabewert
+    SysTick->CTRL = 0;
+    SysTick->LOAD = SystemCoreClock / 1000UL - 1UL;                             // ein Ueberlauf je Millisekunde
+    SysTick->VAL  = 0;                                                          // loescht auch COUNTFLAG
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;       // Kerntakt, ohne TICKINT
 
-    for (volatile uint32_t idx = 0; idx < 2000000UL; idx++)
+    for (ms = 0; ms < FAULT_RESET_WAIT_MS; )
     {
-        ;
+        if (SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk)                         // Lesen loescht das Flag
+        {
+            ms++;
+        }
     }
 
     NVIC_SystemReset ();

@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-10 Paket 2026-10-10, Schritt S2: Neustart nach schwerem Fehler, Pause bei ESP-Neustart (STM 3.2.28)
+
+Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-222244.zip`, Tag `release/3.2.28-3.2.30-1.4.94`. Umfang: S2 aus `specs/paket-2026-10-10/` (A50, A55).
+
+**Einspielreihenfolge: nur der STM**, über `./tools/flash-stm.sh`. Der Neustart beim Flash belegt zugleich,
+dass die LDR-Grenzen 0/4095 aus S1 erhalten bleiben (Ent-4a). Die Wirkung von A55 zeigt erst das nächste ESP-OTA.
+
+### Schwerer Fehler: Neustart nach 15 s (A50, L313)
+- Bisher blieb die Uhr nach einem HardFault stehen: Die Fehlerausgabe wartete auf eine Unterbrechung, die im
+  HardFault nicht läuft, und kam nie an. Jetzt gibt es keine Ausgabe mehr; der STM wartet geeicht 15 s
+  (SysTick gepollt, Takt aus dem RCC, auch vor SystemInit) und startet neu. In dieser Zeit bleibt der ESP
+  erreichbar, ein Web-Update ist auch bei einem wiederkehrenden Fehler möglich.
+- Spart rund 530 Byte Flash: F103 1'908 Byte frei (vorher 1'376).
+
+### ESP-Neustart: STM pausiert seine Sendungen (A55, L327)
+- Die erste Zeile eines neu startenden ESP (`CAP var-crc`) setzt den STM auf „offline“; er sendet nichts mehr,
+  bis `IPADDRESS` oder `SYNCVARS` kommt. Am Prüfstand steigt `v` bei einem ESP-Neustart um 0–1 statt 2–4.
+- Neu benannt: Gehen nach einem ESP-Neustart `IPADDRESS` und alle drei `SYNCVARS` verloren, bleibt der STM
+  offline bis zum nächsten WLAN-Ereignis (L376/A66, am Gerät nicht beobachtet).
+
+### Werkzeug
+Prüfstände FR (65 Fälle) und EP (63 Fälle), beide gegen 3.2.27 FEHL. Reviews bestanden.
+
 ## 2026-10-10 Paket 2026-10-10, Schritt S1: LDR-Grenzen per Zahl, DS18xx mit CRC und Neuerkennung (STM 3.2.27)
 
 Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP
