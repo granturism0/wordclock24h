@@ -1,0 +1,90 @@
+# Bestandsliste C47 (AKX.2): jede nicht-literale Ausgabe in den Legacy-Seitenfunktionen von http.cpp
+# (http_style .. http_update, dazu http_api_remote_esp_update). Ohne Zeilennummern - die wandern.
+# Gruppe: maskiert (http_send_attr) | gefiltert (Release Notes, R2) | Zahl | Konstante. Doppelte Zeilen = mehrfache Ausgabe.
+funktion	ausgabe	argument	gruppe	grund
+http_header	http_send	pgm_name	Konstante	Programmname aus dem Code (:36, Zuweisung nach Hardwarekennung)
+http_header	http_send	title	Konstante	Seitentitel, nur Literale
+http_header	http_send	refresh	Konstante	"20" bzw. "40"
+http_header	http_send	url	Konstante	"/", "/update", "/app/"
+table_header	http_send	columns[i]	Konstante	Spaltenkoepfe, Literale
+begin_form	http_send	page	Konstante	thispage, Literal
+checkbox_field	http_send	desc	Konstante	Beschriftung, Literal
+checkbox_field	http_send	id	Konstante	Feldname, Literal oder sprintf mit %d
+text_column	http_send	text	Konstante	Text aus dem Code, darf Markup tragen ("&deg;C", verstecktes Feld mit %d); Werte gehen ueber value_column ()
+text_rcolumn	http_send	text	Zahl	sprintf %d (Dateisystemangaben, Dateigroesse)
+input_field	http_send	desc	Konstante	Beschriftung, Literal
+input_field	http_send	id	Konstante	Feldname, Literal oder sprintf mit %d
+input_field	http_send	id	Konstante	dito, zweite Ausgabe
+input_field	http_send_attr	value	maskiert	C47: jeder Legacy-Eingabewert
+input_field	http_send	maxlength_buf	Zahl	sprintf %d
+input_field	http_send	maxsize_buf	Zahl	sprintf %d
+select_field	http_send	id	Konstante	Feldname, Literal oder sprintf mit %d
+select_field	http_send	id	Konstante	dito, zweite Ausgabe
+select_field	http_send	buf	Zahl	sprintf %d
+select_field	http_send_attr	text[i]	maskiert	C47: Modusnamen aus Tabellendatei bzw. vom STM
+slider_field	http_send	text	Konstante	Literal oder sprintf mit %d
+slider_field	http_send	id	Konstante	Feldname, Literal oder sprintf mit %d
+slider_field	http_send	id	Konstante	dito
+slider_field	http_send	value	Zahl	sprintf %d
+slider_field	http_send	min	Konstante	Literal oder sprintf %d
+slider_field	http_send	max	Konstante	Literal oder sprintf %d
+slider_field	http_send	pixelwidth	Konstante	"64" bzw. ""
+slider_field	http_send	id	Konstante	dito
+slider_field	http_send	id	Konstante	dito
+slider_field	http_send	id	Konstante	dito
+slider_field	http_send	value	Zahl	sprintf %d, zweite Ausgabe
+button_field	http_send	style	Konstante	Literal
+button_field	http_send	id	Konstante	Literal oder sprintf mit %d
+button_field	http_send	text	Konstante	Literal
+save_column	http_send	id	Konstante	Literal oder sprintf mit %d
+value_column	http_send_attr	value	maskiert	C47: Versionen und Namen vom STM
+menu_entry	http_send	page	Konstante	Literal
+menu_entry	http_send	entry	Konstante	Literal
+begin_box	http_send	pgm_name	Konstante	Programmname aus dem Code
+begin_box	http_send	title	Konstante	Literal
+http_main	http_send	alert_message	Konstante	Literale
+http_main	http_send	message	Konstante	Literale
+http_network	http_send	esp_firmware_version	Konstante	ESP_VERSION
+http_network	http_send_attr	wifi_ip_address	maskiert	C47
+http_network	http_send_attr	tmp_ssid.c_str ()	maskiert	C47: SSIDs aus dem Scan, fremd
+http_network	http_send_attr	tmp_ssid.c_str ()	maskiert	dito, zweite Ausgabe
+http_network	http_send	alert_message	Konstante	Literale bzw. snprintf aus Literal und Zahlen
+http_network	http_send	message	Konstante	Literale
+http_temperature	http_send	message	Konstante	Literal
+http_weather	http_send	alert_message	Konstante	Literale aus http_coordinates_check () (C44)
+http_weather	http_send	message	Konstante	Literale
+http_ldr	http_send	message	Konstante	Literale
+select_icons	http_send	id	Konstante	Literal
+select_icons	http_send	id	Konstante	dito
+select_icons	http_send_attr	icon_name	maskiert	C47: aus der Icon-Datei vom Update-Server
+select_icons	http_send_attr	icon_name	maskiert	dito, zweite Ausgabe
+http_display	http_send	alert_message	Konstante	http_date_ticker_format_invalid (C55)
+http_display	http_send	message	Konstante	Literale
+http_animations	http_send	message	Konstante	Literale
+http_overlays	http_send	disp	Zahl	sprintf %d
+http_overlays	http_send	message	Konstante	Literale bzw. snprintf aus Literal und Zahlen (http_overlays_get_fields)
+http_ambilight	http_send	message	Konstante	Literale
+http_fs	http_send_attr	dir.fileName ().c_str ()	maskiert	C47: Dateinamen sind hochladbar
+http_fs	http_send_attr	fname	maskiert	C47: Tabellenliste vom Update-Server
+http_fs	http_send_attr	fname	maskiert	dito, zweite Ausgabe
+http_fs	http_send	fname_icon	Konstante	Literale (:6334 ff.)
+http_fs	http_send	fname_weather	Konstante	Literale
+http_fs	http_send	fname_tables	Konstante	Literale
+http_fs	http_send	fname_display	Konstante	Literale
+http_fs	http_send_attr	show_fname	maskiert	C47: Anfrageparameter
+http_fs	http_send_attr	b	maskiert	C47: Dateiinhalt als Text
+http_api_fs_upload	http_send	ok ? "true" : "false"	Konstante	JSON-Antwort, kein HTML
+http_api_fs_upload	http_send	String (error_code).c_str ()	Zahl	JSON-Antwort, Zahl
+http_api_app_file_upload	http_send	ok ? "true" : "false"	Konstante	JSON-Antwort, kein HTML
+http_api_app_file_upload	http_send	String (error_code).c_str ()	Zahl	JSON-Antwort, Zahl
+http_notes_filter_put	http_send	f->buf	gefiltert	C47/Ent-2 R2: Release Notes ohne Tags
+http_notes_filter_end	http_send	f->buf	gefiltert	dito, Rest
+http_update	http_send_attr	path	maskiert	C47: enthaelt den Update-Pfad
+http_update	http_send	flashsizebuf	Zahl	sprintf %d
+http_update	http_send	ESP_VERSION	Konstante	Versionskonstante
+http_update	http_send_attr	new_esp_version	maskiert	C47: vom Update-Server
+http_update	http_send_attr	version	maskiert	C47: Text vom STM
+http_update	http_send_attr	new_wc_version	maskiert	C47: vom Update-Server
+http_update	http_send_attr	fname	maskiert	A6/C47: wc-list.txt vom Update-Server
+http_update	http_send_attr	fname	maskiert	dito, zweite Ausgabe
+http_api_remote_esp_update	http_send_attr	path	maskiert	C47: enthaelt den Update-Pfad

@@ -1,0 +1,152 @@
+# Fall-Tabelle C55/C44 (Paket 2026-10-10, Ent-10 und Ent-12) - EINE Quelle fuer ESP (Pruefstand) und PWA (Regelgleichheit).
+# Spalten: feld <TAB> eingabe <TAB> erwartet <TAB> notiz. UTF-8, LF. eingabe roh, auch Leerzeichen am Rand; leer = leere Eingabe.
+# feld: datumsformat | laenge (|x| <= 180) | breite (|x| <= 90). Die Eingabe ist das, was der Nutzer eintippt; das Komma
+# wird VOR der Pruefung zum Punkt (gehoert zur Regel). Zeilen mit # sind Kommentare.
+feld	eingabe	erwartet	notiz
+datumsformat	D.M.Y	gueltig	Vorgabe
+datumsformat	d-m-Y	gueltig	
+datumsformat	M/Y	gueltig	
+datumsformat	D	gueltig	
+datumsformat	d	gueltig	
+datumsformat	m	gueltig	
+datumsformat	Y	gueltig	
+datumsformat	y	gueltig	
+datumsformat	M	gueltig	
+datumsformat	D.M.	gueltig	abschliessender Punkt ist kein Leerzeichen
+datumsformat	D M Y	gueltig	Leerzeichen innen
+datumsformat	Y-M-D	gueltig	
+datumsformat	Y/M/D	gueltig	
+datumsformat	d.m.y	gueltig	
+datumsformat	DMY	gueltig	
+datumsformat	D.M	gueltig	
+datumsformat	.D	gueltig	Trenner vorn
+datumsformat	-D-	gueltig	
+datumsformat	D/M	gueltig	
+datumsformat	M.Y	gueltig	
+datumsformat	D  M	gueltig	zwei Leerzeichen innen
+datumsformat	D.Y	gueltig	
+datumsformat	./D./	gueltig	fuenf Zeichen
+datumsformat	M-Y.	gueltig	
+datumsformat	D--M	gueltig	
+datumsformat	y-m-d	gueltig	
+datumsformat		ungueltig	leer - wie bisher abgewiesen
+datumsformat	yyyyy	ungueltig	L369, Jahr fuenfmal
+datumsformat	<scri	ungueltig	L369
+datumsformat	⏰	ungueltig	L369, Emoji 3 Byte
+datumsformat	  ab	ungueltig	L369, Leerzeichen vorn
+datumsformat	D.M.Y.	ungueltig	6 Zeichen
+datumsformat	DD	ungueltig	Tag zweimal
+datumsformat	D.D	ungueltig	
+datumsformat	MM.Y	ungueltig	Monat zweimal
+datumsformat	d.D	ungueltig	Tag zweimal, gross und klein
+datumsformat	y.Y	ungueltig	Jahr zweimal
+datumsformat	 D	ungueltig	Leerzeichen vorn
+datumsformat	D 	ungueltig	Leerzeichen hinten
+datumsformat	 	ungueltig	nur Leerzeichen
+datumsformat	.	ungueltig	kein Platzhalter
+datumsformat	-./	ungueltig	kein Platzhalter
+datumsformat	x	ungueltig	fremdes Zeichen
+datumsformat	D.M.X	ungueltig	
+datumsformat	Ä	ungueltig	Umlaut
+datumsformat	D,M	ungueltig	Komma nicht erlaubt
+datumsformat	D:M	ungueltig	
+datumsformat	D_M	ungueltig	
+datumsformat	%	ungueltig	
+datumsformat	<	ungueltig	
+datumsformat	D&M	ungueltig	
+datumsformat	D"M	ungueltig	
+datumsformat	'D'	ungueltig	
+datumsformat	0	ungueltig	
+datumsformat	12.5	ungueltig	
+datumsformat	hh:mm	ungueltig	
+datumsformat	<"&	ungueltig	
+datumsformat	DMYDM	ungueltig	Tag und Monat zweimal
+datumsformat	D.M.Y 	ungueltig	Leerzeichen hinten, 6 Zeichen
+datumsformat	Y.M.D.Y	ungueltig	zu lang und Wiederholung
+laenge	8.5400	gueltig	L340 nach Ersetzung
+laenge	8,5400	gueltig	L340: Komma wird zu Punkt
+laenge	7.2682	gueltig	
+laenge	0	gueltig	
+laenge	-0	gueltig	-0 ist 0
+laenge	180	gueltig	Grenze
+laenge	-180	gueltig	Grenze
+laenge	180.0	gueltig	Grenze mit Nullen
+laenge	-180.000	gueltig	PWA toFixed(3)
+laenge	180.0000	gueltig	8 Zeichen
+laenge	179.9999	gueltig	
+laenge	-179.999	gueltig	
+laenge	8.540012	gueltig	genau 8 Zeichen
+laenge	08.5400	gueltig	fuehrende Null
+laenge	1	gueltig	
+laenge	0.000001	gueltig	
+laenge	-0.00001	gueltig	
+laenge	99	gueltig	
+laenge	8,54	gueltig	Komma
+laenge	-8.5	gueltig	
+laenge	007	gueltig	
+laenge	-122.419	gueltig	PWA
+laenge	151.2093	gueltig	PWA
+laenge	-0.1276	gueltig	PWA
+laenge	-0.0000	gueltig	PWA toFixed(4) von -0.00001
+laenge	0.0000	gueltig	
+laenge		ungueltig	leer
+laenge	<"&	ungueltig	L340
+laenge	180.1	ungueltig	ueber der Grenze
+laenge	-180.0001	ungueltig	9 Zeichen
+laenge	180.0001	ungueltig	8 Zeichen, ueber der Grenze
+laenge	181	ungueltig	
+laenge	-181	ungueltig	
+laenge	999	ungueltig	
+laenge	12345678	ungueltig	8 Zeichen, weit drueber
+laenge	.5	ungueltig	keine Ziffer vor dem Punkt
+laenge	5.	ungueltig	keine Ziffer nach dem Punkt
+laenge	+5	ungueltig	kein Plus
+laenge	1e2	ungueltig	kein Exponent
+laenge	1E2	ungueltig	
+laenge	 8.5	ungueltig	Leerzeichen vorn
+laenge	8.5 	ungueltig	Leerzeichen hinten
+laenge	8 .5	ungueltig	
+laenge	8..5	ungueltig	
+laenge	8.5.4	ungueltig	
+laenge	-	ungueltig	nur Minus
+laenge	--8	ungueltig	
+laenge	-.5	ungueltig	
+laenge	8,5,4	ungueltig	zwei Kommas
+laenge	8.54001234	ungueltig	10 Zeichen
+laenge	abc	ungueltig	
+laenge	8°	ungueltig	Gradzeichen
+laenge	0x10	ungueltig	
+laenge	NaN	ungueltig	
+laenge	Inf	ungueltig	
+laenge	8.5e1	ungueltig	
+laenge	1,000.5	ungueltig	Tausendertrenner
+laenge	١٢	ungueltig	arabische Ziffern
+laenge	8.540012x	ungueltig	
+laenge	.	ungueltig	
+laenge	,	ungueltig	
+breite	47.3769	gueltig	
+breite	47,3769	gueltig	Komma
+breite	90	gueltig	Grenze
+breite	-90	gueltig	Grenze
+breite	90.0	gueltig	
+breite	-90.0000	gueltig	8 Zeichen
+breite	89.99999	gueltig	8 Zeichen
+breite	0	gueltig	
+breite	-0	gueltig	
+breite	47.37690	gueltig	8 Zeichen, PWA
+breite	-33.8688	gueltig	PWA
+breite	47.0441	gueltig	
+breite	90.00001	ungueltig	ueber der Grenze
+breite	91	ungueltig	
+breite	-91	ungueltig	
+breite	180	ungueltig	Laenge, nicht Breite
+breite	<"&	ungueltig	L340
+breite		ungueltig	leer
+breite	47.3769 	ungueltig	Leerzeichen hinten
+breite	.5	ungueltig	
+breite	5.	ungueltig	
+breite	+5	ungueltig	
+breite	1e2	ungueltig	
+breite	-90.00001	ungueltig	9 Zeichen
+breite	90.1	ungueltig	
+breite	-90.5	ungueltig	

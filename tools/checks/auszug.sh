@@ -67,6 +67,9 @@ LAUF=(
   "Teil D ein Kommandoabsender CMD/CMC (ESP)|esp/t14/run.sh $E neu"
   "Teil D keine CMD-Zeile ausserhalb des Absenders, statisch (ESP)|esp/t14/static.sh $E neu"
   "C53 erste Anfragezeile nach FIN nicht verworfen (ESP)|esp/t15/run.sh $E neu"
+  "C47 Legacy-Werte maskiert, Release Notes ohne Tags (ESP)|esp/t16/run.sh $E neu"
+  "C47 jede Legacy-Wertausgabe eingeordnet, statisch (ESP)|esp/t16/static.sh $E neu"
+  "C55/C44 Datumsformat und Koordinaten, API und Legacy (ESP)|esp/t17/run.sh $E neu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht
 # gab. Gegen eine alte Revision laesst er sich nicht uebersetzen, und das ist kein Befund --
