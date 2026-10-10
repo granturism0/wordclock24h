@@ -70,6 +70,7 @@ LAUF=(
   "C47 Legacy-Werte maskiert, Release Notes ohne Tags (ESP)|esp/t16/run.sh $E neu"
   "C47 jede Legacy-Wertausgabe eingeordnet, statisch (ESP)|esp/t16/static.sh $E neu"
   "C55/C44 Datumsformat und Koordinaten, API und Legacy (ESP)|esp/t17/run.sh $E neu"
+  "A2 Fehlerwert 255 bei Korrekturaenderung unangetastet (ESP)|esp/t18/run.sh $E neu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht
 # gab. Gegen eine alte Revision laesst er sich nicht uebersetzen, und das ist kein Befund --
