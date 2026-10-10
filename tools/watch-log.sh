@@ -28,6 +28,7 @@
 #   - weather ... oom>0      Koerper unvollstaendig: Zeichen verloren oder n != cl (ESP ab 3.2.29, C54)
 #   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
 #   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
+#   ds18xx verloren/ungueltig  Temperatursensor: Lese-/CRC-Fehler (STM, A2)
 #
 # AUSSCHLIESSLICH LESEND. Das Skript spricht nicht mit dem Geraet, es liest nur mit.
 
@@ -66,7 +67,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig'
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
@@ -162,6 +163,16 @@ while :; do
             printf '  %s  Wetter: Koerper unvollstaendig (n=%s cl=%s oom=%s)   <%s>\n' "$stamp" "${wn:-?}" "${wcl:--}" "${woom:-0}" "$z"
             alarm=1
           fi ;;
+        *"ds18xx verloren"*)
+          # STM ab Paket 2026-10-10 (A2): drei Lese-/CRC-Fehler in Folge, Sensor gilt als nicht erkannt
+          printf '  %s  DS18xx: Sensor verloren   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"DS18xxx temperature: ungueltig"*)
+          # Index 255: Lese- oder CRC-Fehler -- oder unter 0 Grad (Grenze, benannt; zaehlt nicht als Verlust)
+          printf '  %s  DS18xx: Messwert ungueltig   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"ds18xx erkannt"*)
+          printf '  %s  Hinweis: DS18xx (wieder) erkannt   <%s>\n' "$stamp" "$z" ;;
         *"cmd abgewiesen"*)
           printf '  %s  Bruecke: Kommando abgewiesen   <%s>\n' "$stamp" "$z"
           alarm=1 ;;
