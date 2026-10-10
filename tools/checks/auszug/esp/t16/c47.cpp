@@ -9,7 +9,7 @@
  * Teil D  AKX.3  Release Notes nach Ent-2 = R2: Tags entfernt, Text bleibt, '>' ausserhalb maskiert,
  *                <br> je Zeile; geteiltes Tag, Zeile ueber 128 Zeichen, Schlusszeile ohne '\n'.
  *                Invariante fuer jeden Fall: ohne die eigenen "<br>" kein '<' und kein '>'.
- * Teil E  Ent-11 DS18xx: IS_UP = 1 und Index 255 => "invalid".
+ * Teil E  Ent-11 DS18xx: IS_UP = 1 und Index 255 => "invalid"; RTC: Index 49 fehlt und Index 21 = 255 => "invalid".
  *
  * Gegenprobe (DIR-014): Der Ausgangsstand gibt '"' im Attribut roh aus (A, B), reicht <script> in den
  * Release Notes durch (D) und zeigt 255 als "127.5&deg;C" (E) => FEHL.
@@ -49,9 +49,10 @@ static void notes_block (void)
 }
 
 /* ---- Attrappen fuer die DS18xx-Anzeige ---- */
-enum { DS18XX_IS_UP_NUM_VAR, DS18XX_TEMP_INDEX_NUM_VAR };
-static unsigned ds_up, ds_idx;
-static unsigned get_numvar (int v) { return v == DS18XX_IS_UP_NUM_VAR ? ds_up : ds_idx; }
+enum { DS18XX_IS_UP_NUM_VAR, DS18XX_TEMP_INDEX_NUM_VAR, RTC_TEMP_INDEX_NUM_VAR, RTC_TEMP_HALF_DEG_NUM_VAR, N_NUMVARS };
+static unsigned numvars[N_NUMVARS];
+static unsigned & ds_up = numvars[DS18XX_IS_UP_NUM_VAR], & ds_idx = numvars[DS18XX_TEMP_INDEX_NUM_VAR];
+static unsigned get_numvar (int v) { return numvars[v]; }
 static std::string ds_text (unsigned up, unsigned idx)
 {
     uint_fast8_t    temp_index;
@@ -60,6 +61,16 @@ static std::string ds_text (unsigned up, unsigned idx)
 #include "c47_ds.inc"
     (void) temp_index;
     return ds18xx_temp;
+}
+
+/* Ent-11 fuer die RTC: Anzeigeblock aus http_temperature () */
+#include "c47_rtcfn.inc"
+static std::string rtc_text (unsigned rtc_is_up, unsigned idx21, unsigned idx49)
+{
+    char rtc_temp[16];
+    numvars[RTC_TEMP_INDEX_NUM_VAR] = idx21; numvars[RTC_TEMP_HALF_DEG_NUM_VAR] = idx49;
+#include "c47_rtc.inc"
+    return rtc_temp;
 }
 
 static int n, fails;
@@ -243,6 +254,13 @@ int main ()
     fall_e (1, 0, "0&deg;C");
     fall_e (0, 255, "offline");
     fall_e (0, 45, "offline");
+    /* RTC: Index 49 fehlt (0x8000) -> Rueckfall auf Index 21; 255 dort ist der Fehlerwert */
+    { struct { unsigned up, i21, i49; const char * soll; } r[] = {
+        { 1, 255, 0x8000, "invalid" }, { 1, 254, 0x8000, "127&deg;C" }, { 1, 48, 0x8000, "24&deg;C" },
+        { 1, 255, 49, "24.5&deg;C" }, { 1, 0, 0xFFFA, "-3&deg;C" }, { 0, 255, 0x8000, "offline" } };
+      for (auto & f : r)
+      { n++; std::string t = rtc_text (f.up, f.i21, f.i49);
+        if (t != f.soll) fehl ("E", n, "RTC up " + std::to_string (f.up) + " Index 21 " + std::to_string (f.i21) + " Index 49 " + std::to_string (f.i49) + ": '" + t + "' statt '" + f.soll + "'"); } }
     ne = n - f0;
 
     printf ("%s (%s): %d Faelle (A %d, B %d, C %d, D %d, E %d), %d Fehler\n", fails ? "FEHLGESCHLAGEN" : "OK", BEZEICHNUNG,

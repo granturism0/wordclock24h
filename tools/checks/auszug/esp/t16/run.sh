@@ -33,7 +33,12 @@ python3 "$X" block "$Q/http.cpp" "len = httpclient (update_host, update_path, RE
   > "$D/c47_notes.inc" 2>>"$D/extract.log"
 python3 "$X" block "$Q/http.cpp" "uint_fast8_t ds18xx_is_up = get_numvar (DS18XX_IS_UP_NUM_VAR);" "rtc_temperature_correction = http_decode_temp_correction" \
   > "$D/c47_ds.inc" 2>>"$D/extract.log"
-for f in c47_params c47_fields c47_plus c47_notes c47_ds; do
+# Ent-11 fuer die RTC: Anzeigeblock aus http_temperature () samt A5-Hilfsfunktionen (in beiden Staenden vorhanden)
+{ python3 "$X" range "$Q/http.cpp" "#define RTC_TEMP_HALF_DEG_UNKNOWN" "/* Anzuzeigende"
+  python3 "$X" func "$Q/http.cpp" http_rtc_temp_half_deg http_format_half_deg
+} > "$D/c47_rtcfn.inc" 2>>"$D/extract.log"
+python3 "$X" block "$Q/http.cpp" "if (rtc_is_up)" "uint_fast8_t ds18xx_is_up = get_numvar (DS18XX_IS_UP_NUM_VAR);" > "$D/c47_rtc.inc" 2>>"$D/extract.log"
+for f in c47_rtcfn c47_rtc c47_params c47_fields c47_plus c47_notes c47_ds; do
   [ -s "$D/$f.inc" ] || { echo "AUSZUG LEER ($B): $f"; cat "$D/extract.log"; exit 2; }
 done
 cc -x c++ -std=c++17 -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -Wno-deprecated-declarations -I"$D" -DBEZEICHNUNG="\"$B\"" \
