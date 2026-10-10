@@ -357,6 +357,26 @@ parse_weather_fc (const char * answer, uint_fast8_t do_get_icon)
 #define WEATHER_LINE_TIMEOUT            2                                                           // Arbeitsfrist abgelaufen
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * WEATHER_BODY_RESERVE_MAX - Obergrenze fuer das Vorbelegen der Koerperzeile (C54/L357)
+ *
+ * Am Geraet belegt (ESP 3.2.29, 10.10.2026 11:07): "n=3983 cl=3983 oom=457" - der Koerper kam vollstaendig an,
+ * 457 Zeichen gingen beim Anhaengen verloren. Die Zeile wuchs in 16-Byte-Schritten (WString.cpp:230); jedes
+ * realloc, das nicht an Ort und Stelle wachsen kann, braucht den alten UND den neuen Block zugleich
+ * (umm_malloc.cpp, UMM_REALLOC_DEFRAG Fall 4), und die gepufferten Segmente liegen auf demselben Heap.
+ * Mit Content-Length wird die Zeile deshalb EINMAL in voller Groesse angelegt.
+ *
+ * Die Grenze ist keine Laengengrenze fuer den Koerper (die steht mit C51/L354 noch aus), sie entscheidet nur,
+ * ob vorbelegt wird. 5120: Die groesste gemessene Antwort (Vorhersage, cnt=9) hat 3983 Byte, das laesst rund
+ * 28 % Luft fuer laengere Beschreibungen und Ortsnamen. Groesser nicht: Vor dem Abruf stehen rund 9168 Byte
+ * frei; nach Verbindung und URL (rund 0,5 KB) bleiben bei 5 KB Vorbelegung rund 3,5 KB fuer die
+ * Empfangssegmente, und das Empfangsfenster belegt bis zu 4 x 536 Byte Nutzdaten (TCP_WND, ip=lm2f), mit
+ * Verwaltung rund 2,4 KB. Ueber der Grenze, ohne Content-Length (chunked) oder wenn reserve () scheitert,
+ * bleibt es beim schrittweisen Wachsen - Verluste zeigt dann oom= in der Messzeile.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define WEATHER_BODY_RESERVE_MAX        5120
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * Messwerte fuer die Messzeile (C54/L357). Nur Zaehler und die Laenge aus dem Kopf, keine Werte aus dem Inhalt.
  *
  * weather_rx_bytes:   Byte, die NACH der Leerzeile des Kopfes vom Socket gelesen wurden (Messzeile n=). Bei
@@ -560,6 +580,15 @@ weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * 
     } while (rc == WEATHER_LINE_NL && cnt < 20);
 
     weather_rx_bytes = 0;                                                                           // C54: ab hier zaehlt der Koerper
+
+    /* C54/L357: Zeile EINMAL in voller Groesse anlegen. weather_read_line () setzt sie mit line = "" zurueck,
+     * das behaelt die Kapazitaet (WString.cpp:189-191, :273-281, :317-319). Scheitert reserve (), geht es weiter
+     * wie ohne: Die Zeile waechst schrittweise, und was dabei verloren geht, zaehlt oom= - ein gescheitertes
+     * reserve () OHNE Verlust aendert am Ergebnis nichts und braucht kein eigenes Ergebniswort. */
+    if (weather_rx_cl > 0 && weather_rx_cl <= WEATHER_BODY_RESERVE_MAX)
+    {
+        (void) line.reserve ((unsigned int) weather_rx_cl + 1);
+    }
 
     rc = weather_read_line (line, start_ms);
 

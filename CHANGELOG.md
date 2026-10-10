@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-10-10 Korrektur L357: Vorhersagezeile wird vorbelegt (ESP 3.2.30)
+
+Nur der ESP, STM (3.2.25) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-111335.zip`, Tag `release/3.2.25-3.2.30-1.4.94`. Umfang: Korrektur zu C54 (L357).
+
+**Einspielreihenfolge: nur der ESP.** STM und PWA bleiben, wie sie sind. Die Prüfung am
+Gerät (oom=0 bei der Vorhersage) steht nach dem Einspielen noch aus.
+
+### Was am Gerät belegt war
+
+- Unter ESP 3.2.29 zeigte die neue Messzeile
+  `- weather fc=1 ms=119 ok n=3983 cl=3983 oom=457`. Der Körper kam vollständig an, aber
+  457 Zeichen fielen beim Anhängen an die Zeichenkette still weg: Das Vergrössern in
+  16-Byte-Schritten scheiterte mangels Speicher.
+- Dadurch fehlten Beschreibung oder Icon von morgen — „17 Grad, “ ohne Text oder
+  `ERROR weather leer`.
+- Das war schon unter 3.2.26 so. Sichtbar wurde es erst mit der Messzeile.
+
+### ESP: Körperzeile wird vorbelegt (C54, L357)
+
+- Vor dem Körper wird die Zeile einmal in der angekündigten Länge (Content-Length)
+  angelegt, höchstens 5'120 Byte. Danach gibt es keine Kopien mehr. Der Spitzenbedarf
+  sinkt von rund zweimal 4 KB auf einmal 4 KB.
+- Ohne Content-Length (chunked) oder bei einer grösseren Angabe gilt das bisherige
+  Verhalten. Scheitert die Vorbelegung, wird wie bisher gelesen, und `oom=` zählt jeden
+  Verlust. Es gibt kein neues Ergebniswort.
+- Die 5'120 Byte sind keine Längengrenze für den Körper. Die bleibt offen (C51).
+
+### Werkzeug (intern)
+
+t12 hat jetzt 56 Fälle. Gegen 3.2.29 schlägt er fehl, mit demselben Bild wie am Gerät:
+Zeichen fehlen im Körper.
+
+### Review und Prüfung
+
+Das Review ist bestanden. Nach dem Einspielen `ms=` der Vorhersage mit dem Wert vorher
+vergleichen (rund 100–120 ms).
+
 ## 2026-10-10 Paket „Brückenlast“, Schritt D: Prüfsumme ESP→STM; C54 und C53 (STM 3.2.25, ESP 3.2.29)
 
 STM und ESP, PWA (1.4.94) unverändert. Release-ZIP
