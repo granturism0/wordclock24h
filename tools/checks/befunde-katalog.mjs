@@ -6,13 +6,14 @@
 // Fehlerklasse, die schon einmal zugeschlagen hat: "fuehre die Doku nach" ist
 // eine Absichtserklaerung, keine Pruefung.
 //
-// Geprueft wird fuenferlei:
+// Geprueft wird sechserlei:
 //   1. Jede Massnahmennummer aus REVIEW.md hat eine Zeile in BEFUNDE.md
 //   2. Dasselbe fuer REVIEW-2026-09-29.md
 //   3. Die L-Nummern der laufenden Arbeit sind lueckenlos ab L1
 //   4. Jeder Befund mit Status "offen", "zurueckgestellt" oder "teilweise" ist
 //      im Abschnitt "ToDo" genannt
 //   5. Umgekehrt: kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes
+//   6. Kein gestrichener Eintrag traegt im Titel einen Befund, der noch offen ist
 // Pruefung 4 gibt es, weil die Tabellen den STAND fuehren, aber niemand aus
 // ihnen ablesen kann, was als Naechstes zu tun ist. Eine Arbeitsliste, die nur
 // von Hand nachgezogen wird, veraltet still -- dieselbe Fehlerklasse wie die
@@ -204,6 +205,48 @@ if (!todo) {
 
   if (stale.length) fail("BEFUNDE.md: ToDo-Eintrag erledigt, aber nicht gestrichen — " + stale.join("; "));
   else console.log("  OK  kein ToDo-Eintrag verweist ausschliesslich auf Erledigtes");
+
+  // ---- 6. Die dritte Richtung: gestrichener Eintrag, dessen EIGENER Befund noch offen ist
+  //
+  // Am 10.10.2026 vom Nutzer gefragt ("Hast du die ToDo-Liste sauber nachgefuehrt?") und
+  // von Hand nachgezaehlt: C43 war gestrichen, seine L338 stand weiter auf "offen";
+  // C9c2 ("Heap (L175), Logring (L176)") war gestrichen, L176 stand seit ESP 3.2.18 auf
+  // "offen", obwohl umgesetzt. Pruefung 4 sah nichts, weil die Kennung ja im (gestrichenen)
+  // Eintrag steht; Pruefung 5 sah nichts, weil sie nur ungestrichene Eintraege liest.
+  //
+  // Massgeblich sind nur die Kennungen im FETT GESETZTEN TITEL des Eintrags -- das sind
+  // die Befunde, die er traegt. Im Text darf ein gestrichener Eintrag auf offene Befunde
+  // verweisen (A58 nennt L42, der zu Recht offen ist).
+  const offenSt = new Map();
+  {
+    const sec = cat.split(/^## /m).find((s) => s.startsWith("Befunde aus der laufenden Arbeit"));
+    for (const line of (sec || "").split("\n")) {
+      const cols = line.split("|").map((c) => c.trim());
+      const id = (cols[1] || "").match(/^L(\d+)$/);
+      if (id && cols.length >= 4) offenSt.set("L" + id[1], /^\*\*(offen|zur(ü|ue)ckgestellt|teilweise)/i.test(cols[3]));
+    }
+  }
+  // Nur der TITEL eines offenen Eintrags zaehlt als Weitertraeger, nicht sein Fliesstext:
+  // Die erste Fassung nahm jede Erwaehnung und liess damit genau C43/L338 durch, weil ein
+  // anderer Eintrag L338 beilaeufig zitiert (Gegenprobe gegen den Stand vor der Korrektur).
+  const offeneEintraege = todo.split("\n").filter((l) => /^\| \*\*[A-F]\d/.test(l))
+    .map((l) => (l.split("|")[2] || "").match(/^\s*\*\*(.*?)\*\*/)?.[1] || "");
+  const verwaist = [];
+  let gestrichen = 0;
+  for (const line of todo.split("\n")) {
+    const e = line.match(/^\| ~~\*\*([A-F]\d+[a-z]?\d*)\*\*~~ \| ([^|]*)/);
+    if (!e) continue;
+    gestrichen++;
+    const titel = (e[2].match(/^\*\*(.*?)\*\*/) || [])[1] || "";
+    // Traegt ein OFFENER Eintrag denselben Befund weiter (L150 lebt in A23, L199 in C19),
+    // ist das kein Waisenkind, sondern eine Teilerledigung -- erst dann melden, wenn
+    // keine offene Zeile der Liste ihn mehr nennt.
+    const offen = [...titel.matchAll(/\bL(\d+)\b/g)].map((m) => "L" + m[1])
+      .filter((r) => offenSt.get(r) && !offeneEintraege.some((t) => new RegExp("\\b" + r + "\\b").test(t)));
+    if (offen.length) verwaist.push(`${e[1]} (${[...new Set(offen)].join(", ")})`);
+  }
+  if (verwaist.length) fail("BEFUNDE.md: ToDo gestrichen, eigener Befund steht noch auf offen — " + verwaist.join("; "));
+  else console.log(`  OK  gestrichene Eintraege: ${gestrichen} geprueft, kein eigener Befund mehr offen`);
 }
 
 
