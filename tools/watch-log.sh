@@ -25,6 +25,7 @@
 #   Sprung in d=            verworfene Zeichen auf der Bruecke, also Ueberlastung
 #   Sprung in v=            Variablenverluste
 #   - weather ... <nicht ok> Wetterabruf gescheitert, oder ms >= 1000 (ESP ab Paket 2026-10-09)
+#   - weather ... oom>0      Koerper unvollstaendig: Zeichen verloren oder n != cl (ESP ab 3.2.29, C54)
 #   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
 #   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
 #
@@ -147,8 +148,18 @@ while :; do
           # - weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>   (design.md §1.4)
           wms=$(printf '%s' "$z" | grep -aoE 'ms=[0-9]+' | head -1 | cut -d= -f2)
           werg=$(printf '%s' "$z" | sed -E 's/.*- weather fc=[0-9]+ ms=[0-9]+ ([a-z]+).*/\1/')
+          # Ab ESP 3.2.29 haengen n=<koerper> cl=<content-length|-> oom=<verlorene zeichen> an (C54).
+          # "ok" allein reicht dann nicht: "Wetter morgen: 15 Grad, " ohne Beschreibung meldet ok,
+          # obwohl der Koerper am Ende fehlte (L357). Ein Verlust beim Anhaengen (oom > 0) oder ein
+          # Koerper kuerzer als angekuendigt (n != cl) ist deshalb ein eigener Alarm.
+          woom=$(printf '%s' "$z" | grep -aoE 'oom=[0-9]+' | head -1 | cut -d= -f2)
+          wn=$(printf '%s' "$z" | grep -aoE ' n=[0-9]+' | head -1 | cut -d= -f2)
+          wcl=$(printf '%s' "$z" | grep -aoE 'cl=[0-9]+' | head -1 | cut -d= -f2)
           if [ "$werg" != "ok" ] || [ "${wms:-0}" -ge 1000 ]; then
             printf '  %s  Wetter: %s nach %s ms   <%s>\n' "$stamp" "$werg" "${wms:-?}" "$z"
+            alarm=1
+          elif [ "${woom:-0}" -gt 0 ] || { [ -n "$wn" ] && [ -n "$wcl" ] && [ "$wn" != "$wcl" ]; }; then
+            printf '  %s  Wetter: Koerper unvollstaendig (n=%s cl=%s oom=%s)   <%s>\n' "$stamp" "${wn:-?}" "${wcl:--}" "${woom:-0}" "$z"
             alarm=1
           fi ;;
         *"cmd abgewiesen"*)

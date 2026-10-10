@@ -23,6 +23,12 @@
  *  - stop (): bis WIFICLIENT_MAX_FLUSH_WAIT_MS = 300 ms (WiFiClient.cpp:306-325), hier immer voll
  *  - hostByName (h, ip, t): haengt hoechstens t ms (ESP8266WiFiGeneric.cpp:611-680)
  *
+ * C54/L357 (Kopie esp-c54): Die Messzeile traegt n=<byte> cl=<byte|-> oom=<zeichen> HINTER dem Ergebniswort.
+ * Die String-Attrappe bildet das Wachstum des Core nach (WString.cpp:230, 16-Byte-Schritte) und kann ein
+ * gescheitertes realloc () einspeisen: concat () liefert dann false, das Zeichen faellt still weg
+ * (WString.cpp:246-264, :383-385). Gerätefälle C54: 4-KB-Vorhersage mit Loch kurz vor dem Ende (Bild
+ * "15 Grad, " ohne Beschreibung), Icon fehlt, Koerper vom Server zu kurz geschlossen, zwei Chunks.
+ *
  * Geprueft je Fall: genau eine Messzeile "- weather fc=.. ms=.. <ergebnis>" auf Serial UND im Logring,
  * gleich, mit erwartetem Ergebnis (AKE.1); Gesamtdauer <= 5100 ms (AKE.2); Parser-Eingabe gleich der
  * erwarteten Zeichenkette (AKE.3/AKE.4); keine Schleife ohne Kontrollabgabe (AKE.5); genau eine
@@ -46,14 +52,23 @@ static void sdk ();                                       /* Zustellung an den A
 static void delay (unsigned long ms) { now += ms; sdk (); }
 static void yield () { now += 1; sdk (); }               /* Core: Kontext abgeben; hier 1 ms */
 
+/* realloc-Fehler einspeisen: Ab einer Laenge von oom_ab Zeichen scheitern die naechsten oom_zahl Wachstumsschritte;
+ * danach waechst die Zeile wieder (Segmente gelesen, pbufs frei). -1 = aus. */
+static long oom_ab = -1, oom_zahl = 0;
 struct String : std::string {
+  size_t cap = 11;                                        /* SSO, Wert unerheblich; waechst wie changeBuffer () */
   String () {}
-  String (const char * s) : std::string (s) {}
-  String (const std::string & s) : std::string (s) {}
-  String & operator= (const char * s) { std::string::operator= (s); return *this; }
-  String & operator+= (const char * s) { append (s); return *this; }
-  String & operator+= (const std::string & s) { append (s); return *this; }
-  String & operator+= (char c) { push_back (c); return *this; }
+  String (const char * s) : std::string (s) { if (size () > cap) cap = size (); }
+  String (const std::string & s) : std::string (s) { if (size () > cap) cap = size (); }
+  String & operator= (const char * s) { std::string::operator= (s); if (size () > cap) cap = size (); return *this; }
+  String & operator+= (const char * s) { append (s); if (size () > cap) cap = size (); return *this; }
+  String & operator+= (const std::string & s) { append (s); if (size () > cap) cap = size (); return *this; }
+  bool concat (char c) {
+    if (size () + 1 > cap) {                              /* reserve (len + 1) -> changeBuffer: (n + 16) & ~0xf */
+      if (oom_ab >= 0 && (long) size () >= oom_ab && oom_zahl > 0) { oom_zahl--; return false; }
+      cap = ((size () + 1 + 16) & ~(size_t) 0xf) - 1; }
+    push_back (c); return true; }
+  String & operator+= (char c) { concat (c); return *this; }
 };
 
 /* Serial-Rekorder: vollstaendige Zeilen */
@@ -139,6 +154,7 @@ static int parse_weather (const char * a, uint_fast8_t i)    { parsed.push_back 
 static int parse_weather_fc (const char * a, uint_fast8_t i) { parsed.push_back (a); return rufe (real_parse_weather_fc, a, i); }
 
 static int fails, n, checks;
+static long soll_n = -2, soll_oom = 0; static std::string soll_cl = "";   /* -2 / "" = nicht pruefen; oom immer, Vorgabe 0 */
 static const char * APPID = "GEHEIMAPPID0123", * LON = "8.5417", * LAT = "47.3769";
 
 static bool endzeile (const std::string & l) {
@@ -169,7 +185,20 @@ static void fall (const char * name, Szenario s, int fc, int icon, const char * 
     int k = sscanf (mzeile.c_str (), "- weather fc=%d ms=%lu %15s", &f, &ms, erg);
     PRUEF (k == 3 && f == fc && ! strcmp (erg, soll_erg), "Messzeile '%s', erwartet fc=%d %s (AKE.1)", mzeile.c_str (), fc, soll_erg);
     PRUEF (k == 3 && ms <= dauer && ms + 2 >= dauer, "ms=%lu gegen gemessene Dauer %u (AKE.1)", ms, (unsigned) dauer);
+    /* C54: n=, cl=, oom= hinter dem Ergebniswort */
+    unsigned long mn = 0, moom = 0; char mcl[16] = "";
+    int k2 = sscanf (mzeile.c_str (), "- weather fc=%d ms=%lu %15s n=%lu cl=%15s oom=%lu", &f, &ms, erg, &mn, mcl, &moom);
+    PRUEF (k2 == 6, "Messzeile ohne n=/cl=/oom=: '%s' (C54)", mzeile.c_str ());
+    if (k2 == 6) {
+      PRUEF ((long) moom == soll_oom, "oom=%lu, erwartet %ld: '%s' (C54)", moom, soll_oom, mzeile.c_str ());
+      if (soll_n != -2) PRUEF ((long) mn == soll_n, "n=%lu, erwartet %ld: '%s' (C54)", mn, soll_n, mzeile.c_str ());
+      if (! soll_cl.empty ()) PRUEF (soll_cl == mcl, "cl=%s, erwartet %s: '%s' (C54)", mcl, soll_cl.c_str (), mzeile.c_str ());
+      /* watch-log.sh:149 liest das Ergebnis als drittes Feld; dieselbe Regel hier */
+      std::string w = mzeile.substr (mzeile.find ("ms=")); w = w.substr (w.find (' ') + 1); w = w.substr (0, w.find (' '));
+      PRUEF (w == soll_erg, "watch-log-Feld '%s' statt '%s' (C54)", w.c_str (), soll_erg);
+    }
   }
+  soll_n = -2; soll_oom = 0; soll_cl = ""; oom_ab = -1; oom_zahl = 0;
   /* AKE.6 */
   int ez = 0; std::string ezeile;
   for (auto & l : Serial.lines) if (endzeile (l)) { ez++; ezeile = l; }
@@ -235,6 +264,7 @@ int main ()
     fall ("Server schliesst nie, sendet troepfchenweise", s, 0, 0, "timeout", nullptr); }
   { Szenario s; s.segs.push_back ({50, hdr_cl (500) + "{\"cod\":200"}); s.close_at = NIE;
     fall ("Koerper ohne \\n, Server schliesst nie", s, 0, 0, "timeout", nullptr); }
+  soll_n = 0; soll_cl = "-";
   { Szenario s; s.dns_haengt = true; fall ("DNS haengt", s, 0, 0, "dns", nullptr); }
   { Szenario s; s.conn_haengt = true; fall ("connect haengt", s, 0, 0, "connfail", nullptr); }
   { Szenario s; s.dns_ms = 3000; s.conn_haengt = true; fall ("DNS 3 s, dann connect haengt (keine Doppelzaehlung)", s, 0, 0, "connfail", nullptr); }
@@ -247,6 +277,7 @@ int main ()
     fall ("Koerper erst nach 4,9 s", s, 0, 0, "timeout", nullptr); }
 
   /* --- AKE.6: leere Antworten haben genau eine Endzeile --- */
+  soll_n = 0; soll_cl = "-";
   { Szenario s; s.close_at = 30; fall ("Server schliesst ohne Antwort", s, 0, 0, "leer", nullptr); }
   { Szenario s; s.segs.push_back ({30, hdr_cl (0)}); s.close_at = 30; fall ("Kopf ohne Koerper", s, 0, 0, "leer", nullptr); }
   { Szenario s = cl (noicon, 40); fall ("Icon verlangt, Antwort ohne Icon", s, 0, 1, "leer", noicon.c_str ()); }
@@ -297,8 +328,10 @@ int main ()
   std::string f_all = kopf (f_body.size ()) + f_body;
   printf ("  (G1-Fall: Kopf %zu Byte, Wetter %zu Byte in %zu Segmenten, Vorhersage %zu Byte in %zu Segmenten)\n",
           kopf (w_body.size ()).size (), w_all.size (), (w_all.size () + 535) / 536, f_all.size (), (f_all.size () + 535) / 536);
+  soll_n = w_body.size (); soll_cl = std::to_string (w_body.size ());
   { Szenario s = mss (w_all, 30, 1); fall ("G1 Wetter, 536er Segmente, cod am Ende", s, 0, 0, "ok", w_body.c_str (), false, false, "WEATHER Wetter heute: 14 Grad, Bedeckt"); }
   { Szenario s = mss (w_all, 30, 1); fall ("G1 Icon heute, 536er Segmente", s, 0, 1, "ok", w_body.c_str (), false, false, "WICON 04n"); }
+  soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ());
   { Szenario s = mss (f_all, 30, 1); fall ("G1 Vorhersage, 536er Segmente, cod am Anfang", s, 1, 0, "ok", f_body.c_str (), true, false, "WEATHER_FC Wetter morgen: 18 Grad, Leichter Regen"); }
   { Szenario s = mss (f_all, 30, 1); fall ("G1 Icon morgen, 536er Segmente", s, 1, 1, "ok", f_body.c_str (), false, false, "WICON_FC 10d"); }
   { Szenario s = mss (w_all, 30, 0); fall ("G1 Wetter, Segmente gleichzeitig zugestellt", s, 0, 0, "ok", w_body.c_str ()); }
@@ -306,6 +339,37 @@ int main ()
   { Szenario s = mss (f_all, 30, 3); fall ("G1 Vorhersage, Folgesegmente alle 3 ms", s, 1, 0, "ok", f_body.c_str ()); }
   { std::string h = kopf (w_body.size ()); Szenario s; s.segs.push_back ({30, h.substr (0, 200)}); s.segs.push_back ({31, h.substr (200) + w_body}); s.close_at = 31;
     fall ("G1 Kopf ueber die Segmentgrenze", s, 0, 0, "ok", w_body.c_str ()); }
+
+  /* --- C54/L357 (ESP 3.2.28, G1-Fenster 10.10.2026): Vorhersage rund 4 KB, cnt=9, Content-Length, eine Zeile
+   * ohne '\n', Lieferung in 536er Segmenten. Die Messzeile muss unterscheiden, WO der Koerper verloren ging. --- */
+  {
+    size_t pd = f_body.rfind ("\"description\"");       /* 9. Eintrag: temp steht VOR description */
+    size_t pt = f_body.rfind ("\"temp\"");
+    if (pd == std::string::npos || pt == std::string::npos || pt > pd) { printf ("FEHL Pruefstand: 9. Eintrag nicht gefunden\n"); return 2; }
+    long loch = 200;                                        /* Zeichen, die nicht angehaengt werden */
+    /* Gewachsen wird nur an der Kapazitaetsgrenze 16k-1 (WString.cpp:230), dort scheitert das erste realloc */
+    size_t h = pd + (15 - pd % 16 + 16) % 16;
+    std::string mit_loch = f_body.substr (0, h) + f_body.substr (h + loch);     /* was der Parser bekommt */
+    printf ("  (C54-Fall: Vorhersage-Koerper %zu Byte, 9. description bei %zu, Loch %ld Zeichen ab dort)\n", f_body.size (), pd, loch);
+    /* a) realloc scheitert kurz vor dem Ende: Temperatur da, Beschreibung weg -- das Bild von 10:42 */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Vorhersage, realloc scheitert ab 9. description", s, 1, 0, "ok", mit_loch.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, "); }
+    /* b) dasselbe beim Icon morgen: Icon im 9. Eintrag fehlt -- das Bild von 08:40 und 09:40 */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Icon morgen, realloc scheitert ab 9. description", s, 1, 1, "leer", mit_loch.c_str ()); }
+    /* c) Gegenhypothese: Der Koerper kommt kuerzer an, als der Kopf sagt (Abbruch durch die Gegenseite) */
+    { std::string kurz = kopf (f_body.size ()) + f_body.substr (0, pd);
+      soll_n = (long) pd; soll_cl = std::to_string (f_body.size ()); soll_oom = 0;
+      Szenario s = mss (kurz, 30, 1); fall ("C54 Icon morgen, Server schliesst vor dem Ende", s, 1, 1, "leer", f_body.substr (0, pd).c_str ()); }
+    /* d) Gegenhypothese: chunked in zwei Stuecken, das zweite traegt den 9. Eintrag -- gelesen wird nur das erste */
+    { std::string c1 = f_body.substr (0, pd), c2 = f_body.substr (pd);
+      std::string all = hdr_ch () + hex (c1.size ()) + "\r\n" + c1 + "\r\n" + hex (c2.size ()) + "\r\n" + c2 + "\r\n0\r\n\r\n";
+      soll_n = (long) (hex (c1.size ()).size () + 2 + c1.size () + 2); soll_cl = "-"; soll_oom = 0;
+      Szenario s = mss (all, 30, 1); fall ("C54 Icon morgen, chunked in zwei Stuecken", s, 1, 1, "leer", (c1 + "\r").c_str ()); }
+    /* e) Gutfall unveraendert: vollstaendig, n = cl, oom=0 */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ());
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Icon morgen, vollstaendig", s, 1, 1, "ok", f_body.c_str (), false, false, "WICON_FC 10d"); }
+  }
 
   printf ("%s (%s): %d Faelle, %d Pruefungen, %d Fehler\n", fails ? "FEHLGESCHLAGEN" : "OK", BEZEICHNUNG, n, checks, fails);
   return fails ? 1 : 0;
