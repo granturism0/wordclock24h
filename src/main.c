@@ -3984,7 +3984,16 @@ main (void)
          *
          * Keine Pruefung auf esp8266.is_online: Das Flag hat der SYNCVARS-Zweig gerade selbst
          * gesetzt (esp8266.c), und genau dieses Setzen ist der Zweck der Uebung (L255).
+         *
+         * Teil D, N1 (Ent-5): Eine abgewiesene "CMC"-Zeile merkt ebenfalls einen Vollabgleich vor --
+         * gedrosselt auf hoechstens einen je 60 s schon in esp8266.c, gesendet nur hier.
          */
+        if (esp8266_cmc_sync)
+        {
+            esp8266_cmc_sync = 0;
+            var_sync_pending = 1;
+        }
+
         if (var_sync_pending)
         {
             var_sync_pending = 0;

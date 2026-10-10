@@ -14024,9 +14024,22 @@ http_server_loop (void)
      *     250 ms lang JEDE Anfrage abgewiesen. Die Differenzbildung ist
      *     ueberlaufsicher und in dieser Datei schon zweimal so geschrieben.
      *
-     * available () wird zuerst geprueft: connected () liefert zwar true, solange noch
-     * Daten anstehen (WiFiClient.cpp:332), aber diese Reihenfolge ist auch dann
-     * richtig, wenn sich diese Zusage im Core einmal aendert.
+     * Das Verbindungsende gilt erst, wenn NACH connected () == 0 auch available () 0
+     * meldet (C53/L356, wie weather_read_line () in weather.cpp, L353). Hier stand,
+     * connected () liefere true, solange noch Daten anstehen - das ist falsch (Core
+     * 3.1.2): available () erhebt den Puffer ZUERST und gibt erst DANACH per
+     * optimistic_yield (100) ab (WiFiClient.cpp:246-257). Stellt der Treiber in dieser
+     * Abgabe die Anfrage samt FIN zu, ist die 0 veraltet. connected () meldet danach 0,
+     * obwohl Daten im Puffer liegen: state () zaehlt CLOSE_WAIT als CLOSED
+     * (ClientContext.h:363-371), und WiFiClient::connected () kehrt dann zurueck, ohne
+     * available () zu fragen (WiFiClient.cpp:327-333). Das FIN folgt den Daten in
+     * Reihenfolge, und der Puffer bleibt beim FIN erhalten (ClientContext.h:594-615):
+     * Was available () nach connected () == 0 meldet, ist endgueltig.
+     *
+     * Eine Antwort bekommt ein Client, der nach der Anfrage halb schliesst, auch so
+     * nicht: In CLOSE_WAIT schreibt der Core nichts mehr (ClientContext.h:476 und :508,
+     * state () == CLOSED). Die Korrektur macht das Verhalten eindeutig - die Anfrage
+     * wird ausgefuehrt, statt je nach Zeitpunkt verworfen und als Abbruch gezaehlt.
      */
     unsigned long start_millis    = millis ();
     uint_fast8_t  request_arrived = 0;
@@ -14041,6 +14054,11 @@ http_server_loop (void)
 
         if (! http_client.connected ())
         {
+            if (http_client.available ())               // C53: die 0 von oben kann veraltet sein
+            {
+                request_arrived = 1;
+            }
+
             break;                                      // (b) Gegenstelle weg, kein Request mehr zu erwarten
         }
 

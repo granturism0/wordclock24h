@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026-10-10 Paket „Brückenlast“, Schritt D: Prüfsumme ESP→STM; C54 und C53 (STM 3.2.25, ESP 3.2.29)
+
+STM und ESP, PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-110256.zip`, Tag `release/3.2.25-3.2.29-1.4.94`. Umfang: Schritt D aus `specs/paket-2026-10-09/`, dazu C54
+(L357) und C53 (L356).
+
+**Einspielreihenfolge: zuerst der ESP, dann der STM** über `./tools/flash-stm.sh`. So läuft
+G4 unter dem endgültigen ESP. Die ESP-Seite von D ist schon seit 3.2.27 auf dem Gerät; erst
+der neue STM schaltet sie ein. Die Prüfung am Gerät (G4) und der Testdurchlauf stehen nach
+dem Einspielen noch aus.
+
+Warum ein gemeinsames Release: `make release-zip` baut beide Komponenten. Ein reines
+ESP-Release hätte den STM-Code mit D unter der alten STM-Nummer auf den Server gelegt.
+
+### STM: Prüfsumme auf Kommandos vom ESP (Teil D)
+
+- Ein Kommando vom ESP, das unterwegs verkürzt oder mit einer anderen Zeile verschmolzen
+  wurde, wird nicht mehr angewandt. Bisher konnte es still einen falschen Wert setzen.
+- Die Eröffnung des Vollabgleichs `var VBffnn` trägt jetzt immer das Flag 0x04. Daran
+  erkennt ein ESP ab 3.2.27, dass er alle Kommandos als `CMC <nutzlast>*hhhh` senden soll.
+- Der STM prüft die Marke streng: mit derselben `var_crc()` wie für die var-Zeilen,
+  kanonisch kleingeschrieben und byte-genau verglichen, ohne `htoi()`.
+- Abgewiesen wird jede `CMC`-Zeile mit falscher oder fehlender Marke, verkürzt, mit
+  Nicht-Hex oder Grossbuchstaben in der Marke, verschmolzen, mit leerer Nutzlast oder einer
+  über 127 Zeichen. Angewandt wird davon nichts.
+- Ein `\r` in einer Nutzlast führt jetzt zur Abweisung statt zum stillen Bereinigen.
+- Ein Zähler sättigt bei 65'535. Die Meldung `cmd abgewiesen #n len=l` kommt für die ersten
+  vier Abweisungen einzeln, danach für jede fünfzigste. Sie enthält keinen Wert.
+- Nach einer Abweisung wird höchstens einmal je 60 s ein Vollabgleich vorgemerkt. Er zieht
+  den ESP auf den Stand des STM zurück und läuft nur im Hauptloop.
+- `CMD` ohne Marke wird weiter angenommen, ein älterer ESP funktioniert also wie bisher.
+
+### ESP: Messzeile beim Wetterabruf (C54, L357)
+
+- Die Messzeile lautet jetzt
+  `- weather fc= ms= <ergebnis> n=<körperbytes> cl=<content-length|-> oom=<verlorene zeichen>`.
+- Damit wird L357 unterscheidbar: Fehlt das Ende der Vorhersage, zeigt die Zeile, ob der
+  Körper kürzer war als angekündigt oder ob die Antwort den Eintrag nicht enthielt.
+- Vermutet wird, dass beim Anhängen an die Zeile Speicher fehlt und Zeichen still wegfallen;
+  `oom=` zählt genau diese Zeichen. **Das ist eine Messung, keine Korrektur** — L357 bleibt
+  offen.
+
+### ESP: Anfragen mit frühem Verbindungsende (C53, L356)
+
+- Eine Anfrage, deren erstes Segment samt FIN genau während der Abgabe in `available()`
+  eintrifft, wird nicht mehr verworfen, sondern ausgeführt.
+- Neu belegt: Ein Client, der nach der Anfrage halb schliesst, bekommt weiterhin keine
+  Antwort — der Core schreibt in diesem Zustand nichts mehr. Die Anfrage wird aber jetzt
+  immer ausgeführt, statt je nach Zeitpunkt verworfen und als Abbruch gezählt.
+- Die Kommentare zur `connected()`-Falle in `http.cpp` und `httpclient.cpp` sind berichtigt.
+
+### Werkzeug (intern)
+
+Neuer Prüfstand d für den STM mit 22 Fehlerformen und 4'142 verschmolzenen Zeilen, dazu ein
+Modus ALT für einen alten STM. t12 ist auf 52 Fälle erweitert, t15 ist neu. Die Logwache
+meldet einen unvollständigen Wetterkörper (`oom>0` oder `n≠cl`), auch wenn die Zeile „ok“
+sagt.
+
+### Reviews und offene Punkte
+
+Die Reviews zu D und zum ESP-Teil sind bestanden. Als Befunde offen: Wie lange ein
+Vollabgleich nach Abweisungen dauert, ist nicht gemessen, und im Log lässt sich nicht
+zuordnen, welche Abweisung ihn ausgelöst hat.
+
+Flash F103: 1'120 Byte frei im Testbau, vorher 1'348.
+
 ## 2026-10-10 Paket „Brückenlast“, Schritt C3: EEPROM schreibt seitenweise (STM 3.2.24)
 
 Nur der STM, ESP (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP

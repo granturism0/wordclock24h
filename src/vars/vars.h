@@ -293,6 +293,11 @@ extern void         var_send_ssd1963_flags (void);
 
 extern void         var_send_all_variables (void);
 
+/* Pruefsumme der Bruecke (A32), seit Teil D auch fuer markierte Kommandos ESP -> STM ("CMC", esp8266.c).
+ * EINE Rechnung fuer beide Richtungen, keine zweite (specs/paket-2026-10-09, design.md 5.1).
+ */
+extern uint16_t     var_crc (const char *);
+
 /* Nullpunkt des Reload-Budgets in var_send_buf(). Gehoert an den Kopf des Hauptloops, neben den
  * regulaeren watchdog_reload() -- und nirgendwo sonst hin. Siehe VAR_SEND_RELOAD_BUDGET_SEC.
  */

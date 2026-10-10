@@ -357,6 +357,69 @@ parse_weather_fc (const char * answer, uint_fast8_t do_get_icon)
 #define WEATHER_LINE_TIMEOUT            2                                                           // Arbeitsfrist abgelaufen
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * Messwerte fuer die Messzeile (C54/L357). Nur Zaehler und die Laenge aus dem Kopf, keine Werte aus dem Inhalt.
+ *
+ * weather_rx_bytes:   Byte, die NACH der Leerzeile des Kopfes vom Socket gelesen wurden (Messzeile n=). Bei
+ *                     Content-Length und einem Koerper ohne '\n' ist das die gelesene Koerperlaenge.
+ * weather_rx_cl:      Content-Length aus dem Kopf, -1 = keine (Messzeile cl=-, z. B. chunked).
+ * weather_rx_lost:    Zeichen, die gelesen, aber NICHT an die Zeile angehaengt wurden (Messzeile oom=).
+ *                     String::concat () meldet ein gescheitertes realloc () nur ueber seinen Rueckgabewert,
+ *                     das Zeichen faellt sonst STILL weg (Core 3.1.2, WString.cpp:246-264, :383-385). Die Zeile
+ *                     waechst in 16-Byte-Schritten (WString.cpp:230), bei der Vorhersage auf rund 4 KB.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t     weather_rx_bytes;
+static long         weather_rx_cl;
+static uint32_t     weather_rx_lost;
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * weather_header_cl () - Content-Length aus einer Kopfzeile, -1 = keine solche Zeile oder kein Wert (C54)
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static long
+weather_header_cl (const char * p)
+{
+    static const char   name[] = "content-length:";
+    uint_fast8_t        i;
+    long                v = 0;
+
+    for (i = 0; name[i]; i++)
+    {
+        char c = p[i];                                                                              // '\0' bricht hier ab
+
+        if (c >= 'A' && c <= 'Z')
+        {
+            c += 'a' - 'A';
+        }
+
+        if (c != name[i])
+        {
+            return -1;
+        }
+    }
+
+    p += i;
+
+    while (*p == ' ' || *p == '\t')
+    {
+        p++;
+    }
+
+    if (*p < '0' || *p > '9')
+    {
+        return -1;
+    }
+
+    while (*p >= '0' && *p <= '9' && v < 100000000L)                                             // begrenzt, kein Ueberlauf
+    {
+        v = v * 10 + (*p - '0');
+        p++;
+    }
+
+    return v;
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * weather_rest_ms () - verbleibende Arbeitsfrist, 0 = abgelaufen. Differenzbildung ist ueberlaufsicher.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -380,6 +443,7 @@ weather_rest_ms (uint32_t start_ms)
  * Anders als readStringUntil () wartet sie nach dem Verbindungsende NICHT bis zur Frist
  * (Stream::timedRead prueft connected () nicht) - ein Koerper ohne '\n' ist damit sofort fertig.
  * In jedem Durchlauf ohne Zeichen gibt sie die Kontrolle ab (Soft-Watchdog).
+ * Sie zaehlt die gelesenen Byte und die nicht angehaengten Zeichen fuer die Messzeile (C54).
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 static int
@@ -398,6 +462,11 @@ weather_read_line (String & line, uint32_t start_ms)
         {
             int ch = openweather_client.read ();
 
+            if (ch >= 0)
+            {
+                weather_rx_bytes++;                                                                 // C54: Messzeile n=
+            }
+
             if (ch == '\n')
             {
                 return WEATHER_LINE_NL;
@@ -405,7 +474,14 @@ weather_read_line (String & line, uint32_t start_ms)
 
             if (ch >= 0)
             {
+                unsigned int len = line.length ();
+
                 line += (char) ch;
+
+                if (line.length () == len)                                                          // realloc gescheitert, Zeichen weg
+                {
+                    weather_rx_lost++;                                                              // C54: Messzeile oom=
+                }
             }
         }
         else if (! openweather_client.connected ())
@@ -450,6 +526,7 @@ weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * 
     int             rc;
     int             end;
     const char *    p;
+    long            cl;
 
     do
     {
@@ -457,6 +534,7 @@ weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * 
 
         if (rc == WEATHER_LINE_TIMEOUT)
         {
+            weather_rx_bytes = 0;                                                                   // C54: n= zaehlt nur den Koerper, der kam nicht
             return "timeout";
         }
 
@@ -471,8 +549,17 @@ weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * 
         {
             break;                                                                                  // Leerzeile: Kopfende
         }
+
+        cl = weather_header_cl (p);
+
+        if (cl >= 0)                                                                                // C54: Messzeile cl=
+        {
+            weather_rx_cl = cl;
+        }
         cnt++;
     } while (rc == WEATHER_LINE_NL && cnt < 20);
+
+    weather_rx_bytes = 0;                                                                           // C54: ab hier zaehlt der Koerper
 
     rc = weather_read_line (line, start_ms);
 
@@ -516,7 +603,9 @@ weather_read_answer (uint32_t start_ms, int do_get_icon, int fc, uint_fast8_t * 
  *
  * Endet auf JEDEM Pfad mit genau einer Endzeile fuer den STM (WEATHER, WEATHER_FC, WICON, WICON_FC aus
  * dem Parser, sonst "ERROR weather <ergebnis>") und genau einer Messzeile
- * "- weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer>" - ohne appid, Ort, Koordinaten oder URL.
+ * "- weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer> n=<byte> cl=<byte|-> oom=<zeichen>" - ohne
+ * appid, Ort, Koordinaten oder URL. n=, cl= und oom= stehen HINTER dem Ergebniswort: tools/watch-log.sh liest es
+ * als drittes Feld (C54/L357, Bedeutung bei weather_rx_bytes).
  * "fehler": Die Endzeile kam vom Parser, meldet aber einen Fehler (cod != 200, Parse Error); die Endzeile
  * bleibt dabei unveraendert, es kommt KEIN zusaetzliches "ERROR weather ..." (M1).
  *----------------------------------------------------------------------------------------------------------------------------------------
@@ -530,7 +619,12 @@ query_weather (char * appid, char * lon, char * lat, char * city, int do_get_ico
     IPAddress       ip;
     const char *    result;
     uint_fast8_t    endline = 0;
-    char            logline[48];                                                                    // "- weather fc=1 ms=4294967295 connfail" = 37
+    char            logline[96];                                                                    // "- weather fc=1 ms=4294967295 connfail n=4294967295 cl=-2147483648 oom=4294967295" = 80
+    char            clbuf[12];
+
+    weather_rx_bytes = 0;                                                                           // C54: Messzeile n=, cl=, oom=
+    weather_rx_cl    = -1;
+    weather_rx_lost  = 0;
 
     if (fc)
     {
@@ -606,9 +700,19 @@ query_weather (char * appid, char * lon, char * lat, char * city, int do_get_ico
         Serial.println (logline);
     }
 
+    if (weather_rx_cl >= 0)
+    {
+        snprintf (clbuf, sizeof (clbuf), "%ld", weather_rx_cl);
+    }
+    else
+    {
+        strcpy (clbuf, "-");
+    }
+
     /* EINMAL formatieren, ZWEIMAL ausgeben, wie esp_heap_log () (C14/L185) */
-    snprintf (logline, sizeof (logline), "- weather fc=%d ms=%lu %s",
-              fc ? 1 : 0, (unsigned long) ((uint32_t) millis () - start_ms), result);
+    snprintf (logline, sizeof (logline), "- weather fc=%d ms=%lu %s n=%lu cl=%s oom=%lu",
+              fc ? 1 : 0, (unsigned long) ((uint32_t) millis () - start_ms), result,
+              (unsigned long) weather_rx_bytes, clbuf, (unsigned long) weather_rx_lost);
     Serial.println (logline);
     stm32_log_append (logline);
 }

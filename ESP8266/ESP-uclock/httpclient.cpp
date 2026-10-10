@@ -44,17 +44,24 @@ static WiFiClient      client;
  * der Legacy-Pfad genauso wie /api/update_status, weil beide dieselbe Leseschleife
  * benutzen.
  *
- * Dass die fehlenden Byte trotzdem noch kommen, ist ebenfalls belegt: Bis ESP 3.2.16
+ * Dass die fehlenden Byte trotzdem ankommen, ist ebenfalls belegt: Bis ESP 3.2.16
  * wartete genau diese Stelle unbegrenzt und lieferte die Datei IMMER vollstaendig.
- * connected () ist hier also kein verlaessliches "es kommt nichts mehr", sondern ein
- * Zwischenzustand.
+ * VERALTET war dabei nur die erste Rueckgabe von available (), NICHT das Ende (L353,
+ * C53/L356): available () erhebt den Puffer ZUERST und gibt erst DANACH per
+ * optimistic_yield (100) ab (WiFiClient.cpp:246-257). In dieser Abgabe stellt der Treiber
+ * die restlichen Segmente samt FIN zu, zurueck kommt die alte 0. Das Ende selbst ist
+ * endgueltig: Das FIN folgt den Daten in Reihenfolge, und der Puffer bleibt beim FIN
+ * erhalten (ClientContext.h:594-615). Was available () NACH connected () == 0 meldet,
+ * ist vollstaendig - es kommt nichts mehr nach.
  *
  * Deshalb beendet connected () == false die Schleife nicht mehr sofort, sondern eroeffnet
  * ein NACHLAUFFENSTER: Es wird weiter auf Daten geprueft, bis das Budget aufgebraucht
  * ist. Das Budget gilt FUER DEN GANZEN ABRUF und nicht je Zeichen - sonst koennten 432
  * Restbyte im schlimmsten Fall 432 Fenster kosten. Beim regulaeren Ende eines Abrufs
  * kostet es nichts, weil der Aufrufer dann bei len == 0 aufhoert und gar nicht mehr
- * wartet; bezahlt wird es nur von Abrufen, die tatsaechlich abreissen.
+ * wartet; bezahlt wird es nur von Abrufen, die tatsaechlich abreissen. Noetig waere nur
+ * der ERSTE Schritt des Fensters, die erneute Abfrage von available (); der Rest des
+ * Budgets ist Reserve und kostet nur bei einer Verbindung, die ohne Rest endet.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 #define HTTPCLIENT_READ_TIMEOUT     5000                        // msec, Vorbild: READ_BODY_TIMEOUT in http.cpp

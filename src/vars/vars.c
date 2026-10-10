@@ -159,7 +159,7 @@ var_send_nested_count (void)
  * rund 0,4 % auf rund 0,0015 %. Garantien gibt die Rechnung keine -- sie ist eine Pruefsumme und
  * keine Sicherung. Erkannt heisst hier: nachgesendet.
  */
-static uint16_t
+uint16_t                                                        // Teil D: nicht mehr static, auch fuer "CMC" in esp8266.c
 var_crc (const char * payload)
 {
     uint8_t         sum1;
@@ -1781,6 +1781,9 @@ var_send_ir_code (uint_fast8_t idx)
  *
  *   ff  0x02 immer: dieser Abgleich endet mit der Abschlussmarke.
  *       0x01, wenn die Zeilen DIESES Abgleichs die Pruefsummenmarke tragen (esp8266.cap_var_crc).
+ *       0x04 immer: dieser STM prueft markierte Kommandos "CMC" (Teil D, specs/paket-2026-10-09,
+ *            design.md 5.2). Der ESP lernt daraus, seine Kommandos zu markieren; ein ESP ohne Teil D
+ *            ignoriert das Bit (ESP-uclock.ino, var_frame_line()).
  *   nn  Abgleichnummer, je Vollabgleich +1. Die Eroeffnung gilt nur fuer IHREN Abgleich.
  *
  * Vier Auflagen (specs/paket-2026-10-06/design.md 2.2), hier stehen sie, damit niemand sie beim
@@ -1818,7 +1821,7 @@ var_send_all_variables (void)
 
     seq = ++var_sync_seq;                                       // lokal: die Marke traegt die Nummer IHRER Eroeffnung
 
-    sprintf (frame, "VB%02x%02x", (unsigned int) (esp8266.cap_var_crc ? 0x03 : 0x02), (unsigned int) seq);
+    sprintf (frame, "VB%02x%02x", (unsigned int) (esp8266.cap_var_crc ? 0x07 : 0x06), (unsigned int) seq);
     var_send_buf (frame, 2);                                    // Kennung: "VB"
 
     var_send_use_rgbw ();

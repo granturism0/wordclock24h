@@ -118,6 +118,7 @@ extern ESP8266_GLOBALS                  esp8266;
 extern volatile uint_fast8_t            esp8266_ten_ms_tick;
 extern uint_fast16_t                    esp8266_ack_expect;                     // gesetzt von var_send_buf(), waehrend es wartet
 extern uint16_t                         esp8266_ack_drops;                      // verworfene Quittungen, saettigend (diag a=)
+extern uint_fast8_t                     esp8266_cmc_sync;                       // Teil D: abgewiesenes "CMC" -- Vollabgleich faellig (main.c)
 extern void                             esp8266_cmd_reject (const char *, uint_fast8_t, uint_fast8_t);  // in main.c: gemeinsamer Zaehler, gedrosselt (A46)
 
 extern uint_fast8_t                     esp8266_get_message (void);

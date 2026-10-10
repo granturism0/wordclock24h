@@ -17,6 +17,8 @@
 #include "esp8266.h"
 #include "esp8266-config.h"
 #include "io.h"
+#include "vars.h"                                                       // var_crc(), Teil D
+#include "main.h"                                                       // uptime, Teil D
 
 #undef UART_PREFIX
 #define UART_PREFIX                     esp8266
@@ -336,6 +338,76 @@ esp8266_copy (char * dst, const char * src, uint_fast8_t len)
     dst[len] = 0;
 }
 
+/* Markierte Kommandos "CMC <nutzlast>*hhhh" (Teil D, specs/paket-2026-10-09, design.md 5.3/5.4).
+ *
+ * Der ESP markiert seine Kommandos, sobald die Eroeffnung des Vollabgleichs das Flag 0x04 traegt
+ * (vars.c, var_send_all_variables()). hhhh ist var_crc() ueber die Nutzlast OHNE "CMC " und OHNE
+ * die Marke -- DIESELBE Funktion wie fuer die var-Zeilen, keine zweite Rechnung.
+ *
+ * "CMD" ist nie markiert, "CMC" immer. Eine CMC-Zeile ohne gueltige Marke ist deshalb IMMER ein
+ * Uebertragungsfehler: verkuerzt, mit einer anderen verschmolzen (L141, L188, L205) -- und wird
+ * NICHT angewandt. Ein still beschaedigter Wert faellt niemandem auf, ein ausbleibender schon.
+ *
+ * Geprueft wird: '*' an fuenftletzter Stelle, davor mindestens ein Zeichen Nutzlast, die Nutzlast
+ * passt in u.cmd, und die vier Zeichen danach sind BYTE-GLEICH mit "%04x" von var_crc() -- also
+ * genau das, was der ESP sendet (stm_cmd_send()). Strenger als jede Ziffernauswertung und
+ * ausdruecklich NICHT htoi(), das jedes Nicht-Hexzeichen still als 0 nimmt (L232): Drei Ziffern,
+ * Nicht-Hex, Grossbuchstaben, ein fuenftes Zeichen -- alles ungleich, alles abgewiesen. Der
+ * Vergleich statt einer Ziffernschleife spart auf dem F103 rund 47 Byte Flash (Gate, design.md 5.7).
+ * Eine zu lange Nutzlast wird abgewiesen statt wie bei "CMD" gekuerzt angewandt -- eine gekuerzte
+ * Zeile mit stimmender Marke waere genau der Widerspruch, gegen den die Marke antritt.
+ *
+ * Bei einer Abweisung (Ent-5 = N1):
+ *   - Zaehler saettigend, Zeile "cmd abgewiesen #n len=l" ueber log_printf(): die ersten vier
+ *     einzeln, danach jede fuenfzigste (L109: die Meldung liegt auf derselben Leitung). l ist die
+ *     Laenge hinter "CMC ", samt Marke. KEIN Wert -- Zeichenketten tragen Hosts und Zugangsdaten.
+ *   - Vollabgleich vormerken, hoechstens einer je 60 s: Der ESP hat den neuen Wert bei sich schon
+ *     gesetzt; der Abgleich zieht ihn auf den Stand des STM zurueck, statt dass beide bis zum
+ *     naechsten Abgleich auseinanderlaufen (L42). Gedrosselt, weil ein Abgleich rund 200 quittierte
+ *     Zeilen sind und eine Abweisung meist von einer ueberlasteten Bruecke kommt. Gesendet wird
+ *     im Hauptloop (main.c, var_sync_pending) -- nie hier, nie verschachtelt.
+ */
+uint_fast8_t            esp8266_cmc_sync      = 0;                      // abgewiesen: Vollabgleich faellig, main.c loescht
+static uint16_t         esp8266_cmc_rejects   = 0;                      // abgewiesene CMC-Zeilen, saettigend
+static uint32_t         esp8266_cmc_sync_next = 0;                      // uptime, ab der wieder vorgemerkt werden darf
+
+static uint_fast8_t
+esp8266_cmc_check (char * p)                                            // p hinter "CMC "; 1 = Marke stimmt und ist abgeschnitten
+{
+    uint_fast16_t   len = (uint_fast16_t) strlen (p);                   // answer ist terminiert und hoechstens 256 Zeichen lang
+
+    if (len >= 6 && len <= ESP8266_MAX_CMD_LEN + 5 && p[len - 5] == '*')
+    {
+        char    mark[5];                                                // "%04x" + Nullbyte
+
+        p[len - 5] = '\0';                                              // Marke ab, gerechnet wird ueber die Nutzlast
+        sprintf (mark, "%04x", (unsigned int) var_crc (p));
+
+        if (! strcmp (mark, p + len - 4))
+        {
+            return 1;
+        }
+    }
+
+    if (esp8266_cmc_rejects < 0xFFFF)
+    {
+        esp8266_cmc_rejects++;
+    }
+
+    if (esp8266_cmc_rejects <= 4 || (esp8266_cmc_rejects % 50) == 0)
+    {
+        log_printf ("cmd abgewiesen #%u len=%u\r\n", (unsigned int) esp8266_cmc_rejects, (unsigned int) len);
+    }
+
+    if (uptime >= esp8266_cmc_sync_next)
+    {
+        esp8266_cmc_sync_next = uptime + 60;
+        esp8266_cmc_sync      = 1;
+    }
+
+    return 0;
+}
+
 /*--------------------------------------------------------------------------------------------------------------------------------------
  * get message from ESP8266
  *--------------------------------------------------------------------------------------------------------------------------------------
@@ -608,8 +680,17 @@ esp8266_get_message (void)
                             rtc = ESP8266_FIRMWARE;
                             break;
                         }
-                        else if (! strncmp (answer, "CMD ", 4))
+                        else if (! strncmp (answer, "CMD ", 4) || ! strncmp (answer, "CMC ", 4))
                         {
+                            if (answer[2] == 'C' && ! esp8266_cmc_check (answer + 4))
+                            {
+                                rtc = ESP8266_UNSPECIFIED;                              // Teil D: abgewiesen, NICHT angewandt
+                                break;
+                            }
+
+                            /* Ab hier "CMD" wie bisher, oder "CMC" mit stimmender, abgeschnittener Marke:
+                             * DERSELBE Weg (design.md 5.4).
+                             */
                             esp8266_copy (esp8266.u.cmd, answer + 4, ESP8266_MAX_CMD_LEN);
                             /* Befund L90: strncpy schreibt bei voller Laenge KEIN Nullbyte. u.cmd liegt in einer
                              * union mit u.filedata; ohne Abschluss steht an Position 127 noch ein Byte des
