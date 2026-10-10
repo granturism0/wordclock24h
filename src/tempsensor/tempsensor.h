@@ -23,6 +23,7 @@ typedef struct
 {
     int_fast8_t                 correction;
     uint_fast8_t                index;
+    uint_fast8_t                read_errors;            // A2: Lese- oder CRC-Fehler in Folge; 0 = letzter Messwert gueltig gelesen
 } TEMP_GLOBALS;
 
 extern TEMP_GLOBALS             gtemp;

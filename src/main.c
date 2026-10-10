@@ -1873,15 +1873,30 @@ schedule_esp8266_numeric_variable (char * parameters)
             break;
         }
 
+        /* A59 (Paket 2026-10-10): Die beiden Grenzen werden uebernommen und ueber denselben Weg
+         * gespeichert wie "Messwert uebernehmen" (ldr_write_config_to_eep ()). Werte ueber 4095
+         * werden verworfen, nichts wird geschrieben. Minimum >= Maximum wird bewusst NICHT
+         * abgewiesen: Der Backup-Import setzt zuerst das Minimum, dann das Maximum, und haette
+         * sonst auf halbem Weg einen Wert verloren. Die Laufzeit faengt den Zustand ab
+         * (ldr_poll_brightness: volle Helligkeit), der Start heilt ihn (ldr_read_config_from_eep).
+         * Kein Zuruecksenden an den ESP: Er hat den Wert vor dem Senden selbst gesetzt.
+         */
         case LDR_MIN_VALUE_NUM_VAR:
+        case LDR_MAX_VALUE_NUM_VAR:                                                         // ein Zweig fuer beide: 16 Byte weniger
         {
-            debug_log_printf ("cmd: set ldr_min_value = %d, but it's readonly\r\n", val);
-            break;
-        }
-
-        case LDR_MAX_VALUE_NUM_VAR:
-        {
-            debug_log_printf ("cmd: set ldr_max_value = %d, but it's readonly\r\n", val);
+            if (val <= LDR_MAX_RAW_VALUE)
+            {
+                if (var_idx == LDR_MIN_VALUE_NUM_VAR)
+                {
+                    ldr.ldr_min_value = val;
+                }
+                else
+                {
+                    ldr.ldr_max_value = val;
+                }
+                ldr_write_config_to_eep ();
+            }
+            debug_log_printf ("cmd: set ldr_%s_value = %d\r\n", (var_idx == LDR_MIN_VALUE_NUM_VAR) ? "min" : "max", val);
             break;
         }
 
@@ -4345,9 +4360,28 @@ main (void)
             }
         }
 
+        /* A2 (Paket 2026-10-10): Temperaturblock. Jeder Wechsel von ds18xx.is_up geht genau einmal an den ESP -- verglichen
+         * wird am Ende des Blocks, damit es nur eine Sendestelle gibt. Bei einem Verlust geht so zuerst der Index 255, dann IS_UP.
+         */
+        uint_fast8_t ds18xx_was_up = ds18xx.is_up;
+
         if (measure_temperature_flag)
         {
             measure_temperature_flag = 0;
+
+            /* A2 (Ent-6 a): Solange kein Sensor erkannt ist, einmal je Minute neu suchen (Sekunde 49). Ein Versuch kostet
+             * rund 20-40 ms (Ruecksetzen, ROM-ID, Scratchpad), weit unter dem Watchdog. Erst eine gueltige ROM-ID und ein
+             * gueltiges Scratchpad setzen is_up (ds18xx_init); jeder Wechsel erzeugt genau eine Zeile.
+             */
+            if (! ds18xx.is_up)
+            {
+                temp_init ();
+
+                if (ds18xx.is_up)
+                {
+                    log_uart_puts ("ds18xx erkannt\r\n");
+                }
+            }
 
             if (ds18xx.is_up)
             {
@@ -4361,8 +4395,22 @@ main (void)
 
             if (ds18xx.is_up)
             {
-                ds18xx_temperature_index = temp_read_temp_index ();
-                log_printf ("DS18xxx temperature: %d%s\r\n", ds18xx_temperature_index / 2, (ds18xx_temperature_index % 2) ? ".5" : "");
+                ds18xx_temperature_index = temp_read_temp_index ();     // A2: 255 bei Lese- oder CRC-Fehler (und unter 0 Grad)
+
+                if (ds18xx_temperature_index == 0xFF)
+                {
+                    log_uart_puts ("DS18xxx temperature: ungueltig\r\n");
+                }
+                else
+                {
+                    log_printf ("DS18xxx temperature: %d%s\r\n", ds18xx_temperature_index / 2, (ds18xx_temperature_index % 2) ? ".5" : "");
+                }
+
+                if (gtemp.read_errors >= 3)                             // A2: drei Lese- oder CRC-Fehler in Folge -> verloren
+                {
+                    ds18xx.is_up = 0;                                   // naechste Minute sucht neu
+                    log_uart_puts ("ds18xx verloren\r\n");
+                }
 
                 if (esp8266.is_online)
                 {
@@ -4373,6 +4421,11 @@ main (void)
             {
                 ds18xx_temperature_index = 0xFF;
             }
+        }
+
+        if (ds18xx.is_up != ds18xx_was_up && esp8266.is_online)       // A2: Ende des Temperaturblocks, einzige Sendestelle
+        {
+            var_send_ds18xx_is_up ();
         }
 
         if (read_rtc_temperature_flag)

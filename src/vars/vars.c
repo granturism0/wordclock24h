@@ -1427,8 +1427,8 @@ var_send_timezone (void)
     var_send_num_variable (TIMEZONE_NUM_VAR, tz);
 }
 
-static void
-var_send_ds18xx_is_up (void)
+void
+var_send_ds18xx_is_up (void)                                                  // A2: auch main.c, bei jedem Wechsel
 {
     var_send_num_variable (DS18XX_IS_UP_NUM_VAR, ds18xx.is_up);
 }

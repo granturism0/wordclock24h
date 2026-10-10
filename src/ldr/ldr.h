@@ -32,6 +32,8 @@ typedef struct
     uint16_t            ldr_max_value;
 } LDR_GLOBALS;
 
+#define LDR_MAX_RAW_VALUE                       4095                                        // maximal possible raw value (12 bit ADC)
+
 extern LDR_GLOBALS      ldr;
 
 extern void             ldr_start_conversion (void);

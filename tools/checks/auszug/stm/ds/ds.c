@@ -44,6 +44,7 @@ static struct
     int     sp_flip_bit, sp_mode, sp_faults;   /* sp_mode: 0 Bit kippen, 1 neun 0xFF, 2 neun 0x00 */
     int     st, matchpos, matched, wrpos;
     int     rom_reads, conversions, copies;
+    int     resets, fail_reset_at;             /* fail_reset_at = n: genau das n-te Ruecksetzen findet keine Praesenz */
 } sen;
 enum { ST_IDLE, ST_READROM, ST_MATCH, ST_FUNC, ST_RDSP, ST_WRSP, ST_DEAD };
 
@@ -57,7 +58,7 @@ static void sensor_neu (uint16_t raw12, uint8_t conf)
     sen.sp[5] = 0xFF; sen.sp[6] = 0x0C; sen.sp[7] = 0x10; sp_crc ();
     sen.rom_flip_bit = sen.sp_flip_bit = -1;
 }
-uint_fast8_t onewire_reset (void) { sen.st = ST_IDLE; return sen.present ? 1 : 0; }
+uint_fast8_t onewire_reset (void) { sen.st = ST_IDLE; sen.resets++; if (sen.fail_reset_at && sen.resets == sen.fail_reset_at) return 0; return sen.present ? 1 : 0; }
 uint_fast8_t onewire_read_bit (void) { return 1; }
 void onewire_init (void) { }
 void onewire_write_byte (uint8_t v)
@@ -106,9 +107,11 @@ static char loglines[512][64]; static int nlog;
 static void log_add (const char * s) { if (nlog < 512) { snprintf (loglines[nlog], 64, "%s", s); char * e = strpbrk (loglines[nlog], "\r\n"); if (e) *e = 0; nlog++; } }
 static void log_printf (const char * f, ...) { char b[128]; va_list ap; va_start (ap, f); vsnprintf (b, sizeof b, f, ap); va_end (ap); log_add (b); }
 #define log_message(s) log_add (s)
+static void log_uart_puts (const char * s) { log_add (s); }
 #define debug_log_printf(...)
 static struct { uint_fast8_t is_online; } esp8266 = { 1 };
 static int sent_up_n, sent_up_val[64], sent_idx_n, sent_idx_last;
+static char sent_seq[256]; static int sent_seq_n;        /* 'I' = Index, 'U' = IS_UP, in Sendereihenfolge */
 
 /* Variablen aus main.c, die die beiden Zweige brauchen */
 static uint_fast8_t measure_temperature_flag, read_temperature_flag;
@@ -120,8 +123,8 @@ void var_send_ds18xx_temp_index (void);
 #include "x-ds.c"
 
 /* main.c ruft diese aus vars.c */
-void var_send_ds18xx_is_up (void) { if (sent_up_n < 64) sent_up_val[sent_up_n] = ds18xx.is_up; sent_up_n++; }
-void var_send_ds18xx_temp_index (void) { sent_idx_n++; sent_idx_last = gtemp.index; }
+void var_send_ds18xx_is_up (void) { if (sent_seq_n < 255) sent_seq[sent_seq_n++] = 'U'; if (sent_up_n < 64) sent_up_val[sent_up_n] = ds18xx.is_up; sent_up_n++; }
+void var_send_ds18xx_temp_index (void) { if (sent_seq_n < 255) sent_seq[sent_seq_n++] = 'I'; sent_idx_n++; sent_idx_last = gtemp.index; }
 
 #if HAVE_READ_ERRORS
 #define READ_ERRORS() ((int) gtemp.read_errors)
@@ -133,7 +136,7 @@ static int fails, cases;
 #define CHECK(name, cond) do { cases++; if (cond) printf ("  OK    %s\n", name); else { fails++; printf ("  FEHL  %s\n", name); } } while (0)
 static int count (const char * s, int from) { int n = 0; for (int i = from; i < nlog; i++) if (! strcmp (loglines[i], s)) n++; return n; }
 static int count_prefix (const char * s, int from) { int n = 0; for (int i = from; i < nlog; i++) if (! strncmp (loglines[i], s, strlen (s))) n++; return n; }
-static void reset_all (void) { nlog = 0; sent_up_n = sent_idx_n = 0; sent_idx_last = -1; esp8266.is_online = 1; ds18xx.is_up = 0; gtemp.index = 0xFF; gtemp.correction = 0;
+static void reset_all (void) { memset (sent_seq, 0, sizeof sent_seq); sent_seq_n = 0; nlog = 0; sent_up_n = sent_idx_n = 0; sent_idx_last = -1; esp8266.is_online = 1; ds18xx.is_up = 0; gtemp.index = 0xFF; gtemp.correction = 0;
 #if HAVE_READ_ERRORS
     gtemp.read_errors = 0;
 #endif
@@ -325,10 +328,41 @@ main (void)
     reset_all (); sensor_neu (RAW_21_5, CONF_9BIT); start ();
     sen.sp_mode = 0; sen.sp_flip_bit = 37; sen.sp_faults = -1;
     for (int mi = 0; mi < 30; mi++) minute ();
-    snprintf (name, sizeof name, "Wackelkontakt 30 Minuten: kein COPY SCRATCHPAD (%d), verloren %d / erkannt %d im Wechsel",
+    snprintf (name, sizeof name, "Wackelkontakt 30 Minuten: kein COPY SCRATCHPAD (%d), verloren %d, erkannt %d (N2: Erkennung braucht gueltiges Scratchpad)",
               sen.copies, count ("ds18xx verloren", 0), count ("ds18xx erkannt", 0));
-    CHECK (name, sen.copies == 0 && count ("ds18xx verloren", 0) >= 7 && count ("ds18xx erkannt", 0) >= count ("ds18xx verloren", 0) - 1
-                 && count ("ds18xx erkannt", 0) <= count ("ds18xx verloren", 0));
+    CHECK (name, sen.copies == 0 && count ("ds18xx verloren", 0) == 1 && count ("ds18xx erkannt", 0) == 0 && ds18xx.is_up == 0);
+    sen.sp_faults = 0; minute ();
+    CHECK ("Wackelkontakt behoben -> in der naechsten Minute erkannt, gueltiger Wert", ds18xx.is_up == 1 && count ("ds18xx erkannt", 0) == 1 && gtemp.index == IDX_21_5);
+
+    /* ===== N2 (Review S1.5): Scratchpad-CRC-Fehler bei der Erkennung ===== */
+    reset_all (); sensor_neu (RAW_21_5, CONF_12BIT);
+    sen.sp_mode = 0; sen.sp_flip_bit = 3; sen.sp_faults = 1;           /* genau das Lesen in ds18xx_init () gestoert */
+    start ();
+    CHECK ("N2 Sensor auf 12 Bit, Scratchpad-CRC-Fehler bei der Erkennung -> nicht erkannt, nichts geschrieben", ds18xx.is_up == 0 && sen.copies == 0);
+    minute ();
+    CHECK ("N2 naechste Minute erkannt, Aufloesung auf 9 Bit gesetzt (ein COPY SCRATCHPAD)", ds18xx.is_up == 1 && sen.copies == 1 && sen.sp[4] == CONF_9BIT);
+    snprintf (name, sizeof name, "N2 danach 21.5 Grad (Index %u), nicht auf 125 Grad geklammert", (unsigned) gtemp.index);
+    CHECK (name, gtemp.index == IDX_21_5 && count ("DS18xxx temperature: 21.5", 0) == 1 && count ("DS18xxx temperature: 125", 0) == 0);
+    for (int i = 0; i < 5; i++) minute ();
+    CHECK ("N2 fuenf weitere Minuten: 21.5 Grad, kein weiteres COPY SCRATCHPAD", gtemp.index == IDX_21_5 && sen.copies == 1 && count ("DS18xxx temperature: 21.5", 0) == 6);
+    reset_all (); sensor_neu (RAW_21_5, CONF_9BIT); sen.rom[0] = 0x10; sen.rom[7] = ref_crc (sen.rom, 7);
+    sen.sp_mode = 0; sen.sp_flip_bit = 3; sen.sp_faults = 1;
+    start ();
+    CHECK ("N2 DS18S20 (0x10), Scratchpad-CRC-Fehler bei der Erkennung -> nicht erkannt", ds18xx.is_up == 0);
+    minute ();
+    CHECK ("N2 DS18S20 naechste Minute erkannt, kein COPY SCRATCHPAD", ds18xx.is_up == 1 && sen.copies == 0 && count ("ds18xx erkannt", 0) == 1);
+    /* Ruecksetzen in ds18xx_init (): 1 Start, 2+3 ROM-ID, 4+5 Scratchpad, 6 ds1822B20_set_resolution () */
+    reset_all (); sensor_neu (RAW_21_5, CONF_12BIT); sen.fail_reset_at = 6;
+    temp_init ();
+    CHECK ("N2 keine Praesenz beim Setzen der Aufloesung (12 Bit bleibt) -> nicht erkannt", ds18xx.is_up == 0 && sen.sp[4] == CONF_12BIT);
+    sen.fail_reset_at = 0; minute ();
+    CHECK ("N2 danach naechste Minute erkannt, 9 Bit, 21.5 Grad", ds18xx.is_up == 1 && sen.sp[4] == CONF_9BIT && gtemp.index == IDX_21_5);
+
+    /* ===== Sendestelle IS_UP (Sparvorschlag 3): Reihenfolge ===== */
+    reset_all (); sensor_neu (RAW_21_5, CONF_9BIT); start ();
+    for (int mi = 0; mi < 6; mi++) { if (mi == 1) sen.present = 0; if (mi == 5) sen.present = 1; minute (); }
+    snprintf (name, sizeof name, "IS_UP: Verlust erst Index 255, dann IS_UP 0; Wiederfinden IS_UP 1 vor dem Index (Folge %s)", sent_seq);
+    CHECK (name, ! strcmp (sent_seq, "IIIIUUI") && sent_up_n == 2 && sent_up_val[0] == 0 && sent_up_val[1] == 1);
 
     printf ("DS: %d Faelle, %d FEHL\n", cases, fails);
     return fails ? 1 : 0;

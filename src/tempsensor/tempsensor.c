@@ -18,7 +18,8 @@
 TEMP_GLOBALS    gtemp =
 {
     0,                                                                      // correction
-    0xFF                                                                    // index
+    0xFF,                                                                   // index
+    0                                                                       // read_errors (A2)
 };
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------------
@@ -73,8 +74,14 @@ temp_read_temp_index (void)
 
             index = (uint_fast8_t) corrected;
         }
-        gtemp.index = index;
+        gtemp.read_errors = 0;
     }
+    else if (gtemp.read_errors < 0xFF)
+    {
+        gtemp.read_errors++;                                        // A2: zaehlt fuer "3 in Folge" in main.c
+    }
+
+    gtemp.index = index;                                            // A2: auch bei Lese- oder CRC-Fehler -- 255, nicht der alte Wert
     return index;
 }
 
@@ -179,6 +186,7 @@ temp_init (void)
 {
     uint_fast8_t    rtc;
 
+    gtemp.read_errors = 0;                                          // A2: jede Erkennung beginnt mit einem leeren Fehlerzaehler
     rtc = ds18xx_init (DS_RESOLUTION_9_BIT);
 
     return rtc;

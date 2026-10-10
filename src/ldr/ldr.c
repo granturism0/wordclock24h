@@ -19,7 +19,7 @@
 #define MAX_LDR_BRIGHTNESS                      31                                          // maximal possible brightness value
 
 #define MIN_VALUE                               0                                           // minimal possible raw value
-#define MAX_VALUE                               4095                                        // maximal possible raw value
+#define MAX_VALUE                               LDR_MAX_RAW_VALUE                           // maximal possible raw value, see ldr.h
 
 LDR_GLOBALS      ldr =
 {

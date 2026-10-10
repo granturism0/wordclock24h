@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-10 Paket 2026-10-10, Schritt S1: LDR-Grenzen per Zahl, DS18xx mit CRC und Neuerkennung (STM 3.2.27)
+
+Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP
+`wordclock-release-2026-10-10-215256.zip`, Tag `release/3.2.27-3.2.30-1.4.94`. Umfang: S1 aus `specs/paket-2026-10-10/` (A59, A2).
+
+**Einspielreihenfolge: nur der STM**, über `./tools/flash-stm.sh`. Die Prüfung am Gerät (G1: LDR-Grenzen
+auf 0/4095, 60 Minuten Mitlesen) steht nach dem Einspielen noch aus.
+
+### LDR-Grenzen lassen sich per Zahl setzen (A59, L351/L364)
+- Der STM verwarf `ldr_min_value_set`/`ldr_max_value_set` bisher als schreibgeschützt; gewirkt hat nur
+  „Messwert übernehmen“. Jetzt setzt der Zahlenwert (0–4095) RAM und EEPROM über denselben Schreibweg.
+- Damit wirkt auch der Backup-Import der Grenzen, der bisher beim nächsten Abgleich still verloren ging.
+- min ≥ max wird nicht abgewiesen (der Import setzt erst min, dann max); die Laufzeit fängt den Zustand ab.
+
+### DS18xx: CRC, gültige Sensor-ID, Neuerkennung (A2, Massnahme 16, L18)
+- Messwert (Scratchpad) und Sensor-ID werden per Dallas-CRC-8 geprüft; die ID zusätzlich am Familiencode.
+- Der Sensor gilt erst als erkannt, wenn ID **und** ein Scratchpad gültig sind. Belegt war, dass bei L18 eine
+  falsch gelesene ID als „erkannt“ galt und der Sensor danach nie mehr angesprochen wurde.
+- Bei Lese- oder CRC-Fehler meldet die Uhr „ungültig“ (Index 255) statt eines veralteten Werts; Logzeile
+  `DS18xxx temperature: ungueltig`.
+- Je Minute wird neu gesucht, solange kein Sensor erkannt ist; nach drei Lese- oder CRC-Fehlern in Folge gilt er
+  als verloren (`ds18xx verloren`) und wird neu gesucht (`ds18xx erkannt`). Werte unter 0 °C zählen nicht als Fehler.
+- Das Sensor-EEPROM wird nur nach gültigem Scratchpad beschrieben; ein Wackelkontakt löst kein Schreiben aus.
+
+### Werkzeug
+Prüfstände L59 (40 Fälle) und DS (193 Fälle, nachgebildeter 1-Wire-Bus, CRC gegen drei Referenzvektoren,
+L18-Fall), beide gegen 3.2.26 FEHL; Logwache meldet die neuen DS18xx-Zeilen.
+
+Flash F103: 1'376 Byte frei (vorher 2'176; S1 kostet rund 800 Byte mit LTO).
+
 ## 2026-10-10 Paket 2026-10-10, Schritt S0: Datumsrechnung mit 32 Bit, rund 1 KB Flash frei (STM 3.2.26)
 
 Nur der STM, ESP (3.2.30) und PWA (1.4.94) unverändert. Release-ZIP

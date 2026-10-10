@@ -33,6 +33,9 @@ o.append(func(tc, 'uint_fast8_t\ntemp_start_conversion (uint_fast8_t do_wait)', 
 o.append(func(tc, 'uint_fast8_t\ntemp_read_temp_index (void)', 'tempsensor.c'))
 o.append(func(tc, 'uint_fast8_t\ntemp_init (void)', 'tempsensor.c'))
 a = one(m, '        if (measure_temperature_flag)\n        {\n', 'main.c'); b = one(m, '        if (read_rtc_temperature_flag)\n', 'main.c')
+k = m.rfind('        uint_fast8_t ds18xx_was_up = ds18xx.is_up;\n', 0, a)
+if k >= 0 and m.count('ds18xx_was_up = ') == 1:
+    a = k                                                   # Sparvorschlag 3: Merkvariable gehoert zum Block
 o.append('static void\nds_main_step (void)\n{\n' + line(m, a, 'main.c') + m[a:b] + '}\n')
 o.insert(0, '#define HAVE_READ_ERRORS %d\n#define HAVE_CRC8 %d\n' % ('read_errors' in th, 'ds18xx_crc8' in ds))
 open(out, 'w').write('\n'.join(o))

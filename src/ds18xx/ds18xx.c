@@ -39,6 +39,72 @@ static uint8_t                      ds18xx_data_buf[DS18XX_DATA_BUF_LEN];       
 static uint_fast8_t                 family_code;
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * ds18xx_crc8 () - Dallas/Maxim CRC-8 (A2, Paket 2026-10-10)
+ *
+ * Polynom x^8 + x^5 + x^4 + 1 (0x31), reflektiert 0x8C, Startwert 0, LSB zuerst -- so, wie die Bits ueber den Draht kommen
+ * (Maxim Application Note 27). Bitweise ohne Tabelle, das spart 256 Byte Flash. Eine Funktion fuer Scratchpad und ROM-ID.
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+ds18xx_crc8 (const uint8_t * data, uint_fast8_t len)
+{
+    uint_fast8_t    crc = 0;
+    uint_fast8_t    bit;
+    uint_fast8_t    byte;
+
+    while (len--)
+    {
+        byte = *data++;
+
+        for (bit = 0; bit < 8; bit++)
+        {
+            if ((crc ^ byte) & 0x01)
+            {
+                crc = (crc >> 1) ^ 0x8C;
+            }
+            else
+            {
+                crc >>= 1;
+            }
+
+            byte >>= 1;
+        }
+    }
+
+    return crc;
+}
+
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
+ * ds18xx_read_scratchpad () - read 9 bytes of scratchpad into ds18xx_data_buf, check CRC
+ *
+ * Return value: 1 = Praesenz und CRC in Ordnung, 0 = keine Praesenz oder CRC falsch (A2). Eine getrennte Leitung liefert neun 0xFF
+ * und faellt hier durch; neun Nullbyte bestehen die CRC (offen fuer das Review S1.5, design.md 4.1).
+ *-----------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+ds18xx_read_scratchpad (void)
+{
+    uint_fast8_t    rtc = 0;
+
+    if (onewire_reset ())
+    {
+        onewire_write_byte (ONEWIRE_MATCH_ROM_CMD);                                     // send command: select slave
+        onewire_write (ds18xx_rom_code, DS18XX_ROM_CODE_LEN);                           // send ROM code
+        onewire_write_byte (ONEWIRE_RD_SCRATCH_CMD);                                    // send command: read scratchpad
+        onewire_read (ds18xx_data_buf, DS18XX_DATA_BUF_LEN);                            // read 9 bytes from slave
+
+        onewire_reset ();
+
+        if (ds18xx_crc8 (ds18xx_data_buf, DS18XX_DATA_BUF_LEN - 1) == ds18xx_data_buf[DS18XX_DATA_BUF_LEN - 1])
+        {
+            rtc = 1;
+        }
+    }
+
+    return rtc;
+}
+
+/*-----------------------------------------------------------------------------------------------------------------------------------------------
  * ds1822B20_set_resolution () - set resolution
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -173,15 +239,8 @@ ds18xx_read_raw_temp (uint_fast8_t * resolution_p, uint_fast8_t * is_negative_p,
 {
     uint_fast8_t    rtc = 0;
 
-    if (onewire_reset ())
+    if (ds18xx_read_scratchpad ())                                                      // A2: nur bei gueltiger CRC
     {
-        onewire_write_byte (ONEWIRE_MATCH_ROM_CMD);                                     // send command: select slave
-        onewire_write (ds18xx_rom_code, DS18XX_ROM_CODE_LEN);                           // send ROM code
-        onewire_write_byte (ONEWIRE_RD_SCRATCH_CMD);                                    // send command: read temperature
-        onewire_read (ds18xx_data_buf, DS18XX_DATA_BUF_LEN);                            // read 9 bytes from slave
-
-        onewire_reset ();
-
         switch (family_code)
         {
             case DS1822_FAMILY_CODE:
@@ -291,6 +350,13 @@ ds18xx_init (uint_fast8_t resolution)
     uint_fast8_t conf_reg;
     uint_fast8_t old_resolution;
 
+    /* A2 (Paket 2026-10-10): Erkannt ist der Sensor erst mit einer gueltigen ROM-ID -- CRC ueber Byte 0-6 gleich Byte 7 und ein
+     * bekannter Familiencode. Vorher stand is_up = 1 schon nach der Praesenz, auch bei falsch gelesener ROM-ID (L18): Danach ging
+     * jedes MATCH ROM ins Leere, bis zum naechsten Reset. Mehrfach aufrufbar (Neuerkennung je Minute, main.c); onewire_init ()
+     * sperrt sich selbst gegen den zweiten Aufruf.
+     */
+    ds18xx.is_up = 0;
+
     if (resolution >= DS_RESOLUTION_9_BIT && resolution <= DS_RESOLUTION_12_BIT)
     {
         onewire_init ();
@@ -300,31 +366,37 @@ ds18xx_init (uint_fast8_t resolution)
             rtc = onewire_get_rom_code (ds18xx_rom_code);
             family_code = ds18xx_rom_code[DS18XX_FAMILY_CODE_POS];
 
-            ds18xx.is_up = 1;
-
-            switch (family_code)                                                // get and set resolution (DS18B20 and DS1822 only)
+            if (! rtc ||
+                ds18xx_crc8 (ds18xx_rom_code, DS18XX_ROM_CODE_LEN - 1) != ds18xx_rom_code[DS18XX_ROM_CODE_LEN - 1] ||
+                (family_code != DS1820_FAMILY_CODE && family_code != DS1822_FAMILY_CODE && family_code != DS18B20_FAMILY_CODE))
             {
-                case DS1822_FAMILY_CODE:
-                case DS18B20_FAMILY_CODE:
+                return 0;                                                       // ROM-ID ungueltig: nicht erkannt, nichts schreiben
+            }
+
+            /* N2 (Review S1.5): Erkannt erst, wenn auch das Scratchpad mit gueltiger CRC gelesen ist und -- bei DS18B20/DS1822 --
+             * die Aufloesung stimmt. Sonst blieb ein Sensor auf 12 Bit nach einem einzigen gestoerten Lesen dauerhaft falsch
+             * eingestellt, und 22 Grad erschienen als 125 Grad. Scheitert es, sucht die naechste Minute neu (main.c). Die
+             * Aufloesung wird nur nach gueltiger CRC verglichen: Sonst schriebe ein Wackelkontakt das Sensor-EEPROM (COPY
+             * SCRATCHPAD, bis 15 ms) mit einem Wert aus Rauschen. Beim DS18S20 (0x10) gibt es keine Aufloesung; das Lesen
+             * bestaetigt dort, dass der Sensor auf MATCH ROM mit dieser ID antwortet.
+             */
+            if (! ds18xx_read_scratchpad ())
+            {
+                return 0;
+            }
+
+            if (family_code != DS1820_FAMILY_CODE)                              // get and set resolution (DS18B20 and DS1822 only)
+            {
+                conf_reg = ds18xx_data_buf[4];                                  // configuration register
+                old_resolution = ((conf_reg >> 5) & 0x03) + 9;                  // resolution: 9, 10, 11, or 12
+
+                if (old_resolution != resolution && ! ds1822B20_write_resolution (resolution))
                 {
-                    if (onewire_reset ())
-                    {
-                        onewire_write_byte (ONEWIRE_MATCH_ROM_CMD);             // send command: select slave
-                        onewire_write (ds18xx_rom_code, DS18XX_ROM_CODE_LEN);   // send rom code
-                        onewire_write_byte (ONEWIRE_RD_SCRATCH_CMD);            // send command: read from scratch
-                        onewire_read (ds18xx_data_buf, DS18XX_DATA_BUF_LEN);    // read 9 bytes from slave
-
-                        conf_reg = ds18xx_data_buf[4];                          // configuration register
-                        old_resolution = ((conf_reg >> 5) & 0x03) + 9;          // resolution: 9, 10, 11, or 12
-
-                        if (old_resolution != resolution)
-                        {
-                            ds1822B20_write_resolution (resolution);
-                        }
-                    }
-                    break;
+                    return 0;
                 }
             }
+
+            ds18xx.is_up = 1;
         }
     }
 
