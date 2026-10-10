@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.94";
+const APP_VERSION = "1.4.95";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -132,7 +132,8 @@ const I18N_DE = {
   "network.ap_title": "Eigenes WLAN bereitstellen",
   "network.ap_hint": "Hilfreich für Erstinbetriebnahme oder wenn kein vorhandenes WLAN genutzt werden soll.",
   "network.ap_ssid": "AP SSID",
-  "network.ap_ssid_placeholder": "WordClock Zugangspunkt",
+  "network.ap_ssid_placeholder": "Name des Zugangspunkts",
+  "network.ap_settings_unavailable": "Die Einstellungen des Zugangspunkts liessen sich nicht lesen. Das Feld AP SSID bleibt leer, bis sie geladen sind — das heisst nicht, dass keiner hinterlegt ist.",
   "network.ap_password": "AP-Passwort",
   "network.ap_password_placeholder": "Mindestens 10 Zeichen",
   "network.start_ap": "Zugangspunkt starten",
@@ -714,6 +715,7 @@ const I18N_DE = {
   "backup.field.weather_lat": "Breitengrad für das Wetter",
   "backup.import_too_long_fields": "Nicht übernommen, weil länger, als die Uhr speichern kann: {fields}. Umlaute zählen dabei doppelt. Diese Werte sind auf der Uhr unverändert geblieben.",
   "backup.import_too_long_entry": "{field} ({bytes} statt höchstens {max} Byte)",
+  "backup.import_invalid_fields": "Nicht übernommen, weil die Uhr diese Werte abweisen würde: {fields}. Diese Werte sind auf der Uhr unverändert geblieben.",
   "backup.field.rtc_temp_correction": "Temperaturkorrektur der RTC",
   "backup.field.ds18xx_temp_correction": "Temperaturkorrektur des DS18xx",
   "backup.field.display_mode": "Anzeigemodus",
@@ -864,6 +866,12 @@ const I18N_DE = {
   "timers.saved_all": "Alle Timer wurden gespeichert",
   "timers.save_all_failed": "Timer konnten nicht vollständig gespeichert werden",
   "timers.save_failed": "Timer konnte nicht gespeichert werden",
+  "timers.save_all_time_missing": "Keine gültige Uhrzeit bei {rows}. Es wurde kein Timer gespeichert — trag die fehlenden Uhrzeiten ein oder leere diese Slots mit „{clear}“.",
+  "input.time_required": "Keine gültige Uhrzeit bei {row}: Das Zeitfeld ist leer oder unvollständig. Es wurde nichts gespeichert — trag eine Uhrzeit ein.",
+  "input.date_format_invalid": "Ungültiges Datumsformat. Verwende D, M und Y (auch klein, je höchstens einmal) sowie . - / oder Leerzeichen (nicht am Anfang oder Ende), höchstens 5 Zeichen — etwa D.M.Y. Es wurde nichts gespeichert.",
+  "input.longitude_invalid": "Ungültiger Längengrad. Gib eine Dezimalzahl von -180 bis 180 mit höchstens 8 Zeichen ein, etwa 8.5400 — ohne +, ohne Exponent, ohne Leerzeichen. Es wurde nichts gespeichert.",
+  "input.latitude_invalid": "Ungültiger Breitengrad. Gib eine Dezimalzahl von -90 bis 90 mit höchstens 8 Zeichen ein, etwa 47.3769 — ohne +, ohne Exponent, ohne Leerzeichen. Es wurde nichts gespeichert.",
+  "input.coordinates_pair_required": "Längen- und Breitengrad gehören zusammen: Trag beide ein oder lass beide leer. Es wurde nichts gespeichert.",
   "timers.cleared": "Slot geleert",
   "timers.clear_failed": "Timer konnte nicht geleert werden",
   "flags.toggle_failed": "Schalter konnte nicht gesetzt werden",
@@ -928,6 +936,12 @@ const I18N_DE = {
   "display.brightness_save_failed": "Helligkeit konnte nicht gespeichert werden",
   "display.it_is_set_failed": "„ES IST“ konnte nicht gesetzt werden",
   "display.preset_apply_failed": "Preset konnte nicht angewendet werden",
+  "display.dim_preset.custom": "Individuell",
+  "display.dim_preset.linear": "Linear",
+  "display.dim_preset.sanft": "Sanft",
+  "display.dim_preset.kontrast": "Kontrast",
+  "display.dim_preset.nacht": "Nacht",
+  "display.preset_not_a_preset": "„Individuell“ ist keine Voreinstellung. Wähl eine Voreinstellung aus der Liste oder stell die Stufen mit den Reglern ein und speichere die Dimmkurve. Es wurde nichts gespeichert.",
   "display.mode_save_failed": "Display-Modus konnte nicht gespeichert werden",
   "display.ticker_save_failed": "Ticker konnte nicht gespeichert werden",
   "display.date_format_save_failed": "Datumsformat konnte nicht gespeichert werden",
@@ -939,6 +953,8 @@ const I18N_DE = {
   "climate.forecast_request_failed": "Wettervorhersage konnte nicht angefordert werden",
   "climate.rtc_correction_save_failed": "RTC-Korrektur konnte nicht gespeichert werden",
   "climate.ds18xx_correction_save_failed": "DS18xx-Korrektur konnte nicht gespeichert werden",
+  "climate.ds18xx_not_found": "nicht gefunden",
+  "climate.ds18xx_reading_invalid": "Messwert ungültig",
   "climate.temperature_display_failed": "Temperatur konnte nicht angezeigt werden",
   "climate.temperature_display_started": "Temperaturanzeige ausgelöst",
   "climate.ldr_min_set_failed": "LDR-Minimum konnte nicht gesetzt werden",
@@ -1053,12 +1069,14 @@ const DIM_CURVE_PRESETS = {
   kontrast: [0, 0, 0, 1, 1, 2, 3, 5, 7, 9, 11, 12, 13, 14, 15, 15],
   nacht: [0, 0, 0, 0, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12]
 };
+// Schluessel in den Sprachtabellen, nicht der Text: Die englische Liste zeigte sonst
+// "Individuell" neben der englischen Meldung "“Custom” is not a preset".
 const DIM_CURVE_PRESET_NAMES = {
-  custom: "Individuell",
-  linear: "Linear",
-  sanft: "Sanft",
-  kontrast: "Kontrast",
-  nacht: "Nacht"
+  custom: "display.dim_preset.custom",
+  linear: "display.dim_preset.linear",
+  sanft: "display.dim_preset.sanft",
+  kontrast: "display.dim_preset.kontrast",
+  nacht: "display.dim_preset.nacht"
 };
 const DAYLIGHT_RED =   [0, 0, 0, 15, 31, 47, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 47, 31, 15, 0, 0];
 const DAYLIGHT_GREEN = [0, 0, 0,  0,  0,  0,  0,  0,  0, 15, 31, 47, 63, 47, 31, 15,  0,  0,  0,  0,  0,  0, 0, 0];
@@ -1311,6 +1329,22 @@ let stm32RemoteStreamOffset = 0;
 let stm32RemoteRequestInFlight = false;
 let stm32RemoteResultOkSeen = false;
 let hasUnsavedEdits = false;
+// Die Pausenmeldung der Selbstaktualisierung kommt einmal je Pausenphase, nicht alle 15 s
+// (wie M-b beim AP-Hinweis). Die Phase endet, sobald die Menge unsavedEditFields leer ist --
+// auf welchem Weg auch immer (Speichern, Verwerfen, settle der Wache, prefillDeviceValue,
+// Zuruecktippen). Deshalb laeuft jede Zuweisung an hasUnsavedEdits ueber
+// syncUnsavedEditsFlag(), die das Merkmal dann zuruecksetzt.
+let autoRefreshPauseAnnounced = false;
+// Ton der zuletzt gezeigten Meldung. Solange eine Fehlermeldung im Banner sichtbar ist,
+// verdraengt die Pausenmeldung sie nicht (loadData).
+let lastAnnouncedTone = "";
+
+function syncUnsavedEditsFlag() {
+  hasUnsavedEdits = unsavedEditFields.size > 0;
+  if (!hasUnsavedEdits) {
+    autoRefreshPauseAnnounced = false;
+  }
+}
 // P2.1d: Welche Felder gerade als geaendert gelten. hasUnsavedEdits bleibt das Flag, das
 // alle Leser kennen; es folgt dieser Menge. Eine Menge statt eines Flags, weil das
 // Zuruecktippen EINES Feldes eine offene Aenderung in einem anderen nicht aufheben darf.
@@ -2116,6 +2150,22 @@ function startAlignedAutoRefresh() {
   }, delayToNextTick);
 }
 
+// H1 (Review P.6 zu B45): Felder, die nie gespeichert und nie aus dem Geraet befuellt
+// werden, sondern nur eine Aktion steuern -- Suche im Kartendialog, Testordner und -titel
+// des DFPlayers, Vorlagenwahl der Dimmkurven, Dateiauswahl fuer Updates. Seit B45 die
+// Markierung nicht mehr bei jedem Speichern pauschal faellt, blieben sie sonst fuer die
+// ganze Sitzung markiert: Selbstaktualisierung pausiert, jeder Modulwechsel fragt. Eine
+// Liste hier statt eines Merkmals im Markup, damit die Zuordnung an einer Stelle steht.
+const EDIT_TRACKING_IGNORED_IDS = new Set([
+  "weather-map-search-input",
+  "dfplayer-folder-input",
+  "dfplayer-track-input",
+  "display-dim-preset-select",
+  "ambilight-dim-preset-select",
+  "update-stm32-select",
+  "update-table-select"
+]);
+
 function handleDirtyFormInteraction(event) {
   const target = event.target;
   if (!target || !(target instanceof HTMLElement)) {
@@ -2124,7 +2174,10 @@ function handleDirtyFormInteraction(event) {
   if (!event.isTrusted) {
     return;
   }
-  if (target.matches('button, iframe, [type="hidden"]')) {
+  if (target.matches('button, iframe, [type="hidden"], [type="file"]')) {
+    return;
+  }
+  if (EDIT_TRACKING_IGNORED_IDS.has(target.id)) {
     return;
   }
   const activeSection = target.closest(".module-section.is-active");
@@ -2159,7 +2212,7 @@ function handleDirtyFormInteraction(event) {
     }
   }
 
-  hasUnsavedEdits = unsavedEditFields.size > 0;
+  syncUnsavedEditsFlag();
 }
 
 // Gegenstueck zu handleDirtyFormInteraction, und bewusst eine eigene Funktion statt
@@ -2168,14 +2221,208 @@ function handleDirtyFormInteraction(event) {
 //
 // Aufgerufen wird sie ueberall dort, wo ein Schreibvorgang GELUNGEN ist und danach
 // loadData() laeuft. Die Begruendung steht in runButtonRequest: Nach dem Neulesen
-// tragen die Felder wieder Geraetestand, das Flag haette nichts mehr zu schuetzen --
-// bliebe es stehen, legte es ueber "opts.auto && hasUnsavedEdits" in loadData() die
-// Selbstaktualisierung fuer den Rest der Sitzung still (L33). Reine Ausloeseaktionen
-// ("Wetter abrufen") ruehren es weiterhin nicht an, sonst verloeren sie eine offene
-// Bearbeitung in einem ganz anderen Feld. Massnahme 4, B1.
-function markEditsPersisted() {
+// tragen die gespeicherten Felder wieder Geraetestand -- bliebe die Markierung stehen,
+// legte sie ueber "opts.auto && hasUnsavedEdits" in loadData() die Selbstaktualisierung
+// fuer den Rest der Sitzung still (L33). Reine Ausloeseaktionen ("Wetter abrufen")
+// ruehren sie weiterhin nicht an. Massnahme 4, B1.
+//
+// B45 (L366): Bis hierher leerte JEDES Speichern die ganze Menge. Wer Tickerverzoegerung
+// und Datumsformat aenderte und nur die Verzoegerung speicherte, verlor das Datumsformat
+// beim Modulwechsel ohne Rueckfrage -- und schon beim Neuladen danach. Jetzt entfernt ein
+// Speichern nur die Felder seines Bereichs (collectEditScopeFields). Was danach noch in
+// der Menge steht, uebersteht das Neuladen (beginUnsavedEditGuard), und was das Neuladen
+// auf genau den eingegebenen Wert setzt, gilt danach als gespeichert. Ohne Bereich
+// (scope null) entfernt sie nichts: Ein Schalter speichert kein Feld.
+function markEditsPersisted(scope) {
+  collectEditScopeFields(scope).forEach((field) => unsavedEditFields.delete(field));
+  syncUnsavedEditsFlag();
+}
+
+// Nur fuer Vorgaenge, die wirklich ALLES ersetzen oder verwerfen: den Backup-Import und
+// das Verwerfen beim Modulwechsel.
+function markAllEditsPersisted() {
   unsavedEditFields.clear();
-  hasUnsavedEdits = false;
+  syncUnsavedEditsFlag();
+}
+
+const EDIT_FIELD_SELECTOR = "input, select, textarea";
+const EDIT_ACTION_GROUP_SELECTOR = ".hero-actions, .profile-actions";
+const EDIT_SCOPE_LIMIT_SELECTOR = ".panel, .module-section, .modal-card";
+
+// B45: Welche Felder ein Speichern abdeckt. Ein Feld als Bereich ist es selbst, ein
+// Behaelter alle Felder darin. Fuer einen Knopf gilt die Anordnung im Markup: Die Felder
+// eines Speicherknopfs stehen VOR ihm, bis zum vorigen Bedienknopf -- "Datumsformat
+// speichern" folgt dem Datumsfeld, die Tickerverzoegerung steht danach mit eigenem Knopf.
+// Steht der Knopf in einer Aktionszeile, zaehlt die Zeile. Findet sich auf einer Ebene
+// gar nichts und auch kein Knopf davor, wird eine Ebene hoeher gesucht, hoechstens bis
+// zum Panel. Geraten wird hier nicht ins Blaue: Liegt die Zuordnung daneben, haelt die
+// Wache in loadData() das betroffene Feld weiter fest, statt es zu verlieren.
+function collectEditScopeFields(scope) {
+  if (!scope || !(scope instanceof Element)) {
+    return [];
+  }
+  if (scope.matches(EDIT_FIELD_SELECTOR)) {
+    return [scope];
+  }
+  if (!scope.matches("button")) {
+    return Array.from(scope.querySelectorAll(EDIT_FIELD_SELECTOR));
+  }
+
+  let node = scope.closest(EDIT_ACTION_GROUP_SELECTOR) || scope;
+
+  while (node && node.parentElement) {
+    const fields = [];
+    let sibling = node.previousElementSibling;
+
+    for (; sibling; sibling = sibling.previousElementSibling) {
+      if (sibling.matches("button") || sibling.querySelector("button")) {
+        break;
+      }
+      if (sibling.matches(EDIT_FIELD_SELECTOR)) {
+        fields.push(sibling);
+      }
+      fields.push(...sibling.querySelectorAll(EDIT_FIELD_SELECTOR));
+    }
+
+    if (fields.length || sibling) {
+      return fields;
+    }
+
+    node = node.parentElement;
+    if (node.matches(EDIT_SCOPE_LIMIT_SELECTOR)) {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function readEditFieldState(field) {
+  return field.type === "checkbox" || field.type === "radio" ? (field.checked ? "1" : "0") : String(field.value);
+}
+
+function writeEditFieldState(field, state) {
+  if (field.type === "checkbox" || field.type === "radio") {
+    field.checked = state === "1";
+  } else {
+    field.value = state;
+  }
+}
+
+function findPropertyDescriptor(object, name) {
+  for (let proto = Object.getPrototypeOf(object); proto; proto = Object.getPrototypeOf(proto)) {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+    if (descriptor) {
+      return descriptor;
+    }
+  }
+  return null;
+}
+
+// Merkt sich, ob das Neuladen ein Feld beschreibt. Nur so laesst sich unterscheiden, ob ein
+// unveraenderter Wert "vom Geraet bestaetigt" heisst (das Neuladen hat genau ihn gesetzt)
+// oder "nicht angefasst" (ein Feld, das gar nicht aus dem Geraet befuellt wird, etwa ein
+// Passwort). Die Eigenschaft wird nur fuer die Dauer des synchronen Neuzeichnens auf dem
+// Element selbst ueberlagert und danach wieder entfernt; gelesen und geschrieben wird
+// weiter ueber den Zugriff des Browsers.
+function watchEditFieldWrites(field, onWrite) {
+  const names = field.type === "checkbox" || field.type === "radio"
+    ? ["checked"]
+    : (field instanceof HTMLSelectElement ? ["value", "selectedIndex"] : ["value"]);
+  const installed = [];
+
+  names.forEach((name) => {
+    const descriptor = findPropertyDescriptor(field, name);
+
+    if (!descriptor || !descriptor.get || !descriptor.set || Object.prototype.hasOwnProperty.call(field, name)) {
+      return;
+    }
+
+    Object.defineProperty(field, name, {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() {
+        return descriptor.get.call(this);
+      },
+      set(next) {
+        onWrite();
+        descriptor.set.call(this, next);
+      }
+    });
+    installed.push(name);
+  });
+
+  return () => installed.forEach((name) => {
+    delete field[name];
+  });
+}
+
+// B45: Vor dem Neuzeichnen festhalten, was in jedem ungespeicherten Feld steht. Laeuft
+// IMMER synchron bis endUnsavedEditGuard(), ohne await dazwischen.
+function beginUnsavedEditGuard() {
+  const entries = Array.from(unsavedEditFields).map((field) => {
+    const entry = { field, id: field.id || "", state: readEditFieldState(field), touched: false, release: null };
+    entry.release = watchEditFieldWrites(field, () => {
+      entry.touched = true;
+    });
+    return entry;
+  });
+
+  return { entries, done: false };
+}
+
+// Danach: Hat das Neuzeichnen ein ungespeichertes Feld ueberschrieben, kommt die Eingabe
+// zurueck und bleibt markiert. Wurde das Feld neu aufgebaut (Timerzeilen), wird es ueber
+// seine id wiedergefunden. Hat das Neuladen genau den eingegebenen Wert gesetzt (settle),
+// ist nichts mehr offen -- das ist der Gegenfall L33, auch wenn die Bereichszuordnung das
+// Feld nicht erfasst hat. Felder mit Ausgangswert (prefillDeviceValue) entscheiden selbst.
+function endUnsavedEditGuard(guard, settle) {
+  if (!guard || guard.done) {
+    return;
+  }
+  guard.done = true;
+  guard.entries.forEach((entry) => entry.release());
+
+  guard.entries.forEach((entry) => {
+    if (!unsavedEditFields.has(entry.field)) {
+      return;
+    }
+
+    let target = entry.field;
+    let touched = entry.touched;
+
+    if (!target.isConnected) {
+      unsavedEditFields.delete(target);
+      target = entry.id ? document.getElementById(entry.id) : null;
+      if (!target) {
+        return;
+      }
+      unsavedEditFields.add(target);
+      touched = true;
+    }
+
+    if (getDeviceBaseline(target) !== undefined) {
+      return;
+    }
+
+    if (readEditFieldState(target) !== entry.state) {
+      writeEditFieldState(target, entry.state);
+      return;
+    }
+
+    // M1 (Review P.6): Die WLAN-Liste setzt eine offene Wahl beim Neuaufbau selbst wieder
+    // (updateNetworkControlsFromMeta). Das ist kein Geraetewert, sondern die Eingabe -- sie
+    // gilt erst als erledigt, wenn das Geraet sie meldet (prefillDeviceValue).
+    if (target.dataset && target.dataset.userChoice === "1") {
+      return;
+    }
+
+    if (touched && settle) {
+      unsavedEditFields.delete(target);
+    }
+  });
+
+  syncUnsavedEditsFlag();
 }
 
 // B41 (M2, Review P3.3): Verwerfen ist mehr als "gespeichert". markEditsPersisted() laesst
@@ -2186,7 +2433,7 @@ function discardUnsavedEdits() {
   document.querySelectorAll("select[data-user-choice]").forEach((select) => {
     delete select.dataset.userChoice;
   });
-  markEditsPersisted();
+  markAllEditsPersisted();
 }
 
 // B18 (L151): Der Modulwechsel hat bisher nicht gewarnt -- gemessen wurde eine
@@ -2239,6 +2486,7 @@ function showStatusBanner(message, tone) {
 }
 
 function announceStatus(message, tone) {
+  lastAnnouncedTone = tone || "";
   showStatusBanner(message, tone);
 
   const element = document.getElementById("updated-at");
@@ -2398,9 +2646,29 @@ function reportApiWarning(warning) {
 // Die Fehlertexte des Geraets sind englisch, weil die Legacy-Oberflaeche es ist.
 // Hier wird deutsch gesprochen, also uebersetzt die Kennung, nicht der Text. Das
 // "detail" bleibt als Diagnose erhalten, falls eine Kennung einmal unbekannt ist.
+// C55/C44: Für diese Abweisungen des ESP gibt es eine eigene Erklärung in der Sprache der
+// Oberfläche. Die PWA prüft dieselbe Regel vorher (isValidDateTickerFormat,
+// isValidWeatherCoordinate); ankommen können sie trotzdem -- bei einer Abweichung der beiden
+// Regeln oder bei einer älteren Oberfläche im Cache. Dann soll statt "Der Wert liegt
+// ausserhalb des erlaubten Bereichs (date ticker format invalid (…))" ein Satz stehen, der
+// sagt, was erlaubt ist. Verglichen wird der Anfang des detail-Texts aus http.cpp.
+const API_ERROR_DETAIL_KEYS = [
+  ["date ticker format invalid", "input.date_format_invalid"],
+  ["lon invalid", "input.longitude_invalid"],
+  ["lat invalid", "input.latitude_invalid"],
+  ["lon and lat required together", "input.coordinates_pair_required"]
+];
+
 function describeApiError(error, fallbackText) {
   if (!error || !error.apiErrorCode) {
     return fallbackText;
+  }
+
+  const detail = typeof error.apiDetail === "string" ? error.apiDetail : "";
+  const detailEntry = API_ERROR_DETAIL_KEYS.find(([prefix]) => detail.startsWith(prefix));
+
+  if (detailEntry) {
+    return translate(detailEntry[1]);
   }
 
   const key = "api.error." + error.apiErrorCode;
@@ -2654,7 +2922,16 @@ async function loadData(options) {
     return;
   }
   if (opts.auto && hasUnsavedEdits) {
-    announceStatus(translate("status.auto_refresh_paused"), "warn");
+    // Das Banner ist aria-live: Alle 15 s wiederholt, lese ein Screenreader die Meldung jedes
+    // Mal vor, und sie ueberschrieb Abweisungen ("Messwert ...", "keine Voreinstellung")
+    // nach Sekunden -- seit B45 Bearbeitungen laenger markiert bleiben, haeufiger als vorher.
+    // Ist gerade eine Fehlermeldung im Banner sichtbar (der Banner-Timer laeuft noch), bleibt
+    // sie stehen, und die Phase gilt NICHT als gemeldet: Der naechste Takt meldet die Pause.
+    const errorVisible = !!statusBannerTimer && lastAnnouncedTone === "error";
+    if (!autoRefreshPauseAnnounced && !errorVisible) {
+      autoRefreshPauseAnnounced = true;
+      announceStatus(translate("status.auto_refresh_paused"), "warn");
+    }
     return;
   }
   if (opts.auto && settingsImportInProgress) {
@@ -2666,6 +2943,7 @@ async function loadData(options) {
   const requestId = ++loadRequestSerial;
   activeLoadCount += 1;
   const hadSnapshotBeforeLoad = !!getCurrentSettingsSnapshot();
+  let editGuard = null;
 
   if (!hadSnapshotBeforeLoad && !opts.auto) {
     announceStatus(translate("status.waiting_for_data"), "warn");
@@ -2694,6 +2972,9 @@ async function loadData(options) {
     setCurrentLayoutPreview(getCurrentLayoutPreview(settings));
     const uiState = getUiFeatureState(settings, debugOverrides);
     const ambilightOnline = uiState.moduleState.ambilightOnline;
+    // B45: Ungespeicherte Eingaben ueberstehen das Neuzeichnen. Bis renderTimerRows() kein
+    // await -- die Wache haengt nur fuer diesen synchronen Abschnitt an den Feldern.
+    editGuard = beginUnsavedEditGuard();
     renderOverview(settings, coreData.displayPower, coreData.ambilightPower, debugOverrides, getNormalizedUpdateStatus());
     try {
       renderWordclock(isDisplayPowerOn(coreData.displayPower, settings), settings, getCurrentLayoutPreview(settings));
@@ -2749,6 +3030,9 @@ async function loadData(options) {
     restoreOverlayEditorState(overlayEditorState);
     renderTimerRows(settings, false);
     renderTimerRows(settings, true);
+    endUnsavedEditGuard(editGuard, true);
+    editGuard = null;
+    syncRestoredEditDisplays();
     lastSuccessfulLoadAt = Date.now();
     announceStatus(translateFormat("status.updated_at", {
       time: new Date().toLocaleTimeString(currentLanguage === "en" ? "en-CH" : "de-CH")
@@ -2765,6 +3049,8 @@ async function loadData(options) {
       console.warn("Refresh incomplete, keeping previous snapshot", error);
     }
   } finally {
+    // Brach das Neuzeichnen mit einem Fehler ab, kommen die Eingaben trotzdem zurueck.
+    endUnsavedEditGuard(editGuard, false);
     activeLoadCount = Math.max(0, activeLoadCount - 1);
   }
 }
@@ -2943,6 +3229,31 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
     }
   }
 
+  if (networkActive && (!opts.auto || !getCurrentEepromSettings().ok)) {
+    // B46 (L367): Die AP-SSID steht nur in eeprom_settings, und das lud bisher allein die
+    // Wartung -- wer das Netzwerkmodul direkt oeffnete, sah ein leeres Feld. Derselbe Abruf
+    // wie dort. Bei der Selbstaktualisierung alle 15 s nur, solange noch nichts da ist:
+    // Die AP-SSID aendert sich nur durch ein Speichern, und danach laedt die Seite ohnehin
+    // ohne "auto" neu. Der Endpunkt liefert auch den WLAN-Schluessel im Klartext; er wird
+    // hier nur abgelegt (setCurrentEepromSettings), weder angezeigt noch protokolliert.
+    try {
+      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      if (requestId !== loadRequestSerial) {
+        return;
+      }
+      setCurrentEepromSettings(eepromSettings);
+      // M3 (Review P.7): settleFetchJson liefert bei einem Fehler den Rueckfallwert {}, ohne
+      // zu werfen. Ohne Hinweis stuende dann wieder ein leeres Feld da, das nach "nichts
+      // hinterlegt" aussieht.
+      if (!getCurrentEepromSettings().ok) {
+        noteApSettingsUnavailable();
+      }
+    } catch (error) {
+      console.warn("EEPROM settings load failed (network)", error && error.message ? error.message : "");
+      noteApSettingsUnavailable();
+    }
+  }
+
   if (networkActive) {
     try {
       setCurrentNetworkInfo(await settleFetchJson(getNetworkScanUrl(), getCurrentNetworkInfo() || { networks: [] }, CONNECTION_STABILITY.networkScanTimeoutMs, CONNECTION_STABILITY.slowReadAttempts));
@@ -2988,7 +3299,13 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
       setCurrentFsFilesFromList(fsList);
       setCurrentEepromSettings(eepromSettings);
-      refreshMaintenanceUi(settings, fsInfo);
+      // B45: Update-Host und -Pfad werden hier ein zweites Mal beschrieben.
+      const maintenanceGuard = beginUnsavedEditGuard();
+      try {
+        refreshMaintenanceUi(settings, fsInfo);
+      } finally {
+        endUnsavedEditGuard(maintenanceGuard, false);
+      }
     } catch (error) {
       console.warn("Maintenance data load failed", error);
     }
@@ -3217,8 +3534,9 @@ async function saveAmbilightOnlineState() {
   try {
     await apiFetch(getAmbilightOnlineSetUrl() + "?value=" + next);
     setPersistedAmbilightState(next);
-    // Eigener Pfad neben runButtonRequest, deshalb dieselbe Behandlung. B1.
-    markEditsPersisted();
+    // Eigener Pfad neben runButtonRequest, deshalb dieselbe Behandlung. B1. Gespeichert
+    // ist genau diese Auswahl (B45).
+    markEditsPersisted(select);
     try {
       await loadData();
     } catch (_) {
@@ -3601,7 +3919,7 @@ function prefillDeviceValue(input, deviceValue) {
   // dann vom Scan wieder gefuellt). Sonst bliebe ein Dialog ohne Grund, und die
   // Selbstaktualisierung ruhte.
   if (input.value === input.dataset.devicePrefill && unsavedEditFields.delete(input)) {
-    hasUnsavedEdits = unsavedEditFields.size > 0;
+    syncUnsavedEditsFlag();
   }
 
   // B41 (M1, Review P3.3): Die Wahl gilt, bis das Geraet sie selbst meldet -- nicht nur
@@ -3688,11 +4006,14 @@ function updateNetworkControlsFromMeta(meta) {
 
   // P2.1g: "Modus" stand hier als festes deutsches Literal, auch in der englischen
   // Oberflaeche.
-  document.getElementById("network-status-note").textContent = translateFormat("network.status_note", {
+  const statusNote = translateFormat("network.status_note", {
     ssid: meta.currentSsid || "-",
     ip: meta.ip || "-",
     mode: meta.mode || "-"
   });
+  document.getElementById("network-status-note").textContent = apSettingsUnavailable
+    ? statusNote + " " + translate("network.ap_settings_unavailable")
+    : statusNote;
 }
 
 function updateMaintenanceControls(settings, eepromSettings) {
@@ -4692,7 +5013,7 @@ async function importSettingsBackup() {
     }
 
     setSettingsBackupNote(translate("backup.import_start"));
-    markEditsPersisted();
+    markAllEditsPersisted();
     await applySettingsBackup(importedState);
     finishButtonFeedback(button, translate("backup.import_button"), "success", translate("backup.imported"));
   } catch (error) {
@@ -4992,6 +5313,7 @@ function getImportNoticeSummary() {
     getFailedImportStagesSummary(),
     getSkippedImportFieldsSummary(),
     getTooLongImportFieldsSummary(),
+    getInvalidImportFieldsSummary(),
     getTooLongImportOverlaysSummary(),
     getAdjustedImportFieldsSummary(),
     getIrImportSummary()
@@ -6156,6 +6478,133 @@ function checkTextValueOrReport(value, fieldName, input, statusElement) {
   return false;
 }
 
+// C55 (L369, Ent-10): Datumsformat -- dieselbe Regel wie http_date_ticker_format_ok() im ESP
+// (http.cpp):
+//
+//   gültig  <=>  1 <= Länge <= 5   (MAX_DATE_TICKER_FORMAT_LEN, ESP vars.h)
+//            und jedes Zeichen aus  d D m M y Y . - / Leerzeichen
+//            und mindestens ein Platzhalter
+//            und höchstens ein Tag (d|D), ein Monat (m|M), ein Jahr (y|Y)
+//            und kein Leerzeichen am Anfang oder am Ende
+//
+// Code teilen geht nicht, gemessen wird: Beide Seiten laufen gegen DIESELBE Fall-Tabelle
+// (tools/checks/auszug/esp/t17/regeln.tsv). Wer die Regel ändert, ändert zuerst die Tabelle.
+// Die Länge wird erst nach der Zeichenprüfung genommen: Dann ist nur noch ASCII übrig, und
+// Zeichen und Byte (strlen im ESP) sind dasselbe.
+function isValidDateTickerFormat(value) {
+  const text = value === undefined || value === null ? "" : String(value);
+  let days = 0;
+  let months = 0;
+  let years = 0;
+
+  for (const character of text) {
+    if (character === "d" || character === "D") {
+      days += 1;
+    } else if (character === "m" || character === "M") {
+      months += 1;
+    } else if (character === "y" || character === "Y") {
+      years += 1;
+    } else if (character !== "." && character !== "-" && character !== "/" && character !== " ") {
+      return false;
+    }
+  }
+
+  if (text.length < 1 || text.length > 5 || text[0] === " " || text[text.length - 1] === " ") {
+    return false;
+  }
+
+  return days + months + years > 0 && days <= 1 && months <= 1 && years <= 1;
+}
+
+// C44 (L340, Ent-12): Das Komma wird zum Punkt, bevor geprüft und gesendet wird -- wie
+// strsubst() im ESP, das es schon immer tat.
+function normalizeWeatherCoordinate(value) {
+  return (value === undefined || value === null ? "" : String(value)).replace(/,/g, ".");
+}
+
+// C44: eine Koordinate -- dieselbe Regel wie http_coordinate_ok() im ESP, gegen dieselbe
+// Fall-Tabelle:
+//
+//   gültig  <=>  Länge <= 8         (MAX_WEATHER_LON_LEN / MAX_WEATHER_LAT_LEN, ESP vars.h)
+//            und Form  -?[0-9]+(\.[0-9]+)?    kein +, kein Exponent, keine Leerzeichen
+//            und |Wert| <= limit    180 für die Länge, 90 für die Breite
+//
+// Wie im ESP ohne Gleitkomma: genau auf der Grenze ist nur ein Nachkommateil aus Nullen
+// erlaubt ("180.0", nicht "180.5"). Leer ist hier ungültig; dass ein leeres PAAR zurück zur
+// Ortsabfrage führt, entscheidet der Aufrufer (readWeatherCoordinatesOrReport).
+function isValidWeatherCoordinate(value, limit) {
+  const text = normalizeWeatherCoordinate(value);
+
+  if (text.length > 8) {
+    return false;
+  }
+
+  const match = /^-?([0-9]+)(?:\.([0-9]+))?$/.exec(text);
+
+  if (!match) {
+    return false;
+  }
+
+  const whole = Number(match[1]);
+  const fractionZero = !match[2] || /^0+$/.test(match[2]);
+
+  return whole < limit || (whole === limit && fractionZero);
+}
+
+function reportInvalidInput(message, input, statusElement) {
+  announceStatus(message, "error");
+  if (statusElement) {
+    statusElement.textContent = message;
+  }
+  if (input && input.focus) {
+    input.focus();
+  }
+}
+
+// Datumsformat aus dem Feld: erst die Länge in Byte (dieselbe Meldung wie bisher), dann
+// die Regel. null heisst abgewiesen und gemeldet; gesendet wird dann nichts.
+function readDateTickerFormatOrReport(input) {
+  const value = readTextInputOrReport(input, "date_ticker_format");
+
+  if (value === null) {
+    return null;
+  }
+  if (!isValidDateTickerFormat(value)) {
+    reportInvalidInput(translate("input.date_format_invalid"), input);
+    return null;
+  }
+  return value;
+}
+
+// Koordinatenpaar aus zwei Feldern, für das Klimamodul und das Kartenmodal. Liefert die
+// Werte mit Punkt statt Komma, oder null nach einer Meldung. Beide leer bleibt erlaubt --
+// das ist der Weg zurück zur Ortsabfrage, und ob dafür ein Ort eingetragen ist, weiss nur
+// das Gerät (Kennung 1).
+function readWeatherCoordinatesOrReport(lonInput, latInput, statusElement) {
+  const lon = readTextInputOrReport(lonInput, "weather_lon", statusElement);
+  const lat = lon === null ? null : readTextInputOrReport(latInput, "weather_lat", statusElement);
+
+  if (lat === null) {
+    return null;
+  }
+  if (!lon && !lat) {
+    return { lon: "", lat: "" };
+  }
+  if (!lon || !lat) {
+    reportInvalidInput(translate("input.coordinates_pair_required"), lon ? latInput : lonInput, statusElement);
+    return null;
+  }
+  if (!isValidWeatherCoordinate(lon, 180)) {
+    reportInvalidInput(translate("input.longitude_invalid"), lonInput, statusElement);
+    return null;
+  }
+  if (!isValidWeatherCoordinate(lat, 90)) {
+    reportInvalidInput(translate("input.latitude_invalid"), latInput, statusElement);
+    return null;
+  }
+  return { lon: normalizeWeatherCoordinate(lon), lat: normalizeWeatherCoordinate(lat) };
+}
+
 // Der Backup-Import schreibt dieselben Felder. Seit E2.3 bricht ein zu langer Wert dort
 // die ganze Import-Stufe ab -- alles, was in ihr noch folgte, blieb ungeschrieben. Er
 // wird deshalb vorher erkannt und NICHT geschrieben, der Wert auf der Uhr bleibt
@@ -6168,6 +6617,30 @@ const tooLongImportFieldEntries = new Map();
 function resetTooLongImportFields() {
   tooLongImportFieldEntries.clear();
   tooLongImportOverlayEntries.length = 0;
+  invalidImportFieldKeys.length = 0;
+}
+
+// C55/C44: Werte aus der Sicherung, die die Uhr nach ihrer Regel abweisen würde. Eine
+// eigene Liste neben "zu lang", weil der Grund ein anderer ist; der Schluss ist derselbe:
+// nicht geschrieben, auf der Uhr unverändert. Ohne diese Prüfung bräche die Abweisung
+// (Kennung 2) die ganze Import-Stufe ab.
+const invalidImportFieldKeys = [];
+
+function noteInvalidImportField(labelKey) {
+  if (labelKey && !invalidImportFieldKeys.includes(labelKey)) {
+    invalidImportFieldKeys.push(labelKey);
+    console.warn("Import: Wert aus der Sicherung ungültig, nicht geschrieben: " + labelKey);
+  }
+}
+
+function getInvalidImportFieldsSummary() {
+  if (!invalidImportFieldKeys.length) {
+    return "";
+  }
+
+  return translateFormat("backup.import_invalid_fields", {
+    fields: invalidImportFieldKeys.map((key) => translate(key)).join(", ")
+  });
 }
 
 function acceptImportTextOrNote(fieldName, value) {
@@ -6402,7 +6875,8 @@ function normalizeImportText(value) {
 
 // Schreibt nur, wenn die Sicherung wirklich einen Wert enthält und er auf die Uhr passt.
 // Der Rückgabewert sagt, ob geschrieben wurde; die Stufe läuft in allen Fällen weiter.
-async function importOptionalValue(endpoint, value, fieldName) {
+// isValid (optional) ist die Regel, nach der die Uhr den Wert annimmt (C55).
+async function importOptionalValue(endpoint, value, fieldName, isValid) {
   const text = normalizeImportText(value);
 
   if (!text) {
@@ -6411,6 +6885,11 @@ async function importOptionalValue(endpoint, value, fieldName) {
   }
 
   if (!acceptImportTextOrNote(fieldName, text)) {
+    return false;
+  }
+
+  if (isValid && !isValid(text)) {
+    noteInvalidImportField(TEXT_FIELD_LIMITS[fieldName].labelKey);
     return false;
   }
 
@@ -6498,7 +6977,7 @@ async function importDisplaySettings(display) {
     await apiFetchValue(getTickerSetUrl(), tickerText);
     await sleep(350);
   }
-  if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "date_ticker_format")) {
+  if (await importOptionalValue(getDateTickerFormatSetUrl(), display.date_ticker_format, "date_ticker_format", isValidDateTickerFormat)) {
     await sleep(900);
   }
   await apiFetchValue(getTickerDecelerationSetUrl(), readClampedImportNumber(display.ticker_deceleration, 0, 255, "backup.field.ticker_deceleration"));
@@ -6564,18 +7043,37 @@ async function importWeatherLocationSettings(climate) {
     return;
   }
 
+  // C44: dieselbe Regel wie beim Speichern. Ist eine Koordinate ungültig, bleibt die ganze
+  // Ortsangabe auf der Uhr stehen -- aus demselben Grund wie oben bei "zu lang".
+  if (hasCoordinates) {
+    const valid = [["backup.field.weather_lon", lon, 180], ["backup.field.weather_lat", lat, 90]]
+      .map(([labelKey, text, limit]) => {
+        if (isValidWeatherCoordinate(text, limit)) {
+          return true;
+        }
+        noteInvalidImportField(labelKey);
+        return false;
+      });
+    if (!valid.every(Boolean)) {
+      return;
+    }
+  }
+
+  const sendLon = hasCoordinates ? normalizeWeatherCoordinate(lon) : "";
+  const sendLat = hasCoordinates ? normalizeWeatherCoordinate(lat) : "";
+
   if (city) {
     await apiFetchValue(getWeatherCitySetUrl(), city);
     await sleep(250);
     await apiFetchQuery(getWeatherCoordinatesSetUrl(), {
-      lon: hasCoordinates ? lon : "",
-      lat: hasCoordinates ? lat : ""
+      lon: sendLon,
+      lat: sendLat
     });
     await sleep(250);
     return;
   }
 
-  await apiFetchQuery(getWeatherCoordinatesSetUrl(), { lon, lat });
+  await apiFetchQuery(getWeatherCoordinatesSetUrl(), { lon: sendLon, lat: sendLat });
   await sleep(250);
   await apiFetchValue(getWeatherCitySetUrl(), "");
   await sleep(250);
@@ -7432,6 +7930,25 @@ function renderReleaseNotes(host, html) {
   host.appendChild(placeholder);
 }
 
+// M-a: Vor dem Neuaufbau einer Update-Liste: Liefert die Wahl des Nutzers, wenn er vom
+// zuletzt gesetzten Standard abgewichen ist und die Datei weiter angeboten wird, sonst "".
+function keptUpdateSelectChoice(select, files) {
+  const previous = select ? select.value : "";
+  const renderedDefault = select && select.dataset.renderedDefault !== undefined ? select.dataset.renderedDefault : previous;
+  return previous && previous !== renderedDefault && files.includes(previous) ? previous : "";
+}
+
+// Nach dem Neuaufbau: Ausgangswert ist, was die Liste tatsaechlich zeigt -- steht der
+// Standard nicht darin, zeigt der Browser den ersten Eintrag, und der darf beim naechsten
+// Neuaufbau nicht als Wahl des Nutzers gelten. Kommt der Standard spaeter dazu, folgt die
+// Liste wieder dem Geraet.
+function restoreUpdateSelectChoice(select, previous) {
+  select.dataset.renderedDefault = select.value;
+  if (previous) {
+    select.value = previous;
+  }
+}
+
 function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const updateMeta = getUpdateModuleMeta(updateStatus, updateTableInfo, settings);
   const summary = updateMeta.summary;
@@ -7449,9 +7966,14 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const stm32Selectable = view.stm32Files.length > 0 && !view.stm32HardwareUnknown;
   const noStm32FilesText = translate(view.stm32HardwareUnknown ? "maintenance.stm32_hardware_unknown" : "maintenance.no_stm32_files");
   const select = document.getElementById("update-stm32-select");
+  // M-a (Re-Review P.6): Die Liste wird bei jeder Selbstaktualisierung neu aufgebaut. Eine
+  // Wahl des Nutzers (abweichend vom zuletzt gesetzten Standard) bleibt stehen, solange die
+  // Datei noch in der Liste steht -- wie die WLAN-Liste (updateNetworkControlsFromMeta).
+  const previousStm32 = keptUpdateSelectChoice(select, stm32Selectable ? view.stm32Files : []);
   select.innerHTML = stm32Selectable
     ? view.stm32Files.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === view.stm32Default ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
     : '<option value="">' + escapeHtml(noStm32FilesText) + '</option>';
+  restoreUpdateSelectChoice(select, previousStm32);
   select.title = stm32Selectable ? "" : noStm32FilesText;
 
   const tableField = document.getElementById("update-table-field");
@@ -7464,9 +7986,11 @@ function updateUpdateStatus(updateStatus, updateTableInfo, settings) {
   const currentTable = serverFilesMeta.currentTable;
 
   tableField.classList.toggle("is-hidden", !serverFilesMeta.tableAvailable);
+  const previousTable = keptUpdateSelectChoice(tableSelect, tableFiles);
   tableSelect.innerHTML = tableFiles.length
     ? tableFiles.map((file) => '<option value="' + escapeHtml(file) + '"' + (file === currentTable ? " selected" : "") + ">" + escapeHtml(file) + "</option>").join("")
     : '<option value="">' + escapeHtml(translate("maintenance.no_layout_tables")) + '</option>';
+  restoreUpdateSelectChoice(tableSelect, previousTable);
   tableButton.classList.toggle("is-hidden", !serverFilesMeta.tableActionSupported);
   assetsButton.classList.toggle("is-hidden", !serverFilesMeta.assetsActionSupported);
   appFilesButton.classList.toggle("is-hidden", !serverFilesMeta.appFilesActionSupported);
@@ -7693,11 +8217,32 @@ function getDateTimeUiMeta(settings) {
   };
 }
 
+// A2 (Paket 2026-10-10, design.md §4.4): Der STM meldet einen ungültigen Messwert seit S1
+// als Index 255 bei weiterhin erkanntem Sensor. "online" allein hiess bisher nur "beim
+// Start gefunden". Drei Zustände: nicht gefunden (IS_UP 0), Messwert ungültig (IS_UP 1,
+// Index 255), sonst online mit Messwert.
+function getDs18xxReadingState(numvars) {
+  if (!numvars[NUM.DS18XX_IS_UP]) {
+    return "not_found";
+  }
+  return Number(numvars[NUM.DS18XX_TEMP_INDEX]) === 0xFF ? "invalid" : "valid";
+}
+
 function getTemperatureUiMeta(settings) {
+  // N3 (Review P.7): Die Statuszeile sagt, ob der Sensor da ist, die Messwertzeile, was er
+  // misst. Nicht gefunden: Status "nicht gefunden", Messwert "–". Ungueltig: Status
+  // "online" (der Sensor antwortet), Messwert "Messwert ungültig".
+  const ds18xxState = getDs18xxReadingState(settings.numvars);
+  const ds18xxValueText = ds18xxState === "not_found"
+    ? "–"
+    : (ds18xxState === "invalid"
+      ? translate("climate.ds18xx_reading_invalid")
+      : formatHalfDegreeValue(settings.numvars[NUM.DS18XX_TEMP_INDEX]));
+
   return {
     items: [
-      ["DS18xx", formatHalfDegreeValue(settings.numvars[NUM.DS18XX_IS_UP] ? settings.numvars[NUM.DS18XX_TEMP_INDEX] : null)],
-      ["DS18xx online", onOff(settings.numvars[NUM.DS18XX_IS_UP])],
+      ["DS18xx", ds18xxValueText],
+      ["DS18xx online", ds18xxState === "not_found" ? translate("climate.ds18xx_not_found") : onOff(1)],
       ["RTC", formatHalfDegreeValue(settings.numvars[NUM.RTC_IS_UP] ? getRtcTemperatureHalfDegrees(settings.numvars) : null)],
       ["RTC online", onOff(settings.numvars[NUM.RTC_IS_UP])]
     ],
@@ -7900,11 +8445,20 @@ function renderDimCurveList(rootId, values, prefix) {
 
 function populateDimPresetSelect(selectId) {
   const select = document.getElementById(selectId);
-  if (!select || select.options.length) {
+  if (!select) {
+    return;
+  }
+  // Bestehende Eintraege nur neu beschriften (Sprachwechsel), damit die Auswahl bleibt.
+  if (select.options.length) {
+    Array.from(select.options).forEach((option) => {
+      if (DIM_CURVE_PRESET_NAMES[option.value]) {
+        option.textContent = translate(DIM_CURVE_PRESET_NAMES[option.value]);
+      }
+    });
     return;
   }
   select.innerHTML = Object.keys(DIM_CURVE_PRESET_NAMES).map((key) => (
-    '<option value="' + escapeHtml(key) + '">' + escapeHtml(DIM_CURVE_PRESET_NAMES[key]) + "</option>"
+    '<option value="' + escapeHtml(key) + '">' + escapeHtml(translate(DIM_CURVE_PRESET_NAMES[key])) + "</option>"
   )).join("");
 }
 
@@ -7940,22 +8494,70 @@ function syncDimCurveValue(prefix, idx) {
   }
 }
 
+// Re-Review P.6 (H-neu): Die Vorlagenliste ist von der Markierung ausgenommen (H1), die
+// sechzehn Regler, die eine Vorlage setzt, sind es nicht. Sie werden hier per Programm
+// gesetzt und loesen damit kein Eingabeereignis aus -- ohne Eintrag liefen sie an der
+// Markierung vorbei: Die Selbstaktualisierung setzte sie nach hoechstens 15 s still zurueck,
+// und der Modulwechsel fragte nicht. Eingetragen wird jeder Regler, dessen Wert sich
+// tatsaechlich aendert.
+//
+// "Individuell" (custom) und ein unbekannter Schluessel sind keine Vorlage. Frueher fielen
+// sie still auf "Linear" zurueck, und "anwenden und speichern" schrieb dann Linear aufs
+// Geraet und meldete Erfolg. Jetzt aendert sich nichts; Rueckgabe false.
 function applyDimPreset(prefix) {
   const select = document.getElementById(prefix === "ambi" ? "ambilight-dim-preset-select" : "display-dim-preset-select");
-  const preset = DIM_CURVE_PRESETS[select.value] || DIM_CURVE_PRESETS.linear;
+  const key = select ? select.value : "";
+  const preset = Object.prototype.hasOwnProperty.call(DIM_CURVE_PRESETS, key) ? DIM_CURVE_PRESETS[key] : null;
+
+  if (!preset) {
+    syncDimPresetSelection(prefix);
+    return false;
+  }
+
   for (let idx = 0; idx <= 15; idx += 1) {
     const input = document.getElementById(prefix + "-dim-" + idx);
     if (input) {
-      input.value = String(preset[idx] ?? 0);
+      const next = String(preset[idx] ?? 0);
+      if (input.value !== next) {
+        input.value = next;
+        unsavedEditFields.add(input);
+      }
       syncDimCurveValue(prefix, idx);
     }
   }
+  syncUnsavedEditsFlag();
   syncDimPresetSelection(prefix);
+  return true;
+}
+
+// Nach dem Neuzeichnen: Hat die Wache in loadData() Regler wiederhergestellt, passen
+// Wertanzeige und Vorlagenliste sonst noch zum Geraetewert statt zum Regler.
+function syncRestoredEditDisplays() {
+  unsavedEditFields.forEach((field) => {
+    const dim = /^(disp|ambi)-dim-(\d+)$/.exec(field.id || "");
+    const profile = /^(an|can)-dec-(\d+)$/.exec(field.id || "");
+    if (dim) {
+      syncDimCurveValue(dim[1], Number(dim[2]));
+    } else if (profile) {
+      syncProfileRangeValue(profile[1], Number(profile[2]));
+    }
+  });
+  syncDimPresetSelection("disp");
+  syncDimPresetSelection("ambi");
 }
 
 async function applyDimPresetAndSave(prefix) {
   const button = document.getElementById(prefix === "ambi" ? "ambilight-dim-preset-apply-button" : "display-dim-preset-apply-button");
   const buttonText = translate("display.apply_preset_save");
+  const select = document.getElementById(prefix === "ambi" ? "ambilight-dim-preset-select" : "display-dim-preset-select");
+
+  if (!select || !Object.prototype.hasOwnProperty.call(DIM_CURVE_PRESETS, select.value)) {
+    announceStatus(translate("display.preset_not_a_preset"), "error");
+    if (select && select.focus) {
+      select.focus();
+    }
+    return;
+  }
 
   beginButtonFeedback(button, translate("common.saving"));
   applyDimPreset(prefix);
@@ -8339,7 +8941,7 @@ async function saveTickerText() {
 }
 
 async function saveDateTickerFormat() {
-  const value = readTextInputOrReport(document.getElementById("date-format-input"), "date_ticker_format");
+  const value = readDateTickerFormatOrReport(document.getElementById("date-format-input"));
 
   if (value === null) {
     return;
@@ -8402,18 +9004,13 @@ async function saveWeatherCity() {
 }
 
 async function saveWeatherCoordinates() {
-  const lon = readTextInputOrReport(document.getElementById("weather-lon-input"), "weather_lon");
+  const coordinates = readWeatherCoordinatesOrReport(document.getElementById("weather-lon-input"), document.getElementById("weather-lat-input"));
 
-  if (lon === null) {
+  if (!coordinates) {
     return;
   }
 
-  const lat = readTextInputOrReport(document.getElementById("weather-lat-input"), "weather_lat");
-
-  if (lat === null) {
-    return;
-  }
-
+  const { lon, lat } = coordinates;
   await runQuerySave("weather-coordinates-save-button", getWeatherCoordinatesSetUrl(), { lon, lat }, translate("climate.save_coordinates"), translate("climate.coordinates_save_failed"));
 }
 
@@ -8555,10 +9152,36 @@ function handleModalKeydown(event) {
   }
 }
 
+// B47 (L368): Geschlossen wurde bisher schon beim mousedown. Die Standardaktion desselben
+// Drucks setzte den Fokus danach auf den Body -- die Rueckgabe an den Kartenknopf war damit
+// gleich wieder weg. Jetzt schliesst erst der click, also nach dieser Standardaktion, und
+// die Rueckgabe in closeWeatherMapPicker() bleibt stehen.
+//
+// Der click allein genuegt nicht: Er geht an den gemeinsamen Vorfahren von Druck- und
+// Loslassziel. Wer die Karte zieht und ausserhalb loslaesst, erzeugte einen click auf der
+// Abdeckung und haette das Modal geschlossen. Deshalb muessen Druck UND Loslassen auf der
+// Abdeckung selbst liegen.
+let modalBackdropPressed = false;
+let modalBackdropReleased = false;
+
+function handleModalBackdropMouseDown(event) {
+  modalBackdropPressed = event.target === event.currentTarget;
+  modalBackdropReleased = false;
+}
+
+function handleModalBackdropMouseUp(event) {
+  modalBackdropReleased = event.target === event.currentTarget;
+}
+
 function handleModalBackdropClick(event) {
+  const closeIt = modalBackdropPressed && modalBackdropReleased && event.target === event.currentTarget;
+
+  modalBackdropPressed = false;
+  modalBackdropReleased = false;
+
   // Nur der Klick auf die Abdeckung selbst schliesst. Ein Klick in die Karte oder auf
   // ein Feld blubbert zwar bis hierher, hat dann aber ein anderes Ziel.
-  if (event.target === event.currentTarget) {
+  if (closeIt) {
     closeWeatherMapPicker();
   }
 }
@@ -8568,7 +9191,9 @@ async function openWeatherMapPicker() {
   const status = document.getElementById("weather-map-status");
   const shell = document.querySelector(".shell");
 
-  modalReturnFocus = document.activeElement;
+  // N1 (Review P.7): Safari fokussiert einen angetippten Knopf nicht; activeElement waere
+  // dann body, und der Fokus ginge nach dem Schliessen an den Seitenanfang.
+  modalReturnFocus = document.getElementById("weather-map-button") || document.activeElement;
   modal.classList.remove("is-hidden");
   modal.setAttribute("aria-hidden", "false");
   document.body.classList.add("has-modal");
@@ -8580,7 +9205,11 @@ async function openWeatherMapPicker() {
   }
 
   document.addEventListener("keydown", handleModalKeydown, true);
-  modal.addEventListener("mousedown", handleModalBackdropClick);
+  modalBackdropPressed = false;
+  modalBackdropReleased = false;
+  modal.addEventListener("mousedown", handleModalBackdropMouseDown);
+  modal.addEventListener("mouseup", handleModalBackdropMouseUp);
+  modal.addEventListener("click", handleModalBackdropClick);
 
   const firstField = document.getElementById("weather-map-search-input");
 
@@ -8602,6 +9231,9 @@ function closeWeatherMapPicker() {
   const modal = document.getElementById("weather-map-modal");
   const shell = document.querySelector(".shell");
 
+  // H1: Schliessen heisst Verwerfen -- was im Dialog stand und nicht uebernommen wurde,
+  // ist keine offene Bearbeitung mehr.
+  markEditsPersisted(modal);
   modal.classList.add("is-hidden");
   modal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("has-modal");
@@ -8611,7 +9243,9 @@ function closeWeatherMapPicker() {
   }
 
   document.removeEventListener("keydown", handleModalKeydown, true);
-  modal.removeEventListener("mousedown", handleModalBackdropClick);
+  modal.removeEventListener("mousedown", handleModalBackdropMouseDown);
+  modal.removeEventListener("mouseup", handleModalBackdropMouseUp);
+  modal.removeEventListener("click", handleModalBackdropClick);
 
   // Zurueck auf die Schaltflaeche, die geoeffnet hat -- sonst beginnt die
   // Tastaturbedienung nach dem Schliessen wieder ganz oben.
@@ -8950,12 +9584,15 @@ async function applyWeatherMapSelection() {
   // Meldung steht zusätzlich im Dialog, weil er die globale Statuszeile verdeckt.
   const mapStatus = document.getElementById("weather-map-status");
   const city = readTextInputOrReport(document.getElementById("weather-map-city-input"), "weather_city", mapStatus);
-  const lon = city === null ? null : readTextInputOrReport(document.getElementById("weather-map-lon-input"), "weather_lon", mapStatus);
-  const lat = lon === null ? null : readTextInputOrReport(document.getElementById("weather-map-lat-input"), "weather_lat", mapStatus);
+  // C44: dieselbe Regel wie beim Speichern im Klimamodul. Aus der Karte selbst kommen nur
+  // gültige Werte (formatWeatherCoordinate), die Felder sind aber von Hand editierbar.
+  const coordinates = city === null ? null : readWeatherCoordinatesOrReport(document.getElementById("weather-map-lon-input"), document.getElementById("weather-map-lat-input"), mapStatus);
 
-  if (lat === null) {
+  if (!coordinates) {
     return;
   }
+
+  const { lon, lat } = coordinates;
 
   document.getElementById("weather-city-input").value = city;
   document.getElementById("weather-lon-input").value = lon;
@@ -8973,6 +9610,8 @@ async function applyWeatherMapSelection() {
     errorText: translate("weather.apply_map_failed"),
     successStatusText: translate("weather.apply_map_success"),
     reload: true,
+    // H1: Uebernommen ist der ganze Dialog, auch das Suchfeld.
+    persistScope: document.getElementById("weather-map-modal"),
     request: async () => {
       // Erst die Koordinaten, dann der Ort: Ein Punkt auf der Karte ohne Namen
       // würde als leerer Ort auf ein Gerät ohne Koordinaten treffen und mit
@@ -9032,7 +9671,8 @@ async function saveNetworkClient() {
     successText: translate("common.started"),
     errorText: translate("network.connect_client_error"),
     successStatusText: translate("network.connect_client_started"),
-    reloadDelayMs: 1500
+    reloadDelayMs: 1500,
+    persistScope: document.getElementById("network-client-save-button")
   });
 }
 
@@ -9056,7 +9696,8 @@ async function saveNetworkAp() {
     successText: translate("common.started"),
     errorText: translate("network.start_ap_error"),
     successStatusText: translate("network.start_ap_started"),
-    reloadDelayMs: 1500
+    reloadDelayMs: 1500,
+    persistScope: document.getElementById("network-ap-save-button")
   });
 }
 
@@ -10173,9 +10814,24 @@ function getCurrentFsFiles() {
   return Array.isArray(currentFsFiles) ? currentFsFiles : [];
 }
 
+// M-b (Re-Review P.6): Die Meldung ueber die globale Statuszeile kommt EINMAL je
+// Fehlerphase. Das Banner ist aria-live; alle 15 s wiederholt, laese ein Screenreader es
+// jedes Mal vor, und es verdraengte "Aktualisiert um ..." und Erfolgsmeldungen. Dauerhaft
+// steht der Hinweis im Netzwerkstatus (updateNetworkControlsFromMeta). Ein erfolgreiches
+// Laden beendet die Phase.
+let apSettingsUnavailable = false;
+
+function noteApSettingsUnavailable() {
+  if (!apSettingsUnavailable) {
+    apSettingsUnavailable = true;
+    announceStatus(translate("network.ap_settings_unavailable"), "warn");
+  }
+}
+
 function setCurrentEepromSettings(eepromSettings) {
   if (eepromSettings && eepromSettings.ok) {
     currentEepromSettings = eepromSettings;
+    apSettingsUnavailable = false;
   }
   return getCurrentEepromSettings();
 }
@@ -12564,7 +13220,7 @@ async function persistDimCurve(prefix, button, buttonText) {
     for (let idx = 0; idx <= 15; idx += 1) {
       await apiFetch(endpoint + "?idx=" + idx + "&value=" + encodeURIComponent(values[idx]));
     }
-    markEditsPersisted();
+    markEditsPersisted(document.getElementById(prefix === "ambi" ? "ambilight-dim-list" : "display-dim-list"));
     await loadData();
     finishButtonFeedback(button, buttonText, "success", translate("common.saved"));
   } catch (error) {
@@ -12628,12 +13284,46 @@ function buildQueryString(params) {
     .join("&");
 }
 
+// B44 (L365, Ent-9): Ein leeres oder unvollständiges Zeitfeld ergibt KEIN Ergebnis, sondern
+// null. Bis hierher fiel die Funktion still auf 00:00 zurück -- und ihre Aufrufer taten es
+// mit "value || '00:00'" ein zweites Mal. Ein geleertes Feld wurde so als aktiver Timer um
+// Mitternacht gespeichert, am Gerät belegt (nighttime[2]). Jeder Aufrufer muss null
+// abfangen und melden; gesendet wird dann nichts. Ent-9: immer, auch bei inaktivem
+// Eintrag -- ein stilles 00:00 würde beim späteren Aktivieren zum selben Fehler. Zum
+// Leeren eines Platzes gibt es clearTimerRow().
 function parseTimeInput(value) {
-  const parts = String(value || "00:00").split(":");
-  return {
-    hour: Number(parts[0] || 0),
-    minute: Number(parts[1] || 0)
-  };
+  const text = value === undefined || value === null ? "" : String(value).trim();
+  // <input type="time"> liefert "HH:MM", mit step auch Sekunden; unvollständig heisst "".
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d{1,3})?)?$/.exec(text);
+
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (hour > 23 || minute > 59) {
+    return null;
+  }
+
+  return { hour, minute };
+}
+
+// B44: Ein Zeitfeld lesen oder abweisen. Die Meldung nennt die Zeile (rowLabel), weil
+// Timer und Alarme als Listen gleich aussehender Karten erscheinen.
+function readTimeInputOrReport(input, rowLabel) {
+  const time = parseTimeInput(input ? input.value : "");
+
+  if (time) {
+    return time;
+  }
+
+  announceStatus(translateFormat("input.time_required", { row: rowLabel }), "error");
+  if (input && input.focus) {
+    input.focus();
+  }
+  return null;
 }
 
 async function runQueryButtonRequest(button, options) {
@@ -12714,6 +13404,7 @@ async function runStateToggleButton(button, endpoint, options) {
     successText,
     errorText: options && options.errorText ? options.errorText : translate("common.toggle_failed"),
     reload: true,
+    persistScope: null,
     preserveCurrentText: options && options.preserveCurrentText !== undefined ? options.preserveCurrentText : true
   });
 }
@@ -12732,6 +13423,7 @@ async function runButtonRequest(button, options) {
     reload = false,
     reloadDelayMs = 0,
     preserveCurrentText = false,
+    persistScope,
     request
   } = options || {};
 
@@ -12746,9 +13438,16 @@ async function runButtonRequest(button, options) {
     // loadData() die Selbstaktualisierung fuer den Rest der Sitzung still. L33,
     // Massnahme 4. Reine Ausloeseaktionen (reloadDelayMs) ruehren es bewusst nicht an.
     if (reload) {
-      markEditsPersisted();
+      // B45: nur der Bereich dieses Knopfs, nicht alles. persistScope: null fuer Schalter.
+      markEditsPersisted(persistScope === undefined ? button : persistScope);
       await loadData();
     } else if (reloadDelayMs > 0) {
+      // H1: Speichert die Aktion Felder (WLAN verbinden, Zugangspunkt starten), nennt sie
+      // ihren Bereich ausdruecklich. Reine Ausloeseaktionen nennen keinen und lassen jede
+      // Markierung stehen -- "IR anlernen" stuende sonst vor den Feldern der Uhrzeit.
+      if (persistScope) {
+        markEditsPersisted(persistScope);
+      }
       setTimeout(loadData, reloadDelayMs);
     }
     if (successStatusText) {
@@ -12951,15 +13650,22 @@ async function saveDfplayerSpeakCycle() {
 }
 
 async function saveDfplayerSilenceStart() {
-  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", getDfplayerSilenceStartSetUrl(), translate("dfplayer.silence_start_save"), translate("dfplayer.silence_start_save_failed"));
+  await saveDfplayerSilenceTime("dfplayer-silence-start-input", "dfplayer-silence-start-save-button", getDfplayerSilenceStartSetUrl(), translate("dfplayer.silence_start_save"), translate("dfplayer.silence_start_save_failed"), translate("dfplayer.silence_start"));
 }
 
 async function saveDfplayerSilenceStop() {
-  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", getDfplayerSilenceStopSetUrl(), translate("dfplayer.silence_stop_save"), translate("dfplayer.silence_stop_save_failed"));
+  await saveDfplayerSilenceTime("dfplayer-silence-stop-input", "dfplayer-silence-stop-save-button", getDfplayerSilenceStopSetUrl(), translate("dfplayer.silence_stop_save"), translate("dfplayer.silence_stop_save_failed"), translate("dfplayer.silence_stop"));
 }
 
-async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, errorText) {
-  const { hour, minute } = parseTimeInput(document.getElementById(inputId).value || "00:00");
+async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, errorText, rowLabel) {
+  const input = document.getElementById(inputId);
+  const time = readTimeInputOrReport(input, rowLabel);
+
+  if (!time) {
+    return;
+  }
+
+  const { hour, minute } = time;
   await runQueryButtonRequest(document.getElementById(buttonId), {
     endpoint,
     query: { hour, minute },
@@ -12967,7 +13673,9 @@ async function saveDfplayerSilenceTime(inputId, buttonId, endpoint, buttonText, 
     idleText: buttonText,
     successText: translate("common.saved"),
     errorText,
-    reload: true
+    reload: true,
+    // B45: Beginn und Ende stehen vor derselben Knopfgruppe; gespeichert ist nur dieses Feld.
+    persistScope: input
   });
 }
 
@@ -12997,8 +13705,15 @@ async function saveDfplayerAlarm(idx) {
   const active = document.getElementById("df-alarm-active-" + idx).checked ? "on" : "off";
   const from = document.getElementById("df-alarm-from-" + idx).value;
   const to = document.getElementById("df-alarm-to-" + idx).value;
-  const { hour, minute } = parseTimeInput(document.getElementById("df-alarm-time-" + idx).value || "00:00");
-  const idleText = translate("dfplayer.alarm_title") + " " + String(idx + 1).padStart(3, "0") + " " + translate("common.save").toLowerCase();
+  const rowLabel = translate("dfplayer.alarm_title") + " " + String(idx + 1).padStart(3, "0");
+  const time = readTimeInputOrReport(document.getElementById("df-alarm-time-" + idx), rowLabel);
+
+  if (!time) {
+    return;
+  }
+
+  const { hour, minute } = time;
+  const idleText = rowLabel + " " + translate("common.save").toLowerCase();
   await runIndexedQueryButtonRequest('[data-alarm-save="%idx%"]', idx, {
     endpoint: getDfplayerAlarmSetUrl(),
     query: { idx, active, from, to, hour, minute },
@@ -13209,22 +13924,32 @@ function cancelOverlayEdit(idx) {
   }
 
   window.setTimeout(() => {
-    markEditsPersisted();
+    markEditsPersisted(document.getElementById("overlay-list"));
     renderOverlayRows(settings);
     announceStatus("Neues Overlay verworfen", "info");
   }, 140);
 }
 
+// Liefert true nach Erfolg, false bei abgewiesener Eingabe oder Fehler (gemeldet ist er dann
+// schon). saveAllTimerRows() zählt damit -- bis B44 meldete es "Alle Timer wurden
+// gespeichert", auch wenn einzelne Zeilen scheiterten, weil runButtonRequest() den Fehler
+// nicht weiterwirft.
 async function saveTimerRow(idx, isAmbilight, options) {
   const opts = options || {};
   const prefix = isAmbilight ? "at" : "t";
+  const time = readTimeInputOrReport(document.getElementById(prefix + "-time-" + idx), translate("timers.slot") + " " + idx);
+
+  if (!time) {
+    return false;
+  }
+
   const active = document.getElementById(prefix + "-active-" + idx).checked ? "on" : "off";
   const switchOn = document.getElementById(prefix + "-action-" + idx).value || "off";
   const from = document.getElementById(prefix + "-from-" + idx).value;
   const to = document.getElementById(prefix + "-to-" + idx).value;
-  const { hour, minute } = parseTimeInput(document.getElementById(prefix + "-time-" + idx).value || "00:00");
+  const { hour, minute } = time;
   const endpoint = isAmbilight ? getAmbilightTimerSetUrl() : getTimerSetUrl();
-  await runIndexedQueryButtonRequest('[data-' + prefix + '-save="%idx%"]', idx, {
+  return runIndexedQueryButtonRequest('[data-' + prefix + '-save="%idx%"]', idx, {
     endpoint,
     query: { idx, active, switch_on: switchOn, from, to, hour, minute },
     busyText: translate("common.saving"),
@@ -13254,16 +13979,43 @@ async function saveAllTimerRows(isAmbilight) {
   const root = document.getElementById(isAmbilight ? "ambilight-timer-list" : "timer-list");
   const prefix = isAmbilight ? "at" : "t";
   const buttons = Array.from(root.querySelectorAll('[data-' + prefix + '-save]'));
+  const indices = buttons.map((slotButton) => Number(slotButton.getAttribute('data-' + prefix + '-save')));
   const originalText = button.textContent;
+
+  // B44 (Ent-9): ZUERST alle Zeilen prüfen. Erst wenn jede eine gültige Uhrzeit trägt, geht
+  // überhaupt etwas hinaus -- sonst stünde das Gerät halb gespeichert da: die Zeilen vor der
+  // ungültigen neu, die danach alt.
+  const missing = indices.filter((idx) => !parseTimeInput((document.getElementById(prefix + "-time-" + idx) || {}).value));
+
+  if (missing.length) {
+    announceStatus(translateFormat("timers.save_all_time_missing", {
+      rows: missing.map((idx) => translate("timers.slot") + " " + idx).join(", "),
+      clear: translate("timers.clear_slot")
+    }), "error");
+    const firstMissing = document.getElementById(prefix + "-time-" + missing[0]);
+    if (firstMissing && firstMissing.focus) {
+      firstMissing.focus();
+    }
+    return;
+  }
 
   beginButtonFeedback(button, translate("common.saving"));
 
   try {
-    for (const slotButton of buttons) {
-      const idx = Number(slotButton.getAttribute('data-' + prefix + '-save'));
-      await saveTimerRow(idx, isAmbilight, { reload: false });
+    let failed = 0;
+    for (const idx of indices) {
+      if (!(await saveTimerRow(idx, isAmbilight, { reload: false }))) {
+        failed += 1;
+      }
     }
-    markEditsPersisted();
+    if (failed) {
+      // N2 (Review P.6, Muster L288): Die gescheiterte Zeile hat ihren Grund schon gemeldet,
+      // oft mit der Begruendung des Geraets. Die Sammelmeldung wuerde ihn ueberschreiben,
+      // ein Neuladen ebenso ("Aktualisiert ..."). Nur der Knopf zeigt den Fehler.
+      finishButtonFeedback(button, originalText, "error", translate("common.error"));
+      return;
+    }
+    markEditsPersisted(root);
     await loadData();
     announceStatus(translate("timers.saved_all"), "ok");
     finishButtonFeedback(button, originalText, "success", translate("common.saved"));
@@ -13284,7 +14036,7 @@ async function toggleFlagButton(id, endpoint) {
 
   try {
     await apiFetch(endpoint + "?value=" + next);
-    markEditsPersisted();
+    markEditsPersisted(null);
     await loadData();
     finishButtonFeedback(button, button.dataset.restoreText || button.textContent, "success", next === "on" ? translate("flags.enabled") : translate("flags.disabled"), true);
   } catch (error) {
@@ -14366,7 +15118,7 @@ async function applyDebugOverrides() {
   beginButtonFeedback(button, translate("debug.apply_busy"));
   try {
     saveDebugOverrides(overrides);
-    markEditsPersisted();
+    markEditsPersisted(button);
     document.getElementById("updated-at").textContent = translate("debug.active");
     await loadData();
     finishButtonFeedback(button, translate("system.apply_overrides"), "success", translate("debug.active_short"));
@@ -14389,7 +15141,7 @@ async function resetDebugOverrides() {
   try {
     saveDebugOverrides(overrides);
     loadDebugOverridesIntoUi();
-    markEditsPersisted();
+    markEditsPersisted(button);
     document.getElementById("updated-at").textContent = translate("debug.reset_done");
     await loadData();
     finishButtonFeedback(button, translate("system.reset_overrides"), "success", translate("debug.reset_short"));

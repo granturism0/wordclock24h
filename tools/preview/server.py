@@ -79,7 +79,7 @@ JSON_API = {
       # stellt den Zustand HARDWARE_CONFIGURATION 65535 nach (leerer Standard, leere Liste).
       "stm32_default":"" if os.environ.get("PREVIEW_HW_UNBEKANNT") else "wc12h-stm32f411ce-25-sk6812-rgbw.hex",
       "stm32_files":[] if os.environ.get("PREVIEW_HW_UNBEKANNT") else ["wc12h-stm32f411ce-25-sk6812-rgbw.hex"]},
-  "update_table_files": {"ok":True,"files":["wc24h-de-ch.txt"],"current":"wc24h-de-ch.txt"},
+  "update_table_files": {"ok":True,"table_files":["wc24h-tables-de-ch.txt","wc24h-tables-de-de.txt"],"current_table":"wc24h-tables-de-ch.txt"},
   "eeprom_settings": {"ok":True,"ssid":"Heimnetz","key":"geheim1234","ap_ssid":"WordClock",
       "ap_key":"wordclock24","boot_as_ap":False},
   "stm32_log": {"ok":True,"lines":[

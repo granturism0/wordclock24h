@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-10-11 Paket 2026-10-10, Schritt P: Oberfläche — Eingaben, ungespeicherte Änderungen, Regeln wie der ESP (PWA 1.4.95)
+
+Nur die PWA, STM (3.2.28) und ESP (3.2.31) unverändert. Release-ZIP
+`wordclock-release-2026-10-11-003756.zip`, Tag `release/3.2.28-3.2.31-1.4.95`. Umfang: Schritt P aus
+`specs/paket-2026-10-10/` (B44–B47, PWA-Seite von C55/C44 und A2), dazu die Nacharbeit aus drei Runden Code-Review
+und einem UI-Review.
+
+**Einspielreihenfolge: nur die PWA** (`./tools/install-app.sh`). Sie setzt ESP 3.2.31 voraus, das bereits läuft.
+
+### Eingaben
+- Ein leeres Zeitfeld bei Timern und DFPlayer-Alarmen wird abgewiesen statt still als 00:00 gespeichert (B44, Ent-9).
+  „Alle speichern“ prüft zuerst alle Zeilen.
+- Datumsformat und Koordinaten prüft die PWA nach denselben Regeln wie der ESP, aus derselben Regeltabelle
+  (C55, C44). Koordinatenfelder bieten auf dem iPhone das Minuszeichen an.
+- Ein Backup mit ungültigen Feldern nennt diese beim Import.
+
+### Ungespeicherte Änderungen
+- Nach dem Speichern eines Felds bleiben andere ungespeicherte Eingaben geschützt; der Modulwechsel fragt nach (B45).
+- Felder, die nie gespeichert werden (Kartensuche, DFPlayer-Testtitel, Dateiwahl, Update-Listen), lösen keine
+  Rückfrage mehr aus. Die Karte erledigt beim Übernehmen bzw. Schliessen nur ihre eigenen Felder.
+- Eine gewählte Dimmkurven-Vorlage gilt als ungespeicherte Änderung und wird nicht mehr nach 15 s zurückgesetzt.
+  „Preset anwenden und speichern“ speichert bei „Individuell“ nichts und sagt das, statt still „Linear“ zu
+  speichern. Die Vorlagennamen sind übersetzt.
+- Die Wahl in den Update-Listen bleibt beim Neuladen stehen (L383).
+- „Automatische Aktualisierung pausiert“ erscheint einmal je Bearbeitung und verdrängt keine Fehlermeldung.
+
+### Anzeige
+- Die AP-SSID im Netzwerkmodul wird geladen, ohne dass die Wartung offen war (B46). Sind die Einstellungen nicht
+  ladbar, steht ein Hinweis im Netzwerkstatus.
+- DS18xx: „nicht gefunden“ und „Messwert ungültig“ werden unterschieden (A2).
+- Nach einem Hintergrundklick im Kartenmodal bleibt der Fokus am Öffner (B47).
+
+### Prüfung
+Vorschau-Proben mit echten Ereignissen P.1–P.3 und H1–H4, jede gegen den Vorgängerstand angeschlagen;
+Prüfstand Regelgleichheit PWA/ESP 147 Fälle. Am Gerät: Browserprüfung 8/0, Smoketest 31/0. Der Testdurchlauf
+nach `TESTPLAN-PWA.md` folgt als T.2.
+
 ## 2026-10-10 Paket 2026-10-10, Schritt E: Legacy-Seite gegen XSS, Datumsformat und Koordinaten geprüft (ESP 3.2.31)
 
 Nur der ESP, STM (3.2.28) und PWA (1.4.94) unverändert. Release-ZIP
