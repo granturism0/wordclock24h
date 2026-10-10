@@ -55,6 +55,8 @@ static void yield () { now += 1; sdk (); }               /* Core: Kontext abgebe
 /* realloc-Fehler einspeisen: Ab einer Laenge von oom_ab Zeichen scheitern die naechsten oom_zahl Wachstumsschritte;
  * danach waechst die Zeile wieder (Segmente gelesen, pbufs frei). -1 = aus. */
 static long oom_ab = -1, oom_zahl = 0;
+static bool reserve_scheitert = false;                    /* reserve () liefert false, Kapazitaet bleibt (WString.cpp:189-197) */
+static long reserve_rufe = 0;
 struct String : std::string {
   size_t cap = 11;                                        /* SSO, Wert unerheblich; waechst wie changeBuffer () */
   String () {}
@@ -63,6 +65,11 @@ struct String : std::string {
   String & operator= (const char * s) { std::string::operator= (s); if (size () > cap) cap = size (); return *this; }
   String & operator+= (const char * s) { append (s); if (size () > cap) cap = size (); return *this; }
   String & operator+= (const std::string & s) { append (s); if (size () > cap) cap = size (); return *this; }
+  bool reserve (size_t n) {                               /* WString.cpp:189-197 */
+    reserve_rufe++;
+    if (cap >= n) return true;
+    if (reserve_scheitert) return false;
+    cap = ((n + 16) & ~(size_t) 0xf) - 1; std::string::reserve (cap); return true; }
   bool concat (char c) {
     if (size () + 1 > cap) {                              /* reserve (len + 1) -> changeBuffer: (n + 16) & ~0xf */
       if (oom_ab >= 0 && (long) size () >= oom_ab && oom_zahl > 0) { oom_zahl--; return false; }
@@ -198,7 +205,7 @@ static void fall (const char * name, Szenario s, int fc, int icon, const char * 
       PRUEF (w == soll_erg, "watch-log-Feld '%s' statt '%s' (C54)", w.c_str (), soll_erg);
     }
   }
-  soll_n = -2; soll_oom = 0; soll_cl = ""; oom_ab = -1; oom_zahl = 0;
+  soll_n = -2; soll_oom = 0; soll_cl = ""; oom_ab = -1; oom_zahl = 0; reserve_scheitert = false;
   /* AKE.6 */
   int ez = 0; std::string ezeile;
   for (auto & l : Serial.lines) if (endzeile (l)) { ez++; ezeile = l; }
@@ -359,12 +366,29 @@ int main ()
     size_t h = pd + (15 - pd % 16 + 16) % 16;
     std::string mit_loch = f_body.substr (0, h) + f_body.substr (h + loch);     /* was der Parser bekommt */
     printf ("  (C54-Fall: Vorhersage-Koerper %zu Byte, 9. description bei %zu, Loch %ld Zeichen ab dort)\n", f_body.size (), pd, loch);
-    /* a) realloc scheitert kurz vor dem Ende: Temperatur da, Beschreibung weg -- das Bild von 10:42 */
-    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch;
-    { Szenario s = mss (f_all, 30, 1); fall ("C54 Vorhersage, realloc scheitert ab 9. description", s, 1, 0, "ok", mit_loch.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, "); }
-    /* b) dasselbe beim Icon morgen: Icon im 9. Eintrag fehlt -- das Bild von 08:40 und 09:40 */
-    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch;
-    { Szenario s = mss (f_all, 30, 1); fall ("C54 Icon morgen, realloc scheitert ab 9. description", s, 1, 1, "leer", mit_loch.c_str ()); }
+    /* a) realloc wuerde kurz vor dem Ende scheitern (Bild von 10:42 und 11:07, "n=3983 cl=3983 oom=457").
+     *    Mit reserve (cl + 1) waechst die Zeile nicht mehr: vollstaendig, oom=0 */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = 0; oom_ab = (long) pd; oom_zahl = loch;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Vorhersage, realloc scheitert ab 9. description", s, 1, 0, "ok", f_body.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, Leichter Regen"); }
+    /* b) dasselbe beim Icon morgen (Bild von 08:40 und 09:40) */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = 0; oom_ab = (long) pd; oom_zahl = loch;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Icon morgen, realloc scheitert ab 9. description", s, 1, 1, "ok", f_body.c_str (), false, false, "WICON_FC 10d"); }
+    /* a2/b2) reserve () scheitert: weiter wie ohne, der Verlust steht in oom= (gewaehltes Verhalten, kein neues Ergebniswort) */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch; reserve_scheitert = true;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Vorhersage, reserve scheitert, realloc ab 9. description", s, 1, 0, "ok", mit_loch.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, "); }
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = loch; oom_ab = (long) pd; oom_zahl = loch; reserve_scheitert = true;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Icon morgen, reserve scheitert, realloc ab 9. description", s, 1, 1, "leer", mit_loch.c_str ()); }
+    /* a3) reserve () scheitert, sonst kein Engpass: vollstaendig, oom=0 -- ein gescheitertes reserve ohne Verlust aendert nichts */
+    soll_n = f_body.size (); soll_cl = std::to_string (f_body.size ()); soll_oom = 0; reserve_scheitert = true;
+    { Szenario s = mss (f_all, 30, 1); fall ("C54 Vorhersage, reserve scheitert ohne Engpass", s, 1, 0, "ok", f_body.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, Leichter Regen"); }
+    /* a4) Content-Length ueber der Grenze (5120): kein reserve, schrittweises Wachsen wie bisher */
+    { std::string gross = fuell (fc_json, 6000, fc_json.find ("\"name\":\"Zurich\"}")); std::string all = kopf (gross.size ()) + gross;
+      size_t gd = gross.rfind ("\"description\""); size_t gh = gd + (15 - gd % 16 + 16) % 16;
+      std::string gl = gross.substr (0, gh) + gross.substr (gh + loch);
+      soll_n = gross.size (); soll_cl = std::to_string (gross.size ()); soll_oom = loch; oom_ab = (long) gd; oom_zahl = loch;
+      long r0 = reserve_rufe;
+      Szenario s = mss (all, 30, 1); fall ("C54 Vorhersage, cl 6000 ueber der Grenze, kein reserve", s, 1, 0, "ok", gl.c_str (), false, false, "WEATHER_FC Wetter morgen: 18 Grad, ");
+      const char * name = "C54 cl ueber der Grenze"; PRUEF (reserve_rufe == r0, "reserve () %ld mal gerufen, erwartet 0", reserve_rufe - r0); }
     /* c) Gegenhypothese: Der Koerper kommt kuerzer an, als der Kopf sagt (Abbruch durch die Gegenseite) */
     { std::string kurz = kopf (f_body.size ()) + f_body.substr (0, pd);
       soll_n = (long) pd; soll_cl = std::to_string (f_body.size ()); soll_oom = 0;
