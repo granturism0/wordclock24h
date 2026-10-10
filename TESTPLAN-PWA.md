@@ -337,6 +337,8 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 
 - **Temperatur**: Der STM-Fehlerwert `255` wurde früher als „127,5 °C" angezeigt.
   Zeigt der Sensor `127.5`, ist das **kein** Messwert, sondern „keine Messung".
+  Seit A2 zeigt die PWA dafür „Messwert ungültig“; die drei Zustände der Anzeige
+  prüft **K17** (7.1).
 - **Zeit**: Gerätezeit gegen die eigene Uhr, **minutengenau — mehr ist aus dem
   Rohabzug nicht zu holen**. `tmvar.second` steht dort durchgehend auf `0` —
   nachzuzählen mit
@@ -352,11 +354,8 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 - **`stm32_log`**: Wird das Logbuch überhaupt gefüllt, und bricht die Anzeige bei
   langen Zeilen um?
 - **AP-SSID im Modul `network`**: in einer frischen Sitzung **direkt** öffnen, ohne
-  vorher die Wartung zu besuchen. Soll: Die AP-SSID steht da, Wert gegen
-  `eeprom_settings`. Am 10.10.2026 blieb sie nach 1, 5, 10 und 20 s leer, weil
-  `eeprom_settings` nur bei offener Wartung geladen wird; nach einem Besuch der Wartung
-  erschien sie (`BEFUNDE.md`, L367). Die Reihenfolge ist der Prüfgegenstand — wer
-  zuerst die Wartung öffnet, sieht den Fehler nie.
+  vorher die Wartung zu besuchen. Der Fall steht mit Instrument und Soll als **K11**
+  in 7.1; er ist rein lesend und gehört zeitlich hierher, in Phase 2.
 
 ---
 
@@ -666,15 +665,16 @@ Hauptmaske: `applyWeatherMapSelection()` ruft `weather_coordinates_set` und dana
 `weather_city_set`. Das ist ein Schreibvorgang wie S15 und S16, mit denselben
 Variablen. **Den Rückweg sofort danach einplanen** — Ort, Längen- und Breitengrad
 vorher aus dem Rohabzug notieren und unmittelbar nach der Übernahme zurückschreiben,
-erst die Koordinaten, dann den Ort. Beim Fokus nach einem Klick auf den Hintergrund
-ist ein Befund offen (`BEFUNDE.md`, L368): Mit Escape kehrt er richtig zurück, nach dem
-Hintergrundklick liegt er auf dem Body.
+erst die Koordinaten, dann den Ort. Den Fokus nach einem Klick auf den Hintergrund
+prüft **K12** (7.1): Am 10.10.2026 lag er danach auf dem Body, mit Escape kehrte er
+richtig zurück (`BEFUNDE.md`, L368). Die Korrektur aus B47 ist in der Vorschau
+nachgewiesen, am Gerät noch nicht.
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S14** | Wetter-AppID setzen (`weather_appid_set?value=`) | S | `strvar[idx=5].value` (`WEATHER_APPID`) trägt den Wert, Grenze 32 | Leerer Wert wird mit `error=1` abgewiesen |
 | **S15** | Ort setzen (`weather_city_set?value=`) | S | `strvar[idx=6].value` (`WEATHER_CITY`), Grenze 32 | |
-| **S16** | Koordinaten setzen (`weather_coordinates_set?lon=&lat=`) | S | `strvar[idx=7].value` (`WEATHER_LON`) und `strvar[idx=8].value` (`WEATHER_LAT`), je Grenze 8 | Nur eines von beiden gesetzt ⇒ `error=1` |
+| **S16** | Koordinaten setzen (`weather_coordinates_set?lon=&lat=`) | S | `strvar[idx=7].value` (`WEATHER_LON`) und `strvar[idx=8].value` (`WEATHER_LAT`), je Grenze 8 | Nur eines von beiden gesetzt ⇒ `error=1`. Seit C44 prüfen ESP und PWA die Form (Ent-12): Dezimalzahl mit optionalem `-`, höchstens 8 Zeichen, Längengrad −180..180, Breitengrad −90..90, Komma wird zu Punkt. Abgewiesene und gültige Werte: **K15**, **K16** (7.1) |
 | **S17** | Ort leeren, während keine Koordinaten stehen | S | `error=1`, `strvar[idx=6].value` unverändert | Ort und Koordinaten sind Alternativen; die letzte Angabe darf nicht wegfallen |
 | **S18** | Wetter jetzt abrufen (`weather_get_now`) | S | Am Display erscheint die Wetterzeile; der Ticker läuft danach wieder an | **Nicht L.** `{"ok":true}` kommt auch bei unbrauchbarer AppID (L54) — Beleg ist die Anzeige, nicht die Antwort |
 | **S19** | Vorhersage abrufen (`weather_get_forecast`) | S | wie S18 | |
@@ -683,10 +683,10 @@ Hintergrundklick liegt er auf dem Body.
 | **S22** | Korrektur `21` und `-21` setzen | S | `error=2`, beide Variablen unverändert | |
 | **S23** | Temperatur anzeigen (`temperature_display`) | S | Die Temperatur erscheint auf dem Display | Zeigt der Sensor `127.5`, ist das **keine Messung**, sondern der STM-Fehlerwert `255` |
 | **S24** | Automatische Helligkeit umschalten (`auto_brightness_set?value=on\|off`) | S | `numvar[idx=8].value` (`DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE`) 1 bzw. 0 | **Das Bedienelement liegt im Modul `climate`, nicht in `display`** — es steht im LDR-Bereich. Solange es an ist, überschreibt der LDR die Helligkeit aus S29 |
-| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S, **nicht rücknehmbar** | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`) | **Nur mit ausdrücklicher Freigabe des Nutzers fahren**, bis A59 entschieden ist. Der STM schreibt die Grenze in RAM und EEPROM; der Rückweg über S27 wirkt am STM **nicht**, er verwirft beide Setter als readonly (`BEFUNDE.md`, L364). Der Abschlussvergleich sieht das nicht, weil `settings_xml` die ESP-Kopie liefert (5b) — nach dem Durchlauf vom 10.10.2026 zeigte der Rohabzug die alten Grenzen, der STM hielt die Testwerte. Ohne Freigabe als „ausgelassen, nicht rücknehmbar“ protokollieren. Mit Freigabe: der Rohwert schwankt, deshalb unmittelbar vorher ablesen |
-| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S, **nicht rücknehmbar** | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend | wie S25: nur mit ausdrücklicher Freigabe, Rückweg am STM nicht vorhanden (L364) |
-| **S27** | LDR-Grenzen numerisch setzen (`ldr_min_value_set`, `ldr_max_value_set`, je 0..4095) | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf. **Das Soll belegt nur die ESP-Kopie:** Der STM verwirft beide Setter als readonly (L364). Bis A59 entschieden ist, lautet das Ergebnis höchstens „ESP gespeichert, STM nicht angewandt“, nicht „bestanden“ |
-| **S28** | LDR-Grenze `4096` setzen | S | `error=2`, Variable unverändert | Früher angenommen (L67/L68) |
+| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`); im Logring (`/api/stm32_log`, Präfix `LOG `) und im Mitschnitt folgt `eep a=225 n=2` | **Rücknehmbar über S27a**, seit A59 der STM die numerischen Setter übernimmt (`BEFUNDE.md`, L364). Vorher den Ausgangswert von `numvar[idx=17].value` aus dem Rohabzug notieren; seit der Bereinigung am 10.10.2026 stimmen ESP-Kopie und STM bei den Grenzen überein (L377). Nach der Gegenprobe sofort `ldr_min_value_set?value=<Ausgangswert>` — Soll wie S27a, also wieder mit `eep a=225 n=2`. Keine eigene Freigabe mehr, sondern wie jeder rücknehmbare S-Fall. Der Rohwert schwankt, deshalb unmittelbar vorher ablesen. Gleicht er zufällig dem Ausgangswert, schreibt der STM nichts, und die `eep`-Zeile entfällt — dann ist der Fall nicht aussagekräftig, so protokollieren. Ob der Rückweg am STM auch **gespeichert** ist, zeigt erst Phase 9 nach dem STM-Reset (12.1) |
+| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend; im Logring und im Mitschnitt folgt `eep a=227 n=2` | wie S25, Rückweg über **S27b** `ldr_max_value_set?value=<Ausgangswert>` mit `eep a=227 n=2` |
+| **S27** | LDR-Grenzen numerisch setzen: Minimum (**S27a**, `ldr_min_value_set`) und Maximum (**S27b**, `ldr_max_value_set`), je 0..4095 | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert, **und** im Logring (`/api/stm32_log`, Präfix `LOG `) sowie im Mitschnitt steht danach `eep a=225 n=2` (S27a) bzw. `eep a=227 n=2` (S27b) | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf. **Die `eep`-Zeile ist der STM-Beleg:** `settings_xml` zeigt nur die ESP-Kopie (5b), die Zeile dagegen schreibt der STM, wenn er den Wert ins EEPROM übernimmt. Sie kommt nur, wenn sich der Wert ändert. Fehlt sie bei geändertem Wert, lautet das Ergebnis „ESP gespeichert, STM nicht angewandt“, nicht „bestanden“. Bis A59 kam sie nie, weil der STM beide Setter verwarf (L364). Minimum ≥ Maximum weist der STM bewusst nicht ab — der Backup-Import setzt die beiden nacheinander. Zugleich der Rückweg für S25/S26 |
+| **S28** | LDR-Grenze `4096` setzen | S | `error=2`, Variable unverändert, **keine** `eep a=225`- oder `eep a=227`-Zeile | Früher angenommen (L67/L68) |
 
 ### 6.4 `display`
 
@@ -703,7 +703,7 @@ Hintergrundklick liegt er auf dem Body.
 | **S37** | „ES IST" dauerhaft umschalten (`display_it_is_set?value=on\|off`) | S | Bit `0x01` in `numvar[idx=7].value` (`DISPLAY_FLAGS`) gesetzt bzw. gelöscht, **die übrigen Bits unverändert** | Vier Schalter teilen sich diese eine Variable — die Gegenprobe gehört auf das Bit, nicht auf den Zahlenwert |
 | **S38** | Tickertext setzen (`ticker_set?value=`, 32 Zeichen) | S | `strvar[idx=0].value` (`TICKER_TEXT`) trägt den Text | Umlaute und Sonderzeichen mitprüfen: Gekürzt wird nach **Bytes**, nicht nach Zeichen (L46) |
 | **S39** | Tickertext leeren | S | `strvar[idx=0].value` ist leer | **Bewusste Ausnahme:** Der leere Text ist zulässig und der einzige Weg, den Ticker abzuschalten. Hier darf **keine** Fehlermeldung kommen |
-| **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error=1`. Gegenprobe am Display: `%d.%m` muss das Datum ergeben |
+| **S40** | Datumsformat setzen (`date_ticker_format_set?value=`, 5 Zeichen) | S | `strvar[idx=11].value` (`DATE_TICKER_FORMAT`) trägt das Format | Leerer Wert ⇒ `error=1`. Seit C55 gilt eine Regel (Ent-10): nur `D M Y` (auch klein, jede Art höchstens einmal), `.` `-` `/` und Leerzeichen, kein Leerzeichen am Anfang oder Ende, mindestens ein Platzhalter. Hier stand bis zum 11.10.2026 `%d.%m` als Gegenprobe — das ist nach dieser Regel **ungültig**. Gegenprobe am Display: Der Datumsticker zeigt das Datum im gesetzten Format. Abgewiesene und gültige Werte: **K13**, **K14** (7.1) |
 | **S41** | Tickerverzögerung setzen (`ticker_deceleration_set?value=`, 0..255) | S | `numvar[idx=31].value` (`TICKER_DECELRATION`) trägt den Wert, Antwort enthält `ticker_deceleration` | **Teilprüfung S41b** (`value=256`, im Protokoll vom 04.10.2026 als `S41c` geführt — siehe 6.0a): **weist heute ab** — `error=2`, Detail `value out of range (0..255)`, Variable unverändert. Früher klemmte der Wert still auf 255; am Gerät gegengeprüft (04.10.2026, ESP 3.2.21) |
 | **S42** | Dimmkurve von Hand ändern (`display_dim_level_set?idx=&value=`, je 0..15) | S | `num8array[var=0][idx=N].value` trägt den Wert | Sechzehn Stufen. Mindestens Stufe 0, 7 und 15 prüfen; fehlender `idx` traf früher Stufe 0 (L50) ⇒ heute `error=1` |
 | **S43** | Dimmkurven-Vorgabe anwenden | S | Alle sechzehn `num8array[var=0][idx=0..15].value` entsprechen der gewählten Vorgabe | Schreibt sechzehn Werte auf einmal — **Ausgangskurve vorher vollständig notieren**, sonst ist sie nicht rücknehmbar |
@@ -931,15 +931,10 @@ Die konkreten Grenzen, aus dem Markup erhoben:
 - Längengrad `8,5400` mit Komma statt Punkt
 - Zeitzone `+2` mit führendem Pluszeichen
 - Zweimal schnell hintereinander auf dieselbe Speichern-Schaltfläche
-- **Zeitfeld im Timer leeren**, aktiv setzen, speichern — mit echten Tastenereignissen.
-  Soll: **Abweisung mit Meldung**, kein Aufruf ans Gerät. Am 10.10.2026 gespeichert als
-  aktiver Timer 00:00, ohne Meldung (`BEFUNDE.md`, L365) — ein solcher Timer schaltet die
-  Uhr jede Nacht um Mitternacht. Sofort zurückstellen und den Slot in die Aufräumliste
-  (Kapitel 2). Dieselbe Rückfallstelle steht im Code bei den DFPlayer-Alarmen; dort am
-  Gerät noch nicht geprüft.
-- **Zwei Felder ändern, eines speichern, Modul wechseln.** Soll: **Warnung** für das
-  ungespeicherte Feld. Am 10.10.2026 kam kein Dialog, die zweite Änderung ging still
-  verloren (L366): Das Speichern des einen Felds leert die Merkliste aller Felder.
+- **Zeitfeld leeren und speichern** — Timer, Ambilight-Timer, DFPlayer-Alarm und
+  „Alle speichern“: **K1** bis **K4** (7.1).
+- **Zwei Felder ändern, eines speichern, Modul wechseln**, und der Gegenfall: **K5**,
+  **K6** (7.1).
 - Ohne offene Änderung das Modul wechseln — erscheint die Warnung trotzdem?
   **Hier lag die Erwartung, dass sie auch ohne offene Änderung erscheint**
   (Massnahme 4). Am 04.10.2026 (PWA 1.4.88) nicht beobachtet:
@@ -947,6 +942,69 @@ Die konkreten Grenzen, aus dem Markup erhoben:
   korrekt. **Der Pfad „nach normalem Speichern" ist am 05.10.2026 nachgeholt worden**
   (05.10.2026, PWA 1.4.90, L302): erst speichern, dann ohne weitere Eingabe das Modul wechseln —
   kein Dialog. Der Punkt bleibt im Plan, damit ein Rückfall auffällt.
+
+### 7.1 Bedienfälle mit echten Ereignissen — Kennung K
+
+Die acht Klassen oben hängen an einem **Feld**. Die Fälle hier hängen an einem
+**Ablauf** — leeren, speichern, warten, wechseln — und fallen deshalb durch jede
+Feldliste. Sie stammen aus dem Durchlauf vom 10.10.2026 (`BEFUNDE.md`, L340, L365 bis
+L369) und aus dem Review P.6 zum Paket 2026-10-10. Die Korrekturen B44 bis B47, C55/C44
+und die Anzeige aus A2 sind in der Vorschau und am Prüfstand nachgewiesen, **am Gerät
+noch nicht**. Der Durchlauf misst sie, er setzt sie nicht voraus (DIR-003).
+
+**Instrumente**, auf die die Tabelle verweist:
+
+| Instrument | Was es heisst |
+|---|---|
+| **Browser** | Die PWA vom Gerät in einem echten Browser, Eingaben und Klicks als **echte Ereignisse** über das DevTools-Protokoll (siehe oben, `isTrusted`). Dazu das **Netzprotokoll** derselben Sitzung: „kein Aufruf“ heisst, kein Request auf den genannten Endpunkt — nicht „keine Erfolgsmeldung“ |
+| **API lesend** | Rohabzug bzw. `/api/settings_xml`, `/api/stm32_log`, `/api/eeprom_settings` — nur lesend (DIR-008) |
+| **Mitschnitt** | `./tools/watch-log.sh` läuft während des ganzen Durchlaufs (DIR-013) |
+| **Vorschau** | `tools/preview/server.py` ohne Gerät (Skill `/pwa-vorschau`), mit denselben echten Ereignissen |
+
+**Rückstellung.** Wo das Soll „kein Aufruf“ lautet, genügt im Erfolgsfall: Seite neu
+laden. Geht der Aufruf **doch** hinaus, ist das ein Rückfall, und dann zählt, was
+**vorher** notiert wurde — deshalb nennt die Spalte, was vor dem Fall aus dem Rohabzug
+festzuhalten ist. Jeder berührte Index gehört in die Aufräumliste (Kapitel 2). Die
+schreibenden Fälle (K13b, K14, K15b, K16) laufen in einer gerahmten Setter-Phase nach
+V1 und V1b (5b). **Kein Fall dieser Reihe ruft einen der gefährlichen Endpunkte aus
+`CLAUDE.md` (R5) auf**, und keiner drückt einen Knopf, der flasht, eine Datei lädt oder
+Zugangsdaten schreibt.
+
+| Kennung | Ablauf | Instrument | Soll | Rückstellung |
+|---|---|---|---|---|
+| **K1** | **Display-Timer:** Zeitfeld einer Zeile leeren (Tasten), Zeile speichern. **K1a** mit Haken „aktiv“, **K1b** ohne — leer wird nach Ent-9 **immer** abgewiesen | Browser, API lesend | Meldung „Keine gültige Uhrzeit bei <Zeile>: Das Zeitfeld ist leer oder unvollständig. Es wurde nichts gespeichert …“; **kein** `timer_set` im Netzprotokoll; `nighttime[idx=N]` unverändert | Seite neu laden. Vorher den ganzen Slot `nighttime[idx=N]` notieren: Am 10.10.2026 stand danach ein aktiver Timer auf 00:00, der die Uhr jede Nacht um Mitternacht schaltet (L365). Geht ein Aufruf hinaus, sofort über S82 zurück |
+| **K2** | **Ambilight-Timer:** wie K1 (**K2a** aktiv, **K2b** inaktiv) | Browser, API lesend | wie K1, **kein** `ambilight_timer_set`; `ambinighttime[idx=N]` unverändert | wie K1, Rückweg über S83 |
+| **K3** | **DFPlayer-Alarm:** Zeitfeld leeren, aktiv setzen, speichern | Browser, API lesend | wie K1, **kein** `dfplayer_alarm_set`; `alarmtime[idx=N]` unverändert | wie K1, Rückweg über S95 — ein stehengebliebener Alarm weckt den Nutzer. Ohne DFPlayer ist das Panel ausgeblendet: „nicht prüfbar“ (6.8) |
+| **K4** | **„Alle Timer speichern“:** zwei oder mehr Zeilen ändern, in **einer** davon das Zeitfeld leeren. **K4b** dasselbe mit „Alle Ambilight-Timer speichern“ | Browser, API lesend | Meldung „Keine gültige Uhrzeit bei <Zeilen>. Es wurde kein Timer gespeichert …“; **kein einziger** `timer_set` bzw. `ambilight_timer_set`, auch nicht für die gültigen Zeilen — sonst stünde das Gerät halb gespeichert da; alle berührten Slots unverändert | Seite neu laden. Alle berührten Slots vorher notieren, Rückweg wie K1 bzw. K2 |
+| **K5** | **Zwei Felder ändern, eines speichern, Modul wechseln.** Im Modul `display` Tickerverzögerung (A) und Datumsformat (B, ein gültiger Wert wie `M/Y`) ändern, nur „Ticker-Verzögerung speichern“, mindestens 15 s warten (ein Takt der Selbstaktualisierung), dann das Modul wechseln | Browser, API lesend | Feld B behält die Eingabe, auch nach dem Takt; der Modulwechsel fragt: „Es gibt ungespeicherte Änderungen. Modul trotzdem wechseln? …“. Am Gerät: `numvar[idx=31].value` neu, `strvar[idx=11].value` **unverändert**. Am 10.10.2026 kam kein Dialog, B ging still verloren (L366) | Rückfrage bestätigen — das verwirft B. Danach A über S41 auf den Ausgangswert |
+| **K6** | **Gegenfall (L33):** **ein** Feld ändern, speichern, Modul wechseln | Browser | **Keine** Rückfrage; die Selbstaktualisierung läuft wieder — im Netzprotokoll setzen die periodischen Abrufe wieder ein. Bliebe die Markierung stehen, ruhte sie für den Rest der Sitzung | Das Feld über seinen S-Fall auf den Ausgangswert zurück |
+| **K7** | **Dimmkurven-Vorlage wählen, nicht speichern.** Im Modul `display` unter „Kurvenvorgabe“ eine andere Vorlage wählen, mindestens 15 s warten, dann das Modul wechseln. **K7b** dasselbe im Modul `ambilight` | Browser, API lesend | Die sechzehn Regler bleiben auf der Vorlage, auch nach dem Takt — sie springen **nicht** auf den Gerätewert zurück; der Modulwechsel fragt nach; **kein** `display_dim_level_set` bzw. `ambilight_dim_level_set`; `num8array[var=0]` bzw. `[var=1]` unverändert | **Verwerfen:** Rückfrage bestätigen. Danach im Rohabzug die Kurve unverändert. Vorher die Ausgangskurve vollständig notieren (wie S43) — geht doch ein Aufruf hinaus, ist sie sonst nicht rücknehmbar |
+| **K8** | **„Voreinstellung anwenden und speichern“ bei „Individuell“** (im Markup als „Preset anwenden und speichern“). Steht die Kurve auf keiner Vorlage, zeigt die Liste schon „Individuell“; sonst zuerst einen Regler von Hand verschieben. Dann den Knopf drücken | Browser, API lesend | Abgewiesen: „„Individuell“ ist keine Voreinstellung. … Es wurde nichts gespeichert.“, der Fokus steht auf der Liste; **kein** `display_dim_level_set`; `num8array[var=0]` unverändert. Früher schrieb der Knopf in diesem Fall still „Linear“ und meldete Erfolg | Verwerfen (Rückfrage beim Modulwechsel bestätigen oder Seite neu laden). Ausgangskurve vorher notieren wie bei K7 |
+| **K9** | **Update-Listen:** im Modul `maintenance` in „STM32-Firmware vom Server“ oder „Layout-Tabelle vom Server“ einen **anderen** Eintrag als den vorgewählten wählen, mindestens 15 s warten. **Rein lesend — keinen Knopf daneben drücken:** „STM32 flashen“ ist S111 (Klasse R), das Laden der Tabelle S100 | Browser | Die Wahl bleibt nach der Selbstaktualisierung stehen. Die Selbstaktualisierung läuft dabei weiter (die Liste ist von der Bearbeitungsmarkierung ausgenommen), keine Pausenmeldung; **kein** `remote_stm32_flash`, **kein** `update_download_table` im Netzprotokoll. Hat die Liste nur einen Eintrag: „nicht prüfbar“ | Seite neu laden; gesendet wurde nichts |
+| **K10** | **Pausenmeldung:** ein Feld ändern (Tasten), nicht speichern, mindestens 45 s warten (drei Takte). **K10b:** das Feld auf den Ausgangswert zurücktippen, dann erneut ändern und wieder 45 s warten | Browser | „Automatische Aktualisierung pausiert, bis ungespeicherte Änderungen gespeichert sind“ erscheint **genau einmal je Bearbeitung** — in K10 einmal, in K10b noch einmal. Gezählt über die Textwechsel von `#status-banner` (Beobachter über das DevTools-Protokoll), nicht über einen Screenshot. Steht gerade eine Fehlermeldung im Banner, verdrängt die Pausenmeldung sie nicht und folgt im nächsten Takt — auch dann nur einmal | Seite neu laden |
+| **K11** | **AP-SSID ohne Wartungsbesuch:** frische Sitzung, Modul `network` **direkt** öffnen, die Wartung vorher **nicht** besuchen. Die Reihenfolge ist der Prüfgegenstand — wer zuerst die Wartung öffnet, sieht den Fehler nie | Browser, API lesend | Nach dem ersten Ladezyklus steht in „AP SSID“ der Name aus `eeprom_settings` (`ap_ssid`), nicht leer. Am 10.10.2026 blieb das Feld nach 1, 5, 10 und 20 s leer (L367). **Nur `ap_ssid` ins Protokoll:** `/api/eeprom_settings` liefert den WLAN-Schlüssel im Klartext; er gehört in kein Protokoll, keine Datei und darf auch in der Konsole nicht erscheinen | Keine, nichts geschrieben. **Nicht speichern** — AP-Zugangsdaten sind Phase 8 |
+| **K12** | **Kartenmodal:** „Ort auf Karte wählen“ öffnen, mit echtem Mausklick auf den **Hintergrund** schliessen. **K12b:** Ziehen in der Karte beginnen und auf dem Hintergrund loslassen. **K12c:** Escape | Browser (Mausereignisse über das DevTools-Protokoll, kein `element.click()`) | K12: Modal zu, `document.activeElement` ist der Knopf „Ort auf Karte wählen“, **nicht** `body` (L368). K12b: Modal bleibt offen. K12c: Modal zu, Fokus wie K12 | Keine. **Nicht „In Wetter übernehmen“** — das schreibt (6.3) |
+| **K13** | **Datumsformat, abgewiesen:** im Feld „Datumsformat im Ticker“ je Wert eintippen und „Datumsformat speichern“: `yyyyy`, `<scri`, `⏰`, `  ab` (zwei Leerzeichen vorn), `DD`, `D ` (Leerzeichen hinten), `.`, `D,M`. **K13b**, direkt am ESP: `date_ticker_format_set?value=yyyyy` und `?value=%3Cscri` | Browser, API lesend; K13b direkter Aufruf | K13: Meldung „Ungültiges Datumsformat. …“, **kein** `date_ticker_format_set`, `strvar[idx=11].value` unverändert. K13b: `error=2`, Wert unverändert — der ESP prüft selbst (C55), nicht nur die Oberfläche | Ausgangswert vorher notieren. Wird ein Wert doch angenommen, sofort über S40 zurück |
+| **K14** | **Datumsformat, gültig:** `M/Y`, danach `D.M.` speichern | Browser, API lesend | Beide angenommen, `strvar[idx=11].value` trägt jeweils genau den Wert | Ausgangswert zurückschreiben, Gegenprobe am Rohwert. **Ist der Ausgangswert nach der neuen Regel selbst ungültig**, lässt er sich nicht zurückschreiben — dann den Fall **nicht** fahren, sondern melden |
+| **K15** | **Koordinaten, abgewiesen:** im Modul `climate` je Wert speichern, das andere Feld auf seinem Ausgangswert. Längengrad: `180.1`, `<"&`, `.5`, `+5`, `1e2`. Breitengrad: `90.00001`, `91`, `180`. **K15b**, direkt am ESP: `weather_coordinates_set?lon=%3C%22%26&lat=<Ausgangswert>` | Browser, API lesend; K15b direkter Aufruf | K15: Meldung „Ungültiger Längengrad. …“ bzw. „Ungültiger Breitengrad. …“, **kein** `weather_coordinates_set`, `strvar[idx=7]` und `[idx=8]` unverändert. K15b: Abweisung, beide unverändert | Ausgangswerte vorher notieren. Wird ein Wert doch angenommen, sofort zurück — erst die Koordinaten, dann den Ort (6.3) |
+| **K16** | **Koordinaten, gültig:** Längengrad `8,5400` mit Breitengrad `47.3769`, danach Längengrad `-180` mit Breitengrad `-90` | Browser, API lesend | Beide Paare angenommen; `strvar[idx=7].value` trägt nach dem ersten Paar `8.5400` — **mit Punkt**, das Komma wird vor der Prüfung ersetzt | Ausgangswerte zurückschreiben, Gegenprobe am Rohwert. Dazwischen keinen Wetterabruf (S18, S19) auslösen. Standen keine Koordinaten, ist der Rückweg das Leeren beider Felder — das geht nur, solange ein Ort steht (S17) |
+| **K17** | **DS18xx-Anzeige** in der Klima-Übersicht, drei Zustände (A2). **Am Gerät nur der gültige Fall** — der Sensor wird nicht abgezogen (Ent-14, Paket 2026-10-10). **K17b** und **K17c** nur in der Vorschau | Gerät: Browser, API lesend, Mitschnitt. K17b/K17c: Vorschau | **Gültig (Gerät):** „DS18xx“ zeigt den Messwert, „DS18xx online“ zeigt „online“; `numvar[idx=20].value` (`DS18XX_IS_UP`) = 1, `numvar[idx=23].value` ≠ 255; im Mitschnitt `DS18xxx temperature:` ohne `ungueltig`, keine Zeile `ds18xx verloren`. **K17b, nicht gefunden** (`[idx=20]` = 0): „–“ und „nicht gefunden“. **K17c, ungültig** (`[idx=20]` = 1, `[idx=23]` = 255): „Messwert ungültig“ und „online“ | Keine, rein lesend. Die Vorschauwerte setzt die Tabelle `NUM` in `tools/preview/server.py` (gehört dem Lead) oder ein Abfangen der `settings_xml`-Antwort im DevTools-Protokoll |
+
+**Die Werte in K13 bis K16 sind eine Auswahl.** Die Regel selbst steht in einer
+einzigen Fall-Tabelle, `tools/checks/auszug/esp/t17/regeln.tsv`, für ESP und PWA
+gemeinsam; vollständig prüft sie der Prüfstand `tools/checks/auszug/pwa/regeln/`
+gegen die PWA und `tools/checks/auszug/esp/t17/` gegen den ESP. Die Auswahl hier deckt
+je Regel die Fälle ab, die am Gerät schon einmal aufgefallen sind (L340, L369), dazu
+die Grenzen und je zwei gültige Werte. Ändert sich die Regel, beginnt die Änderung in
+der Tabelle, und diese Auswahl ist nachzuziehen. Die Wege über die Kartenauswahl und
+den Backup-Import prüft der Prüfstand; im Durchlauf werden sie nicht eigens gefahren.
+
+**Auch hier ist die Abdeckung zu melden**, wie in 6.0c:
+
+```
+Phase 4, Bedienfälle: von K1 bis K17 X gefahren, Y ausgelassen.
+Je ausgelassenem Fall: Kennung und Grund.
+```
 
 ---
 
@@ -1133,6 +1191,10 @@ Plan und die Disziplin, sie zu lesen.
 7. `./tools/install-app.sh --check` — Dateien vollständig
 8. Mitschnitt auf dem Pi durchsehen: Watchdog-Resets, Lücken über 90 s, zerrissene
    Zeilen während des Durchlaufs
+9. **Mit Freigabe: V3** (5b) — STM-Reset über S114 nach der letzten Setter-Phase,
+   danach Schritte 2, 3 und 6 erneut. Die LDR-Grenzen `numvar[idx=17]` und
+   `numvar[idx=18]` müssen auf dem Wert **vor** dem Durchlauf stehen (12.1). Danach
+   zwingend Variablensatz und Update-Quelle prüfen, wie V3 es verlangt
 
 **Ohne Schritt 3 ist der Durchlauf nicht abgeschlossen.** „Sieht wieder normal aus" ist
 keine Wiederherstellung.
@@ -1163,7 +1225,17 @@ zuletzt nur noch in Abzügen von zwei Tagen davor.
 **Und er vergleicht ESP-Kopien.** Was der STM anders hält als der ESP, sieht er auch
 im eigenen Lauf nicht. Am 10.10.2026 meldete er 503 von 503 Feldern gleich, während der
 STM nach S25/S26 andere LDR-Grenzen hielt als der Rohabzug (`BEFUNDE.md`, L364, L370).
-Deshalb sind S25/S26 als nicht rücknehmbar eingestuft (6.3).
+
+**Für die STM-seitigen LDR-Grenzen ist dieser blinde Fleck mit A59 abgedeckt**, in zwei
+Schritten. Im Lauf belegt die `eep`-Zeile nach S27, dass der STM den Rückweg aus S25/S26
+**angewandt** hat (6.3). Am Ende zeigt Schritt 9, ob er ihn auch **gespeichert** hat:
+Nach dem STM-Reset baut der ESP seine Kopie aus dem STM neu auf (V3), und Phase 9 muss
+die Grenzen auf dem Wert vor dem Durchlauf zeigen. Weichen sie ab, hielt der STM etwas
+anderes als die ESP-Kopie — ein Befund, kein erklärter Rest. Eine Einschränkung gehört
+in den Bericht: Der Import aus Schritt 1 schreibt die Grenzen ebenfalls, seit A59 auch
+am STM. Der Reset belegt deshalb, dass Rückweg und Import **zusammen** am STM halten; den
+Rückweg allein belegt die `eep`-Zeile. **Für alle anderen Werte bleibt der blinde Fleck**,
+und V3 ist dort der einzige vollständige Abgleich.
 
 **Daraus folgt die Lesart jedes Berichts:** Ein Durchlauf, der „keine
 Konfigurationsabweichung" meldet, sagt damit **nichts über Altlasten**. Er sagt nur,
