@@ -435,6 +435,18 @@ print(n)" "$F103_HEX" 2>/dev/null)
   else ok "F103: $frei Byte frei ($belegt von 65536 belegt)"; fi
 fi
 
+# 64-Bit-Division darf nicht zurueckkommen (Paket 2026-10-10, S0). my_gmtime() rechnete mit
+# 64-Bit-time_t und zog damit __udivmoddi4 + __aeabi_ldivmod herein: 952 Byte, fast so viel
+# wie der ganze freie Rest. Eine einzige neue Division mit time_t oder long long holt sie
+# still zurueck -- und das Gate merkte es erst, wenn es zu spaet ist. MAP_F103 ueberschreibt
+# den Pfad nur fuer die Gegenprobe (DIR-014).
+F103_MAP=${MAP_F103:-build/stm-rgbw-12h/wordclock_f103_rgbw.map}
+if [ -f "$F103_MAP" ]; then
+  r64=$($GREP -oE '__udivmoddi4|__aeabi_ldivmod|__aeabi_uldivmod|__divdi3|__udivdi3' "$F103_MAP" | sort -u | tr '\n' ' ')
+  if [ -n "$r64" ]; then warn "F103: 64-Bit-Divisionsroutinen gelinkt ($r64) - rund 950 Byte; Ursache meist time_t oder long long (S0)"
+  else ok "F103: keine 64-Bit-Divisionsroutinen gelinkt"; fi
+fi
+
 # ------------------------------------------------- S9 Aktualitaet der Doku
 step S9 "Versionsangaben in der lebenden Dokumentation"
 # Momentaufnahmen sind ausgenommen (DIR-006): REVIEW*.md, gap-analysis.md,
