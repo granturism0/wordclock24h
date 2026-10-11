@@ -488,19 +488,19 @@ nicht die Zahl der Aufrufstellen, sondern dass einzelne lange Pfade keinen haben
 namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommandos
 (`BEFUNDE.md`, L85).
 
-1. **DS18xx-Messwertvalidierung im STM** (klarster nächster Fix)
-   **Neu belegt (01.10.2026):** `temp_init()` läuft genau einmal beim Start
-   (`temp_init()` in `main.c`). Scheitert die Erkennung dort, liefert der Sensor bis zum nächsten
-   Reset nur den Fehlercode — am Gerät beobachtet, 11 Fehlerwerte vor einem Reset,
-   1506 gültige danach. Es braucht deshalb **beides**: CRC-Prüfung beim Lesen **und**
-   erneute Erkennung zur Laufzeit.
-   Scratchpad-CRC wird beim Read nicht validiert; „online" heisst nur „beim Init
-   gefunden", nicht „letzter Messwert gültig". Gewünscht: CRC-Prüfung im Read,
-   separates Flag „letzter Messwert gültig", UI-Status um „Messwert ungültig"
-   erweitern. Die UI-Seite ist bereits korrigiert (STM-Fehlerwert `255` wurde
-   fälschlich als „127.5 °C" formatiert).
-   Dateien: `src/ds18xx/ds18xx.c`, `src/tempsensor/tempsensor.c`, `src/vars/vars.c`,
-   `src/main.c`, `data/app/app.js`
+1. **DS18xx-Messwertvalidierung im STM — mit A2 erledigt (Paket 2026-10-10).**
+   Scratchpad und ROM-ID werden per CRC-8 geprüft, „online“ heisst erst „gültige ROM-ID
+   gelesen“, ein Lese- oder CRC-Fehler liefert den Fehlerwert 255, drei Fehler in Folge
+   gelten als „verloren“, und die Erkennung läuft zur Laufzeit erneut. Die PWA
+   unterscheidet „nicht gefunden“ und „Messwert ungültig“. Am Gerät belegt (`BEFUNDE.md`,
+   G1 und T.2); der Mitschnitt meldet `ds18xx erkannt`, `ds18xx verloren` und
+   `DS18xxx temperature: ungueltig`, die Logwache schlägt bei den letzten beiden an.
+
+   **Was davon bleibt:** Die frühere Lesart von L18 — „`temp_init()` scheitert beim Start,
+   danach bis zum Reset nur Fehlerwerte“ — ist ersetzt: Belegt ist eine **falsch gelesene
+   ROM-ID**, nicht eine gescheiterte Erkennung. Ob der 1-Wire-Leseslot zu spät abtastet
+   (A63), der Einschaltwert 85 °C angezeigt wird (A64) und ob die Auflösung wirklich
+   geschrieben wurde (A65), steht offen in `BEFUNDE.md`.
 
 2. **Sporadische Hänger auf BlackPill STM32F411 + neues LED-Board** — **seit 04.10.2026
    reproduzierbar** (`BEFUNDE.md`, L204). Zehn schnelle `ticker_set` mit je 32 Zeichen
