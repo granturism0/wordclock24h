@@ -6,6 +6,10 @@ nach Empfehlung (unten, „Entscheidungen").
 Ergebnissen aus **Schritt V** (`firmware-analyst`) nachgeführt — neuer Sparschritt **S0**, neue
 Varianten für A50 und A55, A2 präzisiert. Ausgangsstand am Gerät laut L370: STM 3.2.25,
 ESP 3.2.30, PWA 1.4.94.
+**Am 11.10.2026 nachgeführt — Endstand:** Abschnitt „Endstand 11.10.2026" nach den
+Akzeptanzkriterien; Kästchen der belegten Kriterien angekreuzt. Am Gerät stehen jetzt STM 3.2.28,
+ESP 3.2.31, PWA 1.4.95. Am selben Tag ergänzt um Z.1 (`eef9d13`), Z.2 (`3d3d8d9`) und den Push der
+Tags (AKZ.7).
 **Auslöser:** Auftrag des Nutzers vom 10.10.2026; Belege aus dem Testdurchlauf L370 (L364–L369)
 und aus der ToDo-Liste in `BEFUNDE.md`.
 
@@ -231,9 +235,14 @@ Jedes Kriterium nennt sein **Instrument** und den **Weg, auf dem die Meldung ank
 und sind **einmal gegen den Ausgangsstand fehlgeschlagen**; die Fallzahl wird gemeldet und
 nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlangt.**
 
+**Kästchen im Endstand (11.10.2026):** Angekreuzt ist, was mit einem Gerätewert in `BEFUNDE.md`,
+einer gemeldeten Fallzahl samt Gegenprobe (`CHANGELOG.md`, `BEFUNDE.md`) oder dem Ergebnis von
+T.2 (L387) belegt ist. Offen bleibt, was nur teilweise oder gar nicht gemeldet ist — der Grund
+steht je Kriterium im Abschnitt „Endstand 11.10.2026" unten.
+
 ### Schritt S0 — `my_gmtime()` mit 32 Bit
 
-- [ ] **AKG.1 (gleiches Ergebnis)** — `my_gmtime()` liefert für **jede** Eingabe 0..2³²−1 dieselbe
+- [x] **AKG.1 (gleiches Ergebnis)** — `my_gmtime()` liefert für **jede** Eingabe 0..2³²−1 dieselbe
       `struct tm` wie heute, **alle** Felder einschliesslich `tm_wday` und `tm_yday`. *Instrument:*
       Prüfstand **GT** (alt gegen neu, Host, Typbreiten des Ziels): jeder Tagesbeginn von 1970 bis
       2106 (rund 49'710 Tage) mit den Sekunden 0, 1, 43'200, 86'399; dazu 2000-02-29,
@@ -242,10 +251,10 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       `gmtime_r()` des Hosts als Referenz; weicht schon die **alte** Fassung davon ab, wird das
       **berichtet, nicht still korrigiert** — Massstab bleibt „wie heute". **Gegenprobe:**
       eine Sabotage (Jahrhundertregel entfernt) meldet FEHL. **Zähl nach:** über 300'000 Fälle.
-- [ ] **AKG.2 (64-Bit-Division weg)** — In der Map des F103-Testbaus stehen **weder**
+- [x] **AKG.2 (64-Bit-Division weg)** — In der Map des F103-Testbaus stehen **weder**
       `__udivmoddi4` **noch** `__aeabi_ldivmod`. *Instrument:* statische Prüfung des Leads über die
       Map; **Gegenprobe:** gegen die Map des Ausgangsstands schlägt sie an (`:874`, `:1028`).
-- [ ] **AKG.3 (Flash)** — Testbau F103: Rest um **mindestens 900 Byte** gestiegen; Zahl gemeldet.
+- [x] **AKG.3 (Flash)** — Testbau F103: Rest um **mindestens 900 Byte** gestiegen; Zahl gemeldet.
 - [ ] **AKG.4 (Gerät, G0, lesend)** — Nach dem S0-Flash: Uhrzeit der Uhr gleich der des Mac auf
       ±2 s (Zeitzone eingerechnet), **Wochentag** und Datum richtig (Datumsticker oder
       `/api/…`-Abfrage), die nächste Netzzeit-Synchronisierung ohne Sprung. Ein Timer mit
@@ -254,7 +263,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
 
 ### Schritt S1 — A59 (LDR-Grenzen)
 
-- [ ] **AKL.1 (Setter angewandt)** — `LDR_MIN_VALUE_NUM_VAR` und `LDR_MAX_VALUE_NUM_VAR` in
+- [x] **AKL.1 (Setter angewandt)** — `LDR_MIN_VALUE_NUM_VAR` und `LDR_MAX_VALUE_NUM_VAR` in
       `schedule_esp8266_numeric_variable()` (`main.c:1876-1886`): Ein Wert **0..4095** wird in
       `ldr.ldr_min_value` bzw. `ldr.ldr_max_value` übernommen und über **denselben** Schreibweg
       wie „Messwert übernehmen" ins EEPROM geschrieben (`ldr_write_config_to_eep()`,
@@ -263,25 +272,25 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       Zweige und von `ldr.c` mit EEPROM-Attrappe): 0, 1, 4095, 4096, 65535, unveränderter Wert
       (kein Schreibzyklus). **Gegenprobe:** gegen `release/3.2.25-3.2.30-1.4.94` wird kein Wert
       übernommen ⇒ FEHL.
-- [ ] **AKL.2 (Reihenfolge nicht gesperrt)** — Minimum ≥ Maximum wird **angenommen** wie beim ESP
+- [x] **AKL.2 (Reihenfolge nicht gesperrt)** — Minimum ≥ Maximum wird **angenommen** wie beim ESP
       (`http.cpp:9841-9852`), damit der Backup-Import (`app.js:6536-6538`) nicht auf halbem Weg
       scheitert. *Instrument:* Prüfstand L59, Fall „Minimum 3000 bei Maximum 100, danach Maximum
       4000" ⇒ beide Werte stehen. Das Verhalten der Laufzeit (`ldr.c:72`) und beim Start
       (`ldr.c:128-138`) bleibt unverändert und ist im Bericht benannt.
-- [ ] **AKL.3 (Gerät, G1 — Bereinigung)** — Nach dem S1-Flash, **mit Freigabe** (Ent-1, Zielwert
+- [x] **AKL.3 (Gerät, G1 — Bereinigung)** — Nach dem S1-Flash, **mit Freigabe** (Ent-1, Zielwert
       nach Ent-3): `ldr_min_value_set`, dann `ldr_max_value_set`. Im Mitschnitt **und** in
       `/api/stm32_log` je eine Zeile `eep a=225 n=2` bzw. `eep a=227 n=2` (sofern der STM-Wert
       sich ändert); `numvar[17]`/`numvar[18]` (ESP-Kopie) gleich dem Zielwert. **Der schlechte
       Wert liegt vor:** Derselbe Aufruf erzeugte unter STM 3.2.25 **keine** `eep`-Zeile (L364).
       Der Zielwert steht im Bericht **als vom Nutzer bestätigter Wert**, nicht als Vorschlag.
-- [ ] **AKL.4 (Gerät — übersteht den Neustart)** — Nach dem **nächsten STM-Reset** (Ent-4: der
+- [x] **AKL.4 (Gerät — übersteht den Neustart)** — Nach dem **nächsten STM-Reset** (Ent-4: der
       S2-Flash oder ein eigener Reset) zeigen `numvar[17]`/`numvar[18]` nach dem Vollabgleich den
       Zielwert. Weil der Vollabgleich die **STM**-Werte überträgt, ist das der Beleg für RAM
       **und** EEPROM des STM — nicht nur für die ESP-Kopie (L188).
 
 ### Schritt S1 — A2 (DS18xx)
 
-- [ ] **AKT.1 (Scratchpad-CRC)** — `ds18xx_read_raw_temp()` prüft die Dallas-CRC-8 (Polynom
+- [x] **AKT.1 (Scratchpad-CRC)** — `ds18xx_read_raw_temp()` prüft die Dallas-CRC-8 (Polynom
       x⁸+x⁵+x⁴+1) über Byte 0–7 gegen Byte 8. Ungleich ⇒ Messung **ungültig**. **Eine** CRC-8-Funktion
       für Scratchpad und ROM-ID. *Instrument:* Prüfstand **DS** (Auszug von `ds18xx.c` und
       `tempsensor.c` mit Eindraht-Attrappe): ein gültiges Scratchpad aus Datenblatt oder Maxim
@@ -289,18 +298,18 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       0xFF (getrennte Leitung), fehlende Präsenz. Neun Nullbyte bestehen die CRC — ob dafür eine
       Zusatzprüfung nötig ist, entscheidet das Review S1.5 und benennt es. **Gegenprobe:** der
       alte Stand nimmt die gekippten Bits an ⇒ FEHL. **Zähl nach:** mindestens 74 Fälle.
-- [ ] **AKT.2 (ROM-ID-CRC, `is_up` nur bei gültiger ID)** — `ds18xx_init()` setzt `is_up = 1` **nur**,
+- [x] **AKT.2 (ROM-ID-CRC, `is_up` nur bei gültiger ID)** — `ds18xx_init()` setzt `is_up = 1` **nur**,
       wenn die CRC-8 über Byte 0–6 der ROM-ID gleich Byte 7 ist; sonst `is_up = 0`, kein Messen
       mit dieser ID. *Instrument:* Prüfstand DS, ROM-ID mit gekipptem Bit ⇒ nicht erkannt;
       **Gegenprobe:** alter Stand meldet `is_up = 1` ⇒ FEHL. **Das ist die Korrektur von L18.**
-- [ ] **AKT.3 (ungültig heisst 255, überall)** — Nach einem CRC- oder Lesefehler steht
+- [x] **AKT.3 (ungültig heisst 255, überall)** — Nach einem CRC- oder Lesefehler steht
       `gtemp.index` auf **255**, und genau dieser Wert geht an den ESP — nicht der vorige
       Messwert (heute `tempsensor.c:76`). **Kein neues numvar**; die PWA zeigt 255 schon als
       ungültig. Die Logzeile `main.c:4365` lautet dann **`DS18xxx temperature: ungueltig`** statt
       „127.5" (Umschrift, DIR-015; Wortlaut verbindlich, damit der Suchtext stimmt). Ein internes
       Merkmal „letzter Messwert gültig" trägt die Unterscheidung im STM. *Instrument:* Prüfstand
       DS; **Gegenprobe:** alter Stand überträgt nach gültig→ungültig den alten Wert ⇒ FEHL.
-- [ ] **AKT.4 (Neuerkennung zur Laufzeit)** — Nach Ent-6: Ist kein Sensor erkannt, versucht der
+- [x] **AKT.4 (Neuerkennung zur Laufzeit)** — Nach Ent-6: Ist kein Sensor erkannt, versucht der
       STM die Erkennung **einmal je Minute** im bestehenden Sekunde-49-Zweig (`main.c:4348-4356`)
       erneut. Jeder Wechsel von `is_up` geht **sofort** an den ESP (`var_send_ds18xx_is_up()`
       nicht mehr nur im Vollabgleich) und erzeugt **genau eine** Logzeile: **`ds18xx erkannt`**
@@ -313,7 +322,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       (V: rund 20–40 ms; Rücksetzen, ROM-ID lesen, Auflösung schreiben nur, wenn sie abweicht,
       `ds18xx.c:320-323`). **Keine neue `watchdog_reload()`-Stelle** (S7 zeigt denselben
       Bestand). *Instrument:* Review S1.5 mit Rechnung aus den Eindraht-Zeiten.
-- [ ] **AKT.6 (Gerät, G1, lesend)** — 60 Minuten nach dem S1-Flash: mindestens 55 Zeilen
+- [x] **AKT.6 (Gerät, G1, lesend)** — 60 Minuten nach dem S1-Flash: mindestens 55 Zeilen
       `DS18xxx temperature:` mit plausiblen Werten (15 bis 35 °C), **keine** Zeile
       `ungueltig`, keine Zeile `ds18xx verloren`; `numvar[20]` (`DS18XX_IS_UP`) = 1. Fällt doch
       ein `ungueltig`, ist das **kein** Fehlschlag, sondern ein Messergebnis — es wird mit
@@ -322,28 +331,28 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
 
 ### Schritt S2 — A50 (Fehlerpfad)
 
-- [ ] **AKF.1 (Reset auf jedem Pfad, ohne ISR)** — `fault_reset()` ruft **keine** Ausgabe über den
+- [x] **AKF.1 (Reset auf jedem Pfad, ohne ISR)** — `fault_reset()` ruft **keine** Ausgabe über den
       Ring und kein `log_flush()` mehr und erreicht `NVIC_SystemReset()` auf jedem Pfad — bei
       vollem TX-Ring, vor `log_init()`, vor `watchdog_init()`. *Instrument:* Prüfstand **FR**:
       Attrappen, bei denen `uart_putc()` bei vollem Ring und `log_flush()` ohne laufende ISR nie
       zurückkehren (begrenzter Zähler meldet „hängt"); Fälle: Ring leer, Ring voll, UART nicht
       initialisiert. Dazu **statisch**: kein `log_`-Aufruf in `fault_reset()`. **Gegenprobe:**
       alter Stand erreicht den Reset im Fall „Ring voll" nicht ⇒ FEHL.
-- [ ] **AKF.2 (Wartezeit nach Ent-7)** — Vor dem Reset wartet der Fehlerpfad **länger als die
+- [x] **AKF.2 (Wartezeit nach Ent-7)** — Vor dem Reset wartet der Fehlerpfad **länger als die
       Bootzeit des ESP und kürzer als der Watchdog**: Vorgabe **rund 15 s** (über 12 s, unter
       20 s). **F1c (Empfehlung):** geeicht über einen Zähler, der im HardFault weiterläuft
       (SysTick-Zählregister pollen oder Zyklenzähler) — die Rechnung steht im Kommentar und im
       Bericht. **F1b:** die bestehende Schleife (`main.c:602`) verlängert, ungeeicht, 0 Byte —
       dann nennt der Bericht die **gerechnete** Dauer je Ziel (F103 72 MHz, F411) und ihre
       Unsicherheit. *Instrument:* Prüfstand FR (Zählerstand bis zum Reset), Review S2.5.
-- [ ] **AKF.3 (Flash)** — Testbau F103 nach S2.1: Zahl gemeldet; erwartet laut V rund 180–250
+- [x] **AKF.3 (Flash)** — Testbau F103 nach S2.1: Zahl gemeldet; erwartet laut V rund 180–250
       Byte **weniger** Verbrauch.
 - [ ] **AKF.4 (kein Gerätenachweis)** — Ein Fault wird am Gerät **nicht** ausgelöst. Am Gerät nur:
       G2 ohne neue Exception, ohne Neustart (60 min lesend).
 
 ### Schritt S2 — A55 (ESP-Neustart)
 
-- [ ] **AKP.1 (offline ab der Bootmeldung)** — Nach Ent-8. **P3 (Empfehlung, V):** Im Zweig
+- [x] **AKP.1 (offline ab der Bootmeldung)** — Nach Ent-8. **P3 (Empfehlung, V):** Im Zweig
       `CAP var-crc` (`esp8266.c:543-553`) setzt der STM `esp8266.is_online = 0` — dasselbe Muster
       wie bei AP- und WPS-Taste (`main.c:3945`, `:3953`). `IPADDRESS` und `SYNCVARS` setzen es
       wieder (unverändert). Kein neuer Zustand, kein neues Flag, keine neue Logzeile — die
@@ -353,7 +362,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       schweigt 9 s, `SYNCVARS`" bei den vier periodischen Sendungen aus A55 ⇒ **höchstens eine**
       Zeitüberschreitung; danach `is_online = 1`. **Gegenprobe:** alter Stand ⇒ mehr als eine ⇒
       FEHL.
-- [ ] **AKP.2 (kein Steckenbleiben)** — Bleiben `IPADDRESS` **und** `SYNCVARS` nach `CAP` aus, ist
+- [x] **AKP.2 (kein Steckenbleiben)** — Bleiben `IPADDRESS` **und** `SYNCVARS` nach `CAP` aus, ist
       das Verhalten benannt und vertretbar: Der STM sendet dann nichts Periodisches an den ESP,
       bis eine der beiden Zeilen kommt — dieselbe Lage wie nach der AP-Taste heute und wie L255
       sie beschreibt. Das Review S2.5 belegt am Code, **wann** der ESP `SYNCVARS` sendet (nach
@@ -374,7 +383,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
 
 ### Flash-Gate (S0, S1, S2)
 
-- [ ] **AKZ.F** — Testbau F103 nach **jedem** STM-Task (S0.1, S1.1, S1.2, S2.1, S2.2): Rest
+- [x] **AKZ.F** — Testbau F103 nach **jedem** STM-Task (S0.1, S1.1, S1.2, S2.1, S2.2): Rest
       **≥ 1'024 Byte**. Ausgangslage 1'120 Byte frei. Darunter: **anhalten und dem Nutzer die
       Sparvarianten vorlegen** (Ent-5). Gegenprobe S8b im jeweiligen Release-Build; **kein
       Rollout unter 1'024 Byte**. Jeder Zuwachs steht neben der Schätzung aus V.
@@ -387,7 +396,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       `a"b<c>&'d`, ISO-8859-1-Byte 0xE4, UTF-8 „ä", Emoji, leerer Wert, 64-Byte-Wert; dazu
       **Rundlauf**: die Ausgabe, so dekodiert wie ein Browser das Attribut dekodiert, ist
       **byte-gleich** mit der Eingabe. **Gegenprobe:** alter Stand gibt `"` roh aus ⇒ FEHL.
-- [ ] **AKX.2 (alle Werte, nicht nur `input_field()`)** — Jede Ausgabe eines gespeicherten oder
+- [x] **AKX.2 (alle Werte, nicht nur `input_field()`)** — Jede Ausgabe eines gespeicherten oder
       fremden Werts in den Legacy-Seiten läuft über diese Maskierung; dazu `new_esp_version` und
       `new_wc_version`. Der `esp-developer` legt eine **Bestandsliste** vor (Datei:Zeile, Zahl).
       *Instrument:* **statische Prüfung** des Leads: kein `http_send (` mit nicht-literalem
@@ -395,13 +404,13 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       Zahlenpuffer) mit Grund je Eintrag. **Gegenprobe:** schlägt gegen den Ausgangsstand an
       (mindestens `:2687`, `:7463`, `:7481`). **Zähl nach:** Zahl der geprüften Aufrufe gegen die
       Bestandsliste.
-- [ ] **AKX.3 (Release Notes nach Ent-2)** — Umgesetzt wie entschieden; bei **R2 (Empfehlung)**:
+- [x] **AKX.3 (Release Notes nach Ent-2)** — Umgesetzt wie entschieden; bei **R2 (Empfehlung)**:
       alles zwischen `<` und `>` entfällt, ein einzelnes `>` wird maskiert, Text und Entitäten
       bleiben; jede Zeile endet mit `<br>`. *Instrument:* t15 mit `<script>`, `<img onerror=…>`,
       `<a href="javascript:…">`, einem über zwei Zeilen geteilten Tag und einer Zeile über
       128 Zeichen (heute `linebuf[128]`, `:7387`); **Gegenprobe:** alter Stand reicht `<script>`
       durch ⇒ FEHL.
-- [ ] **AKX.4 (Gerät, G3, schreibend mit Rückstellung)** — **Mit Freigabe (Ent-1):** Originalwert
+- [x] **AKX.4 (Gerät, G3, schreibend mit Rückstellung)** — **Mit Freigabe (Ent-1):** Originalwert
       des Wetterorts lesend festhalten; Wetterort auf `x"y<z` setzen (stösst keinen Abruf an,
       Paket 2026-10-09 `design.md` §4.2); die Legacy-Seite mit dem Ortsfeld lesend abrufen:
       enthält `x&quot;y&lt;z`, **nicht** `x"y<z`; Original zurück. **Nicht** Update-Host oder
@@ -409,14 +418,14 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
 
 ### Schritt E — C55 und C44 (Regeln im ESP)
 
-- [ ] **AKR.1 (Datumsformat)** — Eine Prüffunktion nach Ent-10, gerufen vom API-Setter **und**
+- [x] **AKR.1 (Datumsformat)** — Eine Prüffunktion nach Ent-10, gerufen vom API-Setter **und**
       vom Legacy-Weg `savedtf` (`http.cpp:4460-4466`). Abweisung über die API mit
       `HTTP_API_ERROR_OUT_OF_RANGE` und Meldung, im Legacy-Weg mit Meldung statt „successfully
       changed". Gültige Werte wie heute.
-- [ ] **AKR.2 (Koordinaten)** — Eine Prüffunktion nach Ent-12, gerufen vom API-Setter **und** von
+- [x] **AKR.2 (Koordinaten)** — Eine Prüffunktion nach Ent-12, gerufen vom API-Setter **und** von
       `savelonlat` (`:4002-4013`); Komma wird **vor** der Prüfung zu Punkt (wie heute); die
       bestehenden Regeln (Paar, leer nur mit Ort, `:8693-8711`) bleiben. Abweisung wie AKR.1.
-- [ ] **AKR.3 (Prüfstand t16)** — **Eine Fall-Tabelle** (Datei, maschinenlesbar) mit mindestens
+- [x] **AKR.3 (Prüfstand t16)** — **Eine Fall-Tabelle** (Datei, maschinenlesbar) mit mindestens
       40 Fällen je Regel, darunter alle Werte aus L369 und L340 und die Grenzen (±90, ±180, acht
       Zeichen, `-0`, `.5`, `5.`, `+5`, `1e2`, Leerzeichen). **Gegenprobe:** alter Stand nimmt
       `<"&` und `<scri` an ⇒ FEHL.
@@ -428,7 +437,7 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
 
 ### Schritt P — PWA
 
-- [ ] **AKR.5 (gleiche Regel in der PWA)** — Die PWA prüft Datumsformat und Koordinaten **vor dem
+- [x] **AKR.5 (gleiche Regel in der PWA)** — Die PWA prüft Datumsformat und Koordinaten **vor dem
       Senden** nach **derselben** Regel, auf allen Wegen: Speichern (`app.js:8341-8349`,
       `:8404-8418`), Kartenauswahl (`:8960-8985`), Backup-Import (`:6501`, `:6555-6582`).
       Abgewiesen ⇒ kein Aufruf, Meldung am Feld; beim Import eine Notiz wie bei
@@ -436,32 +445,32 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       dieselbe Fall-Tabelle aus AKR.3 läuft gegen die PWA-Funktion (Node, `.mjs`) — jede
       Entscheidung gleich der des ESP. **Gegenprobe:** alter Stand der PWA nimmt `<"&` an ⇒ FEHL;
       eine absichtlich abweichende Regel meldet den Unterschied (die Meldung kommt an, DIR-014).
-- [ ] **AKB.1 (B44)** — Ein leeres Zeitfeld führt nach Ent-9 zu **keinem** Aufruf, sondern zu
+- [x] **AKB.1 (B44)** — Ein leeres Zeitfeld führt nach Ent-9 zu **keinem** Aufruf, sondern zu
       einer Meldung, die die Zeile nennt — in `saveTimerRow()`, in `saveDfplayerAlarm()` und in
       `saveAllTimerRows()`, dort **bevor** irgendeine Zeile gesendet wird. `parseTimeInput()`
       hat keinen stillen Rückfall auf `"00:00"` mehr. *Instrument:* Vorschau (`/pwa-vorschau`) mit
       **echten Tastenereignissen** (Feld leeren, aktiv setzen, Speichern): kein Aufruf im
       Netzprotokoll. **Gegenprobe:** alter Stand sendet `hour=0&minute=0` ⇒ FEHL.
-- [ ] **AKB.2 (B45)** — Nach dem Speichern von Feld A bleibt die ungespeicherte Eingabe in Feld B
+- [x] **AKB.2 (B45)** — Nach dem Speichern von Feld A bleibt die ungespeicherte Eingabe in Feld B
       **im Feld stehen** (auch nach dem Neuladen), und der Modulwechsel fragt nach. **Gegenfall
       (L33):** Nach dem Speichern des **einzigen** geänderten Felds fragt der Modulwechsel nicht,
       und die Selbstaktualisierung läuft wieder. *Instrument:* Vorschau mit echten Ereignissen,
       beide Fälle; **Gegenprobe:** alter Stand verliert B ohne Rückfrage ⇒ FEHL.
-- [ ] **AKB.3 (B46)** — Wird das Netzwerkmodul direkt geöffnet, steht die AP-SSID nach dem ersten
+- [x] **AKB.3 (B46)** — Wird das Netzwerkmodul direkt geöffnet, steht die AP-SSID nach dem ersten
       Ladezyklus im Feld, ohne Besuch der Wartung. Der WLAN-Schlüssel aus `eeprom_settings`
       (`http.cpp:8976-8996` liefert ihn im Klartext) erscheint in **keinem** neuen Feld, keiner
       Konsolenausgabe und keinem Log. *Instrument:* Vorschau; Review P.6. **Gegenprobe:** alter
       Stand zeigt `""` ⇒ FEHL.
-- [ ] **AKB.4 (B47)** — Ein Klick auf den Hintergrund schliesst das Kartenmodal, und der Fokus
+- [x] **AKB.4 (B47)** — Ein Klick auf den Hintergrund schliesst das Kartenmodal, und der Fokus
       steht danach auf dem Element, das es geöffnet hat (`modalReturnFocus`), **nicht** auf
       `body`. Ein Ziehen, das in der Karte beginnt und auf dem Hintergrund endet, schliesst
       **nicht**. Escape unverändert. *Instrument:* Vorschau mit echten Mausereignissen;
       `ui-reviewer`. **Gegenprobe:** alter Stand ⇒ `document.activeElement === body` ⇒ FEHL.
-- [ ] **AKT.7 (Anzeige A2)** — PWA: drei Zustände in der Klima-Übersicht — „nicht gefunden"
+- [x] **AKT.7 (Anzeige A2)** — PWA: drei Zustände in der Klima-Übersicht — „nicht gefunden"
       (`DS18XX_IS_UP` = 0), **„Messwert ungültig"** (`IS_UP` = 1 und Index 255), Messwert. Neuer
       Text in `app.js` **und** `i18n/en.json` (S8 prüft die Umlaute). Legacy nach Ent-11.
       *Instrument:* Vorschau mit den drei Zuständen.
-- [ ] **AKB.5 (Browser)** — `./tools/check-pwa.sh` nach dem Hochladen: **kein** Fehler beim Laden
+- [x] **AKB.5 (Browser)** — `./tools/check-pwa.sh` nach dem Hochladen: **kein** Fehler beim Laden
       von `app.js` (DIR-016).
 
 ### Für alle Schritte
@@ -481,17 +490,82 @@ nachgezählt. **Was am Gerät nicht herstellbar ist, wird nicht am Gerät verlan
       gestartet und nach jeder Änderung an seinem Skript neu gestartet (DIR-013, L362).
       Erweiterung nach S1: Meldung bei `ds18xx verloren` und `DS18xxx temperature: ungueltig` —
       je mit Gegenprobe.
-- [ ] **AKZ.6 (Abschluss, T)** — **Ein `pwa-tester`-Durchlauf Phasen 0–4 und 9** nach dem
+- [x] **AKZ.6 (Abschluss, T)** — **Ein `pwa-tester`-Durchlauf Phasen 0–4 und 9** nach dem
       PWA-Release, mit dem nachgeführten `TESTPLAN-PWA.md` (T.1). Darin: **S25/S26 gefahren und
       über S27 zurückgestellt**, und nach einem **STM-Reset (Ent-4)** zeigt Phase 9 die
       LDR-Grenzen auf dem Wert vor dem Durchlauf — damit ist „rücknehmbar" am STM belegt, nicht
       nur an der ESP-Kopie. Unvollständig ⇒ **nicht abgenommen**.
-- [ ] **AKZ.7** — Jedes ausgerollte Release **sofort** committet, getaggt, **gepusht** (DIR-011).
+- [x] **AKZ.7** — Jedes ausgerollte Release **sofort** committet, getaggt, **gepusht** (DIR-011).
 - [ ] **AKZ.8** — Die Einspielzeile nennt die **Reihenfolge**, fertig zum Einfügen.
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015):
       u. a. `src/base/base.c`, `src/main.c`, `src/ldr/ldr.c`, `src/ds18xx/ds18xx.c`,
       `src/tempsensor/tempsensor.c`, `src/onewire/onewire.c`, `src/vars/vars.c`,
       `src/esp8266/esp8266.c`, `http.cpp` (UTF-8), `app.js`.
+
+---
+
+## Endstand 11.10.2026
+
+Belege: `BEFUNDE.md` (L364, L371–L390; A2, A50, A55, A59, C44, C47, C55, B44–B47, B49,
+Massnahme 16), `CHANGELOG.md` (fünf Einträge „Paket 2026-10-10"), die Release-Tags und das
+Ergebnis von T.2 (L387). Einzelheiten je Task: `tasks.md`, Abschnitt „Endstand"; Gerätewerte:
+`design.md` §12.
+
+### Ziele
+
+| Ziel | Stand |
+|---|---|
+| 1 — Flash, Datum und Wochentag | **Erreicht.** Nach S0 2'176 Byte frei (+1'056); GT 692'546 Fälle ohne Abweichung; G0: Netzzeit richtig umgerechnet, `wday=6` (Samstag), kein Sprung (L372). S1 kostete rund 800 statt der geschätzten 75–125 Byte; der Platz aus S0 hat das aufgefangen (nach S1 1'376 Byte frei) |
+| 2 — LDR-Grenzen | **Erreicht.** Zahlenwert setzt RAM und EEPROM (G1: `eep a=225`/`a=227`), steht nach dem Neustart des S2-Flashs (G2: 0/4095), Zielwert 0/4095 (Ent-3). S25/S26 im Durchlauf T.2 gefahren und zurückgestellt; nach dem STM-Reset 0/4095 wie vorher. **Nicht am Gerät gefahren:** der Backup-Import der Grenzen — Phase 9 lief ohne Import |
+| 3 — DS18xx | **Erreicht am Prüfstand** (DS, 193 Fälle, L18-Fall); am Gerät nur der Gutfall (G1: 60 von 60 Messungen gültig). Der schlechte Fall ist am Gerät nicht herstellbar (Ent-14) |
+| 4 — Fehlerpfad | **Erreicht am Prüfstand** (FR, 65 Fälle, beide Ziele, F1c über SysTick). Am Gerät nicht herstellbar |
+| 5 — ESP-Neustart | **Teilweise.** Ab `CAP var-crc` keine Zeitüberschreitung mehr (vorher vier) — die Wirkung von A55 ist belegt. Insgesamt stieg `v` beim OTA aber um **2**, weil der STM während des Firmware-Downloads noch sendet (L380/A67, neuer Befund). Zur toten Brücke: Sie sendet kein `CAP`, P3 ändert für sie nichts (`design.md` §6); am Gerät nicht geprüft, ein eigener Prüfstandsfall ist nicht gemeldet |
+| 6 — Legacy-Seite | **Erreicht** (G3: `x"y<z` ⇒ `x&quot;y&lt;z`; statisch 788 Argumente an 83 Seitenfunktionen). **Einschränkung:** Ein einzelnes ungültiges UTF-8-Byte kommt über das Formular als U+FFFD zurück — vorbestehend, nicht durch C47 (L378/C56) |
+| 7 — Datumsformat und Koordinaten | **Erreicht** (t17 147 Fälle, Regelgleichheit PWA/ESP 147 Fälle, G3 mit Abweisung und Rückstellung) |
+| 8 — PWA | **Erreicht** (Vorschau-Proben mit Gegenprobe; T.2: K1–K17 gefahren). In K10b wich die Bearbeitungsmarkierung ab — neuer Befund L388/B53 |
+| 9 — einzeln nachgewiesen | **Weitgehend.** Fünf Releases, je eine Komponente, jedes Einspielen nach dem vorigen Nachweis. G0 (rund 35 min) und G2 (rund 10 min) blieben unter den verlangten 60 Minuten, und drei Release-Builds lagen vor dem Ende des vorigen Fensters (`tasks.md`, „Endstand", Punkt 1). Jeder neue Prüfstand schlug gegen den Vorgängerstand an |
+
+### Kriterien, die offen bleiben, und warum
+
+| Kriterium | Grund |
+|---|---|
+| **AKG.4** | Uhrzeit, Datum, Wochentag und „kein Sprung" belegt (L372). Der Timer mit Wochentagsbezug ist nicht gemeldet |
+| **AKT.5** | Review S1.5 durchgeführt (L373, L374); die Rechnung zur Blockade lag dem `spec-writer` nicht vor |
+| **AKF.4** | G2 ohne Exception und Neustart, aber nur rund 10 min bis zum ESP-OTA statt 60 |
+| **AKP.3** | W2 läuft in `auszug.sh` mit und ist Voraussetzung jedes Release-Builds; die Fallzahl 37 nach S2 ist nicht einzeln gemeldet |
+| **AKP.4** | `v` +2 statt +0..1; beide **vor** dem Neustart, im Download-Fenster (L380/A67). Ab `CAP` keine. Vollständigkeit des Vollabgleichs nicht gemeldet. AKS.6 gilt damit in der Fassung „höchstens 1 je ESP-**Neustart**" — das Download-Fenster davor deckt die Fassung nicht |
+| **AKP.5** | Nicht einzeln gemeldet (S7, Review S2.5 bestanden) |
+| **AKX.1** | t16 mit 63 Fällen, Gegenprobe FEHL. **Für 0xE4 trägt der Rundlauf nicht:** Ein Browser macht daraus U+FFFD, t16 bildet das nicht nach (L378/C56) — die Prüfung deckt diesen Fall weniger, als sie behauptet |
+| **AKR.4** | Am Gerät belegt: `yyyyy`, `abc`, `181` abgewiesen, `D.M` und `7,2700` angenommen, zurückgestellt (L381). `<scri`, `⏰`, `  ab`, `<"&` am Gerät nicht gemeldet |
+| **AKZ.1, AKZ.2** | Einzelne Guardrail-Läufe nicht gemeldet. `auszug.sh` führt die neuen Prüfstände (GT, L59, DS, FR, EP, t16, t16 statisch, t17, t18, Regelgleichheit) — die Namen weichen ab: `t15` war vergeben |
+| **AKZ.3** | Nicht gemeldet; dass jedes Release genau eine Komponente anhebt, zeigen die Tags |
+| **AKZ.4** | Smoketest 31/0 nach S2, nach dem ESP-OTA und nach P belegt; nach S0 und S1 nicht gemeldet |
+| **AKZ.5** | Wache um die DS18xx-Zeilen erweitert (S1.4); Start vor jedem Einspielen nicht einzeln gemeldet |
+| **AKZ.8, AKZ.9** | Nicht gemeldet |
+
+**Vermerk zu AKL.3 und AKT.6 (angekreuzt):** Bei AKL.3 ist nicht getrennt gemeldet, ob die
+`eep`-Zeilen im Mitschnitt **und** in `/api/stm32_log` standen; bei AKT.6 ist `numvar[20]` nicht
+einzeln gemeldet — gemessen wird nur bei erkanntem Sensor, 60 gültige Messungen setzen ihn voraus.
+**Vermerk zu AKZ.6 (angekreuzt):** abgenommen **mit Vorbehalten** (L387) — Phase 9 Schritt 1 ohne
+Backup-Import (Werte einzeln zurückgestellt), V3 nicht ganz nach der letzten Setter-Aktion,
+Phase 3 mit 97 von 114 Fällen. **Vermerk zu AKZ.7 (angekreuzt):** Alle fünf Release-Tags liegen
+auf dem Remote, vom Lead mit `git ls-remote --tags` geprüft.
+
+### Neue Befunde
+
+Aus Reviews, Umsetzung und Gerätenachweisen, in `BEFUNDE.md` eingetragen: L371/A62, L373/A63,
+L374/A64, L375/A65, L376/A66, L378/C56, L379/C57, L380/A67, L382/B48, L383/B49 (mit PWA 1.4.95
+behoben), L384/B50, L385/B51, L386/B52. **Aus T.2** (der Durchlauf selbst ist L387):
+
+- **L388/B53** (PWA): Zurücktippen auf den Ausgangswert hebt die Bearbeitungsmarkierung nur bei
+  den Feldern des Netzwerkmoduls auf.
+- **L389/A68** (STM): Die ESP-Kopie der Ambilight-Power veraltet, wenn ein Display-Timer das
+  Ambilight mitschaltet.
+- **L390/A69** (STM): Nach einem STM-Neustart im Nacht-Aus-Fenster bleibt das Display bis zum
+  nächsten Ein-Timer an.
+
+**C44, Ergebnis von E.0:** L340 war an einer Stelle ungenau — `8,5400` wurde schon vorher als
+`8.5400` gespeichert; `<"&` dagegen kam roh durch.
 
 ---
 

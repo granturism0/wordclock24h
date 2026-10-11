@@ -2,7 +2,9 @@
 
 **Erstellt:** 2026-10-10, Stand `675e3fd`. **Freigegeben** vom Nutzer am 10.10.2026; Ent-1 bis
 Ent-14 entschieden, alle nach Empfehlung (`requirements.md`). Am selben Tag mit den Ergebnissen
-aus Schritt V nachgeführt (§1). Momentaufnahme (DIR-006).
+aus Schritt V nachgeführt (§1). **Am 11.10.2026 nachgeführt — Endstand** (§12; Kästchen in
+„Versionsfolgen"); am selben Tag ergänzt um Z.1 (`eef9d13`) und Z.2 (`3d3d8d9`). Momentaufnahme
+(DIR-006).
 
 **Entscheidungsvermerk 10.10.2026.** Wo dieses Dokument Varianten nennt, gilt: **Ent-1** Spec
 freigegeben samt der schreibenden Gerätenachweise (G1, G3) und S25/S26 im Durchlauf (T) ·
@@ -98,6 +100,10 @@ A2, dann A55 — Endstand rund 1'110 bis 1'270, also knapp. Darum Ent-5.
 (AKZ.F). Sparstufen in dieser Reihenfolge vorzuschlagen, keine ohne Nutzer: (1) Logzeilentexte
 aus AKT.3/AKT.4 kürzen; (2) A52; (3) A55 entfällt; (4) `atoi`-Ersatz (Verhaltensänderung, eigene
 Entscheidung).
+
+**Endstand 11.10.2026 (§12.2):** gemessen **2'176 / 1'376 / 1'908** Byte frei nach S0 / S1 / S2.
+S1 kostete rund 800 Byte statt der geschätzten 75–125 samt Logzeilen, S2 sparte rund 530 statt
+180–250.
 
 ---
 
@@ -264,6 +270,9 @@ fault_reset (reason):
 
 **Prüfstand FR** (§11) prüft den Weg zum Reset; die Wartezeit nur über den Zählerstand.
 
+**Endstand 11.10.2026:** **F1c** umgesetzt — SysTick-Zähler gepollt, Takt aus dem RCC, auch vor
+`SystemInit`, 15 s; FR mit 65 Fällen auf beiden Zielen (§12).
+
 ---
 
 ## 6. S2 — A55: ESP-Neustart (Ent-8 = P3)
@@ -294,6 +303,11 @@ dieses Paket ziehen. (3) Liegt `CAP` je zeitlich **nach** einer `IPADDRESS`-Zeil
 Sitzung (dann bliebe `is_online` fälschlich 0)? Laut V ist `CAP` die erste Zeile; das Review
 bestätigt die Reihenfolge am ESP-Code.
 
+**Endstand 11.10.2026:** Die Annahme „nur das Fenster zwischen dem Ende des alten ESP und seiner
+`CAP`-Zeile" war zu eng. Beim OTA in G3 fielen **zwei** Zeitüberschreitungen in das Fenster, in
+dem der **alte** ESP seine neue Firmware lädt — vor dem Neustart, also vor jeder `CAP`-Zeile
+(L380/A67). Ab `CAP` keine. Frage (2) ist als L376/A66 gemeldet, nicht mitgebaut (§12).
+
 ---
 
 ## 7. E — C47: Legacy-Seite maskiert
@@ -306,6 +320,11 @@ Byte unverändert.** Bewusst **nicht** `HTTP_ESCAPE_XML` (`http.cpp:7711-7835`):
 ungültiges UTF-8 durch `?` (`:7768-7777`), und ein Legacy-Formular, das einen ISO-8859-1-Wert mit
 `?` zurückbekäme, schriebe ihn beim nächsten Speichern so ins Gerät (Problem 5). Die neue Funktion
 dient für Attribut- **und** Textinhalt; beide Kontexte sind mit diesen fünf Ersetzungen sicher.
+
+**Endstand 11.10.2026:** Die Annahme „jedes andere Byte unverändert ⇒ byte-gleicher Rundlauf"
+gilt im Modell, nicht im Browser: Die Legacy-Seiten laufen mit `charset=utf-8`, ein Browser macht
+aus einem einzelnen 0xE4 ein U+FFFD und sendet `EF BF BD` zurück (L378/C56, vorbestehend). Der
+Schutz vor dem `?` aus `HTTP_ESCAPE_XML` bleibt richtig.
 
 ### 7.2 Bestand
 
@@ -373,6 +392,10 @@ spätere Änderung beginnt dort.
 | PWA | Speichern Datumsformat, Koordinaten | `app.js:8341-8349`, `:8404-8418` |
 | PWA | Kartenauswahl | `:8960-8985` |
 | PWA | Backup-Import | `:6501`, `:6555-6582` |
+
+**Endstand 11.10.2026:** Die Tabelle liegt unter `tools/checks/auszug/esp/t17/regeln.tsv` (der
+ESP-Prüfstand heisst t17, nicht t16) und läuft gegen den ESP-Auszug (t17) und gegen die
+PWA-Funktionen (`tools/checks/auszug/pwa/regeln/`), je 147 Fälle.
 
 ---
 
@@ -458,6 +481,97 @@ Gebaut vom Umsetzer im Scratchpad, abgelegt vom Lead unter `tools/checks/auszug/
 
 **Zähl nach** (DIR-014): Jeder Bericht nennt die Fallzahl, und der Lead vergleicht sie mit der
 Zahl, die es nach dem Kriterium geben müsste.
+
+**Endstand 11.10.2026:** Die tatsächlichen Namen und Zahlen stehen in §12.3 — `t15` war schon
+vergeben, die ESP-Prüfstände heissen t16, t17 und t18.
+
+---
+
+## 12. Endstand 11.10.2026
+
+Belege: `BEFUNDE.md` (L364, L371–L390; A2, A50, A55, A59, C44, C47, C55, B44–B47, B49,
+Massnahme 16), `CHANGELOG.md` (fünf Einträge „Paket 2026-10-10"), die Release-Tags und das
+Ergebnis von T.2 (L387). Einzelheiten je Task: `tasks.md`, Abschnitt „Endstand".
+
+### 12.1 Releases
+
+| Tag | Komponente | Inhalt |
+|---|---|---|
+| `release/3.2.26-3.2.30-1.4.94` | STM 3.2.26 | S0 |
+| `release/3.2.27-3.2.30-1.4.94` | STM 3.2.27 | S1 (A59, A2) |
+| `release/3.2.28-3.2.30-1.4.94` | STM 3.2.28 | S2 (A50, A55) |
+| `release/3.2.28-3.2.31-1.4.94` | ESP 3.2.31 | E (C47, C55, C44, Ent-11) |
+| `release/3.2.28-3.2.31-1.4.95` | PWA 1.4.95 | P (B44–B47, Regeln, A2-Anzeige, Nacharbeit P.6/P.7) |
+
+**Die Regel aus §0.1 hat gehalten:** fünf Releases, jedes hebt genau eine Komponente an — anders
+als in Paket 2026-10-09.
+
+### 12.2 Flash F103
+
+| Stand | geschätzt (§1.2) | gemessen |
+|---|---|---|
+| Ausgang | 1'120 | 1'120 |
+| nach S0 | ≈ 2'070 | **2'176** |
+| nach S1 | ≈ 1'890 bis 1'975 | **1'376** (S1 rund 800 Byte mit LTO) |
+| nach S2 | ≈ 2'060 bis 2'220 | **1'908** (S2 spart rund 530 Byte) |
+
+Die Schätzung für A2 lag um ein Mehrfaches zu tief. Gemessen ist S1 nur **nach** S0; was S1 ohne
+S0 gekostet hätte, ist nicht gemessen. Bei ähnlichen Kosten hätte S1 das Gate deutlich verfehlt —
+S0 war damit nicht nur bequem, sondern nötig.
+
+### 12.3 Prüfstände
+
+| Name im Entwurf | Abgelegt als | Fälle | Gegenprobe |
+|---|---|---|---|
+| GT | `stm/gt/` | 692'546, null Abweichungen (auch die alte Fassung gegen `gmtime_r()`) | Sabotage Jahrhundertregel FEHL |
+| Map | Guardrail **S8b**; meldet eine fehlende Map als „nicht geprüft" | — | Ausgangs-Map schlägt an |
+| L59 | `stm/l59/` | 40 | gegen 3.2.26 FEHL |
+| DS | `stm/ds/` | 193 (nachgebildeter 1-Wire-Bus, drei CRC-Referenzvektoren, L18-Fall) | gegen 3.2.26 FEHL |
+| FR (samt statisch AKF.1) | `stm/fr/` | 65, beide Ziele | gegen 3.2.27 FEHL |
+| EP | `stm/ep/` | 63 | gegen 3.2.27 FEHL |
+| t15 → **t16** (samt statisch AKX.2 in `t16/static.sh`) | `esp/t16/` | 63; statisch 788 Argumente an 83 Seitenfunktionen | gegen 3.2.30 FEHL |
+| t16 → **t17** | `esp/t17/` mit `regeln.tsv` | 147 plus Orakel | gegen 3.2.30 FEHL |
+| — (neu) **t18** | `esp/t18/` | 82'944 (Fehlerwert 255 bei Korrekturänderung) | gegen 3.2.30 FEHL |
+| Regelgleichheit | `pwa/regeln/` | 147 | gemeldet: angeschlagen |
+| W2 | besteht | Fallzahl nach S2 nicht einzeln gemeldet | — |
+
+### 12.4 Gerätenachweise
+
+| Nachweis | Stand | Ergebnis |
+|---|---|---|
+| **G0** | STM 3.2.26 | `TIME 4000648905` ⇒ 21:21:45 MESZ; `read rtc 21:22:44` zur Wanduhr 21:22:44,673; `wday=6`; kein Sprung (L372). **Rund 35 min** statt 60; Timer am Wochentag nicht gemeldet |
+| **G1** | STM 3.2.27 | ESP-Kopie zeigte zuerst die STM-Werte 5/26; `(CMC N110000*4e77)` ⇒ `eep a=225 n=2 z=1 ms=24`, `(CMC N12ff0f*031a)` ⇒ `eep a=227 n=2 z=1 ms=25`; jetzt 0/4095. 21:55–22:55: 60 gültige DS18xx-Messungen (27,5 °C), keine Exception, kein Neustart, keine Zeitüberschreitung, `d=0` (L364, L373, L377) |
+| **G2** | STM 3.2.28 | Vollabgleich nach dem Flash 0/4095 (AKL.4); `CAP var-crc` ohne folgende Zeitüberschreitung; Smoketest 31/0. **Rund 10 min** bis zum ESP-OTA statt 60 |
+| **G3** | ESP 3.2.31 | `x"y<z` ⇒ `x&quot;y&lt;z`; `yyyyy` abgewiesen, `D.M` angenommen; `abc`/`181` abgewiesen, `7,2700` ⇒ `7.2700`; alles zurückgestellt. A55: ab `CAP` keine Zeitüberschreitung, aber `v` 0 → 2 **vor** dem Neustart im Download-Fenster (L380/A67). Smoketest 31/0; Heap 8'744 / 8'280 statt 9'168 / 8'712 (L381) |
+| **G4, Teil 1** | PWA 1.4.95 | Browserprüfung 8/0, Smoketest 31/0 |
+| **T.2** (L387) | STM 3.2.28 / ESP 3.2.31 / PWA 1.4.95 | **AKZ.6 abgenommen, mit Vorbehalten:** S25/S26 mit `eep`-Beleg gefahren und zurückgestellt; LDR 0/4095 nach dem STM-Reset gleich dem Vorher-Wert; K1–K17 gefahren (17/17), K10b abgewichen (L388/B53); Phase 3 97 von 114; `--soll` ohne unerklärte Abweichung; Mitschnitt ohne Exception und Neustart ausser dem freigegebenen Reset. Phase 9 Schritt 1 ohne Backup-Import (einzeln zurückgestellt); V3 nicht ganz nach der letzten Setter-Aktion |
+
+### 12.5 Was der Entwurf nicht vorhergesehen hat
+
+- **§1.2:** A2 kostete ein Mehrfaches der Schätzung; S0 war deshalb nicht nur bequem, sondern
+  nötig.
+- **§6:** Das Fenster vor dem ESP-Neustart ist nicht rund 1 s, sondern umfasst den
+  Firmware-Download; dort greift P3 nicht (L380/A67). Gehen nach `CAP` alle `IPADDRESS`- und
+  `SYNCVARS`-Zeilen verloren, bleibt der STM offline (L376/A66, gemeldet, nicht mitgebaut).
+- **§7.1:** Der byte-gleiche Rundlauf gilt für gültiges UTF-8; ein einzelnes ungültiges Byte wird
+  im Browser zu U+FFFD (L378/C56, vorbestehend).
+- **§4.1:** Der Einschaltwert 85 °C des DS18xx besteht die CRC (L374/A64); der 1-Wire-Leseslot
+  tastet möglicherweise zu spät ab (L373/A63, erst messen) — beides aus dem Review S1.5.
+- **§9:** Die Nacharbeit aus drei Runden P.6 (BLOCKIERT, BLOCKIERT, BESTANDEN mit Nacharbeit) und
+  aus P.7 ging über B44–B47 hinaus: Update-Listen beim Neuladen (L383/B49, behoben),
+  Vorlagenmarkierung der Dimmkurve, Felder ohne Speicherweg ohne Rückfrage, Koordinatenfelder mit
+  Minuszeichen auf dem iPhone. Offen gemeldet: L382/B48, L384/B50, L385/B51, L386/B52.
+- **Aus T.2 (L387):** Zurücktippen auf den Ausgangswert hebt die Bearbeitungsmarkierung nur bei
+  den Feldern des Netzwerkmoduls auf (L388/B53, PWA); die ESP-Kopie der Ambilight-Power veraltet,
+  wenn ein Display-Timer das Ambilight mitschaltet (L389/A68, STM); nach einem STM-Neustart im
+  Nacht-Aus-Fenster bleibt das Display bis zum nächsten Ein-Timer an (L390/A69, STM).
+
+### 12.6 Offen
+
+- Keine Tasks: Z.1 (`eef9d13`), Z.2 (`3d3d8d9`) und Z.3 (`6e203b2`) sind erledigt.
+- Nicht gemeldet und deshalb in `requirements.md` nicht angekreuzt: AKZ.3 je Release, AKZ.9,
+  einzelne Guardrail-Läufe; dazu die Teillücken in AKG.4, AKT.5, AKF.4, AKP.3–AKP.5, AKX.1, AKR.4
+  (`requirements.md`, „Endstand 11.10.2026").
 
 ---
 
@@ -629,11 +743,11 @@ Je Einspielschritt **nur die geänderte Komponente** (DIR-004). Testbauten heben
 
 | Schritt | STM `src/main.h` | ESP `version.h` | `APP_VERSION` | `CACHE_NAME` |
 |---|---|---|---|---|
-| S0 (`my_gmtime`) | ☐ anheben | — | — | — |
-| S1 (A59, A2) | ☐ anheben | — | — | — |
-| S2 (A50, A55) | ☐ anheben | — | — | — |
-| E (C47, C55, C44, Ent-11) | — | ☐ anheben | — | — |
-| P (B44–B47, Regeln, A2-Anzeige) | — | — | ☐ anheben | ☐ anheben |
+| S0 (`my_gmtime`) | ☑ 3.2.26 | — | — | — |
+| S1 (A59, A2) | ☑ 3.2.27 | — | — | — |
+| S2 (A50, A55) | ☑ 3.2.28 | — | — | — |
+| E (C47, C55, C44, Ent-11) | — | ☑ 3.2.31 | — | — |
+| P (B44–B47, Regeln, A2-Anzeige) | — | — | ☑ 1.4.95 | ☑ angehoben |
 
 Nur der `release-engineer` führt das aus (R4). Der Tag `release/<stm>-<esp>-<app>` wird **je
 Einspielschritt** gesetzt und gepusht (DIR-011).
