@@ -477,6 +477,44 @@ Daraus folgt die Regel, ohne Ausnahme:
 - **Nur mit Freigabe des Nutzers** im selben Gespräch (R5).
 - Danach zwingend: Variablensatz prüfen und die Update-Quelle gegen
   `tools/device.conf` (S97/S98).
+- **Fällt der Reset in ein Aus-Fenster der Display-Timer**, gelten Soll und
+  Rückstellung aus dem folgenden Absatz.
+
+#### V3 im Nachtzustand
+
+Der Testplan nannte den Nachtzustand bis zum 11.10.2026 nicht. In T.2 lief das
+Display deshalb zweimal länger an als vorgesehen, bei S1 und nach dem Reset
+(`BEFUNDE.md`, L390).
+
+**Ob ein Aus-Fenster gilt, entscheidet die Timertabelle, nicht der Rohwert.**
+Massgebend ist vor dem Reset das jüngste vergangene Ereignis der Displayliste
+`nighttime[idx=0..7]`, das aktiv und an seinem Wochentag gültig ist — auch über
+Mitternacht zurück: Ein Aus-Timer am Vortag um 23:00 gilt um 01:00 noch. Ist es ein Aus-Ereignis, liegt der Reset im
+Aus-Fenster. `numvar[idx=3]` (`DISPLAY_POWER`) allein sagt das nicht: Ein von Hand
+ausgeschaltetes Display ist kein Aus-Fenster und kommt nach dem Reset wieder an. Die
+Ambilight-Liste `ambinighttime` zählt beim Start nicht; das Ambilight folgt dem Display.
+
+| STM-Stand | Soll nach dem Reset im Aus-Fenster | Nachweis |
+|---|---|---|
+| ohne A69 | Display **an** bis zum nächsten Ein-Timer. Bekannt (L390), kein neuer Befund | im Mitschnitt `switching power on`, kein `Found Timer` |
+| mit A69 (STM-Release 1 aus `specs/paket-2026-10-11/`) | Startsequenz wie bisher, **danach Display aus** | im Mitschnitt `night: start aus (hh:mm)`, `set_display_power: new=0 …`, in der ersten Minute `show_time: … p=0 …`; nach dem Vollabgleich `numvar[idx=3]` = 0 und die Ambilight-Power gleich dem STM. Am Display: aus |
+
+War die Uhrzeit des STM beim Start nicht gültig (RTC offline), wertet er das Fenster
+erst beim ersten übernommenen `TIME` aus; das Display geht dann entsprechend später aus.
+Auch das ist Soll.
+
+**Die Rückstellung im Aus-Fenster ist „wieder aus“**, nicht „wie vor dem Durchlauf an“.
+Mit A69 ist nichts zu tun, nur lesend nachzuprüfen. Ohne A69 bleibt das Display nach dem
+Reset an; zurück über S1 mit `value=off`. Das ist ein eigener schreibender Aufruf — bei
+der Anfrage nach der Freigabe für V3 mitnennen.
+
+**Nach jedem Reset, auch ausserhalb des Aus-Fensters**, steht mit der
+Bestätigungsregel aus A62 im Mitschnitt `time: sprung, bestaetigung angefordert` und
+rund 15 s später `cmd: set time to …`. Das ist **Soll, kein Fehler**: Nach einem Start
+hat der STM keine Referenz, die erste Netzzeit braucht eine zweite, passende Antwort.
+Ein Befund ist erst `time: ungueltig, verworfen` oder ein `time: sprung`, dem kein
+`cmd: set time to …` folgt. Auf einem STM ohne die Bestätigungsregel fehlt die Zeile;
+auch das ist kein Befund.
 
 ### Welches Verfahren wann
 
@@ -604,7 +642,7 @@ Die beiden Hauptschalter der Uhr liegen hier, nicht im Modul `display`.
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
-| **S1** | Display ein- und ausschalten (`display_power_set?value=on\|off`) | S | `numvar[idx=3].value` (`DISPLAY_POWER`) steht auf `1` bzw. `0` | Sofort am Display sichtbar. Zuletzt prüfen und sofort zurücknehmen — eine dunkle Uhr fällt im Wohnraum auf |
+| **S1** | Display ein- und ausschalten (`display_power_set?value=on\|off`) | S | `numvar[idx=3].value` (`DISPLAY_POWER`) steht auf `1` bzw. `0` | Sofort am Display sichtbar. Zuletzt prüfen und sofort zurücknehmen — eine dunkle Uhr fällt im Wohnraum auf. **Im Aus-Fenster eines Display-Timers** (nachts, Bestimmung wie in „V3 im Nachtzustand“) ist der Ausgangswert `0`: erst `on`, dann sofort `off` — die Rückstellung ist „wieder aus“, und `numvar[idx=3]` muss danach auf `0` stehen. In T.2 lief das Display hier 41 s an (L390) |
 | **S2** | Ambilight ein- und ausschalten (`ambilight_power_set?value=on\|off`) | S | `numvar[idx=30].value` (`DISPLAY_AMBILIGHT_POWER`) steht auf `1` bzw. `0` | An dieser Uhr ohne sichtbare Wirkung (L11) — nur am Rohwert prüfbar |
 
 ### 6.1 `system`
@@ -1194,7 +1232,8 @@ Plan und die Disziplin, sie zu lesen.
 9. **Mit Freigabe: V3** (5b) — STM-Reset über S114 nach der letzten Setter-Phase,
    danach Schritte 2, 3 und 6 erneut. Die LDR-Grenzen `numvar[idx=17]` und
    `numvar[idx=18]` müssen auf dem Wert **vor** dem Durchlauf stehen (12.1). Danach
-   zwingend Variablensatz und Update-Quelle prüfen, wie V3 es verlangt
+   zwingend Variablensatz und Update-Quelle prüfen, wie V3 es verlangt. Im
+   Aus-Fenster eines Display-Timers gelten Soll und Rückstellung aus „V3 im Nachtzustand“
 
 **Ohne Schritt 3 ist der Durchlauf nicht abgeschlossen.** „Sieht wieder normal aus" ist
 keine Wiederherstellung.

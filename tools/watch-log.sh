@@ -29,6 +29,15 @@
 #   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
 #   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
 #   ds18xx verloren/ungueltig  Temperatursensor: Lese-/CRC-Fehler (STM, A2)
+#   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
+#   time: sprung            Bestaetigung angefordert -- Hinweis; Alarm ab der vierten in Folge
+#                           ohne "cmd: set time to" dazwischen (Server liefert dauerhaft Unsinn)
+#   Hinweise                night: start aus (A69), spiel: n Zeilen verworfen (A53),
+#                           ldr: minimum/maximum abgewiesen (A57), time: zeitzone ungueltig
+#
+# Zeilen mit "%" werden uebergangen: Beim STM-Flashen laeuft das Firmware-Abbild durch den
+# Mitschnitt, und dessen Formatzeichenketten ("cmd abgewiesen #%u len=%u") loesten am
+# 10.10.2026 um 21:21 und 21:54 Fehlalarme aus (Paket 2026-10-11, beim Bau von abgleich.sh).
 #
 # AUSSCHLIESSLICH LESEND. Das Skript spricht nicht mit dem Geraet, es liest nur mit.
 
@@ -67,11 +76,12 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: start aus|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen'
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
 letzte_vn=""
+sprung_folge=0
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
@@ -146,6 +156,30 @@ while :; do
     printf '%s\n' "$neu" >> "$GESEHEN"
     while IFS= read -r z; do
       case "$z" in
+        *%*)
+          # Formatzeichenkette aus dem Firmware-Abbild beim Flashen, keine echte Zeile
+          ;;
+        *"time: ungueltig"*)
+          printf '  %s  Netzzeit: verworfen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"time: sprung"*)
+          sprung_folge=$((sprung_folge + 1))
+          if [ "$sprung_folge" -gt 3 ]; then
+            printf '  %s  Netzzeit: %d Spruenge in Folge ohne Bestaetigung   <%s>\n' "$stamp" "$sprung_folge" "$z"
+            alarm=1
+          else
+            printf '  %s  Hinweis: Netzzeit-Bestaetigung angefordert (%d in Folge)   <%s>\n' "$stamp" "$sprung_folge" "$z"
+          fi ;;
+        *"cmd: set time to"*)
+          sprung_folge=0 ;;
+        *"time: zeitzone ungueltig"*)
+          printf '  %s  Hinweis: Zeitzone im EEPROM ungueltig, Vorgabe gilt   <%s>\n' "$stamp" "$z" ;;
+        *"night: start aus"*)
+          printf '  %s  Hinweis: Start im Nacht-Aus-Fenster   <%s>\n' "$stamp" "$z" ;;
+        *"spiel: "*" Zeilen verworfen"*)
+          printf '  %s  Hinweis: Spiel hat ESP-Zeilen verworfen, Abgleich folgt   <%s>\n' "$stamp" "$z" ;;
+        *"ldr: "*" abgewiesen"*)
+          printf '  %s  Hinweis: LDR-Grenze nicht uebernommen (Reihenfolge)   <%s>\n' "$stamp" "$z" ;;
         *"- weather fc="*)
           # - weather fc=<0|1> ms=<n> <ok|fehler|dns|connfail|timeout|leer> [n=<b> cl=<b|-> oom=<z>]   (design.md §1.4, C54)
           wms=$(printf '%s' "$z" | grep -aoE 'ms=[0-9]+' | head -1 | cut -d= -f2)
