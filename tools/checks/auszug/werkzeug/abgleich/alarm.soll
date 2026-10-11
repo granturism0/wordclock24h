@@ -1,0 +1,23 @@
+Datum      Ende          Ausloeser                 Dauer         dv      du  Quitt.   Luecke
+2026-10-11 09:59:56.000  IPADDRESS                 1.00s      +0/+0     +10       0    Start
+2026-10-11 10:00:06.500  SYNCVARS                  1.50s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:00:27.000  IPADDRESS                 6.00s      +0/+0     +10       0    ≥0.0s  <-- ueber Grenze
+2026-10-11 10:00:32.000  IPADDRESS                 2.00s     +11/+0     +10      11    ≥0.0s  <-- ueber Grenze
+2026-10-11 10:00:46.000  IPADDRESS                 1.00s      +0/+0     +10       0    ≥7.0s  <-- ueber Grenze
+2026-10-11 10:01:08.000  SYNCVARS                  2.00s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:01:10.000  IPADDRESS                 2.00s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:01:22.000  CMC-Abweisung             1.00s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:01:28.000  unbekannt                <=3.0s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:01:40.000  IPADDRESS OHNE ABGLEICH        –          –       –       0        –  <-- Hauptloop lief, kein Abgleich
+2026-10-11 10:03:00.000  SYNCVARS                 70.00s     +12/+0      +5      12   ≥67.0s  <-- ueber Grenze
+2026-10-11 10:03:06.000  IPADDRESS                 1.00s      +0/+0     +10       0    ≥0.0s
+2026-10-11 10:03:20.000  SYNCVARS ABGEBROCHEN    <=10.0s   Neustart       –       2        –  <-- Neustart vor dem Ende
+2026-10-11 10:03:36.000  IPADDRESS                 1.00s      +0/+0     +12       0    Start
+2026-10-11 10:03:37.000  SYNCVARS ABGEBROCHEN     <=3.0s   Neustart       –       0        –  <-- Neustart vor dem Ende
+2026-10-11 10:03:46.000  IPADDRESS                 1.00s      +0/+0     +12       0    Start
+2026-10-11 10:04:00.000  IPADDRESS ABGEBROCHEN   <=20.0s   Neustart       –       1        –  <-- Neustart vor dem Ende
+2026-10-11 10:04:21.000  IPADDRESS OHNE ABGLEICH        –          –       –       0        –  <-- Hauptloop lief, kein Abgleich
+2026-10-11 10:04:22.000  SYNCVARS OHNE ABGLEICH        –          –       –       0        –  <-- Hauptloop lief, kein Abgleich
+2026-10-11 10:04:30.000  SYNCVARS offen                ?          ?       ?       ?        ?  (Mitschnittende, Hinweis)
+
+13 Abgleich(e) ausgewertet, 13 Endzeile(n) im Rohtext, 83 Zeilen gelesen.
