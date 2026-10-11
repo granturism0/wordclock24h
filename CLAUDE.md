@@ -367,7 +367,7 @@ Dokumentation blockiert, wird umgangen statt befolgt.
 | `ui-developer` | Markup, Stilvorlage, Manifest, `icons/**` |
 | `doc-writer` | `*.md`, `knowledge/**` |
 | `spec-writer` | `specs/**` |
-| `release-engineer` | `Makefile`, `cmake/**`, die vier Versionsdateien |
+| `release-engineer` | `Makefile`, `CMakeLists.txt`, `cmake/**`, die vier Versionsdateien |
 | Lead | `tools/**`, `.claude/**`, Doku, Build, Rollout |
 
 ### R3b — Dateibesitz ist nicht Reihenfolge

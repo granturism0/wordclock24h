@@ -4,8 +4,9 @@
 Ent-1 bis Ent-15, Ent-3b (Bestätigungsregel, §2.4) und Ent-14e (Freigabe AKE.2) entschieden, am
 selben Tag eingearbeitet. **Ent-17 (Flash-Gate): „Release teilen"** — eingearbeitet in §0 und §1.
 **Review S1 BESTANDEN** mit M1 und M2 (§3.2, §3.4); **N1** in S1 vorgezogen (§1.1); **Ent-18
-Matrix-Lauf** (§1.6). **Offen:** der zweite STM-Reset im Aus-Fenster in G3 — vor G3 beim Nutzer
-zu bestätigen (§15.2). Momentaufnahme (DIR-006).
+Matrix-Lauf** (§1.6) — erster Lauf grün, engste Variante 1'416 Byte frei. **Offen:** der zweite
+STM-Reset im Aus-Fenster in G3 — vor G3 beim Nutzer zu bestätigen (§15.2). Momentaufnahme
+(DIR-006).
 
 **Entscheidungsvermerk 11.10.2026.** **Ent-1** (a), DC und IR führen die Sicherung nach (§5) ·
 **Ent-2** nur Displayliste, erstes übernommenes `TIME`, übersprungenes Ereignis nachholen,
@@ -22,9 +23,9 @@ dann A23, A53, A57, A67-STM (§0, §1) · **Ent-18** Matrix-Lauf aller 72 Varian
 alle 72 (§1.6).
 
 **Schrittfolge:** **0 (ohne Firmware) → S1 (STM: A62 mit Ära, A69 samt M1/M2, A68, N1; Matrix-Lauf
-vor dem Release-Build) → S2 (STM: A60) → S3 (STM: Flash-Analyse und Einsparungen, dann A23, A53,
-A57, A67-STM) → E (ESP: A35, NTP, `ovr=`, A67-ESP) → P (PWA: C35) → M (Abschlusslauf A21) → T
-(`pwa-tester`) → Z**.
+und Warnungsbestand vor dem Release-Build) → S2 (STM: A60) → S3 (STM: Flash-Analyse und
+Einsparungen, dann A23, A53, A57, A67-STM) → E (ESP: A35, NTP, `ovr=`, A67-ESP) → P (PWA: C35) → M
+(Abschlusslauf A21) → T (`pwa-tester`) → Z**.
 
 **Grundlage:** zwei Analysen des `firmware-analyst` vom 11.10.2026 (STM; Brücke), vom Lead
 zusammengefasst. Stichproben des `spec-writer` am Code `5c34d80`, alle bestätigt: `night.c:155`,
@@ -53,7 +54,7 @@ S1-Build ginge mit S1 hinaus.
 |---|---|
 | Produktcode des **nächsten Releases** entsteht erst **nach dem Release-Build** des vorigen | S2.1 hängt an S1.19, S3.2 an S2.7, E.1 an S3.16, P.1 an E.9 |
 | Der **Release-Build** folgt erst **nach dem Gerätenachweis** des vorigen Releases | S2.7 an S1.21 (G1), S3.16 an S2.9 (G2), E.9 an S3.18 (G3), P.6 an E.11 (G4); M.1 an P.8 (G5); T.2 an M.1 (G6) |
-| **Der Release-Build S1 folgt erst nach dem grünen Matrix-Lauf** | S1.19 an S1.16 (Ent-18) |
+| **Der Release-Build S1 folgt erst nach dem grünen Matrix-Lauf und dem bereinigten Warnungsbestand** | S1.19 an S1.16 (Ent-18) und S1.16a (`guardrails.sh --full`, S4) |
 | Erlaubt parallel: Gerätenachweis des vorigen und Codearbeit des nächsten | Der Baum wirkt nicht aufs Gerät; gebaut wird erst danach |
 | Erlaubt jederzeit: Doku, Spec, Werkzeug, **lesende Analysen** | Gehen nicht ins Fabrikat. Die Flash-Analyse S3.1 darf deshalb früh beginnen; ihre Zahlen gelten gegen die S2-Map. **Ausnahme:** 0.5 (Testplan V3/S1) muss **vor** G1 fertig sein |
 | Innerhalb eines STM-Releases **nacheinander**, je Task ein Testbau | Das Flash-Gate wird je Task und je Einsparung gemessen (§1) |
@@ -63,22 +64,22 @@ S1-Build ginge mit S1 hinaus.
 | # | Release | Inhalt | Komponente | Code erst nach | Build erst nach | Nachweis |
 |---|---|---|---|---|---|---|
 | — | **Schritt 0** | A61-Werkzeug, Messung A61/A34, Befunde (L391 u. a.), Testplan V3/S1 | Werkzeug, Doku | Freigabe | — | lesend, Mitschnitte |
-| 1 | **STM-Release 1** | A62 mit Ära, A69 samt M1/M2, A68, N1 | STM | Freigabe | Nachprüfung S1.13; **Matrix-Lauf S1.16 grün**; 0.5 vor G1 | **G1** |
+| 1 | **STM-Release 1** | A62 mit Ära, A69 samt M1/M2, A68, N1 | STM | Freigabe | Nachprüfung S1.13; **Matrix-Lauf S1.16 grün**; S1.16a; 0.5 vor G1 | **G1** |
 | 2 | **STM-Release 2, isoliert** | A60 + L360 | STM | Build S1 (S1.19) | G1 (S1.21) | **G2** |
 | 3 | **STM-Release 3** | Flash-Analyse, Einsparungen; dann A23, A53, A57 (C), A67-STM | STM | Build S2 (S2.7) | G2 (S2.9) | **G3** |
 | 4 | **ESP-Release** | A35 (b), NTP-Puffer + Plausibilität (tragend), `ovr=`, A67-ESP | ESP | Build S3 (S3.16) | G3 (S3.18) | **G4** |
 | 5 | **PWA-Release** | C35 (A) | PWA | Build E (E.9) | G4 (E.11) | **G5** |
 | — | **Abschlusslauf A21** | 30 min Last, Setter-Burst | — | — | G5 (P.8) | **G6** |
 | — | **`pwa-tester`** | Phasen 0–4 und 9 (DIR-012) | — | — | G6 (M.1), T.1 | AKZ.6 |
-| — | **Schritt Z** | BEFUNDE, Checkliste, CLAUDE.md, README-CMAKE, Spec-Endstand | Doku | — | T.2 (Z.2/Z.3 schon nach G2) | — |
+| — | **Schritt Z** | BEFUNDE, Checkliste, CLAUDE.md, README-CMAKE (vorgezogen), Spec-Endstand | Doku | — | T.2 (Z.2/Z.3 schon nach G2, Z.5 nach S1.15) | — |
 
 | Frage | Antwort |
 |---|---|
 | Warum **S1 nur A62, A69, A68** (dazu N1, M1, M2)? | Ent-17. Nach S1.3 waren noch 1'132 Byte frei; A68 passte (+44) und gehört fachlich zu A69. M1 und M2 sind Korrekturen aus dem Review **an A69**, kein neuer Inhalt. N1 hat der Lead vorgezogen, damit M2 in den Flash passt — verhaltensneutral und von zwei Reviews bestätigt |
 | Warum **S2 vor S3**? | (1) **A60 bleibt isoliert messbar** — die Vorher-Messung (AKI.2) läuft in G1 auf S1, die Nachher-Messung in G2; dazwischen ändert sich nur A60. Läge S3 dazwischen, enthielte der Nachher-Stand auch die Einsparungen aus S3.2, die Logzeilen und Texte ändern können — die Vergleichbarkeit der `eep`-Zeilen wäre nicht mehr gesichert. (2) **Die Flash-Analyse soll gegen die endgültige Map arbeiten.** (3) A60 ist klein und fertig spezifiziert; S3 braucht zuerst die Analyse |
-| **Risiko dieser Reihenfolge** | Nach N1 deutlich kleiner: Nach S1 bleiben **584 Byte** über dem Gate; A60 ist auf 0…+60 geschätzt, nach §1.2 bis rund 180. Fällt der Testbau nach A60 (S2.2) trotzdem unter 1'024 Byte: anhalten und vorlegen |
+| **Risiko dieser Reihenfolge** | Gemessen an der **engsten Matrix-Variante** bleiben nach S1 **392 Byte** über dem Gate; A60 ist auf 0…+60 geschätzt, nach §1.2 bis rund 180 — planbar. Fällt der Testbau nach A60 (S2.2) unter 1'024 Byte oder würde ein Matrix-Lauf rot: anhalten und vorlegen |
 | Warum **S3 vor E**? | Die ESP-Hälfte von A67 setzt die STM-Hälfte voraus. DIR-002: Firmware zuerst, STM vor ESP |
-| Warum im S3 **zuerst Platz, dann die vier Punkte**? | Ent-17. Die vier Punkte sind auf 190–294 Byte geschätzt, nach dem gemessenen Faktor **rund 400–900 Byte**; der Rest nach S2 liegt bei rund 1'430–1'610 (§1.3), also bei 400–590 über dem Gate. Ob das reicht, entscheidet die Messung; die Analyse muss die Lücke schliessen |
+| Warum im S3 **zuerst Platz, dann die vier Punkte**? | Ent-17. Die vier Punkte sind auf 190–294 Byte geschätzt, nach dem gemessenen Faktor **rund 400–900 Byte**; der Spielraum der engsten Variante nach S2 liegt bei **rund 210–390 Byte** (§1.3). Ohne geschaffenen Platz reicht er nicht — die Analyse muss die Lücke schliessen |
 | Reihenfolge der **vier Punkte** in S3 | A23, A53, A57, A67-STM — A67-STM zuletzt, weil seine ESP-Hälfte an ihm hängt und ein Halt am Gate dort am wenigsten Folgearbeit verwirft |
 | Warum alle S3-Punkte in **einem** Release? | Getrennte Nachweise: `dspcolor[0]` (A23), `spiel: … verworfen` (A53), `ldr: … abgewiesen` (A57), Prüfstand a67 (A67). Keine ändert I²C-Zeiten |
 | Warum **E vor P**, **M nach P**, **`pwa-tester` nach M**? | Firmware vor PWA; der Abschlusslauf misst den **neuen** Normalbetrieb nach C35 (§13); der `pwa-tester` erzeugt selbst Setterlast und würde M verfälschen |
@@ -87,26 +88,31 @@ S1-Build ginge mit S1 hinaus.
 
 ## 1. Flash F103
 
-### 1.1 Gemessen statt geschätzt (11.10.2026, Testbauten des Leads, F103 WC12h SK6812-RGBW)
+### 1.1 Gemessen statt geschätzt (11.10.2026, Testbauten des Leads)
 
-| Stand | geschätzt | **gemessen** | frei |
-|---|---|---|---|
-| Ausgang (3.2.28) | — | — | **1'908** |
-| nach S1.1 — A62 samt Bestätigungsregel (Mindestabstand 10 s, `cmd: set time to` unbedingt) | −110…−20 | **+208** | **1'700** |
-| nach S1.3 — A69 samt Sprüngen | +160…+310 | **+568** | **1'132** |
-| nach S1.5 — A68 | +10…+30 | **+44** | **1'088** |
-| nach S1.9 — **N1** malloc-Stubs | — | **−668** | **1'756** |
-| nach S1.11 — **M1 + M2** | 80–100 | **+148** | **1'608** |
+| Stand | Variante | geschätzt | **gemessen** | frei |
+|---|---|---|---|---|
+| Ausgang (3.2.28) | Teilbuild F103 WC12h SK6812-RGBW | — | — | **1'908** |
+| nach S1.1 — A62 samt Bestätigungsregel (Mindestabstand 10 s, `cmd: set time to` unbedingt) | Teilbuild | −110…−20 | **+208** | **1'700** |
+| nach S1.3 — A69 samt Sprüngen | Teilbuild | +160…+310 | **+568** | **1'132** |
+| nach S1.5 — A68 | Teilbuild | +10…+30 | **+44** | **1'088** |
+| nach S1.9 — **N1** malloc-Stubs | Teilbuild | — | **−668** | **1'756** |
+| nach S1.11 — **M1 + M2** | Teilbuild | 80–100 | **+148** | **1'608** |
+| **Matrix-Lauf S1.16** (72/72, 0 unter dem Gate) | **engste: `wc24h-stm32f103-sk6812-rgbw`** | — | — | **1'416** |
 
-Keine 64-Bit-Routinen in der Map, `strtoul` verschwunden (AKN.4 erfüllt). **S1 hält das Gate mit
-584 Byte.**
+Keine 64-Bit-Routinen in der Map, `strtoul` verschwunden (AKN.4 erfüllt). **S1 hält das Gate**:
+im Teilbuild mit 584 Byte, in der engsten Variante mit **392 Byte**. Die Matrix-Varianten
+`wc12h-f103`- und `f411ce-25`-RGBW sind byte-identisch zum Teilbuild; gegen das Original sind die
+72 Fabrikate um +1,6 bis +7,4 % grösser.
 
 **N1 — malloc-Stubs.** Starke Definitionen von `_malloc_r`, `_realloc_r` und `_free_r` in
 `src/stubs/stubs.c`, mit `__attribute__((used, externally_visible))`; ohne das Attribut verwirft
 LTO `_realloc_r`, und der Link scheitert (belegt). Danach fehlen in der Map die Module `mallocr`,
 `freer`, `reallocr`, `msizer`, `sbrkr` und `mlock` — **668 Byte**. Verhaltensneutral, beide
 Reviews BESTANDEN. Vom Lead aus der Kandidatenliste von S3.1 in S1 vorgezogen, weil M2 sonst nicht
-in den Flash gepasst hätte; S3.2 enthält N1 nicht mehr.
+in den Flash gepasst hätte; S3.2 enthält N1 nicht mehr. **Nachlauf (S1.16a):** N1 brachte 7
+Warnungen `unused parameter`; sie werden mit `(void)` beseitigt, damit `guardrails.sh --full` (S4)
+einen unveränderten Warnungsbestand sieht. `(void)` erzeugt keinen Code — die Grösse bleibt.
 
 ### 1.2 Lehre — gilt für den Rest des Pakets
 
@@ -121,20 +127,24 @@ rund 1,5- bis 1,9-fach; im Vorpaket bei S1 um den Faktor 6 bis 10). Daraus:
    Fortschreibung.
 4. Eine **Einsparung** ist ebenso zu messen wie ein Zuwachs — N1 zeigt, dass ein einzelnes Symbol
    ganze Bibliotheksmodule nach sich ziehen kann; das sieht man nur in der Map.
-5. Gemessen wird an **einer** Variante (F103 WC12h SK6812-RGBW). Ob sie die engste ist, zeigt erst
-   der Matrix-Lauf (§1.6).
+5. **Geplant wird ab der engsten Matrix-Variante, nicht ab dem Teilbuild.** Der erste Matrix-Lauf
+   zeigt `wc24h-stm32f103-sk6812-rgbw` **192 Byte** enger als den Teilbuild (F103 WC12h). Ein
+   Teilbuild über 1'024 Byte garantiert also nicht, dass alle 72 halten. Gemessen wird je Task
+   weiter am Teilbuild (Ent-18); **gerechnet** wird mit dem Abstand von rund 192 Byte, solange kein
+   neuer Matrix-Lauf eine andere Zahl liefert. Ob sich der Abstand mit S2/S3 ändert, zeigt erst ein
+   weiterer Matrix-Lauf.
 
 ### 1.3 Gate und Planung je Release
 
 **Gate: 1'024 Byte frei, nach jedem STM-Task und nach jeder Einsparung** (Teilbuild), dazu **für
 alle 72 Varianten** in jedem Matrix-Lauf (§1.6). Darunter: **anhalten und vorlegen** — keine
-Sparstufe ohne neue Rückfrage (Ent-17).
+Sparstufe ohne neue Rückfrage (Ent-17). **Planungsgrundlage ist die engste Matrix-Variante.**
 
-| Release | gemessener Rest davor | noch offen | Planung nach §1.2 |
+| Release | gemessener Rest davor (engste Variante) | noch offen | Planung nach §1.2 |
 |---|---|---|---|
-| **S1** | — | Matrix-Lauf S1.16 | **im Teilbuild abgeschlossen:** 1'608 frei (S1.12), 584 über dem Gate. Offen ist, ob **alle 72 Varianten** das Gate halten |
-| **S2** | **1'608** (S1.12) | A60 (Schätzung 0…+60) | mit Faktor 3 bis rund 180 Byte gegen einen Spielraum von **584** — planbar |
-| **S3** | Messung nach S2.2 (erwartet rund 1'430–1'610) | A23, A53, A57, A67-STM (Schätzung zusammen 190–294) | mit Faktor 2 bis 3 **rund 400–900 Byte** gegen einen Spielraum von rund 400–590 — die Flash-Analyse (§1.5) muss die Lücke schliessen; jeder Punkt einzeln mit Gate |
+| **S1** | — | S1.16a (Warnungen, ohne Grössenwirkung) | **abgeschlossen:** Teilbuild 1'608 (S1.12), engste Variante **1'416** (S1.16), **392 über dem Gate** |
+| **S2** | **1'416** (S1.16) | A60 (Schätzung 0…+60) | mit Faktor 3 bis rund 180 Byte gegen einen Spielraum von **392** — planbar; erwarteter Rest der engsten Variante nach S2 rund **1'236–1'416** |
+| **S3** | rund 1'236–1'416 (nach S2) | A23, A53, A57, A67-STM (Schätzung zusammen 190–294) | mit Faktor 2 bis 3 **rund 400–900 Byte** gegen einen Spielraum von rund **210–390** — **ohne Einsparungen reicht es nicht.** Die Flash-Analyse (§1.5) muss rund 200–700 Byte schaffen; jeder Punkt einzeln mit Gate. Ein Matrix-Lauf vor dem S3-Release-Build ist **zu empfehlen** (Ent-18: nur auf Anforderung) |
 
 ### 1.4 Sparstufen — **nicht gewählt** (Ent-17)
 
@@ -152,9 +162,10 @@ die Bestätigungsregel (§2.4, tragend nach Ent-3), A57 (C), M2 und die geschüt
 
 ### 1.5 Flash-Analyse vor S3 (S3.1, `firmware-analyst`)
 
-**Gegenstand:** die Map des **S2-Release-Builds** (vom Lead genannt). Gelesen werden die
-**gemessenen** Grössen — Symbolgrössen und Abschnitte (`.text.*`, `.rodata.*`) —, keine
-Schätzungen.
+**Gegenstand:** die Map des **S2-Release-Builds** (vom Lead genannt) **und die Map der engsten
+Matrix-Variante** (`wc24h-stm32f103-sk6812-rgbw`) — dort liegt der knappste Rest, und eine
+Einsparung kann in wc24h anders wirken als in wc12h. Gelesen werden die **gemessenen** Grössen —
+Symbolgrössen und Abschnitte (`.text.*`, `.rodata.*`) —, keine Schätzungen.
 
 **Je Kandidat:** Symbol bzw. Text · Abschnitt · Bytes laut Map · Verhaltensänderung ja/nein ·
 **Abhängigkeiten**: sucht ein Werkzeug (`watch-log.sh`, Auswerteregel 0.1, Smoketest,
@@ -169,6 +180,7 @@ Schätzungen.
 | Die **zweite** `log_printf` in `set_display_power()` (am Ende der Funktion) | Kandidat. **Die erste, `set_display_power: new=…`, ist geschützt** (Nachweis in AKW.4) und **kein** Kandidat |
 | Debugtexte im normalen Bau | **Erst an der Map belegen, ob sie im Fabrikat landen** — im Vorpaket stellte sich heraus, dass `debug_log_*` im Fabrikat schon weggeworfen wird und C42 nichts sparte |
 | Weitere Bibliotheksmodule nach dem Muster von N1 | Zieht ein einzelnes Symbol ein ganzes Modul herein? (N1 selbst ist erledigt) |
+| Was wc24h zusätzlich belegt | Warum ist die wc24h-Variante 192 Byte grösser — gibt es dort einen eigenen Hebel? |
 
 **Ergebnis:** Liste mit Summe, gemessen gegen den Bedarf aus §1.3; Vorschlag der Reihenfolge
 (grösster verhaltensneutraler Gewinn zuerst). **Umsetzung (S3.2):** der `stm-developer`, **eine
@@ -180,28 +192,36 @@ Logzeile, nach der etwas sucht, verschwindet oder ändert ihren Wortlaut — son
 
 ### 1.6 Matrix-Lauf aller 72 STM-Varianten (Ent-18)
 
-**Anlass:** Das Gate ist bisher nur an **einer** Variante gemessen. Das Original-ZIP enthält
-**72 HEX-Dateien**; ob eine andere Variante enger liegt (wc24h, ein anderer LED-Typ auf dem F103),
-ist unbekannt.
+**Anlass:** Das Gate war bis S1 nur an **einer** Variante gemessen. Das Original-ZIP enthält
+**72 HEX-Dateien**.
 
 **Umfang:** {wc12h, wc24h} × {F103, F401CC-25, F401CC-8, F411CE-25, F411CE-8, Nucleo401,
 Nucleo411} × fünf LED-Typen = 70, dazu je eine F407-TFT-Variante = **72**.
 
-**Make-Ziel (S1.15, `release-engineer`):**
+**Umsetzung (S1.15, `release-engineer`, erledigt 11.10.2026):**
 
-- **eigenes Ziel, nur auf Anforderung**; `make` und `make release-zip` bleiben **unverändert**;
-- baut jede Variante in ein eigenes Verzeichnis (kein gemeinsamer CMake-Cache, R1);
-- gibt je Variante den freien Flash aus (Tabelle: Variante, frei) und den **kleinsten Rest mit
-  Variante**;
-- **Exit ≠ 0**, wenn eine Variante nicht baut oder unter **1'024 Byte** frei liegt — die Meldung
-  nennt die Variante (DIR-014; Gegenprobe mit künstlich hoher Grenze);
+- **`make matrix`** baut alle 72, **`make clean-matrix`** räumt auf; nur auf Anforderung.
+- Geändert: `CMakeLists.txt` (Parameter `EBP_TARGET`, `LED`, `STARTUP`, `OUTPUT_DIR`, Option
+  `WORDCLOCK_MATRIX`), `Makefile`; neu `cmake/matrix-report.sh` (Tabelle, Gate, Exit-Code).
+- **Der normale Build ist byte-identisch** zu vorher; die Matrix-Varianten `wc12h-f103`- und
+  `f411ce-25`-RGBW sind byte-identisch zum Teilbuild.
+- Je Variante ein eigenes Ausgabeverzeichnis (kein gemeinsamer CMake-Cache, R1); Tabelle mit
+  freiem Flash je Variante und dem kleinsten Rest.
+- **Exit ≠ 0**, wenn eine Variante nicht baut oder unter **1'024 Byte** liegt; die Meldung nennt
+  die Variante. **Gegenproben:** Schwelle 2000 ⇒ 3 Varianten GATE, Exit ≠ 0; eine Variante mit
+  `-O0` baut nicht ⇒ Exit ≠ 0.
 - **BlackPill-F411-Varianten** mit `startup_stm32f411xe.S` wie der Teilbuild; das Original nimmt
   `startup_stm32f401xc.S`. Die Abweichung steht im Makefile-Kommentar (`release-engineer`) und in
-  `README-CMAKE.md` (`doc-writer`, Z.5).
+  `README-CMAKE.md` (`doc-writer`, Z.5 — vorgezogen, in Arbeit, samt zwei Berichtigungen im
+  Abschnitt Release-ZIP).
 
-**Wann:** **erster Lauf vor STM-Release 1** (S1.16), und der Release-Build S1 hängt am grünen
-Lauf. Danach **nur auf Anforderung**; läuft er, gilt das Gate für alle 72. Die Teilbuild-Messung je
-Task bleibt auf F103 WC12h SK6812-RGBW.
+**Erster Lauf (S1.16, 11.10.2026):** **72/72 gebaut, 0 unter dem Gate. Engste Variante
+`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte frei** (Teilbuild 1'608). Grösse gegen das Original
++1,6 bis +7,4 %.
+
+**Wann weiter:** Pflicht nur vor S1 (erledigt); danach **nur auf Anforderung**, und läuft er, gilt
+das Gate für alle 72. Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW; geplant wird
+ab dem Matrix-Minimum (§1.2, §1.3).
 
 **Nebenwirkung, benannt:** 72 Bauten dauern; der Lauf belegt die Build-Verzeichnisse — während er
 läuft, baut nichts anderes (R1).
@@ -494,8 +514,8 @@ BUSY-Schleifen (:413 Lesen, :472 Schreiben):    dieselbe Frist, bei Ablauf Fehle
 - Differenz überlaufsicher; Zweige mit/ohne `flag2` zusammenlegen; **kein** POS/BTF-Verfahren.
 
 **Wirkung (gerechnet):** `ms ≈ 16·z + (0,2…0,3)·n + 1` — Vorher/Nachher-Messung AKI.2 (G1/G2).
-**Flash:** Spielraum nach S1 584 Byte (§1.3). **Doku (Z.2, Z.3):** Checkliste und `CLAUDE.md` auf
-den gemessenen Stand.
+**Flash:** Spielraum nach S1 in der engsten Matrix-Variante **392 Byte** (§1.3). **Doku (Z.2,
+Z.3):** Checkliste und `CLAUDE.md` auf den gemessenen Stand.
 
 ---
 
@@ -625,7 +645,7 @@ Gebaut vom Umsetzer im Scratchpad, abgelegt vom Lead unter `tools/checks/auszug/
 |---|---|---|---|---|
 | **a62** | `stm/a62/` | S1 | Parser, Ärengrenze, Totbereich, Bestätigung samt Mindestabstand, Zeitzone; Referenz Python `datetime` und gt | alter Stand nimmt `""`/`"0"` an; Sabotagen Totbereich, „genau 10 Ziffern", Bestätigung ⇒ FEHL |
 | **a69** | `stm/a69/` | S1 | jüngstes Ereignis gegen Minuten-Referenz, alle 10'080 Startpunkte; Start mit Jahresgrenze (M1); Vormerkung und Anwendung nach IP bzw. 60 s (M2); Sprünge; A68-Sendeprotokoll | Sabotage `<=`→`<`, Wochentagsumlauf; alter Stand ⇒ FEHL |
-| **Matrix** | Make-Ziel | S1 | 72 Varianten, Gate je Variante | künstlich hohe Grenze ⇒ Exit ≠ 0 mit Name der Variante |
+| **Matrix** | `make matrix`, `cmake/matrix-report.sh` | S1 | 72 Varianten, Gate je Variante | Schwelle 2000 ⇒ 3 × GATE, Exit ≠ 0; Variante mit `-O0` baut nicht ⇒ Exit ≠ 0 (**erfüllt**) |
 | **a60** | `stm/a60/` | S2 | Fristen mit Attrappen | Sabotage „Frist nie gesetzt" hängt ⇒ FEHL |
 | **a23** | `stm/a23/` | S3 | Moduswechsel, Sicherung (DC, IR), Sendung | alter Stand behält Momentanfarbe ⇒ FEHL |
 | **a53** | `stm/a53/` | S3 | Spielschleife, Zähler, `var_sync_pending` | alter Stand ⇒ 0 ⇒ FEHL |
@@ -701,8 +721,8 @@ nach dem Animationstest — sonst fiele eine Änderung des Fabrikats in dieselbe
 | `src/night/night.c`, `night.h` | A69 | `stm-developer` | S1 |
 | `src/timeserver/timeserver.c` | A62 Zeitzone beim Laden `:67`; Umrechnung `:253` bleibt | `stm-developer` | S1 |
 | `src/vars/vars.c`, `vars.h` | A68 | `stm-developer` | S1 |
-| `src/stubs/stubs.c` | N1 malloc-Stubs | `stm-developer` | S1 |
-| `Makefile` | Matrix-Ziel für 72 Varianten | `release-engineer` | S1 |
+| `src/stubs/stubs.c` | N1 malloc-Stubs; `(void)` für die 7 Warnungen (S1.16a) | `stm-developer` | S1 |
+| `CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh` | Matrix-Ziel für 72 Varianten (`make matrix`, `make clean-matrix`) | `release-engineer` | S1 |
 | `src/i2c/i2c.c` | A60 | `stm-developer` | S2 |
 | Dateien der Einsparungen (aus S3.1, z. B. `src/esp8266/esp8266.c` für A52) | verhaltensneutrale Einsparungen | `stm-developer` | S3 |
 | `src/display/display.c` | A23 | `stm-developer` | S3 |
@@ -714,7 +734,7 @@ nach dem Animationstest — sonst fiele eine Änderung des Fabrikats in dieselbe
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | `ovr=`, Meldeweg | `esp-developer` | E |
 | `ESP8266/ESP-uclock/http.cpp` | A67 | `esp-developer` | E |
 | `ESP8266/ESP-uclock/data/app/app.js` | C35 | `pwa-developer` | P |
-| Map des S2-Builds (lesend) | Flash-Analyse | `firmware-analyst` | S3 |
+| Map des S2-Builds und der engsten Matrix-Variante (lesend) | Flash-Analyse | `firmware-analyst` | S3 |
 | `tools/**` | Auswerteregel, Prüfstände, `watch-log.sh`, statische Prüfung | Lead | 0, alle |
 | `CHANGELOG.md` | je Release | Lead | S1, S2, S3, E, P |
 | `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`, `README-CMAKE.md` | | `doc-writer` | 0, T, Z |
@@ -747,7 +767,7 @@ A57 und die Einsparungen aus S3.2 berühren sie nicht.
 **Richtige Schicht?** A62: Der STM prüft seinen Eingang (Form, Totbereich, Bestätigung), der ESP
 seine Quelle (Plausibilität). M1 dort, wo die RTC gelesen wird. A57 dort, wo der Messwert
 übernommen wird, nicht im Zahlen-Setter (Import). N1 in den Stubs, wo die Bibliothek ersetzt wird.
-Die übrigen wie in den Abschnitten.
+Der Matrix-Lauf im Build-System, nicht im normalen Build. Die übrigen wie in den Abschnitten.
 
 ### Scalable systems
 
@@ -774,7 +794,8 @@ Build-Verzeichnisse für seine Dauer (R1), nicht das Gerät.
 2'208'988'800; Gültigkeit bis **2106-02-07** (`uint32`), Kette bis **31.12.2099** (RTC). M1:
 Startauswertung ab **Jahr 2026**. M2: **60 s** Frist ohne IP. Bestätigung 600 s / 5 s / 15 s /
 Mindestabstand 10 s / drei Schnellabfragen. Zeitzone ±12. A69 k = 0…7, 8 Timer. A60 5 ms. C35
-5 min. A35 60 s. **Flash-Gate 1'024 Byte**, für den Teilbuild und alle 72 Varianten (§1).
+5 min. A35 60 s. **Flash-Gate 1'024 Byte**, für den Teilbuild und alle 72 Varianten — derzeit
+engste Variante 392 Byte darüber (§1).
 
 ### Secure by design
 
@@ -791,7 +812,8 @@ Grund; `ldr: … abgewiesen` nur Rohwerte.
 ### Stable & reliable
 
 **Fehler ausgewertet?** A62 verwirft und meldet; A57 weist ab und meldet; A60 meldet Fristablauf;
-der Matrix-Lauf endet bei einem Bau- oder Gate-Fehler mit Exit ≠ 0 und nennt die Variante.
+der Matrix-Lauf endet bei einem Bau- oder Gate-Fehler mit Exit ≠ 0 und nennt die Variante (mit
+Gegenprobe belegt).
 
 **Leere `catch`?** Keine neuen.
 
@@ -799,7 +821,8 @@ der Matrix-Lauf endet bei einem Bau- oder Gate-Fehler mit Exit ≠ 0 und nennt d
 PWA meldet „gespeichert", auch wenn A57 (C) den Messwert abweist (§5a); die Restpunkte aus §3.4.
 **Risiko der Einsparungen:** Eine gekürzte oder entfernte Logzeile, nach der ein Werkzeug sucht,
 liesse dieses Werkzeug still nichts mehr finden — darum die Abhängigkeitsliste in S3.1, die
-geschützte Zeile und die Rückfragepflicht in S3.2.
+geschützte Zeile und die Rückfragepflicht in S3.2. **Neue Warnungen** (N1) werden nicht still
+hingenommen: S1.16a stellt den Warnungsbestand wieder her.
 
 **Still zurechtgebogen?** A62 klemmt nichts. Die Zeitzone über 12 fällt **mit** Logzeile auf die
 Vorgabe. A57 lässt den alten Wert stehen.
@@ -829,7 +852,8 @@ der Innenzweig.
 
 **Matrix: in `release-zip` einbauen.** Hätte den normalen Build verlangsamt und verändert — Ent-18
 verlangt ein eigenes Ziel. **F411 mit dem Original-Startup.** Weicht vom Teilbuild ab; Ent-18:
-`startup_stm32f411xe.S` bleibt.
+`startup_stm32f411xe.S` bleibt. **Planen ab dem Teilbuild.** Die engste Variante liegt 192 Byte
+tiefer (§1.2).
 
 **A62 ohne Ära (genau 10 Ziffern, Untergrenze 2026).** Vom Nutzer verworfen (Ent-3). **Ära mit
 64-Bit-Arithmetik.** Unnötig. **Feste Zeitgrenze am STM statt Bestätigung.** Hilft gegen 0 und
