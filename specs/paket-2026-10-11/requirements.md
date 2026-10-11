@@ -48,8 +48,8 @@ Paket.
 |---|---|---|---|---|
 | **0** | A61-Auswerteregel als Werkzeug; Abgleichsdauer aus vorhandenen Mitschnitten (A61, A34); A34 schliessen, A63 als Beobachtung; **L391** NTP-Puffer, Berichtigungen an L331, L360, L371, L233; Testplan V3/S1 um den Nachtzustand | Werkzeug, Doku | — | — (lesend, Mitschnitte) |
 | **S1** ☑ | **A62** Netzzeit mit **Ära-Rechnung** und Bestätigungsregel · **A69** Nachtfenster samt **M1** (leere RTC) und **M2** („IP erst zeigen, dann aus") · **A68** Ambilight-Kopie · **N1** malloc-Stubs · Matrix-Lauf vor dem Release-Build — **ausgeliefert als 3.2.29** | STM | **zuerst** | **G1** — Tagteil ☑, Nachtteil offen |
-| **S2** | **A60 + L360** I²C-Fristen, **Freitakten** beim Fristablauf (Ent-15b) — **eigenes Release, eigene Messung**; Code fertig, nicht gebaut | STM | nach G1 | **G2** |
-| **S3** | **Flash-Analyse** und verhaltensneutrale Einsparungen, dann **A23** Displayfarbe · **A53** Spiele · **A57 (C)** Einmessen · **A67-STM** (Ent-17) | STM | nach G2 | **G3** — Farbanimation, Spiel, LDR-Abweisung; zweiter Reset im Aus-Fenster nur nach Bestätigung |
+| **S2** | **A60 + L360** I²C-Fristen, **Freitakten** beim Fristablauf (Ent-15b) — **eigenes Release, eigene Messung**; Code fertig, nicht gebaut; Matrix-Lauf vor dem Release-Build | STM | nach G1 | **G2** |
+| **S3** | **Flash-Analyse** und verhaltensneutrale Einsparungen, dann **A23** Displayfarbe · **A53** Spiele · **A57 (C)** Einmessen · **A67-STM** (Ent-17); Matrix-Lauf vor dem Release-Build | STM | nach G2 | **G3** — Farbanimation, Spiel, LDR-Abweisung; zweiter Reset im Aus-Fenster nur nach Bestätigung |
 | **E** | **A35** (b) · **NTP-Puffer und Plausibilität** (nach Ent-3 tragend) · **`ovr=`** · **A67-ESP** | ESP | nach G3 | **G4** |
 | **P** | **C35** (A) | PWA | nach G4 | **G5** |
 | **M** | **Abschlusslauf A21** | — | nach G5 | **G6** |
@@ -228,8 +228,9 @@ frei** — 192 Byte enger als der Teilbuild. Grösse gegen das Original +1,6 bis
 ## Ziel
 
 1. **Flash:** Jedes STM-Release hält das Gate von 1'024 Byte nach **jedem** Task und nach jeder
-   Einsparung; vor dem Release-Build S1 hält es **jede der 72 Varianten**; S3 schafft den Platz für
-   seine vier Punkte zuerst, verhaltensneutral und gemessen.
+   Einsparung; vor **jedem** STM-Release-Build, das Flash kostet (S1, S2, S3), hält es **jede der
+   72 Varianten**; S3 schafft den Platz für seine vier Punkte zuerst, verhaltensneutral und
+   gemessen.
 2. **Netzzeit:** Die Uhr nimmt gültige Netzzeiten **bis 2106** an (Kette bis 31.12.2099 durch die
    RTC); eine ungültige, eine 0 oder eine verstümmelte stellt sie **nie** — verworfen und gemeldet.
 3. **Nachtfenster:** Nach einem Neustart im Aus-Fenster zeigt die Uhr den **IP-Lauftext und ist
@@ -358,8 +359,8 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       Verhaltensänderung oder an einer Zeile mit Abhängigkeit **nur nach Rückfrage**. Alle
       bestehenden Prüfstände (a62, a69, a60, gt, EP, W2, L59) weiter OK; Review S3.13.
 - [ ] **AKP.3 (keine Sparstufe ohne Rückfrage)** — Die Sparstufen aus `design.md` §1.4 werden
-      **nicht** angewandt. Reicht der Platz nicht (Testbau unter 1'024), wird angehalten und
-      vorgelegt.
+      **nicht** angewandt. Reicht der Platz nicht (Testbau oder Matrix-Lauf unter 1'024), wird
+      angehalten und vorgelegt.
 
 ### Schritt S3 — A23 (Displayfarbe)
 
@@ -415,8 +416,11 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       BUSY-Schleifen über `i2c_wait_not_busy()` mit `I2C_ERROR_BUSY` (−8). Logzeile
       **`i2c: frist abgelaufen`** (Entscheidung des Leads; nur Debug-UART, nicht `/api/stm32_log`).
       Kein RM0008-Abschlussverfahren. ISR-Frage am Code belegt. *Instrument:* Prüfstand **a60**:
-      **4'998 Prüfungen**, gegen 3.2.29 FEHL; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`
-      je FEHL; S16 44/44. **Review S2.4 BESTANDEN** (drei Nachprüfungen BESTANDEN).
+      **4'998 Prüfungen**; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog` je FEHL; im Baum
+      S16 **44/44 OK**. **Gegenprobe mit angekommener Meldung (DIR-014):**
+      `./tools/checks/auszug.sh --gegen release/3.2.29-3.2.31-1.4.95` meldet
+      `FEHL  A60 I2C-Fristen …` mit **Exit 1** (41 von 44, 1 fehlgeschlagen). **Review S2.4
+      BESTANDEN** (drei Nachprüfungen BESTANDEN).
 - [x] **AKI.4 (Freitakten, Ent-15b)** — Nach **jeder** Frist in `i2c_handle_timeout()`: ist danach
       BUSY gesetzt oder liest SDA low, wird der Bus freigetaktet (`i2c_last_clockspeed = 0;
       i2c_init (i2c_clockspeed)` = `i2c_reset_bus` mit 9 Takten, Pins zurück auf AF). **Schlimmster
@@ -484,6 +488,10 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 
 ### Matrix-Lauf aller 72 STM-Varianten (Ent-18)
 
+**Festlegung des Leads im Rahmen von Ent-18 („auf Anforderung"):** Die Matrix läuft vor **jedem**
+STM-Release, das Flash kostet — S1, S2 und S3 —, jeweils als **feste Abhängigkeit des
+Release-Builds** (S1.16, S2.6a, S3.15a).
+
 - [ ] **AKZ.M.1 (Make-Ziel)** — Eigenes Ziel des `release-engineer` für alle **72** Varianten;
       **nur auf Anforderung; der normale Build bleibt unverändert**; F411 mit
       `startup_stm32f411xe.S` (Abweichung vom Original im Makefile-Kommentar und in
@@ -494,7 +502,11 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       nicht ⇒ Exit ≠ 0.
 - [x] **AKZ.M.3 (Lauf vor S1)** — **Erfüllt:** 72/72, 0 unter dem Gate, engste Variante
       **`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte**; vor dem Release-Build wiederholt, gleiches
-      Ergebnis. **Nach S2 (Testbau):** engste Variante **1'308**, 72/72 grün.
+      Ergebnis.
+- [ ] **AKZ.M.4 (Lauf vor S2)** — 72/72, alle ≥ 1'024 Byte, engste Variante benannt; Voraussetzung
+      des Release-Builds S2.7. **Testbau-Lauf:** 72/72 grün, engste Variante **1'308**.
+- [ ] **AKZ.M.5 (Lauf vor S3)** — 72/72, alle ≥ 1'024 Byte, engste Variante benannt; Voraussetzung
+      des Release-Builds S3.16. Eine Variante darunter ⇒ **kein Build**, anhalten und vorlegen.
 
 ### Für alle Schritte
 
@@ -517,7 +529,7 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 - [ ] **AKZ.6 (T)** — `pwa-tester` Phasen 0–4 und 9 nach M, mit dem nachgeführten Testplan.
       Unvollständig ⇒ **nicht abgenommen**.
 - [ ] **AKZ.7** — Jedes Release **sofort** committet, getaggt, **gepusht** (DIR-011); den
-      `CHANGELOG.md`-Eintrag schreibt der Lead. **S1:** `a6065d5`, Tag gepusht.
+      `CHANGELOG.md`-Eintrag schreibt der Lead. **S1:** `a6065d5` (samt CHANGELOG), Tag gepusht.
 - [ ] **AKZ.8** — Einspielzeilen mit Reihenfolge, fertig zum Einfügen; eingespielt vom Lead
       (ESP: `curl -s -m 30 "http://$DEVICE_HOST/api/remote_esp_update"`).
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015),
@@ -539,7 +551,7 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 | **Protokollwechsel an `TIME`** (feste 10 Stellen, Prüfsumme) | Ent-3 ohne Protokollwechsel; Ent-3b: Bestätigungsregel statt Protokollwechsel |
 | **Die Sparstufen aus `design.md` §1.4** | Ent-17: nicht gewählt; nur nach neuer Rückfrage |
 | **Einsparungen mit Verhaltensänderung** in S3; **`set_display_power: new=…`**, **`i2c: frist abgelaufen`** | Nur nach Rückfrage (AKP.2); die Zeilen sind geschützt |
-| **Änderung am normalen Build** durch das Matrix-Ziel; **Matrix-Lauf vor jedem Release** | Ent-18: eigenes Ziel, nur auf Anforderung; Pflicht nur vor S1 |
+| **Änderung am normalen Build** durch das Matrix-Ziel; **Matrix in `release-zip`**; **Matrix-Lauf vor Releases ohne STM-Flashkosten** (E, P) | Ent-18: eigenes Ziel, auf Anforderung; angefordert vom Lead vor jedem STM-Release, das Flash kostet (S1, S2, S3) |
 | **Angleichen des F411-Startups an das Original** | Ent-18: `startup_stm32f411xe.S` bleibt, die Abweichung wird dokumentiert |
 | **Sichtbare Meldung der A57-Abweisung in der PWA** | Geht nur mit einem neuen, wartenden Endpunkt (`http.cpp:10077-10086` antwortet vor der Messung); als Hinweis in Z.1 als neuer Befund |
 | **Abweisung im Zahlen-Setter (A59)** | Bräche den Backup-Import (L68) |
@@ -569,7 +581,8 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 - [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`,
       `README-CMAKE.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md` (Lead)
 - [ ] **Build/Release** — Matrix-Ziel (`CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh`,
-      `release-engineer`, erledigt); **fünf** Releases (S1 ☑, S2, S3, E, P); je Commit, Tag, Push
+      `release-engineer`, erledigt); Matrix-Lauf vor S1, S2, S3; **fünf** Releases (S1 ☑, S2, S3,
+      E, P); je Commit, Tag, Push
 
 ---
 
@@ -632,6 +645,9 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
   gilt für alle 72 Varianten**; F411-Varianten mit `startup_stm32f411xe.S` (Abweichung vom Original
   dokumentiert). Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW. **Erster Lauf:
   72/72 grün, engste Variante 1'416; nach S2 (Testbau) 1'308. Geplant wird ab diesem Wert.**
+  **Festlegung des Leads im Rahmen von „auf Anforderung" (11.10.2026):** Die Matrix läuft vor
+  **jedem** STM-Release, das Flash kostet — also auch vor S2 und vor S3 —, als feste Abhängigkeit
+  des Release-Builds (AKZ.M.4, AKZ.M.5).
 - **Offen — zweiter STM-Reset im Aus-Fenster in G3** (für AKD.2 Teil 2, die EEPROM-Frage aus A23):
   **vor G3 beim Nutzer zu bestätigen**; nicht durch Ent-14 (a) gedeckt. Der Lead fragt vor G3
   nach.

@@ -37,13 +37,14 @@ Nutzer zu bestätigen:** der zweite STM-Reset im Aus-Fenster in G3 (S3.18).
 | **Ent-15b** | A60: Bus beim Fristablauf freitakten (erweitert Ent-15) | **ja** — nach **jeder** Frist, wenn danach BUSY gesetzt ist oder SDA low liest: `i2c_init` neu, das heisst `i2c_reset_bus` mit 9 Takten und Pins zurück auf AF (`design.md` §8). Die Logzeile `i2c: frist abgelaufen` hat der Lead entschieden | S2.1 |
 | **Ent-16** | Spec | **freigegeben** | alle |
 | **Ent-17** | Flash-Gate nach S1.3 | **„Release teilen":** S1 = A62, A69, A68; A23, A53, A57 (C), A67-STM in **S3** nach einer Flash-Analyse. **Alle übrigen Entscheidungen bleiben** (auch Ent-2 (3), A53 V2, A67). Die Sparstufen aus `design.md` §1.4 sind **nicht** gewählt und greifen nur nach einer neuen Rückfrage. N1 (malloc-Stubs) hat der Lead aus S3.1 in S1 vorgezogen, damit M2 in den Flash passt | S1, S3 |
-| **Ent-18** | Komplettbuild aller 72 STM-Varianten | **eigenes Make-Ziel, nur auf Anforderung**, normaler Build unverändert; **erster Lauf vor STM-Release 1**; **Flash-Gate 1'024 Byte für alle 72 Varianten**, für jeden Matrix-Lauf; BlackPill-F411-Varianten mit `startup_stm32f411xe.S` wie im Teilbuild (das Original nimmt `startup_stm32f401xc.S`; Abweichung dokumentiert). Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW; **geplant wird ab dem Matrix-Minimum** (`design.md` §1.3) | S1.15, S1.16, S1.19, S2.2, Z.5 |
+| **Ent-18** | Komplettbuild aller 72 STM-Varianten | **eigenes Make-Ziel, nur auf Anforderung**, normaler Build unverändert; **erster Lauf vor STM-Release 1**; **Flash-Gate 1'024 Byte für alle 72 Varianten**, für jeden Matrix-Lauf; BlackPill-F411-Varianten mit `startup_stm32f411xe.S` wie im Teilbuild (das Original nimmt `startup_stm32f401xc.S`; Abweichung dokumentiert). Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW; **geplant wird ab dem Matrix-Minimum** (`design.md` §1.3). **Festlegung des Leads im Rahmen von Ent-18 („auf Anforderung"):** Die Matrix läuft vor **jedem** STM-Release, das Flash kostet — also auch vor S2 und vor S3, je als feste Abhängigkeit des Release-Builds — und zwar **nach der Versionsanhebung**, auf genau dem Stand, der ausgeliefert wird (wie S1.16). Läufe im Testbau zählen **nur als Vorabwert**. Begründung des Leads: rund 1 Minute Aufwand, und das Gate soll den ausgelieferten Stand prüfen | S1.15, S1.16, S1.19, S2.2, S2.6a, S2.7, S3.15a, S3.16, Z.5 |
 | **offen** | Zweiter STM-Reset im Aus-Fenster in G3 (A23, EEPROM-Frage) | **vor G3 beim Nutzer zu bestätigen** — nicht durch Ent-14 (a) gedeckt; der Lead fragt vor G3 nach | S3.18 |
 
 **Vom Lead festgelegt:** `CHANGELOG.md` je Release schreibt der **Lead**. ESP-OTA mit
 `curl -s -m 30 "http://$DEVICE_HOST/api/remote_esp_update"`. **L391** ist für den NTP-Puffer
 reserviert. Die Logzeile **`set_display_power: new=…`** ist **geschützt** (Nachweis in AKW.4) und
-keine Einsparung.
+keine Einsparung. **Matrix-Lauf vor jedem STM-Release, das Flash kostet, nach der
+Versionsanhebung** (Ent-18).
 
 ---
 
@@ -59,7 +60,9 @@ Ketten tragen das Paket (`design.md` §0.1):
    darf früher beginnen; ihre Zahlen gelten erst gegen die Map des S2-Builds.
 2. **Release-Build erst nach dem Gerätenachweis des vorigen:** S2.7 nach S1.21 (G1 **vollständig**,
    also auch Nachtteil und AKW.5), S3.16 nach S2.9 (G2), E.9 nach S3.18 (G3), P.6 nach E.11 (G4).
-   Danach M.1 nach P.8 (G5), T.2 nach M.1 (G6).
+   Danach M.1 nach P.8 (G5), T.2 nach M.1 (G6). **Jeder STM-Release-Build zusätzlich erst nach
+   einem grünen Matrix-Lauf auf dem angehobenen Stand** (S1.16, S2.6a nach S2.5, S3.15a nach
+   S3.14).
 3. **Innerhalb eines STM-Releases nacheinander, Testbau nach jedem Task** (Flash-Gate, AKZ.F).
    Liegt ein Testbau unter **1'024 Byte**: **anhalten und vorlegen** — keine Sparstufe ohne neue
    Rückfrage (Ent-17).
@@ -120,7 +123,7 @@ Lead ihm nennt.
 | S1.16 | **Matrix-Lauf vor S1** | Lead | S1.15 | **AKZ.M.3**. **☑ 72/72, 0 unter dem Gate; engste Variante `wc24h-stm32f103-sk6812-rgbw` 1'416 Byte frei**; vor dem Build wiederholt, gleiches Ergebnis | — | — |
 | S1.16a | **Warnungsbestand:** 7 Warnungen `unused parameter` in den malloc-Stubs mit `(void)` beseitigen | `stm-developer` | S1.16 | **☑ Erledigt:** Warnungen weg, Bestand **17 statt 18** | ☑ | — |
 | S1.17 | STM-Version anheben | `release-engineer` | S1.13 | **☑ 3.2.29** | ☑ | — |
-| S1.18 | `CHANGELOG.md`-Eintrag S1 | Lead | S1.13 | **☑ mit dem Release-Commit** | ☑ | — |
+| S1.18 | `CHANGELOG.md`-Eintrag S1 | Lead | S1.13 | **☑ in `a6065d5` enthalten** | ☑ | — |
 | S1.19 | **AKZ.3**, `git status`, Build, Gegenprobe des Gates (S8b), Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S1.17, S1.18, S1.16, S1.16a | **☑ Commit `a6065d5`, Tag `release/3.2.29-3.2.31-1.4.95` gepusht** | ☑ | — |
 | S1.20 | **Einspielen am Tag:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh`; Smoketest | Lead | S1.19 | **☑ Eingespielt.** Ein Fehlalarm der Logwache beim Flashen (Abbildzeile mit vier Leerzeichen) ist behoben, **L400** | — | — |
 | S1.21 | **G1** nach `design.md` §15.1: Tagtests (AKN.6, **AKI.2 vorher**); **STM-Reset im Aus-Fenster** (Ent-14 a) für AKW.4 (IP-Lauftext, danach aus) und AKN.7; am Morgen AKW.5 | Lead | S1.20, **0.5** | **Tagteil ☑:** **AKN.6** — `time: sprung` 20:44:39 → `cmd: set time to` 20:44:54; **AKI.2 vorher** — `eep n=2` 24–26 ms, 32 Byte über 2 Seiten 92 ms; alles zurückgestellt. **Offen:** Nachtteil (AKW.4, AKN.7) nach 01:00, AKW.5 am Morgen | — | — |
@@ -130,17 +133,19 @@ Lead ihm nennt.
 ## Schritt S2 — STM-Release 2 (isoliert): A60 und L360
 
 **Stand:** Code fertig und reviewt, **nicht gebaut** — der Release-Build folgt erst nach **G1
-vollständig**. Engste Matrix-Variante nach S2 im Testbau: **1'308 Byte frei**, 72/72 grün.
+vollständig** und nach dem Matrix-Lauf S2.6a auf dem angehobenen Stand. Engste Matrix-Variante
+nach S2 im Testbau (Vorabwert): **1'308 Byte frei**, 72/72 grün.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | S2.1 | **A60** nach `design.md` §8 (Ent-15, Ent-15b): ISR-Frage am Code belegt; `i2c_wait_for_flags()` pollt eng mit Frist über `delay_counter` — **Abweichung von §8, am Code begründet:** `delay_counter` ist ein **Abwärtszähler** im SysTick, der bei 0 stehen bleibt, nicht freilaufend. **Beide** BUSY-Schleifen über `i2c_wait_not_busy()` mit `I2C_ERROR_BUSY` (−8). Logzeile **`i2c: frist abgelaufen`** (Lead; nur Debug-UART, nicht `/api/stm32_log`). **Freitakten** (Ent-15b) nach **jeder** Frist in `i2c_handle_timeout()`, wenn danach BUSY gesetzt ist oder SDA low liest: `i2c_last_clockspeed = 0; i2c_init (i2c_clockspeed)` (= `i2c_reset_bus` mit 9 Takten, Pins zurück auf AF) — zuerst nur im BUSY-Pfad, vom Lead nach der Nachprüfung erweitert, weil Folgezugriffe an der SB-Frist scheiterten. **Prüfstand a60** | `stm-developer` | S1.19 | **AKI.1**, **AKI.4**. **☑ Erledigt** | ☑ | — |
-| S2.2 | **Flash-Gate** nach S2.1 | Lead | S2.1 | **AKZ.F**. **☑ Teilbuild:** 1'608 → **1'500** (A60) → 1'496 (Freitakten im BUSY-Pfad) → **1'464** (nach jeder Frist). **Matrix: engste Variante 1'308, 72/72 grün** | — | — |
-| S2.3 | **Prüfstand a60 ablegen**; Logwache: Schwelle `eep` 200 ms unverändert, `i2c: frist abgelaufen` als Alarm | Lead | S2.2 | **☑ a60** in `tools/checks/auszug/stm/a60/`: **4'998 Prüfungen**, gegen 3.2.29 FEHL; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`, `ohnefrei`, `nurbusy` je FEHL; S16 **44/44**. Die Wachmeldung für `i2c: frist abgelaufen` ist dem `spec-writer` nicht gemeldet | ☑ | — |
+| S2.2 | **Flash-Gate** nach S2.1 | Lead | S2.1 | **AKZ.F**. **☑ Teilbuild:** 1'608 → **1'500** (A60) → 1'496 (Freitakten im BUSY-Pfad) → **1'464** (nach jeder Frist). **Matrix im Testbau (Vorabwert): engste Variante 1'308, 72/72 grün** | — | — |
+| S2.3 | **Prüfstand a60 ablegen**; Logwache: Schwelle `eep` 200 ms unverändert, `i2c: frist abgelaufen` als Alarm | Lead | S2.2 | **☑ a60** in `tools/checks/auszug/stm/a60/`: **4'998 Prüfungen**; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`, `ohnefrei`, `nurbusy` je FEHL; S16 im Baum **44/44 OK**. **Gegenprobe DIR-014 mit angekommener Meldung:** `./tools/checks/auszug.sh --gegen release/3.2.29-3.2.31-1.4.95` meldet `FEHL  A60 I2C-Fristen …` mit **Exit 1** (41 von 44, 1 fehlgeschlagen) | ☑ | — |
 | S2.4 | **Review S2** | `firmware-analyst` | S2.3 | **☑ BESTANDEN, drei Nachprüfungen BESTANDEN.** Benannt (vorbestehend, nicht geändert): `GPIO_RESET_BIT(SDA_PORT, SCL_PIN)` in `i2c.c` trifft auf Nucleo den falschen Port. **Erwartung G2:** `n=2` 16–17 ms, 32 Byte 34–40 ms | — | ☑ |
 | S2.5 | STM-Version anheben | `release-engineer` | S2.4 | S4 zeigt den neuen Stand (erwartet 3.2.30) | ☐ | — |
 | S2.6 | `CHANGELOG.md`-Eintrag S2 | Lead | S2.4 | Inhalt gleich dem Release; Ent-15b als Entscheidung des Nutzers benannt | ☐ | — |
-| S2.7 | **AKZ.3**, Build, Gegenprobe des Gates (S8b), Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S2.5, S2.6, **S1.21 vollständig** | `guardrails.sh --full` Exit 0 mit unverändertem Warnungsbestand; Rest ≥ 1'024; Tag gepusht. **Die Map dieses Builds ist die Grundlage von S3.1** | ☐ | — |
+| S2.6a | **Matrix-Lauf vor S2** (Ent-18, Festlegung des Leads), **nach der Versionsanhebung** auf genau dem Stand, der ausgeliefert wird — wie S1.16 | Lead | **S2.5** | **AKZ.M.4**: 72/72, **alle ≥ 1'024 Byte**, engste Variante benannt. Liegt eine Variante darunter: **kein Build**, anhalten und vorlegen (Ent-17). Der Lauf aus dem Testbau (72/72, engste 1'308) zählt **nur als Vorabwert** | — | — |
+| S2.7 | **AKZ.3**, Build, Gegenprobe des Gates (S8b), Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S2.5, S2.6, **S2.6a**, **S1.21 vollständig** | `guardrails.sh --full` Exit 0 mit unverändertem Warnungsbestand; Rest ≥ 1'024; Tag gepusht. **Die Map dieses Builds ist die Grundlage von S3.1** | ☐ | — |
 | S2.8 | **Einspielen:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh`; Smoketest. Einen Wachalarm während des Flashens **am Kontext prüfen** (L400) | Lead | S2.7 | erwartete STM-Version | — | — |
 | S2.9 | **G2**: AKI.2 nachher (S25/S26 über S27 zurück, 32-Byte-Wert zurück; Ent-14 d), AKI.3 (60 min lesend). **Messpunkt:** steht `i2c: frist abgelaufen` **vor** `rtc is online`? — das wäre der Hinweis auf die DS1307-Probe beim Start | Lead | S2.8 | **AKI.2** (Vorher 24–26 / 92 ms gegen Nachher; Erwartung 16–17 / 34–40 ms), **AKI.3**; `watch-log.sh` mitgelesen | — | — |
 
@@ -152,7 +157,7 @@ vollständig**. Engste Matrix-Variante nach S2 im Testbau: **1'308 Byte frei**, 
 Punkte sind auf 190–294 Byte geschätzt; mit dem gemessenen Faktor 2 bis 3 (`design.md` §1.2) sind
 **rund 400–900 Byte** einzuplanen — gegen einen Spielraum der engsten Matrix-Variante von **284
 Byte** nach S2 (1'308 frei). **Die Flash-Analyse muss rund 120–620 Byte schaffen.** N1 ist bereits
-in S1 umgesetzt.
+in S1 umgesetzt. **Vor dem Release-Build läuft die Matrix auf dem angehobenen Stand** (S3.15a).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
@@ -171,7 +176,8 @@ in S1 umgesetzt.
 | S3.13 | **Review S3** | `firmware-analyst` | S3.12 | Einsparungen verhaltensneutral, geschützte Zeilen unverändert; A23, A53, A57, A67 wie in `design.md`; keine neue `watchdog_reload()`-Stelle (S7); Architektur-Checkliste | — | ☐ |
 | S3.14 | STM-Version anheben | `release-engineer` | S3.13 | S4 zeigt den neuen Stand (erwartet 3.2.31) | ☐ | — |
 | S3.15 | `CHANGELOG.md`-Eintrag S3 | Lead | S3.13 | Inhalt gleich dem Release; Ent-7 als Entscheidung des Nutzers benannt | ☐ | — |
-| S3.16 | **AKZ.3**, Build, Gegenprobe des Gates (S8b), Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S3.14, S3.15, **S2.9** | `guardrails.sh --full` Exit 0; Rest ≥ 1'024; Tag gepusht. Ein Matrix-Lauf nur auf Anforderung (Ent-18); läuft er, gilt das Gate für alle 72 | ☐ | — |
+| S3.15a | **Matrix-Lauf vor S3** (Ent-18, Festlegung des Leads), **nach der Versionsanhebung** auf genau dem Stand, der ausgeliefert wird — wie S1.16 | Lead | **S3.14** | **AKZ.M.5**: 72/72, **alle ≥ 1'024 Byte**, engste Variante benannt. Liegt eine Variante darunter: **kein Build**, anhalten und vorlegen (Ent-17). Läufe aus Testbauten zählen **nur als Vorabwert** | — | — |
+| S3.16 | **AKZ.3**, Build, Gegenprobe des Gates (S8b), Release-ZIP, Rollout, **Commit + Tag + Push** | Lead | S3.14, S3.15, **S3.15a**, **S2.9** | `guardrails.sh --full` Exit 0; Rest ≥ 1'024; Tag gepusht | ☐ | — |
 | S3.17 | **Einspielen am Tag:** `./tools/flash-stm.sh --check`, `./tools/flash-stm.sh`; Smoketest. Vorher lesend `dspcolor[0]`, `numvar` 17/18, LDR-Rohwert, `numvar[8]` festhalten | Lead | S3.16 | erwartete STM-Version; Vorher-Werte im Bericht | — | — |
 | S3.18 | **G3** nach `design.md` §15.2: Tagtests (AKD.2 Teil 1, AKS.3, **AKE.2** (Ent-14e)); **zweiter STM-Reset im Aus-Fenster** für AKD.2 Teil 2 und erneut AKW.4 — **vor G3 beim Nutzer zu bestätigen** | Lead | S3.17, **Bestätigung des zweiten Resets** | **AKD.2**, **AKS.3**, **AKE.2**; ohne Bestätigung bleibt AKD.2 Teil 2 offen und wird so berichtet | — | — |
 
@@ -249,11 +255,11 @@ Der Lead spielt ein; vor **jedem** Schritt läuft `./tools/watch-log.sh`.
 
 1. **S1** — **☑ eingespielt** (3.2.29); offen: G1-Nachtteil mit dem **eigenen STM-Reset im
    Aus-Fenster** (Ent-14 a) und AKW.5.
-2. **S2 (nach G1 vollständig):** `./tools/flash-stm.sh --check` · `./tools/flash-stm.sh` ·
-   `./tools/smoke-device.sh` — danach G2.
-3. **S3 (nach G2, am Tag):** `./tools/flash-stm.sh --check` · `./tools/flash-stm.sh` ·
-   `./tools/smoke-device.sh` — danach G3; der **zweite STM-Reset im Aus-Fenster nur nach
-   Bestätigung durch den Nutzer**.
+2. **S2 (nach G1 vollständig und Matrix S2.6a auf dem angehobenen Stand):**
+   `./tools/flash-stm.sh --check` · `./tools/flash-stm.sh` · `./tools/smoke-device.sh` — danach G2.
+3. **S3 (nach G2 und Matrix S3.15a auf dem angehobenen Stand, am Tag):**
+   `./tools/flash-stm.sh --check` · `./tools/flash-stm.sh` · `./tools/smoke-device.sh` — danach G3;
+   der **zweite STM-Reset im Aus-Fenster nur nach Bestätigung durch den Nutzer**.
 4. **E (nach G3):** Wache bestätigt · `curl -s -m 30 "http://$DEVICE_HOST/api/remote_esp_update"` ·
    `./tools/smoke-device.sh` · `./tools/install-app.sh --check` — danach G4.
 5. **P (nach G4):** `./tools/install-app.sh --check` · `./tools/install-app.sh` ·
@@ -269,5 +275,6 @@ der Gerätenachweis des vorigen (R3b).
 - [ ] AKZ.3 vor jedem Release-Build geprüft und im Bericht
 - [ ] Flash-Gate nach jedem STM-Task und nach jeder Einsparung gemessen und berichtet
 - [x] Matrix-Lauf vor S1 grün (72/72, alle ≥ 1'024 Byte; engste Variante 1'416)
+- [ ] Matrix-Lauf vor S2 und vor S3 grün, je nach der Versionsanhebung (S2.6a, S3.15a)
 - [ ] Alle Akzeptanzkriterien aus `requirements.md` erfüllt — oder ausdrücklich als offen berichtet
 - [ ] Fünf Releases (S1, S2, S3, E, P) gebaut, ausgerollt, committet, getaggt, gepusht — **S1 ☑**

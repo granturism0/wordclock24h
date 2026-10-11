@@ -19,7 +19,8 @@ jetzt tragend (§10.1) · **Ent-14** alle Freigaben erteilt; (a) gilt dem einen 
 **Ent-14e** AKE.2 ausdrücklich freigegeben (§15.2) · **Ent-15** nur Fristen, **Ent-15b** Bus beim
 Fristablauf freitakten (§8) · **Ent-16** freigegeben · **Ent-17** Release teilen: S1 = A62, A69,
 A68 (dazu N1, M1, M2); S3 = Flash schaffen, dann A23, A53, A57, A67-STM (§0, §1) · **Ent-18**
-Matrix-Lauf aller 72 Varianten vor S1, Gate für alle 72 (§1.6).
+Matrix-Lauf aller 72 Varianten, Gate für alle 72; vom Lead angefordert vor **jedem** STM-Release,
+das Flash kostet — S1, S2, S3 —, jeweils **nach der Versionsanhebung** (§1.6).
 
 **Schrittfolge:** **0 (ohne Firmware) → S1 ☑ (STM 3.2.29: A62 mit Ära, A69 samt M1/M2, A68, N1) →
 S2 (STM: A60 mit Freitakten) → S3 (STM: Flash-Analyse und Einsparungen, dann A23, A53, A57,
@@ -52,7 +53,7 @@ hintereinander gilt dasselbe **innerhalb** der Komponente.
 |---|---|
 | Produktcode des **nächsten Releases** entsteht erst **nach dem Release-Build** des vorigen | S2.1 hängt an S1.19 (eingehalten), S3.2 an S2.7, E.1 an S3.16, P.1 an E.9 |
 | Der **Release-Build** folgt erst **nach dem Gerätenachweis** des vorigen Releases | S2.7 an S1.21 (**G1 vollständig**, auch Nachtteil und AKW.5), S3.16 an S2.9 (G2), E.9 an S3.18 (G3), P.6 an E.11 (G4); M.1 an P.8 (G5); T.2 an M.1 (G6) |
-| Der Release-Build S1 folgte erst nach dem grünen Matrix-Lauf und dem bereinigten Warnungsbestand | S1.19 an S1.16 und S1.16a — eingehalten |
+| Jeder **STM-Release-Build, der Flash kostet,** folgt erst nach einem **grünen Matrix-Lauf auf dem angehobenen Stand** (Ent-18, Festlegung des Leads) | S1.19 an S1.16 und S1.16a (eingehalten); S2.7 an S2.6a (nach S2.5); S3.16 an S3.15a (nach S3.14) |
 | Erlaubt parallel: Gerätenachweis des vorigen und Codearbeit des nächsten | So geschehen: S2-Code während G1 |
 | Erlaubt jederzeit: Doku, Spec, Werkzeug, **lesende Analysen** | Die Flash-Analyse S3.1 darf früh beginnen; ihre Zahlen gelten gegen die S2-Map. **Ausnahme:** 0.5 (Testplan V3/S1) muss **vor** dem Nachtteil von G1 fertig sein |
 | Innerhalb eines STM-Releases **nacheinander**, je Task ein Testbau | Das Flash-Gate wird je Task und je Einsparung gemessen (§1) |
@@ -63,8 +64,8 @@ hintereinander gilt dasselbe **innerhalb** der Komponente.
 |---|---|---|---|---|---|---|---|
 | — | **Schritt 0** | A61-Werkzeug, Messung A61/A34, Befunde (L391 u. a.), Testplan V3/S1 | Werkzeug, Doku | Freigabe | — | lesend | offen |
 | 1 | **STM-Release 1** | A62 mit Ära, A69 samt M1/M2, A68, N1 | STM | Freigabe | Nachprüfung, Matrix grün, Warnungen | **G1** | **☑ 3.2.29**, G1-Nachtteil offen |
-| 2 | **STM-Release 2, isoliert** | A60 + L360, Freitakten (Ent-15b) | STM | Build S1 | G1 vollständig | **G2** | Code ☑, Review ☑, nicht gebaut |
-| 3 | **STM-Release 3** | Flash-Analyse, Einsparungen; dann A23, A53, A57 (C), A67-STM | STM | Build S2 | G2 | **G3** | offen |
+| 2 | **STM-Release 2, isoliert** | A60 + L360, Freitakten (Ent-15b) | STM | Build S1 | G1 vollständig, Matrix grün nach Versionsanhebung | **G2** | Code ☑, Review ☑, nicht gebaut |
+| 3 | **STM-Release 3** | Flash-Analyse, Einsparungen; dann A23, A53, A57 (C), A67-STM | STM | Build S2 | G2, Matrix grün nach Versionsanhebung | **G3** | offen |
 | 4 | **ESP-Release** | A35 (b), NTP-Puffer + Plausibilität, `ovr=`, A67-ESP | ESP | Build S3 | G3 | **G4** | offen |
 | 5 | **PWA-Release** | C35 (A) | PWA | Build E | G4 | **G5** | offen |
 | — | **Abschlusslauf A21** | 30 min Last, Setter-Burst | — | — | G5 | **G6** | offen |
@@ -98,7 +99,7 @@ hintereinander gilt dasselbe **innerhalb** der Komponente.
 | nach S1.11 — **M1 + M2** = **3.2.29** | 80–100 | **+148** | **1'608** | **1'416** (72/72) |
 | nach S2.1 — **A60** | 0…+60 | **+108** | 1'500 | — |
 | … Freitakten im BUSY-Pfad | — | **+4** | 1'496 | — |
-| … Freitakten **nach jeder Frist** (Ent-15b) | — | **+32** | **1'464** | **1'308** (72/72) |
+| … Freitakten **nach jeder Frist** (Ent-15b) | — | **+32** | **1'464** | **1'308** (72/72, Vorabwert) |
 
 Keine 64-Bit-Routinen in der Map, `strtoul` verschwunden (AKN.4 erfüllt). Die Differenz zwischen
 Teilbuild und engster Variante war nach S1 **192 Byte**, nach S2 **156 Byte** — sie ist also nicht
@@ -128,14 +129,15 @@ doppelt; im Vorpaket bei S1 um den Faktor 6 bis 10). Daraus:
 ### 1.3 Gate und Planung je Release
 
 **Gate: 1'024 Byte frei, nach jedem STM-Task und nach jeder Einsparung** (Teilbuild), dazu **für
-alle 72 Varianten** in jedem Matrix-Lauf (§1.6). Darunter: **anhalten und vorlegen** — keine
-Sparstufe ohne neue Rückfrage (Ent-17). **Planungsgrundlage ist die engste Matrix-Variante.**
+alle 72 Varianten** im Matrix-Lauf vor jedem STM-Release-Build, der Flash kostet — auf dem
+angehobenen Stand (§1.6). Darunter: **anhalten und vorlegen** — keine Sparstufe ohne neue
+Rückfrage (Ent-17). **Planungsgrundlage ist die engste Matrix-Variante.**
 
 | Release | engste Variante davor | Inhalt | Ergebnis bzw. Planung |
 |---|---|---|---|
 | **S1** ☑ | 1'908 (Teilbuild) | A62, A69, A68, N1, M1, M2 | **gemessen:** Teilbuild 1'608, engste Variante **1'416** — 392 über dem Gate |
-| **S2** | 1'416 | A60 samt Freitakten | **gemessen (Testbau):** Teilbuild 1'464, engste Variante **1'308** — **284 über dem Gate**, 72/72 grün |
-| **S3** | **1'308** | A23, A53, A57, A67-STM (Schätzung zusammen 190–294) | mit Faktor 2 bis 3 **rund 400–900 Byte** gegen einen Spielraum von **284** — **ohne Einsparungen reicht es nicht.** Die Flash-Analyse (§1.5) muss **rund 120–620 Byte** schaffen; jeder Punkt einzeln mit Gate. Ein Matrix-Lauf vor dem S3-Release-Build ist **zu empfehlen** (Ent-18: nur auf Anforderung) |
+| **S2** | 1'416 | A60 samt Freitakten | **gemessen (Testbau, Vorabwert):** Teilbuild 1'464, engste Variante **1'308** — **284 über dem Gate**, 72/72 grün. Massgeblich ist der Matrix-Lauf S2.6a nach der Versionsanhebung |
+| **S3** | **1'308** | A23, A53, A57, A67-STM (Schätzung zusammen 190–294) | mit Faktor 2 bis 3 **rund 400–900 Byte** gegen einen Spielraum von **284** — **ohne Einsparungen reicht es nicht.** Die Flash-Analyse (§1.5) muss **rund 120–620 Byte** schaffen; jeder Punkt einzeln mit Gate. **Matrix-Lauf nach der Versionsanhebung ist feste Abhängigkeit des Release-Builds** (S3.15a) |
 
 ### 1.4 Sparstufen — **nicht gewählt** (Ent-17)
 
@@ -195,12 +197,18 @@ Z.5 in Arbeit).
 
 **Läufe:**
 
-| Lauf | Ergebnis |
-|---|---|
-| vor S1 (S1.16), vor dem Release-Build wiederholt | 72/72, 0 unter dem Gate; engste `wc24h-stm32f103-sk6812-rgbw` **1'416**; gegen das Original +1,6 bis +7,4 % |
-| nach S2 (Testbau) | 72/72 grün; engste Variante **1'308** |
+| Lauf | Task | Ergebnis |
+|---|---|---|
+| vor S1, vor dem Release-Build wiederholt | S1.16 | 72/72, 0 unter dem Gate; engste `wc24h-stm32f103-sk6812-rgbw` **1'416**; gegen das Original +1,6 bis +7,4 % |
+| nach S2 (Testbau) | S2.2 | 72/72 grün; engste Variante **1'308** — **nur Vorabwert** |
+| vor S2-Release-Build, nach der Versionsanhebung S2.5 | S2.6a | offen; **feste Abhängigkeit** von S2.7 |
+| vor S3-Release-Build, nach der Versionsanhebung S3.14 | S3.15a | offen; **feste Abhängigkeit** von S3.16 |
 
-**Wann weiter:** Pflicht nur vor S1 (erledigt); danach **nur auf Anforderung**, und läuft er, gilt
+**Wann:** Ent-18 sagt „nur auf Anforderung". **Der Lead hat angefordert:** vor **jedem**
+STM-Release, das Flash kostet — S1, S2, S3 —, jeweils als feste Abhängigkeit des Release-Builds und
+**nach der Versionsanhebung**, auf genau dem Stand, der ausgeliefert wird (wie S1.16). Läufe aus
+Testbauten zählen **nur als Vorabwert**. Begründung des Leads: rund 1 Minute Aufwand, und das Gate
+soll den ausgelieferten Stand prüfen. Vor E und P läuft sie nicht (kein STM-Flash). Läuft sie, gilt
 das Gate für alle 72. **Nebenwirkung:** belegt die Build-Verzeichnisse für seine Dauer (R1).
 
 ---
@@ -554,8 +562,8 @@ Gebaut vom Umsetzer im Scratchpad, abgelegt vom Lead unter `tools/checks/auszug/
 |---|---|---|---|---|---|
 | **a62** | `stm/a62/` | S1 | Parser, Ärengrenze, Totbereich, Bestätigung samt Mindestabstand, Zeitzone | alter Stand nimmt `""`/`"0"` an; Sabotagen ⇒ FEHL | abgelegt |
 | **a69** | `stm/a69/` | S1 | jüngstes Ereignis, alle 10'080 Startpunkte; M1; M2; Sprünge; A68-Sendeprotokoll | Sabotagen; alter Stand ⇒ FEHL | abgelegt |
-| **Matrix** | `make matrix`, `cmake/matrix-report.sh` | S1 | 72 Varianten, Gate je Variante | Schwelle 2000 ⇒ 3 × GATE; `-O0` baut nicht | erfüllt |
-| **a60** | `stm/a60/` | S2 | Fristen (Abwärtszähler), `i2c_wait_not_busy`, Logzeile, Freitakten nach jeder Frist | **4'998 Prüfungen**, gegen 3.2.29 FEHL; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`, `ohnefrei`, `nurbusy` je FEHL; S16 44/44 | abgelegt |
+| **Matrix** | `make matrix`, `cmake/matrix-report.sh` | S1, S2, S3 | 72 Varianten, Gate je Variante | Schwelle 2000 ⇒ 3 × GATE; `-O0` baut nicht | erfüllt |
+| **a60** | `stm/a60/` | S2 | Fristen (Abwärtszähler), `i2c_wait_not_busy`, Logzeile, Freitakten nach jeder Frist | **4'998 Prüfungen**; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`, `ohnefrei`, `nurbusy` je FEHL; im Baum S16 **44/44 OK**; `auszug.sh --gegen release/3.2.29-3.2.31-1.4.95` meldet `FEHL  A60 I2C-Fristen …` mit **Exit 1** (41 von 44, 1 fehlgeschlagen) — die Meldung kommt an | abgelegt |
 | **a23** | `stm/a23/` | S3 | Moduswechsel, Sicherung (DC, IR), Sendung | alter Stand ⇒ FEHL | — |
 | **a53** | `stm/a53/` | S3 | Spielschleife, Zähler, `var_sync_pending` | alter Stand ⇒ FEHL | — |
 | **a57** | `stm/a57/` | S3 | `ldr_set_min/max_value()` | alter Stand ⇒ FEHL; L59 besteht weiter | — |
@@ -592,7 +600,8 @@ Ent-14e, mit Rückstellung. **Nie** `GET /?a`, keiner der Endpunkte aus R5. Eing
 3. Tagtests: AKN.6, **AKI.2 vorher**. — ☑
 4. **Im Aus-Fenster** (nach 01:00): **ein eigener STM-Reset** (Ent-14 a) — AKW.4 (**IP-Lauftext,
    danach aus**), AKN.7. — **offen**
-5. **Am Morgen:** AKW.5. Danach ist G1 abgeschlossen; der S2-Release-Build darf folgen. — **offen**
+5. **Am Morgen:** AKW.5. Danach ist G1 abgeschlossen; der S2-Release-Build darf folgen (nach der
+   Versionsanhebung S2.5 und dem Matrix-Lauf S2.6a). — **offen**
 
 ### 15.2 Ablauf G3 (S3)
 
@@ -627,7 +636,7 @@ Ent-14e, mit Rückstellung. **Nie** `GET /?a`, keiner der Endpunkte aus R5. Eing
 | `ESP8266/ESP-uclock/vars.cpp`, `ntp.cpp`, `ESP-uclock.ino`, `http.cpp` | A35, NTP, `ovr=`, A67 | `esp-developer` | E | — |
 | `ESP8266/ESP-uclock/data/app/app.js` | C35 | `pwa-developer` | P | — |
 | `tools/**` | Auswerteregel, Prüfstände, `watch-log.sh` (L400), statische Prüfung | Lead | 0, alle | teilweise |
-| `CHANGELOG.md` | je Release | Lead | S1, S2, S3, E, P | S1 ☑ |
+| `CHANGELOG.md` | je Release | Lead | S1, S2, S3, E, P | S1 ☑ (in `a6065d5`) |
 | `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`, `README-CMAKE.md` | | `doc-writer` | 0, T, Z | Z.5 in Arbeit |
 | `CLAUDE.md` | Hardware-Abschnitt I²C | Lead | Z | — |
 | Versionsdateien | STM (S1, S2, S3), ESP (E), `APP_VERSION` + `CACHE_NAME` (P) | `release-engineer` | je Release | S1 ☑ |
@@ -664,12 +673,13 @@ rund 0,55 s; A69 beim Start 64 Vergleiche; M2 merkt nur vor.
 **PWA-Polling?** C35 senkt `update_status` im Hauptmodul von 4 auf rund 0,2 je Minute.
 
 **Wie lange blockiert der Hauptloop?** A60 verkürzt EEPROM-Schreibaufrufe (vorher gemessen 92 ms
-für 32 Byte, erwartet 34–40 ms). Der Matrix-Lauf belegt die Build-Verzeichnisse (R1).
+für 32 Byte, erwartet 34–40 ms). Der Matrix-Lauf belegt die Build-Verzeichnisse (R1) — jetzt vor
+jedem der drei STM-Releases, je rund 1 Minute.
 
 **Hartkodierte Grenzen?** Gültigkeitsgrenze Unix 1'767'225'600; Gültigkeit bis 2106-02-07, Kette
 bis 31.12.2099. M1: Jahr 2026. M2: 60 s. Bestätigung 600 s / 5 s / 15 s / 10 s / drei. A60 5 ms,
 `I2C_ERROR_BUSY` −8, 9 Takte beim Freitakten. **Flash-Gate 1'024 Byte** für Teilbuild und alle
-72 Varianten — engste Variante nach S2 **284 Byte** darüber.
+72 Varianten — engste Variante nach S2 **284 Byte** darüber (Vorabwert).
 
 ### Secure by design
 
@@ -681,7 +691,7 @@ Endpunkte?** Keine.
 
 **Fehler ausgewertet?** A62 verwirft und meldet; A57 weist ab und meldet; A60 meldet Fristablauf
 (`i2c: frist abgelaufen`, `I2C_ERROR_BUSY`) und taktet den Bus frei; der Matrix-Lauf endet mit
-Exit ≠ 0.
+Exit ≠ 0 und hält den Release-Build an.
 
 **Leere `catch`?** Keine neuen.
 
@@ -713,7 +723,10 @@ Folgezugriffe scheiterten an der SB-Frist; vom Lead erweitert (Ent-15b). **A60 m
 RM0008-Verfahren oder ACK-Polling.** Nicht belegt bzw. Folgearbeit. **Logzeile auch in
 `/api/stm32_log`.** Nicht gewählt.
 
-**Matrix in `release-zip`; F411 mit Original-Startup; Planen ab dem Teilbuild.** Siehe §1.
+**Matrix in `release-zip`; F411 mit Original-Startup; Planen ab dem Teilbuild; Matrix nur vor S1;
+Testbau-Lauf als Gate-Nachweis.** Siehe §1. Die beiden letzten hat der Lead im Rahmen von Ent-18
+ersetzt: Matrix vor jedem STM-Release, das Flash kostet, nach der Versionsanhebung; Testbau-Läufe
+sind nur Vorabwerte.
 
 **A62 ohne Ära; mit 64-Bit-Arithmetik; feste Zeitgrenze; Protokollwechsel; Ära-Regel im ESP.**
 Siehe §2.
