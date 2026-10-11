@@ -2,18 +2,16 @@
 
 **Status: freigegeben** — vom Nutzer am 11.10.2026 (Ent-16), samt Ent-1 bis Ent-15 (unten,
 „Entscheidungen"). **Zwei Entscheidungen gegen die Empfehlung:** Ent-3 (Ära-Rechnung jetzt) und
-Ent-7 (C). **Ent-3b** (Bestätigungsregel, aus Ent-3) und **Ent-14e** (eigene Freigabe der
-LDR-Abweisungsprobe AKE.2) am selben Tag entschieden. **Ent-17 (Flash-Gate, 11.10.2026): „Release
-teilen"** — STM-Release 1 enthält A62, A69 und A68, dazu die Korrekturen M1 und M2 aus dem Review
-S1 und die vorgezogene Einsparung N1; A23, A53, A57 (C) und A67-STM folgen in einem eigenen
-STM-Release 3 nach einer Flash-Analyse. **Ent-18:** Vor dem Release-Build S1 läuft ein
-Komplettbuild aller 72 STM-Varianten; das Flash-Gate gilt für alle 72 — **erster Lauf grün
-(72/72), engste Variante `wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte frei**. **Offen:** der
-zweite STM-Reset im Aus-Fenster in G3 — **vor G3 beim Nutzer zu bestätigen**.
-**Erstellt:** 2026-10-11, Stand `5c34d80` (Zweig `pwa-decoupling`); am selben Tag mit den
-Entscheidungen, den Flash-Messungen von S1, dem Review S1 und dem Matrix-Lauf nachgeführt.
-Ausgangsstand am Gerät laut `specs/paket-2026-10-10/` (Endstand): STM 3.2.28, ESP 3.2.31,
-PWA 1.4.95.
+Ent-7 (C). **Ent-3b** (Bestätigungsregel), **Ent-14e** (Freigabe AKE.2), **Ent-15b** (Bus beim
+Fristablauf freitakten), **Ent-17** („Release teilen") und **Ent-18** (Matrix-Lauf aller 72
+Varianten) am selben Tag entschieden.
+**Stand 11.10.2026:** **S1 ausgeliefert** (STM 3.2.29, Commit `a6065d5`, Tag
+`release/3.2.29-3.2.31-1.4.95` gepusht); G1-Tagteil belegt, Nachtteil und AKW.5 offen. **S2 (A60)
+Code fertig und reviewt, nicht gebaut.** **Offen:** der zweite STM-Reset im Aus-Fenster in G3 —
+**vor G3 beim Nutzer zu bestätigen**.
+**Erstellt:** 2026-10-11, Stand `5c34d80` (Zweig `pwa-decoupling`); am selben Tag mehrfach
+nachgeführt. Ausgangsstand am Gerät laut `specs/paket-2026-10-10/` (Endstand): STM 3.2.28,
+ESP 3.2.31, PWA 1.4.95.
 **Auslöser:** Auftrag des Nutzers vom 11.10.2026 — die zwölf Einträge A23, A69, A53, A57, A60,
 A61, A62, A63, A35, A21, A34 und C35 aus der ToDo-Liste in `BEFUNDE.md`.
 **Grundlage:** zwei Analysen des `firmware-analyst` vom 11.10.2026 (STM und Brücke), vom Lead
@@ -23,23 +21,24 @@ nachgelesen und für Ent-3 und Ent-7 eigens nachgeprüft.
 Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Der lebende Stand steht in `BEFUNDE.md`.
 
 **Fundstellen.** Zeilennummern gelten für `5c34d80`, sie sind Fundstellen, keine Anker; der
-Arbeitsbaum hat sich seither durch S1 verschoben.
+Arbeitsbaum hat sich seither durch S1 und S2 verschoben.
 Kennzeichen: **✔ SW** — vom `spec-writer` am Code nachgelesen; **✔ A** — in der Analyse als
 [BELEGT] gemeldet, nicht einzeln nachgelesen; **◐** — [PLAUSIBEL], nicht belegt; **●** —
 gemeldet bzw. [SPEKULATION], vor der Umsetzung zu prüfen.
 
 **Kennungen.** Schritte: **0** (ohne Firmware), **S1** (STM-Release 1: A62 mit Ära, A69, A68, N1,
-M1, M2), **S2** (STM-Release 2, isoliert: A60 mit L360), **S3** (STM-Release 3: Flash-Analyse und
-Einsparungen, dann A23, A53, A57, A67-STM), **E** (ESP-Release: A35, NTP, `ovr=`, A67-ESP), **P**
-(PWA-Release: C35), **M** (Abschlusslauf A21), **T** (Testplan und `pwa-tester`), **Z** (Doku und
-Spec-Endstand). Gerätenachweise **G1** (S1), **G2** (S2), **G3** (S3), **G4** (E), **G5** (P),
-**G6** (M). Entscheidungen **Ent-1 bis Ent-18**, dazu **Ent-3b** und **Ent-14e**.
-Akzeptanzkriterien: **AKN** (Netzzeit, A62), **AKW** (Nachtfenster, A69 samt M1/M2), **AKB**
-(Ambilight-Kopie, A68), **AKP** (Platz schaffen: N1, S3), **AKD** (Displayfarbe, A23), **AKS**
-(Spiele, A53), **AKE** (Einmessen, A57), **AKK** (OTA-Ankündigung, A67), **AKI** (I²C, A60),
-**AKQ** (Übernahme, A35), **AKU** (NTP-Antwort), **AKO** (ESP-Empfangsüberlauf), **AKC** (C35),
-**AKA** (Abgleich-Auswertung, A61/A34), **AKM** (Abschlusslauf, A21), **AKZ** (alle; **AKZ.M**
-Matrix-Lauf). Die Kürzel gelten nur in diesem Paket.
+M1, M2), **S2** (STM-Release 2, isoliert: A60 mit L360 und Freitakten), **S3** (STM-Release 3:
+Flash-Analyse und Einsparungen, dann A23, A53, A57, A67-STM), **E** (ESP-Release: A35, NTP,
+`ovr=`, A67-ESP), **P** (PWA-Release: C35), **M** (Abschlusslauf A21), **T** (Testplan und
+`pwa-tester`), **Z** (Doku und Spec-Endstand). Gerätenachweise **G1** (S1), **G2** (S2), **G3**
+(S3), **G4** (E), **G5** (P), **G6** (M). Entscheidungen **Ent-1 bis Ent-18**, dazu **Ent-3b**,
+**Ent-14e** und **Ent-15b**. Akzeptanzkriterien: **AKN** (Netzzeit, A62), **AKW** (Nachtfenster,
+A69 samt M1/M2), **AKB** (Ambilight-Kopie, A68), **AKP** (Platz schaffen: N1, S3), **AKD**
+(Displayfarbe, A23), **AKS** (Spiele, A53), **AKE** (Einmessen, A57), **AKK** (OTA-Ankündigung,
+A67), **AKI** (I²C, A60), **AKQ** (Übernahme, A35), **AKU** (NTP-Antwort), **AKO**
+(ESP-Empfangsüberlauf), **AKC** (C35), **AKA** (Abgleich-Auswertung, A61/A34), **AKM**
+(Abschlusslauf, A21), **AKZ** (alle; **AKZ.M** Matrix-Lauf). Die Kürzel gelten nur in diesem
+Paket.
 
 ---
 
@@ -48,14 +47,14 @@ Matrix-Lauf). Die Kürzel gelten nur in diesem Paket.
 | Schritt | Inhalt | Laufzeit | Einspielen | Gerätenachweis |
 |---|---|---|---|---|
 | **0** | A61-Auswerteregel als Werkzeug; Abgleichsdauer aus vorhandenen Mitschnitten (A61, A34); A34 schliessen, A63 als Beobachtung; **L391** NTP-Puffer, Berichtigungen an L331, L360, L371, L233; Testplan V3/S1 um den Nachtzustand | Werkzeug, Doku | — | — (lesend, Mitschnitte) |
-| **S1** | **A62** Netzzeit mit **Ära-Rechnung** und Bestätigungsregel · **A69** Nachtfenster samt **M1** (leere RTC) und **M2** („IP erst zeigen, dann aus") · **A68** Ambilight-Kopie · **N1** malloc-Stubs (Einsparung) · **Matrix-Lauf aller 72 Varianten** vor dem Release-Build | STM | **zuerst** | **G1** — Netzzeit, Reset im Aus-Fenster, Vorher-Messung für S2 |
-| **S2** | **A60 + L360** I²C-Fristen — **eigenes Release, eigene Messung** | STM | nach G1 | **G2** |
+| **S1** ☑ | **A62** Netzzeit mit **Ära-Rechnung** und Bestätigungsregel · **A69** Nachtfenster samt **M1** (leere RTC) und **M2** („IP erst zeigen, dann aus") · **A68** Ambilight-Kopie · **N1** malloc-Stubs · Matrix-Lauf vor dem Release-Build — **ausgeliefert als 3.2.29** | STM | **zuerst** | **G1** — Tagteil ☑, Nachtteil offen |
+| **S2** | **A60 + L360** I²C-Fristen, **Freitakten** beim Fristablauf (Ent-15b) — **eigenes Release, eigene Messung**; Code fertig, nicht gebaut | STM | nach G1 | **G2** |
 | **S3** | **Flash-Analyse** und verhaltensneutrale Einsparungen, dann **A23** Displayfarbe · **A53** Spiele · **A57 (C)** Einmessen · **A67-STM** (Ent-17) | STM | nach G2 | **G3** — Farbanimation, Spiel, LDR-Abweisung; zweiter Reset im Aus-Fenster nur nach Bestätigung |
 | **E** | **A35** (b) · **NTP-Puffer und Plausibilität** (nach Ent-3 tragend) · **`ovr=`** · **A67-ESP** | ESP | nach G3 | **G4** |
 | **P** | **C35** (A) | PWA | nach G4 | **G5** |
 | **M** | **Abschlusslauf A21** | — | nach G5 | **G6** |
 | **T** | `TESTPLAN-PWA.md` nachführen; `pwa-tester` Phasen 0–4 und 9 (DIR-012) | — | nach G6 | — |
-| **Z** | `BEFUNDE.md` (A57-Schliessung nach G3, Restpunkte aus Review S1), `knowledge/architecture-checklist.md`, `CLAUDE.md`, `README-CMAKE.md` (Matrix), Spec-Endstand | Doku | — | — |
+| **Z** | `BEFUNDE.md` (A57-Schliessung nach G3, Restpunkte aus Review S1, Nucleo-Befund aus Review S2), `knowledge/architecture-checklist.md`, `CLAUDE.md`, `README-CMAKE.md` (Matrix), Spec-Endstand | Doku | — | — |
 
 **Warum diese Reihenfolge:** `design.md` §0. Kurz: `make release-zip` baut STM, ESP und die
 PWA-Assets **immer zusammen**; darum entsteht der Code des nächsten Releases erst **nach dem
@@ -71,22 +70,23 @@ Map arbeiten soll; **S3 vor E**, weil die ESP-Hälfte von A67 die STM-Hälfte vo
 ### 0. Flash F103 — gemessen statt geschätzt
 
 **✔ (Endstand Paket 2026-10-10):** Ausgang **1'908 Byte frei**, Gate **≥ 1'024**. **Gemessen am
-11.10.2026 (Testbauten des Leads, F103 WC12h SK6812-RGBW):**
+11.10.2026 (Testbauten des Leads, F103 WC12h SK6812-RGBW; Matrix: engste Variante):**
 
-| Stand | frei | Δ | geschätzt |
-|---|---|---|---|
-| nach S1.1 — A62 samt Bestätigungsregel | 1'700 | +208 | −110…−20 |
-| nach S1.3 — A69 samt Sprüngen | 1'132 | +568 | +160…+310 |
-| nach S1.5 — A68 | 1'088 | +44 | +10…+30 |
-| nach S1.9 — N1 malloc-Stubs | 1'756 | −668 | — |
-| nach S1.11 — M1 + M2 | **1'608** | +148 | 80–100 |
-| **Matrix-Lauf S1.16, engste Variante `wc24h-stm32f103-sk6812-rgbw`** | **1'416** | — | — |
+| Stand | Teilbuild frei | Δ | geschätzt | engste Matrix-Variante |
+|---|---|---|---|---|
+| nach S1.1 — A62 samt Bestätigungsregel | 1'700 | +208 | −110…−20 | — |
+| nach S1.3 — A69 samt Sprüngen | 1'132 | +568 | +160…+310 | — |
+| nach S1.5 — A68 | 1'088 | +44 | +10…+30 | — |
+| nach S1.9 — N1 malloc-Stubs | 1'756 | −668 | — | — |
+| nach S1.11 — M1 + M2 (= **3.2.29**) | **1'608** | +148 | 80–100 | **1'416** |
+| nach S2.1 — A60 | 1'500 | +108 | 0…+60 | — |
+| … Freitakten im BUSY-Pfad | 1'496 | +4 | — | — |
+| … Freitakten nach jeder Frist (Ent-15b) | **1'464** | +32 | — | **1'308** (72/72 grün) |
 
-`strtoul` und die malloc-Module (`mallocr`, `freer`, `reallocr`, `msizer`, `sbrkr`, `mlock`) sind
-aus der Map verschwunden, keine 64-Bit-Routinen. **Die Schätzungen lagen um den Faktor 1,5 bis 3
-daneben** (bei A62 sogar im Vorzeichen). Daraus Ent-17 und der Grundsatz in `design.md` §1.2:
-**Geplant wird mit der Messung je Task, nicht mit Summen von Schätzungen** — und, seit dem
-Matrix-Lauf, **ab der engsten Variante** (1'416), nicht ab dem Teilbuild (1'608).
+`strtoul` und die malloc-Module sind aus der Map verschwunden, keine 64-Bit-Routinen. **Die
+Schätzungen lagen um den Faktor 1,5 bis 3 daneben** (bei A62 sogar im Vorzeichen; A60 rund
+doppelt). Daraus Ent-17 und der Grundsatz in `design.md` §1.2: **Geplant wird mit der Messung je
+Task, nicht mit Summen von Schätzungen — und ab der engsten Matrix-Variante.**
 
 ### 1. A62 / L371 — Zeittext vom ESP ohne Prüfung; Verfallsdatum 2036
 
@@ -177,6 +177,9 @@ S25/S26 bei gleichem Licht.
 **zwei** BUSY-Schleifen ohne Frist (`:413` Lesen, `:472` Schreiben). **Berichtigung an L360:** vor
 `watchdog_init()` (`main.c:3836`) steht die Uhr bei hängendem BUSY **für immer**, nicht nur bis zum
 Watchdog-Reset. Gerechnet: `n=2` von rund 24 auf 17 ms, 32 Byte von rund 110 auf 35–45 ms.
+**Gemessen am Gerät vorher (G1, 3.2.29):** `eep n=2` 24–26 ms, 32 Byte über 2 Seiten **92 ms**.
+**Aus der Umsetzung:** Nach einem Fristablauf bleibt der Bus oft belegt, und Folgezugriffe scheitern
+an der SB-Frist — daher Ent-15b (Freitakten).
 
 ### 9. A61 / L361 und A34 / L234 — Vollabgleich
 
@@ -215,11 +218,10 @@ Verbindungen je Minute bei einem offenen Fenster.
 ### 15. Nur eine von 72 STM-Varianten wurde gebaut und gemessen
 
 Das Flash-Gate wurde bis zum 11.10.2026 nur am Teilbuild F103 WC12h SK6812-RGBW gemessen. Das
-Original-ZIP enthält **72 HEX-Dateien**: {wc12h, wc24h} × {F103, F401CC-25/-8, F411CE-25/-8,
-Nucleo401, Nucleo411} × fünf LED-Typen, dazu je F407-TFT (Ent-18). **Ergebnis des ersten
-Matrix-Laufs (S1.16):** 72/72 gebaut, keine unter dem Gate; die engste Variante ist
-**`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte frei** — **192 Byte** enger als der Teilbuild.
-Grösse gegen das Original +1,6 bis +7,4 %.
+Original-ZIP enthält **72 HEX-Dateien** (Ent-18). **Erster Matrix-Lauf (S1.16):** 72/72 gebaut,
+keine unter dem Gate; die engste Variante ist **`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte
+frei** — 192 Byte enger als der Teilbuild. Grösse gegen das Original +1,6 bis +7,4 %. **Nach S2
+(Testbau):** engste Variante **1'308**, 72/72 grün.
 
 ---
 
@@ -237,7 +239,8 @@ Grösse gegen das Original +1,6 bis +7,4 %.
 5. **Spiele:** Verworfene Zeilen sind sichtbar und durch einen Vollabgleich geheilt.
 6. **Einmessen:** „Messwert übernehmen" erzeugt keine verdrehten Grenzen mehr; der Zahlen-Setter
    bleibt unverändert.
-7. **I²C:** Keine Warteschleife ohne Frist; EEPROM-Schreiben messbar schneller.
+7. **I²C:** Keine Warteschleife ohne Frist; nach einem Fristablauf wird ein hängender Bus
+   freigetaktet; EEPROM-Schreiben messbar schneller.
 8. **Brücke:** Still verworfene Zuweisungen gezählt und gemeldet; ESP-Empfangsüberlauf gezählt;
    A21 gemessen geschlossen oder neu gefasst.
 9. **NTP:** Keine Antwort überschreibt den ESP-Speicher; unbrauchbare Antworten erreichen den STM
@@ -274,125 +277,88 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 - [ ] **AKA.4 (Testplan V3/S1)** — V3 und S1 nennen das **Soll im Nachtzustand** (nach einem Reset
       im Aus-Fenster ab STM-Release 1: IP-Lauftext, danach Display aus; ohne IP spätestens nach
       60 s) und die Zeile `time: sprung, bestaetigung angefordert` nach jedem Reset als Soll.
-      **Vor G1 erledigt.**
+      **Vor dem Nachtteil von G1 erledigt.**
 
 ### Schritt S1 — A62 (Netzzeit mit Ära)
 
-- [ ] **AKN.1 (Parser und Gültigkeit)** — Der `ESP8266_TIME`-Zweig nimmt **1 bis 10 Ziffern** und
+- [x] **AKN.1 (Parser und Gültigkeit)** — Der `ESP8266_TIME`-Zweig nimmt **1 bis 10 Ziffern** und
       dann das Nullbyte an; ein Wert über 4'294'967'295 (Überlauf) ist ungültig. Gültig ist eine
       Zeit genau dann, wenn `u = (uint32) (n − 2'208'988'800) ≥ 1'767'225'600` (Unix 2026-01-01) —
       damit gilt Ära 0 von 2026-01-01 bis 2036-02-07 06:28:15 und **Ära 1** (n < 2'208'988'800) von
       2036-02-07 06:28:16 bis 2106-02-07 06:28:15; der Totbereich
       `[2'208'988'800, 3'976'214'400)` wird verworfen. Ungültig ⇒ keine Änderung an Uhr und RTC,
       Logzeile **`time: ungueltig, verworfen`**, Countdown wie beim Anfordern gesetzt (3800 s).
-      `strtoul` entfällt. *Instrument:* Prüfstand **a62**: `4294967295`, `0`, `1`, `123`,
-      `2208988799`, `2208988800`, `3976214399`, `3976214400`, `4000648905`, `""`, `" 1"`, `"+1"`,
-      `"1x"`, 11 Ziffern, `4294967296`, `9999999999`. **Referenz unabhängig vom C-Code:** Python
-      `datetime` (`unix = n − 2208988800 + 2³²` für n < 2208988800), dazu die Felder über **gt**.
-      **Gegenprobe:** alter Stand nimmt `""` an ⇒ FEHL; Sabotagen „Totbereich entfernt" und
-      „genau 10 Ziffern" ⇒ FEHL.
-- [ ] **AKN.2 (Zeitzone beim Laden)** — Ein geladener Betrag über 12 wird nicht übernommen
-      (Vorgabe, Logzeile). *Instrument:* a62, `tz[1]` 0, 12, 13, 255 mit beiden Vorzeichen.
-- [ ] **AKN.3 (kein 64-Bit-Pfad)** — Die Umrechnung NTP→Unix bleibt die `uint32`-Differenz
-      (`timeserver.c:253`); keine neue 64-Bit-Arithmetik. *Instrument:* Review S1.8; AKN.4.
-- [ ] **AKN.4 (Map)** — In der Map des F103-Testbaus steht kein `strtoul` mehr und weiter **kein**
-      `__udivmoddi4`/`__aeabi_ldivmod`; Guardrail **S8b** weist es nach. **Gegenprobe:** gegen die
-      Map von 3.2.28 schlägt die `strtoul`-Prüfung an. **Stand 11.10.2026:** im Testbau nach S1.1
-      erfüllt (Lead).
-- [ ] **AKN.5 (Bestätigungsregel, Ent-3b)** — Eine gültige Zeit wird sofort übernommen, wenn
+      `strtoul` entfällt. *Instrument:* Prüfstand **a62** (Referenz Python `datetime` und gt;
+      Sabotagen). **Ausgeliefert mit 3.2.29.**
+- [x] **AKN.2 (Zeitzone beim Laden)** — Ein geladener Betrag über 12 wird nicht übernommen
+      (Vorgabe, Logzeile). *Instrument:* a62. **Ausgeliefert mit 3.2.29.**
+- [x] **AKN.3 (kein 64-Bit-Pfad)** — Die Umrechnung NTP→Unix bleibt die `uint32`-Differenz
+      (`timeserver.c:253`). *Instrument:* Review S1.8 (BESTANDEN); AKN.4.
+- [x] **AKN.4 (Map)** — Kein `strtoul`, kein `__udivmoddi4`/`__aeabi_ldivmod`; Guardrail **S8b**.
+      **Erfüllt** im Testbau nach S1.1 und im Release-Build.
+- [x] **AKN.5 (Bestätigungsregel, Ent-3b)** — Eine gültige Zeit wird sofort übernommen, wenn
       sie um höchstens 600 s von der fortgeschriebenen letzten übernommenen Zeit abweicht; sonst
       erst, wenn eine zweite Antwort sie auf ±5 s (fortgeschrieben über `uptime`) bestätigt. Bis
       dahin Logzeile **`time: sprung, bestaetigung angefordert`**, Schnellabfrage nach 15 s,
-      höchstens drei in Folge. Nach einem Start gibt es keine Referenz: Die erste Antwort braucht
-      immer die Bestätigung. *Instrument:* a62 mit simulierter `uptime`: Start + n + (n+15) ⇒
-      übernommen bei der zweiten; Start + 0 + 0 ⇒ nie; stündlich ±30 s ⇒ sofort; ein Fehlwert ⇒
-      verworfen, danach regulär; vier Fehlwerte ⇒ drei Schnellabfragen; Abgleich über die
-      Ärengrenze ⇒ sofort. **Gegenprobe:** Sabotage „Bestätigung entfernt" ⇒ 0 nach dem Start
-      angenommen ⇒ FEHL. **Umsetzung (Lead, 11.10.2026), im Rahmen von Ent-3b:** Schnellabfrage
-      nach 15 s umgesetzt (`net_time_countdown = 15`, höchstens 3). Zusätzlich verlangt die
-      Bestätigung einen **Mindestabstand von 10 s** zum Kandidaten — strenger als die Regel: zwei
-      Antworten in derselben Sekunde bestätigen sich nicht. `cmd: set time to` wird **unbedingt**
-      geloggt — Beobachtbarkeit für AKN.6, keine Entscheidung. Der Prüfstand a62 enthält einen
-      Fall „zwei Antworten im Abstand unter 10 s ⇒ keine Bestätigung". **Review S1.8:
-      BESTANDEN.**
-- [ ] **AKN.6 (Gerät, G1, lesend)** — Nach dem S1-Flash: `time: sprung, bestaetigung angefordert`,
-      danach `cmd: set time to …`; die nächste stündliche Netzzeit **ohne** Bestätigung;
-      `read rtc` gleich der Wanduhr ±2 s; keine Zeile `time: ungueltig`.
+      höchstens drei in Folge; nach einem Start immer. Umsetzung mit zusätzlichem
+      **Mindestabstand von 10 s** (strenger) und unbedingtem `cmd: set time to` (Beobachtbarkeit)
+      — im Rahmen von Ent-3b. *Instrument:* a62 mit simulierter `uptime`, Sabotage „Bestätigung
+      entfernt". **Review S1.8: BESTANDEN; ausgeliefert mit 3.2.29.**
+- [x] **AKN.6 (Gerät, G1, lesend)** — Nach dem S1-Flash: `time: sprung, bestaetigung angefordert`,
+      danach `cmd: set time to …`; `read rtc` gleich der Wanduhr ±2 s; keine Zeile
+      `time: ungueltig`. **Belegt 11.10.2026:** `time: sprung` 20:44:39 → `cmd: set time to`
+      20:44:54.
 - [ ] **AKN.7 (Gerät, G1, Reset im Fenster)** — Beim Reset aus AKW.4 dasselbe Bild wie AKN.6.
+      **Offen** (Nachtteil).
 
 ### Schritt S1 — A69 (Nachtfenster, samt M1/M2) und A68 (Ambilight-Kopie)
 
-- [ ] **AKW.1 (geltendes Ereignis)** — Eine Funktion in `night.c` bestimmt das **jüngste
+- [x] **AKW.1 (geltendes Ereignis)** — Eine Funktion in `night.c` bestimmt das **jüngste
       vergangene**, aktive, für den Wochentag gültige Ereignis über 8 Timer × k = 0…7 Tage; die
-      Wochentagsprüfung aus `night.c:166-180` wird **eine** Hilfsfunktion. *Instrument:* Prüfstand
-      **a69** gegen eine Minuten-Referenz mit `night_check_night_times()`, zufällige Tabellen,
-      **alle 10'080 Startpunkte** je Tabelle, Sonderfälle. **Gegenprobe:** Sabotagen `<=` → `<` und
-      Wochentagsumlauf ⇒ FEHL. **Zähl nach:** Tabellen × 10'080.
-- [ ] **AKW.2 (beim Start, Ent-2 (1), (2), (4), M1)** — Nach dem RTC-Lesen und vor
-      `watchdog_init()` wird das Ergebnis **für die Displayliste** bestimmt — **nur wenn
-      `gmain.year >= 2026`** (M1: eine RTC mit leerer Batterie meldet 2000-01-01 und gilt sonst als
-      gültig). Andernfalls wertet das **erste bestätigte** `TIME` einmal aus. Liegt das Ergebnis
-      auf „aus", wird beim Start **nicht sofort** geschaltet, sondern nach AKW.6 vorgemerkt.
-      *Instrument:* a69 (Startpfad mit Attrappen, Fälle Jahr 2000 und 2026), Review S1.8,
-      Nachprüfung S1.13.
-- [ ] **AKW.3 (Zeitsprünge, Ent-2 (3))** — Springt die Uhrzeit **vorwärts** um mehr als eine
-      Minute, wird das jüngste Ereignis **im übersprungenen Intervall** angewandt, und nur dieses;
-      rückwärts nichts; ohne übersprungenes Ereignis bleibt ein manueller Zustand. *Instrument:*
-      a69: Sprung über Aus-Timer ⇒ aus; ohne Timer ⇒ unverändert; rückwärts ⇒ unverändert;
-      Sommerzeit 02:00 → 03:00 mit Timer 02:30. **Gegenprobe:** alter Stand verliert den Timer ⇒
-      FEHL.
-- [ ] **AKW.6 (M2 — „IP erst zeigen, dann aus", Ent-2 (4))** — Ergibt die Auswertung beim Start
-      „aus", wird **vorgemerkt** (`night_off_due`). Angewandt wird **nach dem IP-Lauftext**, im
-      Innenzweig der **unveränderten** Restore-Bedingung um `pending_ticker_restore`; kommt keine
-      IP, nach einer **Frist von 60 s**. **Jedes** Schalten des Displays vorher verwirft die
-      Vormerkung. Angewandt wird wie beim Timer (`set_display_power (FALSE, TRUE)`) mit der
-      Logzeile `night: start aus (hh:mm)`. *Instrument:* a69 (erweitert): Start im Aus-Fenster mit
-      IP ⇒ aus erst nach dem Restore; ohne IP ⇒ aus nach 60 s; Schalten vor dem Restore ⇒ keine
-      Wirkung der Vormerkung; `git diff` zeigt die Restore-Bedingung unverändert.
-      **Nachprüfung S1.13: BESTANDEN.**
-- [ ] **AKB.1 (A68)** — Jede Stelle, die die Ambilight-Power ändert, sendet sie bei
-      `esp8266.is_online`; Sendefunktion öffentlich, **keine zweite**; **Bestandsliste**
-      (Datei:Zeile). *Instrument:* a69 (Sendeprotokoll). **Gegenprobe:** alter Stand ⇒ FEHL.
-      **Stand 11.10.2026 (Lead):** umgesetzt (S1.5), Testbau +44 Byte; Review S1.8 BESTANDEN.
+      Wochentagsprüfung wird **eine** Hilfsfunktion. *Instrument:* Prüfstand **a69**.
+      **Ausgeliefert mit 3.2.29.**
+- [x] **AKW.2 (beim Start, Ent-2 (1), (2), (4), M1)** — Auswertung **für die Displayliste** nach
+      dem RTC-Lesen, **nur wenn `gmain.year >= 2026`**; sonst beim **ersten bestätigten** `TIME`.
+      „aus" wird **vorgemerkt** (AKW.6). *Instrument:* a69, Review S1.8, Nachprüfung S1.13.
+      **Ausgeliefert mit 3.2.29.**
+- [x] **AKW.3 (Zeitsprünge, Ent-2 (3))** — Vorwärtssprung über eine Minute ⇒ das jüngste Ereignis
+      **im übersprungenen Intervall** wird angewandt; rückwärts nichts. *Instrument:* a69.
+      **Ausgeliefert mit 3.2.29.**
+- [x] **AKW.6 (M2 — „IP erst zeigen, dann aus", Ent-2 (4))** — Vormerkung `night_off_due`;
+      angewandt **nach dem IP-Lauftext** im Innenzweig der **unveränderten** Restore-Bedingung, ohne
+      IP nach **60 s**; jedes Schalten verwirft die Vormerkung. *Instrument:* a69 (erweitert),
+      `git diff`. **Nachprüfung S1.13 BESTANDEN; ausgeliefert mit 3.2.29.**
+- [x] **AKB.1 (A68)** — Jede Stelle, die die Ambilight-Power ändert, sendet sie bei
+      `esp8266.is_online`; keine zweite Sendefunktion; Bestandsliste. *Instrument:* a69.
+      **Ausgeliefert mit 3.2.29.**
 - [ ] **AKW.4 (Gerät, G1 — Reset im Aus-Fenster, Ent-14 a)** — Ein eigener STM-Reset nach dem
-      Aus-Timer des Nutzers, nach den Tagtests von G1. Am Display: **IP-Lauftext, danach aus**. Im
+      Aus-Timer des Nutzers, nach den Tagtests. Am Display: **IP-Lauftext, danach aus**. Im
       Mitschnitt: der IP-Lauftext, danach `night: start aus (hh:mm)` und
-      `set_display_power: new=0 …` (diese Logzeile ist **geschützt**, AKP.1), in der folgenden
-      Minute `show_time: … p=0 …`; nach dem Vollabgleich Display-Power = 0 und Ambilight-Power
-      gleich dem STM (`settings_xml`). **Vorher-Wert:** L390. In G3 erneut, falls der zweite Reset
-      bestätigt wird.
-- [ ] **AKW.5 (Gerät, lesend)** — Am Morgen schaltet der Ein-Timer wie bisher.
+      `set_display_power: new=0 …` (geschützt), in der folgenden Minute `show_time: … p=0 …`; nach
+      dem Vollabgleich Display-Power = 0 und Ambilight-Power gleich dem STM. **Vorher-Wert:** L390.
+      **Offen** (Nachtteil).
+- [ ] **AKW.5 (Gerät, lesend)** — Am Morgen schaltet der Ein-Timer wie bisher. **Offen.**
 
 ### Schritt S1 — N1 und Schritt S3 — Platz schaffen (Ent-17)
 
-- [ ] **AKP.0 (N1 — malloc-Stubs, in S1 vorgezogen)** — Starke Definitionen von `_malloc_r`,
-      `_realloc_r` und `_free_r` in `src/stubs/stubs.c` mit `__attribute__((used,
-      externally_visible))` (ohne das Attribut verwirft LTO `_realloc_r`, Linkfehler belegt). In
-      der Map fehlen danach `mallocr`, `freer`, `reallocr`, `msizer`, `sbrkr`, `mlock`.
-      Verhaltensneutral; alle bestehenden Prüfstände weiter OK; **keine neue Compilerwarnung**
-      (die 7 Warnungen `unused parameter` beseitigt S1.16a mit `(void)`). *Instrument:* Map des
-      Testbaus (Lead), Reviews, Warnungsbestand. **Stand 11.10.2026:** −668 Byte (1'756 frei), beide
-      Reviews BESTANDEN; Warnungen in Arbeit.
+- [x] **AKP.0 (N1 — malloc-Stubs)** — Starke Definitionen von `_malloc_r`, `_realloc_r`,
+      `_free_r` in `src/stubs/stubs.c` mit `__attribute__((used, externally_visible))`; die
+      malloc-Module fehlen in der Map; verhaltensneutral; keine neue Compilerwarnung.
+      **Erfüllt:** −668 Byte, beide Reviews BESTANDEN; die 7 Warnungen `unused parameter` mit
+      `(void)` beseitigt, Bestand **17 statt 18** (S1.16a); ausgeliefert mit 3.2.29.
 - [ ] **AKP.1 (Flash-Analyse, gemessen)** — Der `firmware-analyst` legt aus der **Map des
       S2-Builds** — und der Map der **engsten Matrix-Variante** — eine Liste der Einsparkandidaten
-      vor: je Kandidat Symbol bzw. Text, Abschnitt, **Bytes laut Map** (nicht geschätzt),
-      Verhaltensänderung ja/nein und **Abhängigkeiten** — sucht ein Werkzeug (`watch-log.sh`,
-      Auswerteregel 0.1, Smoketest), der Testplan, ein Akzeptanzkriterium dieser Spec oder
-      `BEFUNDE.md` nach der Zeile? Mindestens geprüft: der tote Zweig `FILE ` (A52), doppelte und
-      lange Texte, die **zweite** `log_printf` in `set_display_power()` (am Ende der Funktion),
-      Debugtexte im normalen Bau — mit Beleg an der Map, ob sie überhaupt im Fabrikat landen.
-      **Geschützt und kein Kandidat:** `set_display_power: new=…` (Nachweis in AKW.4). **Nicht mehr
-      Kandidat:** N1 (AKP.0). *Instrument:* Review des Leads; die Summe steht neben dem Bedarf aus
-      `design.md` §1.3.
-- [ ] **AKP.2 (Einsparungen, einzeln gemessen)** — Der `stm-developer` setzt die Einsparungen
-      **einzeln** um, nach jeder ein Testbau mit dem **gemessenen** Gewinn neben der Map-Grösse.
-      Nur verhaltensneutrale; eine Einsparung mit Verhaltensänderung oder an einer Zeile mit
-      Abhängigkeit aus AKP.1 **nur nach Rückfrage beim Nutzer**. *Instrument:* Testbau (Lead);
-      alle bestehenden Prüfstände (a62, a69, a60, gt, EP, W2, L59) weiter OK; `guardrails.sh` grün;
-      Review S3.13.
-- [ ] **AKP.3 (keine Sparstufe ohne Rückfrage)** — Die Sparstufen aus `design.md` §1.4 (Ent-2 (3)
-      zurück, A67 zurückstellen, A53 V2b, Logzeilen kürzen) werden **nicht** angewandt. Reicht der
-      Platz nach AKP.2 für einen der vier Punkte nicht (Testbau unter 1'024), wird angehalten und
+      vor: je Kandidat Symbol bzw. Text, Abschnitt, **Bytes laut Map**, Verhaltensänderung ja/nein
+      und **Abhängigkeiten**. Mindestens geprüft: der tote Zweig `FILE ` (A52), doppelte und lange
+      Texte, die **zweite** `log_printf` in `set_display_power()`, Debugtexte im normalen Bau, was
+      wc24h zusätzlich belegt. **Geschützt:** `set_display_power: new=…` (AKW.4),
+      `i2c: frist abgelaufen` (AKI.3). **Bedarf:** rund 120–620 Byte (`design.md` §1.3).
+- [ ] **AKP.2 (Einsparungen, einzeln gemessen)** — Einzeln umgesetzt, nach jeder ein Testbau mit
+      **gemessenem** Gewinn neben der Map-Grösse; nur verhaltensneutrale; eine Einsparung mit
+      Verhaltensänderung oder an einer Zeile mit Abhängigkeit **nur nach Rückfrage**. Alle
+      bestehenden Prüfstände (a62, a69, a60, gt, EP, W2, L59) weiter OK; Review S3.13.
+- [ ] **AKP.3 (keine Sparstufe ohne Rückfrage)** — Die Sparstufen aus `design.md` §1.4 werden
+      **nicht** angewandt. Reicht der Platz nicht (Testbau unter 1'024), wird angehalten und
       vorgelegt.
 
 ### Schritt S3 — A23 (Displayfarbe)
@@ -401,15 +367,13 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       gesetzt beim Laden **vor** `display_init_color_animation()`, in DC **auch während** einer
       Animation und in den IR-Farbschritten im Modus 0; zurück auf **jedem** Weg auf Modus 0 samt
       `display_calc_dimmed_display_colors()` und **`var_send_display_colors()`**. Kein
-      EEPROM-Schreiben im Animationspfad. *Instrument:* Prüfstand **a23** (Regenbogen, Tageslicht,
-      Inkrement/Dekrement, DC während Animation, IR-Schritte, Sendeprotokoll). **Gegenprobe:** alter
+      EEPROM-Schreiben im Animationspfad. *Instrument:* Prüfstand **a23**. **Gegenprobe:** alter
       Stand ⇒ FEHL.
 - [ ] **AKD.2 (Gerät, G3, Ent-14 d)** — **Teil 1, am Tag:** `dspcolor[0]` lesen; Regenbogen ein,
       rund 30 s, aus ⇒ gleich dem Vorher-Wert, Farbsendung im Mitschnitt; dasselbe mit Tageslicht.
       **Teil 2, nach einem zweiten STM-Reset im Aus-Fenster:** `dspcolor[0]` gleich der
-      Nutzerfarbe. **Dieser Reset ist vor G3 beim Nutzer zu bestätigen** — Ent-14 (a) galt dem
-      einen Reset in G1. Ohne Bestätigung bleibt Teil 2 offen und wird so berichtet. Rückstellung:
-      Animationsmodus wie vorher.
+      Nutzerfarbe. **Dieser Reset ist vor G3 beim Nutzer zu bestätigen.** Ohne Bestätigung bleibt
+      Teil 2 offen und wird so berichtet. Rückstellung: Animationsmodus wie vorher.
 
 ### Schritt S3 — A53 (Spiele)
 
@@ -427,18 +391,15 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 - [ ] **AKE.1 (Abweisung)** — `ldr_set_min_value()` übernimmt einen Messwert **≥ Maximum** nicht,
       `ldr_set_max_value()` einen Messwert **≤ Minimum** nicht (Gleichheit abgewiesen, wie
       `ldr.c:128`); Wert und EEPROM bleiben; Logzeile **`ldr: minimum abgewiesen`** bzw.
-      **`ldr: maximum abgewiesen`** (mit Messwert und Gegengrenze). Die bestehende Rückmeldung
-      (`main.c:1609`, `:1617`) meldet den **alten** Wert an den ESP. Der **Zahlen-Setter (A59,
-      `main.c:1907-1914`) bleibt unverändert** und nimmt die Inversion weiter an. *Instrument:*
-      Prüfstand **a57** mit ADC- und EEPROM-Attrappe: unter, gleich, über der Gegengrenze, je
-      Minimum und Maximum; Schreibzyklen gezählt. **Gegenprobe:** gegen 3.2.28 ⇒ Inversion
-      angenommen ⇒ FEHL. **L59 besteht weiter.**
+      **`ldr: maximum abgewiesen`**. Die bestehende Rückmeldung (`main.c:1609`, `:1617`) meldet den
+      **alten** Wert. Der **Zahlen-Setter (A59) bleibt unverändert**. *Instrument:* Prüfstand
+      **a57**. **Gegenprobe:** gegen 3.2.28 ⇒ FEHL. **L59 besteht weiter.**
 - [ ] **AKE.2 (Gerät, G3, schreibend mit Rückstellung, Ent-14e — ausdrücklich freigegeben)** — Nur
       bei ausgeschalteter Auto-Helligkeit (`numvar[8]=0`) und einem LDR-Rohwert zwischen 2 und 4093:
       Maximum per Zahlen-Setter kurz auf 1, „Minimum übernehmen" ⇒ `ldr: minimum abgewiesen`,
       `numvar[17]` unverändert, **keine** `eep a=225`; Maximum zurück auf 4095. Minimum per
       Zahlen-Setter kurz auf 4094, „Maximum übernehmen" ⇒ `ldr: maximum abgewiesen`; Minimum zurück
-      auf 0. Danach 17/18 = 0/4095 (lesend). **Erst danach wird A57 geschlossen** (Z.1).
+      auf 0. Danach 17/18 = 0/4095. **Erst danach wird A57 geschlossen** (Z.1).
 
 ### Schritt S3 — A67 STM-Hälfte (Ent-12)
 
@@ -446,18 +407,32 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       `OTA start`), exakter Vergleich, setzt **nur** `esp8266.is_online = 0`. *Instrument:* Prüfstand
       **a67**. **Gegenprobe:** alter Stand ⇒ FEHL.
 
-### Schritt S2 — A60 und L360 (I²C, Ent-15)
+### Schritt S2 — A60 und L360 (I²C, Ent-15, Ent-15b)
 
-- [ ] **AKI.1 (Fristen)** — Enges Pollen über `delay_counter` mit **derselben** Frist (5 ms);
-      **beide** BUSY-Schleifen mit Frist; kein RM0008-Abschlussverfahren. **Voraussetzung**, am Code
-      belegt: keine ISR ruft `delay_*`. *Instrument:* Prüfstand **a60**. **Gegenprobe:** Sabotage
-      „Frist nie gesetzt" ⇒ FEHL; alter Stand hängt bei BUSY ⇒ FEHL.
+- [x] **AKI.1 (Fristen)** — `i2c_wait_for_flags()` pollt eng mit **derselben** Frist (5 ms) über
+      `delay_counter` — **Abweichung von `design.md` §8, am Code begründet:** `delay_counter` ist
+      ein **Abwärtszähler** im SysTick, der bei 0 stehen bleibt, nicht freilaufend. **Beide**
+      BUSY-Schleifen über `i2c_wait_not_busy()` mit `I2C_ERROR_BUSY` (−8). Logzeile
+      **`i2c: frist abgelaufen`** (Entscheidung des Leads; nur Debug-UART, nicht `/api/stm32_log`).
+      Kein RM0008-Abschlussverfahren. ISR-Frage am Code belegt. *Instrument:* Prüfstand **a60**:
+      **4'998 Prüfungen**, gegen 3.2.29 FEHL; Sabotagen `fristnie`, `busyohne`, `msec`, `ohnelog`
+      je FEHL; S16 44/44. **Review S2.4 BESTANDEN** (drei Nachprüfungen BESTANDEN).
+- [x] **AKI.4 (Freitakten, Ent-15b)** — Nach **jeder** Frist in `i2c_handle_timeout()`: ist danach
+      BUSY gesetzt oder liest SDA low, wird der Bus freigetaktet (`i2c_last_clockspeed = 0;
+      i2c_init (i2c_clockspeed)` = `i2c_reset_bus` mit 9 Takten, Pins zurück auf AF). **Schlimmster
+      Fall 25 ms je Zugriff, vor `watchdog_init()` rund 0,55 s.** Bei totem Bus je Zugriff das
+      Zeilenpaar `i2c: frist abgelaufen` und `error: cannot reset I2C bus`. *Instrument:* a60,
+      Sabotagen `ohnefrei` und `nurbusy` je FEHL; Review S2.4.
 - [ ] **AKI.2 (Gerät, G1 vorher / G2 nachher, Ent-14 d)** — S25/S26 (`eep a=225/227 n=2`, über S27
-      zurück) und ein 32-Byte-Wert (Wetterort, zurück) auf beiden Ständen. **Erwartung:** `n=2`
-      rund 17 statt 24 ms, 32 Byte 35–45 statt rund 110 ms. Abweichung **berichtet**, nicht
+      zurück) und ein 32-Byte-Wert (Wetterort, zurück) auf beiden Ständen. **Vorher (G1, 3.2.29):**
+      `n=2` **24–26 ms**, 32 Byte über 2 Seiten **92 ms**; alles zurückgestellt. **Erwartung nachher
+      (Review S2.4):** `n=2` **16–17 ms**, 32 Byte **34–40 ms**. Abweichung **berichtet**, nicht
       passend gemacht.
 - [ ] **AKI.3 (Gerät, G2, lesend)** — `read rtc` ±2 s, DS3231-Temperatur plausibel, **60 Minuten**
-      ohne I²C-Fehlerzeile, Exception, Neustart.
+      ohne `i2c: frist abgelaufen`, ohne Exception, ohne Neustart. **Messpunkt:** steht beim Start
+      `i2c: frist abgelaufen` **vor** `rtc is online`, ist das der Hinweis auf die DS1307-Probe —
+      im Bericht benennen, nicht als Fehlschlag werten, wenn danach alles läuft. Ein Wachalarm
+      während des Flashens wird **am Kontext geprüft** (L400).
 
 ### Schritt E — ESP
 
@@ -500,70 +475,55 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 
 ### Flash-Gate (S1, S2, S3)
 
-- [ ] **AKZ.F** — Testbau F103 WC12h SK6812-RGBW nach **jedem** STM-Task (S1.1, S1.3, S1.5, S1.9,
-      S1.11, S2.1, S3.4, S3.6, S3.8, S3.10) und nach **jeder** Einsparung aus S3.2: Rest
-      **≥ 1'024 Byte**, gemessener Zuwachs je Task im Bericht. Darunter **anhalten und vorlegen**
-      (`design.md` §1.3); **keine** Sparstufe ohne neue Rückfrage (Ent-17). **Kein Rollout unter
-      1'024 Byte.** **Gemessen bisher:** S1.1 → 1'700, S1.3 → 1'132, S1.5 → 1'088, S1.9 (N1) →
-      1'756, S1.11 (M1+M2) → 1'608. **Planung ab der engsten Matrix-Variante** (1'416, 192 Byte unter
-      dem Teilbuild; `design.md` §1.3) — ein Teilbuild über 1'024 garantiert nicht, dass alle 72
-      halten.
+- [ ] **AKZ.F** — Testbau F103 WC12h SK6812-RGBW nach **jedem** STM-Task und nach **jeder**
+      Einsparung aus S3.2: Rest **≥ 1'024 Byte**, gemessener Zuwachs je Task im Bericht. Darunter
+      **anhalten und vorlegen**; **keine** Sparstufe ohne neue Rückfrage (Ent-17). **Kein Rollout
+      unter 1'024 Byte.** **Gemessen bisher:** S1: 1'700 → 1'132 → 1'088 → 1'756 (N1) → 1'608
+      (M1+M2); S2: 1'500 → 1'496 → **1'464**. **Planung ab der engsten Matrix-Variante:** 1'416
+      nach S1, **1'308 nach S2** (`design.md` §1.3).
 
 ### Matrix-Lauf aller 72 STM-Varianten (Ent-18)
 
-- [ ] **AKZ.M.1 (Make-Ziel)** — Ein **eigenes** Make-Ziel des `release-engineer` baut alle **72**
-      Varianten wie im Original-ZIP: {wc12h, wc24h} × {F103, F401CC-25, F401CC-8, F411CE-25,
-      F411CE-8, Nucleo401, Nucleo411} × fünf LED-Typen, dazu je F407-TFT. **Nur auf Anforderung;
-      der normale Build (`make`, `make release-zip`) bleibt unverändert** — das zeigt ein Vergleich
-      der Ziele vor und nach der Änderung. Die BlackPill-F411-Varianten verwenden
-      `startup_stm32f411xe.S` wie der Teilbuild; die Abweichung vom Original
-      (`startup_stm32f401xc.S`) ist im Makefile-Kommentar und in `README-CMAKE.md` benannt.
-      **Stand 11.10.2026:** Make-Teil erfüllt — `make matrix`, `make clean-matrix`; geändert
-      `CMakeLists.txt` (`EBP_TARGET`, `LED`, `STARTUP`, `OUTPUT_DIR`, Option `WORDCLOCK_MATRIX`),
-      `Makefile`, neu `cmake/matrix-report.sh`; **normaler Build byte-identisch**, die
-      Matrix-Varianten `wc12h-f103`- und `f411ce-25`-RGBW byte-identisch zum Teilbuild.
-      `README-CMAKE.md` (Z.5) in Arbeit.
-- [x] **AKZ.M.2 (Gate und Meldung)** — Das Ziel gibt je Variante den freien Flash aus (Tabelle) und
-      endet mit **Exit ≠ 0**, wenn eine Variante nicht baut **oder** unter **1'024 Byte** frei
-      liegt; die Meldung nennt die Variante beim Namen. *Gegenprobe (DIR-014):* mit einer künstlich
-      höheren Grenze (über dem kleinsten gemessenen Rest) schlägt das Ziel an, und die Meldung
-      kommt an (Exit ≠ 0, Name der Variante). **Zähl nach:** 72 HEX-Dateien und 72 Tabellenzeilen
-      gegen die Liste. **Erfüllt 11.10.2026:** Schwelle 2000 ⇒ 3 Varianten GATE, Exit ≠ 0; eine
-      Variante mit `-O0` baut nicht ⇒ Exit ≠ 0.
-- [x] **AKZ.M.3 (Lauf vor S1)** — Vor dem Release-Build S1 (S1.19) ein Matrix-Lauf: **alle 72
-      gebaut, alle ≥ 1'024 Byte frei**; Tabelle im Bericht, kleinster Rest mit Variante benannt. Rot
-      ⇒ **kein** Release-Build, anhalten und vorlegen. Spätere Matrix-Läufe nur auf Anforderung; das
-      Gate „alle 72" gilt für jeden. **Erfüllt 11.10.2026:** 72/72, 0 unter dem Gate; engste
-      Variante **`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte frei**; Grösse gegen das Original
-      +1,6 bis +7,4 %.
+- [ ] **AKZ.M.1 (Make-Ziel)** — Eigenes Ziel des `release-engineer` für alle **72** Varianten;
+      **nur auf Anforderung; der normale Build bleibt unverändert**; F411 mit
+      `startup_stm32f411xe.S` (Abweichung vom Original im Makefile-Kommentar und in
+      `README-CMAKE.md` benannt). **Make-Teil erfüllt** (`make matrix`, `make clean-matrix`;
+      normaler Build byte-identisch); `README-CMAKE.md` (Z.5) in Arbeit.
+- [x] **AKZ.M.2 (Gate und Meldung)** — Tabelle je Variante, **Exit ≠ 0** bei Bau- oder
+      Gate-Fehler mit Variantennamen. **Erfüllt:** Schwelle 2000 ⇒ 3 × GATE, Exit ≠ 0; `-O0` baut
+      nicht ⇒ Exit ≠ 0.
+- [x] **AKZ.M.3 (Lauf vor S1)** — **Erfüllt:** 72/72, 0 unter dem Gate, engste Variante
+      **`wc24h-stm32f103-sk6812-rgbw` mit 1'416 Byte**; vor dem Release-Build wiederholt, gleiches
+      Ergebnis. **Nach S2 (Testbau):** engste Variante **1'308**, 72/72 grün.
 
 ### Für alle Schritte
 
 - [ ] **AKZ.1** — `./tools/guardrails.sh` nach jedem Task mit Exit 0.
 - [ ] **AKZ.2** — `guardrails.sh --full` vor jedem Release mit **unverändertem Warnungsbestand**
-      (vor S1: die 7 Warnungen `unused parameter` aus N1 beseitigt, S1.16a); `auszug.sh` meldet
-      a62, a69, a23, a53, a57, a67, a60, a35, ntp, c35 und die bestehenden (gt, EP, W2, L59) OK.
+      (vor S1 erfüllt: 17 statt 18); `auszug.sh` meldet a62, a69, a23, a53, a57, a67, a60, a35,
+      ntp, c35 und die bestehenden (gt, EP, W2, L59) OK.
 - [ ] **AKZ.3 (Release-Inhalt)** — Vor **jedem** Release-Build Produktänderungen **nur** in der
-      angehobenen Komponente und — bei S1, S2, S3 — **nur** aus den Tasks dieses Releases (für S1
-      einschliesslich N1, M1, M2). Ausgabe im Bericht.
+      angehobenen Komponente und — bei S1, S2, S3 — **nur** aus den Tasks dieses Releases. Ausgabe im
+      Bericht.
 - [ ] **AKZ.4** — Smoketest nach jedem Einspielen; nach dem ESP-Update samt Update-Quelle (DIR-009)
       und `install-app.sh --check` (DIR-017). **Der Smoketest ist nicht der Test** (DIR-012).
 - [ ] **AKZ.5 (Logwache)** — läuft bei **jedem** Gerätelauf, vor dem Einspielen gestartet,
       nach Änderungen neu gestartet (DIR-013, L362). Erweitert um `time: ungueltig` (Alarm),
       `time: sprung` (Hinweis; Alarm bei mehr als drei in Folge), `night: start aus` (S1),
-      `spiel: … verworfen`, `ldr: … abgewiesen` (Hinweise, S3), `var ignoriert`, `ntp verworfen`,
-      `ovr=` > 0 (Alarm, E) — **je mit eingespielter Gegenprobe**. Freigegebene Resets getrennt
-      berichtet.
+      `i2c: frist abgelaufen` (Alarm, S2), `spiel: … verworfen`, `ldr: … abgewiesen` (Hinweise,
+      S3), `var ignoriert`, `ntp verworfen`, `ovr=` > 0 (Alarm, E) — **je mit eingespielter
+      Gegenprobe**. Freigegebene Resets getrennt berichtet. Der Fehlalarm beim Flashen
+      (Abbildzeile mit vier Leerzeichen) ist behoben (L400).
 - [ ] **AKZ.6 (T)** — `pwa-tester` Phasen 0–4 und 9 nach M, mit dem nachgeführten Testplan.
       Unvollständig ⇒ **nicht abgenommen**.
 - [ ] **AKZ.7** — Jedes Release **sofort** committet, getaggt, **gepusht** (DIR-011); den
-      `CHANGELOG.md`-Eintrag schreibt der Lead.
+      `CHANGELOG.md`-Eintrag schreibt der Lead. **S1:** `a6065d5`, Tag gepusht.
 - [ ] **AKZ.8** — Einspielzeilen mit Reihenfolge, fertig zum Einfügen; eingespielt vom Lead
       (ESP: `curl -s -m 30 "http://$DEVICE_HOST/api/remote_esp_update"`).
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015),
-      u. a. `main.c`, `night.c`, `timeserver.c`, `stubs.c`, `display.c`, `tetris.c`, `snake.c`,
-      `ldr.c`, `vars.c`, `esp8266.c`, `i2c.c`, `ESP-uclock.ino` (**gemischt**), `http.cpp` (UTF-8),
-      `vars.cpp`, `ntp.cpp`, `app.js`.
+      u. a. `main.c`, `night.c`, `timeserver.c`, `stubs.c`, `i2c.c`, `display.c`, `tetris.c`,
+      `snake.c`, `ldr.c`, `vars.c`, `esp8266.c`, `ESP-uclock.ino` (**gemischt**), `http.cpp`
+      (UTF-8), `vars.cpp`, `ntp.cpp`, `app.js`.
 
 ---
 
@@ -572,11 +532,13 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 | Ausgeschlossen | Grund |
 |---|---|
 | **Die sechs niedrigen Restpunkte aus Review S1** (Gleichstand Aus/Ein in derselben Minute; Rücksprung über 3,5 Tage modulo Woche; `quick` nach drei Fehlwerten, bis rund 2 h bis zur ersten Netzzeit; bei `NIGHT_OFF_AFTER_IP` keine Frist, falls der Restore nie kommt; erstes `TIME` bei ungültiger RTC schaltet sofort und kann den IP-Lauftext abschneiden; ein anderer Ticker überschreibt den IP-Lauftext) | Benannt, kein Fix (`design.md` §3.4); in Z.1 als Befunde eingetragen |
+| **`GPIO_RESET_BIT(SDA_PORT, SCL_PIN)` in `i2c.c`** — trifft auf Nucleo den falschen Port | Vorbestehend, im Review S2.4 benannt, **nicht geändert**; in Z.1 als neuer Befund |
+| **`i2c: frist abgelaufen` in `/api/stm32_log`** | Die Zeile geht nur auf die Debug-UART (Mitschnitt, Logwache) |
 | **RTC über 2099** (Jahrhundertbit des DS3231, `rtc.c:204`, `:241`) | Die neue Grenze der Kette; in L371 benannt, eigenes Vorhaben |
 | **Ära-Rechnung im ESP** | Der ESP rechnet nicht mit der Zeit (`design.md` §2.1) |
 | **Protokollwechsel an `TIME`** (feste 10 Stellen, Prüfsumme) | Ent-3 ohne Protokollwechsel; Ent-3b: Bestätigungsregel statt Protokollwechsel |
 | **Die Sparstufen aus `design.md` §1.4** | Ent-17: nicht gewählt; nur nach neuer Rückfrage |
-| **Einsparungen mit Verhaltensänderung** in S3; **`set_display_power: new=…`** | Nur nach Rückfrage (AKP.2); die Zeile ist geschützt |
+| **Einsparungen mit Verhaltensänderung** in S3; **`set_display_power: new=…`**, **`i2c: frist abgelaufen`** | Nur nach Rückfrage (AKP.2); die Zeilen sind geschützt |
 | **Änderung am normalen Build** durch das Matrix-Ziel; **Matrix-Lauf vor jedem Release** | Ent-18: eigenes Ziel, nur auf Anforderung; Pflicht nur vor S1 |
 | **Angleichen des F411-Startups an das Original** | Ent-18: `startup_stm32f411xe.S` bleibt, die Abweichung wird dokumentiert |
 | **Sichtbare Meldung der A57-Abweisung in der PWA** | Geht nur mit einem neuen, wartenden Endpunkt (`http.cpp:10077-10086` antwortet vor der Messung); als Hinweis in Z.1 als neuer Befund |
@@ -597,17 +559,17 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 
 ## Betroffene Laufzeiten
 
-- [ ] **STM32** (`src/**`) — S1: `main.c`, `night/night.c` (+ `.h`), `timeserver/timeserver.c`,
-      `vars/vars.c` (+ `.h`), `stubs/stubs.c` (N1); S2: `i2c/i2c.c`; S3: Dateien der Einsparungen
-      (aus S3.1), `display/display.c`, `tetris/tetris.c`, `tetris/snake.c`, `ldr/ldr.c`,
-      `esp8266/esp8266.c`, `main.c`; je ein Flash
+- [x] **STM32** (`src/**`) — S1 (ausgeliefert): `main.c`, `night/night.c` (+ `.h`),
+      `timeserver/timeserver.c`, `vars/vars.c` (+ `.h`), `stubs/stubs.c`
+- [ ] **STM32** — S2: `i2c/i2c.c`; S3: Dateien der Einsparungen (aus S3.1), `display/display.c`,
+      `tetris/tetris.c`, `tetris/snake.c`, `ldr/ldr.c`, `esp8266/esp8266.c`, `main.c`; je ein Flash
 - [ ] **ESP8266** — E: `vars.cpp`, `ntp.cpp`, `ESP-uclock.ino`, `http.cpp`; ein OTA
 - [ ] **PWA** — P: `app.js`
 - [ ] **Werkzeug** (`tools/**`) — Auswerteregel, Prüfstände, `watch-log.sh`, statische Prüfung
 - [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`,
       `README-CMAKE.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md` (Lead)
 - [ ] **Build/Release** — Matrix-Ziel (`CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh`,
-      `release-engineer`); **fünf** Releases (S1, S2, S3, E, P); je Commit, Tag, Push
+      `release-engineer`, erledigt); **fünf** Releases (S1 ☑, S2, S3, E, P); je Commit, Tag, Push
 
 ---
 
@@ -653,23 +615,23 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
   nicht aus Ent-14 (d) abgeleitet): Maximum per Zahlen-Setter kurz auf 1 bzw. Minimum auf 4094,
   danach zurück auf 0/4095.
 - **Ent-15 — A60:** **nur die Fristen.**
+- **Ent-15b — A60: Bus beim Fristablauf freitakten** (erweitert Ent-15). Nach **jeder** Frist,
+  wenn danach BUSY gesetzt ist oder SDA low liest, wird `i2c_init` neu ausgeführt (`i2c_reset_bus`
+  mit 9 Takten, Pins zurück auf AF). Schlimmster Fall 25 ms je Zugriff, vor `watchdog_init()` rund
+  0,55 s. Zuerst nur im BUSY-Pfad umgesetzt, vom Lead nach der Nachprüfung auf jede Frist
+  erweitert, weil Folgezugriffe an der SB-Frist scheiterten.
 - **Ent-16 — Spec: freigegeben.**
 - **Ent-17 — Flash-Gate nach S1.3 (gemessen 1'132 Byte frei): „Release teilen".** STM-Release 1
-  = A62, A69, A68; danach Version, Build, Rollout, G1 wie gehabt. A23, A53, A57 (C) und A67-STM in
-  ein eigenes STM-Release 3, davor eine **Flash-Analyse** (Map lesen, Einsparungen mit gemessenen
-  Grössen), deren verhaltensneutrale Einsparungen einzeln gemessen umgesetzt werden; erst dann die
-  vier Punkte, einer nach dem anderen mit Gate. **Alle übrigen Entscheidungen bleiben erhalten**,
-  auch Ent-2 (3), A53 V2 und A67. Die Sparstufen der Spec sind **nicht** gewählt und greifen nur
-  nach einer neuen Rückfrage. Reihenfolge S1 → S2 → S3 → E (Begründung `design.md` §0.2).
-  **Nachtrag:** N1 (malloc-Stubs) hat der Lead aus S3.1 in S1 vorgezogen, damit M2 in den Flash
-  passt; verhaltensneutral, beide Reviews BESTANDEN.
+  = A62, A69, A68; A23, A53, A57 (C) und A67-STM in ein eigenes STM-Release 3, davor eine
+  **Flash-Analyse**; erst dann die vier Punkte, einer nach dem anderen mit Gate. **Alle übrigen
+  Entscheidungen bleiben erhalten.** Die Sparstufen der Spec sind **nicht** gewählt. Reihenfolge
+  S1 → S2 → S3 → E (`design.md` §0.2). **Nachtrag:** N1 (malloc-Stubs) vom Lead in S1 vorgezogen,
+  damit M2 in den Flash passt; verhaltensneutral, beide Reviews BESTANDEN.
 - **Ent-18 — Komplettbuild aller 72 STM-Varianten.** Eigenes Make-Ziel, nur auf Anforderung,
   normaler Build unverändert; **erster Lauf vor STM-Release 1**; **das Flash-Gate (1'024 Byte)
-  gilt für alle 72 Varianten**, für jeden Matrix-Lauf; die BlackPill-F411-Varianten verwenden
-  `startup_stm32f411xe.S` wie der Teilbuild (das Original nimmt `startup_stm32f401xc.S`; die
-  Abweichung wird dokumentiert). Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW.
-  **Erster Lauf 11.10.2026: 72/72 grün, engste Variante `wc24h-stm32f103-sk6812-rgbw` mit
-  1'416 Byte frei; geplant wird ab diesem Wert** (`design.md` §1.3).
+  gilt für alle 72 Varianten**; F411-Varianten mit `startup_stm32f411xe.S` (Abweichung vom Original
+  dokumentiert). Die Teilbuild-Messung je Task bleibt auf F103 WC12h SK6812-RGBW. **Erster Lauf:
+  72/72 grün, engste Variante 1'416; nach S2 (Testbau) 1'308. Geplant wird ab diesem Wert.**
 - **Offen — zweiter STM-Reset im Aus-Fenster in G3** (für AKD.2 Teil 2, die EEPROM-Frage aus A23):
   **vor G3 beim Nutzer zu bestätigen**; nicht durch Ent-14 (a) gedeckt. Der Lead fragt vor G3
   nach.
