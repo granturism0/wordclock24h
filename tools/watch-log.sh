@@ -71,6 +71,7 @@ EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx ve
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
+letzte_vn=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
@@ -241,6 +242,16 @@ while :; do
     alarm=1
   fi
   [ -n "$vt" ] && letzte_vt=$vt
+
+  # Zweite Zahl von v=: verschachtelte var_send-Aufrufe (ein Kommando, das waehrend des
+  # Wartens auf eine Quittung ein weiteres ausloest). Bis 11.10.2026 nur in der Ruhezeile,
+  # nie ausgewertet -- vom Analysten des Pakets 2026-10-11 bemerkt, nicht von der Wache.
+  vn=${v#*/}
+  if [ -n "$v" ] && [ -n "$vn" ] && [ -n "$letzte_vn" ] && [ "$vn" -gt "$letzte_vn" ] 2>/dev/null; then
+    printf '  %s  Bruecke: %d verschachtelte var_send-Aufruf(e) (v=%s)\n' "$stamp" "$((vn - letzte_vn))" "${v#v=}"
+    alarm=1
+  fi
+  [ -n "$v" ] && [ -n "$vn" ] && letzte_vn=$vn
 
   # Luecke in der diag-Folge: der zeitgesteuerte Zweig des STM hat ausgesetzt.
   # Genau das Bild aus dem mitgeschnittenen Haenger (L14) -- Hauptloop laeuft,
