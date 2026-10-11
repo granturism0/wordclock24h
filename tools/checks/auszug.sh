@@ -47,6 +47,8 @@ LAUF=(
   "Teil D Pruefsumme CMC, Abweisung, Vormerken (STM)|stm/d/run.sh $S neu"
   "S0 my_gmtime 32 Bit gleich 64 Bit und gmtime_r (STM)|stm/gt/run.sh $S"
   "A59 LDR-Grenzen per Zahl setzbar (STM)|stm/l59/run.sh $S"
+  "A62 Netzzeit mit Aera, Totbereich, Bestaetigung, Zeitzone (STM)|stm/a62/run.sh $S"
+  "A69 Nachtfenster beim Start, beim ersten TIME, bei Spruengen (STM)|stm/a69/run.sh $S"
   "A2 DS18xx CRC, ROM-ID, Neuerkennung (STM)|stm/ds/run.sh $S"
   "A50 fault_reset ohne Ausgabe, 15 s geeicht (STM)|stm/fr/run.sh $S"
   "A55 CAP setzt offline bis IPADDRESS (STM+ESP)|stm/ep/run.sh $S $E"
@@ -72,6 +74,7 @@ LAUF=(
   "C55/C44 Datumsformat und Koordinaten, API und Legacy (ESP)|esp/t17/run.sh $E neu"
   "A2 Fehlerwert 255 bei Korrekturaenderung unangetastet (ESP)|esp/t18/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
+  "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht
 # gab. Gegen eine alte Revision laesst er sich nicht uebersetzen, und das ist kein Befund --

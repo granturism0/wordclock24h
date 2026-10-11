@@ -69,8 +69,9 @@ make f103
 make f411
 make all
 make esp
-make app-bundle
+make app-gz
 make release-zip
+make matrix
 make clean
 ```
 
@@ -126,21 +127,73 @@ make release-zip
 
 Das baut bzw. aktualisiert:
 
-- `ESP8266/ESP-uclock/data/app-bundle.txt`
+- `build/esp8266/app-version.txt`
 - `build/stm-rgbw-12h/wc12h-stm32f103-sk6812-rgbw.hex`
 - `build/stm-rgbw-12h/wc12h-stm32f411ce-25-sk6812-rgbw.hex`
 - `build/stm-rgbw-12h/wc.txt`
 - `build/esp8266/ESP-WordClock-4M.bin`
 - `build/esp8266/ESP-WordClock.txt`
+- die `.gz`-Assets unter `ESP8266/ESP-uclock/data/app/` (`make app-gz`)
 
 und packt sie als ZIP unter:
 
-- `build/releases/wordclock-release-YYYY-MM-DD-HHMM.zip`
+- `build/releases/wordclock-release-YYYY-MM-DD-HHMMSS.zip`
+
+Der Zeitstempel ist sekundengenau (`RELEASE_STAMP` im `Makefile`). Zwei Builds in
+derselben Minute überschreiben sich deshalb nicht mehr.
 
 Zusätzlich werden die Versionsdateien auch bei Einzelbuilds erzeugt:
 
 - STM-Builds: `build/stm-rgbw-12h/wc.txt`
 - ESP-Build: `build/esp8266/ESP-WordClock.txt`
+
+## Alle Varianten des Originals (`make matrix`)
+
+```bash
+make matrix
+```
+
+Nur auf Anforderung — nicht Teil des normalen Builds und nicht Teil des Release.
+
+Baut alle 72 STM-Varianten, die das Ursprungsprojekt ausliefert: 12h und 24h, je
+sieben Platinen (F103, F401, F401CC-25, F401CC-8, F411, F411CE-25, F411CE-8) mal
+fünf LED-Typen (APA102, SK6812 RGB und RGBW, WS2812 GRB und RGB), dazu je eine F407
+mit TFT. Die Parameter stammen aus den Release-Zielen von `wclock24h.ebp` und
+`wclock24h-F103/wclock24h-F103.ebp`; die Quellen wählt CMake über den Zielnamen in
+der ebp-Datei aus.
+
+Wofür: prüfen, dass der heutige Code auf **jeder** Platine und mit jedem LED-Typ noch
+übersetzt und in den Flash passt. Ausgerollt wird davon nichts.
+
+- Eigenes Verzeichnis `build/matrix`, eigene CMake-Option `WORDCLOCK_MATRIX`
+  (Vorgabe aus). `make f103`, `make f411`, `make release-zip` und
+  `build/stm-rgbw-12h` bleiben unberührt; `release-zip` und `tools/deploy.sh` nehmen
+  die Matrix nicht mit.
+- Ausgabe: `build/matrix/hex/<name>.hex` unter den Namen aus dem Original-ZIP, die
+  Tabelle in `build/matrix/matrix-report.txt`, das Protokoll in
+  `build/matrix/build.log`.
+- **Flash-Gate:** Jede Variante muss mindestens `MATRIX_MIN_FREE` Byte frei haben
+  (Vorgabe im `Makefile`). Eine Variante unter dem Gate oder eine, die nicht baut,
+  führt zu einem Exitcode ungleich 0 und wird beim Namen genannt. Gezählt wird gegen
+  die feste Zahl 72, nicht gegen die Zahl der HEX-Dateien, die zufällig entstanden
+  sind.
+- **Das Gate gilt laut Entscheidung des Nutzers für alle 72 Varianten.** Gedacht ist
+  es für den Lauf vor einem STM-Release, das Flash kostet: Der Teilbuild (`make f103`,
+  `make f411`) misst nur die eigene Variante.
+- Liegt `wordclock-hex.zip` (das Original) im Wurzelverzeichnis
+  (`MATRIX_ORIGINAL_ZIP`), steht die Grösse jeder Original-Variante daneben; mehr als
+  10 % Unterschied wird markiert. Das ist Information, kein Gate.
+- Die engste Variante ist eine 24h-F103, nicht die 12h-F103 des Teilbuilds. Die
+  aktuelle Reserve steht in `build/matrix/matrix-report.txt`, nicht hier.
+
+Bewusste Abweichungen vom Original:
+
+- F103 mit `STM32F10X_MD`, wie unser Ziel `f103`.
+- Black411 mit `startup_stm32f411xe.S` statt `startup_stm32f401xc.S`, wie unser Ziel
+  `f411` (Entscheidung des Nutzers).
+- LTO wie bei den bestehenden Zielen; EmBitz baute ohne.
+
+Aufräumen: `make clean-matrix`. `make clean` lässt `build/matrix` stehen.
 
 ## Der Farbpfad im Display ist empfindlich
 

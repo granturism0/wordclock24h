@@ -258,6 +258,7 @@ extern void         var_send_ds18xx_is_up (void);
 extern void         var_send_ds18xx_temp_index (void);
 extern void         var_send_ambilight_mode (void);
 extern void         var_send_display_power (void);
+extern void         var_send_display_ambilight_power (void);
 
 extern void         var_send_version (void);
 extern void         var_send_eep_version (void);

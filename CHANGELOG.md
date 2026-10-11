@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-10-11 Paket 2026-10-11, STM-Release 1: Nacht nach Neustart, Netzzeit mit Ära, Ambilight-Kopie (STM 3.2.29)
+
+Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP
+`wordclock-release-2026-10-11-204115.zip`, Tag `release/3.2.29-3.2.31-1.4.95`. Umfang: STM-Release 1 aus
+`specs/paket-2026-10-11/` (A62, A69, A68), dazu die Nacharbeit aus dem Review (M1, M2) und eine Flash-Einsparung (N1).
+A23, A53, A57 und A67-STM sind nach Entscheidung des Nutzers in ein späteres STM-Release verschoben (Flash, L393).
+
+**Einspielreihenfolge: nur der STM** (`./tools/flash-stm.sh`).
+
+### Display bleibt nach einem Neustart in der Nacht aus (A69)
+- Beim Start wertet der STM die Display-Timer aus: Gilt gerade ein Aus-Fenster, läuft die Startsequenz samt IP-Lauftext
+  wie bisher, danach schaltet das Display aus (Entscheidung des Nutzers). Kommt keine IP, nach 60 s. Schaltet vorher ein
+  Timer oder der Nutzer, gilt das.
+- Ist die RTC beim Start nicht gültig (oder zeigt sie ein Jahr vor 2026, etwa nach leerer Batterie), wertet das erste
+  bestätigte `TIME` aus.
+- Springt die Uhr über eine Timer-Minute (Sommerzeit, NTP-Korrektur, Stillstand), wird das übersprungene Ereignis
+  nachgeholt. Bisher fiel der Timer dann ganz aus.
+- Logzeilen `night: start aus (hh:mm)`, `night: sprung aus|ein (hh:mm)` mit der Uhrzeit des Timers.
+
+### Netzzeit geprüft, über 2036 hinaus (A62)
+- Eigener Parser statt `strtoul`: 1–10 Ziffern, Überlauf und Fremdzeichen werden verworfen, ebenso Werte im Totbereich
+  zwischen 1970 und 2026. Werte nach dem 07.02.2036 (NTP-Ära 1) werden richtig umgerechnet (Ent-3); Grenze der Kette ist
+  jetzt der 31.12.2099 an der RTC.
+- Weicht eine Netzzeit um mehr als 600 s ab, und immer nach dem Start, gilt sie erst, wenn eine zweite Antwort sie auf
+  ±5 s bestätigt (Ent-3b). Logzeilen `time: ungueltig, verworfen`, `time: sprung, bestaetigung angefordert`;
+  `cmd: set time to …` steht jetzt auch im normalen Bau im Log.
+- Eine Zeitzone über ±12 aus dem EEPROM fällt auf die Vorgabe zurück.
+
+### Ambilight-Zustand beim ESP aktuell (A68)
+- Schaltet ein Display-Timer, ein Ambilight-Timer, IR oder ein Aufruf das Ambilight mit, erfährt das der ESP sofort;
+  bisher zeigten PWA und Legacy-Seite bis zum nächsten Vollabgleich den alten Zustand.
+
+### Flash
+- Die Speicherverwaltung von newlib war gelinkt, wurde aber nie aufgerufen (Heap 0 Byte). Durch Stubs ersetzt, ohne
+  Verhaltensänderung, 668 Byte frei geworden (N1).
+- Neu `make matrix`: baut alle 72 Varianten des Ursprungsprojekts und prüft für jede das Flash-Gate; nur auf
+  Anforderung. Auf diesem Stand 72 von 72 gebaut, keine unter dem Gate; die engste ist eine 24h-F103 mit SK6812-RGBW.
+
+### Werkzeug
+Prüfstände a62 (134'746 Fälle gegen eine Python-Referenz) und a69 (rund 9,4 Millionen Fälle), beide gegen 3.2.28 FEHL;
+`tools/abgleich.sh` wertet Vollabgleiche im Mitschnitt aus (A61); die Logwache meldet die neuen Zeilen.
+
 ## 2026-10-11 Paket 2026-10-10, Schritt P: Oberfläche — Eingaben, ungespeicherte Änderungen, Regeln wie der ESP (PWA 1.4.95)
 
 Nur die PWA, STM (3.2.28) und ESP (3.2.31) unverändert. Release-ZIP

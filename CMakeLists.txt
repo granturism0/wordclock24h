@@ -71,14 +71,63 @@ option(WORDCLOCK_DEBUG "Diagnosebau: debug_log_* scharf schalten (siehe Warnunge
 # Bestand bleibt bei 18. Die 4 passt zu den "-j4" der Build-Ziele im Makefile.
 set(WORDCLOCK_LTO_FLAG -flto=4)
 
+# embitz_collect_sources(<ebp> <out-var> [<ebp-ziel>])
+#
+# Ohne drittes Argument: alle .c/.S-Units der ebp, wie bisher -- die beiden
+# bestehenden Ziele f103/f411 rufen es so auf und waehlen per Ausschlussmuster.
+#
+# Mit drittem Argument (Zielname aus der ebp, etwa "WC12h-Black401-25-Release")
+# wird <Option target="..."> je Unit beachtet, so wie EmBitz es tut: Eine Unit
+# OHNE Zielbindung gehoert zu allen Zielen, eine Unit MIT Zielbindung nur zu den
+# genannten. In wclock24h.ebp betrifft das die vier Startdateien. Die Matrix
+# waehlt damit genau die Quellen des jeweiligen Originalziels aus, statt sie
+# ueber Ausschlussmuster nachzubauen.
 function(embitz_collect_sources EBP_FILE OUT_VAR)
+  # Bewusst ARGN und nicht ARGV2: Ohne drittes Argument ist ARGV2 in einer
+  # Funktion nicht leer, sondern erbt den Wert aus dem aufrufenden Scope --
+  # hier das ARGV2 von wordclock_add_target, also einen Pfad.
+  set(EBP_TARGET "")
+  if(ARGN)
+    list(GET ARGN 0 EBP_TARGET)
+  endif()
   get_filename_component(EBP_DIR "${EBP_FILE}" DIRECTORY)
-  file(STRINGS "${EBP_FILE}" UNIT_LINES REGEX "<Unit filename=")
+  if(EBP_TARGET)
+    file(STRINGS "${EBP_FILE}" TITLE_LINES REGEX "<Target title=\"${EBP_TARGET}\">")
+    if(NOT TITLE_LINES)
+      message(FATAL_ERROR "embitz_collect_sources: Ziel '${EBP_TARGET}' steht nicht in ${EBP_FILE}")
+    endif()
+  endif()
+  file(STRINGS "${EBP_FILE}" UNIT_LINES REGEX "<Unit filename=|<Option target=|</Unit>")
   set(SOURCES)
+  set(UNIT_OPEN FALSE)
+  set(UNIT_FILE "")
+  set(UNIT_TARGETS "")
   foreach(LINE IN LISTS UNIT_LINES)
-    string(REGEX MATCH "<Unit filename=\"([^\"]+)\"" _ "${LINE}")
-    set(UNIT_FILE "${CMAKE_MATCH_1}")
-    if(UNIT_FILE MATCHES "\\.(c|S)$")
+    set(TAKE_UNIT FALSE)
+    if(LINE MATCHES "<Unit filename=\"([^\"]+)\"")
+      set(UNIT_FILE "${CMAKE_MATCH_1}")
+      set(UNIT_TARGETS "")
+      if(LINE MATCHES "/>[ \t]*$")
+        # selbstschliessend: keine Zielbindung moeglich
+        set(TAKE_UNIT TRUE)
+        set(UNIT_OPEN FALSE)
+      else()
+        set(UNIT_OPEN TRUE)
+      endif()
+    elseif(UNIT_OPEN AND LINE MATCHES "<Option target=\"([^\"]+)\"")
+      list(APPEND UNIT_TARGETS "${CMAKE_MATCH_1}")
+    elseif(UNIT_OPEN AND LINE MATCHES "</Unit>")
+      set(UNIT_OPEN FALSE)
+      if(NOT EBP_TARGET OR NOT UNIT_TARGETS)
+        set(TAKE_UNIT TRUE)
+      else()
+        list(FIND UNIT_TARGETS "${EBP_TARGET}" TARGET_INDEX)
+        if(NOT TARGET_INDEX EQUAL -1)
+          set(TAKE_UNIT TRUE)
+        endif()
+      endif()
+    endif()
+    if(TAKE_UNIT AND UNIT_FILE MATCHES "\\.(c|S)$")
       file(TO_CMAKE_PATH "${UNIT_FILE}" UNIT_FILE)
       get_filename_component(UNIT_ABS "${UNIT_FILE}" REALPATH BASE_DIR "${EBP_DIR}")
       list(APPEND SOURCES "${UNIT_ABS}")
@@ -102,17 +151,56 @@ endfunction()
 
 function(wordclock_add_target TARGET_NAME)
   set(options)
-  set(oneValueArgs EBP_FILE FAMILY CPU FLOAT_ABI FPU LINKER_SCRIPT HSE BOARD_DEFINE MODE_DEFINE MCU_DEFINE OUTPUT_NAME)
+  # EBP_TARGET, LED, STARTUP und OUTPUT_DIR sind optional und werden nur von der
+  # Matrix (WORDCLOCK_MATRIX) gesetzt. Ohne sie verhaelt sich die Funktion exakt
+  # wie zuvor -- die beiden bestehenden Ziele bleiben byteidentisch.
+  set(oneValueArgs EBP_FILE EBP_TARGET FAMILY CPU FLOAT_ABI FPU LINKER_SCRIPT HSE BOARD_DEFINE MODE_DEFINE MCU_DEFINE OUTPUT_NAME OUTPUT_DIR LED STARTUP)
   set(multiValueArgs COMPILE_DEFINITIONS EXTRA_COMPILE_OPTIONS EXTRA_LINK_OPTIONS EXTRA_INCLUDE_DIRS EXCLUDE_SOURCE_PATTERNS)
   cmake_parse_arguments(TGT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  embitz_collect_sources("${TGT_EBP_FILE}" TARGET_SOURCES)
+  if(NOT TGT_LED)
+    set(TGT_LED SK6812_RGBW_LED)
+  endif()
+
+  embitz_collect_sources("${TGT_EBP_FILE}" TARGET_SOURCES ${TGT_EBP_TARGET})
   file(GLOB STUB_SOURCES "${CMAKE_SOURCE_DIR}/src/stubs/*.c")
   list(APPEND TARGET_SOURCES ${STUB_SOURCES})
 
   foreach(PATTERN IN LISTS TGT_EXCLUDE_SOURCE_PATTERNS)
     list(FILTER TARGET_SOURCES EXCLUDE REGEX "${PATTERN}")
   endforeach()
+
+  # STARTUP ersetzt die aus der ebp gewaehlte Startdatei AN IHRER STELLE, damit
+  # die Linkreihenfolge gleich bleibt. Gebraucht fuer Black411: Das Original
+  # bindet dort startup_stm32f401xc.S, wir bewusst startup_stm32f411xe.S wie das
+  # bestehende Ziel f411.
+  if(TGT_STARTUP)
+    set(REPLACED_SOURCES)
+    set(STARTUP_DONE FALSE)
+    foreach(SRC IN LISTS TARGET_SOURCES)
+      if(SRC MATCHES "/startup_[^/]*\\.S$")
+        if(NOT STARTUP_DONE)
+          list(APPEND REPLACED_SOURCES "${TGT_STARTUP}")
+          set(STARTUP_DONE TRUE)
+        endif()
+      else()
+        list(APPEND REPLACED_SOURCES "${SRC}")
+      endif()
+    endforeach()
+    if(NOT STARTUP_DONE)
+      list(APPEND REPLACED_SOURCES "${TGT_STARTUP}")
+    endif()
+    set(TARGET_SOURCES ${REPLACED_SOURCES})
+  endif()
+
+  # Genau eine Startdatei. Zwei linken nicht (doppelte Vektortabelle), keine
+  # linkt zwar mit Warnung, startet aber nicht.
+  set(STARTUP_SOURCES ${TARGET_SOURCES})
+  list(FILTER STARTUP_SOURCES INCLUDE REGEX "/startup_[^/]*\\.S$")
+  list(LENGTH STARTUP_SOURCES STARTUP_COUNT)
+  if(NOT STARTUP_COUNT EQUAL 1)
+    message(FATAL_ERROR "${TARGET_NAME}: ${STARTUP_COUNT} Startdateien statt genau einer: ${STARTUP_SOURCES}")
+  endif()
 
   wordclock_collect_repo_include_dirs(REPO_INCLUDE_DIRS)
 
@@ -125,7 +213,7 @@ function(wordclock_add_target TARGET_NAME)
 
   target_compile_definitions(${TARGET_NAME} PRIVATE
     ${TGT_COMPILE_DEFINITIONS}
-    DSP_USE_LED=SK6812_RGBW_LED
+    DSP_USE_LED=${TGT_LED}
     $<$<BOOL:${WORDCLOCK_DEBUG}>:DEBUG>
   )
 
@@ -183,6 +271,9 @@ function(wordclock_add_target TARGET_NAME)
   )
 
   set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME "${TGT_OUTPUT_NAME}")
+  if(TGT_OUTPUT_DIR)
+    set_target_properties(${TARGET_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TGT_OUTPUT_DIR}")
+  endif()
 
   add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${TARGET_NAME}> $<TARGET_FILE_DIR:${TARGET_NAME}>/${TGT_OUTPUT_NAME}.hex
@@ -251,3 +342,174 @@ wordclock_add_target(wordclock_f411_rgbw
     ".*/src/startup_stm32f401xe\\.S$"
     ".*/src/startup_stm32f407xx\\.S$"
 )
+
+# ---------------------------------------------------------------------------
+# Komplettbuild aller STM-Varianten des Ursprungsprojekts ("make matrix").
+#
+# Vorgabe AUS. Nur das Ziel "matrix" im Makefile konfiguriert ein eigenes
+# Verzeichnis (build/matrix) mit -DWORDCLOCK_MATRIX=ON. build/stm-rgbw-12h,
+# f103, f411 und release-zip sehen davon nichts: Dort ist die Option aus, und es
+# entsteht kein einziges zusaetzliches Ziel.
+#
+# 72 Varianten wie wordclock-hex.zip des Originals: 12h/24h x sieben Platinen x
+# fuenf LED-Typen, dazu je eine F407 mit TFT. Die Parameter stammen aus den
+# Release-Zielen der beiden ebp-Dateien; die Quellen waehlt embitz_collect_sources
+# ueber den ebp-Zielnamen aus.
+#
+# Bewusste Abweichungen vom Original, alle drei so gewollt:
+#   - F103 setzt zusaetzlich STM32F10X_MD, wie unser Ziel f103. Die Matrix baut
+#     damit denselben Code wie der Teilbuild.
+#   - Black411 (-25/-8) bindet startup_stm32f411xe.S statt startup_stm32f401xc.S,
+#     wie unser Ziel f411 (STARTUP-Ersatz, Entscheidung des Nutzers).
+#   - LTO (-flto=4) wie bei den bestehenden Zielen; EmBitz baute ohne.
+#
+# Die Ausgabe liegt in <build>/hex/. Nebenher entsteht matrix-manifest.txt
+# (Variante, Linkerskript); cmake/matrix-report.sh liest daraus den Flash-Umfang
+# fuer das Gate.
+option(WORDCLOCK_MATRIX "Alle 72 STM-Varianten des Originals bauen (nur fuer make matrix)" OFF)
+
+if(WORDCLOCK_MATRIX)
+  set(MATRIX_OUT_DIR "${CMAKE_BINARY_DIR}/hex")
+  set(MATRIX_MANIFEST "${CMAKE_BINARY_DIR}/matrix-manifest.txt")
+  file(WRITE "${MATRIX_MANIFEST}" "")
+  set_property(GLOBAL PROPERTY WORDCLOCK_MATRIX_TARGETS "")
+
+  set(MATRIX_LEDS_WS
+    apa102:APA102_RGB_LED
+    sk6812-rgb:SK6812_RGB_LED
+    sk6812-rgbw:SK6812_RGBW_LED
+    ws2812-grb:WS2812_GRB_LED
+    ws2812-rgb:WS2812_RGB_LED
+  )
+
+  # wordclock_matrix_board(<name-im-zip> EBP_TARGET <WC@MODE@-...> LEDS <key:DEF>...
+  #                        <weitere Argumente wie wordclock_add_target>)
+  # @MODE@ im ebp-Zielnamen wird zu 12h bzw. 24h.
+  function(wordclock_matrix_board BOARD_KEY)
+    cmake_parse_arguments(MB "" "EBP_FILE;EBP_TARGET;CPU;FLOAT_ABI;FPU;LINKER_SCRIPT;STARTUP"
+      "LEDS;COMPILE_DEFINITIONS;EXTRA_INCLUDE_DIRS;EXCLUDE_SOURCE_PATTERNS" ${ARGN})
+    foreach(MODE 12h 24h)
+      if(MODE STREQUAL "24h")
+        set(MODE_DEFINE WCLOCK24H=1)
+      else()
+        set(MODE_DEFINE WCLOCK24H=0)
+      endif()
+      string(REPLACE "@MODE@" "${MODE}" EBP_TARGET_NAME "${MB_EBP_TARGET}")
+      foreach(LED_PAIR IN LISTS MB_LEDS)
+        string(REPLACE ":" ";" LED_PARTS "${LED_PAIR}")
+        list(GET LED_PARTS 0 LED_KEY)
+        list(GET LED_PARTS 1 LED_DEFINE)
+        set(OUT_NAME "wc${MODE}-${BOARD_KEY}-${LED_KEY}")
+        string(REPLACE "-" "_" TGT_NAME "matrix_${OUT_NAME}")
+        set(OPTIONAL_ARGS)
+        if(MB_FPU)
+          list(APPEND OPTIONAL_ARGS FPU ${MB_FPU})
+        endif()
+        if(MB_STARTUP)
+          list(APPEND OPTIONAL_ARGS STARTUP ${MB_STARTUP})
+        endif()
+        if(MB_EXCLUDE_SOURCE_PATTERNS)
+          list(APPEND OPTIONAL_ARGS EXCLUDE_SOURCE_PATTERNS ${MB_EXCLUDE_SOURCE_PATTERNS})
+        endif()
+        wordclock_add_target(${TGT_NAME}
+          EBP_FILE ${MB_EBP_FILE}
+          EBP_TARGET ${EBP_TARGET_NAME}
+          CPU ${MB_CPU}
+          FLOAT_ABI ${MB_FLOAT_ABI}
+          LINKER_SCRIPT ${MB_LINKER_SCRIPT}
+          OUTPUT_NAME ${OUT_NAME}
+          OUTPUT_DIR ${MATRIX_OUT_DIR}
+          LED ${LED_DEFINE}
+          COMPILE_DEFINITIONS ${MB_COMPILE_DEFINITIONS} ${MODE_DEFINE}
+          EXTRA_INCLUDE_DIRS ${MB_EXTRA_INCLUDE_DIRS}
+          ${OPTIONAL_ARGS}
+        )
+        set_property(GLOBAL APPEND PROPERTY WORDCLOCK_MATRIX_TARGETS ${TGT_NAME})
+        file(APPEND "${MATRIX_MANIFEST}" "${OUT_NAME} ${MB_LINKER_SCRIPT}\n")
+      endforeach()
+    endforeach()
+  endfunction()
+
+  set(MATRIX_F4_INCLUDES
+    ${CMAKE_SOURCE_DIR}/inc
+    ${CMAKE_SOURCE_DIR}/SPL/inc
+    ${CMAKE_SOURCE_DIR}/cmsis
+  )
+
+  wordclock_matrix_board(stm32f103
+    EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h-F103/wclock24h-F103.ebp
+    EBP_TARGET WC@MODE@-STM32F103-Release
+    CPU cortex-m3
+    FLOAT_ABI soft
+    LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/wclock24h-F103/stm32f103c8_flash.ld
+    LEDS ${MATRIX_LEDS_WS}
+    COMPILE_DEFINITIONS STM32F10X STM32F10X_MD STM32F103 STM32F103C8 BLUEPILL_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=8000000
+    EXTRA_INCLUDE_DIRS
+      ${CMAKE_SOURCE_DIR}/wclock24h-F103/inc
+      ${CMAKE_SOURCE_DIR}/wclock24h-F103/SPL/inc
+      ${CMAKE_SOURCE_DIR}/wclock24h-F103/cmsis
+    EXCLUDE_SOURCE_PATTERNS
+      ".*/src/startup_stm32f4.*\\.S$"
+      ".*/src/system_stm32f4xx\\.c$"
+  )
+
+  foreach(HSE 25 8)
+    wordclock_matrix_board(stm32f401cc-${HSE}
+      EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h.ebp
+      EBP_TARGET WC@MODE@-Black401-${HSE}-Release
+      CPU cortex-m4 FLOAT_ABI hard FPU fpv4-sp-d16
+      LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/stm32f401cc_flash.ld
+      LEDS ${MATRIX_LEDS_WS}
+      COMPILE_DEFINITIONS ARM_MATH_CM4 STM32F401CC STM32F401xx STM32F401 STM32F4XX BLACKPILL_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=${HSE}000000
+      EXTRA_INCLUDE_DIRS ${MATRIX_F4_INCLUDES}
+    )
+    wordclock_matrix_board(stm32f411ce-${HSE}
+      EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h.ebp
+      EBP_TARGET WC@MODE@-Black411-${HSE}-Release
+      CPU cortex-m4 FLOAT_ABI hard FPU fpv4-sp-d16
+      LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/stm32f411ce_flash.ld
+      STARTUP ${CMAKE_SOURCE_DIR}/src/startup_stm32f411xe.S
+      LEDS ${MATRIX_LEDS_WS}
+      COMPILE_DEFINITIONS ARM_MATH_CM4 STM32F411CE STM32F411xE STM32F411xx STM32F411 STM32F4XX BLACKPILL_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=${HSE}000000
+      EXTRA_INCLUDE_DIRS ${MATRIX_F4_INCLUDES}
+    )
+  endforeach()
+
+  wordclock_matrix_board(stm32f401
+    EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h.ebp
+    EBP_TARGET WC@MODE@-Nucleo401-Release
+    CPU cortex-m4 FLOAT_ABI hard FPU fpv4-sp-d16
+    LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/stm32f401re_flash.ld
+    LEDS ${MATRIX_LEDS_WS}
+    COMPILE_DEFINITIONS ARM_MATH_CM4 STM32F401RE STM32F401xx STM32F401 STM32F4XX NUCLEO_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=8000000
+    EXTRA_INCLUDE_DIRS ${MATRIX_F4_INCLUDES}
+  )
+
+  wordclock_matrix_board(stm32f411
+    EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h.ebp
+    EBP_TARGET WC@MODE@-Nucleo411-Release
+    CPU cortex-m4 FLOAT_ABI hard FPU fpv4-sp-d16
+    LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/stm32f411re_flash.ld
+    LEDS ${MATRIX_LEDS_WS}
+    COMPILE_DEFINITIONS ARM_MATH_CM4 STM32F411RE STM32F411xE STM32F411 STM32F4XX NUCLEO_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=8000000
+    EXTRA_INCLUDE_DIRS ${MATRIX_F4_INCLUDES}
+  )
+
+  wordclock_matrix_board(stm32f407
+    EBP_FILE ${CMAKE_SOURCE_DIR}/wclock24h.ebp
+    EBP_TARGET WC@MODE@-Black407-Release
+    CPU cortex-m4 FLOAT_ABI hard FPU fpv4-sp-d16
+    LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/stm32f407ve_flash.ld
+    LEDS tft-rgb:TFTLED_RGB_LED
+    COMPILE_DEFINITIONS ARM_MATH_CM4 STM32F407VE STM32F407 STM32F40_41xxx STM32F4XX BLACK_BOARD USE_STDPERIPH_DRIVER HSE_VALUE=8000000
+    EXTRA_INCLUDE_DIRS ${MATRIX_F4_INCLUDES}
+  )
+
+  get_property(MATRIX_TARGETS GLOBAL PROPERTY WORDCLOCK_MATRIX_TARGETS)
+  list(LENGTH MATRIX_TARGETS MATRIX_COUNT)
+  if(NOT MATRIX_COUNT EQUAL 72)
+    message(FATAL_ERROR "Matrix: ${MATRIX_COUNT} Varianten definiert, erwartet 72")
+  endif()
+  add_custom_target(wordclock_matrix DEPENDS ${MATRIX_TARGETS})
+  message(STATUS "Matrix: ${MATRIX_COUNT} Varianten, Ausgabe ${MATRIX_OUT_DIR}")
+endif()

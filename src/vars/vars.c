@@ -1320,8 +1320,8 @@ var_send_display_power (void)
     var_send_num_variable (DISPLAY_POWER_NUM_VAR, display.display_power_is_on);
 }
 
-static void
-var_send_display_ambilight_power (void)
+void
+var_send_display_ambilight_power (void)                                 // A68: oeffentlich, main.c sendet bei jeder Aenderung
 {
     var_send_num_variable (DISPLAY_AMBILIGHT_POWER_NUM_VAR, display.ambilight_power_is_on);
 }

@@ -39,8 +39,19 @@ RELEASE_STAMP := $(shell date +"%Y-%m-%d-%H%M%S")
 RELEASE_ZIP ?= $(RELEASE_DIR)/wordclock-release-$(RELEASE_STAMP).zip
 STM_VERSION_FILE ?= $(BUILD_DIR)/wc.txt
 ESP_VERSION_FILE ?= $(ESP_BUILD_DIR)/ESP-WordClock.txt
+# Komplettbuild aller 72 STM-Varianten des Originals, nur auf Anforderung
+# ("make matrix"). Eigenes Verzeichnis und eigene Konfiguration mit
+# WORDCLOCK_MATRIX=ON -- BUILD_DIR, f103, f411 und release-zip bleiben unberuehrt.
+MATRIX_BUILD_DIR ?= build/matrix
+MATRIX_MIN_FREE ?= 1024
+MATRIX_ORIGINAL_ZIP ?= wordclock-hex.zip
+MATRIX_JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+MATRIX_CONFIGURE_ARGS = -S . -B $(MATRIX_BUILD_DIR) -G "Unix Makefiles" -DCMAKE_MAKE_PROGRAM=/usr/bin/make -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/cmake/toolchain-arm-none-eabi.cmake -DWORDCLOCK_MATRIX=ON
+ifneq ($(strip $(ARM_TOOLCHAIN_ROOT)),)
+MATRIX_CONFIGURE_ARGS += -DARM_NONE_EABI_ROOT=$(ARM_TOOLCHAIN_ROOT)
+endif
 
-.PHONY: configure f103 f411 all esp release-zip stm-version-file esp-version-file app-version-file app-gz clean clean-stm clean-esp clean-release clean-app-gz say-stm say-esp say-versions
+.PHONY: configure f103 f411 all esp release-zip stm-version-file esp-version-file app-version-file app-gz clean clean-stm clean-esp clean-release clean-app-gz clean-matrix matrix say-stm say-esp say-versions
 
 configure:
 	$(CMAKE) $(CONFIGURE_ARGS)
@@ -123,6 +134,27 @@ release-zip: app-gz app-version-file f103 f411 esp
 	@echo "Release ZIP ready:"
 	@echo "  $(RELEASE_ZIP)"
 	@$(MAKE) --no-print-directory say-versions
+
+# Die alten Fabrikate werden vor jedem Lauf entfernt. Sonst stuende nach einem
+# gescheiterten Link die HEX des VORIGEN Laufs da und zaehlte als "gebaut". Die
+# Objektdateien bleiben, neu gelinkt wird trotzdem jede Variante. Das ganze
+# Verzeichnis, nicht "*.elf": Die ELF-Dateien tragen dort keine Endung, und ein
+# Muster darauf liesse sie stehen -- CMake hielte die Ziele dann fuer aktuell
+# und erzeugte keine HEX mehr. Danach wird es sofort wieder angelegt: Der Linker
+# schreibt die Map-Datei hinein und legt es selbst nicht an.
+# Der Build laeuft mit -k weiter, damit eine kaputte Variante die anderen 71
+# nicht verdeckt; seinen Exitcode wertet matrix-report.sh mit aus.
+matrix:
+	$(CMAKE) $(MATRIX_CONFIGURE_ARGS)
+	rm -rf $(MATRIX_BUILD_DIR)/hex
+	mkdir -p $(MATRIX_BUILD_DIR)/hex
+	@echo "  Matrix: 72 Varianten, -j$(MATRIX_JOBS), Protokoll in $(MATRIX_BUILD_DIR)/build.log"
+	@rc=0; $(CMAKE) --build $(MATRIX_BUILD_DIR) --target wordclock_matrix -j$(MATRIX_JOBS) -- -k > $(MATRIX_BUILD_DIR)/build.log 2>&1 || rc=$$?; \
+	if [ $$rc -ne 0 ]; then echo "  Build-Fehler (Auszug):"; grep -n -i -E 'error|\*\*\*' $(MATRIX_BUILD_DIR)/build.log | head -n 40; fi; \
+	sh cmake/matrix-report.sh $(MATRIX_BUILD_DIR) $(MATRIX_MIN_FREE) $(MATRIX_ORIGINAL_ZIP) $$rc
+
+clean-matrix:
+	rm -rf $(MATRIX_BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR) $(ESP_BUILD_DIR) $(RELEASE_DIR)

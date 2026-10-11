@@ -37,4 +37,9 @@ extern uint_fast8_t         timeserver_set_timeserver (char * new_timeserver);
 extern void                 timeserver_start_timeserver_request (void);
 extern void                 timeserver_convert_time (struct tm * tmp, uint32_t seconds_since_1900);
 
+#define TIMESERVER_NET_TIME_OK          0                       // timeserver_check_net_time(): uebernehmen
+#define TIMESERVER_NET_TIME_REJECTED    1                       // nichts aendern
+#define TIMESERVER_NET_TIME_ASK_AGAIN   2                       // nichts aendern, in 15 s nochmals fragen
+extern uint_fast8_t         timeserver_check_net_time (const char * s, uint32_t up, uint32_t * np);
+
 #endif

@@ -1417,6 +1417,13 @@ upgrade_eep_version (void)
     }
 }
 
+/* A69/M2 (Review S1.16, Entscheidung des Nutzers "IP erst zeigen, dann aus"): vorgemerktes Aus vom Start.
+ * 0 = keins; sonst uptime, ab der es gilt (Frist ohne IP); NIGHT_OFF_AFTER_IP = erst nach dem IP-Lauftext.
+ * Jedes Schalten des Displays verwirft die Vormerkung (set_display_power()). */
+#define NIGHT_OFF_AFTER_IP      0xFFFFFFFF
+#define NIGHT_OFF_DELAY_SEC     60
+static uint32_t                 night_off_due = 0;
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set display power
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -1433,6 +1440,7 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
                 display.ambilight_power_is_on);
 
     display.display_power_is_on = new_power_is_on;
+    night_off_due = 0;                                                      // A69/M2: jedes Schalten verwirft ein vorgemerktes Aus
 
     if (do_sync_ambilight)
     {
@@ -1453,6 +1461,11 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
     if (esp8266.is_online)
     {
         var_send_display_power ();
+
+        if (do_sync_ambilight)                                              // A68: Ambilight mitgeschaltet -- ESP-Kopie nachziehen
+        {
+            var_send_display_ambilight_power ();
+        }
     }
 
     if (display.display_power_is_on || display.ambilight_power_is_on)
@@ -1537,6 +1550,7 @@ static uint32_t         local_uptime                = 0;
 static uint_fast8_t     ir_export_idx               = N_REMOTE_IR_CMDS;     // Abzug der IR-Codes: naechster Index, N == nichts zu tun
 static uint_fast8_t     var_sync_pending            = 0;                    // SYNCVARS gesehen: Vollabgleich im Hauptloop faellig
 static uint_fast8_t     ip_ticker_pending           = 0;                    // IPADDRESS gesehen: IP-Lauftext NACH dem Vollabgleich (A39)
+static uint_fast16_t    night_wm                    = 0xFFFF;               // A69: zuletzt ausgewertete Wochenminute, 0xFFFF = noch keine gueltige Zeit
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set_overlay_idx () - used by external NIC function wc_display_overlay()
@@ -3248,6 +3262,54 @@ schedule_esp8266_cmd (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * night_apply () - Nachtfenster nachholen (A69, specs/paket-2026-10-11, design.md 3.2, Ent-2)
+ *
+ * Der Timer greift nur in genau seiner Minute (night_check_night_times()). Nach einem Neustart im
+ * Aus-Fenster blieb das Display deshalb bis zum naechsten Ein-Timer an (L390), und eine
+ * uebersprungene Minute (Sommerzeit, Netzzeit, Hauptloop laenger als eine Minute blockiert) verlor
+ * ihren Timer ganz. Hier wird das juengste Ereignis der Displayliste angewandt, wenn es
+ *   - at_start:  beim Start nach dem RTC-Lesen oder, war die RTC nicht gueltig, beim ersten
+ *                uebernommenen TIME -- und nur ein AUS (Ent-2 (2), (4)); ein Ein aendert nichts;
+ *   - sonst:     im uebersprungenen Intervall liegt, also weniger als skipped Minuten zurueck
+ *                (Ent-2 (3)); Aus wie Ein, wie der Timer selbst.
+ * Gilt nur, wenn es den Zustand aendert; ein Aus schaltet das Ambilight mit, ein Ein nicht (wie der
+ * Timer). Merkt sich in jedem Fall die ausgewertete Wochenminute fuer die Sprungerkennung.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+night_apply (uint_fast16_t skipped, uint_fast8_t at_start)
+{
+    uint_fast16_t   m = gmain.hour * 60 + gmain.minute;
+    uint_fast16_t   back;
+    uint_fast8_t    ev = night_last_event (gmain.wday, m, &back);
+    uint_fast8_t    on = (ev == NIGHT_EVENT_ON);
+
+    night_wm = gmain.wday * (24 * 60) + m;
+
+    if (ev && back < skipped && on != display.display_power_is_on && ! (at_start && on))
+    {
+        if (at_start == 2)                                                  // M2: Start -- nur vormerken, die Startsequenz samt
+        {                                                                   // IP-Lauftext laeuft wie heute, danach aus
+            night_off_due = uptime + NIGHT_OFF_DELAY_SEC;
+            return;
+        }
+
+        display_clock_flag = set_display_power (on, ! on);
+        m = (m + 8 * 24 * 60 - back) % (24 * 60);                              // Minute des Ereignisses
+        log_printf ("night: %s %s (%02d:%02d)\r\n", at_start ? "start" : "sprung", on ? "ein" : "aus", m / 60, m % 60);
+    }
+}
+
+/* M2: vorgemerktes Aus jetzt entscheiden -- nach dem IP-Lauftext oder nach der Frist. Neu ausgewertet mit
+ * der aktuellen Zeit: Liegt inzwischen ein Ein-Timer dazwischen, bleibt das Display an. */
+static void
+night_off_apply (void)
+{
+    night_off_due = 0;
+    night_apply (0xFFFF, 1);
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_messages () - schedule messages of ESP8266
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -3268,35 +3330,57 @@ schedule_esp8266_messages (void)
         }
         case ESP8266_TIME:
         {
-            char *          endptr;
             uint32_t        seconds_since_1900;
+            uint_fast8_t    net_time_rtc;
 
-            seconds_since_1900  = strtoul (esp8266.u.time, &endptr, 10);
-            timeserver_convert_time (&gmain.tm, seconds_since_1900);
+            /* A62 (specs/paket-2026-10-11, design.md 2): Form, Totbereich und Bestaetigungsregel prueft
+             * timeserver_check_net_time() -- Begruendung dort. Hier stand strtoul() ohne jede Pruefung:
+             * "" und "0" ergaben 2036-02-07, mehr als 10 Ziffern saettigten still (L371).
+             *
+             * Nicht uebernommen heisst: Uhr und RTC bleiben unberuehrt, net_time_countdown bleibt, wie er
+             * beim Anfordern gesetzt wurde (3800 s) -- wie bei einer ausbleibenden Antwort. Nur ein noch
+             * unbestaetigter Sprung fragt nach 15 s nochmals (hoechstens dreimal in Folge, dort gezaehlt).
+             */
+            net_time_rtc = timeserver_check_net_time (esp8266.u.time, uptime, &seconds_since_1900);
 
-            if (grtc.rtc_is_up)
+            if (net_time_rtc == TIMESERVER_NET_TIME_ASK_AGAIN)
             {
-                rtc_set_date_time (&gmain.tm);
+                net_time_countdown = 15;                                        // nur vormerken: gefragt wird im Zeitzweig, an is_online
             }
+            else if (net_time_rtc == TIMESERVER_NET_TIME_OK)
+            {                                                                   // verschachtelt statt fruehem break: var_send_tm() bleibt
+                                                                                // als Antwort auf die TIME-Zeile erkennbar (Pruefstand ep, A55)
+                timeserver_convert_time (&gmain.tm, seconds_since_1900);
 
-            if (gmain.hour != (uint_fast8_t) gmain.tm.tm_hour || gmain.minute != (uint_fast8_t) gmain.tm.tm_min)
-            {
-                var_send_tm ();
-                display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+                if (grtc.rtc_is_up)
+                {
+                    rtc_set_date_time (&gmain.tm);
+                }
+
+                if (gmain.hour != (uint_fast8_t) gmain.tm.tm_hour || gmain.minute != (uint_fast8_t) gmain.tm.tm_min)
+                {
+                    var_send_tm ();
+                    display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+                }
+
+                gmain.year    = gmain.tm.tm_year + 1900;
+                gmain.month   = gmain.tm.tm_mon  + 1;
+                gmain.mday    = gmain.tm.tm_mday;
+                gmain.wday    = gmain.tm.tm_wday;
+                gmain.hour    = gmain.tm.tm_hour;
+                gmain.minute  = gmain.tm.tm_min;
+                gmain.second  = gmain.tm.tm_sec;
+
+                log_printf ("cmd: set time to %s %4d-%02d-%02d %02d:%02d:%02d\r\n",          // A62: unbedingt, AKN.6 liest die Uebernahme daran ab
+                                    wdays_en[gmain.tm.tm_wday], gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
+                                    gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
+                net_time_countdown = 3600 + 180 + 40 - gmain.second;                // calc next timeserver call 1h3m later at hh:mm:40
+
+                if (night_wm == 0xFFFF)                                             // A69: RTC beim Start nicht gueltig -- jetzt einmal
+                {
+                    night_apply (0xFFFF, 1);
+                }
             }
-
-            gmain.year    = gmain.tm.tm_year + 1900;
-            gmain.month   = gmain.tm.tm_mon  + 1;
-            gmain.mday    = gmain.tm.tm_mday;
-            gmain.wday    = gmain.tm.tm_wday;
-            gmain.hour    = gmain.tm.tm_hour;
-            gmain.minute  = gmain.tm.tm_min;
-            gmain.second  = gmain.tm.tm_sec;
-
-            debug_log_printf ("cmd: set time to %s %4d-%02d-%02d %02d:%02d:%02d\r\n",
-                                wdays_en[gmain.tm.tm_wday], gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
-                                gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
-            net_time_countdown = 3600 + 180 + 40 - gmain.second;                // calc next timeserver call 1h3m later at hh:mm:40
             break;
         }
         case ESP8266_TABLES:                                                    // ESP8266 read layout tables
@@ -3830,6 +3914,11 @@ main (void)
         log_printf ("read rtc: %s %4d-%02d-%02d %02d:%02d:%02d\r\n",
                     wdays_en[gmain.tm.tm_wday], gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
                     gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
+
+        if (gmain.year >= 2026)                                             // M1: RTC nach leerer Batterie (2000-01-01) zaehlt nicht,
+        {                                                                   // dann wertet das erste uebernommene TIME aus
+            night_apply (0xFFFF, 2);                                        // A69/M2: Aus nur vormerken
+        }
     }
 
     main_set_ambilight_clock_wait_cycles ();
@@ -4068,6 +4157,16 @@ main (void)
             sprintf ((char *) buf, "IP %s", esp8266.ipaddress);
             display_set_ticker (buf, 0);
             pending_ticker_restore = 1;
+
+            if (night_off_due)                                              // M2: Aus erst, wenn dieser Lauftext durch ist
+            {                                                               // (Restore-Bedingung unten)
+                night_off_due = NIGHT_OFF_AFTER_IP;
+            }
+        }
+
+        if (night_off_due && uptime >= night_off_due)                       // M2: keine IP binnen Frist (kein WLAN, ESP aus)
+        {                                                                   // NIGHT_OFF_AFTER_IP erreicht uptime nie
+            night_off_apply ();
         }
 
         /* Abzug der IR-Codes: genau EIN Kommando je Hauptloop-Durchlauf. Der RPC
@@ -4283,6 +4382,13 @@ main (void)
 
             // display_clock_flag = 0;                                      // don't reset flag
 
+            if (night_wm != 0xFFFF)                                         // A69: Vorwaertssprung (mehr als 1, weniger als 5040 Minuten)
+            {                                                               // holt das Ereignis im uebersprungenen Intervall nach
+                uint_fast16_t d = (gmain.wday * (24 * 60) + gmain.hour * 60 + gmain.minute + 7 * 24 * 60 - night_wm) % (7 * 24 * 60);
+
+                night_apply ((d > 1 && d < 7 * 12 * 60) ? d : 0, 0);
+            }
+
             if (night_check_night_times (0, display.display_power_is_on, gmain.wday, gmain.hour * 60 + gmain.minute))
             {
                 if (display.display_power_is_on)                            // display currently on
@@ -4300,6 +4406,12 @@ main (void)
             if (night_check_night_times (1, display.ambilight_power_is_on, gmain.wday, gmain.hour * 60 + gmain.minute))
             {
                 display_set_ambilight_power (! display.ambilight_power_is_on);
+
+                if (esp8266.is_online)                                      // A68: ESP-Kopie nachziehen
+                {
+                    var_send_display_ambilight_power ();
+                }
+
                 log_printf ("Found Timer: ambilight %s at %02d:%02d\r\n", display.ambilight_power_is_on ? "on" : "off", gmain.hour, gmain.minute);
             }
 
@@ -4700,6 +4812,11 @@ main (void)
             {
                 pending_ticker_restore = 0;                                     // else keep it pending and retry next iteration
                 display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
+
+                if (night_off_due == NIGHT_OFF_AFTER_IP)                        // M2: IP-Lauftext durch -- jetzt das vorgemerkte Aus
+                {
+                    night_off_apply ();
+                }
             }
         }
 

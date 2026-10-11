@@ -94,6 +94,12 @@ timeserver_read_data_from_eep (void)
              }
         }
 
+        if (tz[1] > 12)                                                     // A62: dieselbe Grenze wie timeserver_set_timezone()
+        {
+            log_message ("time: zeitzone ungueltig, vorgabe");
+            timeserver.timezone = NET_TIME_GMT_OFFSET;
+        }
+
         rtc = 1;
     }
     else
@@ -238,6 +244,102 @@ timeserver_start_timeserver_request (void)
     {
         esp8266_send_cmd ("time", (const char *) NULL, 1);                              // use default timeserver
     }
+}
+
+/*--------------------------------------------------------------------------------------------------------------------------------------
+ * check net time (A62, specs/paket-2026-10-11, design.md 2, Ent-3 und Ent-3b)
+ *
+ * Prueft den Text einer TIME-Zeile vom ESP, bevor irgendetwas an Uhr oder RTC geaendert wird.
+ *
+ * 1. Form: 1 bis 10 Ziffern, dann '\0'. Kein Vorzeichen, kein Leerzeichen, kein Rest; ein Wert ueber
+ *    4'294'967'295 ist ungueltig (strtoul saettigte dort still). 1 bis 10 und nicht genau 10: Der ESP
+ *    sendet die NTP-Sekunde dezimal OHNE fuehrende Nullen (ntp.cpp), und ab 2036-02-07 06:28:16 UTC
+ *    (Aera 1) beginnt sie wieder bei 0.
+ *
+ * 2. Gueltigkeit -- EINE Grenze auf der Unixzeit: (uint32_t) (n - 2208988800) >= 1767225600, also ab
+ *    2026-01-01 00:00:00 UTC. Die Differenz laeuft modulo 2^32 um und bildet damit Aera 0 und Aera 1
+ *    in einem Schritt ab, dieselbe Rechnung wie in timeserver_convert_time(); kein 64-Bit-Pfad.
+ *    Gueltig ist 2026-01-01 bis 2106-02-07 06:28:15 UTC (uint32 in my_gmtime()); verworfen wird der
+ *    Totbereich n in [2208988800, 3976214400). Die Kette endet trotzdem frueher: Die RTC speichert das
+ *    Jahr zweistellig, ab 2100 schreibt rtc.c ein ungueltiges Jahr (L371).
+ *
+ * 3. Bestaetigung (Ent-3b): Weicht n um mehr als 600 s von der letzten uebernommenen, ueber uptime
+ *    fortgeschriebenen NTP-Sekunde ab, gilt n erst, wenn eine zweite Antwort es auf +-5 s bestaetigt --
+ *    und zwar eine SPAETERE, mindestens 10 s nach dem Kandidaten. Ohne diesen Abstand bestaetigten
+ *    sich zwei Nullen, die kurz nacheinander ankommen (zwei Anfragen in derselben Sekunde).
+ *    Nach jedem Start gibt es keine Referenz (RAM): Die erste Antwort wird Kandidat, die Uhr laeuft bis
+ *    zur Bestaetigung aus der RTC. Faengt die 0 eines unsynchronisierten Servers (0 und 0 bestaetigen
+ *    sich nicht, erwartet waere 0 + 15) und eine verstuemmelte Zeile -- TIME traegt keine Pruefsumme.
+ *    Die Referenz ist UTC; Zeitzone und Sommerzeit wirken erst in der Umrechnung. Alle Abstaende sind
+ *    uint32-Differenzen: Sie ueberstehen die Aerengrenze und den Umlauf von uptime.
+ *
+ * Rueckgabe: TIMESERVER_NET_TIME_OK         uebernehmen, *np gesetzt
+ *            TIMESERVER_NET_TIME_REJECTED   nichts aendern
+ *            TIMESERVER_NET_TIME_ASK_AGAIN  nichts aendern, in 15 s nochmals fragen -- hoechstens dreimal
+ *                                           in Folge, danach der regulaere Takt (keine Abfrageschleife)
+ *--------------------------------------------------------------------------------------------------------------------------------------
+ */
+static struct
+{
+    uint32_t        ref;                                                    // letzte uebernommene NTP-Sekunde
+    uint32_t        ref_up;                                                 // uptime dazu
+    uint32_t        cand;                                                   // Kandidat, wartet auf Bestaetigung
+    uint32_t        cand_up;                                                // uptime dazu
+    uint8_t         ref_ok;
+    uint8_t         cand_ok;
+    uint8_t         quick;                                                  // Schnellabfragen in Folge, 0..3
+} net_time;
+
+uint_fast8_t
+timeserver_check_net_time (const char * s, uint32_t up, uint32_t * np)
+{
+    uint32_t        n = 0;
+    uint_fast8_t    i;
+
+    for (i = 0; s[i] >= '0' && s[i] <= '9'; i++)
+    {
+        uint_fast8_t d = s[i] - '0';
+
+        if (i == 10 || n > 429496729U || (n == 429496729U && d > 5))      // 11. Ziffer oder ueber 4'294'967'295
+        {
+            i = 0;
+            break;
+        }
+
+        n = n * 10 + d;
+    }
+
+    if (i == 0 || s[i] != '\0' || n - 2208988800U < 1767225600U)            // Form; Totbereich (Unix vor 2026-01-01)
+    {
+        log_message ("time: ungueltig, verworfen");
+        return TIMESERVER_NET_TIME_REJECTED;
+    }
+
+    if ((net_time.ref_ok  && (uint32_t) (n - (net_time.ref + (up - net_time.ref_up)) + 600) <= 1200) ||
+        (net_time.cand_ok && up - net_time.cand_up >= 10 &&
+                             (uint32_t) (n - (net_time.cand + (up - net_time.cand_up)) + 5) <= 10))
+    {                                                                       // regulaerer Abgleich +-600 s oder bestaetigt +-5 s
+        net_time.ref     = n;
+        net_time.ref_up  = up;
+        net_time.ref_ok  = 1;
+        net_time.cand_ok = 0;
+        net_time.quick   = 0;
+        *np = n;
+        return TIMESERVER_NET_TIME_OK;
+    }
+
+    net_time.cand    = n;
+    net_time.cand_up = up;
+    net_time.cand_ok = 1;
+    log_message ("time: sprung, bestaetigung angefordert");
+
+    if (net_time.quick < 3)
+    {
+        net_time.quick++;
+        return TIMESERVER_NET_TIME_ASK_AGAIN;
+    }
+
+    return TIMESERVER_NET_TIME_REJECTED;
 }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------

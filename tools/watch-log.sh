@@ -32,7 +32,7 @@
 #   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
 #   time: sprung            Bestaetigung angefordert -- Hinweis; Alarm ab der vierten in Folge
 #                           ohne "cmd: set time to" dazwischen (Server liefert dauerhaft Unsinn)
-#   Hinweise                night: start aus (A69), spiel: n Zeilen verworfen (A53),
+#   Hinweise                night: start aus / sprung aus|ein (A69), spiel: n Zeilen verworfen (A53),
 #                           ldr: minimum/maximum abgewiesen (A57), time: zeitzone ungueltig
 #
 # Zeilen mit "%" werden uebergangen: Beim STM-Flashen laeuft das Firmware-Abbild durch den
@@ -76,7 +76,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: start aus|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen'
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
@@ -155,6 +155,12 @@ while :; do
   if [ -n "$neu" ]; then
     printf '%s\n' "$neu" >> "$GESEHEN"
     while IFS= read -r z; do
+      # Text mit fuehrendem Leerzeichen (Stempel, dann vier statt drei): Binaerrest aus dem
+      # Firmware-Abbild beim STM-Flashen. Am 11.10.2026 um 20:44 meldete die Wache so
+      # "ds18xx verloren" aus dem Abbild von 3.2.29 -- ohne "%", am Filter darunter vorbei.
+      # Nur fuer Ereigniszeilen: Die Reset-Flags ("     PINRST") sind echt und eingerueckt,
+      # sie laufen hier nicht durch.
+      case "$z" in *[0-9][0-9]:[0-9][0-9]"    "*) continue ;; esac
       case "$z" in
         *%*)
           # Formatzeichenkette aus dem Firmware-Abbild beim Flashen, keine echte Zeile
@@ -176,6 +182,9 @@ while :; do
           printf '  %s  Hinweis: Zeitzone im EEPROM ungueltig, Vorgabe gilt   <%s>\n' "$stamp" "$z" ;;
         *"night: start aus"*)
           printf '  %s  Hinweis: Start im Nacht-Aus-Fenster   <%s>\n' "$stamp" "$z" ;;
+        *"night: sprung "*)
+          # A69: Uhr sprang ueber eine Timer-Minute (Sommerzeit, NTP-Korrektur, Stillstand), Ereignis nachgeholt
+          printf '  %s  Hinweis: Timer nach Zeitsprung nachgeholt   <%s>\n' "$stamp" "$z" ;;
         *"spiel: "*" Zeilen verworfen"*)
           printf '  %s  Hinweis: Spiel hat ESP-Zeilen verworfen, Abgleich folgt   <%s>\n' "$stamp" "$z" ;;
         *"ldr: "*" abgewiesen"*)

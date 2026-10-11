@@ -34,6 +34,10 @@ extern NIGHT_TIME       ambilight_night_time[MAX_NIGHT_TIMES];
 extern uint_fast8_t     night_read_data_from_eep (uint32_t);
 extern uint_fast8_t     night_write_data_to_eep (void);
 extern uint_fast8_t     night_check_night_times (uint_fast8_t, uint_fast8_t, uint_fast8_t, uint_fast16_t);
+
+#define NIGHT_EVENT_OFF         1                                           // night_last_event(): juengstes Ereignis schaltet aus
+#define NIGHT_EVENT_ON          2                                           // ... schaltet ein; 0 = keins
+extern uint_fast8_t     night_last_event (uint_fast8_t, uint_fast16_t, uint_fast16_t *);
 extern void             night_init (void);
 
 #endif

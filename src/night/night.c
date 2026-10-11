@@ -130,6 +130,75 @@ night_write_data_to_eep (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * check weekday of a night time entry
+ *
+ * A69: unveraendert aus night_check_night_times() herausgeloest, damit night_last_event() DIESELBE
+ * Pruefung nutzt. Tage 0 = So .. 6 = Sa; ein Feldwert 7 passt auf keinen Tag (wie bisher).
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+night_wday_valid (uint_fast8_t flags, uint_fast8_t wday)
+{
+    uint_fast8_t   from_wday    = (flags & NIGHT_TIME_FROM_DAY_MASK) >> 3;
+    uint_fast8_t   to_wday      = (flags & NIGHT_TIME_TO_DAY_MASK);
+
+    if (from_wday == to_wday)                                               // e.g. Su-Su 0-0
+    {
+        return (wday == from_wday);
+    }
+    else if (from_wday < to_wday)                                           // e.g. Mo-Fr 1-5
+    {
+        return (wday >= from_wday && wday <= to_wday);
+    }
+    return ! (wday > to_wday && wday < from_wday);                          // e.g. Sa-We 6-3
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * last night time event of the display list (A69, specs/paket-2026-10-11, design.md 3.1)
+ *
+ * Liefert das JUENGSTE vergangene Ereignis der Displayliste: aktiv, fuer seinen Wochentag gueltig,
+ * hoechstens eine Woche zurueck (k = 0: heute bis einschliesslich Minute m; k = 1..7: die Vortage,
+ * k = 7 ist derselbe Wochentag vor einer Woche). *backp = Abstand in Minuten (0 = diese Minute).
+ * Nur die Displayliste (Ent-2 (1)); ein Aus schaltet beim Anwenden das Ambilight mit, wie der Timer.
+ * minutes == 1440 laesst night_read_data_from_eep() zu; night_check_night_times() trifft es nie, also
+ * bleibt es auch hier unwirksam -- sonst galte es als 00:00 des Folgetags.
+ * Gleichstand (zwei Timer derselben Minute): der erste in Tabellenreihenfolge. Der Timer selbst nimmt
+ * dagegen den ersten, der den Zustand AENDERT -- verschieden nur bei Aus und Ein in derselben Minute.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+uint_fast8_t
+night_last_event (uint_fast8_t wday, uint_fast16_t m, uint_fast16_t * backp)
+{
+    NIGHT_TIME *    ntp;
+    uint_fast8_t    i;
+    uint_fast8_t    k;
+    uint_fast8_t    rtc = 0;
+    uint_fast16_t   back;
+    uint_fast16_t   best = 0xFFFF;
+
+    for (k = 0; k < 8; k++)
+    {
+        for (i = 0, ntp = night_time; i < MAX_NIGHT_TIMES; i++, ntp++)
+        {
+            if ((ntp->flags & NIGHT_TIME_FLAG_ACTIVE) && ntp->minutes < 24 * 60 && (k || ntp->minutes <= m) &&
+                night_wday_valid (ntp->flags, (wday + 7 - k) % 7))
+            {
+                back = k * (24 * 60) + m - ntp->minutes;
+
+                if (back < best)
+                {
+                    best = back;
+                    rtc  = (ntp->flags & NIGHT_TIME_FLAG_SWITCH_ON) ? NIGHT_EVENT_ON : NIGHT_EVENT_OFF;
+                }
+            }
+        }
+    }
+
+    *backp = best;
+    return rtc;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * check night_times
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -163,21 +232,7 @@ night_check_night_times (uint_fast8_t is_ambilight, uint_fast8_t power_is_on, ui
 
             if (condition)
             {
-                uint_fast8_t   from_wday    = (ntp->flags & NIGHT_TIME_FROM_DAY_MASK) >> 3;
-                uint_fast8_t   to_wday      = (ntp->flags & NIGHT_TIME_TO_DAY_MASK);
-
-                if (from_wday == to_wday)                                       // e.g. Su-Su 0-0
-                {
-                    rtc = (wday == from_wday);
-                }
-                else if (from_wday < to_wday)                                   // e.g. Mo-Fr 1-5
-                {
-                    rtc = (wday >= from_wday && wday <= to_wday);
-                }
-                else                                                            // e.g. Sa-We 6-3
-                {
-                    rtc = ! (wday > to_wday && wday < from_wday);
-                }
+                rtc = night_wday_valid (ntp->flags, wday);
 
                 if (rtc)
                 {
