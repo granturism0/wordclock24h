@@ -34,6 +34,8 @@
 #define I2C_ERROR_NO_FLAG_RXNE  (-7)
 #define I2C_ERROR_BUSY          (-8)                      // A60: BUSY nach STOP nicht frei binnen Frist
 
+extern uint_fast8_t     i2c_nack_quiet;                   // A73: NACK still, nur waehrend der Adresssuche (eeprom_init)
+
 void            i2c_init  (uint32_t);
 int_fast16_t    i2c_read  (uint_fast8_t, uint_fast16_t, uint_fast8_t, uint8_t *, uint_fast16_t);
 int_fast16_t    i2c_write (uint_fast8_t, uint_fast16_t, uint_fast8_t, uint8_t *, uint_fast16_t);

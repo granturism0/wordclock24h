@@ -109,6 +109,19 @@
 
 #include "uart.h"
 
+/* N6 (S3.2): Praefix "DFPlayer: " einmal statt in jedem der 48 Logaufrufe. dfp_message() bleibt wie
+ * log_message() reine UART-Ausgabe; dfp_printf() schreibt wie log_printf() Praefix und Text in EINEN Puffer
+ * und damit eine Zeile an UART und ESP-Ring (log_vprintf_prefix(), log.c). Ausgabe byte-gleich wie vorher. */
+#define DFP_PREFIX                      "DFPlayer: "
+#define dfp_printf(...)                 log_printf_prefix (DFP_PREFIX, __VA_ARGS__)
+
+static void
+dfp_message (const char * s)
+{
+    log_puts (DFP_PREFIX);
+    log_message (s);
+}
+
 #define START_BYTE                      0x7E
 #define END_BYTE                        0xEF
 
@@ -274,7 +287,7 @@ dfplayer_read_message (void)
 
                 if (chksum != (((uint_fast16_t) buf[CHK1_BYTE_POS] << 8) | buf[CHK2_BYTE_POS]))
                 {
-                    log_printf ("DFPlayer: wrong checksum\r\n");
+                    dfp_printf ("wrong checksum\r\n");
                 }
 
 #ifdef DEBUG
@@ -335,62 +348,62 @@ dfplayer_read_message (void)
                         case DFPLAYER_PUSH_IN:
                             if (par == 1)
                             {
-                                log_message ("DFPlayer: inserted USB stick");
+                                dfp_message ("inserted USB stick");
                             }
                             else if (par == 2)
                             {
-                                log_message ("DFPlayer: inserted SD card");
+                                dfp_message ("inserted SD card");
                             }
                             else
                             {
-                                log_message ("DFPlayer: inserted unknown device");
+                                dfp_message ("inserted unknown device");
                             }
                             break;
                         case DFPLAYER_PULL_OUT:
                             if (par == 1)
                             {
-                                log_message ("DFPlayer: removed USB stick");
+                                dfp_message ("removed USB stick");
                             }
                             else if (par == 2)
                             {
-                                log_message ("DFPlayer: removed SD card");
+                                dfp_message ("removed SD card");
                             }
                             else
                             {
-                                log_message ("DFPlayer: DFPlayer removed unknown device");
+                                dfp_message ("DFPlayer removed unknown device");
                             }
                             break;
                         case DFPLAYER_FINISH_PB_USB_STICK:
-                            log_printf ("DFPlayer: track %d on USB stick finished.\r\n", par);
+                            dfp_printf ("track %d on USB stick finished.\r\n", par);
                             break;
                         case DFPLAYER_FINISH_PB_SD_CARD:
-                            log_printf ("DFPlayer: track %d on SD card finished.\r\n", par);
+                            dfp_printf ("track %d on SD card finished.\r\n", par);
                             break;
                         case DFPLAYER_FINISH_PB_FLASH:
-                            log_printf ("DFPlayer: track %d on Flash finished.\r\n", par);
+                            dfp_printf ("track %d on Flash finished.\r\n", par);
                             break;
                         case DFPLAYER_SEND_INIT:
                             if (par == 0)
                             {
-                                log_message ("DFPlayer: No memory found");
+                                dfp_message ("No memory found");
                             }
                             else
                             {
                                 if (par & 0x01)
                                 {
-                                    log_message ("DFPlayer: USB stick online");
+                                    dfp_message ("USB stick online");
                                 }
                                 if (par & 0x02)
                                 {
-                                    log_message ("DFPlayer: SD card online");
+                                    dfp_message ("SD card online");
                                 }
                                 if (par & 0x04)
                                 {
-                                    log_message ("DFPlayer: PC (AUX) online");
+                                    dfp_message ("PC (AUX) online");
                                 }
                                 if (par & 0x08)
                                 {
-                                    log_message ("DFPlayer: Flash online");
+                                    dfp_message ("Flash online");
                                 }
                             }
                             break;
@@ -398,77 +411,77 @@ dfplayer_read_message (void)
                             switch (par)
                             {
                                 case 0:
-                                    log_message ("DFPlayer: Module is busy");
+                                    dfp_message ("Module is busy");
                                     break;
                                 case 1:
-                                    log_message ("DFPlayer: Frame data incomplete");
+                                    dfp_message ("Frame data incomplete");
                                     break;
                                 case 2:
-                                    log_message ("DFPlayer: Verification error");
+                                    dfp_message ("Verification error");
                                     break;
                                 case 6:
-                                    log_message ("DFPlayer: File not found");
+                                    dfp_message ("File not found");
                                     break;
                                 default:
-                                    log_printf  ("DFPlayer: Unknown error: 0x%02X 0x%02X\r\n", buf[PAR1_BYTE_POS], buf[PAR2_BYTE_POS]);
+                                    dfp_printf ("Unknown error: 0x%02X 0x%02X\r\n", buf[PAR1_BYTE_POS], buf[PAR2_BYTE_POS]);
                                     break;
                             }
                             break;
                         case DFPLAYER_REPLY:
-                            log_message ("DFPlayer: Reply??");
+                            dfp_message ("Reply??");
                             break;
                         case DFPLAYER_QUERY_STATUS:
-                            log_printf ("DFPlayer: Status %02X %02X\r\n", buf[PAR1_BYTE_POS], buf[PAR2_BYTE_POS]);
+                            dfp_printf ("Status %02X %02X\r\n", buf[PAR1_BYTE_POS], buf[PAR2_BYTE_POS]);
                             break;
                         case DFPLAYER_QUERY_VOLUME:
-                            log_printf ("DFPlayer: Volume %d\r\n", par);
+                            dfp_printf ("Volume %d\r\n", par);
                             break;
                         case DFPLAYER_QUERY_EQ:
                             switch (par)
                             {
-                                case DFPLAYER_EQ_NORMAL:    log_message ("DFPlayer: EQ Normal");    break;
-                                case DFPLAYER_EQ_POP:       log_message ("DFPlayer: EQ Pop");       break;
-                                case DFPLAYER_EQ_ROCK:      log_message ("DFPlayer: EQ Rock");      break;
-                                case DFPLAYER_EQ_JAZZ:      log_message ("DFPlayer: EQ Jazz");      break;
-                                case DFPLAYER_EQ_CLASSIC:   log_message ("DFPlayer: EQ Classic");   break;
-                                case DFPLAYER_EQ_BASS:      log_message ("DFPlayer: EQ Bass");      break;
-                                default:                    log_message ("DFPlayer: EQ unknown");   break;
+                                case DFPLAYER_EQ_NORMAL:    dfp_message ("EQ Normal");    break;
+                                case DFPLAYER_EQ_POP:       dfp_message ("EQ Pop");       break;
+                                case DFPLAYER_EQ_ROCK:      dfp_message ("EQ Rock");      break;
+                                case DFPLAYER_EQ_JAZZ:      dfp_message ("EQ Jazz");      break;
+                                case DFPLAYER_EQ_CLASSIC:   dfp_message ("EQ Classic");   break;
+                                case DFPLAYER_EQ_BASS:      dfp_message ("EQ Bass");      break;
+                                default:                    dfp_message ("EQ unknown");   break;
                             }
                             break;
                         case DFPLAYER_QUERY_PLAYBACK_MODE:
                             switch (par)
                             {
-                                case DFPLAYER_PLAYBACK_MODE_REPEAT:         log_message ("DFPlayer: Playback mode Normal");     break;
-                                case DFPLAYER_PLAYBACK_MODE_REPEAT_FOLDER:  log_message ("DFPlayer: Playback mode Folder");     break;
-                                case DFPLAYER_PLAYBACK_MODE_REPEAT_SINGLE:  log_message ("DFPlayer: Playback mode Single");     break;
-                                case DFPLAYER_PLAYBACK_MODE_REPEAT_RANDOM:  log_message ("DFPlayer: Playback mode Random");     break;
-                                default:                                    log_message ("DFPlayer: Playback mode unknown");    break;
+                                case DFPLAYER_PLAYBACK_MODE_REPEAT:         dfp_message ("Playback mode Normal");     break;
+                                case DFPLAYER_PLAYBACK_MODE_REPEAT_FOLDER:  dfp_message ("Playback mode Folder");     break;
+                                case DFPLAYER_PLAYBACK_MODE_REPEAT_SINGLE:  dfp_message ("Playback mode Single");     break;
+                                case DFPLAYER_PLAYBACK_MODE_REPEAT_RANDOM:  dfp_message ("Playback mode Random");     break;
+                                default:                                    dfp_message ("Playback mode unknown");    break;
                             }
                             break;
                         case DFPLAYER_QUERY_SOFTWARE_VER:
-                            log_printf ("DFPlayer: Version %04X\r\n", par);
+                            dfp_printf ("Version %04X\r\n", par);
                             dfplayer.version = par;
                             break;
                         case DFPLAYER_QUERY_SD_CARD_FILES:
-                            log_printf ("DFPlayer: SD card files %d\r\n", par);
+                            dfp_printf ("SD card files %d\r\n", par);
                             break;
                         case DFPLAYER_QUERY_USB_STICK_FILES:
-                            log_printf ("DFPlayer: USB stick files %d\r\n", par);
+                            dfp_printf ("USB stick files %d\r\n", par);
                             break;
                         case DFPLAYER_QUERY_FLASH_FILES:
-                            log_printf ("DFPlayer: Flash files %d\r\n", par);
+                            dfp_printf ("Flash files %d\r\n", par);
                             break;
                         case DFPLAYER_KEEP_ON:
-                            log_printf ("DFPlayer: Keep on???\r\n", par);
+                            dfp_printf ("Keep on???\r\n", par);
                             break;
                         case DFPLAYER_QUERY_SD_TRACK:
-                            log_printf ("DFPlayer: SD card track %d\r\n", par);
+                            dfp_printf ("SD card track %d\r\n", par);
                             break;
                         case DFPLAYER_QUERY_USB_STICK_TRACK:
-                            log_printf ("DFPlayer: USB stick track %d\r\n", par);
+                            dfp_printf ("USB stick track %d\r\n", par);
                             break;
                         case DFPLAYER_QUERY_FLASH_TRACK:
-                            log_printf ("DFPlayer: Flash track %d\r\n", par);
+                            dfp_printf ("Flash track %d\r\n", par);
                             break;
                     }
 
@@ -529,7 +542,7 @@ dfplayer_play_previous (void)
 void
 dfplayer_play_track (uint_fast16_t file)
 {
-    log_printf ("DFPlayer: play track %d\r\n", file);
+    dfp_printf ("play track %d\r\n", file);
     dfplayer_send_cmd (DFPLAYER_PLAY_TRACK, file);
 }
 
@@ -560,7 +573,7 @@ dfplayer_volume_down (void)
 void
 dfplayer_set_volume (uint_fast8_t volume)
 {
-    log_printf ("DFPlayer: set volume %d\r\n", volume);
+    dfp_printf ("set volume %d\r\n", volume);
     dfplayer_send_cmd (DFPLAYER_SET_VOLUME, volume);
 }
 
@@ -579,7 +592,7 @@ dfplayer_set_volume (uint_fast8_t volume)
 void
 dfplayer_set_eq (uint_fast8_t eq)
 {
-    log_printf ("DFPlayer: set eq %d\r\n", eq);
+    dfp_printf ("set eq %d\r\n", eq);
     dfplayer_send_cmd (DFPLAYER_SET_EQ, eq);
 }
 
@@ -606,7 +619,7 @@ dfplayer_set_playback_mode (uint16_t mode)
 void
 dfplayer_source_device (uint8_t device)
 {
-    log_printf ("DFPlayer: set source device: %d\r\n", device);
+    dfp_printf ("set source device: %d\r\n", device);
     dfplayer_send_cmd (DFPLAYER_SET_SOURCE_DEVICE, device);
 }
 
@@ -861,7 +874,7 @@ dfplayer_query_playback_mode (void)
 void
 dfplayer_query_software_version (void)
 {
-    log_message ("DFPlayer: query software version");
+    dfp_message ("query software version");
     dfplayer_send_cmd (DFPLAYER_QUERY_SOFTWARE_VER, 0);
 }
 

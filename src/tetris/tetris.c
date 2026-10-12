@@ -676,6 +676,8 @@ tetris (void)
                 }
             }
 
+            game_count_dropped (msg_rtc);   // A53: nach dem break oben -- GT zaehlt nie
+
             delay_msec (10);
         }
 

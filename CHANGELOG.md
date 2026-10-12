@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-10-12 Paket 2026-10-11, STM-Release 3: Displayfarbe nach Animation, Spiele, LDR, OTA-Ankündigung (STM 3.2.31)
+
+Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP
+`wordclock-release-2026-10-12-194757.zip`, Tag `release/3.2.31-3.2.31-1.4.95`.
+Umfang: STM-Release 3 aus `specs/paket-2026-10-11/` (A23, A53, A57, A67 STM-Hälfte), davor Flash-Einsparungen ohne
+Verhaltensänderung und die Korrektur aus G2 (A73).
+
+**Einspielreihenfolge: nur der STM** (`./tools/flash-stm.sh`). Die ESP-Hälfte von A67 folgt mit dem nächsten ESP-Release.
+
+### Displayfarbe kommt nach einer Farbanimation zurück (A23)
+- Wechselst du von Regenbogen oder Tageslicht zurück auf „keine Animation“, steht wieder deine eigene Farbe, und die PWA
+  zeigt sie. Bisher blieb die letzte Animationsfarbe stehen.
+- Eine Farbe, die du während einer Animation speicherst, oder ein Farbschritt per Fernbedienung ohne Animation gilt als
+  deine Farbe (Ent-1).
+- Ein Start mit EEPROM-Umstellung schreibt nicht mehr die Animationsfarbe als deine Farbe ins EEPROM.
+
+### Tetris und Snake verlieren keine Einstellungen mehr still (A53)
+- Was der ESP während eines Spiels schickt, verwarf der STM bisher ohne Spur. Jetzt zählt er es, schreibt nach dem Spiel
+  `spiel: n Zeilen verworfen` und gleicht mit dem ESP ab, sofern dieser erreichbar ist (Ent-4).
+- Snake liest im ersten Zug keinen undefinierten Zustand mehr.
+
+### LDR: „Messwert übernehmen“ weist eine falsche Reihenfolge ab (A57)
+- Wäre danach das Minimum nicht kleiner als das Maximum, bleibt der alte Wert stehen; Logzeile `ldr: minimum abgewiesen`
+  bzw. `ldr: maximum abgewiesen` mit den Werten (Ent-7). Das Setzen per Zahl nimmt weiter jede Reihenfolge an.
+
+### OTA-Ankündigung (A67, STM-Hälfte)
+- Kündigt der ESP mit `OTA start` ein Firmware-Update an, gilt er als offline, bis er sich wieder meldet. Der STM sendet
+  dann nicht mehr ins Leere. Wirksam, sobald der ESP die Zeile sendet.
+
+### I²C (A73) und Flash
+- Antwortet bei der Suche nach dem EEPROM beim Start ein Baustein nicht, steht keine Zeile `i2c: frist abgelaufen` mehr
+  im Log (7 Fehlalarme je Start in 3.2.30). Im Betrieb wird ein solcher Ausfall weiter gemeldet.
+- Ohne Verhaltensänderung eingespart: doppelte Texte, ein toter Zweig (A52), `snprintf`/`sprintf` als dünne Hüllen,
+  das Präfix „DFPlayer: “ nur einmal, zusammen rund 500 Byte.
+
+### Werkzeug
+Prüfstände n5, n6, a23, a53, a57, a67; a60 erweitert. Vor dem Build lief `make matrix`.
+
 ## 2026-10-12 Paket 2026-10-11, STM-Release 2: I²C mit Fristen, hängender Bus heilt sich selbst (STM 3.2.30)
 
 Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP

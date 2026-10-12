@@ -21,7 +21,7 @@
 #define DISABLE 0
 #define I2C_Direction_Transmitter 0
 #define I2C_Direction_Receiver    1
-enum { I2C_FLAG_SB = 1, I2C_FLAG_ADDR, I2C_FLAG_TXE, I2C_FLAG_BTF, I2C_FLAG_RXNE, I2C_FLAG_BUSY, NFLAG };
+enum { I2C_FLAG_SB = 1, I2C_FLAG_ADDR, I2C_FLAG_TXE, I2C_FLAG_BTF, I2C_FLAG_RXNE, I2C_FLAG_BUSY, I2C_FLAG_AF, NFLAG };
 typedef struct { volatile uint32_t SR2; } I2C_MOCK;
 static I2C_MOCK i2c_mock;
 #define I2C_CHANNEL (&i2c_mock)
@@ -38,22 +38,33 @@ static void tick (void) { takt++; if (delay_counter > 0) delay_counter--; if (ta
  * erzeugt KEIN START (SB kommt nie) -- RM0008. byte_haengt: der Slave bleibt mitten im Byte stehen (RXNE
  * kommt nie, ab da SDA low). stop_haengt: der Slave haelt SDA nach dem STOP der Transaktion fest. */
 static int sda_tot, byte_haengt, stop_haengt, im_frist;
+/* AF (G2-Korrektur): nack_adresse = der Slave quittiert das Adressbyte nicht -> ADDR kommt nie, AF gesetzt.
+ * Der SWRST loescht SR1 und damit AF (I2C_SoftwareResetCmd unten). */
+static int nack_adresse, af;
 static int I2C_GetFlagStatus (I2C_MOCK * c, uint32_t f)
 {
     (void) c; tick ();
     if (f == I2C_FLAG_RXNE && byte_haengt) { sda_tot = 1; return 0; }   /* bleibt aus, bis freigetaktet ist */
     if (sda_tot && f == I2C_FLAG_SB) return 0;
+    if (f == I2C_FLAG_AF) return af;
+    if (f == I2C_FLAG_ADDR && nack_adresse) return 0;
     if (f == I2C_FLAG_BUSY) return sda_tot || ! (takt >= bereit[f]);
     return takt >= bereit[f];
 }
 static void delay_msec (uint32_t ms) { uint32_t i; for (i = 0; i < ms * 200; i++) tick (); }
 static void I2C_GenerateSTART (I2C_MOCK * c, int e) { (void) c; (void) e; }
 static void I2C_GenerateSTOP (I2C_MOCK * c, int e) { (void) c; (void) e; stops++; if (stop_haengt) { sda_tot = 1; stop_haengt = 0; } }
-static void I2C_SoftwareResetCmd (I2C_MOCK * c, int e) { (void) c; if (e) resets++; }
+static void I2C_SoftwareResetCmd (I2C_MOCK * c, int e) { (void) c; if (e) { resets++; af = 0; } }
 static void I2C_DeInit (I2C_MOCK * c) { (void) c; }
 static void i2c_init_i2c (void) { }
 static void I2C_AcknowledgeConfig (I2C_MOCK * c, int e) { (void) c; (void) e; }
-static void I2C_Send7bitAddress (I2C_MOCK * c, uint8_t a, int d) { (void) c; (void) a; (void) d; }
+static int nack_bis_adresse = -1;          /* >= 0: nur diese Adresse antwortet, alle anderen NACKen (Adresssuche) */
+static void I2C_Send7bitAddress (I2C_MOCK * c, uint8_t a, int d)
+{
+    (void) c; (void) d;
+    if (nack_bis_adresse >= 0) nack_adresse = (a != nack_bis_adresse);
+    if (nack_adresse) af = 1;
+}
 static void I2C_SendData (I2C_MOCK * c, uint8_t v) { (void) c; (void) v; }
 /* Logzeile (A60 / AKI.3): genau "i2c: frist abgelaufen\r\n", gezaehlt; jeder andere Text ist ein Fehler */
 static int logzeilen, logfremd, logcannot;
@@ -99,6 +110,8 @@ static void GPIO_Init (int p, GPIO_InitTypeDef * g)
 static uint8_t lese_n;
 static uint8_t I2C_ReceiveData (I2C_MOCK * c) { (void) c; return (uint8_t) (0xA0 + lese_n++); }
 
+static uint_fast8_t eeprom_addr, eeprom_is_up;
+#define EEPROM_FIRST_ADDR 0xA0
 #include "auszug.c"
 #ifndef I2C_ERROR_BUSY
 #define I2C_ERROR_BUSY (-8)                       /* Stand ohne A60: nur damit die Gegenprobe uebersetzt */
@@ -107,9 +120,9 @@ static uint8_t I2C_ReceiveData (I2C_MOCK * c) { (void) c; return (uint8_t) (0xA0
 static unsigned long faelle, fehl, kat_n[8], kat_f[8]; static const char * kat_name[8]; static int kat;
 static void neue_kat (const char * n) { kat_name[++kat] = n; }
 static void pruef (int ok, const char * was)
-{ faelle++; kat_n[kat]++; if (! ok) { fehl++; kat_f[kat]++; if (kat_f[kat] <= 4 || ! strncmp (kat_name[kat], "M1", 2)) printf ("  FEHL  [%s] %s\n", kat_name[kat], was); }   /* M1 ist klein: alles zeigen */ }
+{ faelle++; kat_n[kat]++; if (! ok) { fehl++; kat_f[kat]++; if (kat_f[kat] <= 4 || (! strncmp (kat_name[kat], "M1", 2) || ! strncmp (kat_name[kat], "AF", 2))) printf ("  FEHL  [%s] %s\n", kat_name[kat], was); }   /* M1 ist klein: alles zeigen */ }
 static void alle (uint64_t ab) { int i; for (i = 0; i < NFLAG; i++) bereit[i] = ab; bereit[I2C_FLAG_BUSY] = ab; }
-static void start (void) { takt = 0; stops = resets = 0; delay_counter = 0; lese_n = 0; logzeilen = logfremd = logcannot = 0; freitakten = 0; scl_takte = 0; heilbar = 0; sda_tot = byte_haengt = stop_haengt = 0; }
+static void start (void) { takt = 0; stops = resets = 0; delay_counter = 0; lese_n = 0; logzeilen = logfremd = logcannot = 0; freitakten = 0; scl_takte = 0; heilbar = 0; sda_tot = byte_haengt = stop_haengt = 0; nack_adresse = af = 0; }
 
 int main (void)
 {
@@ -260,6 +273,41 @@ int main (void)
                       art ? "i2c_read" : "i2c_write", r, (unsigned long long) takt, logzeilen, freitakten);
             pruef (r == I2C_ERROR_NO_FLAG_ADDR && logzeilen == 1 && freitakten == 0 && takt <= 1010, was);
         }
+    }
+
+    /* ---- G2-Korrektur und Review S3.13 M2 (A73): NACK ----
+     * Still NUR waehrend der Adresssuche in eeprom_init (i2c_nack_quiet); im Betrieb genau eine Zeile.
+     * In beiden Faellen KEIN Freitakten: Ein NACK ist kein haengender Bus. */
+    neue_kat ("AF NACK");
+    {
+        int art, i; uint8_t buf[4] = { 1, 2, 3, 4 };
+        for (art = 0; art < 2; art++)
+        {
+            const char * wer = art ? "i2c_read" : "i2c_write";
+            start (); alle (0); nack_adresse = 1; i2c_nack_quiet = 0;
+            r = ZUGRIFF (art);
+            snprintf (was, sizeof was, "%s, NACK im Betrieb: r=%d, Fristzeilen %d, Freitakten %d, STOP %d, Reset %d, AF danach %d",
+                      wer, r, logzeilen, freitakten, stops, resets, af);
+            pruef (r == I2C_ERROR_NO_FLAG_ADDR && logzeilen == 1 && freitakten == 0 && stops >= 1 && resets == 1 && af == 0 && takt <= 1010, was);
+
+            /* altes AF bleibt nicht stehen: danach ein echter Fristablauf (Bus haengt beim START) -> genau eine Zeile, Freitakten */
+            NULLEN (); nack_adresse = 0; sda_tot = 1; heilbar = 1;
+            r = ZUGRIFF (art);
+            snprintf (was, sizeof was, "%s, nach einem NACK echter Fristablauf (SB): r=%d, Fristzeilen %d, Freitakten %d", wer, r, logzeilen, freitakten);
+            pruef (r == I2C_ERROR_NO_FLAG_SB && logzeilen == 1 && freitakten == 1, was);
+        }
+        /* die ECHTE Suche aus eeprom_init(): 7 x NACK, die 8. Adresse antwortet -> keine Zeile, kein Freitakten */
+        start (); alle (0); eeprom_is_up = 0; i2c_nack_quiet = 0;
+        nack_bis_adresse = 0xAE;
+        eep_suche ();
+        nack_bis_adresse = -1;
+        snprintf (was, sizeof was, "eeprom_init-Suche, 7 x NACK, 8. antwortet: EEPROM up %d, Fristzeilen %d, Freitakten %d, Flag danach %d",
+                  eeprom_is_up, logzeilen, freitakten, i2c_nack_quiet);
+        pruef (eeprom_is_up == 1 && logzeilen == 0 && freitakten == 0, was);
+        pruef (i2c_nack_quiet == 0, "nach der Suche: i2c_nack_quiet nicht zurueckgesetzt");
+        /* und danach im Betrieb wieder eine Zeile */
+        NULLEN (); nack_adresse = 1; r = ZUGRIFF (0);
+        pruef (logzeilen == 1 && freitakten == 0, "NACK nach der Suche (Betrieb): nicht genau eine Zeile");
     }
 
     printf ("  Kategorien:\n");

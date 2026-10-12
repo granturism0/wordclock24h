@@ -31,5 +31,7 @@
 #endif
 
 extern void                         log_vprintf (const char *, va_list);
+extern void                         log_vprintf_prefix (const char *, const char *, va_list);
+extern void                         log_printf_prefix (const char *, const char *, ...);
 extern void                         log_printf (const char *, ...);
 extern void                         log_init (uint32_t);

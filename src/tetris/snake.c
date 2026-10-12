@@ -261,6 +261,8 @@ get_next_move (DIRECTION previous)
             }
         }
 
+        game_count_dropped (msg_rtc);       // A53: nach dem break oben -- GS zaehlt nie
+
         delay_msec (10);
     }
 
@@ -288,7 +290,7 @@ snake (void)
     int             y;
     int             x;
     int             n;
-    STATUS          status;
+    STATUS          status = SNAKE_SUCCESS;                 // A53 (AKS.2): wird unten gelesen, bevor move_snake() lief (QUIT im ersten Zug)
     int             idx;
 
     display_dim_display_dsp_colors (&snake_rgb_dimmed, &snake_color, display.display_brightness, 1);

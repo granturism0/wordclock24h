@@ -3183,6 +3183,32 @@ display_init_color_animation (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * change color animation mode (A23, specs/paket-2026-10-11, design.md 5, Ent-1)
+ *
+ * Regenbogen und Tageslicht schreiben display.display_colors direkt. Ging es zurueck auf Modus 0, blieb
+ * die letzte Animationsfarbe stehen -- die Nutzerfarbe war verloren (L150). Jetzt auf JEDEM Weg auf Modus 0
+ * (Setzen, Inkrement, Dekrement): die Sicherung zurueck, gedimmt neu rechnen und an den ESP senden -- auch
+ * ohne do_sync, denn der ESP haelt sonst die Animationsfarbe fuer die Nutzerfarbe. Einziger Aufrufer im
+ * Betrieb ist der ESP-Befehl (main.c), der ESP ist dann online. Kein EEPROM: Die Sicherung IST die
+ * gespeicherte Farbe. Die Ambilight-Sicherung bleibt unberuehrt.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_change_color_animation (void)
+{
+    if (display.color_animation_mode == COLOR_ANIMATION_MODE_NONE)
+    {
+        COPY_DSP_RGB (display.display_colors, display.saved_display_colors);
+        display_calc_dimmed_display_colors ();
+        var_send_display_colors ();
+    }
+    else
+    {
+        display_init_color_animation ();
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * display_get_icon - get icon
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -3555,6 +3581,7 @@ display_read_config_from_eep (uint32_t eep_version)
         display.display_power_is_on             = FALSE;
 
         COPY_DSP_RGB (display.saved_ambilight_colors, display.ambilight_colors);
+        COPY_DSP_RGB (display.saved_display_colors, display.display_colors);  // A23: Nutzerfarbe, bevor eine Animation sie ueberschreibt
 
         display.saved_ambilight_brightness      = display.ambilight_brightness;
 
@@ -3582,16 +3609,19 @@ display_save_display_colors (void)
 {
     uint8_t display_rgb_color_buf8[3];
 
-    display_rgb_color_buf8[0] = display.display_colors.red;
-    display_rgb_color_buf8[1] = display.display_colors.green;
-    display_rgb_color_buf8[2] = display.display_colors.blue;
+    /* A23: die Sicherung, nicht die Momentanfarbe -- upgrade_eep_version() ruft das beim Start NACH dem Laden,
+     * und eine Farbanimation hat display_colors dann schon ueberschrieben. Ausserhalb einer Animation sind
+     * beide gleich (DC, IR im Modus 0, Laden fuehren die Sicherung nach). */
+    display_rgb_color_buf8[0] = display.saved_display_colors.red;
+    display_rgb_color_buf8[1] = display.saved_display_colors.green;
+    display_rgb_color_buf8[2] = display.saved_display_colors.blue;
 
     eep_write (EEPROM_DATA_OFFSET_DSP_COLORS, display_rgb_color_buf8, EEPROM_DATA_SIZE_DSP_COLORS);
 
 #if DSP_USE_SK6812_RGBW == 1
     uint8_t display_w_color8;
 
-    display_w_color8 = display.display_colors.white;
+    display_w_color8 = display.saved_display_colors.white;
     eep_write (EEPROM_DATA_OFFSET_DSP_W_COLOR, &display_w_color8, EEPROM_DATA_SIZE_DSP_W_COLOR);
 #endif
 }
@@ -4459,7 +4489,7 @@ display_set_color_animation_mode (uint_fast8_t new_mode, uint_fast8_t do_sync)
     {
         display.color_animation_mode = new_mode;
 
-        display_init_color_animation ();
+        display_change_color_animation ();
 
         if (do_sync)
         {
@@ -4488,7 +4518,7 @@ display_increment_color_animation_mode (uint_fast8_t do_sync)
         display.color_animation_mode = 0;
     }
 
-    display_init_color_animation ();
+    display_change_color_animation ();
 
     if (do_sync)
     {
@@ -4515,7 +4545,7 @@ display_decrement_color_animation_mode (uint_fast8_t do_sync)
         display.color_animation_mode--;
     }
 
-    display_init_color_animation ();
+    display_change_color_animation ();
 
     if (do_sync)
     {
@@ -5596,6 +5626,30 @@ display_animation (void)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * common end of the IR color steps (A23, Ent-1)
+ *
+ * Im Modus 0 ist ein IR-Farbschritt eine Nutzerfarbe: Sicherung nachfuehren, sonst stellte der naechste
+ * Wechsel von einer Animation auf Modus 0 die Farbe von vorher wieder her. Waehrend einer Animation bleibt
+ * die Sicherung, wie sie ist -- dort ueberschreibt die Animation den Schritt ohnehin.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_color_step_done (uint_fast8_t do_sync)
+{
+    if (display.color_animation_mode == COLOR_ANIMATION_MODE_NONE)
+    {
+        COPY_DSP_RGB (display.saved_display_colors, display.display_colors);
+    }
+
+    display_calc_dimmed_display_colors ();
+
+    if (do_sync)
+    {
+        var_send_display_colors ();
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * increment red color by 2
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -5611,12 +5665,7 @@ display_increment_display_color_red (uint_fast8_t do_sync)
             display.display_colors.red++;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5636,12 +5685,7 @@ display_decrement_display_color_red (uint_fast8_t do_sync)
             display.display_colors.red--;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5661,12 +5705,7 @@ display_increment_display_color_green (uint_fast8_t do_sync)
             display.display_colors.green++;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5686,12 +5725,7 @@ display_decrement_display_color_green (uint_fast8_t do_sync)
             display.display_colors.green--;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5711,12 +5745,7 @@ display_increment_display_color_blue (uint_fast8_t do_sync)
             display.display_colors.blue++;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5736,12 +5765,7 @@ display_decrement_display_color_blue (uint_fast8_t do_sync)
             display.display_colors.blue--;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5763,12 +5787,7 @@ display_increment_display_color_white (uint_fast8_t do_sync)
             display.display_colors.white++;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5788,12 +5807,7 @@ display_decrement_display_color_white (uint_fast8_t do_sync)
             display.display_colors.white--;
         }
 
-        display_calc_dimmed_display_colors ();
-
-        if (do_sync)
-        {
-            var_send_display_colors ();
-        }
+        display_color_step_done (do_sync);
     }
 }
 
@@ -5807,6 +5821,7 @@ void
 display_set_display_colors (DSP_COLORS * rgb)
 {
     COPY_DSP_RGB_SAFE (display.display_colors, rgb);
+    COPY_DSP_RGB (display.saved_display_colors, display.display_colors);    // A23: auch waehrend einer Animation
     display_calc_dimmed_display_colors ();
 
     display_save_display_colors ();
@@ -6515,6 +6530,8 @@ display_init (void)
     display.display_colors.red              = MAX_COLOR_STEPS / 2;                      // display color, default is red
     display.ambilight_colors.red            = MAX_COLOR_STEPS / 2;                      // ambilight color, default is red
 #endif
+
+    COPY_DSP_RGB (display.saved_display_colors, display.display_colors);                // A23: Sicherung auch ohne EEPROM gueltig
 
     display.ambilight_marker_colors.green   = MAX_COLOR_STEPS / 2;                      // ambilight marker color, default is cyan (green + blue)
     display.ambilight_marker_colors.blue    = MAX_COLOR_STEPS / 2;

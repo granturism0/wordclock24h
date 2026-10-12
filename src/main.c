@@ -1550,6 +1550,7 @@ static uint32_t         local_uptime                = 0;
 static uint_fast8_t     ir_export_idx               = N_REMOTE_IR_CMDS;     // Abzug der IR-Codes: naechster Index, N == nichts zu tun
 static uint_fast8_t     var_sync_pending            = 0;                    // SYNCVARS gesehen: Vollabgleich im Hauptloop faellig
 static uint_fast8_t     ip_ticker_pending           = 0;                    // IPADDRESS gesehen: IP-Lauftext NACH dem Vollabgleich (A39)
+static uint_fast16_t    game_dropped_lines          = 0;                    // A53: Zeilen, die eine Spielschleife verworfen hat
 static uint_fast16_t    night_wm                    = 0xFFFF;               // A69: zuletzt ausgewertete Wochenminute, 0xFFFF = noch keine gueltige Zeit
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -2953,6 +2954,36 @@ schedule_esp8266_alarm_tables (char * parameters)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * game_count_dropped () - Zeile zaehlen, die eine Spielschleife nicht auswertet (A53, Ent-4 = V2)
+ *
+ * tetris() und snake() halten den Hauptloop an und lesen selbst vom ESP; ausgewertet wird nur GT/GS. Jede
+ * andere Zeile war bisher stillschweigend weg -- ein Setter aus der PWA waehrend des Spiels kam nie an, und
+ * die ESP-Kopie wich danach ab, ohne dass es jemand merkte (L161). Gezaehlt wird hier, ausgewertet nach dem
+ * Spiel in schedule_esp8266_games(): ein Vollabgleich stellt den Stand wieder her.
+ *
+ * NICHT gezaehlt, weil sie keinen Zustand tragen:
+ *   ESP8266_TIMEOUT   keine Zeile
+ *   ESP8266_OK        die Quittung "." -- sie gehoert zu einem Kommando des STM, dessen Wartezeit laengst
+ *                     vorbei ist; sie mitzuzaehlen loeste nach jedem Spiel einen Vollabgleich aus
+ *   ESP8266_NAK       "!v", ESP8266_ACK / ESP8266_ACK_DROP: Zuordnung von Quittungen, ebenso
+ *   ESP8266_DEBUGMSG  Debugtext des ESP
+ * Alles andere zaehlt: CMD ausser dem ausgewerteten GT/GS, CMC (auch abgewiesene), IPADDRESS, SYNCVARS,
+ * TIME, WEATHER, TAB*, unbekannte Zeilen.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define GAME_NOT_DROPPED    ((1UL << ESP8266_TIMEOUT) | (1UL << ESP8266_OK) | (1UL << ESP8266_DEBUGMSG) | \
+                             (1UL << ESP8266_NAK) | (1UL << ESP8266_ACK) | (1UL << ESP8266_ACK_DROP))
+
+void
+game_count_dropped (uint_fast8_t msg_rtc)
+{
+    if (msg_rtc >= 32 || ! ((GAME_NOT_DROPPED >> msg_rtc) & 1))
+    {
+        game_dropped_lines++;
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * schedule_esp8266_games () - schedule ESP8266 games
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
@@ -2979,6 +3010,27 @@ schedule_esp8266_games (char * parameters)
             }
             break;
         }
+    }
+
+    /* A53: Was das Spiel verworfen hat, holt ein Vollabgleich nach -- nur vormerken, gesendet wird im
+     * Hauptloop (wie bei IPADDRESS/SYNCVARS). Wortlaut der Zeile: Die Logwache sucht genau danach.
+     *
+     * Review S3.13 M1: vormerken NUR bei esp8266.is_online. Unter den verworfenen Zeilen koennen CAP oder
+     * OTA start sein; beide setzen is_online = 0 schon im Parser, denn der ESP startet neu bzw. laedt. Der
+     * Vollabgleich prueft is_online nicht, und gegen einen stummen ESP kosteten schon 7 Kommandos x 3 s mehr
+     * als den Watchdog. Verloren geht dabei nichts: Nach CAP bzw. OTA loesen IPADDRESS oder SYNCVARS ihren
+     * eigenen Abgleich aus, und ein im Spiel verworfenes IPADDRESS/SYNCVARS hat is_online im Parser schon
+     * wieder gesetzt. Die Zeile kommt in beiden Faellen. */
+    if (game_dropped_lines)
+    {
+        log_printf ("spiel: %u Zeilen verworfen\r\n", (unsigned int) game_dropped_lines);
+
+        if (esp8266.is_online)
+        {
+            var_sync_pending = 1;
+        }
+
+        game_dropped_lines  = 0;
     }
 }
 

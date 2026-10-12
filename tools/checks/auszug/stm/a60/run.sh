@@ -1,6 +1,6 @@
 #!/bin/sh
 # Pruefstand A60 (Paket 2026-10-11, S2.1): I2C-Fristen (eng pollen, beide BUSY-Schleifen).
-# Aufruf: run.sh <src-Verzeichnis> [sabotage]      Sabotagen: fristnie busyohne msec ohnelog ohnefrei nurbusy
+# Aufruf: run.sh <src-Verzeichnis> [sabotage]      Sabotagen: fristnie busyohne msec ohnelog ohnefrei nurbusy afignoriert flagnie flagbleibt
 # Zwischendateien in einem eigenen Arbeitsverzeichnis unter $TMPDIR, NIE in diesem Verzeichnis.
 # Exit 0 = OK, 1 = FEHL, 2 = kaputt.
 ROOT=${ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null)}

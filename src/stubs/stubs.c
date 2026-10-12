@@ -122,3 +122,48 @@ _realloc_r (struct _reent * r, void * p, size_t n)
     (void) n;
     return (void *) 0;
 }
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * snprintf/sprintf als duenne Huellen um vsnprintf (N5, Flash-Analyse S3.1)
+ *
+ * vsnprintf ist ohnehin gelinkt (log_vprintf). newlibs snprintf.o (0x64) und sprintf.o (0x44) bringen
+ * dieselbe Rechnung noch zweimal mit. Am Maschinencode aus libc_nano.a (Toolchain 15.2.rel1) belegt:
+ *   _snprintf_r ist Befehl fuer Befehl _vsnprintf_r, nur der va_list wird anders aufgebaut: size > INT_MAX
+ *     -> errno EOVERFLOW und -1; _size = size - (size != 0); _svfprintf_r; bei size != 0 die 0 am Ende.
+ *     snprintf (...) ist also genau vsnprintf (..., ap) -- Rueckgabe und Abschluss eingeschlossen.
+ *   _sprintf_r setzt _size = 0x7FFFFFFF, ruft dasselbe _svfprintf_r und schliesst immer mit 0 ab.
+ *     vsnprintf (buf, INT_MAX, ...) unterscheidet sich nur darin, dass _size INT_MAX - 1 ist -- das wirkt
+ *     erst bei einer Ausgabe ueber 2 GByte. Die Rueckgabe ist dieselbe Zeichenzahl.
+ * Kein Aufruf in den Quellen unter src nutzt snprintf (NULL, 0, ...).
+ *
+ * used, externally_visible wie bei den malloc-Stubs: Die Definitionen muessen den Link gewinnen, damit
+ * snprintf.o und sprintf.o aus dem Archiv gar nicht erst geladen werden.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#include <stdarg.h>
+#include <stdio.h>
+#include <limits.h>
+
+__attribute__((used, externally_visible)) int
+snprintf (char * buf, size_t size, const char * fmt, ...)
+{
+    va_list ap;
+    int     rtc;
+
+    va_start (ap, fmt);
+    rtc = vsnprintf (buf, size, fmt, ap);
+    va_end (ap);
+    return rtc;
+}
+
+__attribute__((used, externally_visible)) int
+sprintf (char * buf, const char * fmt, ...)
+{
+    va_list ap;
+    int     rtc;
+
+    va_start (ap, fmt);
+    rtc = vsnprintf (buf, INT_MAX, fmt, ap);
+    va_end (ap);
+    return rtc;
+}

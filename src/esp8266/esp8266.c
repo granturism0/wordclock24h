@@ -567,6 +567,22 @@ esp8266_get_message (void)
                             rtc = ESP8266_STATUS;                                       // Statusmeldung, KEINE Quittung
                             break;
                         }
+                        else if (! strcmp (answer, "OTA start"))
+                        {
+                            /* A67 (specs/paket-2026-10-11, design.md 7, Ent-12): Der ESP kuendigt einen OTA an, bevor er
+                             * den Download beginnt (alle drei OTA-Pfade, ESP-Haelfte E.4). Waehrend des Downloads und des
+                             * Neustarts quittiert er nichts; jede Sendung liefe in die 3 s von var_send_buf(). Deshalb
+                             * offline -- dasselbe wie bei CAP oben, aber NUR das: esp8266_cap_var_crc_seen bleibt
+                             * unberuehrt. Ein zurueckgerollter ESP ohne Pruefsumme bekaeme sonst Marken, die er nicht kennt.
+                             * Wieder online setzen IPADDRESS und SYNCVARS wie bisher; scheitert der OTA, schickt der ESP
+                             * SYNCVARS (E.4). Exakter Vergleich ohne Parameter, ohne Pruefsumme wie CAP: "OTA start x"
+                             * und "OTA star" sind ESP8266_UNSPECIFIED. Ein alter STM protokolliert die Zeile nur, oben
+                             * als "(OTA start)", und tut sonst nichts; ein neuer STM mit altem ESP sieht sie nie.
+                             */
+                            esp8266.is_online = 0;
+                            rtc = ESP8266_STATUS;
+                            break;
+                        }
                         else if (! strncmp (answer, "OK", 2))
                         {
                             /* Die Quittung eines var-Kommandos ist der Punkt (oben, :227) -- der ESP
@@ -721,14 +737,8 @@ esp8266_get_message (void)
                             rtc = ESP8266_FILEOPEN;
                             break;
                         }
-                        else if (! strncmp (answer, "FILE ", 5))
-                        {
-                            esp8266_copy (esp8266.u.filedata, answer + 5, ESP8266_MAX_CMD_LEN);
-                            rtc = ESP8266_FILEDATA;
-                            break;
-                        }
-                        else if (! strcmp (answer, "CLOSE"))
-                        {
+                        else if (! strcmp (answer, "CLOSE"))                            // N3/A52: hier stand ein zweiter "FILE "-Zweig,
+                        {                                                               // unerreichbar: "FILE " faengt der stille Zweig oben ab
                             rtc = ESP8266_FILECLOSE;
                             break;
                         }
@@ -919,8 +929,6 @@ esp8266_send_log_line (const char * line)
 void
 esp8266_reset (void)
 {
-    static const char   cap_token[] = "CAP var-crc";
-    static const char   fw_token[]  = "FIRMWARE ";
     uint_fast8_t        cap_pos = 0;
     uint_fast8_t        fw_pos = 0;
     uint_fast8_t        ch;
@@ -944,13 +952,13 @@ esp8266_reset (void)
      */
     while (esp8266_poll (&ch, MSEC(500)))                                   // eat boot message stuff
     {
-        if (esp8266_scan_token (cap_token, &cap_pos, ch))                   // beide Suchworte, nicht else-if:
+        if (esp8266_scan_token ("CAP var-crc", &cap_pos, ch))               // beide Suchworte, nicht else-if:
         {                                                                   // ein Zeichen darf zu beiden beitragen
             esp8266_cap_var_crc_seen = 1;
         }
 
-        if (esp8266_scan_token (fw_token, &fw_pos, ch))
-        {
+        if (esp8266_scan_token ("FIRMWARE ", &fw_pos, ch))                  // N2: dieselben Literale wie im Zeilenparser,
+        {                                                                   // der Linker legt jedes nur einmal ab
             esp8266_cap_latch ();                                           // dieselbe Regel wie im Zeilenparser
         }
     }

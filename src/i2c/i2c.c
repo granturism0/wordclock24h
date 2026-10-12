@@ -91,6 +91,7 @@
 #endif
 
 static uint32_t             i2c_clockspeed;
+uint_fast8_t                i2c_nack_quiet;                     // A73: NACK still (Adresssuche in eeprom_init), sonst 0
 static uint32_t             i2c_last_clockspeed;                // A60/M1: Dateiebene, damit die BUSY-Frist i2c_init() erzwingen kann
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -129,9 +130,25 @@ i2c_init_i2c (void)
 static void
 i2c_handle_timeout (void)
 {
+    /* G2-Korrektur (S3.2): Ein NACK ist kein Busfehler. eep_init() sucht das EEPROM auf 8 Adressen, 7 davon
+     * leer -- das gab beim Start 7 Zeilen "i2c: frist abgelaufen".
+     * Review S3.13 M2 (A73): STILL ist ein NACK aber nur waehrend dieser Suche (i2c_nack_quiet, gesetzt von
+     * eeprom_init). Im Betrieb ist ein NACK ein Signal -- RTC oder EEPROM sind vom Bus verschwunden, etwa durch
+     * einen Wackelkontakt, und rtc.c/eeprom.c loggen selbst nicht. Dann wieder die Zeile wie in 3.2.30, aber
+     * weiterhin OHNE Freitakten: Ein NACK ist kein haengender Bus. AF (Acknowledge Failure) setzt die
+     * Hardware, wenn auf ein gesendetes Byte kein ACK kommt; beim Adressbyte am 9. Takt, also nach rund
+     * 90 us bei 100 kHz, lange vor der Frist. Ein Hang mit SDA low zeigt KEIN AF: low im ACK-Takt ist ein
+     * ACK, und bei belegtem Bus kommt es gar nicht erst zum Adressbyte (SB-Frist). AF muss VOR dem SWRST
+     * unten gelesen werden, der loescht SR1 -- dadurch kann auch kein altes AF stehen bleiben. Ablauf sonst
+     * gleich (STOP, Reset), und die Frist bleibt ein Fehler fuer den Aufrufer. */
+    uint_fast8_t    nack = I2C_GetFlagStatus (I2C_CHANNEL, I2C_FLAG_AF);
+
     /* A60 / AKI.3: eine Zeile je Fristablauf (Flag- und BUSY-Warte laufen hier zusammen), fester Text fuer
      * die Logwache. Sicher: I2C laeuft erst nach log_init() (rtc_init/eep_init in main()) und nie aus einer ISR. */
-    log_puts ("i2c: frist abgelaufen\r\n");
+    if (! (nack && i2c_nack_quiet))
+    {
+        log_puts ("i2c: frist abgelaufen\r\n");
+    }
 
     I2C_GenerateSTOP (I2C_CHANNEL, ENABLE);
     I2C_SoftwareResetCmd (I2C_CHANNEL, ENABLE);
@@ -157,7 +174,7 @@ i2c_handle_timeout (void)
      * wieder auf AF. Keine Rekursion -- i2c_init() wartet auf kein Flag. Seine delay_msec() setzen
      * delay_counter selbst; die Frist ist abgelaufen, der naechste Zugriff setzt sie neu. Bis rund 20 ms,
      * nur nach log_init()/delay_init() und nie aus einer ISR. */
-    if (I2C_GetFlagStatus (I2C_CHANNEL, I2C_FLAG_BUSY) || GPIO_ReadInputDataBit (SDA_PORT, SDA_PIN) == Bit_RESET)
+    if (! nack && (I2C_GetFlagStatus (I2C_CHANNEL, I2C_FLAG_BUSY) || GPIO_ReadInputDataBit (SDA_PORT, SDA_PIN) == Bit_RESET))
     {
         i2c_last_clockspeed = 0;
         i2c_init (i2c_clockspeed);

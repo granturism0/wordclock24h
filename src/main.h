@@ -15,7 +15,7 @@
 #include <time.h>
 #include "eeprom-data.h"
 
-#define VERSION                     "3.2.30"
+#define VERSION                     "3.2.31"
 #define MAX_RESET_CAUSE_LEN         63
 
 #define MAX_EEPROM_VERSION_LEN      4
@@ -135,6 +135,7 @@ extern volatile uint32_t            uptime;
 extern void                         watchdog_reload (void);     // damit gewollte lange Blockaden ihn bedienen koennen
 
 extern uint_fast8_t                 schedule_esp8266_messages (void);
+extern void                         game_count_dropped (uint_fast8_t);   // A53, Spielschleifen in tetris.c/snake.c
 extern void                         set_overlay_idx (uint_fast8_t);
 extern void                         show_icon (const char *, uint_fast8_t);
 extern char *                       get_date (void);

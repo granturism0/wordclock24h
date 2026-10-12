@@ -93,6 +93,8 @@ eeprom_init (uint32_t clockspeed)
 
     i2c_init (clockspeed);
 
+    i2c_nack_quiet = 1;                                         // A73: leere Adressen quittieren nicht -- das ist erwartet
+                                                                // und gibt keine Zeile "i2c: frist abgelaufen" (i2c.c)
     for (i = 0; i < 8; i++)                                     // test read 0xA0, 0xA2, 0xA4, 0xA6 .. 0xAE
     {
         eeprom_addr = EEPROM_FIRST_ADDR | (i << 1);
@@ -103,6 +105,8 @@ eeprom_init (uint32_t clockspeed)
             break;
         }
     }
+
+    i2c_nack_quiet = 0;                                         // ab hier ist ein NACK wieder eine Zeile wert
 
 #if SHOW_SIZES == 1
     log_printf ("EEPROM_DATA_OFFSET_VERSION                  = %4d %4d\r\n", EEPROM_DATA_OFFSET_VERSION, EEPROM_DATA_SIZE_VERSION);
