@@ -29,6 +29,7 @@
 #   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
 #   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
 #   ds18xx verloren/ungueltig  Temperatursensor: Lese-/CRC-Fehler (STM, A2)
+#   i2c: frist abgelaufen   I2C-Zugriff ueber 5 ms, Bus zurueckgesetzt (STM ab Paket 2026-10-11, A60)
 #   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
 #   time: sprung            Bestaetigung angefordert -- Hinweis; Alarm ab der vierten in Folge
 #                           ohne "cmd: set time to" dazwischen (Server liefert dauerhaft Unsinn)
@@ -76,7 +77,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen'
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
@@ -165,6 +166,11 @@ while :; do
         *%*)
           # Formatzeichenkette aus dem Firmware-Abbild beim Flashen, keine echte Zeile
           ;;
+        *"i2c: frist abgelaufen"*)
+          # A60 (Paket 2026-10-11): ein I2C-Zugriff (RTC/EEPROM) hat seine Frist von 5 ms
+          # ueberschritten, der Bus wurde zurueckgesetzt. Vorher waere das ein Haenger gewesen.
+          printf '  %s  I2C: Frist abgelaufen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
         *"time: ungueltig"*)
           printf '  %s  Netzzeit: verworfen   <%s>\n' "$stamp" "$z"
           alarm=1 ;;
