@@ -80,6 +80,11 @@ LAUF=(
   "C47 jede Legacy-Wertausgabe eingeordnet, statisch (ESP)|esp/t16/static.sh $E neu"
   "C55/C44 Datumsformat und Koordinaten, API und Legacy (ESP)|esp/t17/run.sh $E neu"
   "A2 Fehlerwert 255 bei Korrekturaenderung unangetastet (ESP)|esp/t18/run.sh $E neu"
+  "A35 still verworfene Zuweisungen gemeldet (ESP)|esp/a35/run.sh $E neu"
+  "C58 NTP: Laenge vor dem Lesen, Absender, LI/Stratum/Transmit (ESP)|esp/ntp/run.sh $E neu"
+  "A21 ovr= zaehlt UART-Ueberlaeufe saettigend (ESP)|esp/ovr/run.sh $E neu"
+  "A67 OTA start in allen drei OTA-Pfaden, statisch (ESP)|esp/akk2/static.sh $E neu"
+  "E.6 Rueckfall-Neustart nach lokalem Upload (ESP)|esp/otarueck/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )

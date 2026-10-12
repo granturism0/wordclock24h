@@ -43,6 +43,8 @@ static inline uint32_t millis () { return t14_now; }
 static inline void delay (unsigned long ms) { t14_now += ms; }
 static inline void yield () {}
 #define F(x) (x)
+#define PSTR(x) (x)                                  /* Review E.6: Formate per snprintf_P im Flash */
+#define snprintf_P snprintf
 #define HIGH 1
 #define LOW 0
 #define OUTPUT 1

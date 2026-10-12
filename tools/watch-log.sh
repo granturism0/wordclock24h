@@ -29,6 +29,8 @@
 #   eep ... ms=<n>          EEPROM-Schreibvorgang ab 200 ms (STM, Messzeile M.1)
 #   cmd abgewiesen          Kommando mit falscher Pruefsumme verworfen (STM, Teil D)
 #   ds18xx verloren/ungueltig  Temperatursensor: Lese-/CRC-Fehler (STM, A2)
+#   - var ignoriert / - ntp verworfen   ESP verwirft Setter bzw. NTP-Antwort (ESP ab Paket 2026-10-11)
+#   ovr= in der Heap-Zeile  Anstieg der UART-Ueberlaeufe im ESP (A21)
 #   i2c: frist abgelaufen   I2C-Zugriff ueber 5 ms, Bus zurueckgesetzt (STM ab Paket 2026-10-11, A60)
 #   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
 #   time: sprung            Bestaetigung angefordert -- Hinweis; Alarm ab der vierten in Folge
@@ -77,12 +79,13 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+'
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen"
 "$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
 letzte_vn=""
 sprung_folge=0
+letzte_ovr=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
@@ -166,6 +169,31 @@ while :; do
         *%*)
           # Formatzeichenkette aus dem Firmware-Abbild beim Flashen, keine echte Zeile
           ;;
+        *"- var ignoriert #"*)
+          # A35 (ESP ab Paket 2026-10-11): ein Setter vom STM wurde still nicht uebernommen
+          # (Index/Wert ausser Bereich oder unbekannter Buchstabe) -- meist Versionsversatz.
+          printf '  %s  Bruecke: Zuweisung im ESP nicht uebernommen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"- ota: Rueckfall-Neustart"*)
+          # E.6: Nach einem lokalen ESP-Upload kam der Neustartaufruf der PWA nicht, der ESP startet selbst neu
+          printf '  %s  ESP: Rueckfall-Neustart nach lokalem Upload   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"- ntp verworfen #"*)
+          # C58: NTP-Antwort verworfen (Laenge, Absender, Port, LI=3, Stratum 0, Transmit 0)
+          printf '  %s  Netzzeit: Antwort im ESP verworfen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"- heap free="*" ovr="*)
+          # A21: ovr= zaehlt loop()-Durchlaeufe mit UART-Ueberlauf im ESP, laufend -- gemeldet
+          # wird der ANSTIEG, nicht jeder Stand.
+          ovr=$(printf '%s' "$z" | sed -E 's/.* ovr=([0-9]+).*/\1/')
+          if [ -n "$letzte_ovr" ] && [ "$ovr" -gt "$letzte_ovr" ] 2>/dev/null; then
+            printf '  %s  ESP: %d UART-Ueberlauf/-laeufe (ovr=%s)   <%s>\n' "$stamp" "$((ovr - letzte_ovr))" "$ovr" "$z"
+            alarm=1
+          elif [ -z "$letzte_ovr" ] && [ "$ovr" -gt 0 ] 2>/dev/null; then
+            printf '  %s  ESP: UART-Ueberlaeufe seit dem ESP-Start (ovr=%s)   <%s>\n' "$stamp" "$ovr" "$z"
+            alarm=1
+          fi
+          letzte_ovr=$ovr ;;
         *"i2c: frist abgelaufen"*)
           # A60 (Paket 2026-10-11): ein I2C-Zugriff (RTC/EEPROM) hat seine Frist von 5 ms
           # ueberschritten, der Bus wurde zurueckgesetzt. Vorher waere das ein Haenger gewesen.

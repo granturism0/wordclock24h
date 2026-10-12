@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-13 Paket 2026-10-11, ESP-Release: NTP abgesichert, OTA-Ankündigung, Meldungen (ESP 3.2.32)
+
+Nur der ESP, STM (3.2.31) und PWA (1.4.95) unverändert. `wordclock-release-2026-10-13-011039.zip`, Tag `release/3.2.31-3.2.32-1.4.95`.
+Umfang: Schritt E aus `specs/paket-2026-10-11/` (A35 (b), C58/L391, A21 `ovr=`, A67 ESP-Hälfte) und die Nacharbeit
+aus Review E.6.
+
+**Einspielreihenfolge: nur der ESP** (OTA). Er setzt STM 3.2.31 voraus, das bereits läuft (A67: der STM versteht
+`OTA start` seit 3.2.31).
+
+### NTP abgesichert (C58, L391)
+- Eine Antwort über 48 Byte konnte im ESP Speicher überschreiben; ein einziges UDP-Paket aus dem LAN genügte. Jetzt
+  werden Länge, Absender (nur der angefragte Server, auch nicht 0.0.0.0) und Port 123 geprüft, **bevor** gelesen wird.
+- Nicht synchronisierte Server (LI 3), Kiss-of-Death (Stratum 0) und eine Sendezeit 0 werden verworfen; der STM
+  bekommt dann keine Zeit. Zeile `- ntp verworfen #n <grund>`, gedrosselt.
+- Offen bleibt: Eine Antwort ist noch nicht an eine bestimmte Anfrage gebunden (L406).
+
+### OTA-Ankündigung (A67)
+- Vor jedem Firmware-Update sendet der ESP `OTA start`; der STM pausiert dann, statt ins Leere zu senden. Scheitert
+  das Update, meldet sich der ESP mit `SYNCVARS` zurück. Gilt für alle drei Update-Wege.
+- Nach einem lokalen Upload startet der ESP nach 10 s selbst neu, falls der Neustartaufruf der Oberfläche ausbleibt.
+
+### Meldungen
+- Nimmt der ESP eine Einstellung vom STM still nicht an (Wert ausser Bereich, unbekanntes Kommando), steht
+  `- var ignoriert #n code=… idx=…` im Mitschnitt (A35, ohne Wert).
+- Die Heap-Zeile zählt Überläufe des seriellen Empfangspuffers: `ovr=` (A21).
+- Neue Texte liegen im Flash statt im Arbeitsspeicher.
+
+### Werkzeug
+Prüfstände a35, ntp, ovr, otarueck und die statische Prüfung akk2; die Logwache meldet die neuen Zeilen und den
+Anstieg von `ovr=`.
+
 ## 2026-10-12 Paket 2026-10-11, STM-Release 3: Displayfarbe nach Animation, Spiele, LDR, OTA-Ankündigung (STM 3.2.31)
 
 Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP

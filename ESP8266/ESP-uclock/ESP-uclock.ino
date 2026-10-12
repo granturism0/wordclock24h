@@ -470,6 +470,16 @@ icon_info (const char * fname, const char * name)
  * nachalloziert - genau die Fragmentierungsquelle aus L175.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
+/* E.3 (specs/paket-2026-10-11, design.md 10.2, fuer A21): Empfangsueberlaeufe des ESP auf der Bruecke.
+ * Serial.hasOverrun() meldet, ob der SOFTWARE-Empfangspuffer des ESP (HardwareSerial, Vorgabe 256 Byte) seit der
+ * letzten Abfrage uebergelaufen ist, und loescht das Merkmal dabei (uart_has_overrun(), core 3.1.2 uart.cpp:920).
+ * Es ist ein Merkmal, kein Zaehler: Gezaehlt werden deshalb loop()-Durchlaeufe, in denen mindestens ein
+ * Ueberlauf stattfand -- eine Untergrenze fuer verlorene Zeichen, nie eine Ueberschaetzung. Saettigend.
+ * Abgefragt einmal je loop() vor dem Lesen der Bruecke, ausgegeben als ovr= an der Heap-Zeile. 4 Byte RAM.
+ * Bei ESP_HEAP_LOG 0 wird weiter gezaehlt, aber nirgends ausgegeben. KEIN setRxBufferSize in diesem Paket.
+ */
+static uint32_t       esp_uart_overruns = 0;
+
 #define ESP_HEAP_LOG                1                                       // 0 = aus. Rueckbau zu L175, siehe oben
 #define ESP_HEAP_LOG_INTERVAL       60000UL                                 // msec
 
@@ -493,13 +503,15 @@ esp_heap_log (void)
 
         /* EINMAL formatieren, ZWEIMAL ausgeben: Mitschnitt und API duerfen nicht
          * auseinanderlaufen - eine zweite Formatierung waere eine zweite Wahrheit.
-         * Laengste Form: "- heap free=4294967295 max=4294967295" = 37 Zeichen.
+         * Laengste Form: "- heap free=4294967295 max=4294967295 ovr=4294967295" = 52 Zeichen.
+         * ovr= steht HINTEN: tools/mess-stabilitaet.sh liest "free=<n> max=<n>" und bleibt so gueltig.
          */
-        char line[48];
+        char line[64];
 
-        snprintf (line, sizeof (line), "- heap free=%lu max=%lu",
+        snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu"),
                   (unsigned long) ESP.getFreeHeap (),
-                  (unsigned long) ESP.getMaxFreeBlockSize ());
+                  (unsigned long) ESP.getMaxFreeBlockSize (),
+                  (unsigned long) esp_uart_overruns);
 
         Serial.println (line);
         Serial.flush ();
@@ -1378,6 +1390,7 @@ loop()
 
     wifi_check_if_started ();
     http_server_loop ();
+    http_ota_restart_poll ();                                               // Rueckfall-Neustart nach lokalem Upload (Review E.6)
     udp_server_loop ();
     ntp_poll_time ();                                                       // poll NTP
 
@@ -1386,6 +1399,11 @@ loop()
 #endif
 
     var_sync_check ();                                                  // Weg B (L231, L255): Vollabgleich nachfordern, falls er ausblieb
+
+    if (Serial.hasOverrun () && esp_uart_overruns < 0xFFFFFFFFUL)           // E.3: zuerst abfragen (loescht das
+    {                                                                       // Merkmal), dann saettigend zaehlen
+        esp_uart_overruns++;
+    }
 
     while (Serial.available())
     {

@@ -1005,6 +1005,89 @@ var_cmd_reject (const char * parameters, unsigned int have, unsigned int want)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * var_ignored_note () - eine still entfallene Zuweisung zaehlen und gedrosselt melden, A35 (b)
+ *
+ * specs/paket-2026-10-11, design.md 9, Ent-5 = b. var_set_parameter() quittiert eine formal verwertbare Zeile
+ * mit dem Punkt, auch wenn sie NICHTS zuweist: Index >= MAX, Wert ausser Bereich (n: > MAX_BRIGHTNESS, Element
+ * ausser Bereich), unbekannter Unterbuchstabe (D/A/C/M/O) oder unbekannter Kommandobuchstabe. Das bleibt so --
+ * Rueckgabe unveraendert, kein NAK: Eine Wiederholung aenderte daran nichts (L233). Aber es geschieht nicht mehr
+ * spurlos.
+ *
+ * Gezaehlt wird JEDE solche Zeile (var_ignored_cnt, saettigend). Gemeldet wird die erste sofort, danach hoechstens
+ * eine je VAR_IGNORED_LOG_INTERVAL; der laufende Zaehler steht in der Zeile, die Gesamtzahl geht also nicht verloren.
+ *
+ *     "- var ignoriert #<n> code=<X|XY> idx=<hh|-->"
+ *
+ * code: Kommandobuchstabe, bei D/A/C/M/O samt Unterbuchstabe; nicht druckbare Zeichen als '?'. idx: der Index
+ * der Zeile in zwei Hexziffern, "--" beim unbekannten Kommandobuchstaben (dort ist nichts ausgewertet). OHNE Wert
+ * (A20): Die S-Zeilen tragen Zugangsdaten.
+ *
+ * NICHT gezaehlt: "var V..." -- die Rahmenzeilen, die ein alter ESP regulaer quittieren und verwerfen muss
+ * (ESP-uclock.ino, Kopfkommentar der Pruefsumme, Punkt 1). Ein neuer ESP faengt sie vorher in var_frame_line()
+ * ab; die Ausnahme hier gilt trotzdem, damit eine kuenftige Aenderung daran keine Meldung im Normalbetrieb erzeugt.
+ * Ebenfalls NICHT: die zu kurze Zeile -- die ist nicht still, sondern "!v" samt var_cmd_reject().
+ *
+ * WEG DER MELDUNG: Mitschnitt UND /api/stm32_log, wie die Heap-Zeile (ESP-uclock.ino, esp_heap_log()).
+ * stm32_log_append() allein erreicht den Mitschnitt nicht (L185); Serial.println mit "- " erreicht ihn ueber den
+ * STM (ESP8266_DEBUGMSG). Die STM-Warteschleife in var_send_buf() wartet bei einer "- "-Zeile weiter, die Zeile
+ * vor der Quittung stoert die Paarung nicht. Kosten: hoechstens eine Zeile (<= 46 Byte) je Minute.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define VAR_IGNORED_LOG_INTERVAL    60000UL                                 // msec
+
+static uint32_t         var_ignored_cnt         = 0;
+static unsigned long    var_ignored_last        = 0;
+static uint_fast8_t     var_ignored_logged      = 0;
+
+static char
+var_ignored_char (char ch)
+{
+    return (ch > ' ' && ch <= '~') ? ch : '?';
+}
+
+static void
+var_ignored_note (const char * cmd_line, uint_fast8_t known, uint_fast8_t var_idx)
+{
+    if (var_ignored_cnt < 0xFFFFFFFFUL)                                     // saettigend
+    {
+        var_ignored_cnt++;
+    }
+
+    if (! var_ignored_logged || (millis () - var_ignored_last) >= VAR_IGNORED_LOG_INTERVAL)
+    {
+        char    code[3];
+        char    idx[3];
+        char    line[56];                                                   // "- var ignoriert #4294967295 code=XY idx=--" = 42
+
+        var_ignored_logged  = 1;
+        var_ignored_last    = millis ();
+
+        code[0] = var_ignored_char (cmd_line[0]);
+        code[1] = '\0';
+        code[2] = '\0';
+
+        if (known && strchr ("DACMO", cmd_line[0]))                         // zweibuchstabige Kommandos
+        {
+            code[1] = var_ignored_char (cmd_line[1]);
+        }
+
+        if (known)
+        {
+            snprintf_P (idx, sizeof (idx), PSTR ("%02x"), (unsigned int) (var_idx & 0xFF));
+        }
+        else
+        {
+            strcpy (idx, "--");
+        }
+
+        snprintf_P (line, sizeof (line), PSTR ("- var ignoriert #%lu code=%s idx=%s"), (unsigned long) var_ignored_cnt, code, idx);
+        Serial.println (line);
+        Serial.flush ();
+        stm32_log_append (line);
+    }
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * var_set_parameter () - eine Kommandozeile der Bruecke auswerten
  *
  * Rueckgabe: 1 = Zeile war formal verwertbar, 0 = verworfen, weil zu kurz fuer ihre Kommandoart.
@@ -1026,7 +1109,9 @@ uint_fast8_t
 var_set_parameter (char * parameters)
 {
     uint_fast8_t        cmd_code;
-    uint_fast8_t        var_idx;
+    uint_fast8_t        var_idx = 0;
+    uint_fast8_t        applied = 0;                                        // A35: 1 = mindestens eine Zuweisung erfolgt
+    const char *        cmd_line;                                           // A35: Zeilenanfang fuer die Meldung
     uint_fast8_t        min_len;
     size_t              len;
 
@@ -1048,6 +1133,7 @@ var_set_parameter (char * parameters)
         return 0;
     }
 
+    cmd_line    = parameters;
     cmd_code    = *parameters++;
 
     switch (cmd_code)
@@ -1069,6 +1155,7 @@ var_set_parameter (char * parameters)
             if (var_idx < MAX_NUM_VARIABLES)
             {
                 numvars[var_idx] = val;
+                applied = 1;
             }
             break;
         }
@@ -1095,6 +1182,7 @@ var_set_parameter (char * parameters)
                         if (val <= MAX_BRIGHTNESS)
                         {
                             dimmed_display_colors[n] = val;
+                            applied = 1;
                         }
                     }
                     break;
@@ -1106,6 +1194,7 @@ var_set_parameter (char * parameters)
                         if (val <= MAX_BRIGHTNESS)
                         {
                             dimmed_ambilight_colors[n] = val;
+                            applied = 1;
                         }
                     }
                     break;
@@ -1124,6 +1213,7 @@ var_set_parameter (char * parameters)
                 memset (strvars[var_idx].str, 0, strvars[var_idx].maxlen + 1);
                 strncpy (strvars[var_idx].str, parameters, strvars[var_idx].maxlen);
                 strvars[var_idx].str[strvars[var_idx].maxlen] = '\0';
+                applied = 1;
             }
             break;
         }
@@ -1151,6 +1241,7 @@ var_set_parameter (char * parameters)
                                              1 * (parameters[13] - '0');
 
                 tmvars[var_idx].tm_wday = dayofweek (tmvars[var_idx].tm_mday, tmvars[var_idx].tm_mon + 1, tmvars[var_idx].tm_year + 1900);
+                applied = 1;
             }
 
             break;
@@ -1175,6 +1266,7 @@ var_set_parameter (char * parameters)
                         dspcolorvars[var_idx].green = htoi (parameters, 2);
                         parameters += 2;
                         dspcolorvars[var_idx].blue = htoi (parameters, 2);
+                        applied = 1;
                         parameters += 2;
 
                         if (use_rgbw)
@@ -1207,6 +1299,7 @@ var_set_parameter (char * parameters)
                     case PAR_CODE_ANIMATION_MODE_NAME:                          // AN: Animation mode Name
                     {
                         strncpy (displayanimationvars[var_idx].name, parameters, MAX_DISPLAY_ANIMATION_NAME_LEN);
+                        applied = 1;
                         break;
                     }
     
@@ -1215,6 +1308,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t deceleration = htoi (parameters, 2);
                         parameters += 2;
                         displayanimationvars[var_idx].deceleration = deceleration;
+                        applied = 1;
                         break;
                     }
     
@@ -1223,6 +1317,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t default_deceleration = htoi (parameters, 2);
                         parameters += 2;
                         displayanimationvars[var_idx].default_deceleration = default_deceleration;
+                        applied = 1;
                         break;
                     }
     
@@ -1231,6 +1326,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t flags = htoi (parameters, 2);
                         parameters += 2;
                         displayanimationvars[var_idx].flags = flags;
+                        applied = 1;
                         break;
                     }
                 }
@@ -1251,6 +1347,7 @@ var_set_parameter (char * parameters)
                     if (var_idx < MAX_COLOR_ANIMATION_VARIABLES)
                     {
                         strncpy (coloranimationvars[var_idx].name, parameters, MAX_COLOR_ANIMATION_NAME_LEN);
+                        applied = 1;
                     }
                     break;
                 }
@@ -1262,6 +1359,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t deceleration = htoi (parameters, 2);
                         parameters += 2;
                         coloranimationvars[var_idx].deceleration = deceleration;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1273,6 +1371,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t default_deceleration = htoi (parameters, 2);
                         parameters += 2;
                         coloranimationvars[var_idx].default_deceleration = default_deceleration;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1284,6 +1383,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t flags = htoi (parameters, 2);
                         parameters += 2;
                         coloranimationvars[var_idx].flags = flags;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1304,6 +1404,7 @@ var_set_parameter (char * parameters)
                     if (var_idx < MAX_AMBILIGHT_MODE_VARIABLES)
                     {
                         strncpy (ambilightmodevars[var_idx].name, parameters, MAX_AMBILIGHT_MODE_NAME_LEN);
+                        applied = 1;
                     }
                     break;
                 }
@@ -1315,6 +1416,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t deceleration = htoi (parameters, 2);
                         parameters += 2;
                         ambilightmodevars[var_idx].deceleration = deceleration;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1326,6 +1428,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t default_deceleration = htoi (parameters, 2);
                         parameters += 2;
                         ambilightmodevars[var_idx].default_deceleration = default_deceleration;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1337,6 +1440,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t flags = htoi (parameters, 2);
                         parameters += 2;
                         ambilightmodevars[var_idx].flags = flags;
+                        applied = 1;
                     }
                     break;
                 }
@@ -1358,6 +1462,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t type = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].type = type;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_INTERVAL:                             // OI: overlay interval
@@ -1366,6 +1471,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t interval = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].interval = interval;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_DURATION:                             // OD: overlay duration
@@ -1374,6 +1480,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t duration = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].duration = duration;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_DATE_CODE:                            // OC: overlay date code
@@ -1382,6 +1489,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t date_code = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].date_code = date_code;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_DATE_START:                           // OS: overlay date start
@@ -1390,6 +1498,7 @@ var_set_parameter (char * parameters)
                         uint_fast16_t date_start = htoi (parameters, 4);
                         parameters += 4;
                         overlays[var_idx].date_start = date_start;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_DAYS:                                 // OY: overlay date end
@@ -1398,12 +1507,14 @@ var_set_parameter (char * parameters)
                         uint_fast16_t days = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].days = days;
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_TEXT:                                 // ON: overlay name or text
                     if (var_idx < MAX_OVERLAYS)
                     {
                         strncpy (overlays[var_idx].text, parameters, OVERLAY_MAX_TEXT_LEN);
+                        applied = 1;
                     }
                     break;
                 case PAR_CODE_OVERLAY_FLAGS:                                // OF: overlay flags
@@ -1412,6 +1523,7 @@ var_set_parameter (char * parameters)
                         uint_fast8_t flags = htoi (parameters, 2);
                         parameters += 2;
                         overlays[var_idx].flags = flags;
+                        applied = 1;
                     }
                     break;
             }
@@ -1433,6 +1545,7 @@ var_set_parameter (char * parameters)
 
             if (var_idx < MAX_NIGHT_TIME_VARIABLES)
             {
+                applied = 1;
                 if (cmd_code == 't')
                 {
                     nighttimevars[var_idx].minutes = minutes;
@@ -1464,6 +1577,7 @@ var_set_parameter (char * parameters)
             {
                 alarmtimevars[var_idx].minutes = minutes;
                 alarmtimevars[var_idx].flags = flags;
+                applied = 1;
             }
 
             break;
@@ -1490,6 +1604,7 @@ var_set_parameter (char * parameters)
                 ir_codes[var_idx].address   = address;
                 ir_codes[var_idx].command   = command;
                 ir_codes_received_mask     |= (((uint32_t) 1) << var_idx);
+                applied = 1;
             }
             /* Ein Index jenseits von MAX_IR_CODES wird verworfen -- aber nicht spurlos: Sein Bit
              * fehlt in der Maske, ir_codes_is_complete() bleibt 0 und der Endpunkt nennt ihn in
@@ -1498,6 +1613,15 @@ var_set_parameter (char * parameters)
 
             break;
         }
+    }
+
+    /* A35 (b): nichts zugewiesen -- zaehlen und gedrosselt melden. Die Rueckgabe bleibt 1 (L233). "var V..." zaehlt
+     * nicht, siehe var_ignored_note(). known: var_cmd_min_len() kennt den Kommandobuchstaben, dann ist var_idx
+     * in jedem Zweig ausgewertet.
+     */
+    if (! applied && cmd_line[0] != 'V')
+    {
+        var_ignored_note (cmd_line, min_len ? 1 : 0, var_idx);
     }
 
     return 1;

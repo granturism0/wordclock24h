@@ -1205,6 +1205,76 @@ update_progress_clear (void)
     memset (&update_progress, 0, sizeof (update_progress));
 }
 
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * A67 (specs/paket-2026-10-11, design.md 7, Ent-12), ESP-Haelfte E.4: OTA ankuendigen und Abbruch melden
+ *
+ * Waehrend eines ESP-OTA laeuft loop() nicht: Der ESP liest die Bruecke nicht und quittiert nichts. Jede var-Zeile,
+ * die der STM in dieser Zeit sendet, laeuft in die 3 s von var_send_buf(), und der 256-Byte-Empfangspuffer des ESP
+ * laeuft ueber. Deshalb kuendigt der ESP den OTA VOR dem Download an:
+ *
+ *     "OTA start"     eigene Zeile, woertlich, ohne Parameter und ohne Pruefsumme (wie "CAP var-crc").
+ *                     Der STM (ab 3.2.31, src/esp8266/esp8266.c) vergleicht exakt und setzt NUR is_online = 0;
+ *                     ein aelterer STM protokolliert die Zeile und tut sonst nichts.
+ *
+ * Gelingt der OTA, startet der ESP neu und meldet sich mit IPADDRESS zurueck -- das setzt den STM wieder online,
+ * wie nach jedem Neustart. Scheitert er oder wird er abgebrochen, laeuft DIESER ESP weiter, und der STM stuende
+ * ohne Gegenmeldung dauerhaft offline. Dann:
+ *
+ *     "SYNCVARS"      wie in var_sync_check() (ESP-uclock.ino): Der STM setzt is_online = 1 und schickt den vollen
+ *                     Variablensatz. Das ist mehr als noetig, traegt aber alles nach, was waehrend des Fensters
+ *                     ausgelassen wurde, und ist der Weg, den der STM schon kennt -- keine neue Zeile.
+ *
+ * Alle drei OTA-Pfade rufen beide Helfer: http_update() (Legacy, ESPhttpUpdate), http_api_remote_esp_update()
+ * (ESPhttpUpdate) und http_api_local_esp_update() (Update.begin, lokaler Upload).
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+http_ota_announce (void)
+{
+    Serial.println (F("OTA start"));                                // F(): Flash statt DRAM, Leitung byte-gleich
+    Serial.flush ();
+}
+
+static void
+http_ota_aborted (void)
+{
+    Serial.println (F("SYNCVARS"));
+    Serial.flush ();
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * Rueckfall-Neustart nach erfolgreichem lokalem Upload (Review E.6)
+ *
+ * http_api_local_esp_update () startet nach Update.end (true) NICHT selbst neu: Den Neustart loest die PWA mit
+ * /api/local_esp_restart aus, unmittelbar nach dem Upload -- mit leerem catch. Geht dieser Aufruf verloren, liefe
+ * der ESP auf der ALTEN Firmware weiter, und der STM hielte ihn nach "OTA start" bis zum naechsten Neustart fuer
+ * offline (A67). Deshalb merkt der Erfolgsfall einen Neustart vor; kommt /api/local_esp_restart, loescht er die
+ * Vormerkung und startet selbst neu. Sonst startet http_ota_restart_poll () aus loop () nach
+ * OTA_RESTART_FALLBACK_MSEC neu -- aus loop (), also im normalen Kontext, nicht aus einem Callback oder einer ISR,
+ * und nach dem Ende des Requests, dessen Antwort damit vollstaendig hinausgegangen ist.
+ *
+ * Nie doppelt: Der normale Weg (PWA) loescht die Vormerkung vor seinem eigenen ESP.restart (); der Rueckfall
+ * loescht sie vor seinem. 10 s reichen weit: Die PWA ruft den Neustart Millisekunden nach der Upload-Antwort auf.
+ * Die Zeile "- ota: Rueckfall-Neustart" erscheint nur im Mitschnitt; der Logring ueberlebt den Neustart ohnehin nicht.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define OTA_RESTART_FALLBACK_MSEC   10000UL
+
+static uint_fast8_t     ota_restart_pending = 0;
+static unsigned long    ota_restart_since   = 0;
+
+void
+http_ota_restart_poll (void)
+{
+    if (ota_restart_pending && (millis () - ota_restart_since) >= OTA_RESTART_FALLBACK_MSEC)
+    {
+        ota_restart_pending = 0;
+        Serial.println (F("- ota: Rueckfall-Neustart"));
+        Serial.flush ();
+        ESP.restart ();
+    }
+}
+
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * flush output buffer
  *
@@ -7587,6 +7657,7 @@ http_update (void)
                 delay (200);
                 update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
     
+                http_ota_announce ();                                           // A67: STM offline, VOR dem Download
                 t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
     
                 switch(ret)
@@ -7605,6 +7676,9 @@ http_update (void)
                         Serial.println("HTTP update: ok");    // will be never called, because we are rebooting
                         break;
                 }
+
+                http_ota_aborted ();                                            // A67: update() kehrt nur ohne Neustart
+                                                                                // zurueck -- STM wieder online
             }
             else
             {
@@ -13006,6 +13080,7 @@ http_api_remote_esp_update ()
     delay (200);
     update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
 
+    http_ota_announce ();                                           // A67: STM offline, VOR dem Download
     t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
 
     switch(ret)
@@ -13024,6 +13099,8 @@ http_api_remote_esp_update ()
             Serial.println("HTTP update: ok");                    // will never be called, because we are rebooting
             break;
     }
+
+    http_ota_aborted ();                                            // A67: update() kehrt nur ohne Neustart zurueck
 
     return 0;
 }
@@ -13388,6 +13465,7 @@ http_api_local_esp_update ()
     size_t      progress_before_end = 0;
     size_t      remaining_before_end = 0;
     uint8_t     first_chunk[8];
+    uint_fast8_t ota_announced = 0;                                 // A67: "OTA start" gesendet
 
     if (! http_local_esp_filename_matches (uploaded_name))
     {
@@ -13396,6 +13474,8 @@ http_api_local_esp_update ()
     else if (read_post_headers (&content_length) && content_length > 0 && content_length < max_sketch_space)
     {
         update_progress_begin ("esp", "starting", "Lokales ESP-Update wird vorbereitet.");
+        http_ota_announce ();                                       // A67: STM offline, VOR dem Lesen des Rumpfs
+        ota_announced = 1;
         Update.runAsync (true);
         skipped = skip_leading_body_newlines ();
 
@@ -13444,6 +13524,8 @@ http_api_local_esp_update ()
             if (stream_ok && Update.end (true))
             {
                 end_ok = 1;
+                ota_restart_pending = 1;                                // Rueckfall-Neustart vormerken (Review E.6)
+                ota_restart_since   = millis ();
                 ok = 1;
                 update_progress_state ("reconnect_wait", "ESP-Firmware wurde geschrieben. Gerät startet neu.");
             }
@@ -13491,6 +13573,11 @@ http_api_local_esp_update ()
     if (! ok)
     {
         update_progress_fail (error_code ? error_code : 1, "Lokales ESP-Update fehlgeschlagen.");
+
+        if (ota_announced)                                          // A67: angekuendigt, aber gescheitert -- STM
+        {                                                           // wieder online. Bei Erfolg folgt der Neustart
+            http_ota_aborted ();                                    // ueber /api/local_esp_restart (IPADDRESS)
+        }
     }
 
     return 0;
@@ -13499,6 +13586,8 @@ http_api_local_esp_update ()
 static uint_fast8_t
 http_api_local_esp_restart ()
 {
+    ota_restart_pending = 0;                                        // normaler Weg: Rueckfall verwerfen (Review E.6)
+
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true}"));
     http_flush ();

@@ -1,0 +1,8 @@
+In file included from /Users/daniel/Documents/GitHub/wordclock24h/tools/checks/auszug/esp/a35/a35.cpp:52:
+/Users/daniel/Documents/GitHub/wordclock24h/tools/checks/auszug/esp/a35/code.inc:213:44: error: use of undeclared identifier 'PSTR'
+  213 |             snprintf_P (idx, sizeof (idx), PSTR ("%02x"), (unsigned int) (var_idx & 0xFF));
+      |                                            ^~~~
+/Users/daniel/Documents/GitHub/wordclock24h/tools/checks/auszug/esp/a35/code.inc:220:42: error: use of undeclared identifier 'PSTR'
+  220 |         snprintf_P (line, sizeof (line), PSTR ("- var ignoriert #%lu code=%s idx=%s"), (unsigned long) var_ignored_cnt, code, idx);
+      |                                          ^~~~
+2 errors generated.

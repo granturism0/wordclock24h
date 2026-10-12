@@ -1,0 +1,5 @@
+In file included from /Users/daniel/Documents/GitHub/wordclock24h/tools/checks/auszug/esp/ovr/ovr.cpp:22:
+/Users/daniel/Documents/GitHub/wordclock24h/tools/checks/auszug/esp/ovr/ovr_heap.inc:19:42: error: use of undeclared identifier 'PSTR'
+   19 |         snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu"),
+      |                                          ^~~~
+1 error generated.
