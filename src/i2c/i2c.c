@@ -24,6 +24,7 @@
 #include "log.h"
 
 #define I2C_TIMEOUT         5                                       // timeout: 5 msec
+#define I2C_TIMEOUT_TICKS   (I2C_TIMEOUT * (1000 / DELAY_RESOLUTION_5_US))   // A60: Frist in SysTick-Ticks (5 us)
 
 #if defined (BLACK_BOARD)
 
@@ -90,6 +91,7 @@
 #endif
 
 static uint32_t             i2c_clockspeed;
+static uint32_t             i2c_last_clockspeed;                // A60/M1: Dateiebene, damit die BUSY-Frist i2c_init() erzwingen kann
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * init i2c bus
@@ -127,16 +129,55 @@ i2c_init_i2c (void)
 static void
 i2c_handle_timeout (void)
 {
+    /* A60 / AKI.3: eine Zeile je Fristablauf (Flag- und BUSY-Warte laufen hier zusammen), fester Text fuer
+     * die Logwache. Sicher: I2C laeuft erst nach log_init() (rtc_init/eep_init in main()) und nie aus einer ISR. */
+    log_puts ("i2c: frist abgelaufen\r\n");
+
     I2C_GenerateSTOP (I2C_CHANNEL, ENABLE);
     I2C_SoftwareResetCmd (I2C_CHANNEL, ENABLE);
     I2C_SoftwareResetCmd (I2C_CHANNEL, DISABLE);
 
     I2C_DeInit (I2C_CHANNEL);
     i2c_init_i2c ();
+
+    /* M1 (Review S2, Entscheidung des Nutzers "Bus beim Fristablauf freitakten"), fuer JEDE Frist: Haelt ein
+     * Slave SDA low, hilft der Peripherie-Reset oben nicht, und jeder folgende Zugriff scheitert schon am
+     * START (SB-Frist, RM0008: bei belegtem Bus kein START). Bisher taktete erst der Neustart nach dem
+     * Watchdog frei (i2c_init() -> i2c_reset_bus()). Jetzt hier, aber nur wenn der Bus noch belegt ist --
+     * eine gewoehnliche Flag-Frist ohne Busstoerung kostet so keine 20 ms.
+     *
+     * "Belegt" = BUSY gesetzt ODER SDA liest low. Die Leitung wird ueber das GPIO-Eingangsregister gelesen:
+     * Laut Referenzhandbuch (RM0008/RM0383, GPIO, Alternate-Function-Konfiguration) tastet es den Pin auch im
+     * AF-Open-Drain-Modus ab. BUSY allein genuegt nicht: SWRST/DeInit loeschen SR2, und RM0008 sagt zu BUSY
+     * nur "set by hardware on detection of SDA or SCL low" -- ob das Modul nach dem Reset einen SCHON low
+     * liegenden SDA wieder erkennt, ist dort nicht zugesichert und am Geraet nicht belegt. Der Pegel ist der
+     * Zustand selbst; BUSY bleibt als zweite Angabe.
+     *
+     * i2c_init() erzwingen (nicht i2c_reset_bus() allein): Es taktet 9 Takte frei und stellt die Pins danach
+     * wieder auf AF. Keine Rekursion -- i2c_init() wartet auf kein Flag. Seine delay_msec() setzen
+     * delay_counter selbst; die Frist ist abgelaufen, der naechste Zugriff setzt sie neu. Bis rund 20 ms,
+     * nur nach log_init()/delay_init() und nie aus einer ISR. */
+    if (I2C_GetFlagStatus (I2C_CHANNEL, I2C_FLAG_BUSY) || GPIO_ReadInputDataBit (SDA_PORT, SDA_PIN) == Bit_RESET)
+    {
+        i2c_last_clockspeed = 0;
+        i2c_init (i2c_clockspeed);
+    }
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * wait for flags
+ *
+ * A60 / L359 (specs/paket-2026-10-11, design.md 8, Ent-15 nur Fristen): eng pollen statt je Durchlauf
+ * delay_msec(1). Bisher kostete JEDES Flag mindestens 1 ms, auch wenn es nach wenigen Mikrosekunden kam
+ * -- daher die rund 24 ms je EEPROM-Zyklus statt 16 ms Schreibzeit (L358/L359). Die Frist bleibt 5 ms.
+ *
+ * Frist ueber delay_counter: KEIN freilaufender Zaehler, sondern ein Abwaertszaehler, den
+ * SysTick_Handler() (delay.c) alle 5 us bis 0 herunterzaehlt -- dasselbe Verfahren wie delay_msec(),
+ * nur dass hier waehrenddessen das Flag abgefragt wird. Voraussetzung, am Code geprueft (S2.1): keine
+ * ISR ruft delay_*() oder schreibt delay_counter (TIM2, DMA der LED-Treiber, UART, XPT2046, Fault-
+ * Handler); aufgerufen wird i2c nur aus dem Hauptloop bzw. aus main() nach delay_init().
+ * I2C_TIMEOUT_TICKS rechnet mit der Aufloesung, die main.c und onewire.c setzen (5 us); aendert sich
+ * die, aendert sich die Frist mit.
  *
  * return values:
  * == 1  OK, got flag
@@ -146,38 +187,43 @@ i2c_handle_timeout (void)
 static uint_fast8_t
 i2c_wait_for_flags (uint32_t flag1, uint32_t flag2)
 {
-    uint32_t  timeout = I2C_TIMEOUT;
+    delay_counter = I2C_TIMEOUT_TICKS;
 
-    if (flag2)
+    while (! I2C_GetFlagStatus (I2C_CHANNEL, flag1) || (flag2 && ! I2C_GetFlagStatus (I2C_CHANNEL, flag2)))
     {
-        while ((!I2C_GetFlagStatus(I2C_CHANNEL, flag1)) || (!I2C_GetFlagStatus(I2C_CHANNEL, flag2)))
+        if (delay_counter == 0)
         {
-            if (timeout > 0)
-            {
-                delay_msec(1);
-                timeout--;
-            }
-            else
-            {
-                i2c_handle_timeout ();
-                return 0;
-            }
+            i2c_handle_timeout ();
+            return 0;
         }
     }
-    else
+
+    return 1;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * wait until bus is free after STOP (A60 / L360)
+ *
+ * Hier stand an zwei Stellen (i2c_read, i2c_write) eine Schleife auf BUSY OHNE Frist. Haengt der Bus,
+ * stand der Hauptloop bis zum Watchdog-Reset -- und VOR watchdog_init() (rtc_init/eep_init beim Start)
+ * fuer immer. Jetzt dieselbe Frist wie oben, danach derselbe Abbruch.
+ *
+ * return values:
+ * == 1  OK, bus free
+ * == 0  timeout
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint_fast8_t
+i2c_wait_not_busy (void)
+{
+    delay_counter = I2C_TIMEOUT_TICKS;
+
+    while (I2C_GetFlagStatus (I2C_CHANNEL, I2C_FLAG_BUSY))
     {
-        while (! I2C_GetFlagStatus(I2C_CHANNEL, flag1))
+        if (delay_counter == 0)
         {
-            if (timeout > 0)
-            {
-                delay_msec(1);
-                timeout--;
-            }
-            else
-            {
-                i2c_handle_timeout ();
-                return 0;
-            }
+            i2c_handle_timeout ();                                          // Zeile und Freitakten wie bei jeder Frist
+            return 0;
         }
     }
 
@@ -302,15 +348,14 @@ i2c_reset_bus (void)
 void
 i2c_init (uint32_t clockspeed)
 {
-    static uint32_t     last_clockspeed;
     GPIO_InitTypeDef    gpio;
 
-    if (last_clockspeed == clockspeed)                              // if already called with same clockspeed, return
+    if (i2c_last_clockspeed == clockspeed)                          // if already called with same clockspeed, return
     {
         return;
     }
 
-    last_clockspeed = clockspeed;
+    i2c_last_clockspeed = clockspeed;
 
     I2C_DeInit(I2C_CHANNEL);
 
@@ -410,9 +455,9 @@ i2c_read (uint_fast8_t slave_addr, uint_fast16_t addr, uint_fast8_t is_16_bit_ad
             I2C_AcknowledgeConfig(I2C_CHANNEL, DISABLE);                           // ACK disable
             I2C_GenerateSTOP(I2C_CHANNEL, ENABLE);                                 // stop sequence
 
-            while (I2C_GetFlagStatus(I2C_CHANNEL, I2C_FLAG_BUSY))
+            if (! i2c_wait_not_busy ())                                             // A60: bisher ohne Frist
             {
-                ;
+                return I2C_ERROR_BUSY;
             }
         }
 
@@ -469,9 +514,9 @@ i2c_write (uint_fast8_t slave_addr, uint_fast16_t addr, uint_fast8_t is_16_bit_a
 
     I2C_GenerateSTOP(I2C_CHANNEL, ENABLE);                                  // stop sequence
 
-    while (I2C_GetFlagStatus(I2C_CHANNEL, I2C_FLAG_BUSY))
+    if (! i2c_wait_not_busy ())                                             // A60: bisher ohne Frist
     {
-        ;
+        return I2C_ERROR_BUSY;
     }
 
     return I2C_OK;

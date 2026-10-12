@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-12 Paket 2026-10-11, STM-Release 2: I²C mit Fristen, hängender Bus heilt sich selbst (STM 3.2.30)
+
+Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP
+`wordclock-release-2026-10-12-070632.zip`, Tag `release/3.2.30-3.2.31-1.4.95`. Umfang: STM-Release 2 aus
+`specs/paket-2026-10-11/` (A60 mit L360), isoliert, damit seine Wirkung auf die I²C-Zeiten allein messbar ist.
+
+**Einspielreihenfolge: nur der STM** (`./tools/flash-stm.sh`).
+
+### I²C wartet eng statt je Byte eine Millisekunde (A60)
+- Der Treiber fragt die Flags eng ab, mit einer Frist von 5 ms, statt bei jedem nicht sofort gesetzten Flag 1 ms
+  zu warten. EEPROM- und RTC-Zugriffe werden damit deutlich kürzer.
+- Die beiden Warteschleifen auf einen freien Bus hatten keine Frist: Hing der Bus beim Start, stand die Uhr für
+  immer, im Betrieb kam nach 20 s der Watchdog. Jetzt gilt dieselbe Frist, danach ein Fehler, und die Uhr läuft weiter.
+- Ist der Bus nach einer abgelaufenen Frist noch belegt, wird er wie beim Start mit neun Takten freigetaktet und
+  neu eingerichtet (Entscheidung des Nutzers). Die Uhr heilt einen hängenden Bus damit selbst.
+- Jeder Fristablauf steht als `i2c: frist abgelaufen` im Mitschnitt; die Logwache meldet ihn als Alarm.
+- Kein Abschlussverfahren nach RM0008 (Ent-15).
+
+### Werkzeug
+Prüfstand a60 (4'998 Fälle mit nachgebildetem Bus, gegen 3.2.29 FEHL). Vor dem Build lief `make matrix` auf diesem
+Stand: 72 von 72 gebaut, keine Variante unter dem Gate.
+
 ## 2026-10-11 Paket 2026-10-11, STM-Release 1: Nacht nach Neustart, Netzzeit mit Ära, Ambilight-Kopie (STM 3.2.29)
 
 Nur der STM, ESP (3.2.31) und PWA (1.4.95) unverändert. Release-ZIP

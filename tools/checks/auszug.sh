@@ -49,6 +49,7 @@ LAUF=(
   "A59 LDR-Grenzen per Zahl setzbar (STM)|stm/l59/run.sh $S"
   "A62 Netzzeit mit Aera, Totbereich, Bestaetigung, Zeitzone (STM)|stm/a62/run.sh $S"
   "A69 Nachtfenster beim Start, beim ersten TIME, bei Spruengen (STM)|stm/a69/run.sh $S"
+  "A60 I2C-Fristen eng gepollt, BUSY mit Frist, Logzeile (STM)|stm/a60/run.sh $S"
   "A2 DS18xx CRC, ROM-ID, Neuerkennung (STM)|stm/ds/run.sh $S"
   "A50 fault_reset ohne Ausgabe, 15 s geeicht (STM)|stm/fr/run.sh $S"
   "A55 CAP setzt offline bis IPADDRESS (STM+ESP)|stm/ep/run.sh $S $E"

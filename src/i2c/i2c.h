@@ -32,6 +32,7 @@
 #define I2C_ERROR_NO_FLAG_SB2   (-5)
 #define I2C_ERROR_NO_FLAG_ADDR2 (-6)
 #define I2C_ERROR_NO_FLAG_RXNE  (-7)
+#define I2C_ERROR_BUSY          (-8)                      // A60: BUSY nach STOP nicht frei binnen Frist
 
 void            i2c_init  (uint32_t);
 int_fast16_t    i2c_read  (uint_fast8_t, uint_fast16_t, uint_fast8_t, uint8_t *, uint_fast16_t);
