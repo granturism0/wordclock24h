@@ -1,6 +1,6 @@
 #!/bin/sh
 # Pruefstand c35 (Paket 2026-10-11, P.1, AKC.1): Wie oft ruft die PWA update_status ab?
-# Hauptmodul 30 min offen => hoechstens 7 Abrufe (beim Oeffnen, dann hoechstens alle 5 min);
+# Hauptmodul 30 min offen => hoechstens 7 Abrufe je update_status und update_table_files
 # Update- und Wartungsmodul wie bisher bei jedem 15-s-Lauf; Wechsel dorthin holt sofort;
 # ein Fehlschlag zaehlt als Abruf. Gegenprobe: der Ausgangsstand ruft im Hauptmodul rund
 # 120-mal ab und muss FEHL melden.

@@ -200,6 +200,7 @@ reset (PLAN p, int cap)
     esp8266_ack_drops = 0;
 #endif
     esp8266.cap_var_crc = (uint_fast8_t) cap;
+    esp8266.is_online = 1;                                      // L408: var_send_buf() sendet nur online
     sim_ms = ((sim_ms / 1000) + 10) * 1000;                     // Start auf Sekundengrenze: Timeout genau 3000 ms
     uptime = sim_ms / 1000;
 }

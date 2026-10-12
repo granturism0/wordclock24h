@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-10-13 STM 3.2.32, ESP 3.2.33, PWA 1.4.96: Brücke nach dem OTA, Hauptmodul entlastet (Paket 2026-10-11, P; L408)
+
+`wordclock-release-2026-10-13-013218.zip`, Tag `release/3.2.32-3.2.33-1.4.96`.
+Umfang: Schritt P aus `specs/paket-2026-10-11/` (C35) und die Korrekturen aus dem OTA-Mitschnitt vom 13.10.2026
+(L408: A74, A75, A76).
+
+**Einspielreihenfolge:** zuerst der STM, dann der ESP (per OTA), zuletzt die PWA. Keine Komponente setzt eine
+andere zwingend voraus; die Reihenfolge sorgt dafür, dass das ESP-OTA schon mit dem neuen STM gemessen wird.
+
+### STM
+- Ist der ESP offline (nach `CAP` oder `OTA start`), sendet der STM keine Einstellungen mehr und wartet nicht mehr
+  3 s auf eine Quittung, die nicht kommen kann. Vorher lief beim ESP-Neustart die zweite Sendung eines Paars
+  (RTC-Temperatur) trotzdem in die Zeitüberschreitung (A74). Was offline nicht gesendet wird, trägt der Vollabgleich
+  nach `IPADDRESS` nach.
+- Die beiden Dimmtabellen gingen im Vollabgleich mit 64 statt 16 Werten hinaus; der ESP hat die 48 überzähligen
+  zu Recht abgewiesen (`- var ignoriert … code=n`), und beim Ambilight wurde hinter dem Ende der Daten gelesen.
+  Jetzt 16 — der Vollabgleich ist 96 Kommandos kürzer (A75).
+
+### ESP
+- Erkennt der ESP einen Überlauf seines seriellen Empfangspuffers, steht jetzt `- ovr #n t=<ms seit Start>` im
+  Mitschnitt (höchstens einmal je Minute), und die Heap-Zeile zeigt den aktuellen Stand statt den des vorigen
+  Durchlaufs. Damit lässt sich unterscheiden, ob der Überlauf beim Hochlauf passiert (A76). Der Puffer selbst ist
+  unverändert.
+
+### PWA
+- Das Hauptmodul fragt Update-Status und Tabellenliste nur noch beim Öffnen und danach höchstens alle 5 Minuten
+  ab statt alle 15 Sekunden. Beide Abfragen lösen auf der Uhr eine Verbindung zum Update-Server aus. Wartung und
+  Anzeige holen wie bisher bei jedem Lauf (C35).
+
+### Werkzeug
+- Prüfstände `l408`, `ovrzeit` und `c35` in S16; AKS.5 und W2 setzen den ESP jetzt online.
+- Die Logwache kennt `- ovr #n t=…`; Probeläufe mit `WATCHLOG_QUELLE` haben eigene Zustandsdateien und stören
+  eine laufende Gerätewache nicht mehr.
+
 ## 2026-10-13 Paket 2026-10-11, ESP-Release: NTP abgesichert, OTA-Ankündigung, Meldungen (ESP 3.2.32)
 
 Nur der ESP, STM (3.2.31) und PWA (1.4.95) unverändert. `wordclock-release-2026-10-13-011039.zip`, Tag `release/3.2.31-3.2.32-1.4.95`.

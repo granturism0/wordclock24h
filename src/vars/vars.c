@@ -579,6 +579,20 @@ var_send_buf (char * buf, uint_fast8_t idlen)
         var_send_superseded = 1;                                // der wartende Aufruf traegt jetzt den aelteren Wert
     }
 
+    /* L408: ESP offline -- nicht senden, nicht warten. Gesetzt von CAP var-crc und OTA start (esp8266.c),
+     * von AP- und WPS-Taste und vor der ersten IPADDRESS-Zeile. Ohne Gegenstelle liefe jede Sendung in
+     * VAR_SEND_TIMEOUT_SEC, und Folgesendungen DESSELBEN Aufrufs (N15/N31, Uptime lo/hi, Overlay-, Nacht-
+     * und Alarmtabellen, Vollabgleich) reihten diese Wartezeiten aneinander; belegt: N31 nach CAP 3 s.
+     * Nicht vorgemerkt, nicht gezaehlt (v=), keine Timeout-Zeile, kein Reload: Es wurde nichts gesendet.
+     * Was ausfaellt, traegt der Vollabgleich nach -- IPADDRESS und SYNCVARS setzen is_online wieder und
+     * merken ihn vor (main.c, var_sync_pending). Purge und superseded oben laufen wie bisher: Der
+     * juengere Wert verdraengt auch offline einen vorgemerkten aelteren.
+     */
+    if (! esp8266.is_online)
+    {
+        return 0;
+    }
+
     esp8266_uart_puts ("var ");
     esp8266_uart_puts (buf);
 
@@ -1664,16 +1678,22 @@ var_send_alarm_times (void)
     }
 }
 
+/* L408: Elementzahl, nicht Bytezahl. Die Tabellen sind uint_fast8_t[MAX_BRIGHTNESS + 1], auf dem Ziel
+ * 4 Byte je Element: sizeof allein ergab 64 statt 16 -- der ESP wies 16..63 ab ("var ignoriert"), und bei
+ * der Ambilight-Tabelle wurde ueber das Ende von display hinaus gelesen.
+ */
 static void
 var_send_dimmed_display_colors (void)
 {
-    var_send_num8_array (DISPLAY_DIMMED_DISPLAY_COLORS, display.dimmed_display_colors, sizeof (display.dimmed_display_colors));
+    var_send_num8_array (DISPLAY_DIMMED_DISPLAY_COLORS, display.dimmed_display_colors,
+                         sizeof (display.dimmed_display_colors) / sizeof (display.dimmed_display_colors[0]));
 }
 
 static void
 var_send_dimmed_ambilight_colors (void)
 {
-    var_send_num8_array (DISPLAY_DIMMED_AMBILIGHT_COLORS, display.dimmed_ambilight_colors, sizeof (display.dimmed_ambilight_colors));
+    var_send_num8_array (DISPLAY_DIMMED_AMBILIGHT_COLORS, display.dimmed_ambilight_colors,
+                         sizeof (display.dimmed_ambilight_colors) / sizeof (display.dimmed_ambilight_colors[0]));
 }
 
 static void

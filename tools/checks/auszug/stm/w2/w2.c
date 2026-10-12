@@ -172,6 +172,7 @@ reset (uint32_t offset_ms)
     memset (var_retry_slots, 0, sizeof (var_retry_slots));
     var_send_timeout_cnt = var_send_nested_cnt = 0;
     esp8266.cap_var_crc = 0;
+    esp8266.is_online = 1;                                  /* L408: var_send_buf() sendet nur online */
     ack_delay = -1; ack_at = 0; var_lines = 0; weather_cmds = 0; wd_reloads = 0; esp8266_ack_drops = 0;
     nested_query_at = 0; nested_spam = 0;
     strcpy (weather.appid, "0123456789abcdef");

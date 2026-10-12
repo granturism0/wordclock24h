@@ -477,6 +477,22 @@ icon_info (const char * fname, const char * name)
  * Ueberlauf stattfand -- eine Untergrenze fuer verlorene Zeichen, nie eine Ueberschaetzung. Saettigend.
  * Abgefragt einmal je loop() vor dem Lesen der Bruecke, ausgegeben als ovr= an der Heap-Zeile. 4 Byte RAM.
  * Bei ESP_HEAP_LOG 0 wird weiter gezaehlt, aber nirgends ausgegeben. KEIN setRxBufferSize in diesem Paket.
+ *
+ * L408 (Instrumentierung, DIR-003): Die Abfrage steht VOR esp_heap_log(), damit die Heap-Zeile den Stand
+ * einschliesslich des laufenden Durchlaufs zeigt. Vorher erschien ein Ueberlauf aus setup() (rund 7 s ohne
+ * Leser auf der Bruecke) erst in der ZWEITEN Heap-Zeile, eine Minute spaeter, und war von einem Ueberlauf im
+ * Betrieb nicht zu unterscheiden. Der Zaehler selbst zaehlt unveraendert dasselbe.
+ * Zusaetzlich beim Erkennen gedrosselt eine Zeile, Muster wie var_ignored_note() (vars.cpp):
+ *
+ *     "- ovr #<n> t=<millis>"
+ *
+ * n = Stand des Zaehlers nach dem Erhoehen, t = millis() beim ERKENNEN, nicht beim Ueberlauf selbst: Das
+ * Merkmal sagt nur "seit der letzten Abfrage". Ein t kurz nach dem Start heisst deshalb "waehrend setup()
+ * oder im ersten Durchlauf". Die erste Zeile sofort, danach hoechstens eine je ESP_OVR_LOG_INTERVAL; der
+ * laufende Zaehler steht in der Zeile, die Gesamtzahl geht nicht verloren. Kosten: hoechstens eine Zeile
+ * (<= 31 Byte samt Zeilenende) je Minute auf der STM-UART. Die Drosselvariablen stehen statisch IM Block in
+ * loop() und nicht hier oben, damit der Pruefstand tools/checks/auszug/esp/ovr/ den Block weiter allein
+ * uebersetzen kann. Im Saettigungsfall (Zaehler 4294967295) entfaellt auch die Zeile -- praktisch nie.
  */
 static uint32_t       esp_uart_overruns = 0;
 
@@ -1394,16 +1410,32 @@ loop()
     udp_server_loop ();
     ntp_poll_time ();                                                       // poll NTP
 
-#if ESP_HEAP_LOG
-    esp_heap_log ();                                                    // befristet, siehe Kommentar oben (L175/L177)
-#endif
-
     var_sync_check ();                                                  // Weg B (L231, L255): Vollabgleich nachfordern, falls er ausblieb
 
     if (Serial.hasOverrun () && esp_uart_overruns < 0xFFFFFFFFUL)           // E.3: zuerst abfragen (loescht das
     {                                                                       // Merkmal), dann saettigend zaehlen
+        static unsigned long    ovr_last    = 0;                            // L408: Drosselung der Zeile "- ovr #"
+        static uint_fast8_t     ovr_logged  = 0;                            // die erste sofort
+
         esp_uart_overruns++;
+
+        if (! ovr_logged || (millis () - ovr_last) >= 60000UL)              // Differenzbildung ist ueberlaufsicher
+        {
+            char line[40];                                                  // "- ovr #4294967295 t=4294967295" = 29
+
+            ovr_logged  = 1;
+            ovr_last    = millis ();
+
+            snprintf_P (line, sizeof (line), PSTR ("- ovr #%lu t=%lu"), (unsigned long) esp_uart_overruns, (unsigned long) ovr_last);
+            Serial.println (line);
+            Serial.flush ();
+            stm32_log_append (line);                                        // Mitschnitt UND /api/stm32_log (L185)
+        }
     }
+
+#if ESP_HEAP_LOG
+    esp_heap_log ();                                                    // NACH der Ueberlaufabfrage (L408): ovr= zeigt den aktuellen Stand
+#endif
 
     while (Serial.available())
     {

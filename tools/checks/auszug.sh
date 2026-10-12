@@ -56,6 +56,7 @@ LAUF=(
   "A53 Spiele zaehlen verworfene ESP-Zeilen, Abgleich (STM)|stm/a53/run.sh $S"
   "A57 Messwert uebernehmen weist Inversion ab (STM)|stm/a57/run.sh $S"
   "A67 OTA start setzt offline, CAP unberuehrt (STM)|stm/a67/run.sh $S"
+  "L408 Dimmtabellen 16 Elemente, offline keine Sendung (STM)|stm/l408/run.sh $S"
   "A2 DS18xx CRC, ROM-ID, Neuerkennung (STM)|stm/ds/run.sh $S"
   "A50 fault_reset ohne Ausgabe, 15 s geeicht (STM)|stm/fr/run.sh $S"
   "A55 CAP setzt offline bis IPADDRESS (STM+ESP)|stm/ep/run.sh $S $E"
@@ -83,10 +84,11 @@ LAUF=(
   "A35 still verworfene Zuweisungen gemeldet (ESP)|esp/a35/run.sh $E neu"
   "C58 NTP: Laenge vor dem Lesen, Absender, LI/Stratum/Transmit (ESP)|esp/ntp/run.sh $E neu"
   "A21 ovr= zaehlt UART-Ueberlaeufe saettigend (ESP)|esp/ovr/run.sh $E neu"
+  "A76 ovr-Zeitpunkt: erste Zeile sofort, 1/min, Heap-Zeile nach der Abfrage (ESP)|esp/ovrzeit/run.sh $E neu"
   "A67 OTA start in allen drei OTA-Pfaden, statisch (ESP)|esp/akk2/static.sh $E neu"
   "E.6 Rueckfall-Neustart nach lokalem Upload (ESP)|esp/otarueck/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
-  "C35 Hauptmodul holt update_status hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
+  "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht

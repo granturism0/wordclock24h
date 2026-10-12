@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.95";
+const APP_VERSION = "1.4.96";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -1378,8 +1378,19 @@ let startupLoadIssuedAt = 0;
 let lastSuccessfulLoadAt = 0;
 let backgroundPauseUntil = 0;
 let backgroundPauseFinishTimer = 0;
+// C35 (Ent-6 = A): Zeitpunkt des letzten update_status- bzw. update_table_files-Abrufs,
+// gleich aus welchem Modul. Gesetzt wird er VOR dem Abruf, damit auch ein Fehlschlag als
+// Abruf zaehlt. Die laufende Nummer je Abruf entscheidet, ob ein Ergebnis noch das
+// neueste ist (siehe loadSecondaryData).
+let lastUpdateStatusFetchAt = 0;
+let lastUpdateTableFilesFetchAt = 0;
+let updateStatusFetchSerial = 0;
+let updateTableFilesFetchSerial = 0;
 
 const INITIAL_LOAD_RETRY_DELAYS_MS = [1800, 3200, 5000];
+// C35 (Ent-6 = A): Mindestabstand der update_status- und update_table_files-Abrufe im
+// Hauptmodul.
+const MAIN_UPDATE_STATUS_INTERVAL_MS = 5 * 60 * 1000;
 const RELOAD_BOOTSTRAP_RETRY_DELAYS_MS = [300, 700, 1400, 2400, 3600];
 const RELOAD_BOOTSTRAP_LOAD_DELAYS_MS = [250, 900, 1800, 3200];
 
@@ -3167,6 +3178,41 @@ function isDisplayPowerOn(displayPowerText, settings) {
   return !!(settings && settings.numvars && settings.numvars[NUM.DISPLAY_POWER]);
 }
 
+// C35 (Ent-6 = A, L310): Jeder update_status-Abruf laesst den ESP Release Notes und
+// WC-Liste beim Update-Server holen -- zwei ungecachte ausgehende Verbindungen; jeder
+// update_table_files-Abruf oeffnet eine weitere. Das Hauptmodul braucht davon wenig: aus
+// update_status nur die ESP-Version in der Uebersicht (mit Rueckfall auf
+// STR.ESP8266_VERSION), aus update_table_files die aktuelle Tabelle fuer die Vorschau.
+// Es holt deshalb beim Oeffnen und danach hoechstens alle 5 min, statt bei jedem
+// 15-s-Lauf. Wartung (dort wird die Tabelle eingespielt) und Update holen wie bisher bei
+// jedem Lauf, also auch sofort beim Wechsel dorthin (moduleChange); die Tabelleninfo
+// zusaetzlich das Anzeigemodul. Der Abstand gilt ab dem letzten Abruf aus IRGENDEINEM
+// Modul: Wer aus der Wartung zurueckkommt, hat frische Daten. Laeuft die Uhr des Browsers
+// rueckwaerts, gilt der Abstand als abgelaufen, statt die Werte bis zum Neuladen
+// einzufrieren.
+function isMainModuleFetchDue(lastFetchAt) {
+  if (!lastFetchAt) {
+    return true;
+  }
+
+  const elapsedMs = Date.now() - lastFetchAt;
+  return elapsedMs < 0 || elapsedMs >= MAIN_UPDATE_STATUS_INTERVAL_MS;
+}
+
+function shouldFetchUpdateStatus(moduleProfile) {
+  if (moduleProfile.update || moduleProfile.maintenance) {
+    return true;
+  }
+  return !!moduleProfile.main && isMainModuleFetchDue(lastUpdateStatusFetchAt);
+}
+
+function shouldFetchUpdateTableFiles(moduleProfile) {
+  if (moduleProfile.display || moduleProfile.update || moduleProfile.maintenance) {
+    return true;
+  }
+  return !!moduleProfile.main && isMainModuleFetchDue(lastUpdateTableFilesFetchAt);
+}
+
 async function loadSecondaryData(requestId, settings, coreData, debugOverrides, options) {
   const opts = options || {};
   const activeModule = opts.moduleName || getActiveModuleName();
@@ -3182,27 +3228,40 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   // Secondary data is intentionally additive:
   // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
-  if (mainActive || maintenanceActive || updateActive) {
+  // C35/N1: Ein Abruf zaehlt, sobald er beginnt. Ueberholt ein neuerer loadData() diesen
+  // Lauf, wird sein Ergebnis trotzdem global uebernommen -- sonst stuende das Hauptmodul
+  // bis zu 5 min ohne Daten da. Nur die Oberflaeche frischt der ueberholte Lauf nicht mehr
+  // auf. Die laufende Nummer verhindert, dass ein spaeter eintreffendes aelteres Ergebnis
+  // ein neueres ueberschreibt.
+  if (shouldFetchUpdateStatus(moduleProfile)) {
+    lastUpdateStatusFetchAt = Date.now();
+    const fetchSerial = ++updateStatusFetchSerial;
     try {
       const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      if (fetchSerial === updateStatusFetchSerial) {
+        setCurrentUpdateStatus(updateStatus);
+      }
       if (requestId !== loadRequestSerial) {
         return;
       }
-      setCurrentUpdateStatus(updateStatus);
       refreshUpdateUi(settings, coreData, debugOverrides);
     } catch (error) {
       console.warn("Update status load failed", error);
     }
   }
 
-  if (mainActive || displayActive || maintenanceActive || updateActive) {
+  if (shouldFetchUpdateTableFiles(moduleProfile)) {
+    lastUpdateTableFilesFetchAt = Date.now();
+    const fetchSerial = ++updateTableFilesFetchSerial;
     try {
       const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      if (fetchSerial === updateTableFilesFetchSerial) {
+        setCurrentUpdateTableInfo(updateTableInfo);
+      }
       if (requestId !== loadRequestSerial) {
         return;
       }
-      setCurrentUpdateTableInfo(updateTableInfo);
-      updateLayoutTableWarnings(settings, updateTableInfo);
+      updateLayoutTableWarnings(settings, getCurrentUpdateTableInfo());
     } catch (error) {
       console.warn("Update table info load failed", error);
     }
