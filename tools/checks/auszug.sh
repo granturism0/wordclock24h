@@ -86,6 +86,7 @@ LAUF=(
   "A67 OTA start in allen drei OTA-Pfaden, statisch (ESP)|esp/akk2/static.sh $E neu"
   "E.6 Rueckfall-Neustart nach lokalem Upload (ESP)|esp/otarueck/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
+  "C35 Hauptmodul holt update_status hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht

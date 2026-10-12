@@ -39,3 +39,7 @@ tools/snapshots/
 # Python-Bytecode
 __pycache__/
 *.pyc
+
+# Uebersetzungsprotokolle der Auszugs-Pruefstaende (enthalten absolute Pfade, L409)
+tools/checks/auszug/**/cc.log
+tools/checks/auszug/**/extract.log
