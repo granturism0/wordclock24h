@@ -31,7 +31,7 @@ int main (void)
                   cap, crc, (unsigned) r, (unsigned) esp8266.is_online, (unsigned) esp8266_cap_var_crc_seen, (unsigned) esp8266.cap_var_crc);
         a67_pruef (r == ESP8266_STATUS && esp8266.is_online == 0 && esp8266_cap_var_crc_seen == cap && esp8266.cap_var_crc == crc, a67_was);
 
-        r = zeile ("IPADDRESS 192.168.1.5");
+        r = zeile ("IPADDRESS 192.0.2.5");
         a67_pruef (r == ESP8266_IPADDRESS && esp8266.is_online == 1, "nach OTA start: IPADDRESS setzt nicht wieder online");
 
         r = zeile ("OTA start");
