@@ -799,6 +799,12 @@ freigegeben und am 13.10.2026 um 01:06:16 gefahren (L407).
 | **AKZ.5** | Die Wache kennt die neuen Zeilen (`CHANGELOG.md`); die Gegenprobe je Zeile ist nicht gemeldet. Am 12.10.2026 stand sie von 00:20 bis 01:33 still, unbemerkt bis kurz vor dem Reset (L401); Ursache nicht untersucht |
 | **AKZ.8, AKZ.9** | Nicht gemeldet |
 
+**Nachtrag 13.10.2026 — Entscheidung des Nutzers:** AKP.1, AKP.2, AKZ.F, AKZ.M.4, AKZ.M.5,
+AKZ.1–AKZ.5, AKZ.8 und AKZ.9 bleiben als **bekannte Nachweislücken** offen; nachgeholt wird nichts,
+weil die Zwischenstände nicht aufgehoben sind (`BEFUNDE.md`, L424). Der Stillstand der Logwache aus
+AKZ.5 ist eigens als L423/E36 aufgenommen; die Lehre — Messwerte bei der Messung als Zeile in
+`BEFUNDE.md` festhalten — steht im Skill `/release`.
+
 **AKZ.6 ist abgenommen** (L412): V3 nachgeholt am 13.10.2026 um 06:13:57 nach Freigabe des
 STM-Resets durch den Nutzer — beim Start `v=0/0`, 18 Abweichungen im Vergleich `abschluss-3.2.33`
 gegen `v3-3.2.33`, alle erklärt, `numvar[45]` 3→0 geheilt, keine Abweichung zwischen STM und
