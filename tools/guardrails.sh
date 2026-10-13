@@ -553,6 +553,13 @@ step S15 "Indexpruefung gegen Schreibzugriffe ueber den Arrayrand"
 step S16 "Auszugs-Pruefstaende (Runde S) gegen den aktuellen Baum"
 ./tools/checks/auszug.sh || CRIT=$((CRIT+1))
 
+# ------------------------------------------ S17 Umfang des Backups (F3)
+# Jeder *_set-Endpunkt im Dispatch von http.cpp wird vom Backup-Import der PWA aufgerufen
+# oder steht begruendet in tools/checks/backup-umfang.ausnahmen. Sonst ist eine neue
+# Einstellung bedienbar, wird aber nie gesichert -- die stille Drift aus L35 (d), L425.
+step S17 "Umfang des Backups gegen die *_set-Endpunkte (F3)"
+python3 ./tools/checks/backup-umfang.py || CRIT=$((CRIT+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then
