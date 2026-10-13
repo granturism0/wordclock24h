@@ -51,7 +51,7 @@ klären. Bis dahin sind die Uhr und ihre Einstellungen gegen Aufrufe von fremden
 
 **Warum.** Der bisherige und der geplante Schutz bauten auf den Browser-Kopfzeilen `Sec-Fetch-Dest`
 und `Sec-Fetch-Site`. **Browser senden sie über `http://` an die Uhr gar nicht** — am Gerät belegt
-mit Chrome 155 (L439). Damit wirkt schon die Prüfung aus ESP 3.2.4 im Browser nicht; belegt war sie
+mit Chrome 155 (L439). Damit wirkt schon die frühere Prüfung über `Sec-Fetch-Dest` (Review-2-Massnahme 14) im Browser nicht; belegt war sie
 nur per curl mit von Hand gesetzter Kopfzeile. Ein `<img>`, ein Link oder ein Formular auf einer
 fremden Seite, die jemand im Heimnetz öffnet, kann die zerstörerischen Wege auslösen.
 
@@ -59,11 +59,11 @@ fremden Seite, die jemand im Heimnetz öffnet, kann die zerstörerischen Wege au
 
 | Eintrag | Was |
 |---|---|
-| **C6** | Zerstörerische API-Wege (EEPROM löschen, Formatieren, STM-Reset, Datei löschen) |
-| **C6v** | `/fs` Formatieren und Löschen (Legacy) |
-| **C60** (L426, hoch) | Legacy `/?action=rsteeprom2` löscht die STM-Einstellungen per GET |
-| **C61** (L438) | Upload-Wege per POST und `local_esp_restart` |
-| **C62** (L440) | WLAN- und AP-Setter — können die Uhr aus dem WLAN werfen |
+| C6 | Zerstörerische API-Wege (EEPROM löschen, Formatieren, STM-Reset, Datei löschen) |
+| C6v | `/fs` Formatieren und Löschen (Legacy) |
+| C60 (L426, hoch) | Legacy `/?action=rsteeprom2` löscht die STM-Einstellungen per GET |
+| C61 (L438) | Upload-Wege per POST und `local_esp_restart` |
+| C62 (L440) | WLAN- und AP-Setter — können die Uhr aus dem WLAN werfen |
 
 **Was für die Spec schon feststeht (belegt):**
 
