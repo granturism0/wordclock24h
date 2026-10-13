@@ -192,6 +192,38 @@ const striche = await js(`(document.body.innerText.match(/(^|\\s)(—|--|…)(\\
   ? pass("Platzhalter gefuellt", `${striche} offen`)
   : bad("Platzhalter gefuellt", `${striche} leere Felder — Abrufe ohne Ergebnis?`);
 
+// ------------------------------------- 6. Start in jedem Modul (L411, B54)
+// Die PWA stellt das zuletzt genutzte Modul aus localStorage wieder her. Mit frischem
+// Profil startet dieser Lauf immer in "main" -- ein Initialisierungsfehler, der nur beim
+// Start in einem anderen Modul auftritt, blieb deshalb unsichtbar (L411: ReferenceError
+// beim Start in "system", in 1.4.94 bis 1.4.96, gefunden vom Testagenten, nicht hier).
+// Je Modul: Schluessel setzen, neu laden, und jede Ausnahme oder Warnung mit
+// ReferenceError/TypeError aus der Startphase zaehlen.
+const START_KEY = "wordclock-app-active-module";
+const startModule = await js(`[...new Set([...document.querySelectorAll(".module-section[data-module]")].map(e=>e.dataset.module))]`) || [];
+const startFehler = [];
+let gestartet = 0;
+for (const m of startModule) {
+  await js(`localStorage.setItem(${JSON.stringify(START_KEY)}, ${JSON.stringify(m)})`);
+  const vorher = konsole.length;
+  await send("Page.reload", { ignoreCache: false });
+  await schlaf(4000);
+  const aktiv = await js(`(document.querySelector(".module-section.is-active")||{}).dataset?.module || ""`);
+  gestartet++;
+  konsole.slice(vorher)
+    .filter(z => /ReferenceError|TypeError|before initialization|is not defined/.test(z))
+    .forEach(z => startFehler.push(`${m}${aktiv && aktiv !== m ? " (aktiv: " + aktiv + ")" : ""}: ${z}`));
+}
+await js(`localStorage.setItem(${JSON.stringify(START_KEY)}, "main")`);
+if (startModule.length < 5) {
+  bad("Start in jedem Modul", `nur ${startModule.length} Module gefunden — Pruefung sieht ihren Gegenstand nicht`);
+} else if (startFehler.length === 0) {
+  pass("Start in jedem Modul", `${gestartet} von ${startModule.length} Modulen ohne Ladefehler`);
+} else {
+  bad("Start in jedem Modul", `${startFehler.length} Ladefehler`);
+  startFehler.slice(0, 6).forEach(z => console.log("          " + z));
+}
+
 ws.close();
 console.log(`\n=== ${ok} bestanden, ${fail} fehlgeschlagen ===`);
 process.exit(fail > 0 ? 1 : 0);
