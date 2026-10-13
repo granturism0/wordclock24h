@@ -478,17 +478,19 @@ Stand, die Liste führt die Arbeit. Guardrail S10 prüft, dass dort **jeder** of
 Befund genannt ist; eine Zeile auf „offen" zu setzen, ohne sie in die Liste zu nehmen,
 schlägt fehl.
 
-Die schwersten offenen Punkte aus dem Katalog, damit sie nicht untergehen:
-`normalize_http_parameters` ohne Null-Prüfung (ESP-Absturz per `GET /?a`, aus dem
-ganzen LAN auslösbar), Backup-Import ohne Guard (kann das Gerät ohne WLAN, ohne AP
-und ohne Webserver zurücklassen) und die langen Busy-Waits ohne `watchdog_reload()`.
+Die schwersten offenen Punkte aus dem Katalog, damit sie nicht untergehen (Stand der
+Nachzählung vom 13.10.2026; **die Liste selbst führt `BEFUNDE.md`, nicht diese Datei**):
+`/api/eeprom_settings` gibt den WLAN-Schlüssel im Klartext an jeden im LAN heraus (C6b),
+die destruktiven Endpunkte laufen weiter über GET und sind nur über die Herkunftsprüfung
+geschützt (C6), und eine NTP-Antwort ist nicht an die eigene Anfrage gebunden (C59).
 
-Bei Letzterem stand hier bis zum 03.10.2026 „mit weiterhin genau **einer**
-Aufrufstelle" — falsch, es sind sechs. **Den Bestand nennt Guardrail S7, nicht diese
-Datei**, aus demselben Grund, aus dem hier keine Versionsnummern stehen. Offen ist
-nicht die Zahl der Aufrufstellen, sondern dass einzelne lange Pfade keinen haben:
-namentlich `var_send_all_variables()` mit rund 190 quittungspflichtigen Kommandos
-(`BEFUNDE.md`, L85).
+Hier standen bis zum 13.10.2026 drei andere: `normalize_http_parameters` ohne
+Null-Prüfung, Backup-Import ohne Guard und die langen Busy-Waits ohne `watchdog_reload()`.
+**Alle drei waren seit Wochen erledigt** — ESP 3.2.3, ESP 3.2.5/PWA 1.4.71 und STM
+3.2.22 (`BEFUNDE.md`, Review-2-Tabelle Massnahmen 1, 3 und 12; L85). Gemeldet hat es der
+doc-writer beim Nachzählen der ToDo-Liste. Dieselbe Gattung wie die Versionsnummern in der
+Doku: Eine Kopie des Stands veraltet still. Deshalb steht hier nur noch, **wo** der
+Stand steht, und die Aufzählung trägt ihr Datum.
 
 1. **DS18xx-Messwertvalidierung im STM — mit A2 erledigt (Paket 2026-10-10).**
    Scratchpad und ROM-ID werden per CRC-8 geprüft, „online“ heisst erst „gültige ROM-ID
