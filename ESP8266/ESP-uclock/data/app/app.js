@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.96";
+const APP_VERSION = "1.4.97";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -1957,7 +1957,8 @@ let moduleNavHintSyncFrame = 0;
 
 loadDebugOverridesIntoUi();
 clearReloadQueryMarker();
-restoreActiveModule();
+// restoreActiveModule() steht absichtlich NICHT hier, sondern als letzte Anweisung am
+// Dateiende. Siehe die Begruendung dort (L411).
 scheduleModuleNavHintSync();
 window.setTimeout(() => {
   startupLoadScheduled = false;
@@ -15842,3 +15843,13 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+// Muss die letzte Anweisung der Datei bleiben (L411). Das wiederhergestellte Modul
+// startet ueber setActiveModule() sofort seine Poller, und die laufen synchron bis zum
+// ersten await -- beim Modul "system" bis getStm32LogUrl(). Stand der Aufruf oben im
+// Startblock, war diese Konstante wie alle const/let weiter unten noch nicht ausgewertet:
+// ReferenceError (TDZ), abgefangen als Warnung, das Logbuch blieb bis zum naechsten Takt
+// leer. Hier ist jede Deklaration ausgewertet, fuer jedes Modul und jeden Pfad, der kuenftig
+// dazukommt. Der Startabruf im setTimeout(0) oben liest das aktive Modul erst nach dem
+// Skriptende und sieht es deshalb unveraendert. Nachweis: Pruefstand tdz (alle Module).
+restoreActiveModule();

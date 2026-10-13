@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-13 PWA 1.4.97: Start im Modul System ohne Ladefehler (L411)
+
+Nur die PWA, STM (3.2.32) und ESP (3.2.33) unverändert. `wordclock-release-2026-10-13-024559.zip`, Tag `release/3.2.32-3.2.33-1.4.97`.
+
+**Einspielen:** nur die PWA (`install-app.sh`).
+
+- Hast du die App zuletzt im Modul System verlassen, warf sie beim nächsten Öffnen einen Fehler, und das
+  STM-Logbuch erschien erst einige Sekunden später mit der Meldung, es habe nicht geladen werden können. Das
+  zuletzt genutzte Modul wird jetzt erst wiederhergestellt, wenn die App vollständig geladen ist (L411). Bestand
+  seit 1.4.94.
+- Werkzeug: `check-pwa.sh` startet die App jetzt in jedem Modul einzeln; mit frischem Profil hatte sie bisher immer
+  nur das Hauptmodul geprüft und den Fehler deshalb nicht gesehen. Prüfstand `tdz` in S16 simuliert den Start in
+  allen Modulen.
+
 ## 2026-10-13 STM 3.2.32, ESP 3.2.33, PWA 1.4.96: Brücke nach dem OTA, Hauptmodul entlastet (Paket 2026-10-11, P; L408)
 
 `wordclock-release-2026-10-13-013218.zip`, Tag `release/3.2.32-3.2.33-1.4.96`.
