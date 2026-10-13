@@ -84,6 +84,7 @@ probe "fs_remove per POST, -d vorn"   no-danger.py "" Bash 'curl -d "filename=ap
 # L426/C60: der Legacy-Weg loescht die STM-Einstellungen per GET, ohne Herkunftspruefung.
 probe "Legacy rsteeprom2 aufrufen"    no-danger.py "" Bash 'curl -s "http://1.2.3.4/?action=rsteeprom2"' deny
 probe "Legacy format aufrufen"        no-danger.py "" Bash 'curl -s "http://1.2.3.4/fs?action=format"' deny
+probe "network_secrets abrufen"       no-danger.py "" Bash 'curl -s http://1.2.3.4/api/network_secrets' deny
 probe "Endpunkt im Bericht erwaehnen" no-danger.py "" Bash 'echo "Schritt test_display ausgelassen (DIR-012)"' allow
 probe "Endpunkt in Doku schreiben"    no-danger.py "" Bash 'python3 -c "open(\"BEFUNDE.md\",\"a\").write(\"learn_ir ist gefaehrlich\")"' allow
 

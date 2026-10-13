@@ -66,6 +66,10 @@ FORBIDDEN = {
     "remote_esp_update": "dito, per OTA",
     "local_stm32_flash": "flasht den STM — dito",
     "remote_stm32_flash": "dito, per OTA",
+    # Paket 2026-10-13 (EP, C6b): network_secrets liefert WLAN- und AP-Schluessel im Klartext
+    # fuer den Backup-Export. Ungefaehrlich fuer das Geraet -- aber ein Agent, der ihn abruft,
+    # schreibt die Schluessel in sein Protokoll. Nur die PWA braucht ihn.
+    "network_secrets": "liefert WLAN- und AP-Schluessel im Klartext; ein Abruf schriebe sie ins Protokoll des Agenten",
 }
 
 # eeprom_settings_set mit boot_as_ap: die Uhr waere nach dem naechsten Start nicht

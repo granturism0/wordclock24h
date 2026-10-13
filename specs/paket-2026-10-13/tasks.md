@@ -7,6 +7,12 @@ Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
 Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau für A15) aufgehoben
 13.10.2026** (L432).
 
+**Nachtrag 13.10.2026 (Ent-18, L439, L440):** Der Schutz der zerstörerischen Aufrufe entfällt aus diesem
+Paket und wird in einer eigenen Spec geklärt (C6, C6v, C60, C61, C62). **Ent-11 und Ent-12 sind
+aufgehoben.** **Release E1 entfällt**; C46 (ESP-Teil) und C19 (L311) liegen im Baum und gehen mit **E2**
+hinaus. **EP** verliert die POST-Umstellung und alles zur Herkunft; es bleibt ein Release mit ESP **und**
+PWA — Grund ist jetzt allein C6b (`design.md` §8.4). Neuer Schnitt: S1 → S2 → (S3) → E2 → EP → P2.
+
 ## Entscheidungen (13.10.2026)
 
 | Ent | Gegenstand | Entschieden | wirkt auf |
@@ -17,17 +23,18 @@ Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau f�
 | **Ent-4** | A80 | Icon bei ausgeschaltetem Display verwerfen; Restore-Bedingung nicht vereinfachen | S2.7 |
 | **Ent-5** | C8 | Brücke aufweiten, RAM messen (präzisiert durch Ent-10) | E2.2 |
 | **Ent-6** | B55 | API wartet das Ergebnis des STM ab; STM-Rückmeldung `RPCR` | S2.1, E2.1, EP.6 |
-| **Ent-7** | C19 | nur L311 | E1.4 |
+| **Ent-7** | C19 | nur L311 | E1.4 (im Baum), geht mit E2 (Ent-18) |
 | **Ent-8** | F4 | eigenes Folgepaket | — |
 | **Ent-9** | A56 Speicherort | zwei Byte hinter dem Layoutende, ohne Layoutversion | S2.3 |
 | **Ent-10** | C8 | Puffer 260 Byte, Folgeeinträge im Ring, kein Ring-RAM | E2.2 |
-| **Ent-11** | C6 | **einstufig** (gegen die Empfehlung): nur noch POST; ESP und PWA als **ein** Release EP, direkt nacheinander eingespielt, ESP zuerst; Werkzeuge vorher auf POST; kein Backup-Export dazwischen | EP |
-| **Ent-12** | C6 Umfang | Herkunft über `Sec-Fetch-Site` für alle zerstörenden Wege samt Legacy (`rsteeprom2`, `rststm32`, C60) und `/fs` (C6v); POST für die vier Wartungsendpunkte und `network_secrets`; Legacy bleibt GET; Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display` unverändert; **C60 eigener Task, hoch** | E1.1, E1.2, EP.1 |
+| ~~**Ent-11**~~ | C6 | **aufgehoben 13.10.2026 (L439)**, Ent-18. Stand der Freigabe: **einstufig** (gegen die Empfehlung): nur noch POST; ESP und PWA als **ein** Release EP, direkt nacheinander eingespielt, ESP zuerst; Werkzeuge vorher auf POST; kein Backup-Export dazwischen. **Was bleibt:** EP bleibt ein Release mit ESP und PWA — jetzt wegen C6b (`design.md` §8.4) | ~~EP~~ — EP.1, EP.14 entfallen |
+| ~~**Ent-12**~~ | C6 Umfang | **aufgehoben 13.10.2026 (L439)**, Ent-18. Stand der Freigabe: Herkunft über `Sec-Fetch-Site` für alle zerstörenden Wege samt Legacy (`rsteeprom2`, `rststm32`, C60) und `/fs` (C6v); POST für die vier Wartungsendpunkte und `network_secrets`; Legacy bleibt GET; Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display` unverändert; C60 eigener Task, hoch | ~~E1.1, E1.2, EP.1~~ — entfallen |
 | **Ent-13** | Gerätenachweise | **alle freigegeben**, auch STM-Reset im Nacht-Aus-Fenster für A70 (e); `caffeinate` bei geplanten Tests (DIR-020) | alle G |
 | **Ent-14** | Gate-Riss in S2 | A70 ohne Rückfrage nach S3 mit Flash-Analyse | S2.11, S3 |
 | ~~**Ent-15**~~ | A15 Messung | **aufgehoben 13.10.2026** (Entscheidung des Nutzers, L432): A15 bleibt, **ohne** Messbau — seit LTO kein `bl` in der ISR, der Gewinn sind wenige Befehle. Statische Messung (AKI.2) und Regressionslauf (AKI.3) bleiben | M.1–M.4, S1.9, S1.10, S1.13 (entfallen bzw. reines Einspielen) |
 | **Ent-16** | Spec | **freigegeben** | alle |
 | **Ent-17** | A81, A82 | in S2 aufgenommen, soweit das Budget trägt; sonst Nachrang (A82 nach S3) | S2.5, S2.9 |
+| **Ent-18** | Schutz der zerstörerischen Aufrufe | **13.10.2026, Entscheidung des Nutzers (L439, L440):** entfällt aus diesem Paket, eigene Spec für C6, C6v, C60, C61, C62. Ent-11 und Ent-12 aufgehoben. Release E1 entfällt; der Herkunftsteil ist auf `sicherung/e1-herkunft` (`2662368`) gesichert, nicht als Schutz zu verwenden. C46 (ESP) und C19 gehen mit E2. EP ohne POST und ohne Herkunft; AKH.1–AKH.7 entfallen, G3 geht in G4 auf | E1, E2.0, E2.10, EP |
 
 **Vom Lead festgelegt (Vorpaket, gilt weiter):** `CHANGELOG.md` je Release schreibt der Lead. Matrix-Lauf
 vor jedem STM-Release, das Flash kostet, nach der Versionsanhebung.
@@ -40,13 +47,14 @@ bei Exit 0 geht die Schreibberechtigung weiter.
 **Die Spalte „Hängt ab von" ist verbindlich, auch wo die Dateien disjunkt sind** (R3b,
 `design.md` §0.1):
 
-1. **Code des nächsten Releases erst nach dem Release-Build des vorigen:** S2.1 nach S1.12, E1.1 nach S2.22
-   (bzw. S3.6), E2.1 nach E1.12, EP.1 nach E2.12, P2.1 nach EP.16.
-2. **Release-Build erst nach dem Gerätenachweis des vorigen:** S2.22 nach S1.14 (G1), E1.12 nach S2.24
-   (G2) bzw. S3.8 (G2b), E2.12 nach E1.14 (G3), EP.16 nach E2.14 (G4), P2.11 nach T1. STM-Builds
-   zusätzlich nach grünem Matrix-Lauf (S1.11, S2.21, S3.5).
+1. **Code des nächsten Releases erst nach dem Release-Build des vorigen:** S2.1 nach S1.12, E2.0/E2.1 nach
+   S2.22 (bzw. S3.6), EP.2 nach E2.12, P2.1 nach EP.16.
+2. **Release-Build erst nach dem Gerätenachweis des vorigen:** S2.22 nach S1.14 (G1), E2.12 nach S2.24
+   (G2) bzw. S3.8 (G2b), EP.16 nach E2.14 (G4), P2.11 nach T1. STM-Builds zusätzlich nach grünem
+   Matrix-Lauf (S1.11, S2.21, S3.5).
 3. **Innerhalb eines STM-Releases nacheinander, Flash-Gate nach jedem Task** (AKM.1).
-4. **EP ist ein Release mit zwei Komponenten:** Zwischen ESP-OTA und PWA-Upload liegt nichts (Ent-11).
+4. **EP ist ein Release mit zwei Komponenten:** Zwischen ESP-OTA und PWA-Upload liegt nichts. Grund seit
+   Ent-18 allein C6b — die alte PWA exportierte sonst leere WLAN-Schlüssel (`design.md` §8.4).
 
 **Messwerte sofort (L424):** Jeder messende Task hängt sein Ergebnis **vor dem nächsten Task** an das
 Messprotokoll in `BEFUNDE.md` an. Messzeilen schreibt der Lead, Befundnachführungen der `doc-writer` — nie
@@ -157,72 +165,79 @@ Reisst das Gate bei A82: A82 nach S3 (Ent-17). Bei A70: A70 nach S3 (Ent-14). Vo
 
 ---
 
-## Schritt E1 — ESP-Release 1: Herkunft für alle zerstörenden Wege, C46, C19
+## ~~Schritt E1 — ESP-Release 1: Herkunft für alle zerstörenden Wege, C46, C19~~ — entfallen (Ent-18, 13.10.2026, L439)
 
-| # | Task | Agent | Hängt ab von | Abnahme | G | R |
-|---|---|---|---|---|---|---|
-| E1.1 | **Herkunft** nach §8.1 für alle API-Wege und `/fs` (**C6v**); Bestandsliste aller Legacy-Wege zu `stm32_reset()`/`RESET_EEPROM_RPC_VAR` | `esp-developer` | **S2.22** bzw. S3.6 | **AKH.1** | ☐ | — |
-| E1.2 | **C60 (hoch):** Legacy `rsteeprom2`, `rststm32` und die übrigen Legacy-Reset-Wege mit Herkunftsprüfung | `esp-developer` | E1.1 | **AKH.2** | ☐ | — |
-| E1.3 | **C46** (ESP) nach §10, Kennung 9 | `esp-developer` | E1.2 | **AKQ.1** | ☐ | — |
-| E1.4 | **C19** (nur L311) an beiden Stellen | `esp-developer` | E1.3 | **AKU.1** | ☐ | — |
-| E1.5 | Prüfstände c6h, c46, c19 ablegen, Gegenproben gegen 3.2.33 | Lead | E1.4 | **AKH.3** | ☐ | — |
-| E1.6 | Wache: `- abgewiesen: query`, Gegenprobe | Lead | E1.5 | **AKZ.5** | ☐ | — |
-| E1.7 | **Review E1** | `code-reviewer` | E1.6 | Checkliste, Sicherheit | — | ☐ |
-| E1.8 | ESP-Version anheben | `release-engineer` | E1.7 | S4 | ☐ | — |
-| E1.9 | `CHANGELOG.md`, AKZ.3, `--full` | Lead | E1.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
-| E1.10 | `TESTPLAN-PWA.md`: Herkunft, C46 | `doc-writer` | E1.7 | S9, S11 | ☐ | — |
-| E1.11 | Einspielzeilen | Lead | E1.9 | **AKZ.8** | — | — |
-| E1.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | E1.11, **S2.24** bzw. S3.8 | **AKZ.7** | ☐ | — |
-| E1.13 | ESP-OTA, Smoketest samt Update-Quelle, `install-app.sh --check` | Lead | E1.12 | **AKZ.4** | — | — |
-| E1.14 | **G3** | Lead | E1.13 | **AKH.4**, **AKQ.2** | — | — |
+Der Release E1 wird nicht gebaut und nicht eingespielt. Der Herkunftsteil (E1.1, E1.2) ist umgesetzt, am
+Prüfstand c6h belegt (L437) und **zurückgebaut**; gesichert auf dem Zweig `sicherung/e1-herkunft`
+(Commit `2662368`) als Grundlage für die Schutz-Spec, **nicht als Schutz zu verwenden** — er wirkt im
+Browser über http nicht (L439). C46 (E1.3) und C19 (E1.4) bleiben im Baum und gehen mit **E2**; ihre
+Prüfstände c46 und c19 laufen in S16 (L437).
+
+| # | Task (Stand der Freigabe) | Agent | Stand 13.10.2026 |
+|---|---|---|---|
+| E1.1 | **Herkunft** nach §8.1 für alle API-Wege und `/fs` (**C6v**); Bestandsliste | `esp-developer` | umgesetzt, **zurückgebaut**, gesichert auf `sicherung/e1-herkunft` |
+| E1.2 | **C60 (hoch):** Legacy-Reset-Wege mit Herkunftsprüfung | `esp-developer` | umgesetzt, **zurückgebaut**, gesichert auf `sicherung/e1-herkunft`; C60 bleibt offen (Schutz-Spec) |
+| E1.3 | **C46** (ESP) nach §10, Kennung 9 | `esp-developer` | erledigt, **im Baum**, Release mit E2 |
+| E1.4 | **C19** (nur L311) an beiden Stellen | `esp-developer` | erledigt, **im Baum**, Release mit E2 |
+| E1.5 | Prüfstände c6h, c46, c19 ablegen, Gegenproben gegen 3.2.33 | Lead | erledigt (L437); c46 und c19 bleiben in S16, c6h nur auf dem Sicherungszweig (E2.0) |
+| E1.6 | Wache: `- abgewiesen: query`, Gegenprobe | Lead | erledigt, bleibt (gilt für C46) |
+| E1.7 | **Review E1** | `code-reviewer` | erledigt; Befunde H1 (L439) und M1 (L440) führten zu Ent-18 |
+| E1.8 | ESP-Version anheben | `release-engineer` | **entfallen** — die Nummer 3.2.34 geht an E2 |
+| E1.9 | `CHANGELOG.md`, AKZ.3, `--full` | Lead | **entfallen**; C46 und C19 im E2-Eintrag (E2.9) |
+| E1.10 | `TESTPLAN-PWA.md`: Herkunft, C46 | `doc-writer` | erledigt; K25 und K26 entfallen, K27 und K28 gehen auf E2 über (E2.10) |
+| E1.11 | Einspielzeilen | Lead | **entfallen** |
+| E1.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | **entfallen** |
+| E1.13 | ESP-OTA, Smoketest samt Update-Quelle, `install-app.sh --check` | Lead | **entfallen** |
+| E1.14 | **G3** | Lead | **entfallen**; AKQ.2 geht in G4 (E2.14) auf, AKH.4 entfällt |
 
 ---
 
-## Schritt E2 — ESP-Release 2: Brücke und Netz
+## Schritt E2 — ESP-Release 2: Brücke und Netz, dazu C46 und C19
 
 Nach jedem E2-Task misst der Lead „Globale Variablen" und schreibt sie sofort ins Messprotokoll (AKM.2).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| E2.1 | **B55-ESP** nach §6.2 | `esp-developer` | **E1.12** | **AKL.2** | ☐ | — |
+| E2.0 | **Baum nach dem Rückbau feststellen** (Ent-18): In `http.cpp` kein Herkunftsteil aus E1 (`grep` auf `http_request_denied_by_origin` und `Sec-Fetch-Site` leer); die Prüfung über `Sec-Fetch-Dest` aus ESP 3.2.4 an den drei Wartungsendpunkten gegenüber dem Tag des Ausgangsstands (ESP 3.2.33) unverändert; C46 und C19 vorhanden; S16 grün mit c46 und c19, c6h nicht mehr in S16. Ergebnis ins Messprotokoll E2 | Lead | **S2.22** bzw. S3.6 | **AKQ.1**, **AKU.1** am Prüfstand | ☐ | — |
+| E2.1 | **B55-ESP** nach §6.2 | `esp-developer` | E2.0 | **AKL.2** | ☐ | — |
 | E2.2 | **C8** nach §7 | `esp-developer` | E2.1 | **AKK.1** | ☐ | — |
 | E2.3 | **A79** nach §12 | `esp-developer` | E2.2 | **AKE.1** | ☐ | — |
 | E2.4 | **C59** nach §11 | `esp-developer` | E2.3 | **AKT.1** | ☐ | — |
-| E2.5 | Prüfstände l55e, c8, ntp, Gegenproben; statische Prüfung A79 | Lead | E2.4 | Fallzahlen | ☐ | — |
-| E2.6 | Wache: `- rpc keine Antwort`, Gegenprobe | Lead | E2.5 | **AKZ.5** | ☐ | — |
-| E2.7 | **Review E2** (Wiedereintritt, Quittungen beim Warten) | `code-reviewer` | E2.6 | Checkliste | — | ☐ |
+| E2.5 | Prüfstände l55e, c8, ntp, Gegenproben; statische Prüfung A79. c46 und c19 liegen seit E1.5 in S16 und laufen mit | Lead | E2.4 | Fallzahlen | ☐ | — |
+| E2.6 | Wache: `- rpc keine Antwort`, Gegenprobe (`- abgewiesen: query` seit E1.6 vorhanden) | Lead | E2.5 | **AKZ.5** | ☐ | — |
+| E2.7 | **Review E2** (Wiedereintritt, Quittungen beim Warten), dazu C46, C19 und der Rückbau des Herkunftsteils (Diff gegen den Ausgangsstand ESP 3.2.33) | `code-reviewer` | E2.6 | Checkliste | — | ☐ |
 | E2.8 | ESP-Version anheben | `release-engineer` | E2.7 | S4 | ☐ | — |
-| E2.9 | `CHANGELOG.md`, AKZ.3, `--full` | Lead | E2.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
-| E2.10 | `TESTPLAN-PWA.md`: B55 (ESP), C8 | `doc-writer` | E2.7 | S9, S11 | ☐ | — |
+| E2.9 | `CHANGELOG.md` (samt C46, C19), AKZ.3, `--full` | Lead | E2.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
+| E2.10 | `TESTPLAN-PWA.md`: B55 (ESP), C8; **K25 und K26 als entfallen** vermerken (Ent-18, L439), K27 und K28 dem Release E2 zuordnen; die Verweise darauf nachführen (Instrumente „Reset" und „curl mit Kopfzeile", Einleitung zu 7.1, Gefahrentabelle, Ablauf Schritt 9) | `doc-writer` | E2.7 | S9, S11 | ☐ | — |
 | E2.11 | Einspielzeilen | Lead | E2.9 | **AKZ.8** | — | — |
-| E2.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | E2.11, **E1.14** | **AKZ.7** | ☐ | — |
-| E2.13 | ESP-OTA, Smoketest, `install-app.sh --check` | Lead | E2.12 | **AKZ.4** | — | — |
-| E2.14 | **G4** mit `caffeinate` | Lead | E2.13 | **AKM.2**, **AKE.2**, **AKK.2**, **AKT.2** | — | — |
+| E2.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | E2.11, **S2.24** bzw. S3.8 | **AKZ.7** | ☐ | — |
+| E2.13 | ESP-OTA, Smoketest samt Update-Quelle, `install-app.sh --check` | Lead | E2.12 | **AKZ.4** | — | — |
+| E2.14 | **G4** mit `caffeinate` (nimmt G3 auf: AKQ.2) | Lead | E2.13 | **AKM.2**, **AKE.2**, **AKK.2**, **AKT.2**, **AKQ.2** | — | — |
 
 ---
 
-## Schritt EP — ein Release für ESP und PWA (Ent-11)
+## Schritt EP — ein Release für ESP und PWA (C6b koppelt beide, `design.md` §8.4)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| EP.1 | **C6, ESP:** POST-Zweig nach §8.2, nur POST für die fünf Endpunkte, GET ⇒ 405, anderer POST ⇒ 404 | `esp-developer` | **E2.12** | **AKH.5** | ☐ | — |
-| EP.2 | **C6b, ESP** nach §8.3 | `esp-developer` | EP.1 | **AKS.1**, **AKS.2** | ☐ | — |
-| EP.3 | Prüfstände c6p, c6b ablegen, Gegenproben gegen den E2-Stand | Lead | EP.2 | **AKH.5**, **AKS.2** | ☐ | — |
-| EP.4 | **C6 und C6b, PWA** (`apiPost`, Export über `network_secrets`) | `pwa-developer` | EP.3 | **AKH.6**, **AKS.3** | ☐ | — |
+| EP.1 | ~~**C6, ESP:** POST-Zweig nach §8.2, nur POST für die fünf Endpunkte, GET ⇒ 405, anderer POST ⇒ 404~~ — **entfallen** (Ent-18) | — | — | ~~AKH.5~~ | — | — |
+| EP.2 | **C6b, ESP** nach §8.3 (`network_secrets` per GET, ohne Herkunftsprüfung) | `esp-developer` | **E2.12** | **AKS.1**, **AKS.2** | ☐ | — |
+| EP.3 | Prüfstand c6b ablegen, Gegenprobe gegen den E2-Stand (~~c6p~~ entfällt) | Lead | EP.2 | **AKS.2** | ☐ | — |
+| EP.4 | **C6b, PWA** (Export über `network_secrets`); ~~C6 `apiPost`~~ entfällt | `pwa-developer` | EP.3 | **AKS.3** | ☐ | — |
 | EP.5 | **C46, PWA** | `pwa-developer` | EP.4 | **AKQ.3** | ☐ | — |
 | EP.6 | **B55, PWA**; Kennungen 9–11 in DE und EN | `pwa-developer` | EP.5 | **AKL.3** | ☐ | — |
-| EP.7 | PWA-Prüfstände (Mock); **Werkzeuge auf POST** (`flash-stm.sh`, `smoke-device.sh`, `snapshot-device.sh`, `preview/server.py`), gegen Vorschau und c6p gelaufen | Lead | EP.6 | **AKZ.11** | ☐ | — |
-| EP.8 | **Review EP** (ESP und PWA zusammen; Leseschleife nach C53) | `code-reviewer` | EP.7 | Checkliste | — | ☐ |
-| EP.9 | `TESTPLAN-PWA.md`: POST, Backup-Export, B55 | `doc-writer` | EP.8 | S9, S11 | ☐ | — |
+| EP.7 | PWA-Prüfstände (Mock); **Werkzeuge für C6b** (`snapshot-device.sh` mit `key_set`, `preview/server.py` mit `network_secrets` und `key_set`), gegen die Vorschau gelaufen. Die POST-Umstellung von `flash-stm.sh`, `smoke-device.sh`, `preview/server.py` entfällt (Ent-18) | Lead | EP.6 | **AKZ.11** | ☐ | — |
+| EP.8 | **Review EP** (ESP und PWA zusammen) | `code-reviewer` | EP.7 | Checkliste | — | ☐ |
+| EP.9 | `TESTPLAN-PWA.md`: Backup-Export, B55 (~~POST~~ entfällt) | `doc-writer` | EP.8 | S9, S11 | ☐ | — |
 | EP.10 | ESP-Version, `APP_VERSION` und `CACHE_NAME` | `release-engineer` | EP.8 | S4 zeigt beide | ☐ | — |
 | EP.11 | `CHANGELOG.md`-Eintrag EP (beide Komponenten) | Lead | EP.8 | — | ☐ | — |
 | EP.12 | AKZ.3 (ESP **und** PWA), `git status` (R2) | Lead | EP.10, EP.11 | **AKZ.3** | — | — |
 | EP.13 | `--full` | Lead | EP.12 | **AKZ.2** | ☐ | — |
-| EP.14 | `CLAUDE.md`: Gefahrentabelle und Hinweise auf POST | Lead | EP.13 | S9, S11, `endpunkte.mjs` | ☐ | — |
-| EP.15 | Einspielzeilen: OTA, **unmittelbar** `install-app.sh`; Warnung „kein Backup-Export dazwischen"; Rückweg Legacy (§8.4) | Lead | EP.13 | **AKZ.8** | — | — |
+| EP.14 | ~~`CLAUDE.md`: Gefahrentabelle und Hinweise auf POST~~ — **entfallen** (Ent-18) | — | — | — | — | — |
+| EP.15 | Einspielzeilen: OTA, **unmittelbar** `install-app.sh`; Warnung „kein Backup-Export dazwischen"; Rückweg (§8.4) | Lead | EP.13 | **AKZ.8** | — | — |
 | EP.16 | Build, ZIP, Rollout, **ein** Commit + Tag + Push | Lead | EP.15, **E2.14** | **AKZ.7** | ☐ | — |
 | EP.17 | **Einspielen:** ESP-OTA, sofort `install-app.sh`; danach Smoketest samt Update-Quelle, `--check`, `check-pwa.sh` | Lead | EP.16 | **AKG.5** | — | — |
-| EP.18 | **G5** | Lead | EP.17 | **AKH.7**, **AKL.4**, **AKS.4** | — | — |
+| EP.18 | **G5** | Lead | EP.17 | **AKL.4**, **AKS.4** (~~AKH.7~~ entfällt) | — | — |
 | T1 | `pwa-tester` Phasen 0–4 und 9 | `pwa-tester` | EP.18, EP.9 | **AKZ.6** | — | — |
 
 ---
@@ -259,8 +274,9 @@ P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach
 
 ## Abschluss
 
-- [ ] Alle Tasks erledigt (S3 nur bei Gate-Riss; M.3, M.4, S1.9, S1.10 entfallen)
+- [ ] Alle Tasks erledigt (S3 nur bei Gate-Riss; M.3, M.4, S1.9, S1.10 entfallen; E1.8, E1.9,
+      E1.11–E1.14, EP.1 und EP.14 entfallen mit Ent-18)
 - [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
 - [ ] Alle Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen
-- [ ] Sechs Releases (sieben mit S3), je Flash-Umfang und Reihenfolge benannt, je committet, getaggt,
-      gepusht
+- [ ] Fünf Releases (S1, S2, E2, EP, P2; sechs mit S3), je Flash-Umfang und Reihenfolge benannt, je
+      committet, getaggt, gepusht

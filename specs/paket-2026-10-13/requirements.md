@@ -3,16 +3,19 @@
 **Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-14 und Ent-17 (unten,
 „Entscheidungen"). **Eine Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau
 für A15) ist am 13.10.2026 aufgehoben** (L432): A15 bleibt, ohne Messbau.
+**Ent-11 und Ent-12 sind am 13.10.2026 aufgehoben** (Ent-18, L439, L440): Der Schutz der zerstörerischen
+Aufrufe (C6, C6v, C60, dazu C61, C62) entfällt aus diesem Paket und wird in einer eigenen Spec geklärt.
+Release E1 entfällt; C46 und C19 gehen mit E2; EP bleibt ein Release mit ESP und PWA, wegen C6b.
 **Erstellt:** 2026-10-13, Stand `159c9d0` (Zweig `pwa-decoupling`); am selben Tag mit den Entscheidungen
 nachgeführt. Ausgangsstand am Gerät laut Endstand von `specs/paket-2026-10-11/`: STM 3.2.32, ESP 3.2.33,
 PWA 1.4.97.
 **Auslöser:** Auftrag des Nutzers vom 13.10.2026 — alle offenen ToDos mit Kritikalität „mittel" und
 alle, die seine Entscheidung brauchten, **ausser F4** (eigenes Folgepaket). Nachträglich aufgenommen:
-**C60** (L426, hoch), **A81** (L427) und **A82** (L428).
+**C60** (L426, hoch), **A81** (L427) und **A82** (L428). Nachträglich herausgenommen (Ent-18): C6, C6v, C60.
 **Grundlage:** `BEFUNDE.md` (ToDo-Liste, nachgezählt am 13.10.2026; Befundzeilen L22, L35, L99, L101,
-L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428, L432), `REVIEW-2026-09-29.md`
-Massnahme 14. Der `spec-writer` hat jede tragende Fundstelle am Code `159c9d0` nachgelesen; Abweichungen
-von `BEFUNDE.md` sind am Befund vermerkt.
+L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428, L432, L437–L440),
+`REVIEW-2026-09-29.md` Massnahme 14. Der `spec-writer` hat jede tragende Fundstelle am Code `159c9d0`
+nachgelesen; Abweichungen von `BEFUNDE.md` sind am Befund vermerkt.
 
 Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Der lebende Stand steht in `BEFUNDE.md`.
 
@@ -24,17 +27,17 @@ abgeleitet, nicht belegt; **●** — gemeldet, vor der Umsetzung zu prüfen.
 **Kennungen.** Schritte: **0** (ohne Firmware), **M0/M1** (Messbauten für A15 — **entfallen**, Ent-15
 aufgehoben), **S1** (STM-Release 1, isoliert: A15), **S2** (STM-Release 2: B55-STM, A56, A81, A80, A82,
 A70), **S3** (nur falls das Flash-Gate in S2 reisst: A70, gegebenenfalls A82, nach Flash-Analyse;
-Ent-14), **E1** (ESP-Release 1, HTTP-Schicht: Herkunftsprüfung für alle zerstörenden Wege samt C6v und
-C60, C46, C19), **E2** (ESP-Release 2, Brücke und Netz: B55-ESP, C8, A79, C59), **EP** (**ein** Release
-mit ESP und PWA, direkt hintereinander eingespielt: C6 nur noch POST, C6b, dazu in der PWA C6, C6b, C46,
-B55), **T1** (`pwa-tester`), **P2** (PWA-Release: B48, B8), **T2** (`pwa-tester`), **Z** (Doku).
-Gerätenachweise **G0** bis **G6**. Akzeptanzkriterien: **AKW** (Logwache, E36), **AKB** (Backup-Umfang,
-F3), **AKD** (deutsche Texte, B8), **AKI** (UART-ISR, A15), **AKL** (LDR-Ergebnis, B55), **AKA**
-(Ambilight, A56, A81, A82), **AKC** (Icon, A80), **AKN** (Nachtfenster, A70), **AKH** (Herkunft und
-POST, C6, C6v, C60), **AKS** (Schlüssel, C6b), **AKQ** (Query-Länge, C46), **AKU** (Update-Quelle
-Legacy, C19), **AKK** (Kommandopuffer, C8), **AKE** (ESP-Empfangspuffer, A79), **AKT** (NTP-Bindung,
-C59), **AKF** (Fehlerzeile, B48), **AKM** (Flash und RAM), **AKZ** (alle). Entscheidungen **Ent-1 bis
-Ent-17**. Die Kürzel gelten nur in diesem Paket.
+Ent-14), ~~**E1**~~ (ESP-Release 1, HTTP-Schicht — **entfallen**, Ent-18; C46 und C19 gehen mit E2),
+**E2** (ESP-Release, Brücke und Netz: B55-ESP, C8, A79, C59, dazu C46 und C19), **EP** (**ein** Release
+mit ESP und PWA, direkt hintereinander eingespielt: C6b, dazu in der PWA C6b, C46, B55), **T1**
+(`pwa-tester`), **P2** (PWA-Release: B48, B8), **T2** (`pwa-tester`), **Z** (Doku).
+Gerätenachweise **G0** bis **G6** (**G3 entfällt**, geht in G4 auf). Akzeptanzkriterien: **AKW** (Logwache,
+E36), **AKB** (Backup-Umfang, F3), **AKD** (deutsche Texte, B8), **AKI** (UART-ISR, A15), **AKL**
+(LDR-Ergebnis, B55), **AKA** (Ambilight, A56, A81, A82), **AKC** (Icon, A80), **AKN** (Nachtfenster, A70),
+~~**AKH**~~ (Herkunft und POST, C6, C6v, C60 — **entfallen**, Ent-18), **AKS** (Schlüssel, C6b), **AKQ**
+(Query-Länge, C46), **AKU** (Update-Quelle Legacy, C19), **AKK** (Kommandopuffer, C8), **AKE**
+(ESP-Empfangspuffer, A79), **AKT** (NTP-Bindung, C59), **AKF** (Fehlerzeile, B48), **AKM** (Flash und
+RAM), **AKZ** (alle). Entscheidungen **Ent-1 bis Ent-18**. Die Kürzel gelten nur in diesem Paket.
 
 ---
 
@@ -47,21 +50,23 @@ Ent-17**. Die Kürzel gelten nur in diesem Paket.
 | **S1** | **A15** UART-ISR | STM | nach G0 | **G1** |
 | **S2** | **B55-STM** · **A56** · **A81** · **A80** · **A82** · **A70** (c), (d), (e), L399 | STM | nach G1 | **G2** |
 | **S3** | nur bei Gate-Riss in S2 (Ent-14): Flash-Analyse, dann A70 (und A82, falls dort zurückgestellt) | STM | nach G2 | **G2b** |
-| **E1** | HTTP-Schicht: Herkunftsprüfung über `Sec-Fetch-Dest` **und** `Sec-Fetch-Site` für **alle** zerstörenden Wege (API, Legacy) — **C6** (Herkunftsteil), **C6v**, **C60** · **C46** (ESP) · **C19** (nur L311) | ESP | nach G2 bzw. G2b | **G3** |
-| **E2** | Brücke und Netz: **B55-ESP** · **C8** · **A79** · **C59** | ESP | nach G3 | **G4** |
-| **EP** | **Ein** Release, ESP **und** PWA: ESP nimmt die fünf Endpunkte nur noch per **POST** an (**C6**), **C6b**; PWA: **C6** (POST), **C6b** (Export), **C46**, **B55**. Werkzeuge auf POST im selben Commit | ESP + PWA | nach G4; **ESP-OTA und PWA-Upload unmittelbar nacheinander**, ESP zuerst | **G5** |
+| ~~**E1**~~ | ~~HTTP-Schicht: Herkunftsprüfung für alle zerstörenden Wege — C6 (Herkunftsteil), C6v, C60 · C46 (ESP) · C19~~ — **entfallen** (Ent-18, L439); C46 und C19 gehen mit E2 | — | — | ~~G3~~ |
+| **E2** | Brücke und Netz: **B55-ESP** · **C8** · **A79** · **C59**, dazu **C46** (ESP) und **C19** (nur L311), beide schon im Baum | ESP | nach G2 bzw. G2b | **G4** |
+| **EP** | **Ein** Release, ESP **und** PWA: ESP **C6b**; PWA: **C6b** (Export), **C46**, **B55**. Werkzeuge für C6b im selben Commit | ESP + PWA | nach G4; **ESP-OTA und PWA-Upload unmittelbar nacheinander**, ESP zuerst | **G5** |
 | **T1** | `pwa-tester` Phasen 0–4 und 9 (DIR-012) | — | nach G5 | — |
 | **P2** | **B48** Fehlerzeile am Feld · **B8** deutsche Texte in die i18n-Tabelle | PWA | nach T1 | **G6** (samt iPhone, Nutzer) |
 | **T2** | `pwa-tester` Phasen 0–4 und 9 | — | nach G6 | — |
-| **Z** | `BEFUNDE.md`, `CLAUDE.md` (Gefahrentabelle, POST), `TESTPLAN-PWA.md`, Spec-Endstand | Doku | — | — |
+| **Z** | `BEFUNDE.md`, `TESTPLAN-PWA.md`, Spec-Endstand (~~`CLAUDE.md` Gefahrentabelle, POST~~ entfällt) | Doku | — | — |
 
 **Warum diese Reihenfolge:** `design.md` §0. Kurz: `make release-zip` baut alle drei Komponenten
 zusammen; deshalb entsteht der Code des nächsten Releases erst **nach dem Release-Build** des vorigen,
 und jeder Release-Build erst **nach dem Gerätenachweis** des vorigen (R3b). **Firmware vor PWA**
-(DIR-002). **A15 allein**, weil die ISR jeden Pfad der Brücke berührt. **E1 und E2 getrennt**, damit
-Fehlerbilder der Anfrageverarbeitung und der Brücke zuzuordnen bleiben. **C6 einstufig (Ent-11):** Die
-POST-Umstellung von ESP und PWA ist **ein** Release (EP), gebaut in **einem** `make release-zip`, und wird
-ohne Gerätenachweis und ohne anderes Release dazwischen eingespielt — ESP zuerst, Minuten später die PWA.
+(DIR-002). **A15 allein**, weil die ISR jeden Pfad der Brücke berührt. ~~**E1 und E2 getrennt**~~ — E1
+entfällt (Ent-18); C46 und C19 sind klein, am Prüfstand belegt und haben eigene Kennzeichen, sie gehen mit
+E2. **EP einstufig wegen C6b** (Ent-18, `design.md` §8.4): ESP und PWA sind **ein** Release, gebaut in
+**einem** `make release-zip`, und werden ohne Gerätenachweis und ohne anderes Release dazwischen
+eingespielt — ESP zuerst, Minuten später die PWA. Sonst exportierte die alte PWA leere WLAN-Schlüssel.
+*Stand der Freigabe:* „C6 einstufig (Ent-11): Die POST-Umstellung von ESP und PWA ist ein Release."
 
 ---
 
@@ -167,9 +172,20 @@ den Schlüssel zurück, `eeprom_settings_set` übergeht leere Felder (`http.cpp:
 Schlüssel im Export ginge erst beim Wiederherstellen auf ein **frisches** Gerät verloren, still. Weitere
 Leser: `tools/snapshot-device.sh:154` (hasht ihn), `tools/preview/server.py:83`.
 
+**Ergänzt 13.10.2026, ✔ SW:** Der ESP sendet keine CORS-Kopfzeile (`Access-Control-` kommt in
+`ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` nicht vor); eine fremde Seite kann die Antwort im Browser nicht
+lesen. Lesen kann den Schlüssel, wer im LAN direkt anfragt, und alles, was die Antwort mitprotokolliert.
+
 ### 8. C6 / R2-14, C6v / L312 und C60 / L426 — zerstörende Wege
 
-**✔ SW:**
+**Stand 13.10.2026 (Ent-18): nicht mehr Teil dieses Pakets.** Der Befund bleibt als Stand der Freigabe
+stehen. **Ergänzt (L439, am Gerät belegt, Chrome 155):** Browser senden `Sec-Fetch-Dest` und
+`Sec-Fetch-Site` über `http://` an die Uhr nicht — die bestehende Prüfung (ESP 3.2.4) und die geplante
+Erweiterung wirken im Browser nicht. Hinzugekommen sind **C61** (L438: Upload-Wege per POST und
+`local_esp_restart` ohne Prüfung) und **C62** (L440: WLAN- und AP-Setter ohne Prüfung). Alle fünf klärt eine
+eigene Spec; belegt ist für sie, dass Chrome bei POST `Origin` sendet (L439).
+
+**✔ SW (Stand der Freigabe):**
 - Die Herkunftsprüfung (`http_request_is_embedded_subresource()`, `http.cpp:476-499`) steht nur in
   `format_fs`, `reset_stm32`, `reset_eeprom` (`:9708-9760`), **nicht** in `fs_remove` (`:12349`) und
   nicht im Legacy-Zweig `/fs?action=format` (`:6718-6722`) und `action=remove` (`:6765`).
@@ -184,7 +200,8 @@ Leser: `tools/snapshot-device.sh:154` (hasht ihn), `tools/preview/server.py:83`.
   `fs_remove_base_url` (`:10602`). Der Service Worker lässt Nicht-GET durch (`sw.js:121`).
 - Werkzeuge mit GET: `tools/flash-stm.sh:131` (Reset nach dem Flashen), `tools/smoke-device.sh:229`.
 - POST allein schützt nicht vor fremden Seiten — ein Formular-POST von fremder Herkunft ist ein
-  „einfacher" Request ohne Vorabprüfung. Wirksam ist die Herkunft (`Sec-Fetch-Site`).
+  „einfacher" Request ohne Vorabprüfung. Wirksam ist die Herkunft (`Sec-Fetch-Site`). *(Für http widerlegt:
+  L439.)*
 
 ### 9. C19 / L311 — Legacy-Zwillinge der Update-Quelle prüfen nichts
 
@@ -254,8 +271,8 @@ untersucht.
 5. **Nachtfenster:** (c), (d), (e), L399 nach Ent-2.
 6. **Icon:** Bei ausgeschaltetem Display verworfen; nichts wartet mehr darauf.
 7. **LDR-Übernahme:** „gespeichert" nur, wenn der STM übernommen hat; sonst eigene Meldung.
-8. **Zerstörende Wege:** jeder — API und Legacy — nur von gleicher Herkunft; die fünf API-Endpunkte der
-   PWA nur noch per POST.
+8. ~~**Zerstörende Wege:** jeder — API und Legacy — nur von gleicher Herkunft; die fünf API-Endpunkte der
+   PWA nur noch per POST.~~ — **Entfallen** (Ent-18): eigene Spec.
 9. **Schlüssel:** nicht mehr aus `/api/eeprom_settings`; das Backup enthält ihn weiterhin.
 10. **Query-Länge:** über 255 abgewiesen statt gekürzt; die PWA sendet nichts, was der ESP abweisen müsste.
 11. **Legacy-Update-Quelle:** leer und überlang abgewiesen.
@@ -401,38 +418,45 @@ dem Nutzer.
       Aus-Fenster, sobald der IP-Lauftext läuft `/api/weather_get_now` ⇒ im Mitschnitt das Aus
       (`set_display_power: new=0 …`) **vor** dem Wetterlauftext, kein Wetterlauftext am Display.
 
-### Schritt E1 — HTTP-Schicht (Herkunft für alle zerstörenden Wege, C46, C19)
+### ~~Schritt E1 — HTTP-Schicht (Herkunft für alle zerstörenden Wege, C46, C19)~~ — entfallen (Ent-18)
 
-- [ ] **AKH.1 (Herkunft, alle Wege)** — Abgewiesen mit 403 und `{"ok":false,"error":"embedded-subresource"}`
-      bzw. `"cross-site"` (Legacy: Hinweisseite mit 403) wird eine Anfrage mit eingebettetem
-      `Sec-Fetch-Dest` (bestehende Liste) **oder** mit `Sec-Fetch-Site` ungleich `same-origin` und `none` —
-      für `maintenance_format_fs`, `maintenance_reset_eeprom`, `maintenance_reset_stm32`, `fs_remove`
-      (**C6v**), Legacy `/fs?action=format`, `/fs?action=remove` (**C6v**), `/?action=rsteeprom2` und
-      `rststm32` (**C60**) und **jeden weiteren** Legacy-Weg zu `stm32_reset()` oder
-      `RESET_EEPROM_RPC_VAR` (Bestandsliste per `grep`, im Bericht). Ohne Kopfzeile wie bisher zugelassen
-      (curl, ältere Browser). Logzeile `- abgewiesen: <was> als …`.
-- [ ] **AKH.2 (C60 eigens)** — `/?action=rsteeprom2` mit `Sec-Fetch-Dest: image` und mit
-      `Sec-Fetch-Site: cross-site` löst am Prüfstand **kein** `rpc (RESET_EEPROM_RPC_VAR)` aus; ohne
-      Kopfzeile und mit `same-origin` wie bisher. Gegenprobe gegen 3.2.33 ⇒ FEHL.
-- [ ] **AKH.3 (Prüfstand c6h)** — alle Wege aus AKH.1 × Kopfzeilen (ohne, `image`, `document`,
-      `same-origin`, `cross-site`, `same-site`, `none`): ausgeführt genau in den erlaubten Fällen. Gegenprobe
-      gegen 3.2.33 ⇒ FEHL. Fallzahl gemeldet.
-- [ ] **AKQ.1 (C46, ESP)** — Ist die Query (roh) bei `/api/…` länger als 255 Zeichen, antwortet der ESP
-      `{"ok":false,"error":9,"detail":"query too long"}` **ohne** den Handler auszuführen, für GET und POST,
-      und schreibt `- abgewiesen: query <n> Zeichen`. Genau 255 ⇒ ausgeführt. Legacy-Pfade unverändert.
-      Prüfstand mit 254, 255, 256, 1'000 Zeichen; Gegenprobe gegen 3.2.33 ⇒ FEHL.
-- [ ] **AKU.1 (C19, nur L311)** — **Beide** Legacy-Zwillinge weisen einen leeren Wert und einen Wert über
-      63 Byte ab, zeigen die Abweisung auf der Seite, und Host bzw. Pfad bleiben unverändert. Prüfstand;
+AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und **AKU.1** gehen mit E2 (unten),
+**AKQ.2** in G4.
+
+- [x] ~~**AKH.1 (Herkunft, alle Wege)**~~ — **Entfallen 13.10.2026** (Ent-18, L439). *Stand der Freigabe:*
+      Abgewiesen mit 403 und `{"ok":false,"error":"embedded-subresource"}` bzw. `"cross-site"` (Legacy:
+      Hinweisseite mit 403) wird eine Anfrage mit eingebettetem `Sec-Fetch-Dest` (bestehende Liste) **oder**
+      mit `Sec-Fetch-Site` ungleich `same-origin` und `none` — für `maintenance_format_fs`,
+      `maintenance_reset_eeprom`, `maintenance_reset_stm32`, `fs_remove` (**C6v**), Legacy
+      `/fs?action=format`, `/fs?action=remove` (**C6v**), `/?action=rsteeprom2` und `rststm32` (**C60**) und
+      **jeden weiteren** Legacy-Weg zu `stm32_reset()` oder `RESET_EEPROM_RPC_VAR` (Bestandsliste per `grep`,
+      im Bericht). Ohne Kopfzeile wie bisher zugelassen (curl, ältere Browser). Logzeile
+      `- abgewiesen: <was> als …`.
+- [x] ~~**AKH.2 (C60 eigens)**~~ — **Entfallen 13.10.2026** (Ent-18, L439). *Stand der Freigabe:*
+      `/?action=rsteeprom2` mit `Sec-Fetch-Dest: image` und mit `Sec-Fetch-Site: cross-site` löst am
+      Prüfstand **kein** `rpc (RESET_EEPROM_RPC_VAR)` aus; ohne Kopfzeile und mit `same-origin` wie bisher.
       Gegenprobe gegen 3.2.33 ⇒ FEHL.
-- [ ] **AKH.4 (Gerät G3)** — `maintenance_reset_stm32`: GET ohne Kopfzeile ⇒ 200 und STM-Neustart;
-      mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart; mit `Sec-Fetch-Dest: image` ⇒ 403, kein
-      Neustart. Legacy `/?action=rststm32` mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart. Alles
-      übrige aus AKH.1 **nur am Prüfstand** (`design.md` §17.3).
-- [ ] **AKQ.2 (Gerät G3, lesend)** — `/api/device_ready?x=` mit 300 Zeichen ⇒ Kennung 9; mit 240 Zeichen ⇒
-      die gewohnte Antwort.
+- [x] ~~**AKH.3 (Prüfstand c6h)**~~ — **Entfallen 13.10.2026** (Ent-18, L439); c6h liegt mit 484 Fällen auf
+      `sicherung/e1-herkunft` (L437). *Stand der Freigabe:* alle Wege aus AKH.1 × Kopfzeilen (ohne, `image`,
+      `document`, `same-origin`, `cross-site`, `same-site`, `none`): ausgeführt genau in den erlaubten
+      Fällen. Gegenprobe gegen 3.2.33 ⇒ FEHL. Fallzahl gemeldet.
+- [x] ~~**AKH.4 (Gerät G3)**~~ — **Entfallen 13.10.2026** (Ent-18, L439; G3 entfällt). *Stand der
+      Freigabe:* `maintenance_reset_stm32`: GET ohne Kopfzeile ⇒ 200 und STM-Neustart; mit
+      `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart; mit `Sec-Fetch-Dest: image` ⇒ 403, kein Neustart.
+      Legacy `/?action=rststm32` mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart. Alles übrige aus
+      AKH.1 **nur am Prüfstand** (`design.md` §17.3).
 
-### Schritt E2 — Brücke und Netz (B55-ESP, C8, A79, C59)
+### Schritt E2 — Brücke und Netz (B55-ESP, C8, A79, C59), dazu C46 und C19
 
+- [ ] **AKQ.1 (C46, ESP; aus E1)** — Ist die Query (roh) bei `/api/…` länger als 255 Zeichen, antwortet der
+      ESP `{"ok":false,"error":9,"detail":"query too long"}` **ohne** den Handler auszuführen, für GET und
+      POST, und schreibt `- abgewiesen: query <n> Zeichen`. Genau 255 ⇒ ausgeführt. Legacy-Pfade
+      unverändert. Prüfstand mit 254, 255, 256, 1'000 Zeichen; Gegenprobe gegen 3.2.33 ⇒ FEHL. *Am Prüfstand
+      c46 belegt (L437); gilt für den E2-Stand erneut (E2.0).*
+- [ ] **AKU.1 (C19, nur L311; aus E1)** — **Beide** Legacy-Zwillinge weisen einen leeren Wert und einen Wert
+      über 63 Byte ab, zeigen die Abweisung auf der Seite, und Host bzw. Pfad bleiben unverändert.
+      Prüfstand; Gegenprobe gegen 3.2.33 ⇒ FEHL. *Am Prüfstand c19 belegt (L437); gilt für den E2-Stand
+      erneut (E2.0).*
 - [ ] **AKL.2 (B55, ESP)** — `ldr_min_set` und `ldr_max_set` warten bis 2'000 ms auf `RPCR` und lesen
       dabei die Brücke über **dieselbe** Funktion wie `loop()` (Quittungen gehen weiter hinaus; eine Sperre
       verhindert verschachteltes Lesen). Antwort: `0` ⇒ `{"ok":true,"value":n}`; `1` ⇒ Kennung 10; `2` ⇒
@@ -457,22 +481,27 @@ dem Nutzer.
       `/api/stm32_log` vollständig (Folgeeinträge zusammengesetzt gleich dem Mitschnitt).
 - [ ] **AKT.2 (Gerät G4, lesend)** — Zwei Stunden mit `caffeinate`: jede stündliche Netzzeit übernommen,
       0 × `ntp verworfen`.
+- [ ] **AKQ.2 (Gerät G4, lesend; vorher G3)** — `/api/device_ready?x=` mit 300 Zeichen ⇒ Kennung 9; mit 240
+      Zeichen ⇒ die gewohnte Antwort.
 
-### Schritt EP — ein Release für ESP und PWA (C6 nur POST, C6b, C46, B55)
+### Schritt EP — ein Release für ESP und PWA (C6b, C46, B55)
 
-- [ ] **AKH.5 (ESP, nur POST, Ent-11)** — `maintenance_format_fs`, `maintenance_reset_eeprom`,
-      `maintenance_reset_stm32`, `fs_remove` und `network_secrets` werden **nur** per POST ausgeführt
-      (Parameter in der URL, Rumpf leer); der POST-Zweig liest dafür die Kopfzeilen und wendet AKH.1 an.
-      GET auf diese fünf ⇒ 405 `{"ok":false,"error":"method"}`, ohne Ausführung. Ein POST auf einen Pfad,
-      der weder Upload noch einer dieser fünf ist, bekommt 404 (heute: gar keine Antwort). Prüfstand **c6p**
-      (Methode × Pfad × Kopfzeilen); Gegenprobe gegen den E2-Stand ⇒ FEHL.
+- [x] ~~**AKH.5 (ESP, nur POST, Ent-11)**~~ — **Entfallen 13.10.2026** (Ent-18, L439). *Stand der
+      Freigabe:* `maintenance_format_fs`, `maintenance_reset_eeprom`, `maintenance_reset_stm32`, `fs_remove`
+      und `network_secrets` werden **nur** per POST ausgeführt (Parameter in der URL, Rumpf leer); der
+      POST-Zweig liest dafür die Kopfzeilen und wendet AKH.1 an. GET auf diese fünf ⇒ 405
+      `{"ok":false,"error":"method"}`, ohne Ausführung. Ein POST auf einen Pfad, der weder Upload noch einer
+      dieser fünf ist, bekommt 404 (heute: gar keine Antwort). Prüfstand **c6p** (Methode × Pfad ×
+      Kopfzeilen); Gegenprobe gegen den E2-Stand ⇒ FEHL.
 - [ ] **AKS.1 (C6b)** — `/api/eeprom_settings` liefert `key` und `ap_key` als **leere** Zeichenkette und
       zusätzlich `key_set` und `ap_key_set`; alle übrigen Felder unverändert.
-- [ ] **AKS.2 (C6b)** — `/api/network_secrets`: nur POST, Herkunftsprüfung, `Cache-Control: no-store`,
-      liefert `{"ok":true,"key":…,"ap_key":…}`. Prüfstand: `eeprom_settings` ohne Wächterschlüssel,
-      `network_secrets` mit; Gegenprobe ⇒ FEHL.
-- [ ] **AKH.6 (C6, PWA)** — Die vier Wartungsaufrufe, das Löschen über `fs_remove` und `network_secrets`
-      gehen mit `method: "POST"` hinaus. Prüfstand mit Mock: Methode je Aufruf gezählt, 0 GET auf diese Pfade.
+- [ ] **AKS.2 (C6b)** — `/api/network_secrets` per **GET**, `Cache-Control: no-store`, liefert
+      `{"ok":true,"key":…,"ap_key":…}`. Prüfstand: `eeprom_settings` ohne Wächterschlüssel, `network_secrets`
+      mit; Gegenprobe ⇒ FEHL. *Stand der Freigabe: „nur POST, Herkunftsprüfung" — entfällt mit Ent-18; wie
+      `network_secrets` geschützt wird, klärt die Schutz-Spec.*
+- [x] ~~**AKH.6 (C6, PWA)**~~ — **Entfallen 13.10.2026** (Ent-18, L439). *Stand der Freigabe:* Die vier
+      Wartungsaufrufe, das Löschen über `fs_remove` und `network_secrets` gehen mit `method: "POST"` hinaus.
+      Prüfstand mit Mock: Methode je Aufruf gezählt, 0 GET auf diese Pfade.
 - [ ] **AKS.3 (C6b, PWA)** — Der Backup-Export holt die Schlüssel über `network_secrets`; scheitert der
       Abruf, bricht der Export mit eigener Meldung ab. Bei gesetztem Schlüssel ist `wifi_key` nicht leer.
 - [ ] **AKQ.3 (C46, PWA)** — Ist die kodierte Query länger als 255 Zeichen, geht kein Request hinaus, und die
@@ -482,22 +511,25 @@ dem Nutzer.
 - [ ] **AKL.3 (B55, PWA)** — Kennung 10 ⇒ „LDR-Minimum nicht übernommen: Der Messwert liegt nicht unter dem
       Maximum." (Maximum sinngemäss); Kennung 7 ⇒ „Messung fehlgeschlagen"; Kennung 11 ⇒ „Keine Rückmeldung
       der Uhr — ob der Wert übernommen wurde, ist offen."; `ok` ⇒ wie heute. DE und EN; S8 grün.
-- [ ] **AKZ.11 (Werkzeuge, im EP-Commit)** — `flash-stm.sh` (Reset), `smoke-device.sh` (Herkunftsprobe),
-      `snapshot-device.sh` (`key_set` statt Schlüssel), `preview/server.py` nutzen bzw. bedienen POST;
-      `no-danger.py` weist die Gefahrenendpunkte auch per `curl -X POST` ab (Probe in `checks/hooks.sh`,
-      schon in Schritt 0). Vor dem EP-Build gegen Vorschau und Prüfstand c6p gelaufen.
+- [ ] **AKZ.11 (Werkzeuge, im EP-Commit)** — `snapshot-device.sh` (`key_set` statt Schlüssel) und
+      `preview/server.py` (`network_secrets`, `key_set`) bedienen C6b; vor dem EP-Build gegen die Vorschau
+      gelaufen. Die Probe in `checks/hooks.sh`, dass `no-danger.py` die Gefahrenendpunkte auch per
+      `curl -X POST` abweist, stammt aus Schritt 0 und bleibt. *Stand der Freigabe, entfallen (Ent-18):*
+      `flash-stm.sh` (Reset) und `smoke-device.sh` (Herkunftsprobe) auf POST, gelaufen gegen Prüfstand c6p.
 - [ ] **AKG.5 (Einspielen EP)** — ESP-OTA, **unmittelbar** danach `install-app.sh`, dazwischen kein
       Gerätenachweis, keine schreibende Aktion, **kein Backup-Export**. Danach Smoketest samt Update-Quelle,
       `install-app.sh --check`, `check-pwa.sh` ohne Fehler; Zeiten von OTA und Upload im Messprotokoll.
-- [ ] **AKH.7 (Gerät G5)** — POST `maintenance_reset_stm32` ⇒ 200 und Neustart; GET ⇒ 405, kein Neustart;
-      POST mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart. `/api/eeprom_settings` ohne Schlüssel,
-      `key_set` true (lesend).
+- [x] ~~**AKH.7 (Gerät G5)**~~ — **Entfallen 13.10.2026** (Ent-18, L439); der lesende Teil geht in AKS.4
+      auf. *Stand der Freigabe:* POST `maintenance_reset_stm32` ⇒ 200 und Neustart; GET ⇒ 405, kein
+      Neustart; POST mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart. `/api/eeprom_settings` ohne
+      Schlüssel, `key_set` true (lesend).
 - [ ] **AKL.4 (Gerät G5)** — Über die PWA: Maximum per Zahl auf 1, „Minimum übernehmen" ⇒ „nicht
       übernommen", im Mitschnitt `ldr: minimum abgewiesen`; Maximum zurück auf 4095. Minimum per Zahl auf
       4094, „Maximum übernehmen" ⇒ „nicht übernommen"; Minimum zurück auf 0. Dann „Minimum übernehmen" bei
       0/4095 ⇒ „gespeichert"; Minimum per Zahl zurück auf 0. Endstand 0/4095 lesend; Δ`v` = 0.
-- [ ] **AKS.4 (Gerät G5, lesend)** — Backup-Export im Browser enthält `wifi_key`; im Bericht nur der
-      Vergleich der Prüfsumme, nie der Klartext.
+- [ ] **AKS.4 (Gerät G5, lesend)** — `/api/eeprom_settings` ohne Schlüssel, `key_set` true (aus AKH.7).
+      Backup-Export im Browser enthält `wifi_key`; im Bericht nur der Vergleich der Prüfsumme, nie der
+      Klartext.
 
 ### Schritt P2 — B48 und B8
 
@@ -529,7 +561,8 @@ dem Nutzer.
       **sofort** ins Messprotokoll.
 - [ ] **AKZ.3 (Release-Inhalt)** — Vor jedem Release-Build zeigt `git diff --name-only <letztes Tag>` samt
       Arbeitsbaum Produktänderungen nur in den angehobenen Komponenten (bei EP: ESP und PWA) und nur aus den
-      Tasks dieses Releases; Ausgabe im Messprotokoll.
+      Tasks dieses Releases; Ausgabe im Messprotokoll. Für E2 gehören C46 und C19 dazu, der zurückgebaute
+      Herkunftsteil nicht (E2.0).
 - [ ] **AKZ.4** — Smoketest nach jedem Einspielen, Ergebnis **sofort** ins Messprotokoll; nach ESP-Updates
       samt Update-Quelle (DIR-009) und `install-app.sh --check` (DIR-017). Der Smoketest ist nicht der Test
       (DIR-012).
@@ -555,14 +588,15 @@ dem Nutzer.
 | Ausgeschlossen | Grund |
 |---|---|
 | **F4** | Ent-8: eigenes Folgepaket |
+| **Schutz der zerstörerischen Aufrufe:** C6 (Herkunft **und** POST), C6v, C60 (L426, hoch), C61 (L438), C62 (L440); der Schutz von `network_secrets`; die Antwort auf einen POST an einen unbekannten Pfad | Ent-18 (L439): eigene Spec. Der E1-Code liegt auf `sicherung/e1-herkunft` (`2662368`), nicht als Schutz zu verwenden. Die Prüfung über `Sec-Fetch-Dest` aus ESP 3.2.4 bleibt, wie sie ist — weder zurückbauen noch erweitern |
 | **B53**, **A19**, **A63** | Nicht „mittel", ohne offene Entscheidung |
 | **A77**, **A78** | Nicht beauftragt. Wer in `main.c` patcht, fasst den Kommentar aus A78 **nicht** an |
 | **A70 (a)**, **(b)** | Ent-2: ohne Fix |
 | **Display-Power im EEPROM** | Nicht entschieden; A56 betrifft nur das Ambilight |
 | **L343 / C32** | Eigener Befund |
 | **Übriger Legacy-Zweig** (roher `atoi`, C19 ausser L311) | Ent-7 |
-| **Legacy auf POST** | Ent-12: Legacy bleibt GET mit Herkunftsprüfung |
-| **POST für Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display`, `eeprom_settings_set`, `local_stm32_flash`** | Ent-12 |
+| **Legacy auf POST** | Stand der Freigabe: Ent-12 (Legacy bleibt GET mit Herkunftsprüfung); Ent-12 aufgehoben, Gegenstand der Schutz-Spec |
+| **POST für Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display`, `eeprom_settings_set`, `local_stm32_flash`** | Stand der Freigabe: Ent-12; aufgehoben, Gegenstand der Schutz-Spec |
 | **C46 für Legacy-Pfade** | Befund und Entscheidung nennen `/api/…` |
 | **Ringzeilen mit 255 Zeichen** | Ent-10 |
 | **Legacy-LDR-Seite** (`http.cpp:4317`, `:4322`) | bleibt „anstossen" |
@@ -577,15 +611,16 @@ dem Nutzer.
 
 - [ ] **STM32** (`src/**`) — S1: `uart/uart-driver.h`; S2: `main.c`, `display/display.c` (+ `.h`),
       `eeprom/eeprom-data.h`, `ldr/ldr.c` (+ `.h`); je ein Flash
-- [ ] **ESP8266** — E1: `http.cpp`; E2: `ESP-uclock.ino`, `http.cpp`, `ntp.cpp` (ggf. `vars.cpp`); EP:
-      `http.cpp`; je ein OTA
+- [ ] **ESP8266** — ~~E1~~ entfällt; E2: `ESP-uclock.ino`, `http.cpp` (B55, dazu C46 und C19 aus E1),
+      `ntp.cpp` (ggf. `vars.cpp`); EP: `http.cpp` (C6b); je ein OTA
 - [ ] **PWA** — EP: `app.js`, `i18n/en.json`; P2: `app.js`, `i18n/en.json`, `index.html`, `styles.css`
 - [ ] **Werkzeug** (`tools/**`, `.claude/**`) — Logwache, Stop-Hook, F3, B8, lokaler STM-Flash (gebaut, nicht
-      eingesetzt), Prüfstände, POST-Umstellung der Werkzeuge; der Messcode-Patch liegt, wird nicht eingesetzt
-- [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md`
-      (Lead)
-- [ ] **Build/Release** — sechs Releases (S1, S2, E1, E2, EP, P2), bei Gate-Riss sieben (S3); Matrix vor
-      jedem STM-Release; je Commit, Tag, Push
+      eingesetzt), Prüfstände, C6b in `snapshot-device.sh` und `preview/server.py` (~~POST-Umstellung der
+      Werkzeuge~~ entfällt); der Messcode-Patch liegt, wird nicht eingesetzt
+- [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md` (`doc-writer`; K25, K26 entfallen); `CHANGELOG.md`
+      (Lead); ~~`CLAUDE.md` Gefahrentabelle (POST)~~ entfällt
+- [ ] **Build/Release** — fünf Releases (S1, S2, E2, EP, P2), bei Gate-Riss sechs (S3); Matrix vor jedem
+      STM-Release; je Commit, Tag, Push
 
 ---
 
@@ -605,13 +640,16 @@ dem Nutzer.
 - **Ent-9 — A56 Speicherort:** zwei Byte (Marke und Wert) hinter dem Layoutende, ohne Layoutversion —
   rückflashsicher.
 - **Ent-10 — C8:** Kommandopuffer 260 Byte, Folgeeinträge im Ring, kein zusätzliches Ring-RAM.
-- **Ent-11 — C6 einstufig** (Empfehlung war: zwei Stufen). Die umgestellten Endpunkte nur noch per POST;
-  ESP und PWA als **ein** Release (EP), ESP zuerst, PWA unmittelbar danach; dazwischen kein Gerätenachweis
-  und kein anderes Release; alle Werkzeuge vorher auf POST; zwischen ESP und PWA kein Backup-Export.
-- **Ent-12 — C6 Umfang:** Herkunftsprüfung über `Sec-Fetch-Site` (und `Sec-Fetch-Dest`) für **alle**
-  zerstörenden Wege einschliesslich Legacy (`rsteeprom2`, `rststm32`, C60) und `/fs` (C6v); POST zusätzlich
-  für die API-Endpunkte der PWA (vier Wartungsendpunkte und `network_secrets`). Legacy bleibt GET.
-  Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display` unverändert. **C60 (L426) eigener Task, hoch.**
+- ~~**Ent-11 — C6 einstufig**~~ — **aufgehoben 13.10.2026 (L439)**, Ent-18. *Stand der Freigabe*
+  (Empfehlung war: zwei Stufen): Die umgestellten Endpunkte nur noch per POST; ESP und PWA als **ein**
+  Release (EP), ESP zuerst, PWA unmittelbar danach; dazwischen kein Gerätenachweis und kein anderes
+  Release; alle Werkzeuge vorher auf POST; zwischen ESP und PWA kein Backup-Export. **Was davon bleibt:**
+  EP bleibt ein Release mit ESP und PWA, gleiche Einspielregel — der Grund ist jetzt C6b (`design.md` §8.4).
+- ~~**Ent-12 — C6 Umfang**~~ — **aufgehoben 13.10.2026 (L439)**, Ent-18. *Stand der Freigabe:*
+  Herkunftsprüfung über `Sec-Fetch-Site` (und `Sec-Fetch-Dest`) für **alle** zerstörenden Wege
+  einschliesslich Legacy (`rsteeprom2`, `rststm32`, C60) und `/fs` (C6v); POST zusätzlich für die
+  API-Endpunkte der PWA (vier Wartungsendpunkte und `network_secrets`). Legacy bleibt GET. Update-Auslöser,
+  `ir_code_set`, `learn_ir`, `test_display` unverändert. C60 (L426) eigener Task, hoch.
 - **Ent-13 — Gerätenachweise:** alle freigegeben, auch der STM-Reset im Nacht-Aus-Fenster für A70 (e); bei
   jedem auf später geplanten Test `caffeinate` durch den Lead (DIR-020). Dazu die bestehenden Freigaben
   für Updates und STM-Reset.
@@ -623,3 +661,11 @@ dem Nutzer.
 - **Ent-16 — Spec: freigegeben** am 13.10.2026.
 - **Ent-17 — A81 und A82 aufgenommen** in S2, soweit das Flash-Budget es trägt; sonst Nachrang (A82 mit
   A70 nach S3; A81 kostet keinen Platz).
+- **Ent-18 — Schutz der zerstörerischen Aufrufe zurückgestellt** (13.10.2026, Entscheidung des Nutzers;
+  `BEFUNDE.md` L439, L440 und Abschnitt „Entscheidung: Schutz der zerstörerischen Aufrufe — zurückgestellt,
+  eigene Spec"). Browser senden `Sec-Fetch-*` über http nicht (am Gerät belegt, Chrome 155); belegt ist, dass
+  Chrome bei POST `Origin` sendet. Der Schutz für C6, C6v, C60, C61 und C62 wird in einer eigenen Spec
+  geklärt. Folgen für dieses Paket: Ent-11 und Ent-12 aufgehoben; Release E1 entfällt, der Herkunftsteil
+  ist auf `sicherung/e1-herkunft` (`2662368`) gesichert; C46 (ESP) und C19 gehen mit E2; EP verliert die
+  POST-Umstellung und alles zur Herkunft und behält C6b, den PWA-Teil von C46 und B55; AKH.1–AKH.7 entfallen;
+  G3 geht in G4 auf; die Testplanfälle K25 und K26 entfallen. Versionsfolge ESP: E2 3.2.34, EP 3.2.35.
