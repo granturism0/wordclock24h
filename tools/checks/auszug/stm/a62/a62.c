@@ -63,6 +63,8 @@ static void var_send_tm (void) { }
  * Nachtfenster beim ersten UEBERNOMMENEN TIME einmal aus. Attrappe zaehlt die Aufrufe und setzt
  * night_wm wie das Original. Ein Stand ohne diesen Aufruf faellt in "Ent-2 (2)" durch. */
 static uint_fast16_t night_wm = 0xFFFF;
+static uint_fast8_t  ip_ticker_pending;                                 /* A70 (d): kein IP-Lauftext => at_start 1 wie bisher */
+static uint32_t      ip_ticker_end;
 static int night_apply_n, night_apply_ok;
 static void night_apply (uint_fast16_t skipped, uint_fast8_t at_start)
 {

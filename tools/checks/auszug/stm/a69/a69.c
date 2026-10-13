@@ -44,7 +44,7 @@ static uint_fast8_t night_last_event (uint_fast8_t w, uint_fast16_t m, uint_fast
 #define DISPLAY_CLOCK_FLAG_POWER_ON     0x02
 #define DISPLAY_CLOCK_FLAG_POWER_OFF    0x04
 static struct { uint_fast8_t wday, hour, minute; uint_fast16_t year; } gmain;
-static struct { uint_fast8_t display_power_is_on, ambilight_power_is_on, do_display_icon; } display;
+static struct { uint_fast8_t display_power_is_on, ambilight_power_is_on, do_display_icon, ticker_deceleration; } display;
 static struct { uint_fast8_t is_online; char ipaddress[16]; } esp8266;
 volatile uint32_t   uptime;
 #define MAX_OVERLAYS 8
@@ -140,7 +140,7 @@ static void zeit (unsigned wd, unsigned hh, unsigned mm) { gmain.wday = wd; gmai
 static void tick (unsigned wd, unsigned hh, unsigned mm) { zeit (wd, hh, mm); minutenzweig (); }
 /* tick0: erster Tick nach einem Start mit gueltiger Zeit -- night_wm steht dann auf dieser Minute */
 static void tick0 (unsigned wd, unsigned hh, unsigned mm) { night_wm = wd * 1440 + hh * 60 + mm; tick (wd, hh, mm); }
-static void frisch (int disp) { night_off_due = 0; ticker_rest = 0; ticker_gezeigt = 0; ip_ticker_pending = 0; pending_ticker_restore = 0; display_clock_flag = 0; gmain.year = 2026; uptime = 5; night_wm = 0xFFFF; display.display_power_is_on = disp; display.ambilight_power_is_on = 1; spd_n = 0; spd_sync = -1; logbuf[0] = 0; proto[0] = 0; esp8266.is_online = 1; memset (ambilight_night_time, 0, sizeof ambilight_night_time); }
+static void frisch (int disp) { display.ticker_deceleration = 16; strcpy (esp8266.ipaddress, "203.0.113.200"); night_off_due = 0; ticker_rest = 0; ticker_gezeigt = 0; ip_ticker_pending = 0; pending_ticker_restore = 0; display_clock_flag = 0; gmain.year = 2026; uptime = 5; night_wm = 0xFFFF; display.display_power_is_on = disp; display.ambilight_power_is_on = 1; spd_n = 0; spd_sync = -1; logbuf[0] = 0; proto[0] = 0; esp8266.is_online = 1; memset (ambilight_night_time, 0, sizeof ambilight_night_time); }
 static void start (unsigned wd, unsigned hh, unsigned mm) { zeit (wd, hh, mm); night_apply (0xFFFF, 1); }
 static void tab_a (void) { leer (); setz (0, F_AUS (0, 6), 23, 0); setz (1, F_EIN (0, 6), 7, 0); }
 

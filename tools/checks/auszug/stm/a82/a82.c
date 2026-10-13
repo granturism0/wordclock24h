@@ -30,6 +30,7 @@ static struct { uint_fast8_t is_online; } esp8266;
 static struct { int wday, hour, minute; } gmain;
 static volatile uint_fast8_t dcf77_enabled;
 static uint32_t         night_off_due;
+static uint_fast8_t     night_off_ip;                               /* A70: set_display_power() setzt es zurueck */
 static uint_fast8_t     display_clock_flag;
 static int              nacht_treffer;                      /* Attrappe: meldet die Ambilight-Schaltzeit faellig */
 static uint_fast8_t night_check_night_times (uint_fast8_t i, uint_fast8_t on, int wd, int m) { (void) i; (void) on; (void) wd; (void) m; return nacht_treffer; }

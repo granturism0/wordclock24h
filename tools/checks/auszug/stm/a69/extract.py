@@ -21,7 +21,7 @@ SAB_M = {
     'startein':      ('! (at_start && on)', '1'),
     'vorwaerts':     ('d < 7 * 12 * 60', 'd < 7 * 24 * 60'),
     'jahr':          ('if (gmain.year >= 2026)', 'if (1)'),
-    'iplauf':        ('                night_off_due = NIGHT_OFF_AFTER_IP;\n', ''),
+    'iplauf':        ('            night_off_due = ip_ticker_end;\n', ''),
     'verwerfen':     ('    night_off_due = 0;                                                      // A69/M2', '    ;                                                      // A69/M2'),
 }
 if sab in SAB_N: nc = ersetze(nc, *SAB_N[sab], wo='night.c')
@@ -91,7 +91,7 @@ if 'night_apply' in m:
         st.append('Start: night_apply (0xFFFF, 2) nicht unter gmain.year >= 2026 im RTC-Block vor watchdog_init() (M1/M2)')
     c = m.index('case ESP8266_TIME:'); ce = m.index('case ESP8266_TABLES:', c)
     tb = m[c:ce]; ok = tb.find('TIMESERVER_NET_TIME_OK')
-    if not (ok >= 0 and re.search(r'if \(night_wm == 0xFFFF\)\s*\{\s*night_apply \(0xFFFF, 1\);', tb[ok:])):
+    if not (ok >= 0 and re.search(r'if \(night_wm == 0xFFFF\)\s*\{\s*night_apply \(0xFFFF, [^;]*\);', tb[ok:])):
         st.append('TIME: night_apply (0xFFFF, 1) nicht im Uebernahmezweig hinter night_wm == 0xFFFF')
 else:
     st.append('night_apply fehlt in main.c')

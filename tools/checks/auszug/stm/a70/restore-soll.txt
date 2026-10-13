@@ -1,0 +1,7 @@
+if (pending_ticker_restore &&
+            ! display_ticker_active () &&
+            ! display.do_display_icon &&
+            show_icon_stop_time == 0 &&
+            show_overlay_idx >= MAX_OVERLAYS)
+        {
+            if (! display_clock_flag)                                                   // only consume the flag if the restore can take effect
