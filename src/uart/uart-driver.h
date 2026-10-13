@@ -767,33 +767,44 @@ void UART_IRQ_HANDLER (void);
 void UART_IRQ_HANDLER (void)
 {
     static uint_fast16_t    uart_rxstop  = 0;                                   // tail, siehe RINGINDIZES oben
-    uint16_t                value;
+    uint16_t                sr;
+    uint16_t                cr1;
     uint_fast8_t            ch;
 
-    if (USART_GetITStatus (UART_NAME, USART_IT_RXNE) != RESET)
-    {
-        USART_ClearITPendingBit (UART_NAME, USART_IT_RXNE);
+    // A15 (L101): SR und CR1 genau EINMAL lesen und danach nur aus den Kopien entscheiden - direkter
+    // Registerzugriff statt USART_GetITStatus/ClearITPendingBit/ReceiveData/SendData/ITConfig. L101
+    // zaehlte vier bl je Zeichen - das war VOR der Umstellung auf LTO. Seitdem bettet der Compiler die
+    // SPL-Funktionen ein (am Disassembly geprueft: kein bl mehr in dieser ISR, F103 und F411). Uebrig
+    // blieben je Eintritt zwei unnoetige Schreibzugriffe auf SR (ClearITPendingBit), ein zweites Lesen
+    // von SR fuer ORE und ein erneutes Lesen von SR und CR1 fuer TXE. Die fallen hier weg.
+    //
+    // Gleichwertigkeit zur SPL, belegt an stm32f10x_usart.c und stm32f4xx_usart.c:
+    //   - USART_GetITStatus(x, USART_IT_RXNE/TXE) prueft das Flag in SR UND das Freigabebit in CR1
+    //     (RXNE/RXNEIE Bit 5, TXE/TXEIE Bit 7, auf F103 und F411 gleich). Beides wird hier geprueft.
+    //     TXE ist IMMER gesetzt, wenn DR leer ist - ein Test nur auf SR & TXE sendete bei jedem
+    //     Empfangsinterrupt. TXEIE ist nur waehrend des Sendens an (uart_putc, Abschaltung unten).
+    //   - Kein ClearITPendingBit: RXNE loescht das Lesen von DR, TXE das Schreiben von DR (TXE ist
+    //     nur lesbar, das ClearITPendingBit dafuer war wirkungslos).
+    //   - ReceiveData lieferte DR & 0x1FF, davon wurden nur die unteren 8 Bit genutzt.
+    //
+    // Was die Kopie aendert: Wird TXE oder RXNE erst WAEHREND dieses Durchlaufs gesetzt, bearbeitet
+    // die ISR es nicht mehr in diesem, sondern im naechsten Eintritt - Flag und Freigabe stehen dann
+    // weiter an, der Interrupt kommt sofort wieder. Verloren geht dabei nichts.
+    sr  = UART_NAME->SR;                                                        // Teil eins der Loeschfolge fuer ORE
+    cr1 = UART_NAME->CR1;
 
-        // ORE MUSS vor USART_ReceiveData() abgefragt werden. Das Flag wird geloescht durch die Folge
-        // "SR lesen, dann DR lesen": Teil eins hat USART_GetITStatus() oben erledigt, Teil zwei
-        // erledigt USART_ReceiveData() zwei Zeilen weiter unten - und zwar STILL, ohne jede Spur.
-        // Wer das Flag nicht hier festhaelt, kann es danach nirgends mehr erfahren.
+    if ((cr1 & USART_CR1_RXNEIE) && (sr & USART_FLAG_RXNE))                    // gleichwertig zu USART_GetITStatus(RXNE)
+    {
+        // ORE MUSS aus der SR-Kopie VOR dem Lesen von DR stammen. Das Flag wird geloescht durch die
+        // Folge "SR lesen, dann DR lesen": Teil eins ist das Lesen von SR oben, Teil zwei das Lesen von
+        // DR zwei Anweisungen weiter unten - und zwar STILL, ohne jede Spur. Wer das Flag nicht hier
+        // festhaelt, kann es danach nirgends mehr erfahren.
         //
-        // Warum die Stelle NACH USART_ClearITPendingBit() trotzdem sicher ist: Die Funktion
-        // SCHREIBT nur (USARTx->SR = ~itmask), sie liest SR nicht. ORE ist in SR read-only und
-        // allein ueber die Lesefolge loeschbar - ein Schreibzugriff kann es nicht zuruecksetzen.
-        // Diese Platzierung kostet im Normalpfad zwei Befehle weniger als die ganz am Zweiganfang,
-        // weil GCC die Datenblockadresse dort ueber die beiden bl-Aufrufe auf den Stack retten muss.
-        //
-        // Direkter Registerzugriff statt SPL, aus zwei Gruenden:
-        //   1. USART_GetITStatus(UART_NAME, USART_IT_ORE) waere FALSCH. USART_IT_ORE ist auf
-        //      USART_IT_ORE_ER abgebildet, und GetITStatus prueft dabei zusaetzlich das EIE-Bit
-        //      in CR3. Das wird hier nie gesetzt (uart_init aktiviert nur RXNEIE), die Abfrage
-        //      lieferte also IMMER RESET - auch bei gesetztem Flag. Der Zaehler bliebe still
-        //      auf 0, und das waere genau der stille Fehlschlag, den er aufdecken soll.
-        //   2. USART_GetFlagStatus() ist ein echter Funktionsaufruf, nicht inline (kein LTO, am
-        //      Disassembly geprueft). In der ISR: ldr/ldrh/tst/branch statt bl samt Prolog.
-        if ((UART_NAME->SR & USART_FLAG_ORE) != 0)                          // Hardware-Ueberlauf?
+        // Nicht ueber USART_GetITStatus(UART_NAME, USART_IT_ORE): USART_IT_ORE ist auf USART_IT_ORE_ER
+        // abgebildet, und GetITStatus prueft dabei zusaetzlich das EIE-Bit in CR3. Das wird hier nie
+        // gesetzt (uart_init aktiviert nur RXNEIE), die Abfrage lieferte also IMMER RESET - auch bei
+        // gesetztem Flag. Der Zaehler bliebe still auf 0.
+        if ((sr & USART_FLAG_ORE) != 0)                                     // Hardware-Ueberlauf?
         {                                                                   // ja, mindestens ein Zeichen ging im Schieberegister verloren
             if (uart_rxore < 0xFFFF)                                        // saettigend, kein Ueberlauf auf 0
             {
@@ -801,9 +812,7 @@ void UART_IRQ_HANDLER (void)
             }
         }
 
-        value = USART_ReceiveData (UART_NAME);                              // loescht ORE mit, siehe oben
-
-        ch = value & 0xFF;
+        ch = UART_NAME->DR & 0xFF;                                              // loescht RXNE und ORE, siehe oben
 
         if (uart_rxsize < UART_RXBUFLEN)                                        // buffer full?
         {                                                                       // no
@@ -830,11 +839,9 @@ void UART_IRQ_HANDLER (void)
         }
     }
 
-    if (USART_GetITStatus (UART_NAME, USART_IT_TXE) != RESET)
+    if ((cr1 & USART_CR1_TXEIE) && (sr & USART_FLAG_TXE))                      // gleichwertig zu USART_GetITStatus(TXE)
     {
         static uint_fast16_t uart_txstart = 0;                                  // head, siehe RINGINDIZES oben
-
-        USART_ClearITPendingBit (UART_NAME, USART_IT_TXE);
 
         if (uart_txsize > 0)                                                    // tx buffer empty?
         {                                                                       // no
@@ -847,11 +854,11 @@ void UART_IRQ_HANDLER (void)
 
             uart_txsize--;                                                      // decrement size
 
-            USART_SendData(UART_NAME, ch);
+            UART_NAME->DR = ch;                                                 // loescht TXE
         }
         else
         {
-            USART_ITConfig(UART_NAME, USART_IT_TXE, DISABLE);                   // disable TXE interrupt
+            UART_NAME->CR1 &= (uint16_t) ~USART_CR1_TXEIE;                      // disable TXE interrupt (CR1 frisch gelesen, nicht die Kopie)
         }
     }
     else

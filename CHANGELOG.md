@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-13 STM 3.2.33: UART-Interrupt schlanker (Paket 2026-10-13, S1; A15)
+
+Nur der STM, ESP (3.2.33) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-13-214013.zip`, Tag `release/3.2.33-3.2.33-1.4.97`.
+
+**Einspielen:** nur der STM (`flash-stm.sh`).
+
+- Der Interrupt der seriellen Schnittstellen liest das Statusregister nur noch einmal je Eintritt und schreibt es
+  nicht mehr; 8 bis 9 Befehle weniger je Zeichen auf allen drei Schnittstellen, F103 −88 Byte, F411 −64 Byte.
+  Verhalten unverändert, geprüft mit 12'000 Zufallsfolgen gegen die alte Fassung (Prüfstand a15). Der früher
+  erwartete Gewinn „Faktor drei bis vier“ bestand seit der Link-Zeit-Optimierung nicht mehr (L432).
+- Werkzeug: Logwache mit Lebenszeichen, Selbstmeldung und Frist je Abruf (E36), Guardrail S17 prüft den Umfang
+  des Backups (F3), `flash-stm.sh --lokal`, Gefahrensperre kennt den Legacy-Weg (L426).
+
 ## 2026-10-13 PWA 1.4.97: Start im Modul System ohne Ladefehler (L411)
 
 Nur die PWA, STM (3.2.32) und ESP (3.2.33) unverändert. `wordclock-release-2026-10-13-024559.zip`, Tag `release/3.2.32-3.2.33-1.4.97`.
