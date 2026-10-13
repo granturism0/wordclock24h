@@ -1,0 +1,8 @@
+# B8 (Paket 2026-10-13, AKD.1): Kandidaten, die KEIN sichtbarer UI-Text sind.
+# Je Zeile: datei:Textausschnitt  Grund. Eingeordnet vom Lead am 13.10.2026.
+app.js:#             Buchstabenraster der Wortuhr-Vorschau (Layoutdaten, nicht Sprache)
+app.js:) weicht nach dem Schreiben ab.   Fortsetzung einer console.warn-Zeile (Konsole, nicht UI)
+app.js:) nicht geschrieben.   Fortsetzung einer console.warn-Zeile (Konsole, nicht UI)
+app.js:kennt kein Feld   interner Programmierfehler (throw), erscheint nicht in der UI
+app.js:kennt keinen Knopf   interner Programmierfehler (throw), erscheint nicht in der UI
+index.html:placeholder="Zürich"   Beispiel-Ortsname im Eingabefeld, sprachunabhaengig
