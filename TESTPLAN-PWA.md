@@ -169,6 +169,11 @@ Oberfläche oder die Legacy-Seite eintragen.
 > (`buildNetworkBackupSettings()`). Das ist kein Fehler der PWA — ohne den Schlüssel
 > wäre der Import nutzlos. Aber die exportierte Datei gehört behandelt wie ein
 > Passwortzettel: nicht in Cloud-Ordner, nicht ins Repo, nicht in einen Chat.
+>
+> **Die M1-Datei eines Testdurchlaufs wird nach dem Lauf gelöscht** (Phase 9,
+> Schritt 10). Sie ist ein Werkzeug des Laufs, keine Sicherung des Nutzers — die
+> behält er selbst (siehe unten, „Was regelmässig zu tun ist“). Im Lauf vom 13.10.2026
+> so gehandhabt (`BEFUNDE.md`, L412). Im Bericht steht, dass und wann sie gelöscht ist.
 
 ### Was in keinem der drei Medien steht
 
@@ -311,6 +316,16 @@ Geprüft wird in einem echten Browser gegen das **echte** Gerät:
 | **P1b-6** | **keine Fehler in der Konsole** | der wichtigste Punkt — ein Tippfehler in `app.js` lässt die Seite halb leer, ohne dass irgendwo ein Fehler erscheint |
 | **P1b-7** | keine fehlgeschlagenen Abrufe | `ERR_ABORTED` zählt **nicht**: Das heisst „jemand hat abgebrochen", nicht „es ging schief". Beim Schliessen des Browsers brechen alle laufenden Poller ab |
 | **P1b-8** | Platzhalter gefüllt | viele stehengebliebene Striche heissen: Abrufe ohne Ergebnis, ohne geworfenen Fehler |
+| **P1b-9** | **Start in jedem Modul** | die PWA stellt das zuletzt genutzte Modul aus `localStorage` wieder her. Das Skript belegt den Schlüssel der Reihe nach mit jedem Modul, lädt neu und zählt `ReferenceError`, `TypeError` und „before initialization“ aus der Startphase. Am Ende steht der Schlüssel wieder auf `main`. Findet es weniger als fünf Module, schlägt die Zeile fehl — sonst sähe die Prüfung ihren Gegenstand nicht (DIR-014) |
+
+**Warum P1b-9 dazukam (L411, B54):** Mit frischem Profil startet jeder Lauf in `main`.
+Ein Initialisierungsfehler, der nur beim Start in einem anderen Modul auftritt, war
+damit für genau die Prüfung unsichtbar, die solche Fehler fangen soll (DIR-016). Am
+13.10.2026 fand der Testagent so einen Fall von Hand: Beim Start in `system` warf
+`app.js` einen `ReferenceError`, weil das Logbuch vor seiner Definition abgerufen wurde;
+der nächste Takt heilte es nach 2,5 s. `check-pwa.sh` hatte mehrere Fassungen lang
+sauber gemeldet. **Ein Fehler in P1b-9 ist ein Befund, auch wenn er sich selbst heilt** —
+in der Zeile steht, in welchem Modul er auftrat.
 
 **Bedient wird über das DevTools-Protokoll**, ohne Puppeteer oder Playwright — Node
 bringt seit v22 ein eingebautes WebSocket mit, und mehr braucht es nicht. Die Module
@@ -321,7 +336,10 @@ Viewports, aber gegen **Attrappen-Daten** aus `server.py` — gut für das Layou
 ungeeignet für die Frage, ob die Oberfläche mit den echten Werten der Uhr
 zurechtkommt. Beides hat seinen Platz: `preview` für Phase 7, `check-pwa.sh` hier.
 
-Rein lesend: Die Seite wird geladen, nichts angeklickt.
+Rein lesend gegenüber dem Gerät: Die Module werden geöffnet, gespeichert wird nichts.
+Was P1b-9 in `localStorage` schreibt, liegt im Profil des Prüfbrowsers, nicht auf der
+Uhr. Weil das Skript dabei jedes Modul neu lädt, erzeugt es selbst Abrufe — **nicht
+gleichzeitig mit K19** laufen lassen.
 
 ---
 
@@ -356,6 +374,12 @@ Besonders zu beachten, weil hier schon einmal falsch formatiert wurde:
 - **AP-SSID im Modul `network`**: in einer frischen Sitzung **direkt** öffnen, ohne
   vorher die Wartung zu besuchen. Der Fall steht mit Instrument und Soll als **K11**
   in 7.1; er ist rein lesend und gehört zeitlich hierher, in Phase 2.
+- **Abrufzahl im Hauptmodul**: Die PWA holt `update_status` und `update_table_files`
+  im Hauptmodul beim Öffnen und danach höchstens alle 5 Minuten, in Wartung und Anzeige
+  bei jedem Lauf (C35). Gemessen über 15 Minuten im Mitschnitt, Soll höchstens 4 je
+  Endpunkt. Der Fall steht als **K19** in 7.1. Er ist rein lesend und gehört hierher,
+  aber er braucht ein **ruhiges** Fenster: kein zweiter Browser, kein `check-pwa.sh`,
+  kein Modulwechsel — sonst zählt der Mitschnitt fremde Abrufe mit.
 
 ---
 
@@ -515,6 +539,34 @@ hat der STM keine Referenz, die erste Netzzeit braucht eine zweite, passende Ant
 Ein Befund ist erst `time: ungueltig, verworfen` oder ein `time: sprung`, dem kein
 `cmd: set time to …` folgt. Auf einem STM ohne die Bestätigungsregel fehlt die Zeile;
 auch das ist kein Befund.
+
+#### Auswertung des Mitschnitts — die Zeilen aus dem Paket 2026-10-11
+
+Seit dem Paket 2026-10-11 melden STM und ESP Zustände, die vorher still blieben. Die
+Tabelle gilt für V3 und für den **ganzen** Durchlauf; am dichtesten treten die Zeilen
+nach einem STM-Start auf. Die Logwache meldet einen Teil davon von selbst — **massgebend
+ist diese Tabelle, nicht ob die Wache anschlägt.** Eine erwartete Zeile kommt mit ihrem
+Anlass in den Bericht, eine Befundzeile mit Uhrzeit, Wortlaut und dem Fall, der gerade
+lief.
+
+Die STM-Zeilen stehen im Mitschnitt; `i2c: frist abgelaufen` steht **nur** dort, nicht in
+`/api/stm32_log`. Die ESP-Zeilen mit vorangestelltem `- ` stehen im Mitschnitt **und**
+in `/api/stm32_log`.
+
+| Zeile | Was sie bedeutet | Erwartet | Befund |
+|---|---|---|---|
+| `night: start aus (hh:mm)` | Der STM ist in einem Aus-Fenster der Display-Timer gestartet und schaltet nach der Startsequenz aus (A69). `hh:mm` ist die Minute des massgebenden Aus-Timers | Bei jedem STM-Start (V3, Flash) im Aus-Fenster, nach dem IP-Lauftext, sonst nach 60 s. War die RTC beim Start ungültig, erst nach dem ersten übernommenen `TIME` | Start im Aus-Fenster **ohne** die Zeile (das Display bleibt an); die Zeile bei einem Start ausserhalb des Fensters; `night: start ein` — beim Start wird nur ein Aus angewandt |
+| `night: sprung aus (hh:mm)` / `night: sprung ein (hh:mm)` | Die Uhrzeit ist über mehr als eine Minute gesprungen, und im übersprungenen Intervall lag ein Display-Timer. Der STM holt ihn nach, wie der Timer selbst geschaltet hätte | Nach einer Zeitkorrektur, die über einen Timer hinwegspringt (`cmd: set time to` mit grossem Abstand zur vorigen Zeit), und bei der Zeitumstellung, wenn ein Timer in der übersprungenen Stunde liegt | **Ohne** vorangehende Zeitkorrektur: Dann ist die Minute ausgefallen, weil der Hauptloop länger als eine Minute stand — das Bild aus L204. `diag`-Folge und `l=` im selben Zeitraum prüfen |
+| `time: sprung, bestaetigung angefordert` | Die gemeldete Netzzeit passt nicht zur Referenz des STM (über 10 Minuten daneben) oder es gibt noch keine Referenz. Der STM übernimmt sie erst, wenn eine zweite Antwort sie bestätigt (A62) | Nach **jedem** STM-Start, gefolgt nach rund 15 s von `cmd: set time to …` | Kein `cmd: set time to …` danach; im laufenden Betrieb **ohne** vorangehenden STM-Start — dann lag die Zeit um mehr als 10 Minuten daneben, Gerätezeit davor und danach notieren |
+| `time: ungueltig, verworfen` | Die Netzzeit war formal ungültig oder liegt vor dem 01.01.2026; der STM verwirft sie | nie | jede |
+| `cmd: set time to …` | Der STM hat eine Netzzeit übernommen. Die Zeile kommt seit A62 bei **jeder** Übernahme | Bei jedem Zeitabgleich und nach jeder bestätigten `time: sprung`-Zeile | Datum oder Uhrzeit darin falsch; fehlt nach `time: sprung` |
+| `i2c: frist abgelaufen` | Ein I²C-Zugriff (EEPROM oder RTC) hat seine Frist überschritten; der STM taktet den Bus danach frei (A60) | **nicht mehr**, auch beim Start nicht: Seit A73 gibt die Adresssuche ohne Antwort keine Zeile (L402). Steht sie beim Start **vor** `rtc is online` und läuft danach alles, ist das die RTC-Suche — benennen, nicht als Fehlschlag werten | Jede andere. Folgt `error: cannot reset I2C bus`, ist der Bus tot: Dann scheitert jeder EEPROM-Zugriff, sofort melden |
+| `spiel: N Zeilen verworfen` | Während eines Spiels hat der STM N Zeilen vom ESP verworfen und danach einen Vollabgleich vorgemerkt (A53) | Nur nach einem Spiel, also in K18; danach `info: configuration sent` | Ohne vorangegangenes Spiel; oder nach dem Spiel **kein** `info: configuration sent` |
+| `ldr: minimum abgewiesen (x >= max y)` / `ldr: maximum abgewiesen (x <= min y)` | „Messwert übernehmen“ hat einen Rohwert abgewiesen, der die Grenzen vertauscht hätte (A57). Nichts gesetzt, nichts geschrieben | In S25b; in S25/S26 nur, wenn die Grenzen ungewöhnlich eng stehen | In S25/S26 bei den Grenzen 0/4095; jede, der ein `eep a=225` bzw. `eep a=227` folgt |
+| `- var ignoriert #n code=… idx=…` | Der ESP hat eine Zeile des STM quittiert, aber nichts zugewiesen — Index oder Wert ausserhalb des Bereichs, unbekannter Buchstabe (A35). Gedrosselt: die erste sofort, danach höchstens eine je Minute; `#n` zählt alle. Ohne Wert, weil die Zeilen Zugangsdaten tragen können | **nie**, auch nicht im Vollabgleich (seit A75; im Lauf vom 13.10.2026 null, L412) | jede. `code` und `idx` in den Bericht, dazu der Stand von `#n` — der Zähler sagt, wie viele Zeilen die Drosselung verschluckt hat |
+| `- ntp verworfen #n <grund>` | Der ESP hat eine Antwort auf seine Zeitanfrage verworfen und dem STM **kein** `TIME` geschickt. Gründe: `absender` und `port` (Paket nicht vom angefragten Server), `laenge` (falsche Paketgrösse), `li`, `stratum`, `transmit` (Server meldet keine gültige Zeit). Gedrosselt wie `var ignoriert` | nie | jede, mit Grund. Bleibt danach auch der nächste Zeitabgleich aus (kein `cmd: set time to …`), läuft die Uhr auf ihrer RTC weiter — im Bericht nennen |
+| `ovr=` in der Heap-Zeile | Zahl der Empfangsüberläufe der ESP-UART seit dem ESP-Start: Der ESP hat Bytes vom STM verloren. Die Heap-Zeile kommt einmal je Minute, nach jedem ESP-Neustart beginnt die Zahl bei 0 | `ovr=0` durchgehend (13.10.2026: so, L412) | jede Erhöhung — sie gehört zu A21/A76. Mit der Zeile `- ovr #n t=…` zusammen auswerten |
+| `- ovr #n t=<ms>` | Der ESP hat einen Überlauf **erkannt**; `t` ist seine Betriebszeit in Millisekunden beim Erkennen, nicht beim Überlauf selbst. Ein kleines `t` heisst „während des Starts oder im ersten Durchlauf“. Gedrosselt, höchstens eine je Minute | nie | jede. **Sie ist zugleich der Beleg, auf den A76 wartet:** Uhrzeit, `n`, `t` und das, was gerade lief (ESP-Neustart, OTA, Vollabgleich, Setter-Reihe), vollständig in den Bericht |
 
 ### Welches Verfahren wann
 
@@ -721,8 +773,9 @@ nachgewiesen, am Gerät noch nicht.
 | **S22** | Korrektur `21` und `-21` setzen | S | `error=2`, beide Variablen unverändert | |
 | **S23** | Temperatur anzeigen (`temperature_display`) | S | Die Temperatur erscheint auf dem Display | Zeigt der Sensor `127.5`, ist das **keine Messung**, sondern der STM-Fehlerwert `255` |
 | **S24** | Automatische Helligkeit umschalten (`auto_brightness_set?value=on\|off`) | S | `numvar[idx=8].value` (`DISPLAY_AUTOMATIC_BRIGHTNESS_ACTIVE`) 1 bzw. 0 | **Das Bedienelement liegt im Modul `climate`, nicht in `display`** — es steht im LDR-Bereich. Solange es an ist, überschreibt der LDR die Helligkeit aus S29 |
-| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`); im Logring (`/api/stm32_log`, Präfix `LOG `) und im Mitschnitt folgt `eep a=225 n=2` | **Rücknehmbar über S27a**, seit A59 der STM die numerischen Setter übernimmt (`BEFUNDE.md`, L364). Vorher den Ausgangswert von `numvar[idx=17].value` aus dem Rohabzug notieren; seit der Bereinigung am 10.10.2026 stimmen ESP-Kopie und STM bei den Grenzen überein (L377). Nach der Gegenprobe sofort `ldr_min_value_set?value=<Ausgangswert>` — Soll wie S27a, also wieder mit `eep a=225 n=2`. Keine eigene Freigabe mehr, sondern wie jeder rücknehmbare S-Fall. Der Rohwert schwankt, deshalb unmittelbar vorher ablesen. Gleicht er zufällig dem Ausgangswert, schreibt der STM nichts, und die `eep`-Zeile entfällt — dann ist der Fall nicht aussagekräftig, so protokollieren. Ob der Rückweg am STM auch **gespeichert** ist, zeigt erst Phase 9 nach dem STM-Reset (12.1) |
-| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend; im Logring und im Mitschnitt folgt `eep a=227 n=2` | wie S25, Rückweg über **S27b** `ldr_max_value_set?value=<Ausgangswert>` mit `eep a=227 n=2` |
+| **S25** | Aktuellen Messwert als LDR-Minimum übernehmen (`ldr_min_set`) | S | `numvar[idx=17].value` (`LDR_MIN_VALUE`) entspricht dem zuvor abgelesenen `numvar[idx=16].value` (`LDR_RAW_VALUE`); im Logring (`/api/stm32_log`, Präfix `LOG `) und im Mitschnitt folgt `eep a=225 n=2` | **Rücknehmbar über S27a**, seit A59 der STM die numerischen Setter übernimmt (`BEFUNDE.md`, L364). Vorher den Ausgangswert von `numvar[idx=17].value` aus dem Rohabzug notieren; seit der Bereinigung am 10.10.2026 stimmen ESP-Kopie und STM bei den Grenzen überein (L377). Nach der Gegenprobe sofort `ldr_min_value_set?value=<Ausgangswert>` — Soll wie S27a, also wieder mit `eep a=225 n=2`. Keine eigene Freigabe mehr, sondern wie jeder rücknehmbare S-Fall. Der Rohwert schwankt, deshalb unmittelbar vorher ablesen. Gleicht er zufällig dem Ausgangswert, schreibt der STM nichts, und die `eep`-Zeile entfällt — dann ist der Fall nicht aussagekräftig, so protokollieren. Ob der Rückweg am STM auch **gespeichert** ist, zeigt erst Phase 9 nach dem STM-Reset (12.1). **Abweisung (A57):** Seit dem STM-Release mit A57 weist „Messwert übernehmen“ einen Rohwert ab, der **nicht unter dem Maximum** liegt. Dann steht im Mitschnitt `ldr: minimum abgewiesen (<roh> >= max <max>)`, es folgt **kein** `eep`, und `numvar[idx=17]` bleibt unverändert. Bei den üblichen Grenzen 0/4095 tritt das nicht ein; erscheint die Zeile trotzdem, zuerst die Grenzen im Rohabzug nachsehen. Die Abweisung gezielt prüfen: siehe **S25b** |
+| **S25b** | **Abweisung einer Inversion** (A57). Auto-Helligkeit aus, Rohwert `numvar[idx=16]` zwischen 2 und 4093. Maximum über S27b kurz auf `1`, dann `ldr_min_set`; danach Maximum zurück. Gegenstück: Minimum über S27a kurz auf `4094`, dann `ldr_max_set`; danach Minimum zurück | S | Im Mitschnitt `ldr: minimum abgewiesen (<roh> >= max 1)` bzw. `ldr: maximum abgewiesen (<roh> <= min 4094)`, **ohne** `eep a=225` bzw. `eep a=227` dazwischen; `numvar[idx=17]` bzw. `[idx=18]` unverändert. Die `eep`-Zeilen der beiden Zahlen-Setter davor und danach sind Soll | Ausgangswerte von `numvar[idx=17]` und `[idx=18]` vorher notieren; Rückweg über S27a/S27b, Gegenprobe am Rohwert. **Der Zahlen-Setter selbst weist keine Inversion ab** (A59, siehe S27) — genau deshalb lässt sich der Prüfzustand überhaupt herstellen, und genau deshalb ist der Rückweg Pflicht: Bleibt Maximum 1 stehen, rechnet die Automatik nicht mehr. Am Gerät belegt am 12.10.2026 (`BEFUNDE.md`, L404) und im Testdurchlauf vom 13.10.2026 (L412) |
+| **S26** | Aktuellen Messwert als LDR-Maximum übernehmen (`ldr_max_set`) | S | `numvar[idx=18].value` (`LDR_MAX_VALUE`) entsprechend; im Logring und im Mitschnitt folgt `eep a=227 n=2` | wie S25, Rückweg über **S27b** `ldr_max_value_set?value=<Ausgangswert>` mit `eep a=227 n=2`. **Abweisung (A57)** spiegelbildlich: ein Rohwert, der **nicht über dem Minimum** liegt, ergibt `ldr: maximum abgewiesen (<roh> <= min <min>)`, kein `eep`, `numvar[idx=18]` unverändert |
 | **S27** | LDR-Grenzen numerisch setzen: Minimum (**S27a**, `ldr_min_value_set`) und Maximum (**S27b**, `ldr_max_value_set`), je 0..4095 | S | `numvar[idx=17].value` bzw. `numvar[idx=18].value` tragen genau den gesendeten Wert, **und** im Logring (`/api/stm32_log`, Präfix `LOG `) sowie im Mitschnitt steht danach `eep a=225 n=2` (S27a) bzw. `eep a=227 n=2` (S27b) | **Kein Bedienelement in der Oberfläche.** Die beiden Endpunkte sind ausschliesslich über den Backup-Import erreichbar — Prüfung deshalb per direktem Aufruf. **Die `eep`-Zeile ist der STM-Beleg:** `settings_xml` zeigt nur die ESP-Kopie (5b), die Zeile dagegen schreibt der STM, wenn er den Wert ins EEPROM übernimmt. Sie kommt nur, wenn sich der Wert ändert. Fehlt sie bei geändertem Wert, lautet das Ergebnis „ESP gespeichert, STM nicht angewandt“, nicht „bestanden“. Bis A59 kam sie nie, weil der STM beide Setter verwarf (L364). Minimum ≥ Maximum weist der STM bewusst nicht ab — der Backup-Import setzt die beiden nacheinander. Zugleich der Rückweg für S25/S26 |
 | **S28** | LDR-Grenze `4096` setzen | S | `error=2`, Variable unverändert, **keine** `eep a=225`- oder `eep a=227`-Zeile | Früher angenommen (L67/L68) |
 
@@ -755,7 +808,7 @@ nachgewiesen, am Gerät noch nicht.
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
 | **S46** | Anzeigeanimation wählen (`animation_mode_set?value=`) | S | `numvar[idx=10].value` (`ANIMATION_MODE`) trägt den Index | Nicht-numerischer Wert ⇒ `error=1`, früher wurde `"abc"` zu 0 (L49) |
-| **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) | **Die Display-Farbe aus S34 ist danach verloren**, nicht nur während der Animation wirkungslos — den Ausgangswert von `dspcolor[idx=0]` vorher aus dem Rohabzug notieren, wie bei S51/S53. Am Gerät belegt (L150, 04.10.2026): vorher `0/0/0/63`, nach `color_animation_mode_set=2` und **sofortigem** Zurücksetzen auf `0` stand dort `0/0/31/0`. Überschrieben wird **einmalig beim Moduswechsel**, nicht laufend — nach manuellem Zurückschreiben blieb der Wert über 60 s stabil. Die Klasse bleibt **S**, weil der Schritt mit notiertem Ausgangswert rücknehmbar ist; was fällt, ist die Zusage „folgenlos" |
+| **S47** | Farbanimation wählen (`color_animation_mode_set?value=`) und wieder auf `0` (aus) | S | `numvar[idx=15].value` (`COLOR_ANIMATION_MODE`) trägt den gesendeten Modus. **Nach dem Zurücksetzen auf `0` steht `dspcolor[idx=0]` wieder genau auf dem Ausgangswert** — die Animation darf ihre Momentanfarbe nicht in die gespeicherte Farbe schreiben (A23). Während der Animation zeigt `dspcolor[idx=0]` die Momentanfarbe; das ist Soll. Nach dem Zurücksetzen mindestens 60 s warten und erneut lesen: Der Wert bleibt stehen | **Ausgangswert von `dspcolor[idx=0]` vorher aus dem Rohabzug notieren, wie bei S51/S53** — er ist das Soll, nicht nur der Rückweg. Seit dem STM-Release mit A23 ist der Schritt folgenlos rücknehmbar; am Gerät belegt im Testdurchlauf vom 13.10.2026 (`0/0/0/63` nach über 60 s, `BEFUNDE.md` L412) und über einen STM-Reset hinweg (L407: die Farbe kommt aus dem EEPROM). **Weicht der Wert nach dem Zurücksetzen ab, ist das ein Rückfall von A23** und kein Rauschen: im Bericht mit Ausgangs- und Endwert, danach über S34 auf den Ausgangswert zurück und am Rohwert gegenprüfen. Vor A23 ging die Farbe verloren (L150, 04.10.2026: `0/0/0/63` → `0/0/31/0`, einmalig beim Moduswechsel) |
 | **S48** | Verzögerung eines Anzeigeprofils setzen (`animation_profile_set?idx=&deceleration=`, 1..15) | S | `dispanim[idx=N].dcl` trägt den Wert **und** Bit `0x02` in `dispanim[idx=N].flags` steht unverändert | Mindestens zwei verschiedene Profile prüfen. **Derselbe Aufruf schreibt das Favoritenflag mit** — ohne `favourite` wird Bit `0x02` **gelöscht** (siehe S49). Das Prüfmuster sichert sonst nur `.dcl`, und der Verlust fällt nicht auf, weil die Gegenprobe ihn nicht ansieht: **vorher auch `.flags` notieren, nachher mitprüfen, und beim Zurückschreiben `favourite` mitsenden, falls es gesetzt war.** Gleiche Bauart wie S44 und S90, wo der Hinweis längst steht |
 | **S49** | Profil als Favorit markieren (`animation_profile_set?...&favourite=on`) | S | Bit `0x02` in `dispanim[idx=N].flags` gesetzt bzw. gelöscht | Das Flag wird aus demselben Aufruf mitgeschrieben — ohne `favourite` wird es **gelöscht** |
 | **S50** | Verzögerung `0` und `16` setzen | S | `error=2`, `dispanim[idx=N].dcl` unverändert | Gültig ist 1..15, nicht 0..15 |
@@ -988,7 +1041,9 @@ Die acht Klassen oben hängen an einem **Feld**. Die Fälle hier hängen an eine
 Feldliste. Sie stammen aus dem Durchlauf vom 10.10.2026 (`BEFUNDE.md`, L340, L365 bis
 L369) und aus dem Review P.6 zum Paket 2026-10-10. Die Korrekturen B44 bis B47, C55/C44
 und die Anzeige aus A2 sind in der Vorschau und am Prüfstand nachgewiesen, **am Gerät
-noch nicht**. Der Durchlauf misst sie, er setzt sie nicht voraus (DIR-003).
+noch nicht**. Der Durchlauf misst sie, er setzt sie nicht voraus (DIR-003). **K18** und
+**K19** kamen mit dem Paket 2026-10-11 dazu (A53, C35); beide sind am Gerät belegt
+(`BEFUNDE.md`, L404, L410) und werden seither je Durchlauf erneut gemessen.
 
 **Instrumente**, auf die die Tabelle verweist:
 
@@ -998,12 +1053,13 @@ noch nicht**. Der Durchlauf misst sie, er setzt sie nicht voraus (DIR-003).
 | **API lesend** | Rohabzug bzw. `/api/settings_xml`, `/api/stm32_log`, `/api/eeprom_settings` — nur lesend (DIR-008) |
 | **Mitschnitt** | `./tools/watch-log.sh` läuft während des ganzen Durchlaufs (DIR-013) |
 | **Vorschau** | `tools/preview/server.py` ohne Gerät (Skill `/pwa-vorschau`), mit denselben echten Ereignissen |
+| **UDP** | Ein einzelnes Paket an Port 2424 der Uhr, etwa `printf 'gTs' \| nc -u -w1 "$DEVICE_HOST" 2424`. **Kein Hook sieht diesen Weg** (Kapitel 11) — nur die hier genannten Kommandos senden |
 
 **Rückstellung.** Wo das Soll „kein Aufruf“ lautet, genügt im Erfolgsfall: Seite neu
 laden. Geht der Aufruf **doch** hinaus, ist das ein Rückfall, und dann zählt, was
 **vorher** notiert wurde — deshalb nennt die Spalte, was vor dem Fall aus dem Rohabzug
 festzuhalten ist. Jeder berührte Index gehört in die Aufräumliste (Kapitel 2). Die
-schreibenden Fälle (K13b, K14, K15b, K16) laufen in einer gerahmten Setter-Phase nach
+schreibenden Fälle (K13b, K14, K15b, K16, K18) laufen in einer gerahmten Setter-Phase nach
 V1 und V1b (5b). **Kein Fall dieser Reihe ruft einen der gefährlichen Endpunkte aus
 `CLAUDE.md` (R5) auf**, und keiner drückt einen Knopf, der flasht, eine Datei lädt oder
 Zugangsdaten schreibt.
@@ -1027,6 +1083,8 @@ Zugangsdaten schreibt.
 | **K15** | **Koordinaten, abgewiesen:** im Modul `climate` je Wert speichern, das andere Feld auf seinem Ausgangswert. Längengrad: `180.1`, `<"&`, `.5`, `+5`, `1e2`. Breitengrad: `90.00001`, `91`, `180`. **K15b**, direkt am ESP: `weather_coordinates_set?lon=%3C%22%26&lat=<Ausgangswert>` | Browser, API lesend; K15b direkter Aufruf | K15: Meldung „Ungültiger Längengrad. …“ bzw. „Ungültiger Breitengrad. …“, **kein** `weather_coordinates_set`, `strvar[idx=7]` und `[idx=8]` unverändert. K15b: Abweisung, beide unverändert | Ausgangswerte vorher notieren. Wird ein Wert doch angenommen, sofort zurück — erst die Koordinaten, dann den Ort (6.3) |
 | **K16** | **Koordinaten, gültig:** Längengrad `8,5400` mit Breitengrad `47.3769`, danach Längengrad `-180` mit Breitengrad `-90` | Browser, API lesend | Beide Paare angenommen; `strvar[idx=7].value` trägt nach dem ersten Paar `8.5400` — **mit Punkt**, das Komma wird vor der Prüfung ersetzt | Ausgangswerte zurückschreiben, Gegenprobe am Rohwert. Dazwischen keinen Wetterabruf (S18, S19) auslösen. Standen keine Koordinaten, ist der Rückweg das Leeren beider Felder — das geht nur, solange ein Ort steht (S17) |
 | **K17** | **DS18xx-Anzeige** in der Klima-Übersicht, drei Zustände (A2). **Am Gerät nur der gültige Fall** — der Sensor wird nicht abgezogen (Ent-14, Paket 2026-10-10). **K17b** und **K17c** nur in der Vorschau | Gerät: Browser, API lesend, Mitschnitt. K17b/K17c: Vorschau | **Gültig (Gerät):** „DS18xx“ zeigt den Messwert, „DS18xx online“ zeigt „online“; `numvar[idx=20].value` (`DS18XX_IS_UP`) = 1, `numvar[idx=23].value` ≠ 255; im Mitschnitt `DS18xxx temperature:` ohne `ungueltig`, keine Zeile `ds18xx verloren`. **K17b, nicht gefunden** (`[idx=20]` = 0): „–“ und „nicht gefunden“. **K17c, ungültig** (`[idx=20]` = 1, `[idx=23]` = 255): „Messwert ungültig“ und „online“ | Keine, rein lesend. Die Vorschauwerte setzt die Tabelle `NUM` in `tools/preview/server.py` (gehört dem Lead) oder ein Abfangen der `settings_xml`-Antwort im DevTools-Protokoll |
+| **K18** | **Spiel mit Setter** (A53). Am Tag, Display an. Ausgangswert von `numvar[idx=6].value` (`DISPLAY_BRIGHTNESS`) notieren. Tetris starten (UDP `gTs`), **während das Spiel läuft** `display_brightness_set?value=<anderer Wert, 0..15>` senden (wie S29), einige Sekunden warten, Spiel beenden (UDP `gTq`) | UDP, API lesend, Mitschnitt | Im Mitschnitt `(CMC GTs)`, der Setter als `CMC N06…`, `(CMC GTq)`, danach **`spiel: N Zeilen verworfen`** mit N ≥ 1 und kurz darauf **`info: configuration sent`** — der STM hat die verworfenen Zeilen gezählt und einen Vollabgleich nachgeholt. Danach sind **STM und ESP-Kopie konsistent**: `numvar[idx=6]` steht wieder auf dem Ausgangswert, weil der STM den Setter während des Spiels verworfen hat und der Abgleich die ESP-Kopie aus dem STM neu aufbaut. Am 12.10.2026 belegt: N = 1, `numvar[6]` wieder 1 (L404). **Befund** ist: keine `spiel:`-Zeile, kein `configuration sent` danach, oder `numvar[idx=6]` auf dem gesendeten Wert, während das Display die alte Helligkeit zeigt — dann weichen ESP und STM still voneinander ab, genau der Zustand vor A53 (L316) | **`gTq` ist Teil des Falls, nicht Nachklapp:** Eine Inaktivitätsgrenze gibt es bewusst nicht (Ent-4), ohne `gTq` bleibt die Uhr im Spiel. Den Befehl vorher bereitlegen. Danach `numvar[idx=6]` lesen; steht er nicht auf dem Ausgangswert, über S29 `display_brightness_set?value=<Ausgangswert>` zurück und gegenprüfen. Seit A16 bedient das Spiel den Watchdog, ein Reset ist nicht mehr zu erwarten — trotzdem kurz halten, unter einer Minute. In der Aufräumliste: `numvar[idx=6]` |
+| **K19** | **Abrufzahl im Hauptmodul** (C35). Frische Sitzung, Modul `main`, **15 Minuten** stehen lassen — kein Modulwechsel, kein Neuladen, Fenster im Vordergrund (Phase 6, V3: ein verborgener Tab pausiert die Abrufe und verfälscht die Zählung) | Browser, Mitschnitt | Im Mitschnitt die Aufrufe von `update_status` und `update_table_files` zwischen Öffnen und Ende zählen: **je Endpunkt höchstens 4** — einer beim Öffnen, danach höchstens alle 5 Minuten. Am 13.10.2026 gemessen: je 3 in 15 Minuten, statt vorher 60 (L410). Die übrigen Abrufe (`settings_xml`, `display_power`, `ambilight_power`) laufen unverändert alle 15 s; das ist Soll. **Gegenprobe:** In den Modulen Wartung und Anzeige holt die PWA `update_status` weiterhin bei jedem Lauf, beim Wechsel dorthin sofort — dort ist die hohe Zahl Soll und kein Rückfall | Keine, rein lesend. **Während der Messung kein zweiter Browser und kein `check-pwa.sh`:** Der Mitschnitt zeigt jeden Browser nur als `[Chrome]`, Abrufe zweier Sitzungen sind darin nicht zu trennen. Ein zweiter Browser verdoppelt die Zahl und täuscht einen Rückfall vor; `check-pwa.sh` lädt jedes Modul einmal neu und erzeugt dabei selbst Abrufe |
 
 **Die Werte in K13 bis K16 sind eine Auswahl.** Die Regel selbst steht in einer
 einzigen Fall-Tabelle, `tools/checks/auszug/esp/t17/regeln.tsv`, für ESP und PWA
@@ -1040,7 +1098,7 @@ den Backup-Import prüft der Prüfstand; im Durchlauf werden sie nicht eigens ge
 **Auch hier ist die Abdeckung zu melden**, wie in 6.0c:
 
 ```
-Phase 4, Bedienfälle: von K1 bis K17 X gefahren, Y ausgelassen.
+Phase 4, Bedienfälle: von K1 bis K19 X gefahren, Y ausgelassen.
 Je ausgelassenem Fall: Kennung und Grund.
 ```
 
@@ -1199,8 +1257,8 @@ Ersatzprüfung, die nachweist, dass der Weg funktioniert, ohne den Schaden zu ri
 | `maintenance_reset_eeprom` | Setzt alle Geräteeinstellungen zurück. Wiederherstellbar über B5 — aber IR-Codes nicht | Nur ganz am Ende, nach bestätigt funktionierendem Restore, und nur wenn der Nutzer das IR-Anlernen in Kauf nimmt |
 | `maintenance_format_fs` | Löscht die PWA vom Gerät. Danach ist die Oberfläche weg, mit der man sie hochladen würde | **Gar nicht.** Geprüft wird nur, dass der Endpunkt eingebettete Aufrufe mit 403 abweist — das tut der Smoketest bereits |
 | `eeprom_settings_set` | Schreibt SSID, WLAN-Schlüssel, AP-Zugangsdaten und das Flag „als Zugangspunkt starten" in einem einzigen Aufruf. Ein leeres Feld heisst seit ESP 3.2.5 zwar „nicht ändern", aber ein gesetztes `boot_as_ap=on` genügt, um die Uhr beim nächsten Start aus dem WLAN zu nehmen — derselbe Weg, der das Gerät schon einmal ohne WLAN, ohne AP und ohne Webserver zurückgelassen hätte | Der Endpunkt wird im Durchlauf **ausschliesslich** über den Backup-Import berührt, in B5, B7 und B12, und nur mit der eigenen, unmittelbar vorher erzeugten Sicherung. Ein direkter Aufruf aus Phase 3 heraus findet nicht statt |
-| **Tetris** (UDP-Kommando) | **Null** `watchdog_reload()` im ganzen Modul, und der Hauptloop ist währenddessen blockiert. Ein Tetromino fällt über rund 11 Zeilen in etwa 5,5 s; nach rund **3,6 Steinen** ist das 20-s-Fenster um, und seit 3.2.8 läuft der Watchdog wirklich. Der Reset ist damit nicht wahrscheinlich, sondern sicher (L106) | **Nicht starten.** Geprüft wird nur, dass das Modul vorhanden ist. Wer es trotzdem anfassen will, braucht ein vorbereitetes `GTq` **innerhalb von 20 Sekunden** nach dem Start — ohne diese Vorbereitung bleibt es beim Reset |
-| **Snake** (UDP-Kommando) | Gleichartig gebaut wie Tetris, ebenfalls ohne eine einzige Watchdog-Bedienung (L106) | wie Tetris |
+| **Tetris** (UDP-Kommando) | Der Hauptloop ist während des Spiels blockiert, und es gibt bewusst keine Inaktivitätsgrenze (Ent-4): Ohne `gTq` bleibt die Uhr im Spiel. Den Watchdog bedient das Spiel seit A16; der früher sichere Reset nach rund 20 s (L106) ist damit weg | **Nur in K18** (7.1): kurz, am Tag, mit bereitgelegtem `gTq`. Sonst nicht starten |
+| **Snake** (UDP-Kommando) | Gleichartig gebaut wie Tetris, gleicher Stand bei Watchdog und Zeilenverwerfung (A16, A53) | **Nicht starten.** K18 prüft den gemeinsamen Mechanismus an Tetris; geprüft wird hier nur, dass das Modul vorhanden ist |
 
 **Zusätzlich gilt:** `GET /?a` (Parameter ohne `=`) hat den ESP früher zum Absturz
 gebracht. Der Smoketest sendet das bewusst und prüft, dass die Uhr weiterlebt. Von Hand
@@ -1234,6 +1292,9 @@ Plan und die Disziplin, sie zu lesen.
    `numvar[idx=18]` müssen auf dem Wert **vor** dem Durchlauf stehen (12.1). Danach
    zwingend Variablensatz und Update-Quelle prüfen, wie V3 es verlangt. Im
    Aus-Fenster eines Display-Timers gelten Soll und Rückstellung aus „V3 im Nachtzustand“
+10. **Die M1-Datei aus Phase 0 löschen**, sobald Schritt 1 und gegebenenfalls Phase 5
+    sie nicht mehr brauchen. Sie enthält den WLAN-Schlüssel im Klartext (Kapitel 2b).
+    M2 und M3 bleiben liegen: M2 ist verschlüsselt, M3 enthält nur Prüfsummen
 
 **Ohne Schritt 3 ist der Durchlauf nicht abgeschlossen.** „Sieht wieder normal aus" ist
 keine Wiederherstellung.
