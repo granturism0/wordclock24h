@@ -277,17 +277,19 @@ int main (void)
             }
             fall ("dieselbe Antwort noch einmal", g, S2, 123, "ungefragt", 0, true);
         }
-        /* Frist 5'000 ms */
-        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 1); originate (g); fake_ms += 4999;
-          fall ("nach 4'999 ms", g, S2, 123, nullptr, T + 1, false); }
-        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 2); originate (g); fake_ms += 5000;
-          fall ("nach 5'000 ms", g, S2, 123, "ungefragt", 0, false);
+        /* Frist 60'000 ms (M2): 15 s Bruecke (cap/wps) vor der Auswertung kosten keine rechtzeitige Antwort */
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 6); originate (g); fake_ms += 15000;
+          fall ("nach 15 s (Bruecke beschaeftigt)", g, IPAddress (192, 0, 2, 20), 123, nullptr, T + 6, false); }
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 1); originate (g); fake_ms += 59999;
+          fall ("nach 59'999 ms", g, S2, 123, nullptr, T + 1, false); }
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 2); originate (g); fake_ms += 60000;
+          fall ("nach 60'000 ms", g, S2, 123, "ungefragt", 0, false);
           fall ("nach Ablauf, spaeter noch einmal", g, S2, 123, "ungefragt", 0, true); }
         /* Wortrand: Anfrage kurz vor dem Umlauf (die Drossel ist vom Sprung zurueck auf 0xFFFFFC17 offen: Differenz ueber 60 s) */
         { fake_ms = 0xFFFFFFFFu - 1000u; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 3); originate (g); fake_ms += 3000;
           fall ("Wortrand, 3 s", g, S2, 123, nullptr, T + 3, false); }
-        { fake_ms = 0xFFFFFFFFu - 1000u; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 4); originate (g); fake_ms += 6000;
-          fall ("Wortrand, 6 s", g, S2, 123, "ungefragt", 0, false); }
+        { fake_ms = 0xFFFFFFFFu - 1000u; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 4); originate (g); fake_ms += 61000;
+          fall ("Wortrand, 61 s", g, S2, 123, "ungefragt", 0, false); }
         /* ungefragt geht vor originate nicht verloren: falsche Originate ohne offene Anfrage => ungefragt */
         { std::vector<uint8_t> d = pkt (48, 0, 2, T); fake_ms += 60000; fall ("ohne Anfrage, falsche Originate", d, S2, 123, "ungefragt", 0, false); }
         /* die bisherigen Gruende gehen weiter vor: LI 3 mit richtiger Originate => li=3, Anfrage bleibt offen */

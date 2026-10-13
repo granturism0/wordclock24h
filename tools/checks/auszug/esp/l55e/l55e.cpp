@@ -220,8 +220,19 @@ static void f_verstuemmelt (void)
     std::string n = Serial.out.substr (o0);
     expect (count (n, ".\r\n") == 1, "kein Echo auf die zehn RPCR-Zeilen (genau ein Punkt fuer die var-Zeile)", n);
     expect (log_has ("dazwischen"), "LOG-Zeile dazwischen erreicht den Ring");
-    int v = 0; for (auto & l : logring) if (l == "- rpc Antwort verstuemmelt") v++;
-    expect (v == 9, "neun verstuemmelte Zeilen im Ring (RPCR 01 0 ist gueltig, nur fremder Index)", std::to_string (v));
+    /* N3: Mitschnitt UND Ring, die erste sofort, dann hoechstens eine je Minute; #n zaehlt alle (neun verstuemmelt,
+     * "RPCR 01 0" ist gueltig, nur fremder Index) */
+    int v = 0; for (auto & l : logring) if (l.rfind ("- rpc Antwort verstuemmelt", 0) == 0) v++;
+    expect (v == 1 && log_has ("- rpc Antwort verstuemmelt #1"), "Ring: genau eine Zeile \"- rpc Antwort verstuemmelt #1\" (gedrosselt)", std::to_string (v));
+    expect (count (n, "- rpc Antwort verstuemmelt #1\r\n") == 1 && count (n, "- rpc Antwort verstuemmelt") == 1, "Mitschnitt: genau \"- rpc Antwort verstuemmelt #1\"", n);
+    /* die erste Zeile fiel kurz nach dem Start des Wartens, das 2 s lief */
+    fake_ms += 57000; size_t o1 = Serial.out.size (); push ("RPCR 0"); stm_bridge_poll ();
+    expect (Serial.out.size () == o1, "rund 59 s nach der ersten: gedrosselt, nichts auf der Bruecke", Serial.out.substr (o1));
+    fake_ms += 3000; push ("RPCR 0"); stm_bridge_poll ();
+    expect (count (Serial.out.substr (o1), "- rpc Antwort verstuemmelt #11\r\n") == 1 && log_has ("- rpc Antwort verstuemmelt #11"), "rund 62 s nach der ersten: \"#11\" in Mitschnitt und Ring", Serial.out.substr (o1));
+    fake_ms = 0xFFFFFFFFu - 100u; push ("RPCR 0"); stm_bridge_poll (); size_t o2 = Serial.out.size ();
+    fake_ms += 30000; push ("RPCR 0"); stm_bridge_poll ();
+    expect (Serial.out.size () == o2, "Wortrand: 30 s nach der Meldung gedrosselt", Serial.out.substr (o2));
 }
 static void f_mehrere_var (void)
 {

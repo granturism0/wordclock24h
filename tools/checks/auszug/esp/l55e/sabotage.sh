@@ -27,4 +27,7 @@ sab ohne_indexgrenze       ESP-uclock.ino '                    && htoi (p, 2) < 
 sab abgewiesen_als_7       http.cpp '    else if (result == 1)' '    else if (result == 9)'
 sab nicht_ueberlaufsicher  http.cpp 'if ((millis () - start) >= HTTP_RPC_WAIT_MSEC)' 'if (millis () >= start + HTTP_RPC_WAIT_MSEC)'
 sab wert_vor_antwort       http.cpp '    seq = stm_rpcr_get (idx, (uint_fast8_t *) 0);' '    seq = stm_rpcr_get (idx, (uint_fast8_t *) 0) + 1;'
+sab verstuemmelt_ungedrosselt ESP-uclock.ino 'if (! bad_logged || (millis () - bad_last) >= 60000UL)' 'if (1)'
+sab verstuemmelt_nur_ring    ESP-uclock.ino '                        Serial.println (line);                              // "- "' '                        ;                              // "- "'
+sab verstuemmelt_nur_mitschnitt ESP-uclock.ino '                        stm32_log_append (line);                            // Mitschnitt UND' '                        ;                            // Mitschnitt UND'
 rm -rf "$T"; exit $rc
