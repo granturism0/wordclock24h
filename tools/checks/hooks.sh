@@ -76,6 +76,14 @@ probe "fs_remove aufrufen"            no-danger.py "" Bash 'curl -s "http://1.2.
 probe "ir_code_set aufrufen"          no-danger.py "" Bash 'curl -s "http://1.2.3.4/api/ir_code_set?idx=0"' deny
 probe "EEPROM-Reset aufrufen"         no-danger.py "" Bash 'curl -s http://1.2.3.4/api/maintenance_reset_eeprom' deny
 probe "Parameter ohne Gleichheits="   no-danger.py "" Bash 'curl -s "http://1.2.3.4/?a"' deny
+# Paket 2026-10-13 (0.6, Ent-11): Ab Release EP gehen die Wartungsendpunkte per POST.
+# Ein Hook, der nur auf die URL im GET-Aufruf schaut, saehe den POST nicht.
+probe "EEPROM-Reset per POST"         no-danger.py "" Bash 'curl -s -X POST http://1.2.3.4/api/maintenance_reset_eeprom' deny
+probe "Formatieren per POST mit Daten" no-danger.py "" Bash 'curl -s -X POST --data "x=1" "http://1.2.3.4/api/maintenance_format_fs"' deny
+probe "fs_remove per POST, -d vorn"   no-danger.py "" Bash 'curl -d "filename=app.js.gz" http://1.2.3.4/api/fs_remove' deny
+# L426/C60: der Legacy-Weg loescht die STM-Einstellungen per GET, ohne Herkunftspruefung.
+probe "Legacy rsteeprom2 aufrufen"    no-danger.py "" Bash 'curl -s "http://1.2.3.4/?action=rsteeprom2"' deny
+probe "Legacy format aufrufen"        no-danger.py "" Bash 'curl -s "http://1.2.3.4/fs?action=format"' deny
 probe "Endpunkt im Bericht erwaehnen" no-danger.py "" Bash 'echo "Schritt test_display ausgelassen (DIR-012)"' allow
 probe "Endpunkt in Doku schreiben"    no-danger.py "" Bash 'python3 -c "open(\"BEFUNDE.md\",\"a\").write(\"learn_ir ist gefaehrlich\")"' allow
 

@@ -72,6 +72,11 @@ FORBIDDEN = {
 # mehr im WLAN, sondern spannte einen eigenen Zugangspunkt auf.
 BOOT_AS_AP = re.compile(r"eeprom_settings_set[^\s'\"]*[?&]boot_as_ap=(1|true|on)", re.I)
 
+# Legacy-Oberflaeche (L426/C60, Paket 2026-10-13): "/?action=rsteeprom2" loescht die
+# STM-Einstellungen per GET, "/fs?action=format" das Dateisystem -- beide ohne
+# Herkunftspruefung. Die Liste oben kennt nur /api/<name>; der Legacy-Weg ging durch.
+LEGACY = re.compile(r"https?://[^\s'\"]*[?&]action=(rsteeprom2?|format)\b")
+
 # Parameter ohne '=' in einem Request an das Geraet.
 NO_EQUALS = re.compile(r"https?://[^\s'\"]*\?[A-Za-z_][A-Za-z0-9_]*(?![=A-Za-z0-9_])")
 
@@ -115,6 +120,14 @@ def main():
         # Erwaehnung in Prosa durch.
         if re.search(rf"/api/{re.escape(name)}\b|\b{re.escape(name)}[?&]", command):
             return refuse(f"Aufruf von /api/{name}", why)
+
+    m = LEGACY.search(command)
+    if m:
+        return refuse(
+            f"Legacy-Aufruf action={m.group(1)}",
+            "loescht ueber die Legacy-Oberflaeche die STM-Einstellungen bzw. das "
+            "Dateisystem -- ohne Herkunftspruefung (L426)",
+        )
 
     if BOOT_AS_AP.search(command):
         return refuse(

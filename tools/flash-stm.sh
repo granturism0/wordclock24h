@@ -3,6 +3,12 @@
 #
 #   ./tools/flash-stm.sh            flashen und zuruecksetzen
 #   ./tools/flash-stm.sh --check    nur pruefen, ob alles bereitliegt
+#   ./tools/flash-stm.sh --lokal <hex> [<erwartete Version>]
+#                                   flasht eine LOKALE Hex-Datei (Messbau, Paket 2026-10-13 §2.3)
+#                                   ueber /api/local_stm32_upload und /api/local_stm32_flash --
+#                                   NICHT ueber den Update-Server, damit ein Messbau nie zur
+#                                   Quelle eines naechsten Updates wird. Ohne Smoketest (die
+#                                   Version eines Messbaus weicht ab); zurueck mit --gleich.
 #   ./tools/flash-stm.sh --gleich   auch flashen, wenn Geraet und Server gleich stehen --
 #                                   nur als Probe des Flashwegs (z. B. nach einem ESP-Update,
 #                                   Paket 2026-10-06 F.11). Sonst schuetzt die Gleichheit davor,
@@ -46,6 +52,13 @@ CHECK_ONLY=0
 GLEICH=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 [ "${1:-}" = "--gleich" ] && GLEICH=1
+LOKAL=0
+if [ "${1:-}" = "--lokal" ]; then
+  LOKAL=1; HEX=${2:-}; ERWARTET=${3:-}
+  [ "$ERWARTET" = "--check" ] && { ERWARTET=""; CHECK_ONLY=1; }
+  [ "${4:-}" = "--check" ] && CHECK_ONLY=1
+  [ -s "$HEX" ] || { echo "--lokal: Hex-Datei fehlt oder ist leer: ${HEX:-<keine>}" >&2; exit 2; }
+fi
 
 fail() { printf '  ABBRUCH: %s\n' "$1" >&2; exit 1; }
 
@@ -83,6 +96,44 @@ fi
 us=$(curl -s -m 20 "$U/api/update_status" 2>/dev/null)
 name=$(printf '%s' "$us" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("stm32_default",""))' 2>/dev/null)
 [ -n "$name" ] || fail "Das Geraet meldet keinen stm32_default — ohne Dateinamen flasht der Endpunkt nichts"
+
+# ------------------------------------------------- lokaler Flash (Messbau, AKZ.12)
+if [ "$LOKAL" -eq 1 ]; then
+  hsize=$(wc -c < "$HEX" | tr -d ' ')
+  printf '  Lokale Datei           %s (%s Byte), hochgeladen als %s\n' "$HEX" "$hsize" "$name"
+  fi=$(curl -s -m 20 "$U/api/fs_info" 2>/dev/null)
+  frei=$(printf '%s' "$fi" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(int(d["total"])-int(d["used"]))' 2>/dev/null)
+  [ -n "$frei" ] || fail "fs_info liefert keinen freien Platz"
+  printf '  LittleFS frei          %s Byte\n' "$frei"
+  [ "$frei" -gt $((hsize + 65536)) ] || fail "zu wenig Platz im LittleFS ($frei frei, $hsize noetig plus 64 KiB Reserve)"
+  if [ "$CHECK_ONLY" -eq 1 ]; then echo; echo "  Bereit: lokal $HEX"; exit 0; fi
+  ./tools/logger/log.sh mark "STM-Flash LOKAL $cur -> ${ERWARTET:-?} ($HEX)" >/dev/null 2>&1
+  echo; echo "=== Hochladen (lokal) ==="
+  up=$(curl -s -m 120 -X POST -H 'Content-Type: application/octet-stream' --data-binary @"$HEX" \
+        "$U/api/local_stm32_upload?filename=$name" 2>/dev/null)
+  printf '  Antwort                %s\n' "$up"
+  case "$up" in *'"ok":true'*) ;; *) fail "Upload abgewiesen ($up) — error 2 heisst: Dateiname passt nicht zur Hardware";; esac
+  echo; echo "=== Flashen (lokal) ==="
+  curl -s -m 300 "$U/api/local_stm32_flash" >/dev/null 2>&1
+  for i in $(seq 1 40); do
+    sleep 10
+    r=$(curl -s -m 8 "$U/api/device_ready" 2>/dev/null)
+    case "$r" in *'"ok":true'*) printf '  ESP wieder erreichbar nach %s s\n' "$((i*10))"; break;; esac
+    printf '  warte... (%s s)\n' "$((i*10))"
+  done
+  echo; echo "=== STM zuruecksetzen ==="
+  curl -s -m 30 "$U/api/maintenance_reset_stm32" | head -c 80; echo
+  sleep 12
+  got=$(curl -s -m 20 "$U/api/settings_xml" 2>/dev/null | grep -o '<strvar idx="1" value="[^"]*"' | sed 's/.*value="//;s/"//')
+  printf '  STM meldet jetzt       %s\n' "${got:-nichts}"
+  liegt=$(curl -s -m 20 "$U/api/fs_list" 2>/dev/null | grep -c '"stm32.hex"')
+  [ "$liegt" -gt 0 ] && echo "  Hinweis: stm32.hex liegt weiter im LittleFS (wird nicht geloescht -- fs_remove ist ein Gefahrenendpunkt)"
+  if [ -n "$ERWARTET" ] && [ "$got" != "$ERWARTET" ]; then
+    printf '  erwartet war %s\n' "$ERWARTET" >&2; exit 1
+  fi
+  echo "  Kein Smoketest: ein Messbau meldet eine abweichende Version. Zurueck mit --gleich."
+  exit 0
+fi
 
 printf '  Update-Quelle          %s/%s\n' "$uh" "$up"
 printf '  Dateiname laut Geraet  %s\n' "$name"

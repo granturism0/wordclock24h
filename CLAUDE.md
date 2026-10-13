@@ -420,6 +420,7 @@ Diese Endpunkte sind aus unseren eigenen Befunden heraus gefährlich:
 | `/api/ir_code_set` | überschreibt einen angelernten IR-Code. Der einzige Rückweg ist erneutes Anlernen über `learn_ir` — die Zeile darüber |
 | `/api/maintenance_reset_eeprom`, `/api/maintenance_format_fs` | Datenverlust, PWA weg |
 | `/api/fs_remove?filename=app.js.gz` | löscht die PWA vom Gerät |
+| `/?action=rsteeprom2`, `/fs?action=format` (Legacy) | löschen STM-Einstellungen bzw. Dateisystem per GET — bis Release E1 von Paket 2026-10-13 **ohne** Herkunftsprüfung (`BEFUNDE.md`, L426) |
 | Backup-**Import** | kann das Gerät ohne WLAN, ohne AP und ohne Webserver zurücklassen |
 
 ## R6 — Wer wirklich parallel bauen muss, braucht ein Worktree
