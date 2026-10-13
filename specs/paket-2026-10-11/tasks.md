@@ -245,7 +245,7 @@ in S1 umgesetzt. **Vor dem Release-Build läuft die Matrix auf dem angehobenen S
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | Z.1 | `BEFUNDE.md`: A62 (Ära, neue Grenze 2099), A69 samt M1/M2 und den **sechs niedrigen Restpunkten** aus Review S1 (`design.md` §3.4) als benannte Befunde, A68, N1 (S1); A60 samt Freitakten (Ent-15b), L359, L360 (S2) und der **vorbestehende Nucleo-Befund** aus Review S2.4 (`GPIO_RESET_BIT(SDA_PORT, SCL_PIN)` trifft den falschen Port) als neuer Befund; A23, A53, **A57 schliessen mit G3-Beleg**, A52 falls in S3.2 umgesetzt (S3); A35, L391 (E); C35 (P); A21 nach M.1; A67 mit offenem Gerätenachweis (nächster ESP-OTA); die Flash-Lehre (Schätzungen Faktor 1,5 bis 3 daneben; engste Matrix-Variante rund 156–192 Byte unter dem Teilbuild); der Hinweis zur A57-Abweisung in der PWA (`design.md` §5a) als neuer Befund; ToDo-Liste nachgeführt | `doc-writer` | T.2 | S10 grün; jedes „erledigt" mit Beleg | ☑ | — |
-| Z.2 | `knowledge/architecture-checklist.md`: I²C-Zeit je Byte auf den in G2 **gemessenen** Stand | `doc-writer` | S2.9 | S9/S11 grün | ☐ | — |
+| Z.2 | `knowledge/architecture-checklist.md`: I²C-Zeit je Byte auf den in G2 **gemessenen** Stand | `doc-writer` | S2.9 | S9/S11 grün | ☑ | — |
 | Z.3 | `CLAUDE.md`, Abschnitt Hardware: I²C-Wartezeit je Byte auf den Stand nach A60 | Lead | S2.9 | S9/S11 grün; keine Versionsnummer neu | ☑ | — |
 | Z.4 | **Spec-Endstand** | `spec-writer` | Z.1 | Jede Abweichung offen benannt | — | — |
 | Z.5 | `README-CMAKE.md`: das Matrix-Ziel (`make matrix` / `make clean-matrix`, 72 Varianten, Gate 1'024 Byte für alle) und die **Abweichung beim F411-Startup**; dazu zwei Berichtigungen im Abschnitt Release-ZIP | `doc-writer` | S1.15 | **AKZ.M.1** (Dokumentationsteil); S9/S11 grün. **Stand: in Arbeit, vorgezogen** | ☑ | — |
@@ -295,10 +295,10 @@ der Releases in `CHANGELOG.md` (sechs Einträge vom 11. bis 13.10.2026), Commits
 Remote-Tags und zur Zählung in G5. **Spalte G ist wie im Vorpaket gefolgert:** Jeder Release-Build
 verlangt `guardrails.sh --full` mit Exit 0, und die Tasks davor sind laut „Hängt ab von" seine
 Voraussetzung; einzelne Guardrail-Läufe lagen dem `spec-writer` nicht vor. Bei Z.1 (Commit
-`6de22d2`) und Z.3 (`CLAUDE.md`) ist der Inhalt am Baum nachgelesen. **Spalte R** ist gesetzt, wo
-`BEFUNDE.md` das Review nennt (0.2: „nach vier Runden bestanden", A61; E.6: L406; P.3: Restpunkt
-N-b unter C35, jetzt L418), und bei S3.1 und S3.13 aus dem Release S3 gefolgert. Die Abnahmetexte
-der Tabellen sind nicht nachgezogen — die Belege stehen hier.
+`6de22d2`), Z.2 (Commit `45d5ef1`) und Z.3 (`CLAUDE.md`) ist der Inhalt am Baum nachgelesen.
+**Spalte R** ist gesetzt, wo `BEFUNDE.md` das Review nennt (0.2: „nach vier Runden bestanden", A61;
+E.6: L406; P.3: Restpunkt N-b unter C35, jetzt L418), und bei S3.1 und S3.13 aus dem Release S3
+gefolgert. Die Abnahmetexte der Tabellen sind nicht nachgezogen — die Belege stehen hier.
 
 ### Releases — sechs statt fünf
 
@@ -376,9 +376,12 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
     Testbauten je Einsparung (S3.3) und je Task (S3.5–S3.11) liegen nicht vor.
 11. **Schritt Z:** Z.1 erledigt mit Commit `6de22d2` — Nucleo-Befund als L415/A77
     (`src/i2c/i2c.c:334`), Flash-Lehre L416, A57-Abweisung in der PWA als L417/B55, dazu L418–L420
-    aus den Restpunkten der Reviews. Z.3 erledigt: `CLAUDE.md`, Abschnitt Hardware, nennt die nach
-    A60 gemessenen Werte (rund 15 ms je Zyklus, 35–36 ms für 32 Byte über zwei Seiten, L403).
-    **Z.2 offen:** `knowledge/architecture-checklist.md` ist beim `doc-writer` in Arbeit.
+    aus den Restpunkten der Reviews. Z.2 erledigt mit Commit `45d5ef1`:
+    `knowledge/architecture-checklist.md`, Zeile 26, rechnet mit den Messwerten nach A60 (15 ms je
+    Zyklus, 35–36 ms für 32 Byte über zwei Seiten, L400/L402/L403); die Overlay-Werte (rund 0,9 s
+    F411, 2,6 s F103) sind dort als gerechnet gekennzeichnet. Z.3 erledigt: `CLAUDE.md`, Abschnitt
+    Hardware, nennt die nach A60 gemessenen Werte (rund 15 ms je Zyklus, 35–36 ms für 32 Byte über
+    zwei Seiten, L403).
 
 ### Lehren
 
@@ -407,10 +410,9 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 | A77, B55, B56, B57, A78 | neu benannt beim Abschluss, alle klein | L415, L417–L420 |
 | V3 aus T.2 | STM-Reset von der Berechtigungsprüfung abgewiesen, liegt beim Nutzer; damit auch `numvar[45]` 0→3 aus S79 | L412 |
 | T.1, Teil S3.2-Logzeilen | vom `doc-writer` offen gelassen | `73bb009` |
-| Z.2 | beim `doc-writer` in Arbeit | diese Spec |
 | ESP-Ursache von C35 | ungecachte Abrufe je Aufruf, wirkt weiter über Wartung und Anzeige (Varianten B/C, `design.md` §11) | C35 |
 
-**Spalten G/R, die offen bleiben:** T.1 (Teil offen) und Z.2. Alle übrigen sind gesetzt.
+**Spalten G/R, die offen bleiben:** nur T.1 (Teil offen). Alle übrigen sind gesetzt.
 
 ### Neue Befunde aus diesem Paket
 
