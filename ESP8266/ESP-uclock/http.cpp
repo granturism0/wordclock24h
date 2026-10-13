@@ -272,6 +272,16 @@ static uint16_t     http_no_request_aborts   = 0;
  */
 #define HTTP_API_ERROR_FILE_EMPTY                   8
 
+/* Die Query einer /api/-Anfrage ist laenger als HTTP_API_MAX_QUERY_LEN Zeichen (C46/L345).
+ * Bis Paket 2026-10-13 kuerzte http () sie still auf 255, und ein Setter pruefte danach den
+ * SCHON gekuerzten Wert: Am Ende der Query fehlten Felder, oder ein Schluessel kam gekuerzt
+ * an. Jetzt wird abgewiesen, ohne dass ein Handler laeuft, fuer GET und POST. Legacy-Pfade
+ * kuerzen weiter (AKQ.1). Die PWA kennt die Kennung erst ab Release EP und zeigt bis dahin
+ * ihren Rueckfalltext samt "detail".
+ */
+#define HTTP_API_ERROR_QUERY_TOO_LONG               9
+#define HTTP_API_MAX_QUERY_LEN                      255
+
 /* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK und
  * ALARM_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen. Die Masken haben 3 Bit, also 0..7 -
  * belegt sind aber nur So..Sa, also 0..6. Stand bis C17/L197 unmittelbar vor
@@ -438,10 +448,20 @@ static char             http_app_asset_stale_filename[128];
  */
 static char             http_request_fetch_dest[24];
 
+/* Sec-Fetch-Site des laufenden Requests (C6/C60, Paket 2026-10-13 E1).
+ *
+ * Nennt, WOHER die Anfrage kommt: "same-origin" von einer Seite der Uhr selbst (PWA,
+ * Legacy-Formulare), "none" bei eingetippter Adresse oder Lesezeichen, "same-site" und
+ * "cross-site" von einer fremden Seite. 16 Byte genuegen fuer alle vier; ein laengerer,
+ * unbekannter Wert wird gekuerzt und gilt damit als fremd.
+ */
+static char             http_request_fetch_site[16];
+
 static void
 http_clear_request_fetch_dest (void)
 {
     http_request_fetch_dest[0] = '\0';
+    http_request_fetch_site[0] = '\0';                      // ebenfalls je Request, sonst wirkt der vorige nach
 }
 
 static void
@@ -458,6 +478,22 @@ http_capture_request_fetch_dest (const String& line)
     v.trim ();
     strncpy (http_request_fetch_dest, v.c_str (), sizeof (http_request_fetch_dest) - 1);
     http_request_fetch_dest[sizeof (http_request_fetch_dest) - 1] = '\0';
+}
+
+static void
+http_capture_request_fetch_site (const String& line)
+{
+    String v;
+
+    if (! line.startsWith ("Sec-Fetch-Site:"))
+    {
+        return;
+    }
+
+    v = line.substring (15);
+    v.trim ();
+    strncpy (http_request_fetch_site, v.c_str (), sizeof (http_request_fetch_site) - 1);
+    http_request_fetch_site[sizeof (http_request_fetch_site) - 1] = '\0';
 }
 
 /* Wahr, wenn die Antwort als eingebettete Ressource verwendet werden soll -- Bild,
@@ -498,18 +534,96 @@ http_request_is_embedded_subresource (void)
     return 0;
 }
 
-static void
-http_deny_embedded_subresource (const char * what)
+/* Wahr, wenn die Anfrage von einer fremden Seite stammt (C6/C60): Sec-Fetch-Site gesetzt und
+ * weder "same-origin" noch "none". Ohne Header nicht entscheidbar - curl, die Werkzeuge unter
+ * tools/ und aeltere Browser bleiben zugelassen (design.md 8.1, Grenze bewusst).
+ *
+ * Sec-Fetch-Dest allein genuegt nicht: Ein Link oder ein Formular auf einer fremden Seite
+ * fuehrt zu einer Navigation mit "document" und kam bisher durch - bei /?action=rsteeprom2
+ * hiess das: Einstellungen des STM geloescht (C60/L426).
+ */
+static uint_fast8_t
+http_request_is_cross_origin (void)
 {
-    Serial.print ("- abgewiesen: ");
+    if (! http_request_fetch_site[0])
+    {
+        return 0;                                           // Header fehlt: nicht entscheidbar
+    }
+
+    if (! strcmp (http_request_fetch_site, "same-origin") || ! strcmp (http_request_fetch_site, "none"))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* Herkunftspruefung fuer JEDEN zerstoerenden Weg (C6, C6v, C60; Paket 2026-10-13 E1): die
+ * Wartungsendpunkte maintenance_format_fs, _reset_stm32, _reset_eeprom, dazu fs_remove, und
+ * die Legacy-Wege /?action=rststm32 und rsteeprom2, /fs?action=format und remove,
+ * /update?action=reset, /flash_stm32_local?action=reset.
+ *
+ * Abgewiesen (403) wird ein eingebettetes Sec-Fetch-Dest ODER ein fremdes Sec-Fetch-Site.
+ * Rueckgabe 1: abgewiesen, die Antwort ist gesendet, der Aufrufer kehrt sofort zurueck.
+ * as_page: Legacy - kurze HTML-Seite statt JSON. Logzeile, nur bei Abweisung:
+ *     - abgewiesen: <was> als Sec-Fetch-Dest=<wert>
+ *     - abgewiesen: <was> als Sec-Fetch-Site=<wert>
+ *
+ * Wer einen neuen Weg zu stm32_reset (), RESET_EEPROM_RPC_VAR, LittleFS.format () oder einem
+ * LittleFS.remove () mit Namen aus der Anfrage baut, ruft diese Funktion vorher. Der
+ * Pruefstand c6h fuehrt die Bestandsliste und schlaegt bei einem ungeprueften Weg an.
+ */
+static uint_fast8_t
+http_request_denied_by_origin (const __FlashStringHelper * what, uint_fast8_t as_page)
+{
+    uint_fast8_t by_dest = http_request_is_embedded_subresource ();
+
+    if (! by_dest && ! http_request_is_cross_origin ())
+    {
+        return 0;
+    }
+
+    Serial.print (F("- abgewiesen: "));
     Serial.print (what);
-    Serial.print (" als Sec-Fetch-Dest=");
-    Serial.println (http_request_fetch_dest);
+
+    if (by_dest)
+    {
+        Serial.print (F(" als Sec-Fetch-Dest="));
+        Serial.println (http_request_fetch_dest);
+    }
+    else
+    {
+        Serial.print (F(" als Sec-Fetch-Site="));
+        Serial.println (http_request_fetch_site);
+    }
+
     Serial.flush ();
 
-    http_send (FS("HTTP/1.0 403 Forbidden\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":false,\"error\":\"embedded-subresource\"}"));
+    if (as_page)
+    {
+        http_send (FS("HTTP/1.0 403 Forbidden\r\nContent-Type: text/html\r\nCache-Control: no-cache\r\n\r\n"
+                      "<html><body><h3>403 - abgewiesen</h3>"
+                      "<p>Diese Aktion ist nur von den Seiten der Uhr selbst aus erlaubt, "
+                      "nicht von einer fremden Seite und nicht eingebettet.</p>"
+                      "<p><a href=\"/\">Zur Startseite</a></p></body></html>\r\n"));
+    }
+    else
+    {
+        http_send (FS("HTTP/1.0 403 Forbidden\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+
+        if (by_dest)
+        {
+            http_send (FS("{\"ok\":false,\"error\":\"embedded-subresource\"}"));
+        }
+        else
+        {
+            http_send (FS("{\"ok\":false,\"error\":\"cross-site\"}"));
+        }
+    }
+
     http_flush ();
+
+    return 1;
 }
 
 static void
@@ -3454,6 +3568,11 @@ http_main (void)
         }
         else if (! strcmp (action, "rststm32"))
         {
+            if (http_request_denied_by_origin (F("legacy rststm32"), 1))      // C60/L426
+            {
+                return 0;
+            }
+
             message = "Resetting STM32...";
             do_reset = 1;
         }
@@ -3463,6 +3582,11 @@ http_main (void)
         }
         else if (! strcmp (action, "rsteeprom2"))
         {
+            if (http_request_denied_by_origin (F("legacy rsteeprom2"), 1))    // C60/L426
+            {
+                return 0;
+            }
+
             message = "Resetting EEPROM, you should now restart STM32...";
             rpc (RESET_EEPROM_RPC_VAR);
             do_reset_eeprom = 2;
@@ -6531,6 +6655,40 @@ skip_leading_body_newlines (void)
 #define POST_TABLES_FILE          3
 #define POST_DISPLAY_FILE         4
 
+/* C19/L311 (Paket 2026-10-13, Ent-7): die Legacy-Zwillinge von /api/update_host_set und
+ * /api/update_path_set, auf der Dateisystemseite UND auf der Update-Seite (L429). Bisher
+ * setzten beide ungeprueft: Ein leerer Wert liess den ESP auf die eingebauten Vorgaben
+ * zurueckfallen, den Server des Ursprungsprojekts (L42, DIR-009); ein ueberlanger wurde
+ * still gekuerzt (L124). Dieselben Pruefungen wie die API: nicht leer
+ * (http_get_string_param), hoechstens maxlen Byte (http_strvar_len_ok).
+ *
+ * Rueckgabe 1: gespeichert. 0: abgewiesen, Host bzw. Pfad bleiben unveraendert; die Seite
+ * zeigt dann http_send_update_source_rejected (). Der uebrige Legacy-Zweig bleibt bewusst
+ * wie er ist (Ent-7).
+ */
+static uint_fast8_t
+http_legacy_set_update_source (STR_VARIABLE var, const char * name, unsigned int maxlen)
+{
+    char * value;
+
+    if (! http_get_string_param (name, &value) || ! http_strvar_len_ok (value, maxlen))
+    {
+        return 0;
+    }
+
+    set_strvar (var, value);
+
+    return 1;
+}
+
+/* 63 = MAX_UPDATE_HOST_LEN = MAX_UPDATE_PATH_LEN (vars.h) */
+static void
+http_send_update_source_rejected (void)
+{
+    http_send_FS ("<P><font color=red><B>Abgewiesen: Update-Host und Update-Pfad d&uuml;rfen nicht leer "
+                  "und h&ouml;chstens 63 Byte lang sein. Nicht gespeichert.</B></font><BR>\r\n");
+}
+
 static uint_fast8_t
 http_fs (int post = POST_ICON_NONE)
 {
@@ -6553,6 +6711,7 @@ http_fs (int post = POST_ICON_NONE)
     STR_VAR *       sv;
     int             len;
     uint_fast8_t    rtc = 0;
+    uint_fast8_t    update_source_rejected = 0;                  // C19/L311
 
     action = http_get_param ("action");
 
@@ -6713,21 +6872,38 @@ http_fs (int post = POST_ICON_NONE)
         LittleFS.end();
     }
 
-    if (*action)
+    /* Nur bei GET (C6v, Paket 2026-10-13 E1). Ein POST auf /fs-icon & Co. kam mit
+     * "?action=format" oder "?action=remove" hier an, und die Herkunftspruefung sieht bei
+     * POST nichts: Die Kopfzeilen liest dort der Upload, Sec-Fetch-* wird nie erfasst - ein
+     * Formular-POST von einer fremden Seite haette das Dateisystem geloescht. Die
+     * Upload-Formulare der Seite senden keine Query; fuer sie aendert sich nichts.
+     */
+    if (*action && post == POST_ICON_NONE)
     {
         if (! strcmp (action, "format"))
         {
+            if (http_request_denied_by_origin (F("legacy fs format"), 1))     // C6v/L312
+            {
+                return 0;
+            }
+
             LittleFS.begin ();
             LittleFS.format ();
             LittleFS.end ();
         }
         else if (! strcmp (action, "saveuphost"))
         {
-            set_strvar (UPDATE_HOST_VAR, http_get_param ("uphost"));
+            if (! http_legacy_set_update_source (UPDATE_HOST_VAR, "uphost", MAX_UPDATE_HOST_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "saveuppath"))
         {
-            set_strvar (UPDATE_PATH_VAR, http_get_param ("uppath"));
+            if (! http_legacy_set_update_source (UPDATE_PATH_VAR, "uppath", MAX_UPDATE_PATH_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "savedwnfil"))
         {
@@ -6765,6 +6941,12 @@ http_fs (int post = POST_ICON_NONE)
         else if (! strcmp (action, "remove"))
         {
             char * fname = http_get_param ("filename");
+
+            if (http_request_denied_by_origin (F("legacy fs remove"), 1))     // C6v/L312
+            {
+                return 0;
+            }
+
             LittleFS.begin ();
             LittleFS.remove (fname);
             LittleFS.end ();
@@ -6778,6 +6960,11 @@ http_fs (int post = POST_ICON_NONE)
     http_header ("ESP8266 LittleFS", (const char *) NULL, (const char *) NULL);
     begin_box ("ESP8266 LittleFS");
     message_tables_file_missing ();
+
+    if (update_source_rejected)
+    {
+        http_send_update_source_rejected ();
+    }
 
     if (tables_corrupt)
     {
@@ -7487,6 +7674,7 @@ http_update (void)
     int                 do_update = 0;
     int                 do_reset = 0;
     int                 flash_rejected = 0;
+    uint_fast8_t        update_source_rejected = 0;                 // C19/L311
     STR_VAR *           sv;
     char *              version;
     char *              update_host;
@@ -7519,11 +7707,17 @@ http_update (void)
         }
         else if (! strcmp (action, "saveuphost"))
         {
-            set_strvar (UPDATE_HOST_VAR, http_get_param ("uphost"));
+            if (! http_legacy_set_update_source (UPDATE_HOST_VAR, "uphost", MAX_UPDATE_HOST_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "saveuppath"))
         {
-            set_strvar (UPDATE_PATH_VAR, http_get_param ("uppath"));
+            if (! http_legacy_set_update_source (UPDATE_PATH_VAR, "uppath", MAX_UPDATE_PATH_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "flash"))
         {
@@ -7541,6 +7735,11 @@ http_update (void)
         }
         else if (! strcmp (action, "reset"))
         {
+            if (http_request_denied_by_origin (F("legacy update reset"), 1))  // C60
+            {
+                return 0;
+            }
+
             do_reset = 1;
         }
     }
@@ -7575,6 +7774,11 @@ http_update (void)
     }
 
     begin_box ("Update");
+
+    if (update_source_rejected)
+    {
+        http_send_update_source_rejected ();
+    }
 
     if (flashsize >= 4194304)
     {
@@ -9707,9 +9911,8 @@ http_api_update_download_table ()
 static int
 http_api_maintenance_format_fs ()
 {
-    if (http_request_is_embedded_subresource ())
+    if (http_request_denied_by_origin (F("maintenance_format_fs"), 0))
     {
-        http_deny_embedded_subresource ("maintenance_format_fs");
         return 0;
     }
 
@@ -9731,9 +9934,8 @@ http_api_maintenance_reset_stm32 ()
      * Schutzlogik pruefen, ohne Daten zu riskieren -- die beiden anderen Endpunkte
      * kann man zum Testen nicht aufrufen.
      */
-    if (http_request_is_embedded_subresource ())
+    if (http_request_denied_by_origin (F("maintenance_reset_stm32"), 0))
     {
-        http_deny_embedded_subresource ("maintenance_reset_stm32");
         return 0;
     }
 
@@ -9751,9 +9953,8 @@ http_api_maintenance_reset_stm32 ()
 static int
 http_api_maintenance_reset_eeprom ()
 {
-    if (http_request_is_embedded_subresource ())
+    if (http_request_denied_by_origin (F("maintenance_reset_eeprom"), 0))
     {
-        http_deny_embedded_subresource ("maintenance_reset_eeprom");
         return 0;
     }
 
@@ -12351,6 +12552,11 @@ http_api_fs_remove ()
     char * fname = http_get_param ("filename");
     bool   removed;
 
+    if (http_request_denied_by_origin (F("fs_remove"), 0))     // C6v/L312
+    {
+        return 0;
+    }
+
     if (! *fname)                                           // nie NULL, siehe Vertrag bei http_get_param (C20/L199)
     {
         http_json_error (HTTP_API_ERROR_MISSING_VALUE, "filename required");
@@ -13611,6 +13817,11 @@ flash_stm32_local (bool post = false)
     {
         if (! strcmp (action, "reset"))
         {
+            if (http_request_denied_by_origin (F("legacy local reset"), 1))   // C60
+            {
+                return 0;
+            }
+
             do_reset = 1;
         }
     }
@@ -13789,10 +14000,38 @@ http_api_stm32_log_clear ()
  * http server
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+/* C46/L345: Rueckgabe 1, wenn eine /api/-Anfrage mit zu langer Query abgewiesen wurde - die
+ * Antwort mit Kennung 9 ist dann gesendet, kein Handler laeuft. Legacy-Pfade kuerzen weiter.
+ * Die Logzeile nennt nur die Laenge, nie den Inhalt (L179):
+ *     - abgewiesen: query <n> Zeichen
+ */
+static uint_fast8_t
+http_api_query_too_long (const char * path, size_t query_len)
+{
+    if (query_len <= HTTP_API_MAX_QUERY_LEN || strncmp (path, "/api/", 5))
+    {
+        return 0;
+    }
+
+    Serial.print (F("- abgewiesen: query "));
+    Serial.print ((unsigned long) query_len);
+    Serial.println (F(" Zeichen"));
+    Serial.flush ();
+
+    http_json_error (HTTP_API_ERROR_QUERY_TOO_LONG, FS("query too long"));
+
+    return 1;
+}
+
 uint_fast8_t
 http (const char * path, const char * const_param)
 {
     char param[256];
+
+    if (http_api_query_too_long (path, strlen (const_param)))     // C46: abweisen statt still kuerzen
+    {
+        return 0;
+    }
 
     strncpy (param, const_param, 255);
     param[255] = '\0';
@@ -14630,6 +14869,8 @@ http_server_loop (void)
 
     if (start_position == 0)
     {
+        uint_fast8_t query_rejected = 0;                                    // C46
+
         http_log_request (sRemoteIp, http_get_request_browser_label (), sRequest);  // Teil C: ohne Querystring
 
         start_position += sPoststart.length ();
@@ -14645,6 +14886,8 @@ http_server_loop (void)
                 sPath  = sRequest.substring(start_position, end_position_question);
                 sParam = sRequest.substring(end_position_question + 1, end_position_space);
 
+                query_rejected = http_api_query_too_long (sPath.c_str (), sParam.length ());
+
                 strncpy (param, sParam.c_str (), 255);
                 param[255] = '\0';
                 http_set_params (param);
@@ -14655,7 +14898,11 @@ http_server_loop (void)
                 http_set_params ((char *) NULL);
             }
         }
-        http_post (sPath);
+
+        if (! query_rejected)
+        {
+            http_post (sPath);
+        }
     }
     else // GET
     {
@@ -14677,6 +14924,10 @@ http_server_loop (void)
             else if (sHeaderLine.startsWith ("Sec-Fetch-Dest:"))
             {
                 http_capture_request_fetch_dest (sHeaderLine);
+            }
+            else if (sHeaderLine.startsWith ("Sec-Fetch-Site:"))
+            {
+                http_capture_request_fetch_site (sHeaderLine);
             }
         }
 
