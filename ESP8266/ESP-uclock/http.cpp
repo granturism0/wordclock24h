@@ -272,6 +272,24 @@ static uint16_t     http_no_request_aborts   = 0;
  */
 #define HTTP_API_ERROR_FILE_EMPTY                   8
 
+/* Die Query einer /api/-Anfrage ist laenger als HTTP_API_MAX_QUERY_LEN Zeichen (C46/L345).
+ * Bis Paket 2026-10-13 kuerzte http () sie still auf 255, und ein Setter pruefte danach den
+ * SCHON gekuerzten Wert: Am Ende der Query fehlten Felder, oder ein Schluessel kam gekuerzt
+ * an. Jetzt wird abgewiesen, ohne dass ein Handler laeuft, fuer GET und POST. Legacy-Pfade
+ * kuerzen weiter (AKQ.1). Die PWA kennt die Kennung erst ab Release EP und zeigt bis dahin
+ * ihren Rueckfalltext samt "detail".
+ */
+#define HTTP_API_ERROR_QUERY_TOO_LONG               9
+#define HTTP_API_MAX_QUERY_LEN                      255
+
+/* B55 (Paket 2026-10-13, design.md 6.2): ldr_min_set/ldr_max_set warten auf die Rueckmeldung "RPCR" des STM.
+ * 10: Der STM hat den Messwert abgewiesen -- er haette Minimum und Maximum vertauscht (A57).
+ * 11: Der STM hat innerhalb der Frist nicht geantwortet (STM vor 3.2.34, Zeile verloren oder verstuemmelt).
+ * Die Messung selbst fehlgeschlagen traegt die vorhandene Kennung 7. Die PWA kennt 10 und 11 erst ab Release EP.
+ */
+#define HTTP_API_ERROR_REJECTED                     10
+#define HTTP_API_ERROR_NO_ANSWER                    11
+
 /* Hoechster Wochentag, den die Masken NIGHT_TIME_FROM_DAY_MASK/TO_DAY_MASK und
  * ALARM_TIME_FROM_DAY_MASK/TO_DAY_MASK tragen. Die Masken haben 3 Bit, also 0..7 -
  * belegt sind aber nur So..Sa, also 0..6. Stand bis C17/L197 unmittelbar vor
@@ -6531,6 +6549,40 @@ skip_leading_body_newlines (void)
 #define POST_TABLES_FILE          3
 #define POST_DISPLAY_FILE         4
 
+/* C19/L311 (Paket 2026-10-13, Ent-7): die Legacy-Zwillinge von /api/update_host_set und
+ * /api/update_path_set, auf der Dateisystemseite UND auf der Update-Seite (L429). Bisher
+ * setzten beide ungeprueft: Ein leerer Wert liess den ESP auf die eingebauten Vorgaben
+ * zurueckfallen, den Server des Ursprungsprojekts (L42, DIR-009); ein ueberlanger wurde
+ * still gekuerzt (L124). Dieselben Pruefungen wie die API: nicht leer
+ * (http_get_string_param), hoechstens maxlen Byte (http_strvar_len_ok).
+ *
+ * Rueckgabe 1: gespeichert. 0: abgewiesen, Host bzw. Pfad bleiben unveraendert; die Seite
+ * zeigt dann http_send_update_source_rejected (). Der uebrige Legacy-Zweig bleibt bewusst
+ * wie er ist (Ent-7).
+ */
+static uint_fast8_t
+http_legacy_set_update_source (STR_VARIABLE var, const char * name, unsigned int maxlen)
+{
+    char * value;
+
+    if (! http_get_string_param (name, &value) || ! http_strvar_len_ok (value, maxlen))
+    {
+        return 0;
+    }
+
+    set_strvar (var, value);
+
+    return 1;
+}
+
+/* 63 = MAX_UPDATE_HOST_LEN = MAX_UPDATE_PATH_LEN (vars.h) */
+static void
+http_send_update_source_rejected (void)
+{
+    http_send_FS ("<P><font color=red><B>Abgewiesen: Update-Host und Update-Pfad d&uuml;rfen nicht leer "
+                  "und h&ouml;chstens 63 Byte lang sein. Nicht gespeichert.</B></font><BR>\r\n");
+}
+
 static uint_fast8_t
 http_fs (int post = POST_ICON_NONE)
 {
@@ -6553,6 +6605,7 @@ http_fs (int post = POST_ICON_NONE)
     STR_VAR *       sv;
     int             len;
     uint_fast8_t    rtc = 0;
+    uint_fast8_t    update_source_rejected = 0;                  // C19/L311
 
     action = http_get_param ("action");
 
@@ -6723,11 +6776,17 @@ http_fs (int post = POST_ICON_NONE)
         }
         else if (! strcmp (action, "saveuphost"))
         {
-            set_strvar (UPDATE_HOST_VAR, http_get_param ("uphost"));
+            if (! http_legacy_set_update_source (UPDATE_HOST_VAR, "uphost", MAX_UPDATE_HOST_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "saveuppath"))
         {
-            set_strvar (UPDATE_PATH_VAR, http_get_param ("uppath"));
+            if (! http_legacy_set_update_source (UPDATE_PATH_VAR, "uppath", MAX_UPDATE_PATH_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "savedwnfil"))
         {
@@ -6778,6 +6837,11 @@ http_fs (int post = POST_ICON_NONE)
     http_header ("ESP8266 LittleFS", (const char *) NULL, (const char *) NULL);
     begin_box ("ESP8266 LittleFS");
     message_tables_file_missing ();
+
+    if (update_source_rejected)
+    {
+        http_send_update_source_rejected ();
+    }
 
     if (tables_corrupt)
     {
@@ -7487,6 +7551,7 @@ http_update (void)
     int                 do_update = 0;
     int                 do_reset = 0;
     int                 flash_rejected = 0;
+    uint_fast8_t        update_source_rejected = 0;                 // C19/L311
     STR_VAR *           sv;
     char *              version;
     char *              update_host;
@@ -7519,11 +7584,17 @@ http_update (void)
         }
         else if (! strcmp (action, "saveuphost"))
         {
-            set_strvar (UPDATE_HOST_VAR, http_get_param ("uphost"));
+            if (! http_legacy_set_update_source (UPDATE_HOST_VAR, "uphost", MAX_UPDATE_HOST_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "saveuppath"))
         {
-            set_strvar (UPDATE_PATH_VAR, http_get_param ("uppath"));
+            if (! http_legacy_set_update_source (UPDATE_PATH_VAR, "uppath", MAX_UPDATE_PATH_LEN))
+            {
+                update_source_rejected = 1;
+            }
         }
         else if (! strcmp (action, "flash"))
         {
@@ -7575,6 +7646,11 @@ http_update (void)
     }
 
     begin_box ("Update");
+
+    if (update_source_rejected)
+    {
+        http_send_update_source_rejected ();
+    }
 
     if (flashsize >= 4194304)
     {
@@ -10147,16 +10223,121 @@ http_api_temperature_ds18xx_correction_set ()
     return http_api_temperature_correction_set (DS18XX_TEMP_INDEX_NUM_VAR, DS18XX_TEMP_CORRECTION_NUM_VAR);
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * B55 (Paket 2026-10-13, design.md 6.2, Ent-6): "Messwert uebernehmen" meldet das Ergebnis des STM.
+ *
+ * Bis ESP 3.2.33 antworteten ldr_min_set/ldr_max_set sofort {"ok":true}, gleich ob der STM den Wert uebernahm,
+ * abwies (A57) oder die Messung scheiterte. Jetzt: rpc () senden, dann bis HTTP_RPC_WAIT_MSEC die Bruecke ueber
+ * stm_bridge_poll () weiterlesen -- dieselbe Funktion wie loop (), Quittungen gehen also weiter hinaus -- bis die
+ * laufende Nummer der Rueckmeldung "RPCR xx r" fuer diesen Index wechselt.
+ *
+ *     r = 0   {"ok":true,"value":<n>}     n = der vom STM gemeldete Wert (die var-Zeile kommt VOR RPCR)
+ *     r = 1   Kennung 10                  abgewiesen
+ *     r = 2   Kennung 7                   Messung fehlgeschlagen
+ *     Frist   Kennung 11                  und die Zeile "- rpc keine Antwort #<n> idx=<xx>"
+ *
+ * Grenze von n, benannt (Review E2.7 N1): n kann der ALTE Wert sein, wenn der ESP die var-Zeile mit "!v" abweist
+ * (Pruefsumme, Markenpflicht) und der STM sie erst nach RPCR nachsendet. RPCR = 0 heisst dann trotzdem: uebernommen.
+ *
+ * Die Zeile geht in den Mitschnitt UND nach /api/stm32_log (L185), gedrosselt: die erste sofort, danach hoechstens
+ * eine je Minute; #<n> zaehlt alle. Ein STM vor 3.2.34 kennt RPCR nicht: Jeder Druck kostet dann 2 s und meldet 11.
+ *
+ * KOSTEN: HTTP steht waehrend des Wartens still (hoechstens 2 s, mit yield ()), bewusst -- Ent-6 verlangt das Warten.
+ * Auf der Bruecke ein RPC wie bisher; die Rueckmeldung sind rund 11 Byte vom STM, vom ESP kommt nichts dazu.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_RPC_WAIT_MSEC                      2000UL
+#define HTTP_RPC_NOANSWER_LOG_INTERVAL          60000UL                 // msec
+
+static uint32_t         http_rpc_noanswer_cnt       = 0;
+static unsigned long    http_rpc_noanswer_last      = 0;
+static uint_fast8_t     http_rpc_noanswer_logged    = 0;
+
+static void
+http_rpc_noanswer_note (uint_fast8_t idx)
+{
+    if (http_rpc_noanswer_cnt < 0xFFFFFFFFUL)                           // saettigend
+    {
+        http_rpc_noanswer_cnt++;
+    }
+
+    if (! http_rpc_noanswer_logged || (millis () - http_rpc_noanswer_last) >= HTTP_RPC_NOANSWER_LOG_INTERVAL)
+    {
+        char line[48];                                                  // "- rpc keine Antwort #4294967295 idx=ff" = 38
+
+        http_rpc_noanswer_logged    = 1;
+        http_rpc_noanswer_last      = millis ();
+
+        snprintf_P (line, sizeof (line), PSTR ("- rpc keine Antwort #%lu idx=%02x"), (unsigned long) http_rpc_noanswer_cnt, (unsigned int) (idx & 0xFF));
+        Serial.println (line);
+        Serial.flush ();
+        stm32_log_append (line);
+    }
+}
+
+static int
+http_api_ldr_rpc_set (RPC_VARIABLE rpc_var, NUM_VARIABLE num_var)
+{
+    uint_fast8_t    idx         = (uint_fast8_t) rpc_var;
+    uint_fast8_t    result      = 0xFF;
+    uint_fast8_t    answered    = 0;
+    uint_fast8_t    seq;
+    unsigned long   start;
+
+    seq = stm_rpcr_get (idx, (uint_fast8_t *) 0);                       // VOR dem rpc (): die Antwort darf nicht durchrutschen
+    rpc (rpc_var);
+    start = millis ();
+
+    for (;;)
+    {
+        stm_bridge_poll ();
+
+        if (stm_rpcr_get (idx, &result) != seq)
+        {
+            answered = 1;
+            break;
+        }
+
+        if ((millis () - start) >= HTTP_RPC_WAIT_MSEC)                  // Differenzbildung ist ueberlaufsicher
+        {
+            break;
+        }
+
+        yield ();
+    }
+
+    if (! answered)
+    {
+        http_rpc_noanswer_note (idx);
+        http_json_error (HTTP_API_ERROR_NO_ANSWER, FS("no answer from STM"));
+    }
+    else if (result == 1)
+    {
+        http_json_error (HTTP_API_ERROR_REJECTED, FS("measured value rejected by STM: minimum must stay below maximum"));
+    }
+    else if (result != 0)
+    {
+        http_json_error (HTTP_API_ERROR_ACTION_FAILED, FS("measurement failed"));
+    }
+    else
+    {
+        char    value[12];
+
+        snprintf_P (value, sizeof (value), PSTR ("%u"), (unsigned int) get_numvar (num_var));
+        http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
+        http_send (FS("{\"ok\":true,\"value\":"));
+        http_send (value);
+        http_send (FS("}"));
+        http_flush ();
+    }
+
+    return 0;
+}
+
 static int
 http_api_ldr_min_set ()
 {
-    rpc (LDR_MIN_VALUE_RPC_VAR);
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
-
-    return 0;
+    return http_api_ldr_rpc_set (LDR_MIN_VALUE_RPC_VAR, LDR_MIN_VALUE_NUM_VAR);
 }
 
 /* Der ADC des STM ist 12 bit. Nach unten wurde geklammert, nach oben gar nicht:
@@ -10223,13 +10404,7 @@ http_api_ldr_min_value_set ()
 static int
 http_api_ldr_max_set ()
 {
-    rpc (LDR_MAX_VALUE_RPC_VAR);
-
-    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
-    http_send (FS("{\"ok\":true}"));
-    http_flush ();
-
-    return 0;
+    return http_api_ldr_rpc_set (LDR_MAX_VALUE_RPC_VAR, LDR_MAX_VALUE_NUM_VAR);    // B55, siehe ldr_min_set
 }
 
 static int
@@ -13789,10 +13964,38 @@ http_api_stm32_log_clear ()
  * http server
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
+/* C46/L345: Rueckgabe 1, wenn eine /api/-Anfrage mit zu langer Query abgewiesen wurde - die
+ * Antwort mit Kennung 9 ist dann gesendet, kein Handler laeuft. Legacy-Pfade kuerzen weiter.
+ * Die Logzeile nennt nur die Laenge, nie den Inhalt (L179):
+ *     - abgewiesen: query <n> Zeichen
+ */
+static uint_fast8_t
+http_api_query_too_long (const char * path, size_t query_len)
+{
+    if (query_len <= HTTP_API_MAX_QUERY_LEN || strncmp (path, "/api/", 5))
+    {
+        return 0;
+    }
+
+    Serial.print (F("- abgewiesen: query "));
+    Serial.print ((unsigned long) query_len);
+    Serial.println (F(" Zeichen"));
+    Serial.flush ();
+
+    http_json_error (HTTP_API_ERROR_QUERY_TOO_LONG, FS("query too long"));
+
+    return 1;
+}
+
 uint_fast8_t
 http (const char * path, const char * const_param)
 {
     char param[256];
+
+    if (http_api_query_too_long (path, strlen (const_param)))     // C46: abweisen statt still kuerzen
+    {
+        return 0;
+    }
 
     strncpy (param, const_param, 255);
     param[255] = '\0';
@@ -14630,6 +14833,8 @@ http_server_loop (void)
 
     if (start_position == 0)
     {
+        uint_fast8_t query_rejected = 0;                                    // C46
+
         http_log_request (sRemoteIp, http_get_request_browser_label (), sRequest);  // Teil C: ohne Querystring
 
         start_position += sPoststart.length ();
@@ -14645,6 +14850,8 @@ http_server_loop (void)
                 sPath  = sRequest.substring(start_position, end_position_question);
                 sParam = sRequest.substring(end_position_question + 1, end_position_space);
 
+                query_rejected = http_api_query_too_long (sPath.c_str (), sParam.length ());
+
                 strncpy (param, sParam.c_str (), 255);
                 param[255] = '\0';
                 http_set_params (param);
@@ -14655,7 +14862,11 @@ http_server_loop (void)
                 http_set_params ((char *) NULL);
             }
         }
-        http_post (sPath);
+
+        if (! query_rejected)
+        {
+            http_post (sPath);
+        }
     }
     else // GET
     {

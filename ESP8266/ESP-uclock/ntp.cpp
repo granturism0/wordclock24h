@@ -47,6 +47,19 @@ unsigned int    ntp_local_port = 2421;
  *   li=3       Leap Indicator 3: Server nicht synchronisiert.
  *   stratum=0  Kiss-of-Death bzw. unbestimmt.
  *   transmit=0 Sekundenfeld des Transmit-Zeitstempels (Byte 40..43) ist 0 -- genau das, was als TIME ginge.
+ *   ungefragt  C59: Es ist keine Anfrage offen. Offen ist sie ab send_ntp_packet () fuer NTP_ANSWER_TIMEOUT ms und bis
+ *              zur ersten angenommenen Antwort; danach ist sie geschlossen, eine zweite Antwort (Wiederholung) faellt hier.
+ *              Die Frist ist bewusst grosszuegig (60 s, Review E2.7 M2): Gemessen wird erst bei der Auswertung in loop (),
+ *              und davor kann stm_bridge_poll () einen Wetterabruf (bis 5 s), eine RPCR-Wartezeit (2 s) oder cap/wps
+ *              (bis rund 15 s) abarbeiten -- eine rechtzeitig eingetroffene Antwort fiele sonst als "ungefragt" weg. Die
+ *              Bindung an die Anfrage leistet der Zufallswert (originate), die Frist faengt nur alte Antworten.
+ *   originate  C59: Das Originate-Feld der Antwort (Byte 24..31) ist nicht genau der Zufallswert, den die Anfrage im
+ *              Transmit-Feld (Byte 40..47) trug. RFC 5905: Der Server kopiert Transmit der Anfrage nach Originate.
+ *              Der Zufall kommt aus RANDOM_REG32 (Hardware-Zufall des ESP, mit WLAN aktiv). Eine falsche Antwort
+ *              schliesst die Anfrage NICHT -- sonst koennte jeder im LAN die echte Antwort aussperren.
+ *
+ * C59 bindet die Antwort an die eigene Anfrage (specs/paket-2026-10-13, design.md 11; L406). Gegen einen Mitleser auf
+ * dem Weg hilft das nicht: Wer die Anfrage sieht, kennt den Zufallswert.
  *
  * KEINE Aeren- oder Pivot-Rechnung hier: Die macht der STM seit A62 (src/main.c). Der ESP reicht die 32-Bit-
  * Sekunden unveraendert weiter, wie bisher.
@@ -61,7 +74,12 @@ unsigned int    ntp_local_port = 2421;
 #define NTP_PORT                    123
 #define NTP_REJECT_LOG_INTERVAL     60000UL                                 // msec
 
+#define NTP_ANSWER_TIMEOUT          60000UL                                 // msec, C59: so lange ist eine Anfrage offen (M2)
+
 static IPAddress        ntp_server_ip;                                      // zuletzt angefragter Server, ungesetzt = keiner
+static uint8_t          ntp_nonce[8];                                       // C59: Transmit-Feld der offenen Anfrage
+static uint_fast8_t     ntp_pending             = 0;                        // C59: 1 = Anfrage offen
+static unsigned long    ntp_request_millis      = 0;                        // C59: Zeitpunkt der Anfrage
 static uint32_t         ntp_reject_cnt          = 0;
 static unsigned long    ntp_reject_last         = 0;
 static uint_fast8_t     ntp_reject_logged       = 0;
@@ -128,6 +146,14 @@ send_ntp_packet (IPAddress& address)
     ntp_packet_buffer[13]  = 0x4E;
     ntp_packet_buffer[14]  = 49;
     ntp_packet_buffer[15]  = 52;
+
+    uint32_t r0 = RANDOM_REG32;                                             // C59: 8 Byte Zufall ins Transmit-Feld
+    uint32_t r1 = RANDOM_REG32;
+    memcpy (ntp_packet_buffer + 40, &r0, 4);
+    memcpy (ntp_packet_buffer + 44, &r1, 4);
+    memcpy (ntp_nonce, ntp_packet_buffer + 40, sizeof (ntp_nonce));
+    ntp_pending         = 1;
+    ntp_request_millis  = millis ();
 
     ntp_server_ip = address;                                                // E.2: nur von hier wird eine Antwort angenommen
     ntp_udp.beginPacket(address, 123);
@@ -200,6 +226,21 @@ ntp_poll_time (void)
             ntp_reject ("transmit", 0);
             return;
         }
+
+        if (! ntp_pending || (millis () - ntp_request_millis) >= NTP_ANSWER_TIMEOUT)    // C59, ueberlaufsicher
+        {
+            ntp_pending = 0;
+            ntp_reject ("ungefragt", -1);
+            return;
+        }
+
+        if (memcmp (ntp_packet_buffer + 24, ntp_nonce, sizeof (ntp_nonce)) != 0)        // C59: Originate = unser Transmit
+        {
+            ntp_reject ("originate", -1);
+            return;
+        }
+
+        ntp_pending = 0;                                                    // C59: angenommen, Anfrage geschlossen
 
         Serial.print ("TIME ");
         Serial.println(secsSince1900);

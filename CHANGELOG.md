@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-14 ESP 3.2.34: „Messwert übernehmen“ meldet das Ergebnis, Netzzeit an die eigene Anfrage gebunden, Brücke robuster (Paket 2026-10-13, E2)
+
+Nur der ESP, STM (3.2.34) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-14-004425.zip`, Tag `release/3.2.34-3.2.34-1.4.97`.
+
+**Einspielen:** nur der ESP (OTA). Setzt STM 3.2.34 voraus (der STM sendet seit dort die Rückmeldung `RPCR`), der
+bereits läuft. Die PWA zeigt die neuen Meldungen erst mit dem nächsten PWA-Release.
+
+- **„Messwert als Minimum/Maximum übernehmen“** (B55): Der ESP wartet bis 2 s auf die Rückmeldung des STM und antwortet
+  „übernommen“, „abgewiesen“ (Minimum nicht unter Maximum) oder „keine Antwort“ statt immer „gespeichert“.
+- **Netzzeit** (C59): Eine NTP-Antwort wird nur angenommen, wenn sie die Zufallszahl der eigenen Anfrage zurückträgt;
+  fremde oder alte Antworten werden mit `- ntp verworfen #n ungefragt|originate` verworfen.
+- **Lange Logzeilen** des STM (C8) kommen vollständig an und stehen im Logbuch als Folgeeinträge mit `~`.
+- **Empfangspuffer** (A79) auf 1'024 Byte — der Überlauf beim ESP-Start (`- ovr #1 t=…`) soll damit verschwinden.
+- **Zu lange Anfragen** (C46) an `/api/…` über 255 Zeichen werden mit Kennung 9 abgewiesen statt still gekürzt.
+- **Legacy-Oberfläche** (C19): Update-Host und Update-Pfad werden nicht mehr leer oder überlang gespeichert.
+- Nicht enthalten: der Schutz der zerstörerischen Aufrufe gegen fremde Seiten — bewusst zurückgestellt (L439).
+
 ## 2026-10-13 STM 3.2.34: Ambilight merkt sich den Zustand, Nachtfenster ohne Lücken, Icons nicht mehr vertagt (Paket 2026-10-13, S2)
 
 Nur der STM, ESP (3.2.33) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-13-225707.zip`, Tag `release/3.2.34-3.2.33-1.4.97`.

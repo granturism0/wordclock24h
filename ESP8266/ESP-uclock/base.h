@@ -36,6 +36,8 @@ extern void             stm_cmd_cap_set (uint_fast8_t, const char *);
 extern void             stm32_log_clear (void);
 extern uint16_t         stm32_log_get_count (void);
 extern const char *     stm32_log_get_line (uint16_t);
+extern void             stm_bridge_poll (void);                                // B55: Bruecke lesen, auch aus einem wartenden Handler
+extern uint_fast8_t     stm_rpcr_get (uint_fast8_t, uint_fast8_t *);           // B55: laufende Nummer und Ergebnis von "RPCR"
 extern void             update_progress_begin (const char *, const char *, const char *);
 extern void             update_progress_state (const char *, const char *);
 extern void             update_progress_set_progress (uint32_t, uint32_t);

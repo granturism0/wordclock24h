@@ -68,14 +68,20 @@
 #include "version.h"
 
 
-#define CMD_BUFFER_SIZE     128                                             // maximum size of command buffer
+/* C8 (Paket 2026-10-13, design.md 7, Ent-10): 260 = "LOG " (4) + die laengste Logzeile des STM (255 Zeichen) + Nullbyte.
+ * Bis ESP 3.2.33 waren es 128: Jede STM-Zeile ueber 123 Zeichen kam gekappt an, etwa "info: weather forecast = ..."
+ * (L430). Kosten 132 Byte BSS, einmal; der Ring darunter bleibt gleich gross (Folgeeintraege, stm32_log_append ()).
+ * Laengere Zeilen kappt die Bruecke weiter mit LOG_TRUNC_MARK am Ende.
+ */
+#define CMD_BUFFER_SIZE     260                                             // maximum size of command buffer
 /* 32 statt 64 Zeilen: spart 3'872 Byte im statischen Bereich (BEFUNDE.md L175/L176).
  * Der freie Haufen ist nicht das Problem, der GROESSTE ZUSAMMENHAENGENDE BLOCK ist es -
  * er faellt im Betrieb um rund 44 Prozent. Was hier an BSS frei wird, steht dem Haufen
  * dauerhaft zur Verfuegung. Die ZEILENLAENGE bleibt bei 120, dort waere nichts zu holen,
  * ohne das aussagekraeftigste Protokoll zu beschneiden: Die Diagnosezeile des STM kann mit
- * dem Feld a= bei gesaettigten Zaehlern 124 Zeichen erreichen (L333, C41) - dann kappt der
- * Ring mit LOG_TRUNC_MARK, und verloren ginge a=. Die 32 sind ausdruecklich gewaehlt
+ * dem Feld a= bei gesaettigten Zaehlern 124 Zeichen erreichen (L333, C41). Bis ESP 3.2.33 kappte
+ * der Ring sie mit LOG_TRUNC_MARK, und verloren ging a=; seit C8 steht der Rest in einem
+ * Folgeeintrag (stm32_log_append ()). Die 32 sind ausdruecklich gewaehlt
  * und nicht 24 - die Rueckschau wird gerade gebraucht.
  */
 #define STM32_LOG_LINES     32
@@ -89,28 +95,74 @@ static char              stm32_log_lines[STM32_LOG_LINES][STM32_LOG_LINE_LEN + 1
 static uint16_t          stm32_log_next_idx = 0;
 static uint16_t          stm32_log_line_count = 0;
 
+/* C8 (Paket 2026-10-13, design.md 7, Ent-10): Eine Zeile ueber STM32_LOG_LINE_LEN Zeichen wird nicht mehr gekappt,
+ * sondern auf FOLGEEINTRAEGE verteilt -- ohne ein Byte mehr Ring-RAM:
+ *
+ *     erster Eintrag      die ersten 119 Zeichen, dann '~'
+ *     jeder weitere       '~', dann bis zu 119 weitere Zeichen
+ *
+ * Zusammengesetzt: '~' am Ende des ersten und am Anfang jedes Folgeeintrags weglassen. Eine Zeile bis 120 Zeichen
+ * bleibt ein Eintrag wie bisher. 255 Zeichen (die laengste STM-Zeile) belegen drei Eintraege. Bis ESP 3.2.33 endete
+ * eine zu lange Zeile mit '~' und der Rest war weg; die PWA zeigt Folgeeintraege als eigene Zeilen.
+ *
+ * Zwei Grenzen, benannt (Review E2.7 N2): Eine STM-Zeile ueber 255 Zeichen kappt schon die Bruecke (CMD_BUFFER_SIZE);
+ * ihr letzter Folgeeintrag endet dann mit '~' -- dort heisst die Marke "gekappt", nicht "es folgt mehr". Und eine
+ * Zeile, die selbst mit '~' beginnt, sieht im Ring aus wie ein Folgeeintrag; das Zusammensetzen haengte sie an die
+ * vorige. Beides kommt in den Logtexten von STM und ESP heute nicht vor.
+ */
 void
 stm32_log_append (const char * line)
 {
+    size_t  len;
+    size_t  pos = 0;
+
     if (! line || ! *line)
     {
         return;
     }
 
-    strncpy (stm32_log_lines[stm32_log_next_idx], line, STM32_LOG_LINE_LEN);
-    stm32_log_lines[stm32_log_next_idx][STM32_LOG_LINE_LEN] = '\0';
+    len = strlen (line);
 
-    if (strlen (line) > STM32_LOG_LINE_LEN)                                 // gekuerzt? Marke statt letztem Zeichen,
-    {                                                                       // sonst sieht die Zeile vollstaendig aus
-        stm32_log_lines[stm32_log_next_idx][STM32_LOG_LINE_LEN - 1] = LOG_TRUNC_MARK;
-    }
-
-    stm32_log_next_idx = (stm32_log_next_idx + 1) % STM32_LOG_LINES;
-
-    if (stm32_log_line_count < STM32_LOG_LINES)
+    do
     {
-        stm32_log_line_count++;
-    }
+        char *  dst = stm32_log_lines[stm32_log_next_idx];
+        size_t  n;
+
+        if (pos == 0 && len <= STM32_LOG_LINE_LEN)                          // passt: ein Eintrag wie bisher
+        {
+            memcpy (dst, line, len);
+            dst[len] = '\0';
+            pos = len;
+        }
+        else if (pos == 0)                                                  // erster von mehreren: 119 Zeichen und '~'
+        {
+            memcpy (dst, line, STM32_LOG_LINE_LEN - 1);
+            dst[STM32_LOG_LINE_LEN - 1] = LOG_TRUNC_MARK;
+            dst[STM32_LOG_LINE_LEN] = '\0';
+            pos = STM32_LOG_LINE_LEN - 1;
+        }
+        else                                                                // Folgeeintrag: '~' und bis zu 119 weitere
+        {
+            n = len - pos;
+
+            if (n > STM32_LOG_LINE_LEN - 1)
+            {
+                n = STM32_LOG_LINE_LEN - 1;
+            }
+
+            dst[0] = LOG_TRUNC_MARK;
+            memcpy (dst + 1, line + pos, n);
+            dst[n + 1] = '\0';
+            pos += n;
+        }
+
+        stm32_log_next_idx = (stm32_log_next_idx + 1) % STM32_LOG_LINES;
+
+        if (stm32_log_line_count < STM32_LOG_LINES)
+        {
+            stm32_log_line_count++;
+        }
+    } while (pos < len);
 }
 
 void
@@ -151,12 +203,60 @@ stm32_log_get_line (uint16_t idx)
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
+ * Rueckmeldung des STM auf "Messwert uebernehmen" (B55, specs/paket-2026-10-13, design.md 6.1/6.2)
+ *
+ * Nach den RPCs 00 (LDR-Minimum) und 01 (LDR-Maximum) sendet der STM ab 3.2.34 NACH der Wertmeldung genau eine Zeile
+ *
+ *     RPCR xx r          xx = RPC-Index, zwei Hexziffern; r = 0 uebernommen, 1 abgewiesen, 2 Messung fehlgeschlagen
+ *
+ * UNQUITTIERT, wie "LOG ". Der Zweig in stm_bridge_poll () legt Ergebnis und laufende Nummer je Index ab und sendet
+ * NICHTS zurueck -- keinen Punkt, kein ACK: Der STM naehme jedes Zeichen als Quittung der naechsten quittungspflichtigen
+ * Zeile (Review S2, F2). Gueltig ist nur genau diese Form; eine verstuemmelte Zeile aendert nichts, der Wartende laeuft
+ * in seine Frist (http.cpp, Kennung 11). Ein STM vor 3.2.34 sendet sie nie -- fuer den Wartenden dasselbe Bild.
+ *
+ * stm_rpcr_get () liefert die laufende Nummer (und das letzte Ergebnis). Wer wartet, merkt sie VOR dem rpc () und
+ * wartet auf den Wechsel. 4 Byte RAM.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define STM_RPCR_SLOTS      2                                               // RPC-Indizes 00 und 01 (vars.h)
+
+static uint8_t          stm_rpcr_seq[STM_RPCR_SLOTS];
+static uint8_t          stm_rpcr_result[STM_RPCR_SLOTS];
+
+uint_fast8_t
+stm_rpcr_get (uint_fast8_t idx, uint_fast8_t * resultp)
+{
+    if (idx >= STM_RPCR_SLOTS)
+    {
+        if (resultp)
+        {
+            *resultp = 0xFF;
+        }
+
+        return 0;
+    }
+
+    if (resultp)
+    {
+        *resultp = stm_rpcr_result[idx];
+    }
+
+    return stm_rpcr_seq[idx];
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
  * global setup
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 void
 setup() 
 {
+    /* A79 (Paket 2026-10-13, design.md 12, Ent-3): Empfangspuffer 1'024 statt 256 Byte, VOR begin (). Core 3.1.2:
+     * setRxBufferSize () merkt die Groesse ohne offenen UART nur vor (HardwareSerial.cpp:77-84), begin () legt den
+     * Puffer dann gleich so gross an (uart_init (), uart.cpp:647-650) -- einmal, ganz am Anfang des Haufens, ohne
+     * Umkopieren. Kosten 768 Byte Heap. Gibt nichts aus: Vor der CAP-Zeile darunter steht keine neue Ausgabe.
+     */
+    Serial.setRxBufferSize (1024);
     Serial.begin(115200);
     delay(1);
     Serial.println ("");
@@ -471,12 +571,14 @@ icon_info (const char * fname, const char * name)
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 /* E.3 (specs/paket-2026-10-11, design.md 10.2, fuer A21): Empfangsueberlaeufe des ESP auf der Bruecke.
- * Serial.hasOverrun() meldet, ob der SOFTWARE-Empfangspuffer des ESP (HardwareSerial, Vorgabe 256 Byte) seit der
+ * Serial.hasOverrun() meldet, ob der SOFTWARE-Empfangspuffer des ESP (HardwareSerial, seit A79 1'024 Byte) seit der
  * letzten Abfrage uebergelaufen ist, und loescht das Merkmal dabei (uart_has_overrun(), core 3.1.2 uart.cpp:920).
  * Es ist ein Merkmal, kein Zaehler: Gezaehlt werden deshalb loop()-Durchlaeufe, in denen mindestens ein
  * Ueberlauf stattfand -- eine Untergrenze fuer verlorene Zeichen, nie eine Ueberschaetzung. Saettigend.
  * Abgefragt einmal je loop() vor dem Lesen der Bruecke, ausgegeben als ovr= an der Heap-Zeile. 4 Byte RAM.
- * Bei ESP_HEAP_LOG 0 wird weiter gezaehlt, aber nirgends ausgegeben. KEIN setRxBufferSize in diesem Paket.
+ * Bei ESP_HEAP_LOG 0 wird weiter gezaehlt, aber nirgends ausgegeben. Bis ESP 3.2.33 war der Puffer die Vorgabe
+ * von 256 Byte, und er lief bei JEDEM ESP-Start ueber ("- ovr #1 t=5561" bzw. t=7063, L421): setup () liest rund
+ * 7 s nicht. Seit A79 (Paket 2026-10-13) setzt setup () 1'024 Byte vor Serial.begin (); ovr= zaehlt unveraendert.
  *
  * L408 (Instrumentierung, DIR-003): Die Abfrage steht VOR esp_heap_log(), damit die Heap-Zeile den Stand
  * einschliesslich des laufenden Durchlaufs zeigt. Vorher erschien ein Ueberlauf aus setup() (rund 7 s ohne
@@ -1400,10 +1502,6 @@ var_sync_check (void)
 void
 loop() 
 {
-    static char cmd_buffer[CMD_BUFFER_SIZE];
-    static int  cmd_len = 0;
-    static int  cmd_trunc = 0;                                              // Zeile war laenger als der Puffer
-
     wifi_check_if_started ();
     http_server_loop ();
     http_ota_restart_poll ();                                               // Rueckfall-Neustart nach lokalem Upload (Review E.6)
@@ -1436,6 +1534,42 @@ loop()
 #if ESP_HEAP_LOG
     esp_heap_log ();                                                    // NACH der Ueberlaufabfrage (L408): ovr= zeigt den aktuellen Stand
 #endif
+
+    stm_bridge_poll ();                                                     // B55: der Rumpf steht unveraendert darunter
+}
+
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * stm_bridge_poll () - Zeilen vom STM lesen und abarbeiten (B55, design.md 6.2)
+ *
+ * Bis Paket 2026-10-13 stand dieser Rumpf am Ende von loop (). Er ist unveraendert, nur jetzt eine eigene Funktion,
+ * damit ein Handler, der auf die Rueckmeldung "RPCR" des STM wartet (http.cpp, ldr_min_set/ldr_max_set), die Bruecke
+ * ueber GENAU DIESELBE Funktion weiterliest: Waehrend des Wartens sendet der STM die Wertmeldung als "var"-Zeile und
+ * wartet seinerseits bis 3 s auf deren Quittung. Liest der ESP dann nicht, laeuft der STM in seine Frist.
+ *
+ * SPERRE gegen Wiedereintritt: Ruft ein Zweig hier unten (mittelbar) wieder stm_bridge_poll () auf, kehrt der innere
+ * Aufruf sofort zurueck -- sonst laesen zwei Ebenen in denselben cmd_buffer. Genau eine Ausgangsstelle, am Ende;
+ * der Rumpf hat kein return.
+ *
+ * RESTRISIKO, benannt: Aus einem wartenden Handler heraus laufen hier ALLE Zweige, auch "ap"/"cap" (WLAN neu,
+ * http_server_begin ()), "wps" und die Wetterabrufe. Das sind Zeilen, die der STM beim Start oder auf eine eigene
+ * Aktion sendet, nicht als Antwort auf ein RPC; in den hoechstens 2 s des Wartens sind sie nicht zu erwarten. Kommt
+ * eine doch, verlaengert sie das Warten um ihre eigene Dauer (Frist erst nach der Rueckkehr geprueft).
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+stm_bridge_poll (void)
+{
+    static char         cmd_buffer[CMD_BUFFER_SIZE];
+    static int          cmd_len = 0;
+    static int          cmd_trunc = 0;                                      // Zeile war laenger als der Puffer
+    static uint_fast8_t busy = 0;                                           // B55: Sperre gegen Wiedereintritt
+
+    if (busy)
+    {
+        return;
+    }
+
+    busy = 1;
 
     while (Serial.available())
     {
@@ -2233,6 +2367,41 @@ loop()
             {
                 stm32_log_append (cmd_buffer + 4);
             }
+            else if (! strncmp (cmd_buffer, "RPCR ", 5))                // B55: KEINE Antwort an den STM (F2)
+            {
+                char *  p = cmd_buffer + 5;
+
+                if (strlen (cmd_buffer) == 9 && isxdigit (p[0]) && isxdigit (p[1]) && p[2] == ' ' && p[3] >= '0' && p[3] <= '2'
+                    && htoi (p, 2) < STM_RPCR_SLOTS)
+                {
+                    stm_rpcr_result[htoi (p, 2)] = (uint8_t) (p[3] - '0');
+                    stm_rpcr_seq[htoi (p, 2)]++;
+                }
+                else                                                        // Review E2.7 N3: Weg und Drossel wie
+                {                                                           // http_rpc_noanswer_note () (http.cpp)
+                    static uint32_t         bad_cnt     = 0;
+                    static unsigned long    bad_last    = 0;
+                    static uint_fast8_t     bad_logged  = 0;
+
+                    if (bad_cnt < 0xFFFFFFFFUL)                             // saettigend
+                    {
+                        bad_cnt++;
+                    }
+
+                    if (! bad_logged || (millis () - bad_last) >= 60000UL)  // erste sofort, dann hoechstens 1/min
+                    {
+                        char    line[48];                                   // "- rpc Antwort verstuemmelt #4294967295" = 38
+
+                        bad_logged  = 1;
+                        bad_last    = millis ();
+
+                        snprintf_P (line, sizeof (line), PSTR ("- rpc Antwort verstuemmelt #%lu"), (unsigned long) bad_cnt);
+                        Serial.println (line);                              // "- ": Debugzeile fuer den STM, keine Quittung
+                        Serial.flush ();
+                        stm32_log_append (line);                            // Mitschnitt UND /api/stm32_log (L185)
+                    }
+                }
+            }
 
             cmd_buffer[0] = '\0';
             cmd_len = 0;
@@ -2253,4 +2422,6 @@ loop()
             }
         }
     }
+
+    busy = 0;                                                               // die einzige Ausgangsstelle der Sperre
 }
