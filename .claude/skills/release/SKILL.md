@@ -66,6 +66,22 @@ Release-Builds in derselben Minute starten.
 Anschliessend `./tools/guardrails.sh`. Mit `--full` laufen zusätzlich die
 Compile-Smoke-Tests; das baut und darf nach R1 nur seriell laufen.
 
+### Messwerte sofort festhalten, nicht am Ende einsammeln
+
+Jede Messung, die ein Abnahmekriterium belegt, kommt **in dem Moment** als Zeile in
+`BEFUNDE.md`, in dem sie entsteht:
+
+- Flash nach jedem STM-Task bzw. jeder Einsparung: Teilbuild F103 und F411, Byte frei,
+  Differenz zum Stand davor.
+- Jeder `make matrix`-Lauf: Zahl gebaut, engste Variante mit Byte frei, Zahl unter dem
+  Gate. `build/matrix/matrix-report.txt` wird beim nächsten Lauf **überschrieben**.
+- Jeder `guardrails.sh --full` vor einem Release und jeder Smoketest nach dem Einspielen,
+  mit Ergebnis.
+
+Am Paket 2026-10-11 blieben elf Abnahmekriterien ohne Nachweis, obwohl die Arbeit getan
+war: Die Zwischenstände waren nicht aufgehoben und liessen sich nicht nachholen
+(`BEFUNDE.md`, L424).
+
 ## 4. Ausrollen (DIR-005)
 
 ```
