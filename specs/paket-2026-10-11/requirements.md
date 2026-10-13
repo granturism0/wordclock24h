@@ -9,6 +9,8 @@ Varianten) am selben Tag entschieden.
 `release/3.2.29-3.2.31-1.4.95` gepusht); G1-Tagteil belegt, Nachtteil und AKW.5 offen. **S2 (A60)
 Code fertig und reviewt, nicht gebaut.** **Offen:** der zweite STM-Reset im Aus-Fenster in G3 —
 **vor G3 beim Nutzer zu bestätigen**.
+**Endstand 13.10.2026:** Abschnitt „Endstand 13.10.2026" am Schluss; die Kästchen der
+Akzeptanzkriterien sind dort und am Kriterium belegt.
 **Erstellt:** 2026-10-11, Stand `5c34d80` (Zweig `pwa-decoupling`); am selben Tag mehrfach
 nachgeführt. Ausgangsstand am Gerät laut `specs/paket-2026-10-10/` (Endstand): STM 3.2.28,
 ESP 3.2.31, PWA 1.4.95.
@@ -261,24 +263,39 @@ fehlgeschlagen**; die Fallzahl wird gemeldet und nachgezählt. **Was am Gerät n
 ist, wird nicht am Gerät verlangt.** Logzeilen im STM in Umschrift (DIR-015); der Wortlaut ist
 verbindlich, wo er hier steht, weil die Logwache danach sucht.
 
+**Endstand 13.10.2026:** Ein Kästchen ist gesetzt, wo `BEFUNDE.md`, `CHANGELOG.md` oder eine
+Angabe des Leads es belegen; der Beleg steht als „**Endstand:**" am Kriterium. Was nur teilweise
+belegt ist, steht dort als Vermerk; was offen bleibt, mit Grund im Abschnitt „Endstand 13.10.2026".
+
 ### Schritt 0 — ohne Firmware
 
-- [ ] **AKA.1 (A61-Auswerteregel)** — Ein Werkzeug des Leads meldet je Vollabgleich Auslöser
+- [x] **AKA.1 (A61-Auswerteregel)** — Ein Werkzeug des Leads meldet je Vollabgleich Auslöser
       (`SYNCVARS`, `IPADDRESS`, CMC-Abweisung, unbekannt), Dauer, Δ`v` (beide Zahlen), Zahl der
       `var_send_buf: keine Quittung`, Stillstand (Δ`u`). *Gegenprobe:* synthetischer Mitschnitt;
       Sabotage (falscher Auslöser) meldet FEHL mit Exit ≠ 0 (L191). **Zähl nach** gegen
       `grep -c 'info: configuration sent'`.
-- [ ] **AKA.2 (Messung)** — Mit AKA.1: ESP-OTA vom 10.10.2026 23:06, STM-Reset vom 11.10.2026
+      **Endstand:** `tools/abgleich.sh` (Commit `b7b5beb`), Review 0.2 nach vier Runden bestanden,
+      Prüfstand werkzeug/abgleich in S16; nachgezählt 19 Endzeilen im Rohtext gegen 19 ausgewertete
+      Abgleiche (L361). **Vermerk:** Die Sabotage „falscher Auslöser" ist im Beleg nicht einzeln
+      genannt; und der Prüfstand sah die dokumentierte Pipe-Form zunächst nicht — gefunden und
+      behoben beim Abschluss (L414).
+- [x] **AKA.2 (Messung)** — Mit AKA.1: ESP-OTA vom 10.10.2026 23:06, STM-Reset vom 11.10.2026
       01:58:14 und jeder weitere Abgleich im Langzeitmitschnitt. **Regel A34 (Ent-9):** über 5 s
       Stillstand ⇒ Task 10 als **neuer Befund**, nicht hier gebaut.
-- [ ] **AKA.3 (Befunde)** — `BEFUNDE.md`: **L391** NTP-Puffer mit Massnahme; Berichtigungen an L331,
+      **Endstand:** 06.–11.10.2026, 139'565 Zeilen, 19 von 19 Abgleichen, 0,91–1,11 s, keiner
+      über 5 s ⇒ Task 10 nicht gebaut (A34, L361). Alle 19 hatte `IPADDRESS` ausgelöst.
+- [x] **AKA.3 (Befunde)** — `BEFUNDE.md`: **L391** NTP-Puffer mit Massnahme; Berichtigungen an L331,
       L360, L371 (samt Ära-Beschluss und Grenze 2099), L233 und an den Fundstellen von A69, A61,
       A62, A53; **A34 geschlossen** mit Beleg; **A63** offen als Beobachtung; **A57 offen** mit
       dem Vermerk „Ent-7 (C), Schliessung nach G3". *Instrument:* S10 und S11 grün.
-- [ ] **AKA.4 (Testplan V3/S1)** — V3 und S1 nennen das **Soll im Nachtzustand** (nach einem Reset
+      **Endstand:** L391/C58, Berichtigungen in A35, A53, A57, A60, A61, A62, A69 vermerkt; A34
+      erledigt 11.10.2026; A63 offen (Ent-10); A57 erst nach G3 geschlossen (L404/L407).
+- [x] **AKA.4 (Testplan V3/S1)** — V3 und S1 nennen das **Soll im Nachtzustand** (nach einem Reset
       im Aus-Fenster ab STM-Release 1: IP-Lauftext, danach Display aus; ohne IP spätestens nach
       60 s) und die Zeile `time: sprung, bestaetigung angefordert` nach jedem Reset als Soll.
       **Vor dem Nachtteil von G1 erledigt.**
+      **Endstand:** „Testplan nachgeführt (11.10.2026)" in L390 und A69, vor dem Nachtteil von G1
+      (12.10.2026 01:34, L401).
 
 ### Schritt S1 — A62 (Netzzeit mit Ära)
 
@@ -309,8 +326,10 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       danach `cmd: set time to …`; `read rtc` gleich der Wanduhr ±2 s; keine Zeile
       `time: ungueltig`. **Belegt 11.10.2026:** `time: sprung` 20:44:39 → `cmd: set time to`
       20:44:54.
-- [ ] **AKN.7 (Gerät, G1, Reset im Fenster)** — Beim Reset aus AKW.4 dasselbe Bild wie AKN.6.
-      **Offen** (Nachtteil).
+- [x] **AKN.7 (Gerät, G1, Reset im Fenster)** — Beim Reset aus AKW.4 dasselbe Bild wie AKN.6.
+      **Endstand: belegt 12.10.2026** — 01:34:33 `time: sprung, bestaetigung angefordert`,
+      01:34:48 `cmd: set time to …` nach 15 s; die stündliche Netzzeit danach ohne Sprung, ohne
+      `time: ungueltig` (L401).
 
 ### Schritt S1 — A69 (Nachtfenster, samt M1/M2) und A68 (Ambilight-Kopie)
 
@@ -332,13 +351,18 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 - [x] **AKB.1 (A68)** — Jede Stelle, die die Ambilight-Power ändert, sendet sie bei
       `esp8266.is_online`; keine zweite Sendefunktion; Bestandsliste. *Instrument:* a69.
       **Ausgeliefert mit 3.2.29.**
-- [ ] **AKW.4 (Gerät, G1 — Reset im Aus-Fenster, Ent-14 a)** — Ein eigener STM-Reset nach dem
+- [x] **AKW.4 (Gerät, G1 — Reset im Aus-Fenster, Ent-14 a)** — Ein eigener STM-Reset nach dem
       Aus-Timer des Nutzers, nach den Tagtests. Am Display: **IP-Lauftext, danach aus**. Im
       Mitschnitt: der IP-Lauftext, danach `night: start aus (hh:mm)` und
       `set_display_power: new=0 …` (geschützt), in der folgenden Minute `show_time: … p=0 …`; nach
       dem Vollabgleich Display-Power = 0 und Ambilight-Power gleich dem STM. **Vorher-Wert:** L390.
-      **Offen** (Nachtteil).
-- [ ] **AKW.5 (Gerät, lesend)** — Am Morgen schaltet der Ein-Timer wie bisher. **Offen.**
+      **Endstand: belegt 12.10.2026** — Reset 01:34:21, `(IPADDRESS …)` 01:34:32, 01:34:39
+      `set_display_power: new=0 sync_ambi=1` und `night: start aus (01:00)` über den Restore-Zweig,
+      danach `p=0 a=0`, `/api/power_status` Display und Ambilight aus (L401). In G3 erneut belegt
+      (L407).
+- [x] **AKW.5 (Gerät, lesend)** — Am Morgen schaltet der Ein-Timer wie bisher.
+      **Endstand: belegt 12.10.2026** — 07:00:01 `Found Timer: on at 07:00`, Ambilight nicht
+      mitgeschaltet, ESP-Kopie richtig (A68, A69).
 
 ### Schritt S1 — N1 und Schritt S3 — Platz schaffen (Ent-17)
 
@@ -358,55 +382,80 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       **gemessenem** Gewinn neben der Map-Grösse; nur verhaltensneutrale; eine Einsparung mit
       Verhaltensänderung oder an einer Zeile mit Abhängigkeit **nur nach Rückfrage**. Alle
       bestehenden Prüfstände (a62, a69, a60, gt, EP, W2, L59) weiter OK; Review S3.13.
-- [ ] **AKP.3 (keine Sparstufe ohne Rückfrage)** — Die Sparstufen aus `design.md` §1.4 werden
+- [x] **AKP.3 (keine Sparstufe ohne Rückfrage)** — Die Sparstufen aus `design.md` §1.4 werden
       **nicht** angewandt. Reicht der Platz nicht (Testbau oder Matrix-Lauf unter 1'024), wird
       angehalten und vorgelegt.
+      **Endstand:** Laut `CHANGELOG.md` (STM 3.2.31) eingespart wurden doppelte Texte, der tote
+      Zweig A52, die `snprintf`-/`sprintf`-Hüllen und das doppelte Präfix „DFPlayer: " — keine der
+      vier Sparstufen aus §1.4; Ent-2 (3), A67-STM und A53 V2 sind ausgeliefert (L404, L410).
 
 ### Schritt S3 — A23 (Displayfarbe)
 
-- [ ] **AKD.1 (Sicherung, Ent-1)** — RAM-Sicherung nach dem Muster `saved_ambilight_colors`;
+- [x] **AKD.1 (Sicherung, Ent-1)** — RAM-Sicherung nach dem Muster `saved_ambilight_colors`;
       gesetzt beim Laden **vor** `display_init_color_animation()`, in DC **auch während** einer
       Animation und in den IR-Farbschritten im Modus 0; zurück auf **jedem** Weg auf Modus 0 samt
       `display_calc_dimmed_display_colors()` und **`var_send_display_colors()`**. Kein
       EEPROM-Schreiben im Animationspfad. *Instrument:* Prüfstand **a23**. **Gegenprobe:** alter
       Stand ⇒ FEHL.
-- [ ] **AKD.2 (Gerät, G3, Ent-14 d)** — **Teil 1, am Tag:** `dspcolor[0]` lesen; Regenbogen ein,
+      **Endstand:** ausgeliefert mit STM 3.2.31, Prüfstand a23 in S16 (`CHANGELOG.md`); A23
+      erledigt. **Vermerk:** Die Gegenprobe ist im Beleg nicht einzeln genannt.
+- [x] **AKD.2 (Gerät, G3, Ent-14 d)** — **Teil 1, am Tag:** `dspcolor[0]` lesen; Regenbogen ein,
       rund 30 s, aus ⇒ gleich dem Vorher-Wert, Farbsendung im Mitschnitt; dasselbe mit Tageslicht.
       **Teil 2, nach einem zweiten STM-Reset im Aus-Fenster:** `dspcolor[0]` gleich der
       Nutzerfarbe. **Dieser Reset ist vor G3 beim Nutzer zu bestätigen.** Ohne Bestätigung bleibt
       Teil 2 offen und wird so berichtet. Rückstellung: Animationsmodus wie vorher.
+      **Endstand:** Teil 1 — Modus 1 → `dspcolor[0]` 63/3/0/0, zurück auf 0 → 0/0/0/63 (L404); in
+      T.2 erneut 0/0/0/63 nach über 60 s (L412). Teil 2 — zweiter Reset vom Nutzer freigegeben,
+      13.10.2026 01:06:16, danach Modus 0 → 0/0/0/63 aus dem EEPROM (L407). **Vermerk:** Der Lauf
+      mit Tageslicht ist im Beleg nicht einzeln genannt.
 
 ### Schritt S3 — A53 (Spiele)
 
-- [ ] **AKS.1 (Ent-4 = V2)** — Beide Spielschleifen zählen verworfene Zeilen (nicht Zeitablauf,
+- [x] **AKS.1 (Ent-4 = V2)** — Beide Spielschleifen zählen verworfene Zeilen (nicht Zeitablauf,
       nicht `GT`/`GS`); danach bei Zähler > 0 `var_sync_pending = 1` und **`spiel: %u Zeilen
       verworfen`**. Keine Inaktivitätsgrenze. *Instrument:* Prüfstand **a53**. **Gegenprobe:** alter
       Stand ⇒ FEHL.
-- [ ] **AKS.2 (Snake-Status)** — `snake.c:291` definiert vor dem ersten Lesen. *Instrument:* Review.
-- [ ] **AKS.3 (Gerät, G3, Ent-14 b)** — Spiel starten, Helligkeit setzen, Spiel beenden:
+      **Endstand:** ausgeliefert mit STM 3.2.31, Prüfstand a53 in S16 (`CHANGELOG.md`); am Gerät
+      L404. **Vermerk:** Die Gegenprobe ist im Beleg nicht einzeln genannt.
+- [x] **AKS.2 (Snake-Status)** — `snake.c:291` definiert vor dem ersten Lesen. *Instrument:* Review.
+      **Endstand:** „Snake liest im ersten Zug keinen undefinierten Zustand mehr" (`CHANGELOG.md`,
+      STM 3.2.31).
+- [x] **AKS.3 (Gerät, G3, Ent-14 b)** — Spiel starten, Helligkeit setzen, Spiel beenden:
       `spiel: n Zeilen verworfen` (n ≥ 1), `info: configuration sent`, `diag` lückenlos, ESP-Kopie
       der Helligkeit auf dem STM-Wert. Rückstellung: Helligkeit wie vorher.
+      **Endstand: belegt 12.10.2026** — `gTs`, Helligkeit 2 mitten im Spiel, `gTq`; danach
+      `spiel: 1 Zeilen verworfen`, `info: configuration sent`, `numvar[6]` wieder 1, STM und ESP
+      gleich (L404). **Vermerk:** „`diag` lückenlos" ist im Beleg nicht einzeln genannt.
 
 ### Schritt S3 — A57 (Einmessen, Ent-7 = C)
 
-- [ ] **AKE.1 (Abweisung)** — `ldr_set_min_value()` übernimmt einen Messwert **≥ Maximum** nicht,
+- [x] **AKE.1 (Abweisung)** — `ldr_set_min_value()` übernimmt einen Messwert **≥ Maximum** nicht,
       `ldr_set_max_value()` einen Messwert **≤ Minimum** nicht (Gleichheit abgewiesen, wie
       `ldr.c:128`); Wert und EEPROM bleiben; Logzeile **`ldr: minimum abgewiesen`** bzw.
       **`ldr: maximum abgewiesen`**. Die bestehende Rückmeldung (`main.c:1609`, `:1617`) meldet den
       **alten** Wert. Der **Zahlen-Setter (A59) bleibt unverändert**. *Instrument:* Prüfstand
       **a57**. **Gegenprobe:** gegen 3.2.28 ⇒ FEHL. **L59 besteht weiter.**
-- [ ] **AKE.2 (Gerät, G3, schreibend mit Rückstellung, Ent-14e — ausdrücklich freigegeben)** — Nur
+      **Endstand:** ausgeliefert mit STM 3.2.31, Prüfstand a57 in S16; „Das Setzen per Zahl nimmt
+      weiter jede Reihenfolge an" (`CHANGELOG.md`); am Gerät L404, L412. **Vermerk:** Die
+      Gegenprobe ist im Beleg nicht einzeln genannt.
+- [x] **AKE.2 (Gerät, G3, schreibend mit Rückstellung, Ent-14e — ausdrücklich freigegeben)** — Nur
       bei ausgeschalteter Auto-Helligkeit (`numvar[8]=0`) und einem LDR-Rohwert zwischen 2 und 4093:
       Maximum per Zahlen-Setter kurz auf 1, „Minimum übernehmen" ⇒ `ldr: minimum abgewiesen`,
       `numvar[17]` unverändert, **keine** `eep a=225`; Maximum zurück auf 4095. Minimum per
       Zahlen-Setter kurz auf 4094, „Maximum übernehmen" ⇒ `ldr: maximum abgewiesen`; Minimum zurück
       auf 0. Danach 17/18 = 0/4095. **Erst danach wird A57 geschlossen** (Z.1).
+      **Endstand: belegt 12.10.2026** — `ldr: minimum abgewiesen (19 >= max 1)` und
+      `ldr: maximum abgewiesen (20 <= min 4094)`, je ohne `eep`; zurück auf 0/4095, lesend
+      nachgeprüft (L404). A57 danach geschlossen.
 
 ### Schritt S3 — A67 STM-Hälfte (Ent-12)
 
-- [ ] **AKK.1 (eigene Zeile)** — Eine **neue** Zeile (Wortlaut in S3.10 festgelegt, Vorschlag
+- [x] **AKK.1 (eigene Zeile)** — Eine **neue** Zeile (Wortlaut in S3.10 festgelegt, Vorschlag
       `OTA start`), exakter Vergleich, setzt **nur** `esp8266.is_online = 0`. *Instrument:* Prüfstand
       **a67**. **Gegenprobe:** alter Stand ⇒ FEHL.
+      **Endstand:** Wortlaut `OTA start`; ausgeliefert mit STM 3.2.31, Prüfstand a67 in S16; am
+      Gerät `(OTA start)` 01:34:53 und danach keine Sendung bis `IPADDRESS` (A67, L410).
+      **Vermerk:** Die Gegenprobe ist im Beleg nicht einzeln genannt.
 
 ### Schritt S2 — A60 und L360 (I²C, Ent-15, Ent-15b)
 
@@ -427,55 +476,89 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
       Fall 25 ms je Zugriff, vor `watchdog_init()` rund 0,55 s.** Bei totem Bus je Zugriff das
       Zeilenpaar `i2c: frist abgelaufen` und `error: cannot reset I2C bus`. *Instrument:* a60,
       Sabotagen `ohnefrei` und `nurbusy` je FEHL; Review S2.4.
-- [ ] **AKI.2 (Gerät, G1 vorher / G2 nachher, Ent-14 d)** — S25/S26 (`eep a=225/227 n=2`, über S27
+- [x] **AKI.2 (Gerät, G1 vorher / G2 nachher, Ent-14 d)** — S25/S26 (`eep a=225/227 n=2`, über S27
       zurück) und ein 32-Byte-Wert (Wetterort, zurück) auf beiden Ständen. **Vorher (G1, 3.2.29):**
       `n=2` **24–26 ms**, 32 Byte über 2 Seiten **92 ms**; alles zurückgestellt. **Erwartung nachher
       (Review S2.4):** `n=2` **16–17 ms**, 32 Byte **34–40 ms**. Abweichung **berichtet**, nicht
       passend gemacht.
-- [ ] **AKI.3 (Gerät, G2, lesend)** — `read rtc` ±2 s, DS3231-Temperatur plausibel, **60 Minuten**
+      **Endstand: belegt 12.10.2026 (STM 3.2.30)** — `n=2` **15 ms**, 32 Byte über zwei Seiten
+      **35–36 ms**; Werte zurückgestellt (L402, L403). `n=2` liegt 1–2 ms unter der Erwartung des
+      Reviews — berichtet, nicht angepasst.
+- [x] **AKI.3 (Gerät, G2, lesend)** — `read rtc` ±2 s, DS3231-Temperatur plausibel, **60 Minuten**
       ohne `i2c: frist abgelaufen`, ohne Exception, ohne Neustart. **Messpunkt:** steht beim Start
       `i2c: frist abgelaufen` **vor** `rtc is online`, ist das der Hinweis auf die DS1307-Probe —
       im Bericht benennen, nicht als Fehlschlag werten, wenn danach alles läuft. Ein Wachalarm
       während des Flashens wird **am Kontext geprüft** (L400).
+      **Endstand: belegt 12.10.2026** — 07:10–08:11, 819 Zeilen, 0 × `i2c: frist abgelaufen`, kein
+      Neustart, keine Exception; RTC 28,5 °C (L403). Die 7 Fristzeilen beim Start stammen aus der
+      EEPROM-Adresssuche, nicht aus der DS1307-Probe (Messpunkt widerlegt) ⇒ A73 (L402).
 
 ### Schritt E — ESP
 
-- [ ] **AKQ.1 (A35, Ent-5 = b)** — Zähler für still entfallene Zuweisungen, `V…` ausgenommen,
+- [x] **AKQ.1 (A35, Ent-5 = b)** — Zähler für still entfallene Zuweisungen, `V…` ausgenommen,
       Rückgabe unverändert; gedrosselte Zeile **`- var ignoriert #n code=X idx=yy`** ohne Wert,
       **im Mitschnitt und in `/api/stm32_log`** (`stm32_log_append()` allein reicht nicht,
       `ESP-uclock.ino:1247`). *Instrument:* Prüfstand **a35**. **Gegenprobe:** alter Stand ⇒ FEHL.
       **Zähl nach:** Bedingungen gegen Zählstellen.
-- [ ] **AKU.1 (NTP-Puffer, L391)** — Höchstens 48 Byte in den Puffer; längere Pakete verworfen.
+      **Endstand:** ausgeliefert mit ESP 3.2.32, Prüfstand a35; im Feld die erste Zeile
+      `- var ignoriert #1 code=n idx=00` (13.10.2026 01:12:02), die A75 aufdeckte (A35, L408).
+      **Vermerk:** Das Erscheinen in `/api/stm32_log` und die Gegenprobe sind im Beleg nicht
+      einzeln genannt.
+- [x] **AKU.1 (NTP-Puffer, L391)** — Höchstens 48 Byte in den Puffer; längere Pakete verworfen.
       *Instrument:* Prüfstand **ntp** (48, 47, 68, 1'024 Byte; Wächterbyte). **Gegenprobe:** alter
       Stand überschreibt das Wächterbyte ⇒ FEHL.
-- [ ] **AKU.2 (NTP-Plausibilität, tragend)** — LI = 3, Stratum 0 oder Transmit 0 ⇒ **kein**
+      **Endstand:** C58 erledigt (ESP 3.2.32, Prüfstand ntp): Länge, Absender und Port **vor** dem
+      Lesen geprüft — über die Spec hinaus auch Absender und Port (L391, C58).
+- [x] **AKU.2 (NTP-Plausibilität, tragend)** — LI = 3, Stratum 0 oder Transmit 0 ⇒ **kein**
       `TIME` an den STM, Logzeile **`- ntp verworfen`** mit Grund. **Keine** Ära-Rechnung im ESP.
       *Instrument:* Prüfstand ntp. **Gegenprobe:** alter Stand sendet `TIME 0` ⇒ FEHL.
-- [ ] **AKO.1 (`ovr=`)** — `Serial.hasOverrun()` sättigend gezählt, als `ovr=` an der Heap-Zeile.
+      **Endstand:** C58; am Gerät Netzzeit 02:05:04 und 03:08:40 übernommen, 0 × `ntp verworfen`.
+- [x] **AKO.1 (`ovr=`)** — `Serial.hasOverrun()` sättigend gezählt, als `ovr=` an der Heap-Zeile.
       *Instrument:* Attrappe zählt und sättigt; Review E.
-- [ ] **AKK.2 (A67 ESP)** — Alle drei OTA-Pfade senden die Zeile aus AKK.1 vor dem Download und
+      **Endstand:** ausgeliefert mit ESP 3.2.32, Prüfstand ovr; am Gerät `ovr=1` beim ersten OTA
+      (L408) — das Instrument hat angeschlagen; daraus A76 (Zeitpunkt, ESP 3.2.33).
+- [x] **AKK.2 (A67 ESP)** — Alle drei OTA-Pfade senden die Zeile aus AKK.1 vor dem Download und
       bei Fehlschlag `SYNCVARS`. *Instrument:* statische Prüfung (Lead). Gerätenachweis erst beim
       nächsten ESP-OTA nach E.
-- [ ] **AKQ.2 / AKU.3 / AKO.2 (Gerät, G4)** — ESP-OTA mit laufender Wache; `ovr=0`; 60 min ohne
+      **Endstand:** statische Prüfung akk2 und Prüfstand otarueck (`CHANGELOG.md`, ESP 3.2.32);
+      Gerätenachweis beim OTA auf 3.2.33: `(OTA start)` 0,2 s nach dem Aufruf, `v=0/0` (L410).
+- [x] **AKQ.2 / AKU.3 / AKO.2 (Gerät, G4)** — ESP-OTA mit laufender Wache; `ovr=0`; 60 min ohne
       `var ignoriert` und `ntp verworfen`; Netzzeit übernommen; Smoketest samt Update-Quelle,
       `install-app.sh --check`; Δ`v` beim OTA berichtet (Vorher +2).
+      **Endstand:** Erster OTA (auf 3.2.32): Δ`v` **+3**, `var ignoriert`, `ovr=1` — nicht erfüllt,
+      Ursachen A74–A76 (L408). Zweiter OTA (auf 3.2.33): Δ`v` **0**, `ovr=0`, Smoketest 31/0 samt
+      Update-Quelle, `install-app.sh --check` vollständig (L410); danach 0 `var ignoriert`, 0
+      `ntp verworfen`, Netzzeit übernommen, `ovr=0` durch T.2 und M.1 (L412, L413, C58).
+      **Vermerk:** Belegt auf dem zweiten OTA; die 60 Minuten danach waren nicht lesend, sondern
+      lagen in G5 und T.2.
 
 ### Schritt P — PWA
 
-- [ ] **AKC.1 (C35, Ent-6 = A)** — Hauptmodul: `update_status` beim Öffnen, dann höchstens alle
+- [x] **AKC.1 (C35, Ent-6 = A)** — Hauptmodul: `update_status` beim Öffnen, dann höchstens alle
       5 min; Update-/Wartungsmodul wie heute, beim Wechsel sofort; Fehlschlag zählt als Abruf.
       *Instrument:* Prüfstand **c35** (Hauptmodul 30 min ⇒ ≤ 7). **Gegenprobe:** alter Stand ≈ 120 ⇒
       FEHL.
-- [ ] **AKC.2 (Gerät, G5)** — `check-pwa.sh` ohne Fehler; Hauptmodul 15 min ⇒ höchstens 4 Abrufe im
+      **Endstand:** ausgeliefert mit PWA 1.4.96, Prüfstand c35 in S16; erweitert um
+      `update_table_files` (`CHANGELOG.md`, C35). In T.2 holte die Wartung 269 ms nach dem Öffnen
+      (L412).
+- [x] **AKC.2 (Gerät, G5)** — `check-pwa.sh` ohne Fehler; Hauptmodul 15 min ⇒ höchstens 4 Abrufe im
       Mitschnitt.
+      **Endstand: belegt 13.10.2026** — `check-pwa.sh` 8/0; 01:38:51–01:53:51 je 3 Abrufe
+      (01:38:51, 01:44:02, 01:49:17) statt 60 (C35, L410). Gezählt nur Anfragen mit Kennung
+      `[Chrome]`; der `pwa-tester` startete bis 01:54 keinen Browser, seine `curl`-Anfragen tragen
+      `[curl/…]` (Angabe des Leads).
 
 ### Schritt M — Abschlusslauf A21 (G6)
 
-- [ ] **AKM.1 (Lauf)** — 30 min, Tab Hauptmodul, Tab System, **Tab Updatemodul**, Wetterabrufe,
+- [x] **AKM.1 (Lauf)** — 30 min, Tab Hauptmodul, Tab System, **Tab Updatemodul**, Wetterabrufe,
       Setter-Burst 14 × Wetterort mit Rückstellung (Ent-14 c), Logwache parallel.
-- [ ] **AKM.2 (Kriterium)** — `d=0`, Δ`a=0`, Δ`v=0` (beide Zahlen), `rx` ≤ 512/1024, 0 `keine
+      **Endstand: belegt 13.10.2026** 02:50:34–03:20:34, drei Headless-Chrome, Setter-Burst
+      03:00:48–03:00:49 mit Rückstellung, Wache ohne Meldung (L413).
+- [x] **AKM.2 (Kriterium)** — `d=0`, Δ`a=0`, Δ`v=0` (beide Zahlen), `rx` ≤ 512/1024, 0 `keine
       Quittung`, 0 `cmd abgewiesen`, `ovr=0`, `diag` lückenlos ⇒ **A21 schliessen**; steigt `ovr`:
       neuer Befund, A21 neu fassen.
+      **Endstand:** 180/180 `diag` mit `d=0 o=0 w=0 v=0/0 a=0`, `rx` ≤ 234/1024, 0 `keine
+      Quittung`, 0 `cmd abgewiesen`, 30 Heap-Zeilen `ovr=0` ⇒ **A21 geschlossen** (L413).
 
 ### Flash-Gate (S1, S2, S3)
 
@@ -492,11 +575,13 @@ verbindlich, wo er hier steht, weil die Logwache danach sucht.
 STM-Release, das Flash kostet — S1, S2 und S3 —, jeweils als **feste Abhängigkeit des
 Release-Builds** (S1.16, S2.6a, S3.15a).
 
-- [ ] **AKZ.M.1 (Make-Ziel)** — Eigenes Ziel des `release-engineer` für alle **72** Varianten;
+- [x] **AKZ.M.1 (Make-Ziel)** — Eigenes Ziel des `release-engineer` für alle **72** Varianten;
       **nur auf Anforderung; der normale Build bleibt unverändert**; F411 mit
       `startup_stm32f411xe.S` (Abweichung vom Original im Makefile-Kommentar und in
       `README-CMAKE.md` benannt). **Make-Teil erfüllt** (`make matrix`, `make clean-matrix`;
       normaler Build byte-identisch); `README-CMAKE.md` (Z.5) in Arbeit.
+      **Endstand:** `README-CMAKE.md`, Abschnitt „Alle Varianten des Originals (`make matrix`)",
+      nennt Ziel, 72 Varianten, Gate für alle und die Abweichung beim F411-Startup.
 - [x] **AKZ.M.2 (Gate und Meldung)** — Tabelle je Variante, **Exit ≠ 0** bei Bau- oder
       Gate-Fehler mit Variantennamen. **Erfüllt:** Schwelle 2000 ⇒ 3 × GATE, Exit ≠ 0; `-O0` baut
       nicht ⇒ Exit ≠ 0.
@@ -507,6 +592,10 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
       des Release-Builds S2.7. **Testbau-Lauf:** 72/72 grün, engste Variante **1'308**.
 - [ ] **AKZ.M.5 (Lauf vor S3)** — 72/72, alle ≥ 1'024 Byte, engste Variante benannt; Voraussetzung
       des Release-Builds S3.16. Eine Variante darunter ⇒ **kein Build**, anhalten und vorlegen.
+
+**Endstand, ausserhalb der beiden Kriterien:** Vor dem Release-Build von STM 3.2.32 (Folge-Release,
+13.10.2026 01:32) lief die Matrix: 72/72, 0 unter dem Gate, engste Variante
+`wc24h-stm32f103-sk6812-rgbw` mit **1'436 Byte** frei (L416).
 
 ### Für alle Schritte
 
@@ -528,8 +617,10 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
       (Abbildzeile mit vier Leerzeichen) ist behoben (L400).
 - [ ] **AKZ.6 (T)** — `pwa-tester` Phasen 0–4 und 9 nach M, mit dem nachgeführten Testplan.
       Unvollständig ⇒ **nicht abgenommen**.
-- [ ] **AKZ.7** — Jedes Release **sofort** committet, getaggt, **gepusht** (DIR-011); den
+- [x] **AKZ.7** — Jedes Release **sofort** committet, getaggt, **gepusht** (DIR-011); den
       `CHANGELOG.md`-Eintrag schreibt der Lead. **S1:** `a6065d5` (samt CHANGELOG), Tag gepusht.
+      **Endstand:** sechs Releases, je mit `CHANGELOG.md`-Eintrag, Commit und Tag; alle sechs Tags
+      liegen auf dem Remote, vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 - [ ] **AKZ.8** — Einspielzeilen mit Reihenfolge, fertig zum Einfügen; eingespielt vom Lead
       (ESP: `curl -s -m 30 "http://$DEVICE_HOST/api/remote_esp_update"`).
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt (DIR-015),
@@ -573,16 +664,22 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
 
 - [x] **STM32** (`src/**`) — S1 (ausgeliefert): `main.c`, `night/night.c` (+ `.h`),
       `timeserver/timeserver.c`, `vars/vars.c` (+ `.h`), `stubs/stubs.c`
-- [ ] **STM32** — S2: `i2c/i2c.c`; S3: Dateien der Einsparungen (aus S3.1), `display/display.c`,
+- [x] **STM32** — S2: `i2c/i2c.c`; S3: Dateien der Einsparungen (aus S3.1), `display/display.c`,
       `tetris/tetris.c`, `tetris/snake.c`, `ldr/ldr.c`, `esp8266/esp8266.c`, `main.c`; je ein Flash
-- [ ] **ESP8266** — E: `vars.cpp`, `ntp.cpp`, `ESP-uclock.ino`, `http.cpp`; ein OTA
-- [ ] **PWA** — P: `app.js`
-- [ ] **Werkzeug** (`tools/**`) — Auswerteregel, Prüfstände, `watch-log.sh`, statische Prüfung
+- [x] **ESP8266** — E: `vars.cpp`, `ntp.cpp`, `ESP-uclock.ino`, `http.cpp`; ein OTA
+- [x] **PWA** — P: `app.js`
+- [x] **Werkzeug** (`tools/**`) — Auswerteregel, Prüfstände, `watch-log.sh`, statische Prüfung
 - [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`,
       `README-CMAKE.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md` (Lead)
-- [ ] **Build/Release** — Matrix-Ziel (`CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh`,
+- [x] **Build/Release** — Matrix-Ziel (`CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh`,
       `release-engineer`, erledigt); Matrix-Lauf vor S1, S2, S3; **fünf** Releases (S1 ☑, S2, S3,
       E, P); je Commit, Tag, Push
+
+**Endstand:** Dazu kamen ausserhalb der Planung STM 3.2.32 (`src/vars/vars.c`, A74/A75), ESP 3.2.33
+(`ESP-uclock.ino`, A76) und PWA 1.4.97 (`app.js`, B54) — sechs Releases statt fünf. In der
+Dokumentation bleiben offen: Z.2 (`knowledge/architecture-checklist.md`, beim `doc-writer` in
+Arbeit) und der T.1-Teil zu den Logzeilen aus S3.2. `BEFUNDE.md` (Z.1, Commit `6de22d2`),
+`CLAUDE.md` (Z.3) und `README-CMAKE.md` (Z.5) sind nachgeführt.
 
 ---
 
@@ -651,3 +748,71 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
 - **Offen — zweiter STM-Reset im Aus-Fenster in G3** (für AKD.2 Teil 2, die EEPROM-Frage aus A23):
   **vor G3 beim Nutzer zu bestätigen**; nicht durch Ent-14 (a) gedeckt. Der Lead fragt vor G3
   nach.
+
+---
+
+## Endstand 13.10.2026
+
+Belege: `BEFUNDE.md` (L393–L420; Massnahmen A21, A23, A34, A35, A52, A53, A57, A60–A63, A67–A78,
+B54–B57, C35, C58, C59), `CHANGELOG.md` (sechs Einträge vom 11. bis 13.10.2026), die
+Release-Commits und -Tags, dazu die Angaben des Leads vom 13.10.2026 (Remote-Tags, Zählung in G5).
+Releases, Gerätenachweise, Abweichungen und Lehren im Einzelnen: `tasks.md`, Abschnitt
+„Endstand 13.10.2026". **Der zweite STM-Reset im Aus-Fenster** (oben „Offen") wurde vom Nutzer
+freigegeben und am 13.10.2026 um 01:06:16 gefahren (L407).
+
+### Ziele
+
+| Ziel | Stand |
+|---|---|
+| 1 — Flash | **Teilweise belegt.** Kein Release wurde unter dem Gate ausgerollt. S1 mit Zahlen belegt (Teilbuild 1'608, engste Variante 1'416), S2 nur im Testbau (1'464 / 1'308, Vorabwert), vor STM 3.2.32 ein Matrix-Lauf mit engster Variante 1'436 (L416). Für die Release-Builds S2 und S3 liegen keine Zahlen vor; S3 sparte laut `CHANGELOG.md` rund 500 Byte ohne Verhaltensänderung. Die Matrix vor S2 meldete 72/72 ohne Variante unter dem Gate, die engste ist nicht genannt; vor S3 lief sie, ein Ergebnis ist nicht genannt |
+| 2 — Netzzeit | **Erreicht** am Gerät für den Gutfall (G1, L401; A62: stündliche Netzzeit direkt übernommen), für den Fehlerfall nur am Prüfstand a62 — am Gerät nicht herstellbar |
+| 3 — Nachtfenster | **Erreicht** (L401, L407, AKW.5). Offene Randfälle: A70 (L396 c–e, L399) |
+| 4 — Displayfarbe | **Erreicht** (L404, L407; T.2 L412) |
+| 5 — Spiele | **Erreicht** (L404) |
+| 6 — Einmessen | **Erreicht** (L404, L412); der Zahlen-Setter nimmt weiter jede Reihenfolge an. Die PWA meldet eine Abweisung nicht (L417/B55) |
+| 7 — I²C | **Erreicht** (L403): Fristen, Freitakten, `n=2` 15 ms statt 24–26, 32 Byte 35–36 statt 92 ms. Dazu A73 (L402); auf Nucleo zieht das Freitakten den falschen Pin (L415/A77, vorbestehend, ausgelieferte Fabrikate nicht betroffen) |
+| 8 — Brücke | **Erreicht.** `var ignoriert` hat im Feld einen vorbestehenden Fehler aufgedeckt (A75), `ovr=` hat angeschlagen (L408 ⇒ A76); A21 gemessen geschlossen (L413) |
+| 9 — NTP | **Erreicht** (C58). Offen: die Bindung der Antwort an die Anfrage (L406/C59) |
+| 10 — Update-Abfrage | **Erreicht** (L410: 3 statt 60 in 15 min). Die Ursache auf dem ESP bleibt (C35, Varianten B/C) |
+| 11 — Ohne Firmware | **Erreicht** (A34 geschlossen, A63 Beobachtung, A61 gemessen und mit dem Werkzeug geschlossen, Berichtigungen eingetragen) |
+| 12 — einzeln nachgewiesen | **Weitgehend.** Jeder STM-Schritt einzeln eingespielt und nachgewiesen. Abweichungen: ein Release mit drei Komponenten (STM 3.2.32 / ESP 3.2.33 / PWA 1.4.96, L408); G4 auf dem zweiten OTA statt auf dem von E; T.2 vor M.1 und auf PWA 1.4.96 statt auf dem Endstand |
+
+### Kriterien, die offen bleiben, und warum
+
+| Kriterium | Grund |
+|---|---|
+| **AKP.1** | Die Analyse liegt vor (Kandidaten mit Bytes in L394), dort aber „an der Map des F103" — dass sie gegen die Map des S2-Builds **und** der engsten Variante lief, ist nicht belegt |
+| **AKP.2** | Die Einsparungen sind ausgeliefert (`CHANGELOG.md`, A52 −20 Byte, Prüfstände n5, n6), der gemessene Gewinn **je** Einsparung (S3.3) liegt nicht vor |
+| **AKZ.F** | Für S3 liegen die Testbauten je Task und je Einsparung nicht vor |
+| **AKZ.M.4** | 72/72 ohne Variante unter dem Gate (`CHANGELOG.md`, S2); **die engste Variante ist nicht genannt** |
+| **AKZ.M.5** | `CHANGELOG.md` nennt nur, dass die Matrix vor S3 lief, kein Ergebnis. Belegt ist erst der Lauf vor STM 3.2.32 (L416) — er ersetzt den Lauf vor S3 nicht |
+| **AKZ.1, AKZ.2** | Einzelne Guardrail-Läufe und die Warnungsbestände je Release nicht gemeldet |
+| **AKZ.3** | Nicht gemeldet. Beim Release `release/3.2.32-3.2.33-1.4.96` hebt der Build bewusst drei Komponenten an — der Grundsatz „nur die angehobene Komponente" ist dort nicht der Massstab |
+| **AKZ.4** | Smoketest 31/0 nach S3 (L404), nach dem STM-Flash 3.2.32 und den OTAs (L408, L410) belegt; nach S1 und S2 nicht einzeln gemeldet |
+| **AKZ.5** | Die Wache kennt die neuen Zeilen (`CHANGELOG.md`); die Gegenprobe je Zeile ist nicht gemeldet. Am 12.10.2026 stand sie von 00:20 bis 01:33 still, unbemerkt bis kurz vor dem Reset (L401); Ursache nicht untersucht |
+| **AKZ.6** | T.2 unvollständig: **V3 nicht gefahren** (STM-Reset von der Berechtigungsprüfung abgewiesen, liegt beim Nutzer), 18 S-Fälle ausgelassen; lief auf PWA 1.4.96 (L412). Nach der Abnahmeregel **nicht abgenommen** |
+| **AKZ.8, AKZ.9** | Nicht gemeldet |
+
+### Was der Entwurf nicht vorhergesehen hat
+
+- **§1.2:** Der Faktor 2 bis 3 der Flash-Schätzungen (L393, L416) — Anlass für Ent-17 und die
+  Matrix-Planung ab der engsten Variante; der Abstand Teilbuild–engste Variante schwankte zwischen
+  156 und 220 Byte.
+- **§7:** Ein OTA wird von der **alten** Firmware ausgeführt; der OTA von E konnte A67 deshalb gar
+  nicht zeigen (L408). Belegt ist A67 erst auf dem nächsten OTA (L410).
+- **§8:** Die EEPROM-Adresssuche beim Start erzeugt Fristzeilen bei NACK — A73 (L402). Das
+  Freitakten läuft seit Ent-15b auch im Betrieb und damit auch die Nucleo-Fehlzeile (L415/A77).
+- **§10:** Die erste `var ignoriert`-Zeile deckte einen vorbestehenden Fehler auf (Dimmtabellen mit
+  64 statt 16 Werten, A75); `var_send_buf()` sendete nach `CAP` weiter (A74); den Zeitpunkt eines
+  Überlaufs zeigte `ovr=` nicht (A76). Alle drei aus L408, ausgeliefert im zusätzlichen Release.
+- **§11:** Der Review hat C35 um `update_table_files` erweitert; als Restpunkt blieb L418/B56.
+- **Werkzeuge:** L409, L410b, L411, L414 — vier Prüfungen, deren Eingabeweg nicht geprüft war
+  (Gattung DIR-014).
+
+### Offen nach dem Paket
+
+A63 (Beobachtung, Ent-10); A70, A71, A72 (L396–L399); A76 (wartet auf einen Überlauf mit
+Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); V3
+aus T.2 (beim Nutzer, mit `numvar[45]` aus S79, L412); der T.1-Teil „Logzeilen, die S3.2 geändert
+hat"; Z.2 (`knowledge/architecture-checklist.md`, beim `doc-writer` in Arbeit); die ESP-Ursache von
+C35.
