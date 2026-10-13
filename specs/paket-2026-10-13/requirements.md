@@ -1,8 +1,8 @@
 # Anforderungen — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, E36, F3)
 
-**Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-15 und Ent-17 (unten,
-„Entscheidungen"). **Zwei Entscheidungen gegen die Empfehlung:** Ent-11 (C6 einstufig) und Ent-15
-(Messbau für A15 am Gerät).
+**Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-14 und Ent-17 (unten,
+„Entscheidungen"). **Eine Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau
+für A15) ist am 13.10.2026 aufgehoben** (L432): A15 bleibt, ohne Messbau.
 **Erstellt:** 2026-10-13, Stand `159c9d0` (Zweig `pwa-decoupling`); am selben Tag mit den Entscheidungen
 nachgeführt. Ausgangsstand am Gerät laut Endstand von `specs/paket-2026-10-11/`: STM 3.2.32, ESP 3.2.33,
 PWA 1.4.97.
@@ -10,7 +10,7 @@ PWA 1.4.97.
 alle, die seine Entscheidung brauchten, **ausser F4** (eigenes Folgepaket). Nachträglich aufgenommen:
 **C60** (L426, hoch), **A81** (L427) und **A82** (L428).
 **Grundlage:** `BEFUNDE.md` (ToDo-Liste, nachgezählt am 13.10.2026; Befundzeilen L22, L35, L99, L101,
-L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428), `REVIEW-2026-09-29.md`
+L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428, L432), `REVIEW-2026-09-29.md`
 Massnahme 14. Der `spec-writer` hat jede tragende Fundstelle am Code `159c9d0` nachgelesen; Abweichungen
 von `BEFUNDE.md` sind am Befund vermerkt.
 
@@ -21,13 +21,13 @@ Kennzeichen: **✔ SW** — vom `spec-writer` am Code nachgelesen; **✔ B** —
 geführt (Nachzählung 13.10.2026 oder Gerätebeleg), nicht einzeln nachgelesen; **◐** — am Code
 abgeleitet, nicht belegt; **●** — gemeldet, vor der Umsetzung zu prüfen.
 
-**Kennungen.** Schritte: **0** (ohne Firmware), **M0/M1** (Messbauten für A15, keine Releases),
-**S1** (STM-Release 1, isoliert: A15), **S2** (STM-Release 2: B55-STM, A56, A81, A80, A82, A70),
-**S3** (nur falls das Flash-Gate in S2 reisst: A70, gegebenenfalls A82, nach Flash-Analyse; Ent-14),
-**E1** (ESP-Release 1, HTTP-Schicht: Herkunftsprüfung für alle zerstörenden Wege samt C6v und C60, C46,
-C19), **E2** (ESP-Release 2, Brücke und Netz: B55-ESP, C8, A79, C59), **EP** (**ein** Release mit ESP und
-PWA, direkt hintereinander eingespielt: C6 nur noch POST, C6b, dazu in der PWA C6, C6b, C46, B55),
-**T1** (`pwa-tester`), **P2** (PWA-Release: B48, B8), **T2** (`pwa-tester`), **Z** (Doku).
+**Kennungen.** Schritte: **0** (ohne Firmware), **M0/M1** (Messbauten für A15 — **entfallen**, Ent-15
+aufgehoben), **S1** (STM-Release 1, isoliert: A15), **S2** (STM-Release 2: B55-STM, A56, A81, A80, A82,
+A70), **S3** (nur falls das Flash-Gate in S2 reisst: A70, gegebenenfalls A82, nach Flash-Analyse;
+Ent-14), **E1** (ESP-Release 1, HTTP-Schicht: Herkunftsprüfung für alle zerstörenden Wege samt C6v und
+C60, C46, C19), **E2** (ESP-Release 2, Brücke und Netz: B55-ESP, C8, A79, C59), **EP** (**ein** Release
+mit ESP und PWA, direkt hintereinander eingespielt: C6 nur noch POST, C6b, dazu in der PWA C6, C6b, C46,
+B55), **T1** (`pwa-tester`), **P2** (PWA-Release: B48, B8), **T2** (`pwa-tester`), **Z** (Doku).
 Gerätenachweise **G0** bis **G6**. Akzeptanzkriterien: **AKW** (Logwache, E36), **AKB** (Backup-Umfang,
 F3), **AKD** (deutsche Texte, B8), **AKI** (UART-ISR, A15), **AKL** (LDR-Ergebnis, B55), **AKA**
 (Ambilight, A56, A81, A82), **AKC** (Icon, A80), **AKN** (Nachtfenster, A70), **AKH** (Herkunft und
@@ -43,8 +43,8 @@ Ent-17**. Die Kürzel gelten nur in diesem Paket.
 | Schritt | Inhalt | Laufzeit | Einspielen | Gerätenachweis |
 |---|---|---|---|---|
 | **0** | **E36** Logwache mit Lebenszeichen · **F3** Umfangsprüfung Backup · **B8** Zählwerkzeug und Bestandszählung · Werkzeug für den lokalen STM-Flash · Grundlinien · neue Befunde eintragen | Werkzeug, Doku | — | **G0** |
-| **M0** | Messbau „vorher" (3.2.32 + Zyklenzähler) per lokalem Upload, messen, zurück auf 3.2.32 | STM (Testbau) | nach G0 | Teil von **G0** |
-| **S1** | **A15** UART-ISR; davor Messbau **M1** „nachher" | STM | nach M0 | **G1** |
+| ~~**M0**~~ | ~~Messbau „vorher"~~ — **entfallen** (Ent-15 aufgehoben, L432) | — | — | — |
+| **S1** | **A15** UART-ISR | STM | nach G0 | **G1** |
 | **S2** | **B55-STM** · **A56** · **A81** · **A80** · **A82** · **A70** (c), (d), (e), L399 | STM | nach G1 | **G2** |
 | **S3** | nur bei Gate-Riss in S2 (Ent-14): Flash-Analyse, dann A70 (und A82, falls dort zurückgestellt) | STM | nach G2 | **G2b** |
 | **E1** | HTTP-Schicht: Herkunftsprüfung über `Sec-Fetch-Dest` **und** `Sec-Fetch-Site` für **alle** zerstörenden Wege (API, Legacy) — **C6** (Herkunftsteil), **C6v**, **C60** · **C46** (ESP) · **C19** (nur L311) | ESP | nach G2 bzw. G2b | **G3** |
@@ -67,26 +67,29 @@ ohne Gerätenachweis und ohne anderes Release dazwischen eingespielt — ESP zue
 
 ## Problem
 
-### 1. A15 / L101 — die UART-ISR ruft vier SPL-Funktionen je Zeichen
+### 1. A15 / L101 — die UART-ISR liest `SR` doppelt und schreibt es zweimal
 
 **✔ SW:** `src/uart/uart-driver.h:773` und `:775` (`USART_GetITStatus`/`USART_ClearITPendingBit` für
 RXNE), `:804` (`USART_ReceiveData`), `:833` und `:837` (dasselbe für TXE); ORE wird schon direkt aus
 `SR` gelesen (`:796`). Die ISR ist eine Vorlage, die **drei** Instanzen erzeugt (ESP-Brücke,
-Log-UART, DFPlayer, `uart-driver.h:733-737`). **✔ B (L101):** 100 bis 130 Befehle je Zeichen, Ziel unter
-30 — eine Zahl vom 03.10.2026, in G0 neu zu messen.
+Log-UART, DFPlayer, `uart-driver.h:733-737`).
+
+**Berichtigung (L432, 13.10.2026):** Die Prämisse aus L101 — vier SPL-Aufrufe je Zeichen, 100 bis 130
+Befehle, Gewinn „Faktor drei bis vier" — **gilt nicht mehr**. Seit LTO (STM 3.2.16) sind die SPL-Aufrufe
+eingebettet; im Bau 3.2.32 hat keine ISR auf F103 oder F411 ein `bl` (90–95 Befehlszeilen je Instanz).
+Zu gewinnen sind **wenige Befehle**: zwei Schreibzugriffe auf `SR` (`ClearITPendingBit`) und das doppelte
+Lesen von `SR`. A15 bleibt im Umfang (Entscheidung des Nutzers), der Messbau entfällt.
 
 **Was ein Ersatz einhalten muss, ✔ SW:** `USART_GetITStatus()` prüft Flag **und** Freigabebit. TXE ist
 gesetzt, sobald das Senderegister leer ist, die Freigabe TXEIE nur während des Sendens (`:854`). Ein
 Ersatz, der nur `SR & TXE` prüft, sendete bei jedem Empfangsinterrupt. **◐:** `USART_ClearITPendingBit`
 für TXE ist wirkungslos, weil TXE nur lesbar ist (SPL-Vertrag, nicht am Projektcode nachgelesen).
 
-**Weg für den Messbau (Ent-15), ✔ SW:** `tools/flash-stm.sh` flasht **nur** vom Update-Server
-(`:117`) und vergleicht mit `wc.txt` (`:95-103`). Ein Messbau dort hinzulegen hiesse, die Quelle der
-produktiven Updates mit einem Diagnosestand zu belegen. Der ESP kennt einen **lokalen** Weg:
-`/api/local_stm32_upload` (POST, `http.cpp:13249-13307`, Dateiname muss `stm32_default` entsprechen,
-`:13261`) legt die Datei als `stm32.hex` ins LittleFS, `/api/local_stm32_flash` (`:13310-13324`) flasht sie.
-**Am Gerät läuft ein F411.** Auf dem F103 lässt sich der Zyklenzähler nur messen, wenn ein F103-Gerät
-bereitsteht — hier keins; der F103 wird statisch gemessen.
+**Weg für einen Messbau — nur noch als Werkzeug, nicht eingesetzt, ✔ SW:** `tools/flash-stm.sh` flasht
+sonst **nur** vom Update-Server (`:117`). Der ESP kennt einen **lokalen** Weg: `/api/local_stm32_upload`
+(POST, `http.cpp:13249-13307`, Dateiname muss `stm32_default` entsprechen, `:13261`) legt die Datei als
+`stm32.hex` ins LittleFS, `/api/local_stm32_flash` (`:13310-13324`) flasht sie. `flash-stm.sh --lokal`
+ist gebaut und bleibt als Werkzeug; in diesem Paket wird es nicht gebraucht.
 
 ### 2. A56 / L330 — Ambilight-Power; A81 / L427 und A82 / L428
 
@@ -244,8 +247,8 @@ untersucht.
 
 1. **Logwache:** Eine stillstehende Wache meldet sich selbst — beim Weiterlaufen und von aussen prüfbar.
 2. **Backup-Umfang:** Jeder `*_set`-Endpunkt steht im Backup oder mit Grund in einer Ausnahmeliste.
-3. **UART-ISR:** Kein SPL-Aufruf im Empfangs-Normalpfad; gemessen statisch auf F103 und F411 und
-   dynamisch (Zyklen) auf der Uhr vorher und nachher; gleiches Verhalten nachgewiesen.
+3. **UART-ISR:** `SR` einmal lesen, kein Schreiben auf `SR`; die Befehlszahl im Empfangs-Normalpfad sinkt
+   auf F103 und F411 (statisch gemessen); gleiches Verhalten nachgewiesen; am Gerät keine Regression.
 4. **Ambilight:** Die Power übersteht einen Neustart, ein Rückflash kostet keine Einstellung; die
    Marker-Weissfarbe kommt vom richtigen Platz; DCF77 folgt auch dem Ambilight.
 5. **Nachtfenster:** (c), (d), (e), L399 nach Ent-2.
@@ -274,9 +277,9 @@ verlangt** — die Liste dessen, was **nie** am Gerät gefahren wird, steht in `
 Logzeilen im STM in Umschrift (DIR-015); der Wortlaut ist verbindlich, wo er hier steht.
 
 **Messwerte sofort festhalten (L424, Skill `/release`):** Jede Messung, die ein Kriterium belegt —
-Flash je Task, Matrix-Lauf, RAM, `--full`, Smoketest, Gerätewert, Zyklen —, steht **in dem Moment, in dem
-sie entsteht,** im Messprotokoll in `BEFUNDE.md` (`design.md` §1.4). Ein Kriterium ohne diesen Beleg gilt
-als **nicht** erfüllt.
+Flash je Task, Matrix-Lauf, RAM, `--full`, Smoketest, Gerätewert, Befehlszahl —, steht **in dem Moment, in
+dem sie entsteht,** im Messprotokoll in `BEFUNDE.md` (`design.md` §1.4). Ein Kriterium ohne diesen Beleg
+gilt als **nicht** erfüllt.
 
 **Wach bleiben (DIR-020):** Jeder Gerätetest, der auf später geplant ist (Nachtteil G2, Stundenläufe),
 läuft mit `caffeinate -i -s -t <Sekunden>` des Leads, gestartet beim Planen; auf Akku sagt der Lead es
@@ -313,10 +316,11 @@ dem Nutzer.
       `placeholder`, `alt` in `index.html` ohne `data-i18n*`). Der Lead ordnet einmal zu: **deutscher
       UI-Text** oder **Ausnahme mit Grund**. Die Zahl steht sofort bei B8. *Gegenprobe:* neuer Text ⇒
       Exit ≠ 0.
-- [ ] **AKG.0 (Grundlinien G0)** — vor M0, je sofort ins Messprotokoll: (1) Befehle im
-      Empfangs-Normalpfad laut Disassembly, F103 **und** F411, aus `release/3.2.32-3.2.33-1.4.97`;
-      (2) Setter-Burst 14 × Wetterort mit Rückstellung: `rx`-Höchststand, `d`, `o`, Δ`v`; (3) 30 Heap-Zeilen:
-      kleinstes `free`, kleinstes `max`, `ovr`; (4) längste Zeile in `/api/stm32_log`, ob sie `~` trägt.
+- [ ] **AKG.0 (Grundlinien G0)** — vor S1, je sofort ins Messprotokoll: (1) Befehle im
+      Empfangs-Normalpfad laut Disassembly, F103 **und** F411, aus dem Worktree-Bau des Tags
+      `release/3.2.32-3.2.33-1.4.97`; (2) Setter-Burst 14 × Wetterort mit Rückstellung: `rx`-Höchststand,
+      `d`, `o`, Δ`v`; (3) 30 Heap-Zeilen: kleinstes `free`, kleinstes `max`, `ovr`; (4) längste Zeile in
+      `/api/stm32_log`, ob sie `~` trägt.
 - [ ] **AKG.1 (Befunde)** — `BEFUNDE.md` führt an jedem Eintrag dieses Pakets „Träger: Paket 2026-10-13";
       die neuen Befunde aus dieser Spec, die noch keine Zeile haben (zweite C19-Stelle, 120er-Ring,
       Rechnung Netzwerkimport), stehen als eigene Zeilen. *Instrument:* S10 und S11 grün.
@@ -324,9 +328,10 @@ dem Nutzer.
       `/api/local_stm32_upload` hoch (Dateiname gleich `stm32_default`), flasht über
       `/api/local_stm32_flash`, setzt zurück und weist die gemeldete Version nach; vorher prüft es den
       freien Platz im LittleFS (`/api/fs_info`) gegen die Dateigrösse. *Gegenprobe:* falscher Dateiname ⇒
-      Abbruch mit Meldung, Exit ≠ 0, ohne Flash.
+      Abbruch mit Meldung, Exit ≠ 0, ohne Flash. Gebaut; bleibt als Werkzeug, wird in diesem Paket nicht
+      eingesetzt (Ent-15 aufgehoben).
 
-### Messbauten M0/M1 und Schritt S1 — A15 (UART-ISR)
+### Schritt S1 — A15 (UART-ISR)
 
 - [ ] **AKI.1 (Gleiches Verhalten)** — Prüfstand **a15** betreibt die alte und die neue ISR gegen dieselbe
       Registerattrappe (`SR`, `CR1`, `DR` mit Lesesemantik: `DR` lesen löscht RXNE und ORE; TXE nur
@@ -334,18 +339,17 @@ dem Nutzer.
       gesetzt", „TXE gesetzt, TXEIE aus", „RXNE und TXE zugleich", „Sendering leer". Verglichen werden
       Empfangsring, `uart_rxdrops`, `uart_rxore`, `uart_rxmax`, gesendete Zeichen und TXEIE: **0
       Abweichungen**. Sabotagen „TXEIE nicht geprüft" und „ORE nach dem Lesen von DR geprüft" ⇒ je FEHL.
-- [ ] **AKI.2 (statisch, beide Plattformen)** — Im Empfangs-Normalpfad steht nachher **kein** `bl` mehr,
-      und die Befehlszahl ist auf F103 **und** F411 kleiner als in G0. Beide Zahlenpaare sofort ins
+- [ ] **AKI.2 (statisch, beide Plattformen)** — Die Befehlszahl im Empfangs-Normalpfad (RXNE, kein ORE,
+      Ring nicht voll, kein TXE) **sinkt** auf F103 **und** F411 gegenüber dem Vorher-Wert aus dem
+      Worktree-Bau des Tags (AKG.0); `SR` wird je Interrupt einmal gelesen und nicht geschrieben. „Kein
+      `bl`" ist schon an der Grundlinie erfüllt (L432) und kein Kriterium mehr. Beide Zahlenpaare sofort ins
       Messprotokoll.
-- [ ] **AKI.4 (Messbau, Ent-15)** — Derselbe Messcode (`design.md` §2.3) in M0 (Stand 3.2.32) und M1
-      (Stand S1), je per `flash-stm.sh --lokal`, nie auf dem Update-Server. Je Messbau dasselbe Lastprofil:
-      10 min Ruhe, Setter-Burst 14 × Wetterort mit Rückstellung, ein Wetterabruf. Gemeldet je Messbau:
-      Zahl der Empfangsinterrupts, Zyklen Minimum, Mittel, Maximum der ESP-Brücken-Instanz — sofort ins
-      Messprotokoll. Nach M0 Rückkehr auf 3.2.32 (`flash-stm.sh --gleich`), nach M1 das Release S1 vom
-      Server; jeweils gemeldete Version nachgewiesen. Der F103 wird nur statisch gemessen (kein Gerät).
-- [ ] **AKI.3 (Gerät G1)** — Nach S1 derselbe Setter-Burst wie in G0, danach zurückgestellt: `d=0`,
-      `o=0`, Δ`v` = 0, `rx`-Höchststand neben dem Wert aus G0. Danach 60 min lesend: kein Neustart, keine
-      Exception, kein Anstieg von `o`; der Mitschnitt läuft lückenlos.
+- [x] ~~**AKI.4 (Messbau, Ent-15)**~~ — **Aufgehoben 13.10.2026** (Ent-15 aufgehoben, L432): kein Messbau
+      M0/M1. Der Messcode-Patch `tools/checks/auszug/stm/a15/messbau.patch` bleibt liegen, wird aber nicht
+      eingesetzt. Kein Kriterium.
+- [ ] **AKI.3 (Gerät G1, Regressionslauf)** — Nach S1 derselbe Setter-Burst wie in G0, danach
+      zurückgestellt: `d=0`, `o=0`, Δ`v` = 0, `rx`-Höchststand neben dem Wert aus G0. Danach 60 min lesend:
+      kein Neustart, keine Exception, kein Anstieg von `o`; der Mitschnitt läuft lückenlos.
 
 ### Schritt S2 — B55-STM, A56, A81, A80, A82, A70
 
@@ -536,7 +540,7 @@ dem Nutzer.
 - [ ] **AKZ.6** — `pwa-tester` Phasen 0–4 und 9 nach G5 (T1) und nach G6 (T2). Unvollständig ⇒ nicht
       abgenommen.
 - [ ] **AKZ.7** — Jedes Release sofort committet, getaggt, **gepusht** (DIR-011); `CHANGELOG.md` schreibt
-      der Lead. Messbauten werden **nicht** committet und nicht getaggt.
+      der Lead.
 - [ ] **AKZ.8** — Einspielzeilen mit Reihenfolge je Release, fertig zum Einfügen.
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt und im Taskbericht
       genannt (DIR-015), darunter `uart-driver.h`, `main.c`, `display.c`, `eeprom-data.h`, `ldr.c`,
@@ -563,8 +567,7 @@ dem Nutzer.
 | **Ringzeilen mit 255 Zeichen** | Ent-10 |
 | **Legacy-LDR-Seite** (`http.cpp:4317`, `:4322`) | bleibt „anstossen" |
 | **Icon nicht anfordern, wenn das Display aus ist** | Verwerfen am Empfang genügt |
-| **Messcode im Produktstand** | Der Zyklenzähler bleibt im Messbau (`design.md` §2.3) |
-| **Messbau auf dem F103** | Kein F103-Gerät; der F103 wird statisch gemessen |
+| **Messbau für A15 (M0/M1), Zyklenmessung am Gerät** | Ent-15 aufgehoben (L432). Der Patch `tools/checks/auszug/stm/a15/messbau.patch` bleibt liegen, wird nicht eingesetzt |
 | **Fehlerfälle am Gerät** für Format, EEPROM-Reset, Löschen, `rsteeprom2`, leere Update-Quelle, C59, A70 (c), (d), L399 | Gefährlich oder nicht herstellbar; Prüfstände (`design.md` §17.3) |
 | **Frühere Specs**, `REVIEW*.md` | Momentaufnahmen (DIR-006) |
 
@@ -573,13 +576,12 @@ dem Nutzer.
 ## Betroffene Laufzeiten
 
 - [ ] **STM32** (`src/**`) — S1: `uart/uart-driver.h`; S2: `main.c`, `display/display.c` (+ `.h`),
-      `eeprom/eeprom-data.h`, `ldr/ldr.c` (+ `.h`); je ein Flash; dazu zwei Messbau-Flashes (M0, M1) und
-      die Rückkehr auf das Release
+      `eeprom/eeprom-data.h`, `ldr/ldr.c` (+ `.h`); je ein Flash
 - [ ] **ESP8266** — E1: `http.cpp`; E2: `ESP-uclock.ino`, `http.cpp`, `ntp.cpp` (ggf. `vars.cpp`); EP:
       `http.cpp`; je ein OTA
 - [ ] **PWA** — EP: `app.js`, `i18n/en.json`; P2: `app.js`, `i18n/en.json`, `index.html`, `styles.css`
-- [ ] **Werkzeug** (`tools/**`, `.claude/**`) — Logwache, Stop-Hook, F3, B8, lokaler STM-Flash, Messcode
-      als Patch, Prüfstände, POST-Umstellung der Werkzeuge
+- [ ] **Werkzeug** (`tools/**`, `.claude/**`) — Logwache, Stop-Hook, F3, B8, lokaler STM-Flash (gebaut, nicht
+      eingesetzt), Prüfstände, POST-Umstellung der Werkzeuge; der Messcode-Patch liegt, wird nicht eingesetzt
 - [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md`
       (Lead)
 - [ ] **Build/Release** — sechs Releases (S1, S2, E1, E2, EP, P2), bei Gate-Riss sieben (S3); Matrix vor
@@ -614,8 +616,10 @@ dem Nutzer.
   jedem auf später geplanten Test `caffeinate` durch den Lead (DIR-020). Dazu die bestehenden Freigaben
   für Updates und STM-Reset.
 - **Ent-14 — Gate-Riss in S2:** A70 ohne Rückfrage in ein eigenes STM-Release (S3) mit Flash-Analyse.
-- **Ent-15 — A15 Messbau am Gerät** (Empfehlung war: nur statisch). Messfirmware mit Zyklenzähler vorher
-  und nachher auf die Uhr, dazu die Zählung aus dem Disassembly; danach Rückkehr auf das Release.
+- ~~**Ent-15 — A15 Messbau am Gerät**~~ — **aufgehoben 13.10.2026** (Entscheidung des Nutzers, L432): A15
+  bleibt, **ohne** Messbau. Seit LTO (STM 3.2.16) sind die SPL-Aufrufe in der ISR eingebettet; im Bau
+  3.2.32 hat keine ISR auf F103/F411 ein `bl`, der Gewinn sind wenige Befehle. Gemessen wird statisch
+  (AKI.2), am Gerät läuft der Regressionslauf (AKI.3).
 - **Ent-16 — Spec: freigegeben** am 13.10.2026.
 - **Ent-17 — A81 und A82 aufgenommen** in S2, soweit das Flash-Budget es trägt; sonst Nachrang (A82 mit
   A70 nach S3; A81 kostet keinen Platz).

@@ -273,30 +273,37 @@ def main():
 
     # ------------------------------------- Logwache steht still (L423, E36)
     # Am 12.10.2026 lief die Wache 73 Minuten weiter, ohne etwas zu schreiben, und
-    # niemand sah es. Ihr Herzschlag wird hier von AUSSEN geprueft -- nur wenn ein
-    # Wachprozess laeuft; eine absichtlich beendete Wache meldet sich nicht.
+    # niemand sah es. Ihr Herzschlag wird hier von AUSSEN geprueft, ueber dieselbe
+    # Regel wie in der Wache ("watch-log.sh --pruefe", AKW.2). Die PID steht im
+    # Herzschlag -- damit trennt die Pruefung "steht" (Prozess lebt, schreibt nicht:
+    # blockieren) von "beendet" (Prozess tot: einmal je Stand melden, denn eine
+    # GESTORBENE Wache hinterlaesst dasselbe unbeobachtete Fenster wie eine gestoppte;
+    # Review 0.2, H1). Eine Probewache hat ihre eigene Datei und stoert hier nicht.
     lebt = root / ".git" / "watch-log.lebt"
     if lebt.exists():
-        import subprocess, time
+        import subprocess
         try:
-            laeuft = subprocess.run(["pgrep", "-f", "tools/watch-log.sh --interval"],
-                                    capture_output=True, text=True, timeout=5).stdout.strip()
-        except Exception:
-            laeuft = ""
+            r = subprocess.run([str(root / "tools" / "watch-log.sh"), "--pruefe"],
+                               capture_output=True, text=True, timeout=10, cwd=str(root))
+            rc, text = r.returncode, (r.stdout or r.stderr).strip()
+        except Exception as ex:
+            rc, text = 1, f"watch-log.sh --pruefe nicht ausfuehrbar: {ex}"
         try:
-            t, iv, rd = lebt.read_text().split()[:3]
-            alter = int(time.time()) - int(t)
-            grenze = max(3 * int(iv), int(iv) + 30)
+            stand = lebt.read_text().split()[0]
         except Exception:
-            alter, grenze, rd = 0, 1, "?"
-        if laeuft and alter > grenze:
-            bloecke.append((f"wache-{t}", [
-                f"Die Logwache laeuft, aber ihr letzter Herzschlag ist {alter} s alt",
-                f"(Runde {rd}, Grenze {grenze} s). Sie STEHT -- seither ist nichts beobachtet.",
-                "",
-                "  ./tools/watch-log.sh --pruefe     bestaetigt es",
-                "  Mitschrift .git/watch-log.out ansehen, Wache neu starten (L423).",
-                "",
+            stand = "?"
+        if rc == 1:
+            bloecke.append((f"wache-steht-{stand}", [
+                text, "",
+                "  Seit dem letzten Herzschlag ist nichts beobachtet. Mitschrift",
+                "  .git/watch-log.out ansehen, Wache neu starten (L423).", "",
+            ]))
+        elif rc == 3:
+            bloecke.append((f"wache-ende-{stand}", [
+                text, "",
+                "  War das gewollt? Laeuft noch ein Geraetetest, ist das Fenster seit",
+                "  der letzten Runde unbeobachtet (DIR-013). Sonst: diese Meldung ist",
+                "  richtig und folgenlos.", "",
             ]))
 
     # ---------------------------------------------------------- Guardrails

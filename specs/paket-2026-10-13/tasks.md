@@ -3,8 +3,9 @@
 **Erstellt:** 2026-10-13, Stand `159c9d0`; am selben Tag mit den Entscheidungen des Nutzers nachgeführt.
 Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
 
-**Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-15 und Ent-17. **Zwei
-Entscheidungen gegen die Empfehlung:** Ent-11 (C6 einstufig) und Ent-15 (Messbau für A15 am Gerät).
+**Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-14 und Ent-17. **Eine
+Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau für A15) aufgehoben
+13.10.2026** (L432).
 
 ## Entscheidungen (13.10.2026)
 
@@ -24,7 +25,7 @@ Entscheidungen gegen die Empfehlung:** Ent-11 (C6 einstufig) und Ent-15 (Messbau
 | **Ent-12** | C6 Umfang | Herkunft über `Sec-Fetch-Site` für alle zerstörenden Wege samt Legacy (`rsteeprom2`, `rststm32`, C60) und `/fs` (C6v); POST für die vier Wartungsendpunkte und `network_secrets`; Legacy bleibt GET; Update-Auslöser, `ir_code_set`, `learn_ir`, `test_display` unverändert; **C60 eigener Task, hoch** | E1.1, E1.2, EP.1 |
 | **Ent-13** | Gerätenachweise | **alle freigegeben**, auch STM-Reset im Nacht-Aus-Fenster für A70 (e); `caffeinate` bei geplanten Tests (DIR-020) | alle G |
 | **Ent-14** | Gate-Riss in S2 | A70 ohne Rückfrage nach S3 mit Flash-Analyse | S2.11, S3 |
-| **Ent-15** | A15 Messung | **Messbau am Gerät** (gegen die Empfehlung) vorher und nachher, dazu Disassembly; danach Rückkehr auf das Release | M0, S1.9–S1.13 |
+| ~~**Ent-15**~~ | A15 Messung | **aufgehoben 13.10.2026** (Entscheidung des Nutzers, L432): A15 bleibt, **ohne** Messbau — seit LTO kein `bl` in der ISR, der Gewinn sind wenige Befehle. Statische Messung (AKI.2) und Regressionslauf (AKI.3) bleiben | M.1–M.4, S1.9, S1.10, S1.13 (entfallen bzw. reines Einspielen) |
 | **Ent-16** | Spec | **freigegeben** | alle |
 | **Ent-17** | A81, A82 | in S2 aufgenommen, soweit das Budget trägt; sonst Nachrang (A82 nach S3) | S2.5, S2.9 |
 
@@ -73,39 +74,39 @@ Umsetzer im Scratchpad, der Lead legt sie unter `tools/checks/auszug/` ab und f�
 | 0.3 | **F3** nach §15 | Lead | Freigabe | **AKB.1–AKB.3** | ☐ | — |
 | 0.4 | **Review 0.3** | `code-reviewer` | 0.3 | sieht die Stufe ihren Gegenstand vollständig (L235)? | — | ☐ |
 | 0.5 | **B8:** Zählwerkzeug, Zuordnung, Zahl sofort bei B8 | Lead | Freigabe | **AKD.1** | ☐ | — |
-| 0.6 | **`flash-stm.sh --lokal`** (§2.3) und Probe in `checks/hooks.sh`, dass `no-danger.py` Gefahrenendpunkte auch mit `curl -X POST` abweist | Lead | Freigabe | **AKZ.12**; Hook-Probe angeschlagen | ☐ | — |
+| 0.6 | **`flash-stm.sh --lokal`** (§2.3) und Probe in `checks/hooks.sh`, dass `no-danger.py` Gefahrenendpunkte auch mit `curl -X POST` abweist. **`--lokal` ist gebaut und bleibt als Werkzeug**; in diesem Paket wird es nicht eingesetzt (Ent-15 aufgehoben) | Lead | Freigabe | **AKZ.12**; Hook-Probe angeschlagen | ☐ | — |
 | 0.7 | **G0 — Grundlinien** nach AKG.0 (Disassembly 3.2.32 im Worktree, Setter-Burst, Heap, `stm32_log`) | Lead | **0.1** | **AKG.0** | — | — |
 | 0.8 | **Befunde:** „Träger: Paket 2026-10-13" an allen Einträgen; neue Zeilen für die zweite C19-Stelle, den 120er-Ring, die Rechnung Netzwerkimport | `doc-writer` | Freigabe | **AKG.1**; S10, S11 | ☐ | — |
 
-## Messbau M0 — vorher (Ent-15, kein Release)
+## ~~Messbau M0 — vorher~~ — entfallen (Ent-15 aufgehoben 13.10.2026, L432)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| M.1 | **Messcode als Patch** nach §2.3 (Zyklenzähler, Zeile `isr esp: …` je 60 s), im Scratchpad | `stm-developer` | Freigabe | Patch passt auf 3.2.32 und baut F411 | — | — |
-| M.2 | Patch ablegen (`tools/checks/auszug/stm/a15/messbau.patch`); Worktree auf `release/3.2.32-3.2.33-1.4.97` | Lead | M.1 | — | ☐ | — |
-| M.3 | Im Worktree `VERSION` mit Zusatz `-m0` (nicht committen) | `release-engineer` | M.2 | gemeldete Version endet auf `-m0` | — | — |
-| M.4 | **M0:** bauen (F411), `flash-stm.sh --lokal`, Lastprofil nach §2.3, Werte sofort ins Messprotokoll, **zurück** mit `flash-stm.sh --gleich`, Version nachgewiesen | Lead | M.3, 0.6, 0.7 | **AKI.4** (vorher) | — | — |
+| M.1 | ~~Messcode als Patch~~ — **erledigt** vor der Aufhebung | `stm-developer` | — | Patch liegt; **bleibt, wird nicht eingesetzt** | — | — |
+| M.2 | ~~Patch ablegen~~ — **erledigt**: `tools/checks/auszug/stm/a15/messbau.patch` | Lead | — | **bleibt, wird nicht eingesetzt** | — | — |
+| M.3 | ~~Versionszusatz `-m0` im Worktree~~ — **entfallen** | — | — | — | — | — |
+| M.4 | ~~M0 bauen, lokal flashen, messen, zurück~~ — **entfallen** | — | — | — | — | — |
 
 ---
 
-## Schritt S1 — STM-Release 1 (isoliert): A15, Messbau M1
+## Schritt S1 — STM-Release 1 (isoliert): A15
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | S1.1 | **A15** nach §2.1; Prüfpunkt `uart_putc()`/`CR1`. **Prüfstand a15** im Scratchpad | `stm-developer` | Freigabe | **AKI.1** am Prüfstand | ☐ | — |
 | S1.2 | **Flash-Gate** F103 und F411, sofort ins Messprotokoll | Lead | S1.1 | **AKM.1** | — | — |
-| S1.3 | Prüfstand a15 ablegen, Gegenprobe; Disassembly nachher | Lead | S1.2, 0.7 | **AKI.1**, **AKI.2** | ☐ | — |
+| S1.3 | Prüfstand a15 ablegen, Gegenprobe; Disassembly nachher gegen den Worktree-Bau des Tags | Lead | S1.2, 0.7 | **AKI.1**, **AKI.2** | ☐ | — |
 | S1.4 | **Review S1** | `firmware-analyst` | S1.3 | Gleichwertigkeit, beide Plattformen | — | ☐ |
 | S1.5 | STM-Version anheben | `release-engineer` | S1.4 | S4 | ☐ | — |
 | S1.6 | `CHANGELOG.md`-Eintrag S1 | Lead | S1.4 | — | ☐ | — |
 | S1.7 | AKZ.3, ins Messprotokoll | Lead | S1.5, S1.6 | **AKZ.3** | — | — |
 | S1.8 | `--full`, ins Messprotokoll | Lead | S1.7 | **AKZ.2** | ☐ | — |
-| S1.9 | Worktree auf den S1-Stand plus Messpatch; `VERSION` mit Zusatz `-m1` (nicht committen) | `release-engineer` | S1.8, M.4 | gemeldete Version endet auf `-m1` | — | — |
-| S1.10 | **M1** bauen (F411) | Lead | S1.9 | baut; Teilbuild im Messprotokoll | — | — |
-| S1.11 | **Matrix-Lauf** nach der Versionsanhebung (Release-Stand, nicht Messbau) | Lead | S1.8 | **AKM.3** | — | — |
+| S1.9 | ~~Worktree mit Messpatch, Zusatz `-m1`~~ — **entfallen** (Ent-15 aufgehoben) | — | — | — | — | — |
+| S1.10 | ~~M1 bauen~~ — **entfallen** (Ent-15 aufgehoben) | — | — | — | — | — |
+| S1.11 | **Matrix-Lauf** nach der Versionsanhebung | Lead | S1.8 | **AKM.3** | — | — |
 | S1.12 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | S1.11 | **AKZ.7** | ☐ | — |
-| S1.13 | **M1** per `flash-stm.sh --lokal`, Lastprofil wie M0, Werte sofort; danach **S1-Release** vom Server (`flash-stm.sh`), Version nachgewiesen, Smoketest | Lead | S1.10, S1.12 | **AKI.4** (nachher), **AKZ.4** | — | — |
-| S1.14 | **G1:** Setter-Burst wie G0, 60 min lesend mit `caffeinate` | Lead | S1.13 | **AKI.3** | — | — |
+| S1.13 | **Einspielen des S1-Release:** Wache starten, `flash-stm.sh --check`, `flash-stm.sh`, Version nachgewiesen, Smoketest sofort ins Messprotokoll (der Messteil entfällt) | Lead | S1.12 | **AKZ.4** | — | — |
+| S1.14 | **G1:** Setter-Burst wie G0, 60 min lesend mit `caffeinate` (Regressionslauf) | Lead | S1.13 | **AKI.3** | — | — |
 
 ---
 
@@ -258,8 +259,8 @@ P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach
 
 ## Abschluss
 
-- [ ] Alle Tasks erledigt (S3 nur bei Gate-Riss)
+- [ ] Alle Tasks erledigt (S3 nur bei Gate-Riss; M.3, M.4, S1.9, S1.10 entfallen)
 - [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
 - [ ] Alle Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen
 - [ ] Sechs Releases (sieben mit S3), je Flash-Umfang und Reihenfolge benannt, je committet, getaggt,
-      gepusht; Messbauten nie committet, nie auf dem Update-Server
+      gepusht

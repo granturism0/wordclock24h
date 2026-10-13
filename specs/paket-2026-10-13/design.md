@@ -1,8 +1,9 @@
 # Design — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, E36, F3)
 
 **Erstellt:** 2026-10-13, Stand `159c9d0`. **Freigegeben** vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1
-bis Ent-15 und Ent-17 (`requirements.md`, „Entscheidungen"). **Gegen die Empfehlung entschieden:** Ent-11
-(C6 einstufig, §8.4) und Ent-15 (Messbau für A15 am Gerät, §2.3). Momentaufnahme (DIR-006).
+bis Ent-14 und Ent-17 (`requirements.md`, „Entscheidungen"). **Gegen die Empfehlung entschieden:** Ent-11
+(C6 einstufig, §8.4). **Ent-15 (Messbau für A15) ist am 13.10.2026 aufgehoben** (L432, §2.3).
+Momentaufnahme (DIR-006).
 
 **Grundlage:** Fundstellen vom `spec-writer` am Code `159c9d0` nachgelesen (`requirements.md`,
 „Problem"). Technische Detailentscheide, für die kein Analyse-Agent befragt wurde, sind als **Empfehlung**
@@ -13,8 +14,8 @@ Taskbericht.
 vier Fälle (§4) · Ent-3 A79 (§12) · Ent-4 A80 (§5) · Ent-5/Ent-10 C8 260 Byte und Folgeeinträge (§7) ·
 Ent-6 B55 API wartet (§6) · Ent-7 C19 nur L311 (§9) · Ent-8 F4 ausgelagert · **Ent-11 C6 einstufig** —
 gegen die Empfehlung (§8.4) · Ent-12 C6-Umfang samt C60 (§8) · Ent-13 alle Gerätenachweise freigegeben,
-`caffeinate` (§17) · Ent-14 A70 bei Gate-Riss auslagern (§1.2) · **Ent-15 Messbau A15** — gegen die
-Empfehlung (§2.3) · Ent-16 freigegeben · Ent-17 A81, A82 in S2 (§3.4, §3.5).
+`caffeinate` (§17) · Ent-14 A70 bei Gate-Riss auslagern (§1.2) · ~~Ent-15 Messbau A15~~ **aufgehoben**
+13.10.2026, L432 (§2.3) · Ent-16 freigegeben · Ent-17 A81, A82 in S2 (§3.4, §3.5).
 
 ---
 
@@ -28,7 +29,7 @@ Empfehlung (§2.3) · Ent-16 freigegeben · Ent-17 A81, A82 in S2 (§3.4, §3.5)
 | **Release-Build** erst nach dem **Gerätenachweis** des vorigen | R3b | S2.22 nach S1.14 (G1), E1.12 nach S2.24 (G2) bzw. S3.8 (G2b), E2.12 nach E1.14 (G3), EP.16 nach E2.14 (G4), P2.11 nach T1 |
 | **Firmware vor PWA** | DIR-002, L241 | B55: S2 → E2 → EP. C6/C6b/C46: ESP-Teil und PWA-Teil im selben Release EP, ESP zuerst eingespielt |
 | STM-Release-Build erst nach **grünem Matrix-Lauf** auf dem angehobenen Stand | Ent-18 des Vorpakets | S1.11, S2.21, S3.5 |
-| Messbauten sind **keine** Releases | Ent-15, §2.3 | nie committet, nie getaggt, nie auf dem Update-Server |
+| ~~Messbauten sind **keine** Releases~~ | ~~Ent-15~~ — **entfallen**, Ent-15 aufgehoben (L432) | keine Messbauten in diesem Paket |
 | Messwerte **sofort** in `BEFUNDE.md` | L424 | jeder messende Task schreibt seine Zeile, bevor der nächste beginnt (§1.4) |
 | Spät geplante Gerätetests mit `caffeinate` | DIR-020, Ent-13 | Nachtteil G2, Stundenläufe G1, G4 |
 
@@ -39,9 +40,9 @@ einem Worktree (R6) vorziehen; in den Hauptbaum kommt es erst nach dem Release-B
 
 | # | Release | Inhalt | Komponente | Nachweis | Warum so geschnitten |
 |---|---|---|---|---|---|
-| — | **Schritt 0** | E36, F3, B8-Zählung, lokaler STM-Flash, Grundlinien | Werkzeug, Doku | **G0** | Die Wache trägt jeden Gerätenachweis — sie muss vor G0 halten |
-| — | **M0** | Messbau vorher | STM-Testbau | Teil von G0 | vor jeder Änderung an der ISR |
-| 1 | **S1** | A15 (davor Messbau M1) | STM | **G1** | Die ISR liegt unter jedem Brückenpfad und unter dem Mitschnitt — isoliert ist ein Fehler zuzuordnen |
+| — | **Schritt 0** | E36, F3, B8-Zählung, lokaler STM-Flash (Werkzeug), Grundlinien | Werkzeug, Doku | **G0** | Die Wache trägt jeden Gerätenachweis — sie muss vor G0 halten |
+| — | ~~**M0**~~ | ~~Messbau vorher~~ — **entfallen** (Ent-15 aufgehoben, L432) | — | — | — |
+| 1 | **S1** | A15 | STM | **G1** | Die ISR liegt unter jedem Brückenpfad und unter dem Mitschnitt — isoliert ist ein Fehler zuzuordnen |
 | 2 | **S2** | B55-STM, A56, A81, A80, A82, A70 | STM | **G2** | Getrennte Kennzeichen (`RPCR`, Seitenschreiben bei Ambilight, Marker-Weiss nach Reset, `icon: verworfen`, DCF77-Merker am Prüfstand, `night: …`); A80 und A70 berühren denselben Restore-Bereich und werden zusammen gegen die Invariante geprüft |
 | (3) | **S3** | nur bei Gate-Riss: Flash-Analyse, A70 (und A82) | STM | **G2b** | Ent-14 |
 | 3 | **E1** | Herkunft für alle zerstörenden Wege (C6-Herkunftsteil, C6v, C60), C46-ESP, C19 | ESP | **G3** | Anfrageverarbeitung; ändert für die PWA nichts — sie ruft `same-origin` und weiter per GET |
@@ -65,7 +66,6 @@ E1 ESP 3.2.34, E2 ESP 3.2.35, EP ESP 3.2.36 **und** PWA 1.4.98 (`CACHE_NAME` mit
 
 | Nach | Zustand | Folge | Massnahme |
 |---|---|---|---|
-| M0, M1 | Messbau auf der Uhr | Version mit Zusatz, Messzeile im Mitschnitt | Rückkehr auf das Release unmittelbar nach der Messung (AKI.4) |
 | S2 | neuer STM sendet `RPCR`, alter ESP | der alte ESP übergeht unbekannte Zeilen | keine |
 | E1 | Herkunftsprüfung | für PWA, Legacy und Werkzeuge keine Wirkung | keine |
 | E2 | ESP wartet auf `RPCR` | die alte PWA zeigt bei Abweisung ihren Rückfalltext statt „gespeichert" | keine |
@@ -103,7 +103,6 @@ Spielraum an der engsten Variante: **412 Byte**. Abstand Teilbuild–engste Vari
    des Vorpakets (Map des S2-Builds und der engsten Variante; Kandidaten mit Bytes laut Map) und setzt
    verhaltensneutrale Einsparungen nur einzeln gemessen um; eine Einsparung mit Verhaltensänderung nur nach
    Rückfrage. Reisst es vorher: anhalten und vorlegen.
-5. Der **Messbau** zählt nicht gegen das Gate (nie ausgerollt), muss aber für F411 bauen.
 
 ### 1.3 ESP-RAM
 
@@ -113,10 +112,9 @@ Der Ring bleibt bei 32 × 121 (Ent-10).
 
 ### 1.4 Messprotokoll in `BEFUNDE.md` (L424)
 
-Je Release **eine** Befundzeile „Messprotokoll <Release>", dazu eine für die Messbauten M0/M1; der Lead
-hängt jede Messung im Augenblick der Messung an: Zeitpunkt, Instrument, Wert, Differenz, Gate ja/nein.
-**R3:** Messzeilen schreibt der Lead; Befundnachführungen der `doc-writer` in eigenen Tasks — nie
-gleichzeitig.
+Je Release **eine** Befundzeile „Messprotokoll <Release>"; der Lead hängt jede Messung im Augenblick der
+Messung an: Zeitpunkt, Instrument, Wert, Differenz, Gate ja/nein. **R3:** Messzeilen schreibt der Lead;
+Befundnachführungen der `doc-writer` in eigenen Tasks — nie gleichzeitig.
 
 ---
 
@@ -156,40 +154,26 @@ Differenziell: alte (`git show`) und neue ISR gegen eine Registerattrappe, je mi
 `DR` lesen löscht RXNE und ORE; TXE nur lesbar, durch Schreiben von `DR` gelöscht; TXEIE in `CR1`.
 Zufallsfolgen und Randfälle nach AKI.1, Sabotagen nach AKI.1.
 
-### 2.3 Messung — statisch und Messbau am Gerät (Ent-15)
+### 2.3 Messung — statisch; Messbau aufgehoben (L432)
 
-**Statisch, beide Plattformen (AKI.2):** Befehle im Empfangs-Normalpfad der ESP-Brücken-Instanz aus
-`arm-none-eabi-objdump -d` der ELF, F103 und F411, einschliesslich der Rümpfe aufgerufener SPL-Funktionen.
-Vorher-Wert aus dem Tag `release/3.2.32-3.2.33-1.4.97`, gebaut im Worktree (R6), weil das Release-ZIP keine
-ELF enthält.
+**Berichtigung (L432):** Seit LTO (STM 3.2.16) sind die SPL-Aufrufe in der ISR eingebettet; im Bau 3.2.32
+hat keine ISR auf F103/F411 ein `bl` (90–95 Befehlszeilen je Instanz). Der Gewinn von A15 sind **wenige
+Befehle** — zwei Schreibzugriffe auf `SR` und das doppelte Lesen von `SR` —, nicht der „Faktor drei bis
+vier" aus L101.
 
-**Messbau (AKI.4).**
+**Statisch, beide Plattformen (AKI.2) — bindend:** Befehle im Empfangs-Normalpfad der ESP-Brücken-Instanz
+aus `arm-none-eabi-objdump -d` der ELF, F103 und F411. Vorher-Wert aus dem Worktree-Bau (R6) des Tags
+`release/3.2.32-3.2.33-1.4.97`, weil das Release-ZIP keine ELF enthält. Kriterium: Die Befehlszahl sinkt auf
+beiden Plattformen; `SR` wird je Interrupt einmal gelesen und nicht geschrieben.
 
-- **Messcode, Empfehlung:** am Eingang und am Ende von `UART_IRQ_HANDLER` `DWT->CYCCNT` lesen (beim Start
-  einmal `CoreDebug->DEMCR |= TRCENA`, `DWT->CYCCNT = 0`, `DWT->CTRL |= CYCCNTENA`; gilt auf Cortex-M3 und
-  M4), nur für die ESP-Brücken-Instanz Zahl, Minimum, Maximum und Summe führen, im Hauptloop je 60 s die
-  Zeile `isr esp: n=… min=… mittel=… max=…` ausgeben und zurücksetzen. Die Messung umfasst die ISR ohne den
-  Eintritt der Hardware (12 Takte) — in beiden Ständen gleich, für den Vergleich ohne Belang.
-- **Ablage:** Der Messcode ist **ein Patch** (`tools/checks/auszug/stm/a15/messbau.patch`), den der
-  `stm-developer` im Scratchpad schreibt und der Lead ablegt. Derselbe Patch auf 3.2.32 (M0) und auf den
-  S1-Stand (M1) — so misst beide Male derselbe Code. **Nicht im Produktstand**, kein `#if` im Baum.
-- **Bauen:** im Worktree (R6); `VERSION` dort mit Zusatz `-m0` bzw. `-m1` (vom `release-engineer` im
-  Worktree gesetzt, **nicht** committet), damit der Messbau an der gemeldeten Version erkennbar ist. Nur F411
-  (Gerät); die Datei heisst wie `stm32_default`.
-- **Flashen — der saubere Weg:** **nicht** über den Update-Server. `flash-stm.sh` flasht nur von dort
-  (`:117`), und ein Messbau im Pfad `test8` wäre die Quelle jedes nächsten Updates. Stattdessen
-  `flash-stm.sh --lokal <hex>` (neu, Lead, AKZ.12) über `/api/local_stm32_upload` (POST, legt
-  `stm32.hex` im LittleFS ab) und `/api/local_stm32_flash`, danach Reset und Versionsnachweis.
-  **Prüfpunkte:** freier Platz im LittleFS vor dem Upload (`/api/fs_info`); ob `stm32.hex` nach dem Flash
-  liegen bleibt (dann im Bericht nennen; Löschen über `fs_remove` gehört zu den Gefahrenendpunkten und
-  geschieht nicht).
-- **Rückkehr:** Nach M0 sofort `flash-stm.sh --gleich` (3.2.32 vom Server). Nach M1 das S1-Release regulär
-  vom Server (`flash-stm.sh`). Der Messbau läuft also nur für die Dauer der Messung.
-- **Lastprofil, beide Male gleich:** 10 min Ruhe, Setter-Burst 14 × Wetterort mit Rückstellung, ein
-  `weather_get_now`. Die Wache läuft mit; die Messzeile ist ein Hinweis, kein Alarm.
-- **F103:** dynamisch nicht messbar (kein Gerät); statisch gemessen.
-- **Erwartung:** Am Gerät zeigen `o`, `d`, `rx` voraussichtlich keine Änderung (ein Zeichen alle rund
-  87 µs, die ISR braucht einen Bruchteil davon); der Messbau zeigt den Gewinn in Takten.
+**Am Gerät (AKI.3):** Regressionslauf auf dem F411 — `o`, `d`, `rx` dürfen sich nicht verschlechtern.
+
+**~~Messbau (AKI.4)~~ — aufgehoben 13.10.2026** (Entscheidung des Nutzers, L432). Bei der geringen
+Grösse des Gewinns lohnt kein Messbau auf der produktiven Uhr. Was davon bleibt:
+- Der Messcode-Patch `tools/checks/auszug/stm/a15/messbau.patch` (Zyklenzähler über `DWT->CYCCNT`) ist
+  geschrieben und abgelegt; er **bleibt liegen, wird aber nicht eingesetzt**.
+- `flash-stm.sh --lokal <hex>` ist gebaut (über `/api/local_stm32_upload` und `/api/local_stm32_flash`,
+  nie über den Update-Server) und **bleibt als Werkzeug**; in diesem Paket wird es nicht gebraucht.
 
 ---
 
@@ -392,8 +376,8 @@ entsteht:
    `make release-zip`, **einen** Commit, **ein** Tag mit beiden Versionen.
 2. Die Werkzeuge stellt der Lead **im selben Commit** um (AKZ.11): `flash-stm.sh`, `smoke-device.sh`,
    `snapshot-device.sh`, `preview/server.py`; `no-danger.py` mit Probe für `curl -X POST` schon in Schritt 0.
-   Getestet gegen Vorschau und Prüfstand c6p **vor** dem Build. Vor EP (S1, S2, Messbauten) laufen die
-   Werkzeuge noch mit GET gegen den alten ESP — deshalb wird nicht früher umgestellt.
+   Getestet gegen Vorschau und Prüfstand c6p **vor** dem Build. Vor EP (S1, S2) laufen die Werkzeuge noch
+   mit GET gegen den alten ESP — deshalb wird nicht früher umgestellt.
 3. Einspielen: ESP-OTA, **unmittelbar** danach `install-app.sh` — kein Gerätenachweis, keine schreibende
    Aktion, kein Backup-Export dazwischen. Danach Smoketest samt Update-Quelle, `--check`, `check-pwa.sh`.
 4. **Rückweg, falls der PWA-Upload scheitert:** Die alte PWA bleibt auf dem Gerät und kann keine
@@ -501,9 +485,8 @@ Tests mit `caffeinate -i -s -t <Sekunden>` (DIR-020).
 
 | Nachweis | Art | Rückstellung |
 |---|---|---|
-| G0, M0, M1, G1 Setter-Burst 14 × Wetterort | schreibend | Wetterort zurück |
+| G0, G1 Setter-Burst 14 × Wetterort | schreibend | Wetterort zurück |
 | G0, G3, G4 Heap, `stm32_log`, `device_ready` mit langer Query | lesend | — |
-| M0, M1 Messbau per lokalem Upload | Flash eines Testbaus | Rückkehr auf das Release |
 | Einspielen S1, S2, (S3), E1, E2, EP, P2 | Update | — |
 | G2 Ambilight aus, STM-Reset, zurück | schreibend + Reset | Vorher-Wert |
 | G2 Display aus, `weather_get_now`, Display an | schreibend, Display kurz dunkel | Display an |
@@ -533,7 +516,7 @@ NTP-Fälschung (C59), A70 (c), (d), L399 (nicht herstellbar).
 | `src/ldr/ldr.c`, `ldr.h` | B55 (Ergebnis) | `stm-developer` |
 | `src/display/display.c`, `display.h` | A56, A80 (`display_icon_cancel()`), A81 | `stm-developer` |
 | `src/eeprom/eeprom-data.h` | A56 | `stm-developer` |
-| Messcode-Patch (`tools/checks/auszug/stm/a15/`) | Messbau A15 | `stm-developer` schreibt, Lead legt ab |
+| Messcode-Patch (`tools/checks/auszug/stm/a15/messbau.patch`) | liegt, wird nicht eingesetzt (Ent-15 aufgehoben) | — |
 | `ESP8266/ESP-uclock/http.cpp` | Herkunft, C60, C6v, C46, C19 (E1); B55 (E2); POST, C6b (EP) | `esp-developer` |
 | `ESP8266/ESP-uclock/ESP-uclock.ino` | B55 (`stm_bridge_poll`, `RPCR`), C8, A79 | `esp-developer` |
 | `ESP8266/ESP-uclock/ntp.cpp` | C59 | `esp-developer` |
@@ -542,10 +525,10 @@ NTP-Fälschung (C59), A70 (c), (d), L399 (nicht herstellbar).
 | `ESP8266/ESP-uclock/data/app/styles.css` | B48 | `ui-developer` |
 | `ESP8266/ESP-uclock/data/app/index.html` | B8 | `ui-developer` |
 | `tools/watch-log.sh`, `.claude/` (Stop-Hook) | E36, Wachzeilen | Lead |
-| `tools/flash-stm.sh` | `--lokal` (Schritt 0), POST (EP) | Lead |
+| `tools/flash-stm.sh` | `--lokal` (Schritt 0, gebaut, bleibt als Werkzeug), POST (EP) | Lead |
 | `tools/checks/**` | F3, B8, Prüfstände | Lead |
 | `tools/smoke-device.sh`, `snapshot-device.sh`, `preview/server.py`, `hooks/no-danger.py`, `checks/hooks.sh` | POST, C6b | Lead |
-| Versionsdateien (auch Zusatz im Messbau-Worktree) | je Release | `release-engineer` |
+| Versionsdateien | je Release | `release-engineer` |
 | `BEFUNDE.md` | Messprotokoll (Lead), Befunde (`doc-writer`) | nie gleichzeitig |
 | `TESTPLAN-PWA.md` | neue Fälle | `doc-writer` |
 | `CLAUDE.md`, `CHANGELOG.md` | Gefahrentabelle (POST), Einträge | Lead |
@@ -565,8 +548,7 @@ Bleibt die Restore-Bedingung vollständig? Greift die Änderung an der richtigen
 > wörtlich stehen (AKN.5); geändert wird der Vergleich im Innenzweig und, dass `do_display_icon` bei
 > ausgeschaltetem Display nicht gesetzt bleibt. **`.gz` und Grösse > 0:** EP und P2 gehen über
 > `make app-gz` und `install-app.sh` (R2). **Schicht:** B55 entscheidet am STM und reicht durch; C46 weist am
-> ESP ab, die PWA vermeidet nur unnötige Fehler; A79 und C8 beheben Verluste am ESP. Der Messbau berührt den
-> Update-Server nicht (§2.3).
+> ESP ab, die PWA vermeidet nur unnötige Fehler; A79 und C8 beheben Verluste am ESP.
 
 **Scalable systems** — Wie viele STM-Kommandos erzeugt die Aktion? Wie viele Byte pro Minute zusätzlich
 auf der UART? Bleibt jeder Pfad unter 20 s Watchdog? Wie lange blockiert der Hauptloop?
@@ -574,12 +556,11 @@ auf der UART? Bleibt jeder Pfad unter 20 s Watchdog? Wie lange blockiert der Hau
 > **STM-Kommandos:** B55 ein RPC je Druck wie bisher, dazu eine unquittierte Zeile `RPCR` (rund 11 Byte).
 > A56 und A82 erzeugen kein Kommando. C46 teilt den Netzwerkimport in bis zu vier ESP-Aufrufe, ohne
 > STM-Kommando. **UART:** neu sind `RPCR`, `icon: verworfen`, `- abgewiesen: query`, `- rpc keine Antwort`
-> (gedrosselt) — keine Zeile je Anfrage oder je Sekunde. Der Messbau gibt je 60 s eine Zeile aus, nur für
-> die Dauer der Messung. **Watchdog STM:** A56 ein Seitenschreiben (~15 ms) je Wechsel; A70, A80, A81, A82
-> ohne Schleife; A15 verkürzt die ISR; der Zyklenzähler kostet im Messbau wenige Takte je Interrupt.
-> **ESP:** Das Warten in B55 ist auf 2'000 ms begrenzt, mit `yield()`; HTTP steht in dieser Zeit still —
-> bewusst, weil Ent-6 das Warten verlangt. **Hauptloop STM:** keine Blockade über eine EEPROM-Seite hinaus.
-> **Feste Grenzen:** Query 255 (sichtbar statt still), Kommandopuffer 260, Ring 32 × 121, RX-Puffer 1'024.
+> (gedrosselt) — keine Zeile je Anfrage oder je Sekunde. **Watchdog STM:** A56 ein Seitenschreiben (~15 ms)
+> je Wechsel; A70, A80, A81, A82 ohne Schleife; A15 spart in der ISR wenige Befehle (L432). **ESP:** Das
+> Warten in B55 ist auf 2'000 ms begrenzt, mit `yield()`; HTTP steht in dieser Zeit still — bewusst, weil
+> Ent-6 das Warten verlangt. **Hauptloop STM:** keine Blockade über eine EEPROM-Seite hinaus. **Feste
+> Grenzen:** Query 255 (sichtbar statt still), Kommandopuffer 260, Ring 32 × 121, RX-Puffer 1'024.
 
 **Secure by design** — `escapeHtml` bei jedem `innerHTML`? Fremddaten als nicht vertrauenswürdig
 behandelt? Keine Credentials in Logausgaben?
@@ -603,8 +584,7 @@ nach Abbruch mitten in einer Sequenz definiert? Wird ein gesetztes Flag auf jede
 > eine Ausgangsstelle; `display_icon_cancel()` setzt Zustand und `do_display_icon`; `dcf77_enabled` über
 > eine Funktion an allen Schaltstellen (A82). **Abbruch in einer Sequenz:** Der aufgeteilte Netzwerkimport
 > setzt je Feld vollständig; `boot_as_ap` steht nach jedem Aufruf auf dem Wert des Backups. Ein
-> abgebrochener Messbau-Lauf endet trotzdem mit der Rückkehr auf das Release (AKI.4). Ein gescheiterter
-> PWA-Upload in EP hat einen benannten Rückweg (§8.4). **Leseschleife über `WiFiClient`:** Die
+> gescheiterter PWA-Upload in EP hat einen benannten Rückweg (§8.4). **Leseschleife über `WiFiClient`:** Die
 > Kopfzeilenschleife im POST-Zweig übernimmt die des GET-Zweigs (C53) — Prüfpunkt im Review.
 
 ---
@@ -622,14 +602,14 @@ nach Abbruch mitten in einer Sequenz definiert? Wird ein gesetztes Flag auf jede
 | C6 Legacy auf POST | Ent-12; POST-Zweig liest keine Formularrümpfe |
 | C6b schon in E1 | öffnete das Fenster mit leeren Schlüsseln über drei Releases (§0.2) |
 | Werkzeuge vor EP auf POST | sie liefen dann gegen den alten ESP ins Leere (§8.4) |
+| Messbau für A15 am Gerät (Ent-15) | aufgehoben 13.10.2026: seit LTO kein `bl` in der ISR, der Gewinn sind wenige Befehle (L432) |
 | Messbau über den Update-Server | belegte die Quelle der produktiven Updates mit einem Diagnosestand (§2.3) |
-| Messcode als `#if` im Produktstand | toter Diagnosecode im Release; der Patch reicht für zwei gleiche Messbauten |
 | A70 feste zweite Frist | schnitte den IP-Lauftext bei grossem `ticker_deceleration` ab |
 | A80 Icon gar nicht anfordern | zweite Stelle, die dieselbe Regel kennen müsste |
 
 ## Versionsfolgen
 
-- [ ] STM `src/main.h` anheben — S1, S2 (und S3), je einzeln; im Messbau-Worktree nur ein Zusatz, nie committet
+- [ ] STM `src/main.h` anheben — S1, S2 (und S3), je einzeln
 - [ ] ESP `version.h` anheben — E1, E2, EP
 - [ ] App `APP_VERSION` anheben — EP und P2
 - [ ] `CACHE_NAME` in `sw.js` anheben — EP und P2, je mit `APP_VERSION`

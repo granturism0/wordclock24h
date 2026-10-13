@@ -56,14 +56,22 @@ WL_SFX=${WATCHLOG_QUELLE:+.probe}
 LEBT="$(git rev-parse --git-dir 2>/dev/null)/watch-log.lebt$WL_SFX"
 if [ "${1:-}" = "--pruefe" ]; then
   [ -s "$LEBT" ] || { echo "Logwache: kein Herzschlag ($LEBT fehlt) -- laeuft keine Wache?"; exit 1; }
-  read -r t iv rd < "$LEBT"
+  # Zeile: Epoche Intervall Runde PID Frist. Grenze wie in der Wache selbst (Review 0.2, M2).
+  read -r t iv rd wpid fr < "$LEBT" 2>/dev/null
+  case "$t$iv$rd${wpid:-0}${fr:-0}" in *[!0-9]*|"") echo "Logwache: Herzschlagdatei unlesbar ($LEBT)"; exit 1;; esac
+  fr=${fr:-20}
   alter=$(( $(date +%s) - t ))
-  grenze=$(( 3 * iv > iv + 30 ? 3 * iv : iv + 30 ))
+  grenze=$(( 3 * iv > iv + fr + 10 ? 3 * iv : iv + fr + 10 ))
+  um=$(date -r "$t" '+%H:%M:%S' 2>/dev/null || echo "$t")
+  if [ -n "${wpid:-}" ] && ! kill -0 "$wpid" 2>/dev/null; then
+    echo "Logwache: BEENDET (PID $wpid lebt nicht), letzte Runde $rd um $um -- seither ist nichts beobachtet"
+    exit 3
+  fi
   if [ "$alter" -gt "$grenze" ]; then
-    echo "Logwache: letzter Herzschlag vor ${alter} s (Runde $rd, Intervall ${iv} s, Grenze ${grenze} s) -- die Wache STEHT"
+    echo "Logwache: letzter Herzschlag vor ${alter} s (Runde $rd um $um, Intervall ${iv} s, Grenze ${grenze} s) -- die Wache STEHT"
     exit 1
   fi
-  echo "Logwache: lebt, letzter Herzschlag vor ${alter} s (Runde $rd, Intervall ${iv} s)"
+  echo "Logwache: lebt, letzter Herzschlag vor ${alter} s (Runde $rd, Intervall ${iv} s, PID ${wpid:-?})"
   exit 0
 fi
 
@@ -88,6 +96,36 @@ done
 LOG=${WATCHLOG_QUELLE:-./tools/logger/log.sh}
 [ -x "$LOG" ] || { echo "tools/logger/log.sh fehlt oder ist nicht ausfuehrbar." >&2; exit 2; }
 
+# Ohne das puffert die Shell die Ausgabe, wenn sie in eine Datei oder Pipe geht --
+# und dann steht dort stundenlang NICHTS, obwohl die Wache laeuft. Am 04.10.2026 genau
+# so passiert: Die Wache lief waehrend eines Testlaufs, ihre Ausgabedatei blieb bei
+# 0 Byte, und der Lead meldete "keine Abstuerze", ohne etwas gesehen zu haben. Der
+# Nutzer hat es bemerkt. Eine Wache, deren Meldungen niemanden erreichen, ist keine.
+#
+# NACHTRAG 04.10.2026 (L194): Das allein reicht NICHT. Beim OTA auf 3.2.19 blieb die
+# Ausgabe erneut leer, und diesmal lag es am Aufruf:
+#
+#     ./tools/watch-log.sh --interval 20 2>&1 | tail -40     <-- SO NICHT
+#
+# `tail -N` sammelt und gibt erst aus, wenn der Stream endet. Bei einer Wache, die
+# bis Strg-C laeuft, endet er nie. Viermal in einer Sitzung so aufgerufen, viermal
+# folgenlos -- und jedes Mal wurde berichtet, die Wache sei mitgelaufen.
+#
+# Ein Melder darf nicht davon abhaengen, wie der Aufrufer ihn pipet. Deshalb geht
+# jede Meldung ZUSAETZLICH in eine feste Datei, an stdout und jeder Pipe vorbei.
+MITSCHRIFT="$(git rev-parse --git-dir 2>/dev/null)/watch-log.out$WL_SFX"
+KONSOLE=0; [ -t 1 ] && KONSOLE=1
+exec > >(while IFS= read -r z; do
+           printf '%s\n' "$z"
+           printf '%s\n' "$z" >> "$MITSCHRIFT"
+         done) 2>&1
+
+# Warnen, wenn stdout keine Konsole ist -- dann ist die Mitschrift der einzige Weg,
+# an die Meldungen zu kommen, und das soll derjenige wissen, der sie startet.
+if [ "$KONSOLE" -eq 0 ]; then
+  printf 'Hinweis: stdout ist keine Konsole. Meldungen stehen in %s\n\n' "$MITSCHRIFT"
+fi
+
 # E36 (L423): Jeder Abruf des Mitschnitts hat eine Frist. log.sh spricht per ssh mit dem
 # Pi; eine bestehende Verbindung kann nach einem Wechsel der Netzschnittstelle unbegrenzt
 # haengen, und die Wache wartete synchron darauf. macOS hat kein "timeout", deshalb
@@ -95,12 +133,14 @@ LOG=${WATCHLOG_QUELLE:-./tools/logger/log.sh}
 FRIST=${WATCHLOG_FRIST:-20}
 # Endet die Wache mitten in einem Abruf, laufen log.sh und ssh sonst als Waisen weiter.
 HOLE_PID=""
-trap '[ -n "$HOLE_PID" ] && { pkill -P "$HOLE_PID" 2>/dev/null; kill "$HOLE_PID" 2>/dev/null; }; exit' TERM INT HUP
+HOLE_TMP=""
+trap '[ -n "$HOLE_PID" ] && { pkill -P "$HOLE_PID" 2>/dev/null; kill "$HOLE_PID" 2>/dev/null; }; [ -n "$HOLE_TMP" ] && rm -f "${HOLE_TMP:?}"; exit' TERM INT HUP
 HOLE_OUT=""
 HOLE_HAENGT=0
 hole() {
   local tmp pid n=0
-  tmp=$(mktemp "${TMPDIR:-/tmp}/watchlog.XXXXXX") || { HOLE_OUT=""; return 2; }
+  tmp=$(mktemp "${TMPDIR:-/tmp}/watchlog.XXXXXX") || { HOLE_OUT=""; HOLE_HAENGT=1; return 2; }
+  HOLE_TMP=$tmp
   "$LOG" "$@" > "$tmp" 2>/dev/null &
   pid=$!
   HOLE_PID=$pid
@@ -118,12 +158,13 @@ hole() {
   HOLE_PID=""
   HOLE_OUT=$(cat "$tmp")
   rm -f "${tmp:?}"
+  HOLE_TMP=""
 }
 
 # Ausgangsstand, damit nur NEUES gemeldet wird. Ohne diese Grundlinie meldet der
 # erste Durchgang die gesamte Vorgeschichte und man gewoehnt sich das Wegsehen an.
 hole tail 3000
-[ "$HOLE_HAENGT" -eq 1 ] && echo "Logwache: der erste Abruf des Mitschnitts hing ueber ${FRIST} s -- Grundlinie leer" >&2
+basis_fehlt=$HOLE_HAENGT
 basis_roh=$HOLE_OUT
 basis_exc=$(printf '%s' "$basis_roh" | grep -ac 'Exception (29)')
 basis_rst=$(printf '%s' "$basis_roh" | grep -ac 'rst cause')
@@ -146,66 +187,60 @@ letzte_ovr=""
 letzte_diag=""
 still_sek=0   # wie lange diag schon auf demselben Wert steht (N2, L321)
 
-# Ohne das puffert die Shell die Ausgabe, wenn sie in eine Datei oder Pipe geht --
-# und dann steht dort stundenlang NICHTS, obwohl die Wache laeuft. Am 04.10.2026 genau
-# so passiert: Die Wache lief waehrend eines Testlaufs, ihre Ausgabedatei blieb bei
-# 0 Byte, und der Lead meldete "keine Abstuerze", ohne etwas gesehen zu haben. Der
-# Nutzer hat es bemerkt. Eine Wache, deren Meldungen niemanden erreichen, ist keine.
-#
-# NACHTRAG 04.10.2026 (L194): Das allein reicht NICHT. Beim OTA auf 3.2.19 blieb die
-# Ausgabe erneut leer, und diesmal lag es am Aufruf:
-#
-#     ./tools/watch-log.sh --interval 20 2>&1 | tail -40     <-- SO NICHT
-#
-# `tail -N` sammelt und gibt erst aus, wenn der Stream endet. Bei einer Wache, die
-# bis Strg-C laeuft, endet er nie. Viermal in einer Sitzung so aufgerufen, viermal
-# folgenlos -- und jedes Mal wurde berichtet, die Wache sei mitgelaufen.
-#
-# Ein Melder darf nicht davon abhaengen, wie der Aufrufer ihn pipet. Deshalb geht
-# jede Meldung ZUSAETZLICH in eine feste Datei, an stdout und jeder Pipe vorbei.
-MITSCHRIFT="$(git rev-parse --git-dir 2>/dev/null)/watch-log.out$WL_SFX"
-exec > >(while IFS= read -r z; do
-           printf '%s\n' "$z"
-           printf '%s\n' "$z" >> "$MITSCHRIFT"
-         done) 2>&1
-
-# Warnen, wenn stdout keine Konsole ist -- dann ist die Mitschrift der einzige Weg,
-# an die Meldungen zu kommen, und das soll derjenige wissen, der sie startet.
-if [ ! -t 1 ]; then
-  printf 'Hinweis: stdout ist keine Konsole. Meldungen stehen in %s\n\n' "$MITSCHRIFT"
-fi
 
 # DIR-020/E36: Solange die Wache laeuft, darf der Mac nicht einschlafen. -i haelt das System
 # wach (auch auf Akku, solange der Deckel offen ist); -w endet mit diesem Prozess.
 WACH="ohne caffeinate"
 if [ -z "${WATCHLOG_QUELLE:-}" ] && command -v caffeinate >/dev/null 2>&1; then
   caffeinate -i -w $$ >/dev/null 2>&1 &
-  WACH="caffeinate -i aktiv"
+  sleep 0.3
+  if kill -0 $! 2>/dev/null; then WACH="caffeinate -i aktiv"; else WACH="caffeinate NICHT gestartet"; fi
 fi
 printf '=== Logwache ab %s (%s, Intervall %s s, Frist %s s, Herzschlag %s) ===\n' \
   "$(date '+%H:%M:%S')" "$WACH" "$INTERVAL" "$FRIST" "$LEBT"
-printf '  Grundlinie: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n\n' \
-  "$basis_exc" "$basis_rst" "$basis_wdt"
+if [ "$basis_fehlt" -eq 1 ]; then
+  printf '  *** Grundlinie FEHLT: der erste Abruf des Mitschnitts hing ueber %s s *** -- sie wird mit der ersten erfolgreichen Runde gesetzt, bis dahin wird nichts als neu gemeldet\n\n' "$FRIST"
+else
+  printf '  Grundlinie: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n\n' \
+    "$basis_exc" "$basis_rst" "$basis_wdt"
+fi
 
 runde=0
 vorige_runde=""
 # Grenze fuer die Selbstmeldung: dreimal das Intervall, mindestens aber Intervall + Frist
 # + Spielraum -- ein Abruf darf bis zur Frist dauern, ohne als Stillstand zu gelten.
 SELBST_GRENZE=$(( 3 * INTERVAL > INTERVAL + FRIST + 10 ? 3 * INTERVAL : INTERVAL + FRIST + 10 ))
+selbst_alarm=0
 while :; do
   runde=$((runde+1))
   jetzt_s=$(date +%s)
   if [ -n "$vorige_runde" ] && [ $((jetzt_s - vorige_runde)) -gt "$SELBST_GRENZE" ]; then
-    printf '  %s  *** Logwache war %s s angehalten (Grenze %s s) *** -- Mac im Ruhezustand, Prozess gestoppt? Dieses Fenster ist NICHT beobachtet\n' \
+    printf '  %s  *** Wache hat %s s ausgesetzt (Grenze %s s) *** -- Mac im Ruhezustand, Prozess gestoppt? Dieses Fenster ist NICHT beobachtet\n' \
       "$(date '+%H:%M:%S')" "$((jetzt_s - vorige_runde))" "$SELBST_GRENZE"
+    selbst_alarm=1
   fi
   vorige_runde=$jetzt_s
-  printf '%s %s %s\n' "$jetzt_s" "$INTERVAL" "$runde" > "$LEBT"
+  # Atomar ersetzen (Review 0.2, N1): ein Leser darf nie eine leere oder halbe Zeile sehen.
+  printf '%s %s %s %s %s\n' "$jetzt_s" "$INTERVAL" "$runde" "$$" "$FRIST" > "$LEBT.tmp" && mv -f "$LEBT.tmp" "$LEBT"
   hole tail 3000
   roh=$HOLE_OUT
   if [ "$HOLE_HAENGT" -eq 1 ]; then
-    printf '  %s  *** Abruf des Mitschnitts hing ueber %s s und wurde abgebrochen *** -- Verbindung zum Pi? Diese Runde ist NICHT beobachtet\n' \
+    # Eine abgebrochene Runde wird NICHT ausgewertet (N4: halbe Zeilen gaeben Fehlalarme
+    # und landeten gekuerzt in GESEHEN) und nie als "ruhig" gemeldet (M1).
+    printf '  %s  *** Mitschnitt nicht erreichbar: Abruf hing ueber %s s und wurde abgebrochen *** -- Verbindung zum Pi? Diese Runde ist NICHT beobachtet\n' \
       "$(date '+%H:%M:%S')" "$FRIST"
+    [ "$ONCE" -eq 1 ] && break
+    sleep "$INTERVAL"; continue
+  fi
+  if [ "$basis_fehlt" -eq 1 ]; then
+    basis_roh=$roh
+    basis_exc=$(printf '%s' "$roh" | grep -ac 'Exception (29)')
+    basis_rst=$(printf '%s' "$roh" | grep -ac 'rst cause')
+    basis_wdt=$(printf '%s' "$roh" | grep -aci 'wdt reset')
+    printf '%s\n' "$roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
+    basis_fehlt=0
+    printf '  %s  Grundlinie nachgeholt: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n' \
+      "$(date '+%H:%M:%S')" "$basis_exc" "$basis_rst" "$basis_wdt"
   fi
 
   exc=$(printf '%s' "$roh" | grep -ac 'Exception (29)')
@@ -231,7 +266,8 @@ while :; do
   diag=$(printf '%s' "$diag_zeile" | grep -aoE 'diag [0-9]+' | tail -1 | awk '{print $2}')
 
   stamp=$(date '+%H:%M:%S')
-  alarm=0
+  alarm=$selbst_alarm      # eine Runde nach einem Aussetzer ist nie "ruhig" (M1)
+  selbst_alarm=0
 
   # Neue Ereigniszeilen. grep -Fxv -f mit leerer Musterdatei liefert nichts -- deshalb
   # eine Zeile, die im Mitschnitt nie vorkommt, als Platzhalter.
