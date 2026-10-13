@@ -5,4 +5,4 @@ datetime_set            Uhrzeit ist Zustand, keine Einstellung -- kommt aus NTP/
 ldr_min_set             "Messwert als Minimum uebernehmen" setzt den aktuellen Lichtwert; gesichert wird ueber ldr_min_value_set (Zahl)
 ldr_max_set             "Messwert als Maximum uebernehmen" setzt den aktuellen Lichtwert; gesichert wird ueber ldr_max_value_set (Zahl)
 network_client_set      verbindet sofort mit dem WLAN; der Import schreibt die Zugangsdaten ueber eeprom_settings_set, wirksam beim naechsten Start
-network_ap_set          setzt BOOT_AS_AP und schaltet sofort in den Zugangspunkt -- Gefahrenendpunkt (R5), nie aus einer Datei
+network_ap_set          setzt BOOT_AS_AP und schaltet sofort in den Zugangspunkt (http.cpp, http_api_network_ap_set); die AP-Daten sichert der Import ueber eeprom_settings_set, ohne umzuschalten

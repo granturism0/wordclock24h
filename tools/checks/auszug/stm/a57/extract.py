@@ -18,7 +18,11 @@ if sab:
     if sab not in SAB or c.count(SAB[sab][0]) != 1: sys.exit('extract: Sabotage %s -- Anker fehlt' % sab)
     c = c.replace(*SAB[sab])
 def fn(t, kopf, wo):
-    a = t.index(kopf); b = t.index('\n}\n', a) + 3
+    # Anker unabhaengig vom Rueckgabetyp (S2.1/B55 aenderte uint_fast16_t -> uint_fast8_t): Gesucht
+    # wird der Funktionsname am Zeilenanfang, dann zurueck an den Anfang der Typzeile davor. So
+    # passt der Pruefstand auf alte und neue Staende (--gegen).
+    name = kopf.split('\n', 1)[1]
+    a = t.index('\n' + name) ; a = t.rindex('\n', 0, a) + 1; b = t.index('\n}\n', a) + 3
     return '#line %d "%s"\n' % (t[:a].count('\n') + 1, wo) + t[a:b]
 teile = [fn(c, 'uint_fast8_t\nldr_write_config_to_eep (void)', 'ldr.c'),
          fn(c, 'uint_fast16_t\nldr_set_min_value (void)', 'ldr.c'),

@@ -27,6 +27,7 @@ static void log_printf (const char * f, ...) { va_list ap; va_start (ap, f); vsn
 static int n_send; static uint16_t gesendet;
 static void var_send_ldr_min_value (void) { n_send++; gesendet = ldr.ldr_min_value; }
 static void var_send_ldr_max_value (void) { n_send++; gesendet = ldr.ldr_max_value; }
+static void esp8266_send_cmd (const char * c, const char * a, uint_fast8_t l) { (void) c; (void) a; (void) l; }   /* S2.1/B55: RPCR-Rueckmeldung */
 #include "auszug.c"
 
 static unsigned long faelle, fehl; static char was[240];
