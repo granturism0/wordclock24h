@@ -237,3 +237,16 @@ DIR-019:
   gilt_fuer: [alle]
   seit: 2026-10-05
 
+
+DIR-020:
+  regel: "Wer einen Geraetetest oder eine Messung auf spaeter plant (nachts, nach einer Frist,
+          ueber eine Stunde Beobachtung), haelt den Mac selbst wach -- mit
+          'caffeinate -i -s -t <Sekunden>' als Hintergrundaufgabe, gestartet beim Planen, mit
+          Laufzeit bis nach dem letzten geplanten Schritt. Der Nutzer muss das nicht tun und
+          nicht daran denken. '-s' wirkt nur am Netzteil: Laeuft der Mac auf Akku, das dem
+          Nutzer sagen. Gilt ebenso fuer die Logwache, die einen solchen Test begleitet
+          (DIR-013). Anlass: In der Nacht zum 12.10.2026 feuerte ein geplanter Termin nicht,
+          und die Logwache stand 73 Minuten still, ohne es zu melden (L401, L423); in der
+          Nacht zum 13.10.2026 lief der Test mit caffeinate durch."
+  gilt_fuer: [alle]
+  seit: 2026-10-13

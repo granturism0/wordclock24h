@@ -131,6 +131,12 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   Absturz, sondern der Bericht, der sauber meldet, waehrend das Geraet zwischendurch
   neu gestartet ist** — er erzeugt Vertrauen, das nicht gedeckt ist. Gleiches gilt fuer
   jede Messung am Geraet, nicht nur fuer den vollen Durchlauf.
+- **Wer einen Gerätetest auf später plant, hält den Mac selbst wach (DIR-020).** Beim
+  Planen `caffeinate -i -s -t <Sekunden>` als Hintergrundaufgabe starten, mit Laufzeit bis
+  nach dem letzten geplanten Schritt — der Nutzer muss nicht daran denken. `-s` wirkt nur
+  am Netzteil; läuft der Mac auf Akku, das sagen. In der Nacht zum 12.10.2026 feuerte ein
+  geplanter Termin nicht, und die Logwache stand 73 Minuten still, ohne es zu melden
+  (`BEFUNDE.md`, L401, L423). Auf Wunsch des Nutzers festgeschrieben.
 - **Eine neu gebaute Prüfung ist erst fertig, wenn sie einmal fehlgeschlagen ist
   (DIR-014).** Nicht „der Code sieht richtig aus", sondern: einmal eine Verletzung
   herstellen und sehen, dass die Prüfung anschlägt — und dass ihre Meldung **ankommt**.
