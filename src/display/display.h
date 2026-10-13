@@ -501,6 +501,7 @@ extern uint_fast8_t     display_ticker_active (void);
 extern void             display_get_icon (const char *, uint_fast8_t);
 extern void             display_get_weather_icon (const char *, uint_fast8_t);
 extern uint_fast8_t     display_read_icon (void);
+extern void             display_icon_cancel (void);
 extern uint_fast8_t     display_read_config_from_eep (uint32_t);
 extern uint_fast8_t     display_write_config_to_eep (void);
 extern void             display_save_display_mode (void);

@@ -2903,6 +2903,21 @@ display_show_ambilight_off (uint_fast8_t refresh)
     display_set_ambilight_leds (&rgb0, refresh);
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * save ambilight power in EEPROM (A56): mark + 0/1 behind the layout, see eeprom-data.h.
+ * eep_write() skips an unchanged page (C3), so setting the same value costs no write cycle.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+display_save_ambilight_power (void)
+{
+    uint8_t     ambi_power8[EEPROM_DATA_SIZE_AMBI_POWER];
+
+    ambi_power8[0] = EEPROM_AMBI_POWER_MARK;
+    ambi_power8[1] = display.ambilight_power_is_on;
+    eep_write (EEPROM_DATA_OFFSET_AMBI_POWER, ambi_power8, EEPROM_DATA_SIZE_AMBI_POWER);
+}
+
 void
 display_set_ambilight_power (uint_fast8_t on)
 {
@@ -2916,6 +2931,8 @@ display_set_ambilight_power (uint_fast8_t on)
         display_show_ambilight_off (1);
         display.ambilight_power_is_on = 0;
     }
+
+    display_save_ambilight_power ();                                        // A56: survives a restart
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -3319,8 +3336,15 @@ display_read_config_from_eep (uint32_t eep_version)
         uint8_t      ticker_deceleration8            = 3;
         uint_fast8_t save_power_is_on;
         uint_fast8_t idx;
+        uint8_t      ambi_power8[EEPROM_DATA_SIZE_AMBI_POWER] = { 0, 0 };
 
         rtc = 1;
+
+        /* A56: independent of eep_version (Ent-9, no layout version). Only "mark + 0" means off, anything
+         * else (0xFF, 0x00, leftovers, value 2) means on. Only the variable is set here; the LED paths
+         * below (dimmed colors, ambilight mode) already respect it. */
+        eep_read (EEPROM_DATA_OFFSET_AMBI_POWER, ambi_power8, EEPROM_DATA_SIZE_AMBI_POWER);
+        display.ambilight_power_is_on = ! (ambi_power8[0] == EEPROM_AMBI_POWER_MARK && ambi_power8[1] == 0);
 
         eep_read (EEPROM_DATA_OFFSET_DSP_COLORS,         display_rgb_color_buf8,     EEPROM_DATA_SIZE_DSP_COLORS);
         eep_read (EEPROM_DATA_OFFSET_DISPLAY_MODE,       &display_mode8,             EEPROM_DATA_SIZE_DISPLAY_MODE);
@@ -3432,7 +3456,7 @@ display_read_config_from_eep (uint32_t eep_version)
             uint8_t date_ticker_format8[EEPROM_DATA_SIZE_DATE_TICKER_FORMAT];
 
             eep_read (EEPROM_DATA_OFFSET_AMBI_MARKER_COLORS, ambilight_marker_rgb_color_buf8, EEPROM_DATA_SIZE_AMBI_MARKER_COLORS);
-            eep_read (EEPROM_DATA_OFFSET_AMBI_W_COLOR,       &ambilight_marker_w_color8,      EEPROM_DATA_SIZE_AMBI_MARKER_W_COLOR);
+            eep_read (EEPROM_DATA_OFFSET_AMBI_MARKER_W_COLOR, &ambilight_marker_w_color8,     EEPROM_DATA_SIZE_AMBI_MARKER_W_COLOR);  // A81: eigener Platz
             eep_read (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT, date_ticker_format8,             EEPROM_DATA_SIZE_DATE_TICKER_FORMAT);
             eep_read (EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS, dimmed_ambilight_colors8,   EEPROM_DATA_SIZE_DIMMED_AMBILIGHT_COLORS);
 
@@ -3509,6 +3533,22 @@ display_read_config_from_eep (uint32_t eep_version)
         if (ambilight_w_color8 >= MAX_COLOR_STEPS)
         {
             ambilight_w_color8 = MAX_COLOR_STEPS - 1;
+        }
+#endif
+
+        /* A81: auch die Marker-Farbe klemmen -- sie indiziert ueber dim_dsp_colors() pwmtable8[MAX_COLOR_STEPS],
+         * und ein nie beschriebener Platz (0xFF) laese sonst hinter der Tabelle. */
+        for (idx = 0; idx < EEPROM_DATA_SIZE_AMBI_MARKER_COLORS; idx++)
+        {
+            if (ambilight_marker_rgb_color_buf8[idx] >= MAX_COLOR_STEPS)
+            {
+                ambilight_marker_rgb_color_buf8[idx] = MAX_COLOR_STEPS - 1;
+            }
+        }
+#if DSP_USE_SK6812_RGBW == 1
+        if (ambilight_marker_w_color8 >= MAX_COLOR_STEPS)
+        {
+            ambilight_marker_w_color8 = MAX_COLOR_STEPS - 1;
         }
 #endif
 
@@ -4092,6 +4132,7 @@ display_write_config_to_eep (void)
         display_save_dimmed_ambilight_colors ();
         display_save_ticker_deceleration ();
         display_save_date_ticker_format ();
+        display_save_ambilight_power ();                                    // A56: after EEPROM reset "on"
 
         rtc = 1;
     }
@@ -5065,10 +5106,11 @@ static const DSP_COLORS icon_colors[ICON_COLORS] =
  */
 #define DISPLAY_ICON_STATE_CLEAR_DISPLAY        0
 #define DISPLAY_ICON_STATE_SHOW                 1
+static uint_fast8_t         display_icon_state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;     // A80: Dateiebene, siehe display_icon_cancel()
+
 static void
 display_icon (void)
 {
-    static uint_fast8_t     state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;
     static uint_fast8_t     animation_on_len;
     static uint_fast8_t     animation_off_len;
     static uint_fast16_t    cnt;
@@ -5090,7 +5132,7 @@ display_icon (void)
 
         RESET_LED_RGB(led_rgb0);
 
-        if (state == DISPLAY_ICON_STATE_CLEAR_DISPLAY)                                                       // 1st show icon
+        if (display_icon_state == DISPLAY_ICON_STATE_CLEAR_DISPLAY)                                          // 1st show icon
         {
             log_printf ("display_icon: start rows=%d cols=%d duration=%d\r\n",
                         display_icon_st.rows,
@@ -5117,7 +5159,7 @@ display_icon (void)
             duration = (display_icon_st.duration - 1) * 64;
             cnt = 0;
 
-            state = DISPLAY_ICON_STATE_SHOW;
+            display_icon_state = DISPLAY_ICON_STATE_SHOW;
         }
         else // if (state == DISPLAY_ICON_STATE_SHOW)
         {
@@ -5229,11 +5271,22 @@ display_icon (void)
             if (cnt >= duration)
             {
                 log_printf ("display_icon: finished cnt=%u duration=%u\r\n", cnt, duration);
-                state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;                       // reset state
+                display_icon_state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;          // reset state
                 display.do_display_icon = 0;
             }
         }
     }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * display_icon_cancel () - A80: Display geht aus, ein laufendes Icon endet sofort, das naechste beginnt von vorn
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+void
+display_icon_cancel (void)
+{
+    display_icon_state = DISPLAY_ICON_STATE_CLEAR_DISPLAY;
+    display.do_display_icon = 0;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------

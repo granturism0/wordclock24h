@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-13 STM 3.2.34: Ambilight merkt sich den Zustand, Nachtfenster ohne Lücken, Icons nicht mehr vertagt (Paket 2026-10-13, S2)
+
+Nur der STM, ESP (3.2.33) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-13-225707.zip`, Tag `release/3.2.34-3.2.33-1.4.97`.
+
+**Einspielen:** nur der STM (`flash-stm.sh`). Läuft mit dem heutigen ESP; dessen Teil für „Messwert übernehmen“ folgt mit E2.
+
+- **Ambilight übersteht einen Neustart** (A56): Ein- oder ausgeschaltet bleibt erhalten. Gespeichert in zwei Byte hinter
+  den bisherigen Einstellungen, ohne neue Layoutversion — ein Rückflash auf eine ältere Firmware setzt nichts zurück.
+- **Nachtfenster** (A70): Startet die Uhr im Aus-Fenster, geht sie nach dem IP-Lauftext auch dann aus, wenn sich die
+  Anzeige danach nicht von selbst zurückmeldet; die erste Netzzeit schneidet den IP-Lauftext nicht mehr ab; ein Wetter-
+  oder Text-Lauftext verzögert ein fälliges Aus nicht mehr; bei reiner DCF77-Zeit wird das Fenster ebenfalls ausgewertet.
+- **Icons bei ausgeschaltetem Display** (A80) werden verworfen statt bis zum Einschalten vorgemerkt — kein veraltetes
+  Wetter-Icon mehr Stunden später. Logzeile `icon: verworfen, display aus`.
+- **DCF77-Empfang** (A82) folgt jetzt auch dem Ambilight, nicht nur dem Display.
+- **Marker-Weissfarbe** (A81) wird beim Start vom richtigen Platz gelesen und begrenzt.
+- **„Messwert übernehmen“** beim Helligkeitssensor (B55, STM-Teil) meldet dem ESP, ob der Wert übernommen oder
+  abgewiesen wurde (`RPCR`); der heutige ESP ignoriert die Zeile, sichtbar wird es mit E2 und der PWA.
+
 ## 2026-10-13 STM 3.2.33: UART-Interrupt schlanker (Paket 2026-10-13, S1; A15)
 
 Nur der STM, ESP (3.2.33) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-13-214013.zip`, Tag `release/3.2.33-3.2.33-1.4.97`.

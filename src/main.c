@@ -1418,11 +1418,22 @@ upgrade_eep_version (void)
 }
 
 /* A69/M2 (Review S1.16, Entscheidung des Nutzers "IP erst zeigen, dann aus"): vorgemerktes Aus vom Start.
- * 0 = keins; sonst uptime, ab der es gilt (Frist ohne IP); NIGHT_OFF_AFTER_IP = erst nach dem IP-Lauftext.
+ * night_off_due: 0 = keins; sonst uptime, ab der es gilt -- immer eine Frist (A70 (c)).
+ * night_off_ip:  1 = das Aus wartet auf das Ende des IP-Lauftexts (Restore-Bedingung), Frist = ip_ticker_end.
+ * ip_ticker_end: uptime, bis zu der der IP-Lauftext laeuft, plus 10 s; 0 = keiner (A70 (c), (d)).
  * Jedes Schalten des Displays verwirft die Vormerkung (set_display_power()). */
-#define NIGHT_OFF_AFTER_IP      0xFFFFFFFF
 #define NIGHT_OFF_DELAY_SEC     60
+static uint_fast8_t             night_off_ip = 0;
+static uint32_t                 ip_ticker_end = 0;
 static uint32_t                 night_off_due = 0;
+
+/* A82: DCF77 empfaengt nur bei Display UND Ambilight aus. Nach jedem Schalten einer der beiden aufrufen
+ * (set_display_power(), Ambilight-Setter, Ambilight-Timer) -- eine Stelle statt dreier Kopien. */
+static void
+dcf77_update (void)
+{
+    dcf77_enabled = ! display.display_power_is_on && ! display.ambilight_power_is_on;
+}
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set display power
@@ -1441,6 +1452,7 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
 
     display.display_power_is_on = new_power_is_on;
     night_off_due = 0;                                                      // A69/M2: jedes Schalten verwirft ein vorgemerktes Aus
+    night_off_ip = 0;
 
     if (do_sync_ambilight)
     {
@@ -1456,6 +1468,7 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
     else
     {
         display_clock_flag |= DISPLAY_CLOCK_FLAG_POWER_OFF;
+        display_icon_cancel ();                                             // A80: ein laufendes Icon endet mit dem Aus
     }
 
     if (esp8266.is_online)
@@ -1468,14 +1481,7 @@ set_display_power (uint_fast8_t new_power_is_on, uint_fast8_t do_sync_ambilight)
         }
     }
 
-    if (display.display_power_is_on || display.ambilight_power_is_on)
-    {
-        dcf77_enabled = FALSE;
-    }
-    else
-    {
-        dcf77_enabled = TRUE;
-    }
+    dcf77_update ();
 
     log_printf ("set_display_power: flags=0x%02x display=%d ambi=%d dcf77=%d\r\n",
                 display_clock_flag,
@@ -1552,6 +1558,7 @@ static uint_fast8_t     var_sync_pending            = 0;                    // S
 static uint_fast8_t     ip_ticker_pending           = 0;                    // IPADDRESS gesehen: IP-Lauftext NACH dem Vollabgleich (A39)
 static uint_fast16_t    game_dropped_lines          = 0;                    // A53: Zeilen, die eine Spielschleife verworfen hat
 static uint_fast16_t    night_wm                    = 0xFFFF;               // A69: zuletzt ausgewertete Wochenminute, 0xFFFF = noch keine gueltige Zeit
+static void             start_ticker (const unsigned char *);                // A70 (e)
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * set_overlay_idx () - used by external NIC function wc_display_overlay()
@@ -1617,19 +1624,34 @@ schedule_esp8266_remote_procedure (char * parameters)
 
     switch (var_idx)
     {
+        /* B55 (Paket 2026-10-13, design.md 6.1): Nach der Wertmeldung genau eine Zeile "RPCR xx r" an den
+         * ESP, ohne Quittung -- r = 0 uebernommen, 1 abgewiesen (A57), 2 Messung fehlgeschlagen. Am Wert
+         * allein ist das nicht erkennbar: unveraendert heisst auch "gleich gemessen" (L417). Ein ESP ohne
+         * RPCR-Zweig verwirft die Zeile still. xx: Die beiden Indizes sind 0 und 1 (vars.h), die erste
+         * Hexziffer bleibt deshalb '0'.
+         */
         case LDR_MIN_VALUE_RPC_VAR:
+        case LDR_MAX_VALUE_RPC_VAR:                                                         // ein Zweig fuer beide
         {
-            debug_log_message ("rpc: set LDR value as minimum");
-            ldr_set_min_value ();
-            var_send_ldr_min_value ();
-            break;
-        }
+            static char     rpcr[] = "RPCR 00 0";
+            uint_fast8_t    r;
 
-        case LDR_MAX_VALUE_RPC_VAR:
-        {
-            debug_log_message ("rpc: set LDR value as maximum");
-            ldr_set_max_value ();
-            var_send_ldr_max_value ();
+            if (var_idx == LDR_MIN_VALUE_RPC_VAR)
+            {
+                debug_log_message ("rpc: set LDR value as minimum");
+                r = ldr_set_min_value ();
+                var_send_ldr_min_value ();
+            }
+            else
+            {
+                debug_log_message ("rpc: set LDR value as maximum");
+                r = ldr_set_max_value ();
+                var_send_ldr_max_value ();
+            }
+
+            rpcr[6] = '0' + var_idx;
+            rpcr[8] = '0' + r;
+            esp8266_send_cmd (rpcr, (const char *) 0, 0);
             break;
         }
 
@@ -1787,6 +1809,7 @@ schedule_esp8266_numeric_variable (char * parameters)
             if (display.ambilight_power_is_on != val)
             {
                 display_set_ambilight_power (val);
+                dcf77_update ();                                            // A82
                 debug_log_printf ("cmd: set power_is_on = %d\r\n", val);
             }
             break;
@@ -2311,8 +2334,7 @@ schedule_esp8266_string_variable (char * parameters)
              * Durchlauf sofort zumalen. Den Restore zieht die Bedingung um
              * pending_ticker_restore nach, sobald display_ticker_active() falsch ist.
              */
-            display_set_ticker ((unsigned char *) parameters, 0);
-            pending_ticker_restore = 1;
+            start_ticker ((unsigned char *) parameters);
             debug_log_printf ("cmd: print ticker: '%s'\r\n", parameters);
             break;
         }
@@ -3358,7 +3380,24 @@ static void
 night_off_apply (void)
 {
     night_off_due = 0;
+    night_off_ip = 0;
     night_apply (0xFFFF, 1);
+}
+
+/* A70 (e): jeder Tickerstart ausser dem IP-Lauftext. Wartet ein Aus auf das Ende des IP-Lauftexts, gilt es
+ * jetzt, VOR dem Ticker -- der erscheint dann nicht (display_set_ticker() tut bei Display aus nichts).
+ * Den Restore zieht die Bedingung um pending_ticker_restore nach (do_wait = 0, BEFUNDE.md L204/L211/L216). */
+static void
+start_ticker (const unsigned char * text)
+{
+    if (night_off_ip)
+    {
+        night_off_apply ();
+    }
+
+    ip_ticker_end = 0;                                                      // A70 (d): der IP-Lauftext ist ueberschrieben
+    display_set_ticker (text, 0);
+    pending_ticker_restore = 1;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -3428,9 +3467,9 @@ schedule_esp8266_messages (void)
                                     gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
                 net_time_countdown = 3600 + 180 + 40 - gmain.second;                // calc next timeserver call 1h3m later at hh:mm:40
 
-                if (night_wm == 0xFFFF)                                             // A69: RTC beim Start nicht gueltig -- jetzt einmal
-                {
-                    night_apply (0xFFFF, 1);
+                if (night_wm == 0xFFFF)                                             // A69: RTC beim Start nicht gueltig -- jetzt einmal;
+                {                                                                   // A70 (d): steht der IP-Lauftext aus oder laeuft er, nur vormerken
+                    night_apply (0xFFFF, (ip_ticker_pending || uptime < ip_ticker_end) ? 2 : 1);
                 }
             }
             break;
@@ -3517,15 +3556,13 @@ schedule_esp8266_messages (void)
         case ESP8266_WEATHER:
         {
             log_printf ("info: weather = %s\r\n", esp8266.u.weather);
-            display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
-            pending_ticker_restore = 1;
+            start_ticker ((unsigned char *) esp8266.u.weather);
             break;
         }
         case ESP8266_WEATHER_FC:
         {
             log_printf ("info: weather forecast = %s\r\n", esp8266.u.weather);
-            display_set_ticker ((unsigned char *) esp8266.u.weather, 0);
-            pending_ticker_restore = 1;
+            start_ticker ((unsigned char *) esp8266.u.weather);
             break;
         }
         case ESP8266_WEATHER_ICON:
@@ -3552,8 +3589,15 @@ schedule_esp8266_messages (void)
         {
             if (display_read_icon () == 2)                                                          // icon read succefully
             {
-                display.do_display_icon = 1;
-                show_icon_stop_time = local_uptime + icon_duration;                                 // stop in x seconds
+                if (display.display_power_is_on)
+                {
+                    display.do_display_icon = 1;
+                    show_icon_stop_time = local_uptime + icon_duration;                             // stop in x seconds
+                }
+                else                                                                                // A80: Display aus -> verwerfen, nicht vormerken
+                {
+                    log_uart_puts ("icon: verworfen, display aus\r\n");
+                }
             }
             break;
         }
@@ -4204,20 +4248,25 @@ main (void)
         if (ip_ticker_pending && ! var_sync_pending)
         {
             unsigned char buf[32];
+            int           n;
 
             ip_ticker_pending = 0;
-            sprintf ((char *) buf, "IP %s", esp8266.ipaddress);
+            n = sprintf ((char *) buf, "IP %s", esp8266.ipaddress);
             display_set_ticker (buf, 0);
             pending_ticker_restore = 1;
-
-            if (night_off_due)                                              // M2: Aus erst, wenn dieser Lauftext durch ist
-            {                                                               // (Restore-Bedingung unten)
-                night_off_due = NIGHT_OFF_AFTER_IP;
-            }
+            /* A70 (c): (Laenge + 2) x (TICKER_COLS + 1) Schritte zu ticker_deceleration / 64 s, aufgerundet,
+             * plus 10 s. TICKER_COLS ist 5 oder 8 (display.c) -- mit 9 eher zu lang als zu kurz. */
+            ip_ticker_end = uptime + ((uint32_t) (n + 2) * 9 * display.ticker_deceleration + 63) / 64 + 10;
         }
 
-        if (night_off_due && uptime >= night_off_due)                       // M2: keine IP binnen Frist (kein WLAN, ESP aus)
-        {                                                                   // NIGHT_OFF_AFTER_IP erreicht uptime nie
+        if (night_off_due && uptime < ip_ticker_end)                         // M2/A70 (c), (d): Aus erst, wenn der IP-Lauftext durch ist
+        {                                                                   // (Restore-Bedingung unten), spaetestens zu seiner Frist
+            night_off_ip = 1;
+            night_off_due = ip_ticker_end;
+        }
+
+        if (night_off_due && uptime >= night_off_due)                       // M2: keine IP binnen Frist (kein WLAN, ESP aus);
+        {                                                                   // A70 (c): auch, wenn der Restore nie kommt
             night_off_apply ();
         }
 
@@ -4369,6 +4418,11 @@ main (void)
             log_printf ("dcf77: %s %4d-%02d-%02d %02d:%02d:%02d\r\n",
                          wdays_en[gmain.tm.tm_wday], gmain.tm.tm_year + 1900, gmain.tm.tm_mon + 1, gmain.tm.tm_mday,
                          gmain.tm.tm_hour, gmain.tm.tm_min, gmain.tm.tm_sec);
+
+            if (night_wm == 0xFFFF)                                         // A70/L399: nur DCF77, RTC nie gueltig, nie ein TIME --
+            {                                                               // wie das erste TIME; danach greift die Sprungerkennung
+                night_apply (0xFFFF, 1);
+            }
         }
 
         if (ds3231_flag)
@@ -4458,6 +4512,7 @@ main (void)
             if (night_check_night_times (1, display.ambilight_power_is_on, gmain.wday, gmain.hour * 60 + gmain.minute))
             {
                 display_set_ambilight_power (! display.ambilight_power_is_on);
+                dcf77_update ();                                            // A82
 
                 if (esp8266.is_online)                                      // A68: ESP-Kopie nachziehen
                 {
@@ -4715,8 +4770,7 @@ main (void)
                      * naechsten Durchlauf sofort zu. Den Restore zieht die Bedingung um
                      * pending_ticker_restore nach.
                      */
-                    display_set_ticker ((unsigned char *) overlay.overlays[show_overlay_idx].text, 0);
-                    pending_ticker_restore = 1;
+                    start_ticker ((unsigned char *) overlay.overlays[show_overlay_idx].text);
                     break;
                 }
                 case OVERLAY_TYPE_MP3:                                                                      // mp3
@@ -4850,8 +4904,7 @@ main (void)
              * Kein display_clock_flag hier, sonst malt display_clock() den Ticker im
              * naechsten Durchlauf sofort zu.
              */
-            display_set_ticker ((unsigned char *) datebuf, 0);
-            pending_ticker_restore = 1;
+            start_ticker ((unsigned char *) datebuf);
         }
 
         if (pending_ticker_restore &&
@@ -4865,7 +4918,7 @@ main (void)
                 pending_ticker_restore = 0;                                     // else keep it pending and retry next iteration
                 display_clock_flag = DISPLAY_CLOCK_FLAG_UPDATE_ALL;
 
-                if (night_off_due == NIGHT_OFF_AFTER_IP)                        // M2: IP-Lauftext durch -- jetzt das vorgemerkte Aus
+                if (night_off_ip)                                               // M2/A70 (c): IP-Lauftext durch -- jetzt das vorgemerkte Aus
                 {
                     night_off_apply ();
                 }

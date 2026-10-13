@@ -97,8 +97,13 @@
  *      Ambilight marker color white       1 Bytes   (  1 *  1)         1956    1
  *      Date ticker format                 5 Bytes   (  5 *  1)         1957    6
  *      Dimmed ambilight colors           16 Bytes   ( 16 *  1)         1963   16
+ *      Ambilight power (A56)              2 Bytes   (  2 *  1)         1979    2
  *      =========================================================================
- *      Sum                             1979 Bytes
+ *      Sum                             1981 Bytes
+ *
+ *  Ambilight power (A56, Ent-9): mark EEPROM_AMBI_POWER_MARK, then 0 or 1. Deliberately WITHOUT a new
+ *  layout version: older firmware never reads or writes these 2 bytes and keeps the rest of the layout.
+ *  Any other content (0xFF of an empty EEPROM, 0x00, leftovers) means "on".
  *
  *  EEPROM size of AT24C32: 32KBit = 4096 Bytes
  *-------------------------------------------------------------------------------------------------------------------------------------------
@@ -170,6 +175,7 @@
 #define EEPROM_DATA_SIZE_AMBI_MARKER_W_COLOR        (1 * sizeof (uint8_t))
 #define EEPROM_DATA_SIZE_DATE_TICKER_FORMAT         (EEPROM_DATE_TICKER_FORMAT_LEN)
 #define EEPROM_DATA_SIZE_DIMMED_AMBILIGHT_COLORS    ((MAX_BRIGHTNESS + 1) * sizeof (uint8_t))
+#define EEPROM_DATA_SIZE_AMBI_POWER                 (2 * sizeof (uint8_t))  // A56: mark, then 0 or 1
 
 #define EEPROM_DATA_OFFSET_VERSION                  0
 #define EEPROM_DATA_OFFSET_IRMP_DATA                (EEPROM_DATA_OFFSET_VERSION                 + EEPROM_DATA_SIZE_VERSION)
@@ -221,7 +227,10 @@
 #define EEPROM_DATA_OFFSET_AMBI_MARKER_W_COLOR      (EEPROM_DATA_OFFSET_AMBI_MARKER_COLORS      + EEPROM_DATA_SIZE_AMBI_MARKER_COLORS)
 #define EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT       (EEPROM_DATA_OFFSET_AMBI_MARKER_W_COLOR     + EEPROM_DATA_SIZE_AMBI_MARKER_W_COLOR)
 #define EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS  (EEPROM_DATA_OFFSET_DATE_TICKER_FORMAT      + EEPROM_DATA_SIZE_DATE_TICKER_FORMAT)
+#define EEPROM_DATA_OFFSET_AMBI_POWER               (EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS + EEPROM_DATA_SIZE_DIMMED_AMBILIGHT_COLORS)
 
-#define EEPROM_DATA_END                             (EEPROM_DATA_OFFSET_DIMMED_AMBILIGHT_COLORS + EEPROM_DATA_SIZE_DIMMED_AMBILIGHT_COLORS)
+#define EEPROM_AMBI_POWER_MARK                      0xA5                    // A56: valid entry, see header
+
+#define EEPROM_DATA_END                             (EEPROM_DATA_OFFSET_AMBI_POWER              + EEPROM_DATA_SIZE_AMBI_POWER)
 
 #endif

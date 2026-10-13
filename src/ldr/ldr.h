@@ -40,8 +40,8 @@ extern void             ldr_start_conversion (void);
 extern uint_fast8_t     ldr_poll_brightness (void);
 extern void             ldr_read_config_from_eep (uint32_t);
 extern uint_fast8_t     ldr_write_config_to_eep (void);
-extern uint_fast16_t    ldr_set_min_value (void);
-extern uint_fast16_t    ldr_set_max_value (void);
+extern uint_fast8_t     ldr_set_min_value (void);                     // B55: 0 uebernommen, 1 abgewiesen, 2 Messung fehlgeschlagen
+extern uint_fast8_t     ldr_set_max_value (void);
 extern void             ldr_init (void);
 
 #endif // LDR_H

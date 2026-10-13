@@ -166,11 +166,12 @@ ldr_write_config_to_eep (void)
  * set minimum value
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast16_t
+uint_fast8_t
 ldr_set_min_value (void)
 {
     uint16_t        adc_value;
     uint_fast8_t    cnt = 0;
+    uint_fast8_t    rtc = 2;                                            // B55: Messung fehlgeschlagen
 
     adc_start_single_conversion ();
 
@@ -190,7 +191,10 @@ ldr_set_min_value (void)
         /* A57 (C), Ent-7: Ein Messwert, der die Reihenfolge verletzt, wird nicht uebernommen -- Gleichheit
          * eingeschlossen, dieselbe Regel, mit der ldr_read_config_from_eep() beim Start heilt. Der alte Wert
          * bleibt, das EEPROM bleibt unberuehrt; die Rueckmeldung an den ESP (main.c) meldet den alten Wert.
+         * B55: Rueckgabe 0 uebernommen, 1 abgewiesen, 2 Messung fehlgeschlagen -- main.c sendet sie als RPCR.
          * Nur hier: Der Zahlen-Setter (A59) nimmt jede Reihenfolge an (Backup-Import, L68). */
+        rtc = 1;
+
         if (adc_value >= ldr.ldr_max_value)
         {
             log_printf ("ldr: minimum abgewiesen (%u >= max %u)\r\n", (unsigned int) adc_value, (unsigned int) ldr.ldr_max_value);
@@ -199,21 +203,23 @@ ldr_set_min_value (void)
         {
             ldr.ldr_min_value = adc_value;
             ldr_write_config_to_eep ();
+            rtc = 0;
         }
     }
 
-    return ldr.ldr_min_value;
+    return rtc;
 }
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------------
  * set maximum value
  *-----------------------------------------------------------------------------------------------------------------------------------------------
  */
-uint_fast16_t
+uint_fast8_t
 ldr_set_max_value (void)
 {
     uint16_t        adc_value;
     uint_fast8_t    cnt = 0;
+    uint_fast8_t    rtc = 2;                                            // B55: Messung fehlgeschlagen
 
     adc_start_single_conversion ();
 
@@ -230,6 +236,8 @@ ldr_set_max_value (void)
 
     if (cnt < 10)
     {
+        rtc = 1;
+
         if (adc_value <= ldr.ldr_min_value)                                 // A57 (C): Begruendung bei ldr_set_min_value()
         {
             log_printf ("ldr: maximum abgewiesen (%u <= min %u)\r\n", (unsigned int) adc_value, (unsigned int) ldr.ldr_min_value);
@@ -238,10 +246,11 @@ ldr_set_max_value (void)
         {
             ldr.ldr_max_value = adc_value;
             ldr_write_config_to_eep ();
+            rtc = 0;
         }
     }
 
-    return ldr.ldr_max_value;
+    return rtc;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
