@@ -56,7 +56,10 @@ set -uo pipefail
 QUELLE=$1
 [ "$QUELLE" = "-" ] || [ -r "$QUELLE" ] || { echo "Datei nicht lesbar: $QUELLE" >&2; exit 2; }
 
-exec python3 - "$QUELLE" <<'PY'
+# Das Skript steht in einer Variablen, nicht auf stdin: Mit "python3 - <<PY" las Python sein
+# Skript aus dem Heredoc, und "-" fand danach ein leeres stdin -- die dokumentierte Pipe-Form
+# meldete "0 Abgleich(e) ausgewertet" mit Exit 0 (L414).
+SKRIPT=$(cat <<'PY'
 import re, sys, traceback
 from datetime import datetime
 
@@ -240,6 +243,9 @@ def lauf(src):
     for z in ausgabe:
         print(z)
     print(f"\n{st['enden']} Abgleich(e) ausgewertet, {roh_enden} Endzeile(n) im Rohtext, {len(zeilen)} Zeilen gelesen.")
+    if not zeilen:
+        print("FEHL: keine Zeile gelesen -- leere Eingabe ist kein Befund ohne Abgleich, sondern keine Aussage.", file=sys.stderr)
+        return 2
     if st['enden'] != roh_enden:
         print("FEHL: Endzeilen im Rohtext und ausgewertete Abgleiche weichen ab (Zeile ohne Zeitstempel?).", file=sys.stderr)
         return 3
@@ -257,3 +263,5 @@ except Exception:
     print("FEHL: Werkzeugfehler, keine Aussage ueber den Mitschnitt.", file=sys.stderr)
     sys.exit(4)
 PY
+)
+exec python3 -c "$SKRIPT" "$QUELLE"

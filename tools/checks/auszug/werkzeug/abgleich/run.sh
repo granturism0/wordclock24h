@@ -32,8 +32,18 @@ for paar in alarm:1 ruhig:0 zaehl:3; do
   printf '%s\n' "$ist" | cmp -s - "$HIER/$name.soll" || { echo "FEHL: $name: Ausgabe weicht ab"; printf '%s\n' "$ist" | diff - "$HIER/$name.soll" | head -6; fehl=1; }
   [ "$rc" -eq "$soll_rc" ] || { echo "FEHL: $name: Exit $rc statt $soll_rc"; fehl=1; }
 done
+# Pipe-Form "-" (L414): muss dieselbe Ausgabe liefern wie die Datei. Vorher las Python sein
+# Skript aus dem Heredoc auf stdin und fand fuer "-" nichts mehr -- "0 Abgleich(e)", Exit 0.
+ist=$("$WERKZEUG" - < "$HIER/ruhig.log" 2>/dev/null); rc=$?
+faelle=$((faelle+1))
+printf '%s\n' "$ist" | cmp -s - "$HIER/ruhig.soll" || { echo "FEHL: ruhig ueber stdin: Ausgabe weicht ab"; printf '%s\n' "$ist" | tail -2; fehl=1; }
+[ "$rc" -eq 0 ] || { echo "FEHL: ruhig ueber stdin: Exit $rc statt 0"; fehl=1; }
+# Leere Eingabe ist keine Aussage: Exit 2, nicht "0 Abgleiche, alles gut".
+: | "$WERKZEUG" - >/dev/null 2>&1; rc=$?
+faelle=$((faelle+1))
+[ "$rc" -eq 2 ] || { echo "FEHL: leere Eingabe: Exit $rc statt 2"; fehl=1; }
 # Nachzaehlen: alarm.log hat 13 echte Endzeilen und eine Fremdzeile mit dem Text.
 n=$(grep -c '   info: configuration sent$' "$HIER/alarm.log")
 grep -q "^$n Abgleich(e) ausgewertet, $n Endzeile" "$HIER/alarm.soll" || { echo "FEHL: alarm.soll zaehlt nicht $n"; fehl=1; }
-[ $fehl -eq 0 ] && echo "OK: abgleich $faelle Mitschnitte, $n Endzeilen in alarm.log, Exit 1/0/3 wie erwartet"
+[ $fehl -eq 0 ] && echo "OK: abgleich $faelle Mitschnitte, $n Endzeilen in alarm.log, Exit 1/0/3, stdin gleich Datei, leer Exit 2"
 exit $fehl
