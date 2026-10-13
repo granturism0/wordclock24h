@@ -61,6 +61,7 @@ static void var_send_display_power (void) { strcat (proto, "D"); }
 static void var_send_display_ambilight_power (void) { strcat (proto, "A"); }
 static void display_set_ambilight_power (uint_fast8_t on) { display.ambilight_power_is_on = on ? 1 : 0; }
 static void display_icon_cancel (void) { }                                  /* A80: set_display_power() ruft es beim Aus */
+static void dcf77_update (void) { dcf77_enabled = ! display.display_power_is_on && ! display.ambilight_power_is_on; }   /* A82: wie main.c */
 static int spd_n, spd_sync;
 static uint_fast8_t set_display_power_echt (uint_fast8_t, uint_fast8_t);
 static uint_fast8_t set_display_power (uint_fast8_t on, uint_fast8_t sync) { spd_n++; spd_sync = sync; return set_display_power_echt (on, sync); }

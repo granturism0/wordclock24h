@@ -69,6 +69,7 @@ static void var_send_display_power (void) { }
 static void var_send_display_ambilight_power (void) { }
 static struct { uint_fast8_t is_online; } esp8266 = { 1 };
 static uint_fast8_t     dcf77_enabled;
+static void dcf77_update (void) { dcf77_enabled = ! display.display_power_is_on && ! display.ambilight_power_is_on; }   /* A82: wie main.c */
 static uint32_t         night_off_due;
 static void night_off_apply (void) { night_off_due = 0; }
 static uint_fast8_t     ticker_aktiv;

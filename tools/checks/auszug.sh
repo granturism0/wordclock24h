@@ -62,6 +62,7 @@ LAUF=(
   "A56 Ambilight-Power im EEPROM, rueckflashsicher (STM)|stm/a56/run.sh $S"
   "A81 Marker-Weissfarbe vom eigenen Platz, geklemmt (STM)|stm/a81/run.sh $S"
   "A80 Icon bei Display aus verworfen, Restore-Bedingung unveraendert (STM)|stm/a80/run.sh $S"
+  "A82 DCF77-Merker folgt Display und Ambilight (STM)|stm/a82/run.sh $S"
   "A2 DS18xx CRC, ROM-ID, Neuerkennung (STM)|stm/ds/run.sh $S"
   "A50 fault_reset ohne Ausgabe, 15 s geeicht (STM)|stm/fr/run.sh $S"
   "A55 CAP setzt offline bis IPADDRESS (STM+ESP)|stm/ep/run.sh $S $E"
