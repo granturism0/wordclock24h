@@ -674,17 +674,19 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
 - [x] **ESP8266** — E: `vars.cpp`, `ntp.cpp`, `ESP-uclock.ino`, `http.cpp`; ein OTA
 - [x] **PWA** — P: `app.js`
 - [x] **Werkzeug** (`tools/**`) — Auswerteregel, Prüfstände, `watch-log.sh`, statische Prüfung
-- [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`,
+- [x] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md`, `knowledge/architecture-checklist.md`,
       `README-CMAKE.md` (`doc-writer`); `CLAUDE.md`, `CHANGELOG.md` (Lead)
 - [x] **Build/Release** — Matrix-Ziel (`CMakeLists.txt`, `Makefile`, `cmake/matrix-report.sh`,
       `release-engineer`, erledigt); Matrix-Lauf vor S1, S2, S3; **fünf** Releases (S1 ☑, S2, S3,
       E, P); je Commit, Tag, Push
 
 **Endstand:** Dazu kamen ausserhalb der Planung STM 3.2.32 (`src/vars/vars.c`, A74/A75), ESP 3.2.33
-(`ESP-uclock.ino`, A76) und PWA 1.4.97 (`app.js`, B54) — sechs Releases statt fünf. In der
-Dokumentation bleibt nur der T.1-Teil zu den Logzeilen aus S3.2 offen. `BEFUNDE.md` (Z.1, Commit
-`6de22d2`), `knowledge/architecture-checklist.md` (Z.2, erledigt, `45d5ef1`), `CLAUDE.md` (Z.3)
-und `README-CMAKE.md` (Z.5) sind nachgeführt.
+(`ESP-uclock.ino`, A76) und PWA 1.4.97 (`app.js`, B54) — sechs Releases statt fünf. Die
+Dokumentation ist vollständig nachgeführt: `BEFUNDE.md` (Z.1, Commit `6de22d2`),
+`knowledge/architecture-checklist.md` (Z.2, erledigt, `45d5ef1`), `CLAUDE.md` (Z.3),
+`README-CMAKE.md` (Z.5) und `TESTPLAN-PWA.md` (T.1, `73bb009`). Der T.1-Teil „Logzeilen, die S3.2
+geändert hat" ist gegenstandslos: S3.2 hat keine Logzeile geändert (Diff-Prüfung des Leads,
+Prüfstände n5 und n6; Einzelheiten in `tasks.md`, „Endstand", Zeile T.1).
 
 ---
 
@@ -821,9 +823,11 @@ ESP-Kopie.
 ### Offen nach dem Paket
 
 A63 (Beobachtung, Ent-10); A70, A71, A72 (L396–L399); A76 (wartet auf einen Überlauf mit
-Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); der
-T.1-Teil „Logzeilen, die S3.2 geändert hat"; die ESP-Ursache von C35. V3 aus T.2 ist nachgeholt
-(13.10.2026 06:13:57, `numvar[45]` 3→0 geheilt, L412). Z.2 (`knowledge/architecture-checklist.md`)
-ist erledigt mit Commit `45d5ef1`: Zeile 26 rechnet mit den Messwerten nach A60 (15 ms je Zyklus,
-35–36 ms für 32 Byte über zwei Seiten, L400/L402/L403), die Overlay-Werte (rund 0,9 s F411, 2,6 s
-F103) sind als gerechnet gekennzeichnet.
+Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); die
+ESP-Ursache von C35. V3 aus T.2 ist nachgeholt (13.10.2026 06:13:57, `numvar[45]` 3→0 geheilt,
+L412). Z.2 (`knowledge/architecture-checklist.md`) ist erledigt mit Commit `45d5ef1`: Zeile 26
+rechnet mit den Messwerten nach A60 (15 ms je Zyklus, 35–36 ms für 32 Byte über zwei Seiten,
+L400/L402/L403), die Overlay-Werte (rund 0,9 s F411, 2,6 s F103) sind als gerechnet
+gekennzeichnet. Der T.1-Teil „Logzeilen, die S3.2 geändert hat" ist gegenstandslos: S3.2 hat keine
+Logzeile geändert; die einzige bewegte Logzeile, `i2c: frist abgelaufen`, gehört zu A73 und steht
+im Testplan (`73bb009`).

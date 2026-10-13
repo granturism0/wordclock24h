@@ -235,7 +235,7 @@ in S1 umgesetzt. **Vor dem Release-Build läuft die Matrix auf dem angehobenen S
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| T.1 | **`TESTPLAN-PWA.md` nachführen** (über 0.5 hinaus): S47 mit Soll „Farbe nach Animation aus gleich vorher" (A23); Fall Spiel mit Setter (A53); S25/S26 mit dem Hinweis auf A57 (C); Hauptmodul-Abrufzahl (C35); V3-Auswertung um `night: start aus`, `time: sprung`, `i2c: frist abgelaufen`, `spiel: … verworfen`, `ldr: … abgewiesen`, `var ignoriert`, `ntp verworfen`, `ovr=`; Logzeilen, die S3.2 geändert hat | `doc-writer` | Freigabe; für den letzten Teil S3.13 | S9/S11 grün; keine Versionsnummer; jeder neue Fall mit Instrument und Rückstellung | ☐ | — |
+| T.1 | **`TESTPLAN-PWA.md` nachführen** (über 0.5 hinaus): S47 mit Soll „Farbe nach Animation aus gleich vorher" (A23); Fall Spiel mit Setter (A53); S25/S26 mit dem Hinweis auf A57 (C); Hauptmodul-Abrufzahl (C35); V3-Auswertung um `night: start aus`, `time: sprung`, `i2c: frist abgelaufen`, `spiel: … verworfen`, `ldr: … abgewiesen`, `var ignoriert`, `ntp verworfen`, `ovr=`; Logzeilen, die S3.2 geändert hat | `doc-writer` | Freigabe; für den letzten Teil S3.13 | S9/S11 grün; keine Versionsnummer; jeder neue Fall mit Instrument und Rückstellung. **☑ Nachgeführt in `73bb009`; der Teil „Logzeilen, die S3.2 geändert hat" ist gegenstandslos** — S3.2 hat keine Logzeile geändert (Beleg im Endstand) | ☑ | — |
 | T.2 | **Testdurchlauf Phasen 0–4 und 9** mit dem Plan aus 0.5 und T.1 (Ent-14 d) | `pwa-tester` | **M.1**, T.1 | **AKZ.6**; `watch-log.sh` mitgelesen; Mitschnitt ausgewertet. Unvollständig ⇒ **nicht abgenommen**. **☑ Abgenommen 13.10.2026** — V3 nachgeholt um 06:13:57 nach Freigabe des STM-Resets durch den Nutzer (L412) | — | — |
 
 ---
@@ -292,13 +292,14 @@ Die Kästchen dieser Liste sind bewusst nicht nachgezogen; ihr Stand steht im fo
 Massnahmen A21, A23, A34, A35, A52, A53, A57, A60–A63, A67–A78, B54–B57, C35, C58, C59), die Inhalte
 der Releases in `CHANGELOG.md` (sechs Einträge vom 11. bis 13.10.2026), Commits und Tags im Repo
 (Reflog des Zweigs, `.git/refs/tags/release/`); dazu die Angaben des Leads vom 13.10.2026 zu den
-Remote-Tags und zur Zählung in G5. **Spalte G ist wie im Vorpaket gefolgert:** Jeder Release-Build
-verlangt `guardrails.sh --full` mit Exit 0, und die Tasks davor sind laut „Hängt ab von" seine
-Voraussetzung; einzelne Guardrail-Läufe lagen dem `spec-writer` nicht vor. Bei Z.1 (Commit
-`6de22d2`), Z.2 (Commit `45d5ef1`) und Z.3 (`CLAUDE.md`) ist der Inhalt am Baum nachgelesen.
-**Spalte R** ist gesetzt, wo `BEFUNDE.md` das Review nennt (0.2: „nach vier Runden bestanden", A61;
-E.6: L406; P.3: Restpunkt N-b unter C35, jetzt L418), und bei S3.1 und S3.13 aus dem Release S3
-gefolgert. Die Abnahmetexte der Tabellen sind nicht nachgezogen — die Belege stehen hier.
+Remote-Tags, zur Zählung in G5 und zum Diff von S3.2 (T.1). **Spalte G ist wie im Vorpaket
+gefolgert:** Jeder Release-Build verlangt `guardrails.sh --full` mit Exit 0, und die Tasks davor
+sind laut „Hängt ab von" seine Voraussetzung; einzelne Guardrail-Läufe lagen dem `spec-writer` nicht
+vor. Bei Z.1 (Commit `6de22d2`), Z.2 (Commit `45d5ef1`) und Z.3 (`CLAUDE.md`) ist der Inhalt am Baum
+nachgelesen. **Spalte R** ist gesetzt, wo `BEFUNDE.md` das Review nennt (0.2: „nach vier Runden
+bestanden", A61; E.6: L406; P.3: Restpunkt N-b unter C35, jetzt L418), und bei S3.1 und S3.13 aus
+dem Release S3 gefolgert. Die Abnahmetexte der Tabellen sind nicht nachgezogen — die Belege stehen
+hier.
 
 ### Releases — sechs statt fünf
 
@@ -329,7 +330,7 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 | **G5** | PWA 1.4.96 | `check-pwa.sh` 8/0; Hauptmodul 15 min (01:38:51–01:53:51): je 3 Abrufe `update_status`/`update_table_files` (01:38:51, 01:44:02, 01:49:17) statt 60. Gezählt nur Anfragen mit Kennung `[Chrome]`; der `pwa-tester` startete bis 01:54 keinen Browser, seine `curl`-Anfragen tragen `[curl/…]`, die Abrufe seines Browsers beginnen 01:54:12, ausserhalb des Fensters | C35, L410; Angabe des Leads |
 | **G6 / M.1** | 3.2.32 / 3.2.33 / 1.4.97 | 30 min, drei Browser, Setter-Burst: 180/180 `diag` mit `d=0 o=0 v=0/0 a=0`, `rx` ≤ 234/1024, `ovr=0`, kein Neustart ⇒ **A21 geschlossen** | L413 |
 | **T.2** | 3.2.32 / 3.2.33 / 1.4.96 | 471 Prüfzeilen, 450 bestanden, 11 Scheinabweichungen des Werkzeugs; L411 neu. **V3 nachgeholt** am 13.10.2026 um 06:13:57 nach Freigabe des STM-Resets durch den Nutzer: beim Start `v=0/0`; `diff-snapshot.sh abschluss-3.2.33 v3-3.2.33` 18 Abweichungen, alle erklärt (ESP-Neustart durch den STM-Start, neue `app.js.gz`, Messwerte/Laufzeit/Uhrzeit, Resetgrund, `numvar[45]` 3→0 geheilt), keine Abweichung zwischen STM und ESP-Kopie ⇒ **AKZ.6 abgenommen** | L412 |
-| **T.1** | — | `TESTPLAN-PWA.md` nachgeführt (`73bb009`); der Teil „Logzeilen, die S3.2 geändert hat" vom `doc-writer` offen gelassen | Commit `73bb009` |
+| **T.1** | — | `TESTPLAN-PWA.md` nachgeführt (`73bb009`). Der Teil „Logzeilen, die S3.2 geändert hat" ist **gegenstandslos**: Am Diff `release/3.2.30-3.2.31-1.4.95` → `release/3.2.31-3.2.31-1.4.95` (`src/`) gibt N6 (Präfix „DFPlayer: " einmal) byte-gleich aus (Prüfstand n6), N5 (`snprintf`/`sprintf` als Hüllen) ebenso (Prüfstand n5); N2 legt nur die Suchworte `CAP var-crc`/`FIRMWARE ` als gemeinsame Literale zusammen, keine Logtexte; N3 entfernt den unerreichbaren `FILE `-Zweig (A52). Die einzige bewegte Logzeile, `i2c: frist abgelaufen`, gehört zu A73, nicht zu S3.2, und steht im Testplan (`73bb009`) | Commit `73bb009`; Diff-Prüfung des Leads; Prüfstände `tools/checks/auszug/stm/n5/`, `n6/` |
 
 ### Abweichungen von der Spec, offen benannt
 
@@ -408,13 +409,13 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 | A76 | Instrumentierung ausgeliefert, wartet auf einen Überlauf mit Zeitpunkt | L408 |
 | C59 | NTP-Antwort an die Anfrage binden (Review E.6) | L406 |
 | A77, B55, B56, B57, A78 | neu benannt beim Abschluss, alle klein | L415, L417–L420 |
-| T.1, Teil S3.2-Logzeilen | vom `doc-writer` offen gelassen | `73bb009` |
 | ESP-Ursache von C35 | ungecachte Abrufe je Aufruf, wirkt weiter über Wartung und Anzeige (Varianten B/C, `design.md` §11) | C35 |
 
 V3 aus T.2 ist nicht mehr offen: nachgeholt am 13.10.2026 um 06:13:57, `numvar[45]` 3→0 durch den
-Reset geheilt, keine Abweichung zwischen STM und ESP-Kopie (L412).
+Reset geheilt, keine Abweichung zwischen STM und ESP-Kopie (L412). Der T.1-Teil „Logzeilen, die
+S3.2 geändert hat" ist gegenstandslos (siehe „Gerätenachweise", Zeile T.1).
 
-**Spalten G/R, die offen bleiben:** nur T.1 (Teil offen). Alle übrigen sind gesetzt.
+**Spalten G/R:** alle gesetzt.
 
 ### Neue Befunde aus diesem Paket
 
