@@ -677,9 +677,9 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
 
 **Endstand:** Dazu kamen ausserhalb der Planung STM 3.2.32 (`src/vars/vars.c`, A74/A75), ESP 3.2.33
 (`ESP-uclock.ino`, A76) und PWA 1.4.97 (`app.js`, B54) — sechs Releases statt fünf. In der
-Dokumentation bleiben offen: Z.2 (`knowledge/architecture-checklist.md`, beim `doc-writer` in
-Arbeit) und der T.1-Teil zu den Logzeilen aus S3.2. `BEFUNDE.md` (Z.1, Commit `6de22d2`),
-`CLAUDE.md` (Z.3) und `README-CMAKE.md` (Z.5) sind nachgeführt.
+Dokumentation bleibt nur der T.1-Teil zu den Logzeilen aus S3.2 offen. `BEFUNDE.md` (Z.1, Commit
+`6de22d2`), `knowledge/architecture-checklist.md` (Z.2, erledigt, `45d5ef1`), `CLAUDE.md` (Z.3)
+und `README-CMAKE.md` (Z.5) sind nachgeführt.
 
 ---
 
@@ -814,5 +814,7 @@ freigegeben und am 13.10.2026 um 01:06:16 gefahren (L407).
 A63 (Beobachtung, Ent-10); A70, A71, A72 (L396–L399); A76 (wartet auf einen Überlauf mit
 Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); V3
 aus T.2 (beim Nutzer, mit `numvar[45]` aus S79, L412); der T.1-Teil „Logzeilen, die S3.2 geändert
-hat"; Z.2 (`knowledge/architecture-checklist.md`, beim `doc-writer` in Arbeit); die ESP-Ursache von
-C35.
+hat"; die ESP-Ursache von C35. Z.2 (`knowledge/architecture-checklist.md`) ist erledigt mit Commit
+`45d5ef1`: Zeile 26 rechnet mit den Messwerten nach A60 (15 ms je Zyklus, 35–36 ms für 32 Byte über
+zwei Seiten, L400/L402/L403), die Overlay-Werte (rund 0,9 s F411, 2,6 s F103) sind als gerechnet
+gekennzeichnet.
