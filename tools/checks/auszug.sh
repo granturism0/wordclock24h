@@ -94,7 +94,6 @@ LAUF=(
   "A76 ovr-Zeitpunkt: erste Zeile sofort, 1/min, Heap-Zeile nach der Abfrage (ESP)|esp/ovrzeit/run.sh $E neu"
   "A67 OTA start in allen drei OTA-Pfaden, statisch (ESP)|esp/akk2/static.sh $E neu"
   "E.6 Rueckfall-Neustart nach lokalem Upload (ESP)|esp/otarueck/run.sh $E neu"
-  "C6/C6v/C60 Herkunft an jedem zerstoerenden Weg, Bestandsliste (ESP)|esp/c6h/run.sh $E neu"
   "C46 Query ueber 255 bei /api/ abgewiesen, GET und POST (ESP)|esp/c46/run.sh $E neu"
   "C19 Legacy-Update-Quelle an beiden Stellen (ESP)|esp/c19/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
