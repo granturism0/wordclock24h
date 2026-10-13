@@ -160,7 +160,8 @@ sieben Platinen (F103, F401, F401CC-25, F401CC-8, F411, F411CE-25, F411CE-8) mal
 fünf LED-Typen (APA102, SK6812 RGB und RGBW, WS2812 GRB und RGB), dazu je eine F407
 mit TFT. Die Parameter stammen aus den Release-Zielen von `wclock24h.ebp` und
 `wclock24h-F103/wclock24h-F103.ebp`; die Quellen wählt CMake über den Zielnamen in
-der ebp-Datei aus.
+der ebp-Datei aus. F401 und F411 ohne Zusatz sind die Nucleo-Boards (`NUCLEO_BOARD`);
+sie werden nur hier gebaut.
 
 Wofür: prüfen, dass der heutige Code auf **jeder** Platine und mit jedem LED-Typ noch
 übersetzt und in den Flash passt. Ausgerollt wird davon nichts.
@@ -173,13 +174,21 @@ Wofür: prüfen, dass der heutige Code auf **jeder** Platine und mit jedem LED-T
   Tabelle in `build/matrix/matrix-report.txt`, das Protokoll in
   `build/matrix/build.log`.
 - **Flash-Gate:** Jede Variante muss mindestens `MATRIX_MIN_FREE` Byte frei haben
-  (Vorgabe im `Makefile`). Eine Variante unter dem Gate oder eine, die nicht baut,
+  (Vorgabe im `Makefile`: 1'024 Byte). Eine Variante unter dem Gate oder eine, die nicht baut,
   führt zu einem Exitcode ungleich 0 und wird beim Namen genannt. Gezählt wird gegen
   die feste Zahl 72, nicht gegen die Zahl der HEX-Dateien, die zufällig entstanden
   sind.
 - **Das Gate gilt laut Entscheidung des Nutzers für alle 72 Varianten.** Gedacht ist
   es für den Lauf vor einem STM-Release, das Flash kostet: Der Teilbuild (`make f103`,
   `make f411`) misst nur die eigene Variante.
+- **Wann:** vor **jedem** STM-Release, das Flash kostet, und zwar **nach der
+  Versionsanhebung**, auf genau dem Stand, der ausgeliefert wird. Der Release-Build
+  folgt erst nach einem grünen Lauf. Ein Lauf auf einem Testbau zählt nur als
+  Vorabwert. Liegt eine Variante unter dem Gate: kein Build, anhalten und vorlegen.
+  Grundlage ist Ent-18 in `specs/paket-2026-10-11/tasks.md`.
+- **Geplant wird ab der engsten Variante, nicht ab dem Teilbuild.** Der Abstand
+  zwischen beiden ist nicht fest; im Paket 2026-10-11 lag er zwischen 156 und 220 Byte
+  (`BEFUNDE.md`, L416).
 - Liegt `wordclock-hex.zip` (das Original) im Wurzelverzeichnis
   (`MATRIX_ORIGINAL_ZIP`), steht die Grösse jeder Original-Variante daneben; mehr als
   10 % Unterschied wird markiert. Das ist Information, kein Gate.
