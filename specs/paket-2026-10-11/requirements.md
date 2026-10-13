@@ -615,8 +615,13 @@ Release-Builds** (S1.16, S2.6a, S3.15a).
       S3), `var ignoriert`, `ntp verworfen`, `ovr=` > 0 (Alarm, E) — **je mit eingespielter
       Gegenprobe**. Freigegebene Resets getrennt berichtet. Der Fehlalarm beim Flashen
       (Abbildzeile mit vier Leerzeichen) ist behoben (L400).
-- [ ] **AKZ.6 (T)** — `pwa-tester` Phasen 0–4 und 9 nach M, mit dem nachgeführten Testplan.
+- [x] **AKZ.6 (T)** — `pwa-tester` Phasen 0–4 und 9 nach M, mit dem nachgeführten Testplan.
       Unvollständig ⇒ **nicht abgenommen**.
+      **Endstand: abgenommen 13.10.2026 (L412)** — V3 nachgeholt um 06:13:57, nachdem der Nutzer
+      den STM-Reset freigegeben hatte: beim Start `v=0/0`; `diff-snapshot.sh abschluss-3.2.33
+      v3-3.2.33` 18 Abweichungen, alle erklärt (ESP-Neustart durch den STM-Start, neue
+      `app.js.gz`, Messwerte/Laufzeit/Uhrzeit, Resetgrund, `numvar[45]` 3→0 geheilt), keine
+      Abweichung zwischen STM und ESP-Kopie.
 - [x] **AKZ.7** — Jedes Release **sofort** committet, getaggt, **gepusht** (DIR-011); den
       `CHANGELOG.md`-Eintrag schreibt der Lead. **S1:** `a6065d5` (samt CHANGELOG), Tag gepusht.
       **Endstand:** sechs Releases, je mit `CHANGELOG.md`-Eintrag, Commit und Tag; alle sechs Tags
@@ -790,8 +795,12 @@ freigegeben und am 13.10.2026 um 01:06:16 gefahren (L407).
 | **AKZ.3** | Nicht gemeldet. Beim Release `release/3.2.32-3.2.33-1.4.96` hebt der Build bewusst drei Komponenten an — der Grundsatz „nur die angehobene Komponente" ist dort nicht der Massstab |
 | **AKZ.4** | Smoketest 31/0 nach S3 (L404), nach dem STM-Flash 3.2.32 und den OTAs (L408, L410) belegt; nach S1 und S2 nicht einzeln gemeldet |
 | **AKZ.5** | Die Wache kennt die neuen Zeilen (`CHANGELOG.md`); die Gegenprobe je Zeile ist nicht gemeldet. Am 12.10.2026 stand sie von 00:20 bis 01:33 still, unbemerkt bis kurz vor dem Reset (L401); Ursache nicht untersucht |
-| **AKZ.6** | T.2 unvollständig: **V3 nicht gefahren** (STM-Reset von der Berechtigungsprüfung abgewiesen, liegt beim Nutzer), 18 S-Fälle ausgelassen; lief auf PWA 1.4.96 (L412). Nach der Abnahmeregel **nicht abgenommen** |
 | **AKZ.8, AKZ.9** | Nicht gemeldet |
+
+**AKZ.6 ist abgenommen** (L412): V3 nachgeholt am 13.10.2026 um 06:13:57 nach Freigabe des
+STM-Resets durch den Nutzer — beim Start `v=0/0`, 18 Abweichungen im Vergleich `abschluss-3.2.33`
+gegen `v3-3.2.33`, alle erklärt, `numvar[45]` 3→0 geheilt, keine Abweichung zwischen STM und
+ESP-Kopie.
 
 ### Was der Entwurf nicht vorhergesehen hat
 
@@ -812,9 +821,9 @@ freigegeben und am 13.10.2026 um 01:06:16 gefahren (L407).
 ### Offen nach dem Paket
 
 A63 (Beobachtung, Ent-10); A70, A71, A72 (L396–L399); A76 (wartet auf einen Überlauf mit
-Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); V3
-aus T.2 (beim Nutzer, mit `numvar[45]` aus S79, L412); der T.1-Teil „Logzeilen, die S3.2 geändert
-hat"; die ESP-Ursache von C35. Z.2 (`knowledge/architecture-checklist.md`) ist erledigt mit Commit
-`45d5ef1`: Zeile 26 rechnet mit den Messwerten nach A60 (15 ms je Zyklus, 35–36 ms für 32 Byte über
-zwei Seiten, L400/L402/L403), die Overlay-Werte (rund 0,9 s F411, 2,6 s F103) sind als gerechnet
-gekennzeichnet.
+Zeitpunkt); C59 (L406); A77, B55, B56, B57, A78 (L415, L417–L420, beim Abschluss neu benannt); der
+T.1-Teil „Logzeilen, die S3.2 geändert hat"; die ESP-Ursache von C35. V3 aus T.2 ist nachgeholt
+(13.10.2026 06:13:57, `numvar[45]` 3→0 geheilt, L412). Z.2 (`knowledge/architecture-checklist.md`)
+ist erledigt mit Commit `45d5ef1`: Zeile 26 rechnet mit den Messwerten nach A60 (15 ms je Zyklus,
+35–36 ms für 32 Byte über zwei Seiten, L400/L402/L403), die Overlay-Werte (rund 0,9 s F411, 2,6 s
+F103) sind als gerechnet gekennzeichnet.

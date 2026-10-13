@@ -236,7 +236,7 @@ in S1 umgesetzt. **Vor dem Release-Build läuft die Matrix auf dem angehobenen S
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | T.1 | **`TESTPLAN-PWA.md` nachführen** (über 0.5 hinaus): S47 mit Soll „Farbe nach Animation aus gleich vorher" (A23); Fall Spiel mit Setter (A53); S25/S26 mit dem Hinweis auf A57 (C); Hauptmodul-Abrufzahl (C35); V3-Auswertung um `night: start aus`, `time: sprung`, `i2c: frist abgelaufen`, `spiel: … verworfen`, `ldr: … abgewiesen`, `var ignoriert`, `ntp verworfen`, `ovr=`; Logzeilen, die S3.2 geändert hat | `doc-writer` | Freigabe; für den letzten Teil S3.13 | S9/S11 grün; keine Versionsnummer; jeder neue Fall mit Instrument und Rückstellung | ☐ | — |
-| T.2 | **Testdurchlauf Phasen 0–4 und 9** mit dem Plan aus 0.5 und T.1 (Ent-14 d) | `pwa-tester` | **M.1**, T.1 | **AKZ.6**; `watch-log.sh` mitgelesen; Mitschnitt ausgewertet. Unvollständig ⇒ **nicht abgenommen** | — | — |
+| T.2 | **Testdurchlauf Phasen 0–4 und 9** mit dem Plan aus 0.5 und T.1 (Ent-14 d) | `pwa-tester` | **M.1**, T.1 | **AKZ.6**; `watch-log.sh` mitgelesen; Mitschnitt ausgewertet. Unvollständig ⇒ **nicht abgenommen**. **☑ Abgenommen 13.10.2026** — V3 nachgeholt um 06:13:57 nach Freigabe des STM-Resets durch den Nutzer (L412) | — | — |
 
 ---
 
@@ -328,7 +328,7 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 | **G4** | ESP 3.2.32 → 3.2.33 | Erster OTA 01:11:40 (auf 3.2.32, ausgeführt von 3.2.31, deshalb ohne `OTA start`): `v` +3, eine Sendung **nach** `CAP`, `var ignoriert code=n`, `ovr=1` ⇒ A74, A75, A76. Zweiter OTA 01:34:52 (auf 3.2.33, ausgeführt von 3.2.32): `(OTA start)`, `v=0/0`, `ovr=0` | L408, L410 |
 | **G5** | PWA 1.4.96 | `check-pwa.sh` 8/0; Hauptmodul 15 min (01:38:51–01:53:51): je 3 Abrufe `update_status`/`update_table_files` (01:38:51, 01:44:02, 01:49:17) statt 60. Gezählt nur Anfragen mit Kennung `[Chrome]`; der `pwa-tester` startete bis 01:54 keinen Browser, seine `curl`-Anfragen tragen `[curl/…]`, die Abrufe seines Browsers beginnen 01:54:12, ausserhalb des Fensters | C35, L410; Angabe des Leads |
 | **G6 / M.1** | 3.2.32 / 3.2.33 / 1.4.97 | 30 min, drei Browser, Setter-Burst: 180/180 `diag` mit `d=0 o=0 v=0/0 a=0`, `rx` ≤ 234/1024, `ovr=0`, kein Neustart ⇒ **A21 geschlossen** | L413 |
-| **T.2** | 3.2.32 / 3.2.33 / 1.4.96 | 471 Prüfzeilen, 450 bestanden, 11 Scheinabweichungen des Werkzeugs; L411 neu. **V3 nicht gefahren** | L412 |
+| **T.2** | 3.2.32 / 3.2.33 / 1.4.96 | 471 Prüfzeilen, 450 bestanden, 11 Scheinabweichungen des Werkzeugs; L411 neu. **V3 nachgeholt** am 13.10.2026 um 06:13:57 nach Freigabe des STM-Resets durch den Nutzer: beim Start `v=0/0`; `diff-snapshot.sh abschluss-3.2.33 v3-3.2.33` 18 Abweichungen, alle erklärt (ESP-Neustart durch den STM-Start, neue `app.js.gz`, Messwerte/Laufzeit/Uhrzeit, Resetgrund, `numvar[45]` 3→0 geheilt), keine Abweichung zwischen STM und ESP-Kopie ⇒ **AKZ.6 abgenommen** | L412 |
 | **T.1** | — | `TESTPLAN-PWA.md` nachgeführt (`73bb009`); der Teil „Logzeilen, die S3.2 geändert hat" vom `doc-writer` offen gelassen | Commit `73bb009` |
 
 ### Abweichungen von der Spec, offen benannt
@@ -408,9 +408,11 @@ Remote** — vom Lead am 13.10.2026 mit `git ls-remote --tags origin` geprüft.
 | A76 | Instrumentierung ausgeliefert, wartet auf einen Überlauf mit Zeitpunkt | L408 |
 | C59 | NTP-Antwort an die Anfrage binden (Review E.6) | L406 |
 | A77, B55, B56, B57, A78 | neu benannt beim Abschluss, alle klein | L415, L417–L420 |
-| V3 aus T.2 | STM-Reset von der Berechtigungsprüfung abgewiesen, liegt beim Nutzer; damit auch `numvar[45]` 0→3 aus S79 | L412 |
 | T.1, Teil S3.2-Logzeilen | vom `doc-writer` offen gelassen | `73bb009` |
 | ESP-Ursache von C35 | ungecachte Abrufe je Aufruf, wirkt weiter über Wartung und Anzeige (Varianten B/C, `design.md` §11) | C35 |
+
+V3 aus T.2 ist nicht mehr offen: nachgeholt am 13.10.2026 um 06:13:57, `numvar[45]` 3→0 durch den
+Reset geheilt, keine Abweichung zwischen STM und ESP-Kopie (L412).
 
 **Spalten G/R, die offen bleiben:** nur T.1 (Teil offen). Alle übrigen sind gesetzt.
 
