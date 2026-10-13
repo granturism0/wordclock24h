@@ -455,9 +455,11 @@ Quelle ist das KiCad-Projekt unter `~/Documents/WordClock-USB C - STM32F411 - V2
 Drei Punkte, die man dem Code allein nicht ansieht:
 
 - **Das EEPROM hängt am I2C** (AT24C32M, zusammen mit der DS3231-RTC). Der STM32F411
-  hat keins. Die oft zitierten „16 ms pro Byte" sind nur der Wartezyklus: **Gemessen kostet
-  ein Schreibzyklus rund 24 ms** (`BEFUNDE.md`, L358), weil der I2C-Treiber je Byte bis
-  1 ms wartet (L359). Seit C3 wird seitenweise geschrieben, ein Zyklus je geänderter Seite.
+  hat keins. Die oft zitierten „16 ms pro Byte" sind nur der Wartezyklus. Gemessen kostete
+  ein Schreibzyklus bis A60 rund 24 ms (`BEFUNDE.md`, L358), weil der I2C-Treiber je Flag bis
+  1 ms schlief (L359). **Seit A60 (eng gepollte Fristen von 5 ms) sind es rund 15 ms je
+  Zyklus, 32 Byte über zwei Seiten 35–36 ms** (L403). Seit C3 wird seitenweise
+  geschrieben, ein Zyklus je geänderter Seite.
 - **`PB0` schaltet die 5-V-Versorgung der LED-Kette.** `U3` (SN74AHCT1G125) hebt die
   Datenleitung von 3,3 V auf 5 V — das frühere Pegelproblem ist auf V2 gelöst.
 - **Der ESP hat nur einen vollwertigen UART, und das ist die Brücke zum STM.** Jede
