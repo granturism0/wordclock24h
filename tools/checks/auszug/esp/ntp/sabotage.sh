@@ -28,4 +28,16 @@ sab keine_drossel      'if (! ntp_reject_logged || (millis () - ntp_reject_last)
 sab ohne_mitschnitt    '        Serial.println (line);\n        Serial.flush ();\n        stm32_log_append (line);' '        stm32_log_append (line);'
 sab ohne_ring          '        Serial.flush ();\n        stm32_log_append (line);' '        Serial.flush ();'
 sab pivot_im_esp       '        Serial.print ("TIME ");\n        Serial.println(secsSince1900);' '        if (secsSince1900 < 0x80000000UL) secsSince1900 += 0;\n        Serial.print ("TIME ");\n        Serial.println(secsSince1900 < 0x80000000UL ? secsSince1900 + 1 : secsSince1900);'
+# C59 (Paket 2026-10-13, E2.4)
+sab ohne_ungefragt     'if (! ntp_pending || (millis () - ntp_request_millis) >= NTP_ANSWER_TIMEOUT)' 'if (0)'
+sab ohne_frist         'if (! ntp_pending || (millis () - ntp_request_millis) >= NTP_ANSWER_TIMEOUT)' 'if (! ntp_pending)'
+sab frist_nicht_ueberlaufsicher 'if (! ntp_pending || (millis () - ntp_request_millis) >= NTP_ANSWER_TIMEOUT)' 'if (! ntp_pending || millis () >= ntp_request_millis + NTP_ANSWER_TIMEOUT)'
+sab frist_50s          '#define NTP_ANSWER_TIMEOUT          5000UL' '#define NTP_ANSWER_TIMEOUT          50000UL'
+sab ohne_originate     'if (memcmp (ntp_packet_buffer + 24, ntp_nonce, sizeof (ntp_nonce)) != 0)' 'if (0)'
+sab originate_4_byte   'if (memcmp (ntp_packet_buffer + 24, ntp_nonce, sizeof (ntp_nonce)) != 0)' 'if (memcmp (ntp_packet_buffer + 24, ntp_nonce, 4) != 0)'
+sab nicht_geschlossen  '        ntp_pending = 0;                                                    // C59: angenommen' '        ;                                                    // C59: angenommen'
+sab falsche_schliesst  '            ntp_reject ("originate", -1);' '            ntp_pending = 0;\n            ntp_reject ("originate", -1);'
+sab fester_zufall      '    uint32_t r1 = RANDOM_REG32;' '    uint32_t r1 = 0; r0 = 0x12345678;'
+sab nonce_nicht_gemerkt '    memcpy (ntp_nonce, ntp_packet_buffer + 40, sizeof (ntp_nonce));' '    ;'
+sab nicht_geoeffnet    '    ntp_pending         = 1;' '    ;'
 rm -rf "$T"; exit $rc

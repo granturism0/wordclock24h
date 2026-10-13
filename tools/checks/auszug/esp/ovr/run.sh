@@ -16,7 +16,7 @@ def grab(start, end_pred):
 var = next((l for l in L if l.startswith('static uint32_t       esp_uart_overruns')), '')
 heap = grab('esp_heap_log (void)', lambda l: l.startswith('}'))
 heap = 'static void\n' + heap + '}\n' if heap else ''
-poll = grab(lambda l: l.startswith('    if (') and 'Serial.hasOverrun ()' in l, lambda l: l.startswith('    while (Serial.available())'))
+poll = grab(lambda l: l.startswith('    if (') and 'Serial.hasOverrun ()' in l, lambda l: l.startswith('    while (Serial.available())') or l.startswith('    stm_bridge_poll ();'))
 open(d + '/ovr_var.inc', 'w').write((var if var else '#define OVR_FEHLT 1') + '\n')
 open(d + '/ovr_heap.inc', 'w').write(heap.replace('static unsigned long ', 'static uint32_t '))
 open(d + '/ovr_poll.inc', 'w').write(poll)

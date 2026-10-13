@@ -178,7 +178,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: '
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #'
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
@@ -301,6 +301,11 @@ while :; do
         *"- ntp verworfen #"*)
           # C58: NTP-Antwort verworfen (Laenge, Absender, Port, LI=3, Stratum 0, Transmit 0)
           printf '  %s  Netzzeit: Antwort im ESP verworfen   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"- rpc keine Antwort #"*)
+          # B55 (Paket 2026-10-13, E2): "Messwert uebernehmen" bekam vom STM binnen 2 s kein RPCR --
+          # alter STM (vor 3.2.34) oder Bruecke gestoert. Die PWA meldet dann Kennung 11.
+          printf '  %s  Bruecke: STM hat auf "Messwert uebernehmen" nicht geantwortet   <%s>\n' "$stamp" "$z"
           alarm=1 ;;
         *"- abgewiesen: query"*)
           # C46 (Paket 2026-10-13, E1): eine /api/-Anfrage ueber 255 Zeichen wurde mit Kennung 9

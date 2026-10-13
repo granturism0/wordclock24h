@@ -1,4 +1,5 @@
-/* Pruefstand ntp -- Attrappen fuer WiFiUDP, IPAddress, Serial, millis; Erwartung unabhaengig formuliert.
+/* Pruefstand ntp -- Attrappen fuer WiFiUDP, IPAddress, Serial, millis, RANDOM_REG32; Erwartung unabhaengig formuliert.
+ * C59 (Paket 2026-10-13, E2.4, AKT.1): Antwort nur bei offener Anfrage (Frist 5 s) und Originate == Transmit der Anfrage.
  * WiFiUDP bildet die Core-Semantik 3.1.2 nach: parsePacket() verwirft den ungelesenen Rest des vorigen Pakets
  * (UdpContext::next()), read() liefert hoechstens den Rest des aktuellen Pakets, flush() SENDET (endPacket).
  */
@@ -14,6 +15,10 @@ typedef uint8_t byte;
 static uint16_t word (uint8_t h, uint8_t l) { return (uint16_t) ((h << 8) | l); }
 static zp_millis fake_ms = 1000;
 static zp_millis millis (void) { return fake_ms; }
+/* RANDOM_REG32: jeder Zugriff ein neuer Wert (xorshift32), gezaehlt */
+static uint32_t rng_state = 0x9E3779B9u; static int rng_reads = 0;
+static uint32_t rng_next (void) { rng_reads++; rng_state ^= rng_state << 13; rng_state ^= rng_state >> 17; rng_state ^= rng_state << 5; return rng_state; }
+#define RANDOM_REG32 rng_next ()
 /* IPAddress wie im Core 3.1.2 mit ip=lm2f (IPv4-only): ein 32-Bit-Wert, IPAddress () = IP_ANY_TYPE = 0.0.0.0,
  * operator== ueber ip_addr_cmp = Wertvergleich, isSet () = nicht 0.0.0.0 und nicht 255.255.255.255
  * (IPAddress.cpp:35-40). KEIN eigenes "any"-Merkmal: Genau das verdeckte in der ersten Fassung, dass
@@ -43,6 +48,7 @@ void stm32_log_append (const char * l) { logring.push_back (l); }
 struct Pkt { std::vector<uint8_t> d; IPAddress ip; uint16_t port; };
 static int sent_packets = 0, flush_calls = 0, read_bytes_total = 0, short_read = 0;
 static IPAddress sent_to;
+static std::vector<uint8_t> last_sent;      /* zuletzt gesendete Anfrage (48 Byte) */
 struct WiFiUDP {
     std::deque<Pkt> q; Pkt cur; size_t off = 0; bool have = false;
     void begin (unsigned) {}
@@ -62,7 +68,7 @@ struct WiFiUDP {
     IPAddress remoteIP (void) { return have ? cur.ip : IPAddress (); }
     uint16_t remotePort (void) { return have ? cur.port : 0; }
     void beginPacket (IPAddress a, int) { sent_to = a; }
-    void write (const uint8_t *, size_t) {}
+    void write (const uint8_t * b, size_t n) { last_sent.assign (b, b + n); }
     void endPacket (void) { sent_packets++; }
     void flush (void) { flush_calls++; endPacket (); }
 };
@@ -87,11 +93,18 @@ static std::vector<uint8_t> pkt (int len, int li, int stratum, uint32_t tx, uint
 static bool guard_intakt (void) { for (auto b : ntp_mem.guard) if (b != 0xC3) return false; return true; }
 
 static unsigned long soll_cnt = 0;      /* unabhaengig mitgezaehlt */
+/* C59: ab der ersten echten Anfrage fragt fall () vor jedem Paket neu an (wie die Uhr: eine Anfrage, eine Antwort)
+ * und traegt den Zufall der Anfrage ins Originate-Feld ein -- ausser der Fall setzt orig_auto = false. */
+static bool anfragen = false, orig_auto = true;
+static char cur_srv[20] = "";
+static void originate (std::vector<uint8_t> & d) { for (int k = 0; k < 8 && 24 + k < (int) d.size () && last_sent.size () >= 48; k++) d[24 + k] = last_sent[40 + k]; }
+static void anfrage (void) { ntp_get_time (cur_srv); Serial.out.clear (); }
 /* grund == nullptr: Annahme erwartet, sonst Verwurf mit "<grund>" (z. B. "li=3"); zeit_vor: Drossel geoeffnet */
 static void fall (const char * name, std::vector<uint8_t> d, IPAddress ip, uint16_t port, const char * grund, uint32_t tx_soll = 0, bool zeit_vor = true)
 {
     faelle++;
     if (zeit_vor) fake_ms += 60000;
+    if (anfragen) { anfrage (); if (orig_auto) originate (d); }
     memset (ntp_mem.guard, 0xC3, sizeof ntp_mem.guard);
     memset (ntp_mem.buf, 0x77, sizeof ntp_mem.buf);
     Serial.out.clear (); size_t lr = logring.size (); int rb = read_bytes_total; int fc = flush_calls; int sp = sent_packets;
@@ -138,9 +151,10 @@ int main (void)
         fall ("Server Broadcast, Quelle 255.255.255.255", pkt (48, 0, 2, T), IPAddress (255, 255, 255, 255), 123, "absender");
     }
     char srv[] = "192.0.2.10";
-    Serial.out.clear (); ntp_get_time (srv);
+    Serial.out.clear (); ntp_get_time (srv); strcpy (cur_srv, srv);
     if (Serial.out != "OK time\r\n" || sent_packets != 3 || ! (sent_to == SRV)) fehl ("Anfrage", "OK time / Paket an den Server erwartet: " + esc (Serial.out));
     faelle++;
+    anfragen = true;
 
     /* Annahme */
     fall ("gueltig", pkt (48, 0, 2, T), SRV, 123, nullptr, T);
@@ -194,7 +208,7 @@ int main (void)
         std::string s = "- ntp verworfen #" + std::to_string (soll_cnt) + " laenge=68";
         if (logring.size () != l0 + 2 || logring.back () != s) fehl ("Drossel", "nach 60 s erwartet \"" + s + "\"");
         /* gueltige Antwort waehrend der Drossel: TIME kommt trotzdem */
-        Serial.out.clear (); ntp_udp.q.push_back ({ pkt (48, 0, 2, T), SRV, 123 }); ntp_poll_time ();
+        { anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T); originate (g); Serial.out.clear (); ntp_udp.q.push_back ({ g, SRV, 123 }); ntp_poll_time (); }
         if (Serial.out != "TIME " + std::to_string ((unsigned long) T) + "\r\n") fehl ("Drossel", "gueltige Antwort waehrend der Drossel nicht weitergereicht");
         /* Wickeln der Millisekundenuhr (L256) */
         fake_ms = 0xFFFFFFFFu - 20000u; ntp_udp.q.push_back ({ pkt (68, 0, 2, T), SRV, 123 }); ntp_poll_time (); soll_cnt++;
@@ -208,11 +222,78 @@ int main (void)
     }
     /* Anfrage an einen anderen Server: der alte gilt nicht mehr */
     {
-        char s2[] = "192.0.2.20"; ntp_get_time (s2); fake_ms += 60000;
+        char s2[] = "192.0.2.20"; strcpy (cur_srv, s2); ntp_get_time (s2); fake_ms += 60000;
         fall ("alter Server nach Wechsel", pkt (48, 0, 2, T), SRV, 123, "absender");
         fall ("neuer Server", pkt (48, 0, 2, T), IPAddress (192, 0, 2, 20), 123, nullptr, T);
     }
 
+
+    /* ---------------------------------------------------------------- C59 */
+    {
+        const IPAddress S2 (192, 0, 2, 20);
+        /* Anfrage: 8 Byte Zufall in 40..47, zwei RANDOM_REG32-Zugriffe, uebriger Kopf unveraendert */
+        faelle++;
+        int r0 = rng_reads; fake_ms += 60000; anfrage (); std::vector<uint8_t> a = last_sent;
+        fake_ms += 60000; anfrage (); std::vector<uint8_t> b = last_sent;
+        if (rng_reads - r0 != 4) fehl ("Anfrage", "je Anfrage zwei RANDOM_REG32-Zugriffe erwartet, waren " + std::to_string (rng_reads - r0));
+        if (a.size () != 48 || b.size () != 48) fehl ("Anfrage", "48 Byte erwartet");
+        else
+        {
+            bool gleich = true, null = true;
+            for (int k = 40; k < 48; k++) { if (a[k] != b[k]) gleich = false; if (a[k]) null = false; }
+            if (gleich) fehl ("Anfrage", "zwei Anfragen mit demselben Transmit-Feld");
+            if (null) fehl ("Anfrage", "Transmit-Feld 0");
+            bool kopf = a[0] == 0xE3 && a[1] == 0 && a[2] == 6 && a[3] == 0xEC && a[12] == 49 && a[13] == 0x4E && a[14] == 49 && a[15] == 52;
+            for (int k = 4; k < 12; k++) if (a[k]) kopf = false;
+            for (int k = 16; k < 40; k++) if (a[k]) kopf = false;
+            if (! kopf) fehl ("Anfrage", "Byte 0..39 der Anfrage veraendert");
+        }
+        /* Antwort auf die vorige Anfrage nach einer neuen: originate */
+        { std::vector<uint8_t> d = pkt (48, 0, 2, T); for (int k = 0; k < 8; k++) d[24 + k] = a[40 + k];
+          anfragen = false; fall ("Antwort auf die vorige Anfrage", d, S2, 123, "originate", 0, false); }
+        /* Originate falsch, je Byte 24..31 ein Bit: originate, Anfrage bleibt offen; danach die richtige: angenommen */
+        for (int k = 0; k < 8; k++)
+        {
+            fake_ms += 60000; anfrage ();
+            std::vector<uint8_t> d = pkt (48, 0, 2, T); originate (d); d[24 + k] ^= 0x01;
+            fall (("Originate Byte " + std::to_string (24 + k)).c_str (), d, S2, 123, "originate", 0, false);
+            std::vector<uint8_t> g = pkt (48, 0, 2, T + k); originate (g);
+            fall (("richtige nach falscher, Byte " + std::to_string (24 + k)).c_str (), g, S2, 123, nullptr, T + k, false);
+        }
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> d = pkt (48, 0, 2, T); for (int k = 24; k < 32; k++) d[k] = 0;
+          fall ("Originate 0", d, S2, 123, "originate", 0, false); }
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> d = pkt (48, 0, 2, T); for (int k = 0; k < 8; k++) d[24 + k] = last_sent[40 + k]; d[40] ^= 0; /* Transmit der Antwort = T */
+          std::vector<uint8_t> e = d; for (int k = 0; k < 8; k++) e[24 + k] = 0xEE;
+          fall ("Originate 0xEE (Muster des Altbestands)", e, S2, 123, "originate", 0, false); }
+        /* Wiederholung nach Annahme: ungefragt */
+        {
+            fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 100); originate (g);
+            fall ("angenommen", g, S2, 123, nullptr, T + 100, false);
+            {   /* sofort wiederholt, innerhalb der Frist: kein TIME (die Zeile ist gedrosselt, gezaehlt wird trotzdem) */
+                faelle++; uint32_t c0 = ntp_reject_cnt; Serial.out.clear ();
+                ntp_udp.q.push_back ({ g, S2, 123 }); ntp_poll_time (); soll_cnt++;
+                if (Serial.out.find ("TIME") != std::string::npos) fehl ("Wiederholung in der Frist", "zweite Antwort auf dieselbe Anfrage als TIME weitergereicht");
+                if (ntp_reject_cnt != c0 + 1) fehl ("Wiederholung in der Frist", "nicht als Verwurf gezaehlt");
+            }
+            fall ("dieselbe Antwort noch einmal", g, S2, 123, "ungefragt", 0, true);
+        }
+        /* Frist 5'000 ms */
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 1); originate (g); fake_ms += 4999;
+          fall ("nach 4'999 ms", g, S2, 123, nullptr, T + 1, false); }
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 2); originate (g); fake_ms += 5000;
+          fall ("nach 5'000 ms", g, S2, 123, "ungefragt", 0, false);
+          fall ("nach Ablauf, spaeter noch einmal", g, S2, 123, "ungefragt", 0, true); }
+        /* Wortrand: Anfrage kurz vor dem Umlauf (die Drossel ist vom Sprung zurueck auf 0xFFFFFC17 offen: Differenz ueber 60 s) */
+        { fake_ms = 0xFFFFFFFFu - 1000u; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 3); originate (g); fake_ms += 3000;
+          fall ("Wortrand, 3 s", g, S2, 123, nullptr, T + 3, false); }
+        { fake_ms = 0xFFFFFFFFu - 1000u; anfrage (); std::vector<uint8_t> g = pkt (48, 0, 2, T + 4); originate (g); fake_ms += 6000;
+          fall ("Wortrand, 6 s", g, S2, 123, "ungefragt", 0, false); }
+        /* ungefragt geht vor originate nicht verloren: falsche Originate ohne offene Anfrage => ungefragt */
+        { std::vector<uint8_t> d = pkt (48, 0, 2, T); fake_ms += 60000; fall ("ohne Anfrage, falsche Originate", d, S2, 123, "ungefragt", 0, false); }
+        /* die bisherigen Gruende gehen weiter vor: LI 3 mit richtiger Originate => li=3, Anfrage bleibt offen */
+        { fake_ms += 60000; anfrage (); std::vector<uint8_t> d = pkt (48, 3, 2, T); originate (d); fall ("LI 3 bei offener Anfrage", d, S2, 123, "li=3", 0, false);
+          std::vector<uint8_t> g = pkt (48, 0, 2, T + 5); originate (g); fall ("danach gueltig", g, S2, 123, nullptr, T + 5, false); }
+    }
     printf ("  Faelle: %d\n", faelle);
     printf ("%s  ntp %s: %d Fehler\n", fails ? "FEHL" : "OK  ", BEZEICHNUNG, fails);
     return fails ? 1 : 0;

@@ -18,7 +18,7 @@ he = idx(lambda l: l.startswith('}'), h + 1)
 heap = 'static void\n' + '\n'.join(L[h:he + 1]) + '\n'
 lp = idx(lambda l: l.startswith('loop()'))
 a = idx(lambda l: 'ntp_poll_time ();' in l, lp)
-b = idx(lambda l: l.startswith('    while (Serial.available())'), a)
+b = idx(lambda l: l.startswith('    while (Serial.available())') or l.startswith('    stm_bridge_poll ();'), a)
 if lp is None or a is None or b is None: sys.exit('loop()-Abschnitt nicht gefunden')
 open(t + '/z_var.inc', 'w').write(var + '\n')
 # unsigned long ist auf dem ESP 32 Bit, auf dem Pruefrechner 64 -- sonst waere der millis()-Umlauf nicht nachgestellt
