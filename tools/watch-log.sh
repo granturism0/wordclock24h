@@ -48,6 +48,25 @@
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# E36 (L423): Herzschlag. Jede Runde schreibt "Epoche Intervall Runde" in diese Datei.
+# "./tools/watch-log.sh --pruefe" sagt von AUSSEN, ob die Wache lebt: Am 12.10.2026 lief
+# der Prozess weiter und schrieb von 00:20 bis 01:33 nichts -- niemand konnte es sehen,
+# weil die einzige Instanz, die es haette melden koennen, die stehende Wache selbst war.
+WL_SFX=${WATCHLOG_QUELLE:+.probe}
+LEBT="$(git rev-parse --git-dir 2>/dev/null)/watch-log.lebt$WL_SFX"
+if [ "${1:-}" = "--pruefe" ]; then
+  [ -s "$LEBT" ] || { echo "Logwache: kein Herzschlag ($LEBT fehlt) -- laeuft keine Wache?"; exit 1; }
+  read -r t iv rd < "$LEBT"
+  alter=$(( $(date +%s) - t ))
+  grenze=$(( 3 * iv > iv + 30 ? 3 * iv : iv + 30 ))
+  if [ "$alter" -gt "$grenze" ]; then
+    echo "Logwache: letzter Herzschlag vor ${alter} s (Runde $rd, Intervall ${iv} s, Grenze ${grenze} s) -- die Wache STEHT"
+    exit 1
+  fi
+  echo "Logwache: lebt, letzter Herzschlag vor ${alter} s (Runde $rd, Intervall ${iv} s)"
+  exit 0
+fi
+
 # Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
 # nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
 # blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
@@ -69,11 +88,46 @@ done
 LOG=${WATCHLOG_QUELLE:-./tools/logger/log.sh}
 [ -x "$LOG" ] || { echo "tools/logger/log.sh fehlt oder ist nicht ausfuehrbar." >&2; exit 2; }
 
+# E36 (L423): Jeder Abruf des Mitschnitts hat eine Frist. log.sh spricht per ssh mit dem
+# Pi; eine bestehende Verbindung kann nach einem Wechsel der Netzschnittstelle unbegrenzt
+# haengen, und die Wache wartete synchron darauf. macOS hat kein "timeout", deshalb
+# laeuft der Abruf im Hintergrund und wird nach FRIST Sekunden beendet.
+FRIST=${WATCHLOG_FRIST:-20}
+# Endet die Wache mitten in einem Abruf, laufen log.sh und ssh sonst als Waisen weiter.
+HOLE_PID=""
+trap '[ -n "$HOLE_PID" ] && { pkill -P "$HOLE_PID" 2>/dev/null; kill "$HOLE_PID" 2>/dev/null; }; exit' TERM INT HUP
+HOLE_OUT=""
+HOLE_HAENGT=0
+hole() {
+  local tmp pid n=0
+  tmp=$(mktemp "${TMPDIR:-/tmp}/watchlog.XXXXXX") || { HOLE_OUT=""; return 2; }
+  "$LOG" "$@" > "$tmp" 2>/dev/null &
+  pid=$!
+  HOLE_PID=$pid
+  HOLE_HAENGT=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$n" -ge $((FRIST * 10)) ]; then
+      pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null
+      sleep 0.2; pkill -9 -P "$pid" 2>/dev/null; kill -9 "$pid" 2>/dev/null
+      HOLE_HAENGT=1
+      break
+    fi
+    sleep 0.1; n=$((n + 1))
+  done
+  wait "$pid" 2>/dev/null
+  HOLE_PID=""
+  HOLE_OUT=$(cat "$tmp")
+  rm -f "${tmp:?}"
+}
+
 # Ausgangsstand, damit nur NEUES gemeldet wird. Ohne diese Grundlinie meldet der
 # erste Durchgang die gesamte Vorgeschichte und man gewoehnt sich das Wegsehen an.
-basis_exc=$("$LOG" tail 3000 2>/dev/null | grep -ac 'Exception (29)')
-basis_rst=$("$LOG" tail 3000 2>/dev/null | grep -ac 'rst cause')
-basis_wdt=$("$LOG" tail 3000 2>/dev/null | grep -aci 'wdt reset')
+hole tail 3000
+[ "$HOLE_HAENGT" -eq 1 ] && echo "Logwache: der erste Abruf des Mitschnitts hing ueber ${FRIST} s -- Grundlinie leer" >&2
+basis_roh=$HOLE_OUT
+basis_exc=$(printf '%s' "$basis_roh" | grep -ac 'Exception (29)')
+basis_rst=$(printf '%s' "$basis_roh" | grep -ac 'rst cause')
+basis_wdt=$(printf '%s' "$basis_roh" | grep -aci 'wdt reset')
 letzte_d=""
 letzte_a=""
 
@@ -83,9 +137,8 @@ letzte_a=""
 EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+'
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
-WL_SFX=${WATCHLOG_QUELLE:+.probe}
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
-"$LOG" tail 3000 2>/dev/null | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
+printf '%s\n' "$basis_roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 letzte_vt=""
 letzte_vn=""
 sprung_folge=0
@@ -122,14 +175,38 @@ if [ ! -t 1 ]; then
   printf 'Hinweis: stdout ist keine Konsole. Meldungen stehen in %s\n\n' "$MITSCHRIFT"
 fi
 
-printf '=== Logwache ab %s ===\n' "$(date '+%H:%M:%S')"
+# DIR-020/E36: Solange die Wache laeuft, darf der Mac nicht einschlafen. -i haelt das System
+# wach (auch auf Akku, solange der Deckel offen ist); -w endet mit diesem Prozess.
+WACH="ohne caffeinate"
+if [ -z "${WATCHLOG_QUELLE:-}" ] && command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -i -w $$ >/dev/null 2>&1 &
+  WACH="caffeinate -i aktiv"
+fi
+printf '=== Logwache ab %s (%s, Intervall %s s, Frist %s s, Herzschlag %s) ===\n' \
+  "$(date '+%H:%M:%S')" "$WACH" "$INTERVAL" "$FRIST" "$LEBT"
 printf '  Grundlinie: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n\n' \
   "$basis_exc" "$basis_rst" "$basis_wdt"
 
 runde=0
+vorige_runde=""
+# Grenze fuer die Selbstmeldung: dreimal das Intervall, mindestens aber Intervall + Frist
+# + Spielraum -- ein Abruf darf bis zur Frist dauern, ohne als Stillstand zu gelten.
+SELBST_GRENZE=$(( 3 * INTERVAL > INTERVAL + FRIST + 10 ? 3 * INTERVAL : INTERVAL + FRIST + 10 ))
 while :; do
   runde=$((runde+1))
-  roh=$("$LOG" tail 3000 2>/dev/null)
+  jetzt_s=$(date +%s)
+  if [ -n "$vorige_runde" ] && [ $((jetzt_s - vorige_runde)) -gt "$SELBST_GRENZE" ]; then
+    printf '  %s  *** Logwache war %s s angehalten (Grenze %s s) *** -- Mac im Ruhezustand, Prozess gestoppt? Dieses Fenster ist NICHT beobachtet\n' \
+      "$(date '+%H:%M:%S')" "$((jetzt_s - vorige_runde))" "$SELBST_GRENZE"
+  fi
+  vorige_runde=$jetzt_s
+  printf '%s %s %s\n' "$jetzt_s" "$INTERVAL" "$runde" > "$LEBT"
+  hole tail 3000
+  roh=$HOLE_OUT
+  if [ "$HOLE_HAENGT" -eq 1 ]; then
+    printf '  %s  *** Abruf des Mitschnitts hing ueber %s s und wurde abgebrochen *** -- Verbindung zum Pi? Diese Runde ist NICHT beobachtet\n' \
+      "$(date '+%H:%M:%S')" "$FRIST"
+  fi
 
   exc=$(printf '%s' "$roh" | grep -ac 'Exception (29)')
   rst=$(printf '%s' "$roh" | grep -ac 'rst cause')

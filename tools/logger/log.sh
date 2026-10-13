@@ -25,7 +25,9 @@ KEY=${LOG_KEY:-~/.ssh/wordclock_pi}
 FILE=${LOG_FILE:-/var/log/wordclock/serial.log}
 KEY=${KEY/#\~/$HOME}          # ~ expandiert in Variablen nicht von selbst
 
-SSH="ssh -p $PORT -o BatchMode=yes -o ConnectTimeout=8"
+# ServerAlive (L423): ConnectTimeout gilt nur fuer den Aufbau. Eine bestehende Verbindung,
+# deren Netzschnittstelle wegfaellt (Dock abgezogen), hing ohne Lebenszeichen unbegrenzt.
+SSH="ssh -p $PORT -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=5 -o ServerAliveCountMax=2"
 [ -f "$KEY" ] && SSH="$SSH -i $KEY -o IdentitiesOnly=yes"
 T="$USER@$HOST"
 CMD=${1:-tail}; shift || true

@@ -1,0 +1,142 @@
+diff -ru a/src/esp8266/esp8266-uart.c b/src/esp8266/esp8266-uart.c
+--- a/src/esp8266/esp8266-uart.c	2026-10-13 02:48:46
++++ b/src/esp8266/esp8266-uart.c	2026-10-13 21:08:05
+@@ -85,4 +85,124 @@
+  */
+ #define UART_RXBUFLEN           1024                    // ringbuffer size for UART RX
+ 
++/* MESSBAU A15 (specs/paket-2026-10-13, design.md 2.3) - NICHT im Produktstand.
++ *
++ * Der eigentliche Handler aus uart-driver.h wird unter einem anderen Namen uebersetzt
++ * (der Makroname USARTn_IRQHandler wird beim Expandieren von UART_IRQ_HANDLER erneut
++ * ersetzt) und unveraendert, aber nicht inline, aus einem Messrahmen aufgerufen.
++ * uart-driver.h selbst bleibt unberuehrt, damit derselbe Patch vor und nach A15 passt.
++ */
++#define USART1_IRQHandler       esp8266_isr_messbau_inner
++#define USART2_IRQHandler       esp8266_isr_messbau_inner
++#define USART3_IRQHandler       esp8266_isr_messbau_inner
++#define USART4_IRQHandler       esp8266_isr_messbau_inner
++#define USART5_IRQHandler       esp8266_isr_messbau_inner
++#define USART6_IRQHandler       esp8266_isr_messbau_inner
++void esp8266_isr_messbau_inner (void) __attribute__ ((noinline));
++
+ #include "uart-driver.h"
++
++#undef  USART1_IRQHandler
++#undef  USART2_IRQHandler
++#undef  USART3_IRQHandler
++#undef  USART4_IRQHandler
++#undef  USART5_IRQHandler
++#undef  USART6_IRQHandler
++
++#include "log.h"                                        // erst hier: log.h setzt UART_PREFIX um
++
++/* MESSBAU A15: Zyklen je ISR-Eintritt, DWT->CYCCNT direkt vor und nach dem Aufruf.
++ * Eintritt mit RXNE in SR (vor dem Aufruf gelesen) zaehlt als Empfang, alle anderen als tx.
++ */
++static volatile uint_fast8_t    isr_mb_on;
++static volatile uint32_t        isr_mb_n[2];
++static volatile uint32_t        isr_mb_min[2] = { 0xFFFFFFFFUL, 0xFFFFFFFFUL };
++static volatile uint32_t        isr_mb_max[2];
++static volatile uint64_t        isr_mb_sum[2];
++
++void UART_IRQ_HANDLER (void);
++
++void UART_IRQ_HANDLER (void)
++{
++    uint_fast8_t    k   = (UART_NAME->SR & USART_FLAG_RXNE) ? 0 : 1;   // 0 = rx, 1 = tx
++    uint32_t        t0  = DWT->CYCCNT;
++    uint32_t        dt;
++
++    esp8266_isr_messbau_inner ();
++    dt = DWT->CYCCNT - t0;
++
++    if (isr_mb_on)
++    {
++        isr_mb_n[k]++;
++        isr_mb_sum[k] += dt;
++
++        if (dt < isr_mb_min[k])
++        {
++            isr_mb_min[k] = dt;
++        }
++
++        if (dt > isr_mb_max[k])
++        {
++            isr_mb_max[k] = dt;
++        }
++    }
++}
++
++void esp8266_isr_messbau_log (uint32_t);
++
++void
++esp8266_isr_messbau_log (uint32_t now)
++{
++    static uint32_t last;
++    uint32_t        n[2], mn[2], mx[2], mi[2];
++    uint64_t        s[2];
++    uint32_t        primask;
++    uint_fast8_t    k;
++
++    if (! isr_mb_on)                                    // erster Aufruf: Zyklenzaehler starten
++    {
++        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
++        DWT->CYCCNT       = 0;
++        DWT->CTRL        |= DWT_CTRL_CYCCNTENA_Msk;
++        last              = now;
++        isr_mb_on         = 1;
++        return;
++    }
++
++    if (now - last < 60)
++    {
++        return;
++    }
++
++    last = now;
++
++    primask = __get_PRIMASK ();
++    __disable_irq ();
++
++    for (k = 0; k < 2; k++)
++    {
++        n[k]  = isr_mb_n[k];    isr_mb_n[k]   = 0;
++        mn[k] = isr_mb_min[k];  isr_mb_min[k] = 0xFFFFFFFFUL;
++        mx[k] = isr_mb_max[k];  isr_mb_max[k] = 0;
++        s[k]  = isr_mb_sum[k];  isr_mb_sum[k] = 0;
++    }
++
++    __set_PRIMASK (primask);
++
++    for (k = 0; k < 2; k++)
++    {
++        if (n[k] == 0)
++        {
++            mn[k] = 0;
++            mi[k] = 0;
++        }
++        else
++        {
++            mi[k] = (uint32_t) (s[k] / n[k]);
++        }
++    }
++
++    log_printf ("isr esp: n=%lu min=%lu mittel=%lu max=%lu tx=%lu/%lu/%lu/%lu\r\n",
++                (unsigned long) n[0], (unsigned long) mn[0], (unsigned long) mi[0], (unsigned long) mx[0],
++                (unsigned long) n[1], (unsigned long) mn[1], (unsigned long) mi[1], (unsigned long) mx[1]);
++}
+diff -ru a/src/main.c b/src/main.c
+--- a/src/main.c	2026-10-13 02:48:46
++++ b/src/main.c	2026-10-13 21:08:05
+@@ -3980,6 +3980,10 @@
+     {
+         watchdog_reload ();
+         var_send_reload_budget_reset ();                                                // Nullpunkt des Reload-Budgets in var_send_buf(), siehe VAR_SEND_RELOAD_BUDGET_SEC
++        {                                                                               // MESSBAU A15 (design.md 2.3), nicht im Produktstand
++            extern void esp8266_isr_messbau_log (uint32_t);
++            esp8266_isr_messbau_log (uptime);                                           // je 60 s eine Zeile "isr esp: ..."
++        }
+ 
+         /*---------------------------------------------------------------------------------------------------------------------------------
+          * DIAGNOSE (specs/beobachtbarkeit): eine Zeile je Takt, am KOPF des Loops - nicht in einem flaggesteuerten Zweig,

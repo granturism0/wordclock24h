@@ -271,6 +271,34 @@ def main():
                 "",
             ]))
 
+    # ------------------------------------- Logwache steht still (L423, E36)
+    # Am 12.10.2026 lief die Wache 73 Minuten weiter, ohne etwas zu schreiben, und
+    # niemand sah es. Ihr Herzschlag wird hier von AUSSEN geprueft -- nur wenn ein
+    # Wachprozess laeuft; eine absichtlich beendete Wache meldet sich nicht.
+    lebt = root / ".git" / "watch-log.lebt"
+    if lebt.exists():
+        import subprocess, time
+        try:
+            laeuft = subprocess.run(["pgrep", "-f", "tools/watch-log.sh --interval"],
+                                    capture_output=True, text=True, timeout=5).stdout.strip()
+        except Exception:
+            laeuft = ""
+        try:
+            t, iv, rd = lebt.read_text().split()[:3]
+            alter = int(time.time()) - int(t)
+            grenze = max(3 * int(iv), int(iv) + 30)
+        except Exception:
+            alter, grenze, rd = 0, 1, "?"
+        if laeuft and alter > grenze:
+            bloecke.append((f"wache-{t}", [
+                f"Die Logwache laeuft, aber ihr letzter Herzschlag ist {alter} s alt",
+                f"(Runde {rd}, Grenze {grenze} s). Sie STEHT -- seither ist nichts beobachtet.",
+                "",
+                "  ./tools/watch-log.sh --pruefe     bestaetigt es",
+                "  Mitschrift .git/watch-log.out ansehen, Wache neu starten (L423).",
+                "",
+            ]))
+
     # ---------------------------------------------------------- Guardrails
     stamp = root / ".git" / "guardrails-stamp"
     if relevant and not (stamp.exists() and stamp.read_text().strip() == state):
