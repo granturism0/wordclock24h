@@ -33,6 +33,7 @@
 #   ovr= in der Heap-Zeile  Anstieg der UART-Ueberlaeufe im ESP (A21)
 #   - ovr #n t=ms          Zeitpunkt eines erkannten UART-Ueberlaufs im ESP (A76), Hinweis
 #   icon: verworfen ...    Icon bei Display aus verworfen (A80), Hinweis
+#   - abgewiesen: ...      Herkunft (C6/C60) oder Query-Laenge (C46) abgewiesen, Hinweis
 #   icon_freeze: ENTER     Icon wartet auf das Display -- seit A80 ein Alarm
 #   i2c: frist abgelaufen   I2C-Zugriff ueber 5 ms, Bus zurueckgesetzt (STM ab Paket 2026-10-11, A60)
 #   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
@@ -177,7 +178,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: '
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
@@ -301,6 +302,15 @@ while :; do
           # C58: NTP-Antwort verworfen (Laenge, Absender, Port, LI=3, Stratum 0, Transmit 0)
           printf '  %s  Netzzeit: Antwort im ESP verworfen   <%s>\n' "$stamp" "$z"
           alarm=1 ;;
+        *"- abgewiesen: query"*)
+          # C46 (Paket 2026-10-13, E1): eine /api/-Anfrage ueber 255 Zeichen wurde mit Kennung 9
+          # abgewiesen statt still gekuerzt. Kommt sie von der PWA, ist das ein Befund (Import?).
+          printf '  %s  Hinweis: Anfrage zu lang, abgewiesen   <%s>\n' "$stamp" "$z" ;;
+        *"- abgewiesen: "*" als Sec-Fetch-"*)
+          # C6/C6v/C60: ein zerstoerender Aufruf wurde wegen seiner Herkunft abgewiesen. Der
+          # Smoketest loest das absichtlich aus (Sec-Fetch-Dest: image) -- deshalb Hinweis, kein
+          # Alarm. "Sec-Fetch-Site=cross-site" ohne laufenden Smoketest heisst: eine fremde Seite.
+          printf '  %s  Hinweis: zerstoerender Aufruf wegen Herkunft abgewiesen   <%s>\n' "$stamp" "$z" ;;
         *"icon: verworfen, display aus"*)
           # A80 (Paket 2026-10-13): ein Icon kam bei ausgeschaltetem Display und wurde verworfen,
           # statt bis zum Einschalten vorgemerkt zu bleiben. Erwartet im Nachtfenster -- Hinweis.
