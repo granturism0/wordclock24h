@@ -25,6 +25,7 @@ Kennung `X<n>`, fortlaufend, wird nie neu vergeben. Status: **Idee** (aufgenomme
 | **X11** | **Neue Animation „Implode“** | Idee | — | STM, PWA |
 | **X12** | **Mood-Light-Funktion** | Idee | — | STM, ESP, PWA |
 | **X13** | **Hintergrundfarbe/-helligkeit für das Display** | Idee | X3 gemeinsam planen | STM, ESP, PWA |
+| **X14** | **Legacy-Oberfläche durch eine kleine Notfallseite ersetzen** | Idee | C66, C70; Funktionsabgleich PWA ↔ Legacy | ESP |
 
 ## X1 — Live-Display der echten LEDs in der PWA
 
@@ -54,6 +55,40 @@ die Diagnose (siehe die sporadischen Hänger in `CLAUDE.md`, „Offene technisch
 - Takt: laufend, solange die Seite offen ist, oder auf Knopfdruck?
 - Wo das Abbild entsteht (STM sendet Rohzustand, ESP verdichtet, PWA zeichnet) und was es an Flash
   auf der engsten STM-Variante kostet (Reserve über dem Gate siehe `BEFUNDE.md`, L435).
+
+## X14 — Legacy-Oberfläche durch eine kleine Notfallseite ersetzen
+
+Aufgenommen am 14.10.2026 auf Wunsch des Nutzers, nach der Frage, was der Verzicht auf die
+Legacy-Oberfläche an Heap und Speicher brächte.
+
+**Was es brächte (Stand 14.10.2026):**
+
+- **STM:** nichts — die Weboberfläche liegt vollständig auf dem ESP.
+- **ESP-Flash:** rund 24 KB Code der Legacy-Seitenfunktionen (gemessen am Build E3 über die
+  Symbolgrössen: `http_main`, `http_update`, `http_fs`, `http_network`, `http_display`,
+  `http_overlays` …) plus deren Texte im Flash, grob 40–60 KB. Der Flash des ESP ist kein Engpass.
+- **ESP-RAM statisch:** wenig. Die Seiten sind fast durchgehend mit `F()`/`FS()` gebaut, ihre Texte
+  liegen im Flash. Geschätzt höchstens 1–2 KB, **nicht gemessen** — vor einer Entscheidung den
+  Anteil an `.rodata`/`.data` je Funktion bzw. Objekt zuordnen.
+- **ESP-Heap zur Laufzeit:** praktisch nichts. Die Legacy-Seite belegt Heap nur, wenn sie
+  aufgerufen wird. Das Tief beim Laden der PWA (C65) entsteht durch wartende Verbindungen,
+  WLAN-Scan, TIME_WAIT und Sendepuffer (`BEFUNDE.md`, L456) — daran ändert X14 nichts.
+
+**Was verloren ginge, ohne Ersatz:**
+
+- **Der Rettungsweg.** Die PWA lebt als `.gz` im LittleFS; ist dort etwas kaputt, bleibt der Schirm
+  weiss (Architektur-Invariante in `CLAUDE.md`; C66 zeigt einen heute noch offenen Weg dorthin).
+  Die Legacy-Seite ist fest in der Firmware und funktioniert dann noch.
+- **Der Umstieg vom Original 3.1.5**, den die Release Note genau über die Legacy-Seite führt.
+- Funktionen, die es nur dort gibt — ein Abgleich PWA ↔ Legacy steht aus.
+
+**Ansatz:** Statt die Legacy-Oberfläche ganz zu streichen, eine kleine, fest eingebaute
+**Notfallseite**: Status und Versionen, Update-Host und -Pfad, ESP-OTA, STM-Flash,
+„App installieren“, STM-Reset. Das bringt den grössten Teil der Flash-Ersparnis, behält den
+Rettungsweg und hält den Code, der ohne PWA laufen muss, klein und prüfbar. Erst sinnvoll, wenn
+die PWA selbst robust genug ist: nach **C66** (Teildatei beim Download) und **C70** (Asset-Cache).
+Berührt die Architektur-Invariante „Legacy läuft parallel zur PWA“ — vor einer Spec mit dem
+Nutzer entscheiden.
 
 ## X2 bis X13 — aus der Liste „Weitere geplante Features“ des Ursprungsprojekts
 
