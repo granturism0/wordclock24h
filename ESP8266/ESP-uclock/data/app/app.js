@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.97";
+const APP_VERSION = "1.4.98";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -614,6 +614,7 @@ const I18N_DE = {
   "backup.export_success": "Einstellungen wurden exportiert.",
   "backup.export_failed": "Einstellungen konnten nicht exportiert werden.",
   "backup.export_eeprom_unavailable": "Die Netzwerkeinstellungen liessen sich nicht lesen. Der Export wurde abgebrochen, damit die Sicherung keine leeren WLAN-Felder enthält.",
+  "backup.export_secrets_unavailable": "Die WLAN-Schlüssel liessen sich nicht von der Uhr lesen. Der Export wurde abgebrochen, damit die Sicherung keine leeren Schlüssel enthält. Läuft auf der Uhr noch eine ältere ESP-Firmware, spiel zuerst das ESP-Update ein.",
   "backup.ir_collecting": "Lese die IR-Codes der Fernbedienung aus...",
   "backup.ir_included": "Alle {expected} IR-Tasten sind enthalten, {learned} davon angelernt.",
   "backup.ir_skipped_incomplete": "Die IR-Codes fehlen: Der Abzug blieb auch im zweiten Anlauf unvollständig ({received} von {expected} Tasten). Ein halber Tastensatz wäre schlimmer als gar keiner, deshalb fehlt der Abschnitt ganz. Versuch den Export gleich noch einmal.",
@@ -645,7 +646,7 @@ const I18N_DE = {
   "backup.ir_reason_invalid": "die Uhr unbrauchbare Werte geliefert hat",
   "backup.ir_reason_download": "sich die Datei nicht herunterladen liess",
   "backup.network_skipped_empty_ssid": "WLAN-Zugangsdaten übersprungen: In der Sicherung steht keine SSID. Die bestehenden Einstellungen bleiben unverändert.",
-  "backup.network_skipped_too_long": "WLAN-Zugangsdaten nicht geschrieben: Mindestens ein Wert aus der Sicherung ist länger, als die Uhr speichern kann, und die Uhr nimmt die vier Werte nur zusammen an. Die bestehenden Netzwerkeinstellungen bleiben unverändert.",
+  "backup.network_skipped_too_long": "WLAN-Zugangsdaten nicht geschrieben: Mindestens ein Wert aus der Sicherung ist länger, als die Uhr speichern kann. Damit kein halbes Paar aus SSID und Schlüssel entsteht, schreibt der Import dann keinen der vier Werte. Die bestehenden Netzwerkeinstellungen bleiben unverändert.",
   "backup.choose_file_first": "Bitte zuerst eine Sicherungsdatei auswählen.",
   "backup.invalid_format": "Ungültiges Dateiformat – keine gültige WordClock-Sicherungsdatei.",
   "backup.incompatible_version": "Inkompatible Backup-Version – Datei mit einer neueren App erstellt.",
@@ -698,6 +699,7 @@ const I18N_DE = {
   "backup.import_done_reload": "Import abgeschlossen. App wird neu geladen...",
   "backup.import_skipped_fields": "Übersprungen, weil in der Sicherung leer: {fields}. Diese Werte sind auf der Uhr unverändert geblieben.",
   "backup.import_stage_failed": "Abgebrochene Importschritte: {stages}. Was in ihnen noch folgen sollte, ist nicht geschrieben worden — sieh dir diese Bereiche an.",
+  "backup.network_write_interrupted": "Die WLAN-Zugangsdaten sind möglicherweise nur teilweise geschrieben. Starte die Uhr jetzt nicht neu, sondern wiederhole den Import — sonst startet sie beim nächsten Neustart womöglich als Zugangspunkt statt im WLAN.",
   "backup.field.timeserver": "Zeitserver",
   "backup.field.wifi_ssid": "WLAN-Name (SSID)",
   "backup.field.wifi_key": "WLAN-Passwort",
@@ -896,6 +898,9 @@ const I18N_DE = {
   "api.error.6": "Diese Datei gibt es auf dem Gerät nicht.",
   "api.error.7": "Das Gerät konnte den Schritt nicht ausführen, obwohl die Anfrage stimmte — etwa weil sich eine Datei nicht öffnen oder nicht löschen lässt. Versuch es noch einmal; bleibt es dabei, sieh dir das Dateisystem unter Wartung an.",
   "api.error.8": "Die Datei gibt es, aber sie ist leer — 0 Byte.",
+  "api.error.9": "Die Anfrage ist zu lang: {length} Zeichen, erlaubt sind höchstens {limit}. Es wurde nichts gespeichert.",
+  "api.error.10": "Die Uhr hat den Wert abgewiesen. Es wurde nichts gespeichert.",
+  "api.error.11": "Keine Rückmeldung der Uhr — ob der Wert übernommen wurde, ist offen.",
   "common.saving": "speichert...",
   "common.loading": "lädt...",
   "common.running": "läuft...",
@@ -960,6 +965,9 @@ const I18N_DE = {
   "climate.ldr_min_set_failed": "LDR-Minimum konnte nicht gesetzt werden",
   "climate.ldr_min_saved": "LDR-Minimum gespeichert",
   "climate.ldr_max_set_failed": "LDR-Maximum konnte nicht gesetzt werden",
+  "climate.ldr_min_rejected": "LDR-Minimum nicht übernommen: Der Messwert liegt nicht unter dem Maximum.",
+  "climate.ldr_max_rejected": "LDR-Maximum nicht übernommen: Der Messwert liegt nicht über dem Minimum.",
+  "climate.ldr_measure_failed": "Messung fehlgeschlagen. Versuch es noch einmal.",
   "climate.ldr_max_saved": "LDR-Maximum gespeichert",
   "network.timeserver_save_failed": "Zeitserver konnte nicht gespeichert werden",
   "network.timezone_save_failed": "Zeitzone konnte nicht gespeichert werden",
@@ -2530,7 +2538,35 @@ function announceStatus(message, tone) {
   }
 }
 
+// C46 (AKQ.3): Der ESP kopiert die Query in einen Puffer von 256 Byte und weist seit E2 jede
+// API-Anfrage mit laengerer Query ab (Kennung 9, "query too long"). Die PWA prueft dieselbe
+// Grenze vorher und sendet dann gar nichts -- gezaehlt wird die KODIERTE Query, also das,
+// was tatsaechlich hinter dem "?" steht. Kommt Kennung 9 trotzdem vom Geraet, entsteht
+// dieselbe Meldung (describeApiError), weil die Laenge hier bekannt ist.
+const API_QUERY_MAX_CHARS = 255;
+
+function getApiQueryLength(url) {
+  const text = String(url || "");
+  const index = text.indexOf("?");
+  return index < 0 ? 0 : text.length - index - 1;
+}
+
+function markApiQueryTooLong(error, length) {
+  error.apiErrorCode = 9;
+  error.queryLength = length;
+  error.queryLimit = API_QUERY_MAX_CHARS;
+  return error;
+}
+
 async function apiFetch(url, options) {
+  const queryLength = getApiQueryLength(url);
+
+  if (queryLength > API_QUERY_MAX_CHARS) {
+    const error = markApiQueryTooLong(new Error("api-9"), queryLength);
+    error.apiDetail = "";
+    throw error;
+  }
+
   const requestOptions = { ...(options || {}) };
   const timeoutMs = Number(requestOptions.timeoutMs || CONNECTION_STABILITY.apiWriteTimeoutMs);
   const attempts = Number(requestOptions.attempts || 1);
@@ -2560,6 +2596,9 @@ async function apiFetch(url, options) {
     const error = new Error("api-" + apiError.code);
     error.apiErrorCode = apiError.code;
     error.apiDetail = apiError.detail;
+    if (apiError.code === 9) {
+      markApiQueryTooLong(error, queryLength);
+    }
     throw error;
   }
 
@@ -2674,6 +2713,15 @@ const API_ERROR_DETAIL_KEYS = [
 function describeApiError(error, fallbackText) {
   if (!error || !error.apiErrorCode) {
     return fallbackText;
+  }
+
+  // C46: eine Meldung fuer beide Wege (vor dem Senden abgewiesen, vom Geraet abgewiesen).
+  // Das englische detail des Geraets ("query too long") traegt nichts bei und entfaellt.
+  if (error.apiErrorCode === 9) {
+    return translateFormat("api.error.9", {
+      length: error.queryLength !== undefined ? error.queryLength : "?",
+      limit: API_QUERY_MAX_CHARS
+    });
   }
 
   const detail = typeof error.apiDetail === "string" ? error.apiDetail : "";
@@ -4489,7 +4537,13 @@ function getSettingsBackupImportErrorMessage(error) {
   // "Import fehlgeschlagen" -- ohne jeden Hinweis darauf, welcher Wert gemeint war.
   // describeApiError nennt Kennung und Bereich und faellt auf denselben Satz zurueck,
   // wenn der Fehler gar nicht vom Geraet kam.
-  return describeApiError(error, translate("backup.import_failed"));
+  //
+  // EP.8 M1: Normalerweise faengt runImportStageList den Abbruch der WLAN-Schreibfolge, und
+  // der Hinweis steht in getImportNoticeSummary. Schlaegt danach trotzdem ein Fehler bis
+  // hierher durch, darf er dabei nicht verloren gehen.
+  const message = describeApiError(error, translate("backup.import_failed"));
+  const networkHint = getNetworkImportWriteInterruptedSummary();
+  return networkHint ? message + " " + networkHint : message;
 }
 
 // ---------------------------------------------------------------------------
@@ -4687,9 +4741,13 @@ function getIrBackupExportNote(irResult) {
 }
 
 async function prepareSettingsBackupExport() {
-  await ensureBackupExportState();
-
+  // C6b, EP.8 N3: Die Schluessel leben nur in diesem Aufruf -- als Rueckgabewert von
+  // ensureBackupExportState(), nicht in einer modulglobalen Variable. Zwei gleichzeitige
+  // Exporte koennen sich damit nicht mehr gegenseitig die Schluessel verwerfen oder
+  // unterschieben, auch ohne die Knopfsperre.
+  const secrets = await ensureBackupExportState();
   const backup = buildBackupExportDocument(getBackupExportState());
+  applyBackupNetworkSecrets(backup, secrets);
 
   setSettingsBackupNote(translate("backup.ir_collecting"));
 
@@ -4912,9 +4970,12 @@ function getNetworkBackupMeta(settings, eepromSettings) {
     timezoneOffset: Number(coreMeta.network.timezoneOffset || 0),
     summertime: !!coreMeta.network.summertime,
     wifiSsid: eepromSettings && eepromSettings.ssid ? eepromSettings.ssid : "",
-    wifiKey: eepromSettings && eepromSettings.key ? eepromSettings.key : "",
+    // C6b (AKS.3): Die Schluessel kommen nicht mehr aus eeprom_settings (dort seit EP immer
+    // ""), sondern aus network_secrets -- geholt nur fuer den Export und erst dort ins
+    // Dokument gesetzt (applyBackupNetworkSecrets). Hier sind sie deshalb immer leer.
+    wifiKey: "",
     apSsid: eepromSettings && eepromSettings.ap_ssid ? eepromSettings.ap_ssid : "",
-    apKey: eepromSettings && eepromSettings.ap_key ? eepromSettings.ap_key : "",
+    apKey: "",
     bootAsAp: !!(eepromSettings && eepromSettings.boot_as_ap)
   };
 }
@@ -4990,6 +5051,55 @@ function getDfplayerBackupMeta(settings) {
   };
 }
 
+// C6b (AKS.3): Die WLAN-Schluessel liegen nur waehrend eines Exports im Speicher. Sie
+// werden je Export frisch geholt, von ensureBackupExportState() zurueckgegeben und nur in
+// prepareSettingsBackupExport() ins Dokument gesetzt, damit keine andere Stelle --
+// Uebersicht, Importvergleich -- sie liest (EP.8 N3: frueher modulglobal).
+function applyBackupNetworkSecrets(backup, secrets) {
+  const network = backup && backup.settings ? backup.settings.network : null;
+
+  if (!network) {
+    return;
+  }
+
+  network.wifi_key = (secrets && secrets.key) || "";
+  network.ap_key = (secrets && secrets.ap_key) || "";
+}
+
+function createNetworkSecretsUnavailableError() {
+  const error = new Error("network-secrets-unavailable");
+  error.backupReason = "network-secrets-unavailable";
+  return error;
+}
+
+// Scheitert der Abruf, bricht der Export ab. Ein Export mit leeren Schluesseln saehe
+// vollstaendig aus und liesse ein frisch zurueckgesetztes Geraet beim Einspielen still ohne
+// WLAN. Eine alte ESP-Firmware kennt network_secrets nicht (404) -- auch dann Abbruch.
+// key_set/ap_key_set aus eeprom_settings sind die Gegenprobe: Meldet das Geraet einen
+// gesetzten Schluessel, darf der geholte nicht leer sein.
+async function loadBackupNetworkSecrets(eepromSettings) {
+  let secrets = null;
+
+  try {
+    const response = await apiFetch(getNetworkSecretsUrl(), { timeoutMs: CONNECTION_STABILITY.eepromSettingsTimeoutMs });
+    secrets = await response.json();
+  } catch (error) {
+    console.warn("network_secrets nicht lesbar: " + (error && error.message ? error.message : String(error)));
+    throw createNetworkSecretsUnavailableError();
+  }
+
+  if (!secrets || secrets.ok !== true || typeof secrets.key !== "string" || typeof secrets.ap_key !== "string") {
+    throw createNetworkSecretsUnavailableError();
+  }
+
+  const settings = eepromSettings || {};
+  if ((settings.key_set === true && !secrets.key) || (settings.ap_key_set === true && !secrets.ap_key)) {
+    throw createNetworkSecretsUnavailableError();
+  }
+
+  return { key: secrets.key, ap_key: secrets.ap_key };
+}
+
 async function ensureBackupExportState() {
   if (!getCurrentSettingsSnapshot()) {
     await loadData();
@@ -5008,9 +5118,13 @@ async function ensureBackupExportState() {
     throw error;
   }
 
+  const secrets = await loadBackupNetworkSecrets(getCurrentEepromSettings());
+
   if (!getUpdateTableCurrentFile(getCurrentUpdateTableInfo())) {
     setCurrentUpdateTableInfo(await settleFetchJson(getUpdateTableFilesUrl(), {}, 5000));
   }
+
+  return secrets;
 }
 
 // Ein Download, zwei Aufrufer: die Sicherungsdatei des Exports und die Rückfalldatei
@@ -5044,9 +5158,11 @@ async function exportSettingsBackup() {
     setSettingsBackupNote(translate("backup.export_success") + " " + irNote.message, irNote.tone);
     finishButtonFeedback(button, translate("backup.export_button"), "success", translate("backup.exported"));
   } catch (error) {
-    const reason = error && error.backupReason === "eeprom-settings-unavailable"
-      ? "backup.export_eeprom_unavailable"
-      : "backup.export_failed";
+    const reasonKeys = {
+      "eeprom-settings-unavailable": "backup.export_eeprom_unavailable",
+      "network-secrets-unavailable": "backup.export_secrets_unavailable"
+    };
+    const reason = (error && reasonKeys[error.backupReason]) || "backup.export_failed";
     setSettingsBackupNote(translate(reason), "error");
     finishButtonFeedback(button, translate("backup.export_button"), "error", translate("common.error"));
   }
@@ -5095,6 +5211,7 @@ async function applySettingsBackup(backup) {
   resetAdjustedImportFields();
   resetTooLongImportFields();
   resetFailedImportStages();
+  resetNetworkImportWriteInterrupted();
   resetIrImportNotice();
   resetImportedBackupVersionNotice();
   noteImportedBackupVersion(readBackupFileVersion(importedState.backup));
@@ -5371,6 +5488,7 @@ function getImportNoticeSummary() {
   return [
     getImportedBackupVersionSummary(),
     getFailedImportStagesSummary(),
+    getNetworkImportWriteInterruptedSummary(),
     getSkippedImportFieldsSummary(),
     getTooLongImportFieldsSummary(),
     getInvalidImportFieldsSummary(),
@@ -5408,6 +5526,13 @@ async function finalizeImportRestartAndReload(restartPlan) {
     const notice = getImportNoticeSummary();
     setSettingsBackupNote(appendImportNoticeHint(translate("backup.import_restart_refreshing")), notice ? "warn" : "success");
     announceStatus(notice || translate("backup.import_reconnect"), notice ? "warn" : "ok");
+  }
+  // EP.8 M1: Ist die WLAN-Schreibfolge mittendrin abgebrochen, lädt die Seite gar nicht
+  // neu. Der Hinweis "nicht neu starten, Import wiederholen" muss stehen bleiben, bis der
+  // Nutzer den Import wiederholt oder selbst neu lädt -- nach 6 s verschwunden wäre er
+  // genau dann weg, wenn er gebraucht wird.
+  if (networkImportWriteInterrupted) {
+    return;
   }
   // Wurde etwas übersprungen oder zurechtgebogen, bleibt der Hinweis länger stehen --
   // nach dem Neuladen der App ist er weg, und 1,2 s reichen nicht zum Lesen.
@@ -6972,11 +7097,12 @@ async function importNetworkSettings(network) {
     return;
   }
 
-  // C38: Das Gerät prüft alle vier Werte, bevor es einen schreibt, und weist bei einem zu
-  // langen die ganze Anfrage ab. Ein Teil davon lässt sich auch nicht gefahrlos allein
+  // C38, Stand nach C46: Seit C46 sendet der Import je Feld einen eigenen Aufruf, das Gerät
+  // nimmt die Werte also einzeln an. Ein Teil davon lässt sich aber nicht gefahrlos allein
   // schreiben: Ein neuer Schlüssel ohne die SSID, zu der er gehört, trennt die Uhr vom
-  // WLAN. Deshalb hier dasselbe -- alle vier prüfen, jeden zu langen nennen, und dann
-  // gar nichts senden. Die Prüfung läuft absichtlich über alle vier, nicht bis zum ersten.
+  // WLAN. Deshalb prüft die PWA alle vier vorab, nennt jeden zu langen und sendet dann gar
+  // nichts -- so entsteht kein halbes Paar. Die Prüfung läuft absichtlich über alle vier,
+  // nicht bis zum ersten.
   const wlanFits = [
     acceptImportTextOrNote("wifi_ssid", String(network.wifi_ssid || "")),
     acceptImportTextOrNote("wifi_key", String(network.wifi_key || "")),
@@ -6989,14 +7115,74 @@ async function importNetworkSettings(network) {
     return;
   }
 
-  const query = new URLSearchParams({
-    ssid: network.wifi_ssid || "",
-    key: network.wifi_key || "",
-    ap_ssid: network.ap_ssid || "",
-    ap_key: network.ap_key || "",
-    boot_as_ap: network.boot_as_ap ? "on" : "off"
-  });
-  await apiFetch(getEepromSettingsSetUrl() + "?" + query.toString());
+  // C46 (AKQ.3): je Feld ein Aufruf. Alle vier in einem kamen bei SSID 31 Byte und
+  // Schluesseln von 63 Byte aus Sonderzeichen auf ueber 400 Zeichen Query, und der ESP weist
+  // ab 256 ab. Einzeln sind es hoechstens 210 Zeichen: ap_key= (7) + 63 x %XX (189) +
+  // &boot_as_ap=on (14). Der letzte Aufruf traegt immer die SSID (sie ist oben Pflicht) und
+  // kommt auf hoechstens ssid= (5) + 31 x %XX (93) + &boot_as_ap=off (15) = 113.
+  //
+  // Leere Felder werden gar nicht erst gesendet, denn der ESP uebergeht sie ohnehin. Kosten:
+  // bis zu vier ESP-Aufrufe, kein STM-Kommando.
+  //
+  // EP.8 M1 (Entscheidung des Nutzers, Abweichung von der Spec): Alle Aufrufe ausser dem
+  // letzten gesendeten tragen boot_as_ap=on, erst der letzte den Wert aus der Sicherung.
+  // Grund: Der ESP setzt das Flag bei JEDEM Aufruf neu (fehlt es, gilt "off"), schreibt es aber
+  // nur ins EEPROM und wendet es erst beim naechsten Start an; "off" loescht es sofort.
+  // Bricht der Import zwischen key und ssid ab und startet die Uhr danach neu, bootet sie so
+  // als Zugangspunkt mit den vorher geschriebenen AP-Daten -- statt mit einem WLAN-Paar, das
+  // nicht zusammenpasst, unerreichbar zu sein. Scheitert ausgerechnet der letzte Aufruf, bleibt
+  // "on" stehen, und der naechste Neustart startet einen AP auch dort, wo die Sicherung keinen
+  // wollte. Das ist sichtbar und behebbar, ein falsches WLAN-Paar ist es nicht. Deshalb sagt
+  // die Meldung bei jedem Abbruch hier: nicht neu starten, Import wiederholen.
+  //
+  // Reihenfolge fuer den Abbruch mittendrin: eeprom_settings_set schreibt nur ins EEPROM des
+  // ESP und verbindet nicht neu; die laufende Verbindung bleibt, ein Wiederholen des Imports
+  // vervollstaendigt den Satz. Kritisch ist nur ein Neustart davor.
+  //  1. ap_ssid, ap_key zuerst: Der Zugangspunkt ist der Rueckweg. Ein halb geschriebenes
+  //     Paar startet trotzdem einen sichtbaren AP; mit boot_as_ap "on" ist er danach schon
+  //     vollstaendig, bevor das WLAN angefasst wird.
+  //  2. key vor ssid, und beide zuletzt und direkt hintereinander: Auf einem zurueckgesetzten
+  //     Geraet ist die SSID leer -- ein Schluessel allein aktiviert nichts, erst die SSID
+  //     schaltet den Client scharf. Auf einem Geraet mit anderem WLAN ist das Fenster, in dem
+  //     SSID und Schluessel nicht zusammenpassen, so kurz wie moeglich.
+  const bootAsAp = network.boot_as_ap ? "on" : "off";
+  const fieldSteps = [
+    ["ap_ssid", network.ap_ssid],
+    ["ap_key", network.ap_key],
+    ["key", network.wifi_key],
+    ["ssid", network.wifi_ssid]
+  ]
+    .map(([field, value]) => [field, String(value || "")])
+    .filter(([, text]) => text);
+
+  networkImportWriteInterrupted = false;
+
+  try {
+    for (let index = 0; index < fieldSteps.length; index += 1) {
+      const [field, text] = fieldSteps[index];
+      const stepBootAsAp = index === fieldSteps.length - 1 ? bootAsAp : "on";
+      const query = new URLSearchParams({ [field]: text, boot_as_ap: stepBootAsAp });
+      await apiFetch(getEepromSettingsSetUrl() + "?" + query.toString());
+    }
+  } catch (error) {
+    networkImportWriteInterrupted = true;
+    throw error;
+  }
+}
+
+// EP.8 M1: Merkt sich, ob die WLAN-Schreibfolge in importNetworkSettings mittendrin
+// abgebrochen ist. Bewusst ein eigener Merker und kein Anhaengen an die Liste der
+// abgebrochenen Stufen: Der Hinweis "nicht neu starten" gilt nur fuer diesen Schritt. Ein
+// spaeterer erfolgreicher Durchlauf (Wiederholungsstufe) setzt ihn wieder zurueck -- dann
+// ist der Satz vollstaendig, und die Warnung waere falsch.
+let networkImportWriteInterrupted = false;
+
+function resetNetworkImportWriteInterrupted() {
+  networkImportWriteInterrupted = false;
+}
+
+function getNetworkImportWriteInterruptedSummary() {
+  return networkImportWriteInterrupted ? translate("backup.network_write_interrupted") : "";
 }
 
 async function importNetworkTimeSettings(network) {
@@ -10597,6 +10783,7 @@ const URL_DEFAULTS = {
   fs_info_url: "/api/fs_info",
   fs_list_url: "/api/fs_list",
   eeprom_settings_url: "/api/eeprom_settings",
+  network_secrets_url: "/api/network_secrets",
   update_table_files_url: "/api/update_table_files",
   fs_show_base_url: "/api/fs_show?filename=",
   fs_remove_base_url: "/api/fs_remove?filename=",
@@ -10762,6 +10949,7 @@ const getAppFileUploadUrl = createConfiguredUrlGetter("app_file_upload_url");
 const getFsInfoUrl = createConfiguredUrlGetter("fs_info_url");
 const getFsListUrl = createConfiguredUrlGetter("fs_list_url");
 const getEepromSettingsUrl = createConfiguredUrlGetter("eeprom_settings_url");
+const getNetworkSecretsUrl = createConfiguredUrlGetter("network_secrets_url");
 const getUpdateTableFilesUrl = createConfiguredUrlGetter("update_table_files_url");
 const getFsShowBaseUrl = createConfiguredUrlGetter("fs_show_base_url");
 const getFsRemoveBaseUrl = createConfiguredUrlGetter("fs_remove_base_url");
@@ -13156,12 +13344,24 @@ async function displayTemperatureNow() {
   await runSimpleAction("temperature-display-button", getTemperatureDisplayUrl(), translate("climate.show_temperature"), translate("climate.temperature_display_failed"), translate("climate.temperature_display_started"));
 }
 
+// B55 (AKL.3): Seit E2 wartet der ESP das Ergebnis des STM ab. 10 = abgewiesen (Minimum
+// nicht unter dem Maximum bzw. umgekehrt), 7 = Messung fehlgeschlagen, 11 = keine Antwort
+// innerhalb der Frist -- dann ist offen, ob der STM den Wert genommen hat. Die allgemeine
+// Bedeutung von 7 (Datei) passt hier nicht, deshalb eigene Texte je Kennung.
+function getLdrApiErrorTexts(rejectedKey) {
+  return {
+    7: translate("climate.ldr_measure_failed"),
+    10: translate(rejectedKey),
+    11: translate("api.error.11")
+  };
+}
+
 async function setLdrMinValue() {
-  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), translate("climate.set_min_ldr"), translate("climate.ldr_min_set_failed"), translate("climate.ldr_min_saved"));
+  await runSimpleAction("ldr-min-button", getLdrMinSetUrl(), translate("climate.set_min_ldr"), translate("climate.ldr_min_set_failed"), translate("climate.ldr_min_saved"), getLdrApiErrorTexts("climate.ldr_min_rejected"));
 }
 
 async function setLdrMaxValue() {
-  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), translate("climate.set_max_ldr"), translate("climate.ldr_max_set_failed"), translate("climate.ldr_max_saved"));
+  await runSimpleAction("ldr-max-button", getLdrMaxSetUrl(), translate("climate.set_max_ldr"), translate("climate.ldr_max_set_failed"), translate("climate.ldr_max_saved"), getLdrApiErrorTexts("climate.ldr_max_rejected"));
 }
 
 async function saveAnimationMode() {
@@ -13323,10 +13523,12 @@ async function refreshUpdateServerAvailability() {
   }
 }
 
-async function runSimpleAction(buttonId, endpoint, buttonText, errorText, successText) {
+// apiErrorTexts (optional): Text je Geraetekennung, Vorrang vor describeApiError. B55.
+async function runSimpleAction(buttonId, endpoint, buttonText, errorText, successText, apiErrorTexts) {
   await runTriggerAction(buttonId, endpoint, buttonText, errorText, successText, {
     busyText: translate("common.running"),
-    successText: translate("common.ready")
+    successText: translate("common.ready"),
+    apiErrorTexts: apiErrorTexts || null
   });
 }
 
@@ -13446,6 +13648,7 @@ async function runTriggerAction(buttonId, endpoint, buttonText, errorText, succe
     successStatusText: successStatusText || "",
     reloadDelayMs: (options && options.reloadDelayMs) || 1200,
     preserveCurrentText: !!(options && options.preserveCurrentText),
+    apiErrorTexts: (options && options.apiErrorTexts) || null,
     request: (options && options.request) || (() => apiFetch(endpoint))
   });
 }
@@ -13484,6 +13687,7 @@ async function runButtonRequest(button, options) {
     reloadDelayMs = 0,
     preserveCurrentText = false,
     persistScope,
+    apiErrorTexts = null,
     request
   } = options || {};
 
@@ -13518,7 +13722,8 @@ async function runButtonRequest(button, options) {
   } catch (error) {
     // Hat das Geraet die Eingabe begruendet abgewiesen, gehoert SEIN Grund angezeigt
     // und nicht "Aktion konnte nicht ausgefuehrt werden".
-    announceStatus(describeApiError(error, errorText), "error");
+    const overrideText = apiErrorTexts && error && error.apiErrorCode ? apiErrorTexts[error.apiErrorCode] : "";
+    announceStatus(overrideText || describeApiError(error, errorText), "error");
     finishButtonFeedback(button, idleText, "error", translate("common.error"), preserveCurrentText);
     return false;
   }

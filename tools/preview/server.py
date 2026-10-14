@@ -75,13 +75,18 @@ JSON_API = {
       "stm32_filename":"wc12h-stm32f411ce-25-sk6812-rgbw.hex","esp_filename":"ESP-WordClock-4M.bin",
       "stm32_version":"3.2.5","esp_version":"3.2.1","releaseNotes":"Version 3.2.5",
       "update_available":False,"remote_esp_update_url":"/api/remote_esp_update",
+      "eeprom_settings_url":"/api/eeprom_settings","network_secrets_url":"/api/network_secrets",
       # Seit ESP 3.2.26 (Runde F): Standardname und gefilterte Liste. PREVIEW_HW_UNBEKANNT=1
       # stellt den Zustand HARDWARE_CONFIGURATION 65535 nach (leerer Standard, leere Liste).
       "stm32_default":"" if os.environ.get("PREVIEW_HW_UNBEKANNT") else "wc12h-stm32f411ce-25-sk6812-rgbw.hex",
       "stm32_files":[] if os.environ.get("PREVIEW_HW_UNBEKANNT") else ["wc12h-stm32f411ce-25-sk6812-rgbw.hex"]},
   "update_table_files": {"ok":True,"table_files":["wc24h-tables-de-ch.txt","wc24h-tables-de-de.txt"],"current_table":"wc24h-tables-de-ch.txt"},
-  "eeprom_settings": {"ok":True,"ssid":"Heimnetz","key":"geheim1234","ap_ssid":"WordClock",
-      "ap_key":"wordclock24","boot_as_ap":False},
+  # Seit C6b (Paket 2026-10-13, EP): Schluessel leer plus key_set, die Werte nur ueber
+  # network_secrets. PREVIEW_OHNE_SECRETS=1 stellt einen ESP ohne den Endpunkt nach (404),
+  # damit sich der Abbruch des Backup-Exports in der Vorschau ansehen laesst.
+  "eeprom_settings": {"ok":True,"ssid":"Heimnetz","key":"","key_set":True,"ap_ssid":"WordClock",
+      "ap_key":"","ap_key_set":True,"flags":0,"boot_as_ap":False},
+  "network_secrets": {"ok":True,"key":"geheim1234","ap_key":"wordclock24"},
   "stm32_log": {"ok":True,"lines":[
       "main: call display_clock time flags=0x04 power=1 ambi=1",
       "sk6812_refresh: start leds=288 nextbuf=1",
@@ -161,6 +166,10 @@ class H(BaseHTTPRequestHandler):
             return self._send("<h1>Legacy</h1>", "text/html")
         if path.startswith("/api/"):
             name = path[5:]
+            # C46 wie ESP 3.2.34: /api/ mit mehr als 255 Zeichen Query wird abgewiesen -- vor
+            # jedem anderen Zweig, wie im ESP vor jedem Handler (Review EP N6).
+            if len(urlparse(self.path).query or "") > 255:
+                return self._send(json.dumps({"ok":False,"error":9,"detail":"query too long"}), "application/json")
             if name == "settings_xml":
                 return self._send(settings_xml(), "text/xml; charset=utf-8")
             if name in ("display_power", "ambilight_power"):
@@ -179,6 +188,17 @@ class H(BaseHTTPRequestHandler):
                     return self._send(json.dumps({"ok":False,"error":6,"detail":"file not found"}), "application/json")
                 if name == "fs_show":
                     return self._send("Inhalt von " + fn, "text/plain; charset=utf-8")
+            if name == "network_secrets" and os.environ.get("PREVIEW_OHNE_SECRETS"):
+                return self._send("Not found", "text/plain", 404)
+            # B55 wie ESP 3.2.34: ldr_min_set/ldr_max_set melden den uebernommenen Wert oder
+            # die Kennung aus PREVIEW_LDR (10 abgewiesen, 7 Messung fehlgeschlagen, 11 keine
+            # Antwort), damit sich jede Meldung der PWA in der Vorschau herstellen laesst.
+            if name in ("ldr_min_set", "ldr_max_set"):
+                k = os.environ.get("PREVIEW_LDR", "")
+                detail = {"10":"measured value rejected by STM","7":"measurement failed","11":"no answer from STM"}
+                if k in detail:
+                    return self._send(json.dumps({"ok":False,"error":int(k),"detail":detail[k]}), "application/json")
+                return self._send(json.dumps({"ok":True,"value":512}), "application/json")
             if name in JSON_API:
                 return self._send(json.dumps(JSON_API[name]), "application/json")
             return self._send(json.dumps({"ok":True}), "application/json")

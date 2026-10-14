@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-14 ESP 3.2.35 und PWA 1.4.98: WLAN-Schlüssel nur noch für den Export, Import robuster, klare Meldungen (Paket 2026-10-13, EP)
+
+ESP und PWA zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-14-074533.zip`, Tag `release/3.2.34-3.2.35-1.4.98`.
+
+**Einspielen — Reihenfolge zwingend:** zuerst der ESP (OTA), **unmittelbar** danach die PWA (`install-app.sh`).
+Dazwischen **kein Backup-Export**: Die alte PWA würde auf dem neuen ESP still ohne WLAN-Schlüssel exportieren. Scheitert
+der PWA-Upload, bleibt die alte PWA bedienbar; nur ihr Export taugt bis zum erfolgreichen Upload nicht.
+
+- **WLAN-Schlüssel** (C6b): `/api/eeprom_settings` gibt die Schlüssel nicht mehr heraus, nur noch `key_set`/`ap_key_set`.
+  Den Wert liefert ausschliesslich `/api/network_secrets` (ohne Zwischenspeicher), und die PWA holt ihn nur für den
+  Backup-Export. Scheitert der Abruf, bricht der Export mit eigener Meldung ab, statt eine Sicherung ohne Schlüssel zu
+  erzeugen. Der Endpunkt ist im LAN weiterhin lesbar — den Schutz klärt die eigene Spec (L439).
+- **Zu lange Anfragen** (C46): Die PWA sendet keine Anfrage mit mehr als 255 Zeichen und nennt Länge und Grenze; dieselbe
+  Meldung erscheint, wenn die Uhr eine Anfrage abweist.
+- **Backup-Import der WLAN-Daten**: je Feld ein Aufruf (Zugangspunkt zuerst, die SSID zuletzt). Bis zum letzten Aufruf
+  steht „als Zugangspunkt starten“ auf an — bricht der Import ab und startet die Uhr neu, kommt sie als Zugangspunkt hoch
+  statt unerreichbar. Bei einem Abbruch sagt die Oberfläche „nicht neu starten, Import wiederholen“ und lädt nicht von
+  selbst neu.
+- **„Messwert als Minimum/Maximum übernehmen“** (B55): Die Oberfläche unterscheidet „nicht übernommen“ (Minimum nicht unter
+  dem Maximum bzw. umgekehrt), „Messung fehlgeschlagen“ und „keine Rückmeldung der Uhr“.
+
 ## 2026-10-14 ESP 3.2.34: „Messwert übernehmen“ meldet das Ergebnis, Netzzeit an die eigene Anfrage gebunden, Brücke robuster (Paket 2026-10-13, E2)
 
 Nur der ESP, STM (3.2.34) und PWA (1.4.97) unverändert. `wordclock-release-2026-10-14-004425.zip`, Tag `release/3.2.34-3.2.34-1.4.97`.

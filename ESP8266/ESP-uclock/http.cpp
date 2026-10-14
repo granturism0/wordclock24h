@@ -9384,23 +9384,52 @@ http_api_network_ap_set ()
     return 0;
 }
 
+/* C6b: Die WLAN-Schluessel stehen NICHT mehr im allgemeinen Einstellungsabruf.
+ *
+ * key und ap_key bleiben als Felder erhalten, aber immer LEER -- bewusst kein
+ * Platzhalter wie "***": http_api_eeprom_settings_set () uebergeht leere Felder,
+ * ein Platzhalter aber wuerde als echter Schluessel gespeichert, sobald eine
+ * Oberflaeche ihn unveraendert zuruecksendet. key_set/ap_key_set sagen, ob ein
+ * Schluessel gesetzt ist. Den Wert selbst liefert nur /api/network_secrets.
+ */
 static int
 http_api_eeprom_settings ()
 {
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"ssid\":\""));
     http_send_json_escaped (eeprom_ssid);
-    http_send (FS("\",\"key\":\""));
-    http_send_json_escaped (eeprom_ssidkey);
-    http_send (FS("\",\"ap_ssid\":\""));
+    http_send (FS("\",\"key\":\"\",\"key_set\":"));
+    http_send (eeprom_ssidkey[0] ? "true" : "false");
+    http_send (FS(",\"ap_ssid\":\""));
     http_send_json_escaped (eeprom_ap_ssid);
-    http_send (FS("\",\"ap_key\":\""));
-    http_send_json_escaped (eeprom_ap_ssidkey);
-    http_send (FS("\",\"flags\":"));
+    http_send (FS("\",\"ap_key\":\"\",\"ap_key_set\":"));
+    http_send (eeprom_ap_ssidkey[0] ? "true" : "false");
+    http_send (FS(",\"flags\":"));
     http_send (eeprom_flags ? "1" : "0");
     http_send (FS(",\"boot_as_ap\":"));
     http_send ((eeprom_flags & EEPROM_FLAG_BOOT_AS_AP) ? "true" : "false");
     http_send (FS("}"));
+    http_flush ();
+
+    return 0;
+}
+
+/* C6b: Die beiden WLAN-Schluessel im Klartext, fuer den Backup-Export der PWA.
+ *
+ * GET ohne Herkunftspruefung (Ent-18): Wie dieser Weg geschuetzt wird, klaert die
+ * Schutz-Spec. Eine fremde Seite kann die Antwort im Browser nicht lesen, weil der
+ * ESP keine CORS-Kopfzeile sendet -- hier bitte auch keine ergaenzen.
+ * no-store, damit kein Cache den Schluessel ablegt. Kein Log gibt einen Wert aus.
+ */
+static int
+http_api_network_secrets ()
+{
+    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n"));
+    http_send (FS("{\"ok\":true,\"key\":\""));
+    http_send_json_escaped (eeprom_ssidkey);
+    http_send (FS("\",\"ap_key\":\""));
+    http_send_json_escaped (eeprom_ap_ssidkey);
+    http_send (FS("\"}"));
     http_flush ();
 
     return 0;
@@ -12954,6 +12983,7 @@ http_api_update_status ()
     http_json_send_string_field (FS("fs_info_url"), "/api/fs_info");
     http_json_send_string_field (FS("fs_list_url"), "/api/fs_list");
     http_json_send_string_field (FS("eeprom_settings_url"), "/api/eeprom_settings");
+    http_json_send_string_field (FS("network_secrets_url"), "/api/network_secrets");
     http_json_send_string_field (FS("update_table_files_url"), "/api/update_table_files");
     http_json_send_string_field (FS("fs_upload_icon_url"), "/api/fs_upload_icon");
     http_json_send_string_field (FS("fs_upload_weather_url"), "/api/fs_upload_weather");
@@ -14201,6 +14231,10 @@ http (const char * path, const char * const_param)
     else if (! strcmp (path, "/api/eeprom_settings"))
     {
         rtc = http_api_eeprom_settings ();
+    }
+    else if (! strcmp (path, "/api/network_secrets"))
+    {
+        rtc = http_api_network_secrets ();
     }
     else if (! strcmp (path, "/api/eeprom_settings_set"))
     {

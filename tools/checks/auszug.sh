@@ -99,9 +99,11 @@ LAUF=(
   "B55 ldr_min/max_set warten auf RPCR, Bruecke liest weiter, Kennungen 10/7/11 (ESP)|esp/l55e/run.sh $E neu"
   "C8 Kommandopuffer 260, Folgeeintraege im Ring (ESP)|esp/c8/run.sh $E neu"
   "A79 setRxBufferSize (1024) vor Serial.begin, statisch (ESP)|esp/a79/static.sh $E neu"
+  "C6b Schluessel nur ueber network_secrets, no-store, keine CORS, statisch (ESP)|esp/c6b/static.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
   "L411 Start in jedem Modul ohne ReferenceError (PWA)|pwa/tdz/run.sh $E neu"
+  "C6b/C46/B55 Schluessel ueber network_secrets, Query-Grenze, LDR-Meldungen, Mock (PWA)|pwa/ep/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht

@@ -27,11 +27,13 @@
 #
 # Das Konzept dahinter steht in TESTPLAN-PWA.md, Kapitel 2b.
 #
-# Zugangsdaten: /api/eeprom_settings liefert den WLAN-Schluessel IM KLARTEXT an jeden,
-# der im LAN fragt. Dieser Abzug legt ihn NICHT ab, sondern nur eine Pruefsumme. Damit
-# erkennt der Vergleich trotzdem, ob sich der Wert geaendert hat -- ohne dass das
-# Passwort in einer Datei auf der Platte landet. Mit --mit-geheimnissen laesst sich das
-# abschalten; dann gehoert der Abzug geloescht, sobald er nicht mehr gebraucht wird.
+# Zugangsdaten: Bis ESP 3.2.34 lieferte /api/eeprom_settings den WLAN-Schluessel IM
+# KLARTEXT; dieser Abzug legte ihn NICHT ab, sondern nur eine Pruefsumme. Seit C6b
+# (Paket 2026-10-13, EP) liefert eeprom_settings die Schluessel leer plus key_set/ap_key_set,
+# und nur /api/network_secrets traegt sie. Der normale Abzug fragt network_secrets NICHT
+# ab -- er haelt nur fest, OB ein Schluessel gesetzt ist. Eine Aenderung des Werts sieht
+# er damit nicht mehr, nur ein Setzen oder Leeren. Nur --restore holt die Schluessel
+# -- und bricht ab, wenn das Geraet einen gesetzten Schluessel meldet, den es nicht liefert.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
@@ -153,6 +155,48 @@ done
 # eeprom_settings gesondert: Schluessel ersetzen, bevor irgendetwas geschrieben wird.
 raw=$(curl -s -m "$TIMEOUT" "$U/api/eeprom_settings" 2>/dev/null)
 if [ "$SECRETS" -eq 1 ]; then
+  # Seit C6b stehen die Schluessel nur noch in network_secrets. Fuer einen wiederherstellbaren
+  # Abzug werden sie hier in die eeprom_settings-Antwort zurueckgefuehrt, damit die Datei
+  # dieselbe Form hat wie vor C6b. Ein ESP ohne den Endpunkt (bis 3.2.34) liefert sie noch
+  # in eeprom_settings selbst; dann bleibt die Antwort, wie sie ist.
+  sec=$(curl -s -m "$TIMEOUT" "$U/api/network_secrets" 2>/dev/null)
+  # Ein wiederherstellbarer Abzug ohne Schluessel ist schlimmer als keiner: Er sieht
+  # vollstaendig aus, und wer ihn einspielt, verliert das WLAN. Deshalb ABBRUCH, wenn
+  # eeprom_settings nicht lesbar ist oder einen gesetzten Schluessel meldet (key_set,
+  # ap_key_set), den network_secrets nicht liefert -- nicht nur eine Warnung (Review EP M2).
+  raw=$(SEC="$sec" python3 -c '
+import sys, json, os
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+    if not isinstance(d, dict) or d.get("ok") is not True: raise ValueError("ok fehlt")
+except Exception as e:
+    print("  ABBRUCH: eeprom_settings nicht lesbar (%s)" % e, file=sys.stderr); sys.exit(3)
+if "key_set" not in d and "ap_key_set" not in d:
+    # ESP bis 3.2.34: die Schluessel stehen noch in eeprom_settings selbst.
+    sys.stdout.write(raw); sys.exit(0)
+try:
+    s = json.loads(os.environ.get("SEC") or "")
+    if not isinstance(s, dict) or s.get("ok") is not True: raise ValueError("ok fehlt")
+except Exception as e:
+    s = {}
+    grund = "network_secrets nicht lesbar (%s)" % e
+else:
+    grund = "network_secrets ohne Wert"
+fehlt = [f for f, m in (("key", "key_set"), ("ap_key", "ap_key_set")) if d.get(m) is True and not (isinstance(s.get(f), str) and s.get(f))]
+if fehlt:
+    print("  ABBRUCH: %s -- gesetzt, aber nicht geliefert: %s" % (grund, ", ".join(fehlt)), file=sys.stderr); sys.exit(3)
+for f in ("key", "ap_key"):
+    if isinstance(s.get(f), str): d[f] = s[f]
+json.dump(d, sys.stdout, ensure_ascii=False)
+' <<< "$raw")
+  rc=$?
+  unset sec
+  if [ "$rc" -ne 0 ]; then
+    echo "  Der Abzug waere ohne WLAN-Schluessel -- abgebrochen, nichts verschluesselt." >&2
+    echo "  In $OUT liegen nur die lesenden Abrufe ohne Zugangsdaten; das Verzeichnis kann weg." >&2
+    exit 1
+  fi
   printf '%s' "$raw" > "$OUT/eeprom_settings.txt"
   printf '  %-22s %7s Byte  mit Zugangsdaten (wird verschluesselt)\n' "eeprom_settings" "$(wc -c < "$OUT/eeprom_settings.txt" | tr -d ' ')"
 else
