@@ -62,11 +62,12 @@ DIR-009:
   seit: 2026-10-02
 
 DIR-008:
-  regel: "Die produktive Uhr (Adresse aus tools/device.conf, DEVICE_HOST) darf LESEND abgefragt
-          werden: GET auf /api/-Endpunkte, die nur Zustand liefern. Alles Schreibende ist
-          VERBOTEN ohne ausdrueckliche Freigabe des Nutzers im selben Gespraech — jeder
-          schreibende Endpunkt, jeder Flash, jeder Reset. Grund: Es ist die Uhr des Nutzers im
-          Dauerbetrieb, nicht ein Testgeraet.
+  regel: "Die Uhr (Adresse aus tools/device.conf, DEVICE_HOST) ist eine TEST-UHR im Keller mit
+          angehaengtem Logger. Lesen und Schreiben, Flashen, Resets und Messungen sind ohne
+          Einzelfreigabe erlaubt, zu jeder Zeit (Richtigstellung des Nutzers am 14.10.2026;
+          bis dahin stand hier, sie laufe produktiv im Dauerbetrieb und alles Schreibende
+          brauche seine Freigabe — das war falsch). Es gilt weiter: ein Lauf zur Zeit (R5),
+          und die gefaehrlichen Endpunkte nur gewollt und angekuendigt, nie nebenbei.
           DIE NAMENTLICHE LISTE DER GEFAEHRLICHEN ENDPUNKTE STEHT IN CLAUDE.md UNTER R5, mit
           der Folge je Endpunkt, und NUR dort. Sie waechst, und ein zweiter Ort laeuft
           auseinander — genau das war am 05.10.2026 bereits eingetreten (L278). Guardrail S12

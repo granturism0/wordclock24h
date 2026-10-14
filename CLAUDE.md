@@ -399,7 +399,7 @@ mit einer Abhängigkeit dazwischen nicht.
 Vier Stellen (Tabelle oben) müssen zueinander passen. Teammates bumpen nichts;
 sonst kollidieren zwei unabhängige Erhöhungen und das Release ist inkonsistent.
 
-## R5 — Hardware ist exklusiv, und die Uhr laeuft produktiv
+## R5 — Hardware ist exklusiv; die Uhr ist eine Test-Uhr
 
 Es gibt eine physische Uhr und einen Serial-Port. Flashen und Live-Test macht der
 Nutzer bzw. genau ein Agent. Kein paralleles Flashen, kein paralleler Display-Test.
@@ -407,8 +407,21 @@ Nutzer bzw. genau ein Agent. Kein paralleles Flashen, kein paralleler Display-Te
 **Die Uhr ist unter `http://$DEVICE_HOST/app/` erreichbar (DIR-008).** Die Adresse
 steht in `tools/device.conf` (gitignored, Vorlage `tools/device.conf.example`) und
 bewusst nirgends im Repo — es ist öffentlich, und interne Netzstruktur gehört dort
-nicht hinein. Lesende Abfragen sind frei. Alles Schreibende braucht die ausdrückliche Freigabe des Nutzers
-im selben Gespräch — es ist seine Uhr im Dauerbetrieb, kein Testgerät.
+nicht hinein.
+
+**Es ist eine Test-Uhr im Keller, mit angehängtem Logger — kein Gerät im Wohnraum.** So am
+14.10.2026 vom Nutzer richtiggestellt: „Somit ist eigentlich alles erlaubt und dies auch zu
+jeder Zeit." Bis dahin stand hier, sie laufe produktiv im Dauerbetrieb, und jeder schreibende
+Zugriff brauche seine Freigabe im selben Gespräch. **Das war falsch und gilt nicht mehr:**
+Schreibende Prüfungen, Flashen, Resets und Messungen laufen ohne Einzelfreigabe, auch nachts.
+
+Was bleibt, ist technisch, nicht eine Frage der Erlaubnis: **Exklusiv** heisst weiterhin,
+dass eine Messung nur einen Verursacher haben darf — am 14.10.2026 hat ein zweiter Browser
+den laufenden Test angehalten (`BEFUNDE.md`, L461). Der Lead kündigt Beginn und Ende eines
+Laufs an. Und die Endpunkte unten haben **Folgen**, die man kennen muss, bevor man sie
+auslöst — manche lassen sich nur am Gerät selbst beheben. Die Hooks halten die Agenten
+weiterhin davon fern, damit ein automatischer Lauf sie nicht **nebenbei** auslöst; gewollt
+und angekündigt darf sie der Lead auslösen.
 
 Diese Endpunkte sind aus unseren eigenen Befunden heraus gefährlich:
 
