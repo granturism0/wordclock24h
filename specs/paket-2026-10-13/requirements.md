@@ -1,4 +1,4 @@
-# Anforderungen — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, E36, F3)
+# Anforderungen — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, C65, E36, F3)
 
 **Status: freigegeben** — vom Nutzer am 13.10.2026 (Ent-16), samt Ent-1 bis Ent-14 und Ent-17 (unten,
 „Entscheidungen"). **Eine Entscheidung gegen die Empfehlung:** Ent-11 (C6 einstufig). **Ent-15 (Messbau
@@ -6,20 +6,34 @@ für A15) ist am 13.10.2026 aufgehoben** (L432): A15 bleibt, ohne Messbau.
 **Ent-11 und Ent-12 sind am 13.10.2026 aufgehoben** (Ent-18, L439, L440): Der Schutz der zerstörerischen
 Aufrufe (C6, C6v, C60, dazu C61, C62) entfällt aus diesem Paket und wird in einer eigenen Spec geklärt.
 Release E1 entfällt; C46 und C19 gehen mit E2; EP bleibt ein Release mit ESP und PWA, wegen C6b.
+
+**Nachtrag 14.10.2026 — Schritt E3 (C65, L449): freigegeben 14.10.2026.** Umfang vom Nutzer entschieden
+(**Ent-19**): C65 als eigenes ESP-Release **E3 vor T2 und Z**, mit der Instrumentierung I-1 bis I-3 und den
+Massnahmen M-1 und M-3; M-2 und M-4 werden Folgebefunde. Die Entscheidungen **Ent-20 bis Ent-27** sind
+gefallen (unten): **Ent-20 = Variante C** (Release Notes und `wc-list.txt` im LittleFS, Nutzerentscheid),
+Ent-21 B, Ent-22 ja, Ent-23 nach Empfehlung, **Ent-24 entfällt** (P2 läuft bereits auf der Uhr), Ent-25 nach
+Empfehlung mit ausdrücklich ≥ 5'000 ms vor dem OTA, Ent-26 beide Eingriffe freigegeben, Ent-27 einstufig.
+Alles übrige in diesem Dokument bleibt im freigegebenen Stand; geändert sind nur die Stellen, die E3 berührt.
+
 **Erstellt:** 2026-10-13, Stand `159c9d0` (Zweig `pwa-decoupling`); am selben Tag mit den Entscheidungen
 nachgeführt. Ausgangsstand am Gerät laut Endstand von `specs/paket-2026-10-11/`: STM 3.2.32, ESP 3.2.33,
-PWA 1.4.97.
+PWA 1.4.97. **Nachtrag E3:** Stand `8445a10`. Am Gerät zur Messung L449 STM 3.2.34, ESP 3.2.35, PWA 1.4.98;
+seit dem Nutzerentscheid vom 14.10.2026 läuft dort **PWA 1.4.99** (P2, Tag `release/3.2.34-3.2.35-1.4.99`).
 **Auslöser:** Auftrag des Nutzers vom 13.10.2026 — alle offenen ToDos mit Kritikalität „mittel" und
 alle, die seine Entscheidung brauchten, **ausser F4** (eigenes Folgepaket). Nachträglich aufgenommen:
 **C60** (L426, hoch), **A81** (L427) und **A82** (L428). Nachträglich herausgenommen (Ent-18): C6, C6v, C60.
+Nachträglich aufgenommen am 14.10.2026 (Ent-19): **C65** (L449, hoch), mit ihm die wieder aufgetretenen
+**C49** und **C54**.
 **Grundlage:** `BEFUNDE.md` (ToDo-Liste, nachgezählt am 13.10.2026; Befundzeilen L22, L35, L99, L101,
-L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428, L432, L437–L440),
-`REVIEW-2026-09-29.md` Massnahme 14. Der `spec-writer` hat jede tragende Fundstelle am Code `159c9d0`
-nachgelesen; Abweichungen von `BEFUNDE.md` sind am Befund vermerkt.
+L311, L312, L330, L343, L345, L382, L396, L399, L406, L417, L421–L428, L432, L437–L440; für E3 C49, C54,
+C65, L185, L449), `REVIEW-2026-09-29.md` Massnahme 14. Der `spec-writer` hat jede tragende Fundstelle am
+Code `159c9d0` nachgelesen, die Fundstellen von E3 am Code `8445a10`; Abweichungen von `BEFUNDE.md` sind am
+Befund vermerkt.
 
 Dieses Dokument ist eine **Momentaufnahme** (DIR-006). Der lebende Stand steht in `BEFUNDE.md`.
 
-**Fundstellen.** Zeilennummern gelten für `159c9d0`; sie sind Fundstellen, keine Anker.
+**Fundstellen.** Zeilennummern gelten für `159c9d0`, in Problem §18 und bei AKR für `8445a10`; sie sind
+Fundstellen, keine Anker.
 Kennzeichen: **✔ SW** — vom `spec-writer` am Code nachgelesen; **✔ B** — in `BEFUNDE.md` als belegt
 geführt (Nachzählung 13.10.2026 oder Gerätebeleg), nicht einzeln nachgelesen; **◐** — am Code
 abgeleitet, nicht belegt; **●** — gemeldet, vor der Umsetzung zu prüfen.
@@ -30,14 +44,16 @@ A70), **S3** (nur falls das Flash-Gate in S2 reisst: A70, gegebenenfalls A82, na
 Ent-14), ~~**E1**~~ (ESP-Release 1, HTTP-Schicht — **entfallen**, Ent-18; C46 und C19 gehen mit E2),
 **E2** (ESP-Release, Brücke und Netz: B55-ESP, C8, A79, C59, dazu C46 und C19), **EP** (**ein** Release
 mit ESP und PWA, direkt hintereinander eingespielt: C6b, dazu in der PWA C6b, C46, B55), **T1**
-(`pwa-tester`), **P2** (PWA-Release: B48, B8), **T2** (`pwa-tester`), **Z** (Doku).
-Gerätenachweise **G0** bis **G6** (**G3 entfällt**, geht in G4 auf). Akzeptanzkriterien: **AKW** (Logwache,
+(`pwa-tester`), **P2** (PWA-Release: B48, B8), **E3** (ESP-Release: C65, Nachtrag 14.10.2026), **T2**
+(`pwa-tester`), **Z** (Doku).
+Gerätenachweise **G0** bis **G7** (**G3 entfällt**, geht in G4 auf). Akzeptanzkriterien: **AKW** (Logwache,
 E36), **AKB** (Backup-Umfang, F3), **AKD** (deutsche Texte, B8), **AKI** (UART-ISR, A15), **AKL**
 (LDR-Ergebnis, B55), **AKA** (Ambilight, A56, A81, A82), **AKC** (Icon, A80), **AKN** (Nachtfenster, A70),
 ~~**AKH**~~ (Herkunft und POST, C6, C6v, C60 — **entfallen**, Ent-18), **AKS** (Schlüssel, C6b), **AKQ**
 (Query-Länge, C46), **AKU** (Update-Quelle Legacy, C19), **AKK** (Kommandopuffer, C8), **AKE**
-(ESP-Empfangspuffer, A79), **AKT** (NTP-Bindung, C59), **AKF** (Fehlerzeile, B48), **AKM** (Flash und
-RAM), **AKZ** (alle). Entscheidungen **Ent-1 bis Ent-18**. Die Kürzel gelten nur in diesem Paket.
+(ESP-Empfangspuffer, A79), **AKT** (NTP-Bindung, C59), **AKF** (Fehlerzeile, B48), **AKR** (Heap unter
+Last, C65), **AKM** (Flash und RAM), **AKZ** (alle). Entscheidungen **Ent-1 bis Ent-27**. Die Kürzel gelten
+nur in diesem Paket.
 
 ---
 
@@ -54,8 +70,9 @@ RAM), **AKZ** (alle). Entscheidungen **Ent-1 bis Ent-18**. Die Kürzel gelten nu
 | **E2** | Brücke und Netz: **B55-ESP** · **C8** · **A79** · **C59**, dazu **C46** (ESP) und **C19** (nur L311), beide schon im Baum | ESP | nach G2 bzw. G2b | **G4** |
 | **EP** | **Ein** Release, ESP **und** PWA: ESP **C6b**; PWA: **C6b** (Export), **C46**, **B55**. Werkzeuge für C6b im selben Commit | ESP + PWA | nach G4; **ESP-OTA und PWA-Upload unmittelbar nacheinander**, ESP zuerst | **G5** |
 | **T1** | `pwa-tester` Phasen 0–4 und 9 (DIR-012) | — | nach G5 | — |
-| **P2** | **B48** Fehlerzeile am Feld · **B8** deutsche Texte in die i18n-Tabelle | PWA | nach T1 | **G6** (samt iPhone, Nutzer) |
-| **T2** | `pwa-tester` Phasen 0–4 und 9 | — | nach G6 | — |
+| **P2** | **B48** Fehlerzeile am Feld · **B8** deutsche Texte in die i18n-Tabelle | PWA | nach T1; **auf der Uhr seit 14.10.2026** (Nutzerentscheid; Ent-24 entfällt) | **G6** (samt iPhone, Nutzer) |
+| **E3** | **C65** Heap unter PWA-Last: **I-1** Tiefstwert je Pfad · **I-2** Ursache je kurzem Schreibvorgang · **I-3** längste Anfrage · **M-1** Release Notes und `wc-list.txt` im LittleFS (Ent-20 C), `table_files` im RAM-Zwischenspeicher · **M-3** Sendezeitgrenze. Nachtrag 14.10.2026 (Ent-19) | ESP | nach P2.11 | **G7** |
+| **T2** | `pwa-tester` Phasen 0–4 und 9, dazu **AKL.4** und die Setter-Phasen, die T1 an der Haltegrenze ausgelassen hat (L449); Haltegrenze K30 nach Ent-23 | — | nach G7 und G6 | — |
 | **Z** | `BEFUNDE.md`, `TESTPLAN-PWA.md`, Spec-Endstand (~~`CLAUDE.md` Gefahrentabelle, POST~~ entfällt) | Doku | — | — |
 
 **Warum diese Reihenfolge:** `design.md` §0. Kurz: `make release-zip` baut alle drei Komponenten
@@ -67,6 +84,9 @@ E2. **EP einstufig wegen C6b** (Ent-18, `design.md` §8.4): ESP und PWA sind **e
 **einem** `make release-zip`, und werden ohne Gerätenachweis und ohne anderes Release dazwischen
 eingespielt — ESP zuerst, Minuten später die PWA. Sonst exportierte die alte PWA leere WLAN-Schlüssel.
 *Stand der Freigabe:* „C6 einstufig (Ent-11): Die POST-Umstellung von ESP und PWA ist ein Release."
+**E3 nach P2:** P2 (PWA 1.4.99) läuft seit dem 14.10.2026 auf der Uhr; G7 misst mit 1.4.99. P2 ändert die
+Last nicht — es kommen keine Anfragen hinzu (Angabe des Leads). Ist G6 vor dem Release-Build von E3 nicht
+abgeschlossen, gilt die Begründung aus `design.md` §0.1.
 
 ---
 
@@ -257,6 +277,92 @@ untersucht.
 - **Flash F103 (✔ B):** Teilbuild 1'656 Byte frei (S8b, 13.10.2026), engste Matrix-Variante
   `wc24h-stm32f103-sk6812-rgbw` 1'436 (L416). **Spielraum über dem Gate von 1'024: 412 Byte.**
 - **ESP-RAM (✔ B, L421):** Heap frei 9'472 Byte, grösster Block 8'736 Byte.
+- **ESP-RAM vor E3 (✔ B, L449, ESP 3.2.35):** grösster Block nach dem Start 7'744, in Ruhe nach Last 5'808
+  (3.2.34: 7'264); `free` 7'280 nach 150 s ohne Abfrage.
+
+### 18. C65 / L449 — Heap unter PWA-Last (Nachtrag 14.10.2026)
+
+**Befund, ✔ B (L449, am Gerät, ESP 3.2.35, PWA 1.4.98):** Ein einzelnes `check-pwa.sh` drückt
+`max_free_block` auf **1'448** Byte (`free` 3'208; gelesen über `/api/device_ready` mit 2/s), zwei
+Browsersitzungen auf **616**; T1 hat deshalb an der Haltegrenze K30 gestoppt. Im selben Lastfenster:
+`http write lost … fail=1/2` und `fs write short: app-index.html.gz` — **C49 wieder offen** —, viermal
+`var_send_buf: keine Quittung nach 3s` mit `v=4/0 a=4`, `ERROR weather leer … oom=521` — **C54 wieder
+offen**. Nach der Last erholt sich der Block nur auf 5'808 (3.2.34: 7'264).
+
+**Lastarten einzeln, ✔ B (L449):** Ruhe 5'808; eine `app.js.gz` 5'616; `settings_xml` 5'280; sechs
+API-Abrufe gleichzeitig 4'752; sechs Assets gleichzeitig 3'856; danach jeweils wieder 5'808. Keine Einzellast
+erklärt die 1'448 — es ist das Zusammenspiel beim Laden.
+
+**M-A, ✔ B:** 150 s ohne Abfrage `free` 7'280, `max` 5'808; nach 20 Abfragen mit 2/s `free` 6'128, `max`
+5'808. Die eigene Abfrage bindet über TIME_WAIT rund 1,1 KB `free` (Messrückwirkung). Der grösste Block
+bleibt auch ohne Last bei 5'808 statt 7'744 nach dem Start: **bleibende Zerstückelung**.
+
+**M-D, ✔ B:** Von fünf `keine Quittung` liegen drei innerhalb von 6 s nach `http write lost` bzw.
+`update_status`, zwei ohne erkennbaren Anlass; eine davon fiel in die Kontrollmessung des Leads selbst.
+
+**Messweise, ✔ SW:** `http_server_loop()` nimmt je Aufruf **eine** Verbindung an und bedient sie bis zum
+Ende (`http.cpp:14712-14976`); `device_ready` wird deshalb nur **zwischen** zwei Anfragen beantwortet. Der
+Abfragewert 1'448 ist eine **Obergrenze** des echten Tiefs. Wer feiner abfragt, belastet das Gerät dabei
+selbst (M-A, M-D).
+
+**Statische Analyse (`firmware-analyst`, 14.10.2026), soweit markiert vom `spec-writer` nachgelesen:**
+- **(a) ●** Der Core nimmt neben der bedienten Verbindung bis zu 5 wartende an
+  (`MAX_PENDING_CLIENTS_PER_PORT`), jede mit PCB, `ClientContext` und der Anfrage als pbuf auf dem Heap, ohne
+  Obergrenze bei knappem Heap. Core-Quelle vom `spec-writer` nicht nachgelesen. Gegenstand von **M-2**, nicht
+  in E3 (Ent-19).
+- **(b) ✔ SW:** `http_api_update_status()` holt die Release Notes bei **jedem** Aufruf, ausser im
+  Sperrfenster (`http.cpp:13050-13064`, bis 3'072 Zeichen), und `wc-list.txt` bei jedem Aufruf mit
+  Hardwarefilter (`:13072`). Der Zwischenspeicher (`:12792-12807`) deckt nur die drei Versionszeilen und die
+  beiden Existenzprüfungen; der Kopfkommentar begründet das ausdrücklich mit dem RAM eines Notes-Puffers
+  (`:12601-12604`). Ein **kalter** Aufruf macht damit sieben ausgehende Abrufe nacheinander (`:12810-12812`,
+  `:12846`, `:12852`, `:13062`, `:13072`). `http_api_update_table_files()` ruft `httpclient()` direkt — ohne
+  `update_server_blocked()` und ohne `update_server_note()` (`:13357`).
+- **(c) ✔ SW / ◐:** `http_client` bekommt nirgends `setTimeout()` (per `grep`, nur `openweather_client` in
+  `weather.cpp:708`, `:713`). Die Sendezeitgrenze von 5'000 ms nennt der Kommentar `http.cpp:1300-1302`
+  (◐, Core vom `spec-writer` nicht nachgelesen). `http_flush()` versucht höchstens zweimal (`:1344-1363`);
+  solange liest `loop()` die Brücke nicht — daher `keine Quittung nach 3s`.
+- **(d) ✔ SW:** `fs write short` (`http.cpp:1676-1683`) geht nur auf `Serial`: kein `write_lost_*`-Zähler,
+  kein `stm32_log_append()` — dieselbe Gattung wie **L185** (eine Messzeile, die über die API niemanden
+  erreicht). `http write lost` dagegen geht seit C14 durch beide (`:1411-1416`).
+- **Kein erklärender Rückschritt in EP** (Analyst: C6b und C46 streamen, A79 gehört zu 3.2.34) — **◐**,
+  vom `spec-writer` nicht nachgelesen. Der Rückschritt des Ruhewerts (5'808 statt 7'264) ist damit **nicht
+  erklärt**; E3 behebt ihn nicht, sondern macht ihn messbar.
+
+**PWA, ✔ SW:** Das Hauptmodul ruft `update_status` und `update_table_files` beim Öffnen und danach
+höchstens alle 5 min (`app.js:1425`, `:3287-3299`); Update und Wartung bei jedem Lauf, die Tabelleninfo
+zusätzlich im Anzeigemodul. Zeitgrenze der PWA je 4'500 ms (`:1086-1087`), ein Versuch (`:1080`). Aus
+`update_table_files` liest die PWA `current_table` — Vorschau, Hinweis „Tabelle fehlt", Prüfung nach einer
+Tabelleninstallation (`:5159`, `:6401-6406`, `:6495`, `:6517`) — und `table_files`, das Installationsangebot
+(`:11915-11925`). Aus `update_status` liest sie unter anderem `release_notes` (`:11786`, `:11893`,
+Platzhaltertext `:8381`) und `stm32_files` (`:11803`).
+
+**Werkzeuge und Leser, ✔ SW:** `check-pwa.sh` lädt jedes Mal mit frischem Browserprofil
+(`tools/check-pwa.sh:64-67`, `:104`) und ruft vorher `/api/settings_xml` (`:78`) — jeder Lauf trägt
+dieselbe Last. `/api/device_ready` lesen auch `smoke-device.sh` (`:45`, `:168`, `:193`, `:220`),
+`flash-stm.sh` (`:120`, `:174`), `snapshot-device.sh` (`:136-141`) und die PWA beim Wiederverbinden
+(`app.js:10904`).
+
+**OTA-Weg, ✔ SW:** Beide ESP-OTA-Wege übergeben **dasselbe** `http_client` an `ESPhttpUpdate.update()`
+(`http.cpp:7737`, `:13289`). Eine Sendezeitgrenze, die nach `accept()` gesetzt wird, gilt dort weiter,
+sofern `HTTPClient` sie beim Verbinden nicht selbst setzt — **●**, deshalb setzt E3 vor beiden Aufrufen
+ausdrücklich mindestens 5'000 ms (Ent-25).
+
+**LittleFS als Ablage (Ent-20 C), ✔ SW:**
+- Es gibt schon eine Funktion, die eine Datei vom Update-Server ins LittleFS lädt:
+  `download_file_to_local()` (`http.cpp:6266-6334`), mit dem statischen Puffer `http_download_buf`
+  (1'024 Byte) und geprüftem `File::write()`.
+- **Befund dabei, ◐:** Bricht dort das **Lesen** ab (`ch < 0`, `:6292-6295`), bleibt `write_ok` wahr, die
+  Teildatei wird geschlossen und **nicht** gelöscht; nur der Rückgabewert ist falsch (`:6331`). Gelöscht wird
+  nur bei einem Schreibfehler (`:6323-6329`). Ob die Aufrufer die Teildatei entfernen, ist nicht geprüft. Für
+  E3 gilt deshalb: schreiben in eine Temporärdatei, umbenennen erst nach vollständigem Lesen **und**
+  Schreiben (`design.md` §18.5a). Der Befund selbst geht als eigener Eintrag an den `doc-writer` (E3.12).
+- Existenzprüfung mit Grösse > 0: `http_fs_file_exists_and_nonempty()` (`:1704-1722`) — die
+  Architektur-Invariante.
+- Die PWA-Assets liegen als `app-*.gz` im LittleFS (`app_asset_storage_filename()`, Weissliste
+  `APP_INSTALL_ASSETS` `:357` ff.); Icon-, Wetter- und Tabellendateien heissen `wc24h-…`, `wc12h-…`,
+  `uc-…`, die STM-Datei `stm32.hex`.
+- `download_file_to_local()` schreibt seine Schreibfehlerzeile ebenfalls als `- fs write short: …` (`:6325`)
+  — eine **zweite** Quelle dieses Musters neben `http_send_fs_file()`; I-2 ändert nur die letzte.
 
 ---
 
@@ -281,6 +387,15 @@ untersucht.
 14. **PWA:** Fehlerzeile am Feld; keine deutschen Texte ausserhalb der i18n-Tabellen.
 15. **Nachweis:** jede Wirkung einzeln, jede neue Prüfung einmal fehlgeschlagen (DIR-014), jede Messung
     **bei der Messung** in `BEFUNDE.md` (L424).
+16. **Heap unter Last (E3, C65):** Das **echte** Tief des grössten Blocks ist je Pfad messbar, ohne dass die
+    Messung selbst die Last trägt; jeder kurze Schreibvorgang nennt seine Ursache und erreicht den Logring.
+    **Release Notes und `wc-list.txt` werden in keiner Anfrage mehr vom Update-Server geholt** — auch nicht
+    beim ersten Öffnen und nicht beim Neuladen der PWA —, sondern einmal je Release (Schlüsseländerung) ins
+    LittleFS geschrieben und von dort gestreamt; die PWA sieht die Notes weiter. Wiederholte Abrufe holen
+    auch Versionen und Tabellenliste nicht mehr. Ein Schreibversagen hält `loop()` höchstens rund 2,6 s an
+    statt bis zu 10 s. **Nicht versprochen:** dass die bleibende Zerstückelung (M-A) verschwindet, und dass
+    ein **kalter** `update_status` gar nichts mehr holt — Versionszeilen, Existenzprüfungen und Tabellenliste
+    bleiben dort (`design.md` §18.5).
 
 ---
 
@@ -523,10 +638,11 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
       auf. *Stand der Freigabe:* POST `maintenance_reset_stm32` ⇒ 200 und Neustart; GET ⇒ 405, kein
       Neustart; POST mit `Sec-Fetch-Site: cross-site` ⇒ 403, kein Neustart. `/api/eeprom_settings` ohne
       Schlüssel, `key_set` true (lesend).
-- [ ] **AKL.4 (Gerät G5)** — Über die PWA: Maximum per Zahl auf 1, „Minimum übernehmen" ⇒ „nicht
+- [ ] **AKL.4 (Gerät G5 → T2)** — Über die PWA: Maximum per Zahl auf 1, „Minimum übernehmen" ⇒ „nicht
       übernommen", im Mitschnitt `ldr: minimum abgewiesen`; Maximum zurück auf 4095. Minimum per Zahl auf
       4094, „Maximum übernehmen" ⇒ „nicht übernommen"; Minimum zurück auf 0. Dann „Minimum übernehmen" bei
       0/4095 ⇒ „gespeichert"; Minimum per Zahl zurück auf 0. Endstand 0/4095 lesend; Δ`v` = 0.
+      **Stand 14.10.2026 (L449):** in T1 an der Haltegrenze K30 nicht gefahren; fährt **T2** nach E3 (AKZ.6).
 - [ ] **AKS.4 (Gerät G5, lesend)** — `/api/eeprom_settings` ohne Schlüssel, `key_set` true (aus AKH.7).
       Backup-Export im Browser enthält `wifi_key`; im Bericht nur der Vergleich der Prüfsumme, nie der
       Klartext.
@@ -545,6 +661,167 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
 - [ ] **AKD.3 (Gerät G6)** — `check-pwa.sh` ohne Fehler; mit Sprache Englisch zeigen Hauptmodul, Display,
       Netzwerk, Wartung und Backup keinen deutschen Text.
 
+### Schritt E3 — C65 Heap unter PWA-Last (Nachtrag 14.10.2026, freigegeben 14.10.2026)
+
+Fundstellen am Code `8445a10`, `design.md` §18. Alle Prüfstände unter `tools/checks/auszug/esp/c65/`, je
+mit Fallzahl und einmal **gegen ESP 3.2.35 fehlgeschlagen** (DIR-014). Jede Messung — Prüfstand, Build,
+Gerät — steht **sofort** im Messprotokoll E3 in `BEFUNDE.md` (L424).
+
+**Code und Prüfstand**
+
+- [ ] **AKR.1 (I-1, Tiefstwert)** — Statische Tiefstwerte `heap_low_block` (kleinster `max_free_block`) und
+      `heap_low_free` (kleinster `free_heap`) mit der Kennung des Pfads, an dem der Block-Tiefstwert entstand
+      (`flush`, `fs`, `accept`, `client`), und dem Zeitpunkt (`millis()`). Gemessen an **genau vier** Stellen:
+      vor dem ersten `write()` je Aufruf von `http_flush()`, vor jedem `write()` in `http_send_fs_file()`,
+      unmittelbar nach einem erfolgreichen `accept()` in `http_server_loop()`, nach einem erfolgreichen
+      `connect()` in `httpclient()` (`httpclient.cpp:191`); dort zählt zusätzlich `httpclient_connects`
+      (sättigend). Keine Heap-Anforderung, kein `String`, keine Ausgabe im Messpunkt. `/api/device_ready`
+      gibt **hinter** den bestehenden Feldern aus: `heap_low_block`, `heap_low_free`, `heap_low_path`,
+      `heap_low_ms`, `httpclient_connects`; bestehende Felder unverändert in Name, Reihenfolge und Typ.
+      **Rücksetzen (Ent-21 B):** nur `device_ready?heap_low_reset=1` liest, setzt zurück und gibt die
+      gelesenen Werte aus; ohne Parameter wird nur gelesen. **Heap-Zeile (Ent-22):** ein eigenes Minimum
+      seit der vorigen Zeile, hinten als `low=<n>`, nach jeder Zeile zurückgesetzt. Prüfstand **c65a**:
+      gemischte Wertfolgen über alle vier Pfade (Minimum und Pfad stimmen, bei Gleichstand bleibt der erste),
+      beide Rücksetzwege unabhängig voneinander, Lesen ohne Parameter setzt nichts zurück, Sättigung;
+      statisch **genau vier** Messaufrufe an den vier Orten. Sabotagen „ein Messpunkt entfernt" und
+      „Lesen ohne Parameter setzt zurück" ⇒ je FEHL. Gegenprobe gegen 3.2.35 ⇒ FEHL.
+- [ ] **AKR.2 (I-2, Ursache je kurzem Schreibvorgang)** — Beide Zeilen tragen hinten `blk=<max_free_block>
+      snd=<availableForWrite()> ms=<Dauer>`, erhoben unmittelbar nach dem letzten Versuch:
+      `- http write lost <rest> gone=<n> fail=<n> blk=… snd=… ms=…` und
+      `- fs write short: <datei> n=<blocklaenge> w=<geschrieben> blk=… snd=… ms=…`. Bestehende Muster
+      (`- http write lost`, `fail=[1-9]`, `- fs write short: `) bleiben gültig. `fs write short` aus
+      `http_send_fs_file()` geht wie `http write lost` **einmal formatiert** in Mitschnitt **und**
+      `stm32_log_append()` (L185) und zählt: `write_lost_blocks` +1, `write_lost_gone` bzw.
+      `write_lost_failed` nach `connected()`, `write_lost_bytes` um die nicht ausgelieferten Byte der Datei,
+      neu `fs_write_short` +1 (in `device_ready` hinter AKR.1). Längste Form ≤ 119 Zeichen (ein Ringeintrag).
+      Prüfstand **c65b** mit einer `WiFiClient`-Attrappe nach der Checkliste (Zustellung nur an
+      Abgabepunkten, `connected()` nach FIN 0): die vier Lagen der Entscheidungsregel (`design.md` §18.3) je
+      für beide Zweige, je Verbindung genau eine Zeile, Mitschnitt und Ring textgleich, Zähler. Gegenprobe
+      gegen 3.2.35 ⇒ FEHL (`fs write short` ohne Ring und ohne Zähler).
+- [ ] **AKR.3 (I-3, längste Anfrage)** — `req_max_ms` und `req_max_path` (Pfad **ohne** Query, höchstens 31
+      Zeichen; `-` bei einer Verbindung ohne Anfrage) in `device_ready` hinter AKR.2; gemessen von `accept()`
+      bis zum Verlassen von `http_server_loop()` auf **jedem** Rückkehrpfad (keine Anfrage, zweimal leere
+      Anfrage, Schreibabbruch, Regelfall); Rücksetzen mit AKR.1. Prüfstand in **c65a**: alle fünf
+      Rückkehrpfade; Sabotage „Query im Pfad" ⇒ FEHL. Gegenprobe gegen 3.2.35 ⇒ FEHL.
+- [ ] **AKR.4 (M-1, Tabellenliste im RAM)** — `table_files` in `update_table_files` kommt innerhalb der
+      Gültigkeit der übrigen Cache-Felder (`UPDATE_INFO_CACHE_MS`, gleiche Prüfsumme über Host, Pfad und
+      Hardware, `?refresh=1` umgeht ihn) aus einem statischen Zwischenspeicher, **ohne** ausgehenden Abruf.
+      `current_table` bleibt live. `update_table_files` fragt über `update_server_open()`, also hinter
+      `update_server_blocked()` und mit `update_server_note()`. Abgelegt wird nur ein vollständig gelesener
+      Abruf; eine Liste, die nicht in den Puffer passt, wird **nicht** gekürzt und nicht abgelegt, sondern
+      beim nächsten Aufruf wieder live geholt, mit der gedrosselten Zeile
+      `- update liste zu gross wc-list-tables.txt n=<byte>` in Mitschnitt und Ring. Prüfstand **c65m** mit
+      einer Attrappe für `httpclient()`, die Verbindungen zählt: kalt ⇒ Abruf; warm ⇒ **0** Abrufe und eine
+      **byte-gleiche** Antwort; abgelaufen, andere Quelle, Hardware 65535, `refresh=1` ⇒ Abruf; Sperrfenster
+      ⇒ kein Abruf; abgerissener Abruf ⇒ nicht als Liste abgelegt; Liste über dem Puffer ⇒ nicht abgelegt,
+      nicht gekürzt, Zeile. Gegenprobe gegen 3.2.35 ⇒ FEHL.
+- [ ] **AKR.5 (M-1, Release Notes und `wc-list.txt` im LittleFS, Ent-20 C)** — nach `design.md` §18.5a:
+      (i) **Keine Anfrage** an den ESP — auch kein kalter `update_status` — holt Release Notes oder
+      `wc-list.txt` beim Update-Server, solange die Datei gültig ist. Gültig heisst: Datei vorhanden,
+      Grösse > 0, Kopfzeile lesbar, Grösse gleich Kopfzeile plus angegebene Länge. (ii) `update_status`
+      liefert die Notes aus `/upd-releasenote.txt` mit derselben JSON-Maskierung wie live — **byte-gleiche**
+      Antwort bei gleichem Inhalt — und `stm32_files` aus `/upd-wc-list.txt`, gefiltert wie live. Gelesen
+      wird über einen kleinen Stackpuffer, ohne `String`, die Ausgabe läuft wie jede Antwort über den
+      statischen Antwortpuffer. (iii) Ist die Notes-Datei ungültig: `"release_notes":""` und ein
+      Auffrischungsauftrag, **kein** Live-Abruf in der Anfrage. Ist die Listen-Datei ungültig: Live-Abruf wie
+      bisher über `update_server_open()` (Sperrfenster) und ein Auffrischungsauftrag. (iv) Geholt und
+      geschrieben wird nur durch den Auftrag in `loop()`, nie in einer Anfrage: beim Start, bei einer
+      ungültigen Datei, wenn ein kalter `update_status` einen anderen Schlüssel sieht; nur bei verbundenem
+      WLAN, **gesetztem** Host und Pfad (nie der Rückfall auf den Server des Ursprungsprojekts, L42, DIR-009),
+      frühestens 60 s nach dem Start, 5 s nach der letzten Anfrage, ausserhalb des Sperrfensters, nach einem
+      Fehlschlag frühestens nach 10 min erneut. (v) **Geschrieben nur bei geändertem Schlüssel** (die drei
+      Versionen vom Server plus Prüfsumme über Host und Pfad, **ohne** Hardware) oder ungültiger Datei; über
+      eine Temporärdatei, umbenannt erst nach vollständigem Lesen **und** Schreiben; sonst wird die
+      Temporärdatei gelöscht, die alte Datei bleibt. Nur bei genug freiem Platz (§18.5a). Je Datei eine Zeile
+      `- update cache <datei> geschrieben n=<byte>`, `… unveraendert` oder `… fehlgeschlagen <grund>` in
+      Mitschnitt und Ring. Prüfstand **c65n** (LittleFS-Attrappe mit Platzgrenze und Schreibfehler,
+      Attrappe für `httpclient()`): Datei fehlt ⇒ Auftrag holt und schreibt; Schlüssel gleich ⇒ 0 Abrufe von
+      Notes und Liste, **0 Schreibvorgänge**; Schlüssel anders ⇒ genau ein Schreiben je Datei; Lesen bricht
+      ab ⇒ Temporärdatei gelöscht, alte Datei unverändert; Schreibfehler/Platz ⇒ dasselbe, Zeile; Datei mit 0
+      Byte oder falscher Länge ⇒ ungültig; Host leer ⇒ **kein** Abruf; Sperrfenster und 10-min-Abstand
+      eingehalten; `update_status` mit gültiger Datei ⇒ **0** Abrufe von Notes und Liste und byte-gleiche
+      Antwort gegenüber dem Live-Weg; die Hardware wechselt auf 65535 ⇒ kein Neuschreiben. Gegenprobe gegen
+      3.2.35 ⇒ FEHL (jeder Aufruf holt Notes und Liste).
+- [ ] **AKR.6 (M-1, Rückwärtsverträglichkeit)** — Feldnamen, Reihenfolge und Typen von `update_status` und
+      `update_table_files` sind gegenüber 3.2.35 **gleich** (Prüfstand **c65m**, Schlüsselvergleich gegen die
+      Antwort des Stands 3.2.35 aus derselben Attrappe; ein neues, umbenanntes oder fehlendes Feld ⇒ FEHL).
+      Die Notes bleiben in der PWA sichtbar; **keine** PWA-Änderung nötig. Die Wirkung auf jeden Leser der
+      PWA steht als Tabelle im Taskbericht E3.4 (Vorlage `design.md` §18.5).
+- [ ] **AKR.7 (M-3, Sendezeitgrenze, Ent-25)** — `http_client.setTimeout (1000)` steht unmittelbar nach einem
+      erfolgreichen `accept()` und vor dem ersten Schreiben; die Dateiauslieferung setzt **2'000 ms** vor der
+      Leseschleife; vor **beiden** `ESPhttpUpdate.update (http_client, …)` (`http.cpp:7737`, `:13289`) steht
+      ausdrücklich `http_client.setTimeout (5000)` oder mehr. Bestandsliste aller Lesestellen auf
+      `http_client`, die eine Stream-Zeitgrenze benutzen, im Bericht. Kommentare, die 5'000 ms als geltende
+      Grenze nennen (`http.cpp:1300-1302`, `:1315-1318`, `:8369-8371`), sind nachgeführt. Prüfstand **c65t**
+      (statisch): Lage und Werte; Rechnung „schlechtester Fehlschlag ≤ 2'600 ms" im Bericht. Sabotagen
+      „Zeile nach `accept()` entfernt" und „Zeile vor einem OTA entfernt" ⇒ je FEHL; Gegenprobe gegen 3.2.35
+      ⇒ FEHL.
+- [ ] **AKR.8 (RAM und Flash)** — „Globale Variablen" und Programmgrösse aus dem ESP-Build vor E3.1 und nach
+      **jedem** E3-Task sofort ins Messprotokoll. Zuwachs „Globale Variablen" über ganz E3 **höchstens 700
+      Byte**; darüber anhalten und vorlegen. Der Platz im LittleFS steht nach E3.0 im Messprotokoll.
+- [ ] **AKR.9 (Logwache)** — `- fs write short` ist Alarm; `- update liste zu gross` und
+      `- update cache … fehlgeschlagen` sind Hinweise; die neuen Felder brechen kein bestehendes Muster der
+      Wache. Je eingespielte Gegenprobe, Meldung kommt in Konsole und Mitschrift an (AKZ.5).
+- [ ] **AKR.10 (Smoketest)** — `smoke-device.sh` verlangt in `device_ready` zusätzlich `heap_low_block`,
+      `fs_write_short` und `req_max_ms` und setzt dabei **nichts** zurück (ohne `heap_low_reset`). Gegenprobe
+      über `SMOKE_DR_OVERRIDE` ohne die Felder ⇒ FEHL.
+
+**Gerät — G7** (lesend, freigegeben im Rahmen von **Nutzerentscheid N-5, 13.10.2026, Gespräch** — „alle
+freigegeben, auch der STM-Reset nachts"; die Zeile in `BEFUNDE.md` ergänzt der Lead). Die beiden Eingriffe
+über das rein Lesende hinaus sind mit **Ent-26** freigegeben. G7 misst mit **PWA 1.4.99**. Ablauf
+`design.md` §18.8.
+
+- [ ] **AKR.11 (Einspielen E3)** — Wache vor dem OTA gestartet; ESP-OTA; Smoketest samt Update-Quelle;
+      `install-app.sh --check` ohne Abweichung; `check-pwa.sh` ohne Fehler. Zeiten und Ergebnisse sofort ins
+      Messprotokoll.
+- [ ] **AKR.20 (Startabruf nach dem OTA, Ent-20 C)** — Frühestens 60 s nach dem Start je **genau eine** Zeile
+      `- update cache upd-releasenote.txt geschrieben n=…` und `- update cache upd-wc-list.txt geschrieben
+      n=…` in Mitschnitt **und** `/api/stm32_log`; `/api/fs_list` (lesend) zeigt beide Dateien mit Grösse
+      > 0; das Update-Modul der PWA zeigt die Release Notes. Danach im ganzen G7-Fenster **keine** weitere
+      Zeile `- update cache … geschrieben`. Kommt beim Start `fehlgeschlagen`: Grund ins Messprotokoll, der
+      nächste Versuch frühestens nach 10 min — dann G7 erst danach.
+- [ ] **AKR.12 (Ruhe, OTA-Reserve)** — (i) Nach dem Start: `max` der ersten drei Heap-Zeilen gegen 7'744
+      (3.2.35 nach dem Start); der Rückgang liegt höchstens beim Zuwachs aus AKR.8 plus 256 Byte. (ii) Nach den
+      Läufen aus AKR.13: 150 s ohne Anfrage, dann `max` der Heap-Zeile **≥ 5'120** (Grenze K30, Ent-23),
+      berichtet gegen 5'808 (3.2.35) und 7'264 (3.2.34).
+- [ ] **AKR.13 (M-1 isoliert: kalt gegen warm, Ent-27)** — Drei Paare im Wechsel, je ein `check-pwa.sh` ohne
+      weitere Abfragen, Tiefstwert vorher zurückgesetzt und 15 s nach Laufende gelesen. **Kalt:** mindestens
+      70 s seit dem letzten `update_status`/`update_table_files`. **Warm:** beide 10 s vorher je einmal per
+      curl abgerufen. **Gültig** ist ein Lauf nur, wenn Δ`httpclient_connects` kalt **genau** dem in E3.0
+      bestimmten Sollwert entspricht — drei Versionszeilen, zwei Existenzprüfungen, eine Tabellenliste,
+      also 6 bei bekannter Hardware, **ohne** Notes und `wc-list.txt` — und warm **0** ist, und kein
+      `- weather` des STM im Fenster liegt; sonst Paar wiederholen. Ein kalter Lauf mit Δ = 8 heisst: Notes
+      und Liste werden doch geholt ⇒ AKR.5 am Gerät verletzt, **FEHL**. **Erfüllt**, wenn in **allen drei**
+      Paaren warm `heap_low_block` > kalt `heap_low_block`. Je Lauf ins Messprotokoll: `heap_low_block`,
+      `heap_low_free`, `heap_low_path`, `heap_low_ms`, `req_max_ms`, `req_max_path`, Δ`httpclient_connects`,
+      Δ`update_cache_hits`, Δ`write_lost_*`, Δ`fs_write_short`. Nicht erfüllt ⇒ die Annahme hinter M-1 ist
+      am Gerät nicht gestützt: Befund in C65, **kein** Abschluss von C65.
+- [ ] **AKR.14 (Vergleich mit L449, gleiche Messweise)** — Ein kalter Lauf mit `device_ready` 2/s wie die
+      Kontrollmessung aus L449: kleinster `max_free_block` der Abfragen neben 1'448. **Berichtet, kein
+      Abnahmekriterium** — erwartet ist ein höherer Wert (Notes und Liste nicht mehr in der Anfrage). Ein
+      gleicher oder tieferer Wert ist ein Befund für C65. Zu beachten: L449 lief mit PWA 1.4.98, G7 mit 1.4.99
+      (gleiche Anfragen laut Lead). `keine Quittung` aus diesem Lauf wird getrennt gezählt (Messrückwirkung,
+      M-D).
+- [ ] **AKR.15 (keine Quittung)** — Vom ersten Rücksetzen in AKR.13 bis 60 s nach dem letzten Lauf: **0** ×
+      `var_send_buf: keine Quittung` im Mitschnitt.
+- [ ] **AKR.16 (Wetter, Ent-26 b)** — Im ganzen G7-Fenster **0** × `ERROR weather leer`, jede Zeile
+      `- weather …` mit `oom=0`. Dazu ein `weather_get_forecast` 5 s nach dem Start eines **warmen** PWA-Laufs
+      ⇒ `- weather fc=1 … ok … oom=0`.
+- [ ] **AKR.17 (I-2 am Gerät, Logring, Ent-26 a)** — Jede Zeile `- http write lost` und `- fs write short` aus
+      dem G7-Fenster steht **textgleich** auch in `/api/stm32_log`. Je eine Zero-Window-Probe gegen
+      `/app/app.js.gz` und gegen `/api/settings_xml` ⇒ je **genau eine** Zeile mit `snd=0` (Lesart „Quittung
+      fehlt"); `ms` bei der Datei zwischen 2'000 und 2'300, bei der API zwischen 1'000 und 2'300;
+      Δ`fs_write_short` = 1 bzw. Δ`write_lost_failed` = 1; `req_max_ms` ≤ 2'900; **kein** `keine Quittung`
+      ±10 s um die Probe; kein Neustart.
+- [ ] **AKR.18 (I-3 am Gerät)** — `req_max_ms` und `req_max_path` je Lauf aus AKR.13 im Messprotokoll; in den
+      **warmen** Läufen < 3'000 ms. Kalte Läufe: berichtet; ≥ 3'000 ms mit Pfad `update_status` ist ein
+      Befund für C65 (sechs Abrufe nacheinander halten `loop()` an).
+- [ ] **AKR.19 (Gesundheit)** — Im G7-Fenster 0 Exceptions, 0 Neustarts, `diag` lückenlos, `ovr=0`;
+      `watch-log.sh --pruefe` mit Exit 0 im Bericht (AKZ.5).
+- [ ] **AKR.21 (T2, Schreiben nur je Release)** — Startet der ESP in T2 neu (STM-Reset aus V3, L183), steht
+      danach je Datei `- update cache … unveraendert`, **kein** `geschrieben`; die Notes bleiben in der PWA
+      sichtbar. Ohne Neustart in T2 als „nicht aussagekräftig" führen; belegt dann nur c65n.
+
 ### Flash, Matrix, RAM
 
 - [ ] **AKM.1 (Flash-Gate)** — Nach **jedem** STM-Task Teilbuild F103 WC12h SK6812-RGBW **und** F411: Byte
@@ -562,23 +839,27 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
 - [ ] **AKZ.3 (Release-Inhalt)** — Vor jedem Release-Build zeigt `git diff --name-only <letztes Tag>` samt
       Arbeitsbaum Produktänderungen nur in den angehobenen Komponenten (bei EP: ESP und PWA) und nur aus den
       Tasks dieses Releases; Ausgabe im Messprotokoll. Für E2 gehören C46 und C19 dazu, der zurückgebaute
-      Herkunftsteil nicht (E2.0).
+      Herkunftsteil nicht (E2.0). Für **E3** gegen das Tag von P2 (`release/3.2.34-3.2.35-1.4.99`):
+      Produktänderungen nur unter `ESP8266/ESP-uclock/*.cpp`, `*.h`, `*.ino` (C65) und `version.h`; **keine**
+      Änderung an der PWA.
 - [ ] **AKZ.4** — Smoketest nach jedem Einspielen, Ergebnis **sofort** ins Messprotokoll; nach ESP-Updates
       samt Update-Quelle (DIR-009) und `install-app.sh --check` (DIR-017). Der Smoketest ist nicht der Test
       (DIR-012).
 - [ ] **AKZ.5 (Logwache)** — läuft bei jedem Gerätelauf, vor dem Einspielen gestartet (DIR-013); am Ende
       `watch-log.sh --pruefe` mit Exit 0 im Bericht. Neue Zeilen je mit eingespielter Gegenprobe:
       `icon: verworfen` (Hinweis), `icon_freeze: ENTER` (Alarm ab S2), `- rpc keine Antwort` (Alarm),
-      `- abgewiesen: query` (Hinweis), `ntp verworfen … ungefragt|originate` (Alarm wie bisher).
-- [ ] **AKZ.6** — `pwa-tester` Phasen 0–4 und 9 nach G5 (T1) und nach G6 (T2). Unvollständig ⇒ nicht
-      abgenommen.
+      `- abgewiesen: query` (Hinweis), `ntp verworfen … ungefragt|originate` (Alarm wie bisher); ab E3
+      `- fs write short` (Alarm), `- update liste zu gross` und `- update cache … fehlgeschlagen` (Hinweis).
+- [ ] **AKZ.6** — `pwa-tester` Phasen 0–4 und 9 nach G5 (T1) und nach G7 und G6 (T2). **T2 fährt
+      zusätzlich** AKL.4 und die Setter-Phasen, die T1 an der Haltegrenze ausgelassen hat (L449: Phase 3
+      Rest, E1–E8); die Haltegrenze K30 gilt nach **Ent-23**; dazu AKR.21. Unvollständig ⇒ nicht abgenommen.
 - [ ] **AKZ.7** — Jedes Release sofort committet, getaggt, **gepusht** (DIR-011); `CHANGELOG.md` schreibt
       der Lead.
 - [ ] **AKZ.8** — Einspielzeilen mit Reihenfolge je Release, fertig zum Einfügen.
 - [ ] **AKZ.9** — Kodierung **und** Zeilenende jeder Datei vor dem Patch festgestellt und im Taskbericht
       genannt (DIR-015), darunter `uart-driver.h`, `main.c`, `display.c`, `eeprom-data.h`, `ldr.c`,
       `ESP-uclock.ino` (**gemischt**), `http.cpp` (UTF-8), `ntp.cpp`, `app.js`, `en.json`, `index.html`,
-      `styles.css`.
+      `styles.css`; für E3 zusätzlich `httpclient.cpp`, `base.h`, `http.h`.
 - [ ] **AKZ.10** — Keine Versionsnummer in lebender Doku (S9); jede zitierte Kennung im Katalog (S11).
 
 ---
@@ -603,6 +884,17 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
 | **Icon nicht anfordern, wenn das Display aus ist** | Verwerfen am Empfang genügt |
 | **Messbau für A15 (M0/M1), Zyklenmessung am Gerät** | Ent-15 aufgehoben (L432). Der Patch `tools/checks/auszug/stm/a15/messbau.patch` bleibt liegen, wird nicht eingesetzt |
 | **Fehlerfälle am Gerät** für Format, EEPROM-Reset, Löschen, `rsteeprom2`, leere Update-Quelle, C59, A70 (c), (d), L399 | Gefährlich oder nicht herstellbar; Prüfstände (`design.md` §17.3) |
+| **M-2** Verbindungen begrenzen (`http_server.begin (80, 2)`, PWA `power_status` statt zweier Abrufe) | Ent-19: Folgebefund. Berührt das Verhalten jeder Gegenstelle und die PWA — eigene Messung nach E3 |
+| **M-4** `FS()` ohne Heap | Ent-19: Folgebefund |
+| **Eine PWA-Änderung für die Release Notes** | Ent-20 C: nicht nötig; Antwortform und Inhalt bleiben |
+| **Tabellenliste (`wc-list-tables.txt`) im LittleFS** | Für sie gibt es keine Version, an der sich ein Neuschreiben festmachen liesse; sie bleibt im RAM-Zwischenspeicher (AKR.4) |
+| **Neue Release-Version oder gelöschte Cache-Datei am Gerät herstellen** | Eine Version herzustellen hiesse, den produktiven Update-Server zu verändern; Löschen geht nur über `fs_remove`, einen Gefahrenendpunkt. Beides nur am Prüfstand c65n |
+| **Teildatei in `download_file_to_local()`** (`http.cpp:6292-6331`) | Befund aus der Spec-Arbeit (Problem §18), eigener Eintrag (E3.12). E3 nutzt Temporärdatei und Umbenennen und ist davon nicht betroffen |
+| **Release Notes und Listen der Legacy-Seiten** (`http.cpp:6966`, `:7802`, `:7899`) | Eigene Abrufwege der Legacy-Oberfläche; die PWA-Last ist der Befund. Legacy bleibt Stabilitäts-Referenz und unverändert |
+| **Brücke während langer Antworten lesen** (`stm_bridge_poll()` aus B55 in `http_flush()`) | M-3 begrenzt nur den Fehlschlag; ob ein stetig, aber langsam abfliessender Abruf die 3-s-Frist reisst, zeigt erst I-3 (AKR.18). Folgebefund, falls ja |
+| **Ursache der bleibenden Zerstückelung** (M-A: Ruhewert 5'808 statt 7'264) | E3 macht sie messbar, behebt sie nicht; nach G7 neu zu bewerten |
+| **Messpunkt im Wetterabruf** (`openweather_client`) | Der Wetterabruf hat mit `oom=` schon seine eigene Messzeile (C54) |
+| **Rückbau der Heap-Zeile** (C9c4, `ESP_HEAP_LOG`) | Solange C65 offen ist, wird sie gebraucht — sie trägt ab E3 zusätzlich `low=` (Ent-22) |
 | **Frühere Specs**, `REVIEW*.md` | Momentaufnahmen (DIR-006) |
 
 ---
@@ -612,15 +904,20 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
 - [ ] **STM32** (`src/**`) — S1: `uart/uart-driver.h`; S2: `main.c`, `display/display.c` (+ `.h`),
       `eeprom/eeprom-data.h`, `ldr/ldr.c` (+ `.h`); je ein Flash
 - [ ] **ESP8266** — ~~E1~~ entfällt; E2: `ESP-uclock.ino`, `http.cpp` (B55, dazu C46 und C19 aus E1),
-      `ntp.cpp` (ggf. `vars.cpp`); EP: `http.cpp` (C6b); je ein OTA
-- [ ] **PWA** — EP: `app.js`, `i18n/en.json`; P2: `app.js`, `i18n/en.json`, `index.html`, `styles.css`
+      `ntp.cpp` (ggf. `vars.cpp`); EP: `http.cpp` (C6b); E3: `http.cpp`, `httpclient.cpp`, ein gemeinsamer
+      Kopf (`base.h` oder `http.h`), `ESP-uclock.ino` (Heap-Zeile `low=`, Aufruf des Auffrischungsauftrags aus
+      `loop()`); dazu zwei Dateien im LittleFS (`/upd-releasenote.txt`, `/upd-wc-list.txt`); je ein OTA
+- [ ] **PWA** — EP: `app.js`, `i18n/en.json`; P2: `app.js`, `i18n/en.json`, `index.html`, `styles.css`;
+      E3: **keine** Änderung
 - [ ] **Werkzeug** (`tools/**`, `.claude/**`) — Logwache, Stop-Hook, F3, B8, lokaler STM-Flash (gebaut, nicht
       eingesetzt), Prüfstände, C6b in `snapshot-device.sh` und `preview/server.py` (~~POST-Umstellung der
-      Werkzeuge~~ entfällt); der Messcode-Patch liegt, wird nicht eingesetzt
-- [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md` (`doc-writer`; K25, K26 entfallen); `CHANGELOG.md`
-      (Lead); ~~`CLAUDE.md` Gefahrentabelle (POST)~~ entfällt
-- [ ] **Build/Release** — fünf Releases (S1, S2, E2, EP, P2), bei Gate-Riss sechs (S3); Matrix vor jedem
-      STM-Release; je Commit, Tag, Push
+      Werkzeuge~~ entfällt); der Messcode-Patch liegt, wird nicht eingesetzt; E3: Prüfstände c65a, c65b,
+      c65m, c65n, c65t, Wachzeilen, Smoketest-Felder, Zero-Window-Probe
+- [ ] **Dokumentation** — `BEFUNDE.md`, `TESTPLAN-PWA.md` (`doc-writer`; K25, K26 entfallen; E3: K30,
+      Logzeilen, `device_ready`-Felder, AKR.21 in T2); `CHANGELOG.md` (Lead); ~~`CLAUDE.md` Gefahrentabelle
+      (POST)~~ entfällt
+- [ ] **Build/Release** — sechs Releases (S1, S2, E2, EP, P2, E3), bei Gate-Riss sieben (S3); Matrix vor
+      jedem STM-Release; je Commit, Tag, Push
 
 ---
 
@@ -669,3 +966,35 @@ AKH.1–AKH.4 entfallen; ihr Text bleibt als Stand der Freigabe. **AKQ.1** und *
   ist auf `sicherung/e1-herkunft` (`2662368`) gesichert; C46 (ESP) und C19 gehen mit E2; EP verliert die
   POST-Umstellung und alles zur Herkunft und behält C6b, den PWA-Teil von C46 und B55; AKH.1–AKH.7 entfallen;
   G3 geht in G4 auf; die Testplanfälle K25 und K26 entfallen. Versionsfolge ESP: E2 3.2.34, EP 3.2.35.
+
+**Nachtrag 14.10.2026 — Schritt E3 (C65), freigegeben 14.10.2026.** Wer entschieden hat, steht je Punkt.
+
+- **Ent-19 — C65 in dieses Paket** (Nutzer, L449): eigenes ESP-Release **E3 vor T2 und Z**; Umfang
+  Instrumentierung **I-1 bis I-3** und Massnahmen **M-1** und **M-3**. **M-2** (Verbindungen begrenzen) und
+  **M-4** (`FS()` ohne Heap) nicht in E3, als Folgebefunde vermerkt. Erwartete Version: ESP 3.2.36; PWA
+  unverändert.
+- **Ent-20 — Release Notes und `wc-list.txt`: Variante C, LittleFS** (Nutzer; neue Variante gegenüber dem
+  Entwurf). Beide Dateien werden **im LittleFS** zwischengespeichert, nicht im RAM: beim ESP-Start geholt —
+  der Heap ist dann noch unzerstückelt — und als Datei abgelegt; `update_status` liefert sie aus der Datei,
+  gestreamt, ohne ausgehende Verbindung, auch nicht beim Neuladen der PWA. Neu geholt und geschrieben wird
+  nur, wenn sich der Versionsschlüssel vom Stand der Datei unterscheidet. Antwortform unverändert, die Notes
+  bleiben sichtbar, keine PWA-Änderung. Die Festlegungen zu Dateinamen, Gültigkeit, Schreibhäufigkeit,
+  Fehlschlag, Platz und Startzeitpunkt trifft `design.md` §18.5a. *Entwurf:* A (nur auf Anforderung, war
+  die Empfehlung), B (`?notes=0`), C (LittleFS) — gewählt ist C.
+- **Ent-21 — Rücksetzen: B** (Lead). Nur `device_ready?heap_low_reset=1` setzt I-1 und I-3 zurück.
+- **Ent-22 — `low=` in der Heap-Zeile: ja** (Lead).
+- **Ent-23 — Haltegrenze K30 nach E3: nach Empfehlung** (Nutzer). Anhalten, wenn der **Ruhewert** (`max` der
+  ersten Heap-Zeile, die mindestens 60 s nach der letzten Aktion des Testers beginnt; die offene PWA darf
+  dabei abfragen) unter **5'120** Byte fällt **oder** der **Tiefstwert** (`low=`) unter **1'072** Byte;
+  dazwischen kein Anhaltegrund, ins Protokoll. Werte verschiedener Messweisen werden nicht verglichen.
+- **Ent-24 — entfällt.** P2 (PWA 1.4.99) läuft nach Nutzerentscheid bereits auf der Uhr (Tag
+  `release/3.2.34-3.2.35-1.4.99`). G7 misst mit 1.4.99; P2 ändert die Last nicht. P2.12 ist erledigt und
+  nicht an E3 gebunden.
+- **Ent-25 — Sendezeitgrenze** (Lead): API-Antworten **1'000 ms**, Dateiauslieferung **2'000 ms**, vor
+  `ESPhttpUpdate.update` ausdrücklich **mindestens 5'000 ms**.
+- **Ent-26 — beide Eingriffe in G7 freigegeben** (Nutzer): (a) Zero-Window-Probe, (b) ein
+  `weather_get_forecast` während einer PWA-Ladung.
+- **Ent-27 — einstufig** (Lead): ein Release E3; Wirkung über kalt gegen warm (AKR.13) und die alte Messweise
+  gegen L449 (AKR.14).
+- **N-5 — Freigabe der Gerätenachweise:** Nutzerentscheid N-5, 13.10.2026, Gespräch („alle freigegeben, auch
+  der STM-Reset nachts"). G7 ist danach lesend freigegeben; die Zeile in `BEFUNDE.md` ergänzt der Lead.

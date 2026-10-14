@@ -1,4 +1,4 @@
-# Tasks — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, E36, F3)
+# Tasks — Paket 2026-10-13 „Mittlere Befunde und offene Entscheidungen" (A15, A56, A70, A79, A80, A81, A82, B8, B48, B55, C6, C6b, C6v, C8, C19, C46, C59, C60, C65, E36, F3)
 
 **Erstellt:** 2026-10-13, Stand `159c9d0`; am selben Tag mit den Entscheidungen des Nutzers nachgeführt.
 Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
@@ -12,6 +12,12 @@ Paket und wird in einer eigenen Spec geklärt (C6, C6v, C60, C61, C62). **Ent-11
 aufgehoben.** **Release E1 entfällt**; C46 (ESP-Teil) und C19 (L311) liegen im Baum und gehen mit **E2**
 hinaus. **EP** verliert die POST-Umstellung und alles zur Herkunft; es bleibt ein Release mit ESP **und**
 PWA — Grund ist jetzt allein C6b (`design.md` §8.4). Neuer Schnitt: S1 → S2 → (S3) → E2 → EP → P2.
+
+**Nachtrag 14.10.2026 (Ent-19, L449) — Schritt E3: freigegeben 14.10.2026.** C65 (Heap unter PWA-Last)
+kommt als eigenes ESP-Release **E3 vor T2 und Z** dazu: I-1 bis I-3, M-1, M-3 (`design.md` §18). Ent-20 bis
+Ent-27 sind entschieden; **Ent-20 = Variante C** (Release Notes und `wc-list.txt` im LittleFS,
+`design.md` §18.5a); **Ent-24 entfällt**, P2 läuft bereits auf der Uhr. Schnitt: S1 → S2 → (S3) → E2 → EP →
+T1 → P2 (auf der Uhr) → **E3** → **G7** → T2 (nach G6) → Z.
 
 ## Entscheidungen (13.10.2026)
 
@@ -35,6 +41,16 @@ PWA — Grund ist jetzt allein C6b (`design.md` §8.4). Neuer Schnitt: S1 → S2
 | **Ent-16** | Spec | **freigegeben** | alle |
 | **Ent-17** | A81, A82 | in S2 aufgenommen, soweit das Budget trägt; sonst Nachrang (A82 nach S3) | S2.5, S2.9 |
 | **Ent-18** | Schutz der zerstörerischen Aufrufe | **13.10.2026, Entscheidung des Nutzers (L439, L440):** entfällt aus diesem Paket, eigene Spec für C6, C6v, C60, C61, C62. Ent-11 und Ent-12 aufgehoben. Release E1 entfällt; der Herkunftsteil ist auf `sicherung/e1-herkunft` (`2662368`) gesichert, nicht als Schutz zu verwenden. C46 (ESP) und C19 gehen mit E2. EP ohne POST und ohne Herkunft; AKH.1–AKH.7 entfallen, G3 geht in G4 auf | E1, E2.0, E2.10, EP |
+| **Ent-19** | C65 | **14.10.2026, Nutzer (L449):** eigenes ESP-Release **E3 vor T2 und Z**; I-1 bis I-3, M-1, M-3; M-2 und M-4 als Folgebefunde | E3, T2 |
+| **Ent-20** | Release Notes und `wc-list.txt` | **14.10.2026, Nutzer: Variante C** — im LittleFS, beim Start geholt, aus der Datei gestreamt, neu geschrieben nur bei geändertem Versionsschlüssel; keine PWA-Änderung. Festlegungen `design.md` §18.5a | E3.4a, E3.6, E3.16 |
+| **Ent-21** | Rücksetzen I-1/I-3 | **Lead: B** — nur mit `device_ready?heap_low_reset=1` | E3.1, E3.3, E3.7, E3.16 |
+| **Ent-22** | `low=` in der Heap-Zeile | **Lead: ja** | E3.1, E3.11, T2 |
+| **Ent-23** | Haltegrenze K30 nach E3 | **Nutzer, nach Empfehlung:** anhalten bei Ruhewert < 5'120 (Heap-Zeile, ≥ 60 s nach der letzten Aktion) **oder** Tiefstwert `low=` < 1'072; dazwischen protokollieren | E3.11, E3.17, T2 |
+| ~~**Ent-24**~~ | Reihenfolge E3 / Einspielen P2 | **entfällt:** P2 (PWA 1.4.99) läuft nach Nutzerentscheid bereits auf der Uhr (Tag `release/3.2.34-3.2.35-1.4.99`); P2.12 erledigt, nicht an E3 gebunden | P2.12 |
+| **Ent-25** | Sendezeitgrenze | **Lead:** API 1'000 ms, Dateien 2'000 ms, vor `ESPhttpUpdate.update` mindestens 5'000 ms | E3.5 |
+| **Ent-26** | Eingriffe in G7 | **Nutzer: beide freigegeben** — (a) Zero-Window-Probe, (b) `weather_get_forecast` während einer Ladung | E3.7, E3.16 |
+| **Ent-27** | Wirkung von M-1 belegen | **Lead: einstufig** — kalt gegen warm (AKR.13), alte Messweise gegen L449 (AKR.14) | E3, E3.16 |
+| **N-5** | Freigabe der Gerätenachweise | **Nutzerentscheid N-5, 13.10.2026, Gespräch** („alle freigegeben, auch der STM-Reset nachts"); Zeile in `BEFUNDE.md` ergänzt der Lead | E3.16 |
 
 **Vom Lead festgelegt (Vorpaket, gilt weiter):** `CHANGELOG.md` je Release schreibt der Lead. Matrix-Lauf
 vor jedem STM-Release, das Flash kostet, nach der Versionsanhebung.
@@ -48,13 +64,16 @@ bei Exit 0 geht die Schreibberechtigung weiter.
 `design.md` §0.1):
 
 1. **Code des nächsten Releases erst nach dem Release-Build des vorigen:** S2.1 nach S1.12, E2.0/E2.1 nach
-   S2.22 (bzw. S3.6), EP.2 nach E2.12, P2.1 nach EP.16.
+   S2.22 (bzw. S3.6), EP.2 nach E2.12, P2.1 nach EP.16, **E3.1 nach P2.11**.
 2. **Release-Build erst nach dem Gerätenachweis des vorigen:** S2.22 nach S1.14 (G1), E2.12 nach S2.24
    (G2) bzw. S3.8 (G2b), EP.16 nach E2.14 (G4), P2.11 nach T1. STM-Builds zusätzlich nach grünem
-   Matrix-Lauf (S1.11, S2.21, S3.5).
+   Matrix-Lauf (S1.11, S2.21, S3.5). **E3.14 nach P2.11;** ist G6 (P2.13) dann noch offen, gilt die
+   Begründung aus `design.md` §0.1 (E3 ändert keine PWA-Datei).
 3. **Innerhalb eines STM-Releases nacheinander, Flash-Gate nach jedem Task** (AKM.1).
 4. **EP ist ein Release mit zwei Komponenten:** Zwischen ESP-OTA und PWA-Upload liegt nichts. Grund seit
    Ent-18 allein C6b — die alte PWA exportierte sonst leere WLAN-Schlüssel (`design.md` §8.4).
+5. **E3 vor T2:** T2 erst nach G7 (E3.17) **und** G6 (P2.13). Zwischen E3.15 und E3.16 liegt **kein**
+   Einspielen.
 
 **Messwerte sofort (L424):** Jeder messende Task hängt sein Ergebnis **vor dem nächsten Task** an das
 Messprotokoll in `BEFUNDE.md` an. Messzeilen schreibt der Lead, Befundnachführungen der `doc-writer` — nie
@@ -67,7 +86,7 @@ dem Einspielen gestartet, `--pruefe` am Ende (AKZ.5); auf später geplante Tests
 **Werkzeugvorbehalt:** `firmware-analyst` und `code-reviewer` haben kein `Bash`. Prüfstände baut der
 Umsetzer im Scratchpad, der Lead legt sie unter `tools/checks/auszug/` ab und fährt die Gegenprobe
 (DIR-014). Vor jedem Patch Kodierung **und** Zeilenende feststellen (AKZ.9) — `ESP-uclock.ino` gemischt,
-`http.cpp` UTF-8.
+`http.cpp` UTF-8; für E3 zusätzlich `httpclient.cpp`, `base.h`, `http.h`.
 
 **Spalten:** **G** = Guardrails nach dem Task mit Exit 0, **R** = Review bestanden.
 
@@ -240,11 +259,18 @@ Nach jedem E2-Task misst der Lead „Globale Variablen" und schreibt sie sofort 
 | EP.18 | **G5** | Lead | EP.17 | **AKL.4**, **AKS.4** (~~AKH.7~~ entfällt) | — | — |
 | T1 | `pwa-tester` Phasen 0–4 und 9 | `pwa-tester` | EP.18, EP.9 | **AKZ.6** | — | — |
 
+**Stand 14.10.2026 (L449):** T1 hat an der Haltegrenze K30 gestoppt; lesender Teil 51 von 56 bestanden.
+Phase 3 (113 von 114), E1–E8 und **AKL.4** sind nicht gefahren und gehen an **T2** (Schritt T2 unten).
+
 ---
 
 ## Schritt P2 — PWA-Release: B48, B8
 
 P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach EP.16.
+
+**Stand 14.10.2026:** P2.1 bis P2.12 erledigt (Commit `8445a10`, Tag `release/3.2.34-3.2.35-1.4.99`, PWA
+1.4.99 nach Nutzerentscheid auf der Uhr; Ent-24 entfällt). P2.13 (G6) steht unabhängig von E3 aus und muss
+vor T2 abgeschlossen sein.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
@@ -259,9 +285,48 @@ P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach
 | P2.9 | `CHANGELOG.md`, AKZ.3, `git status`, `--full` | Lead | P2.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
 | P2.10 | Einspielzeilen | Lead | P2.9 | **AKZ.8** | — | — |
 | P2.11 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | P2.10, **T1** | **AKZ.7** | ☐ | — |
-| P2.12 | `install-app.sh`, `check-pwa.sh` | Lead | P2.11 | **AKD.3** | — | — |
-| P2.13 | **G6:** EN-Stichprobe; iPhone durch den Nutzer | Lead, Nutzer | P2.12 | **AKD.3**, **AKF.2** | — | — |
-| T2 | `pwa-tester` Phasen 0–4 und 9 | `pwa-tester` | P2.13, P2.7 | **AKZ.6** | — | — |
+| P2.12 | `install-app.sh`, `check-pwa.sh` — **erledigt 14.10.2026** (Nutzerentscheid; nicht an E3 gebunden) | Lead | P2.11 | **AKD.3** | — | — |
+| P2.13 | **G6:** EN-Stichprobe; iPhone durch den Nutzer — liegt G6 nach dem OTA von E3, dabei auf `fs write short` und `fail=` achten (Sendezeitgrenze, `design.md` §18.6) | Lead, Nutzer | P2.12 | **AKD.3**, **AKF.2** | — | — |
+
+---
+
+## Schritt E3 — ESP-Release: C65 Heap unter PWA-Last (Nachtrag 14.10.2026, freigegeben 14.10.2026)
+
+`design.md` §18; Akzeptanzkriterien AKR in `requirements.md`. **Ein** `esp-developer` schreibt E3.1 bis
+E3.5 nacheinander (in `http.cpp`, `httpclient.cpp`, dem gemeinsamen Kopf und `ESP-uclock.ino`). **Nach jedem
+dieser Tasks** baut der Lead den ESP-Teil, misst „Globale Variablen" und Programmgrösse und schreibt beides
+sofort ins Messprotokoll E3 (AKR.8, L424), bevor der nächste Task beginnt; über 700 Byte Zuwachs insgesamt
+⇒ anhalten und vorlegen.
+
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| E3.0 | **Grundlagen (lesend):** Zeile „Messprotokoll E3" in `BEFUNDE.md` anlegen mit der Fundstelle **Nutzerentscheid N-5, 13.10.2026, Gespräch**. Von der Uhr: Länge der **gefilterten** Listen (`stm32_files`, `table_files`), freier Platz und Gesamtgrösse des LittleFS (`/api/fs_info`), Grösse von `app-app.js.gz` (`/api/fs_list`), bekannte Hardware (`stm32_default`). Vom Update-Server: Grösse von `releasenote.html`, `wc-list.txt`, `wc-list-tables.txt`. Daraus: Puffergrösse der Tabellenliste, Höchstlänge der `wc-list`-Datei, Platzschwelle (§18.5a), **Sollwert Δ`httpclient_connects` für einen kalten Lauf** (erwartet 6). „Globale Variablen" und Programmgrösse des Stands `8445a10` (ESP-Teilbuild) | Lead | **P2.11** | Werte im Messprotokoll E3 | — | — |
+| E3.1 | **I-1** nach §18.2: Tiefstwerte, vier Messpunkte, `httpclient_connects`, Felder in `device_ready`, Rücksetzen nur mit `heap_low_reset=1` (Ent-21 B), `low=` in der Heap-Zeile (Ent-22; `ESP-uclock.ino` gemischte Zeilenenden, byte-genau). Prüfpunkt Kosten `getMaxFreeBlockSize()` am Core. **Prüfstand c65a** (I-1-Teil) im Scratchpad | `esp-developer` | E3.0 | **AKR.1** | ☐ | — |
+| E3.2 | **I-2** nach §18.3: Felder `blk`/`snd`/`ms` in beiden Zeilen, `fs write short` in Zähler und Ring, `fs_write_short` in `device_ready`. **Prüfstand c65b** mit Attrappe nach der Checkliste | `esp-developer` | E3.1 | **AKR.2** | ☐ | — |
+| E3.3 | **I-3** nach §18.4: `req_max_ms`, `req_max_path` ohne Query, jeder Rückkehrpfad. c65a ergänzt | `esp-developer` | E3.2 | **AKR.3** | ☐ | — |
+| E3.4 | **M-1, Tabellenliste und Antwortform** nach §18.5 (1) und (3): RAM-Zwischenspeicher für `table_files`, `update_table_files` über `update_server_open()`, Kopfkommentar `http.cpp:12596-12620` nachführen. Im Bericht die Tabelle „Wirkung je Leser der PWA" (Vorlage §18.5). **Prüfstand c65m** samt Schlüsselvergleich | `esp-developer` | E3.3 | **AKR.4**, **AKR.6** | ☐ | — |
+| E3.4a | **M-1, Release Notes und `wc-list.txt` im LittleFS** nach §18.5a (Ent-20 C): Dateien `/upd-releasenote.txt`, `/upd-wc-list.txt` mit Kopfzeile, Auftrag `update_cache_poll()` aus `loop()` (Zustandsmaschine, ein Abruf je Durchlauf, Bedingungen: WLAN, Host und Pfad gesetzt, 60 s nach Start, 5 s nach der letzten Anfrage, Sperrfenster, 10 min nach Fehlschlag), Temporärdatei und Umbenennen, Platzschwelle, Ausliefern aus der Datei mit gemeinsamer Maskierung, Zeilen `- update cache …`. Prüfpunkt: Bestandsliste aller festen Dateinamen, keine Kollision mit `upd-`. **Prüfstand c65n** | `esp-developer` | E3.4 | **AKR.5**, **AKR.6** | ☐ | — |
+| E3.5 | **M-3** nach §18.6 (Ent-25): `setTimeout (1000)` nach `accept()`, `2000` in der Dateiauslieferung, `5000` vor beiden `ESPhttpUpdate.update`; Bestandsliste der Stream-Lesestellen; Kommentare mit 5'000 ms nachführen. **Prüfstand c65t** | `esp-developer` | E3.4a | **AKR.7** | ☐ | — |
+| E3.6 | Prüfstände c65a, c65b, c65m, c65n, c65t unter `tools/checks/auszug/esp/c65/` ablegen und in S16 aufnehmen; Gegenproben gegen 3.2.35 und Sabotagen fahren; Fallzahlen nachzählen (L235) | Lead | E3.5 | **AKR.1–AKR.7** am Prüfstand, Fallzahlen | ☐ | — |
+| E3.7 | **Werkzeug:** Wache `- fs write short` (Alarm), `- update liste zu gross` und `- update cache … fehlgeschlagen` (Hinweis), je Gegenprobe; `smoke-device.sh` verlangt die neuen `device_ready`-Felder und setzt nichts zurück, Gegenprobe über `SMOKE_DR_OVERRIDE`; Zero-Window-Probe (Ent-26 a, §18.8), einmal gegen einen lokalen, normal lesenden Server fehlgeschlagen (Exit ≠ 0) | Lead | E3.6 | **AKR.9**, **AKR.10**, **AKZ.5** | ☐ | — |
+| E3.8 | **Review E3:** alle vier Punkte der Checkliste; Attrappen-Semantik in c65b (`connected()` nach FIN 0); jeder Rückkehrpfad in I-3; keine Query in Logs oder `req_max_path`; Rückwärtsverträglichkeit (AKR.6 und Tabelle aus E3.4); LittleFS: Temporärdatei, Längenprüfung, Schreibhäufigkeit, nie der Server des Ursprungsprojekts, Platzschwelle; OTA-Zeitgrenze; Kodierung und Zeilenenden (AKZ.9) | `code-reviewer` | E3.7 | Checkliste | — | ☐ |
+| E3.9 | ESP-Version anheben (erwartet 3.2.36); `APP_VERSION` und `CACHE_NAME` **nicht** | `release-engineer` | E3.8 | S4 | ☐ | — |
+| E3.10 | `CHANGELOG.md`-Eintrag E3; AKZ.3 gegen das Tag von P2 (nur ESP-Dateien); `--full`; alles sofort ins Messprotokoll | Lead | E3.9 | **AKZ.2**, **AKZ.3** | ☐ | — |
+| E3.11 | `TESTPLAN-PWA.md`: **K30** nach Ent-23 (Ruhewert und `low=`, beide Grenzen, Messweise); Logzeilen-Tabelle (`http write lost` und `fs write short` mit `blk`/`snd`/`ms` und der Entscheidungsregel aus §18.3, `- update liste zu gross`, `- update cache …`, `low=`); neue `device_ready`-Felder und `heap_low_reset`; `write_lost_failed` zählt ab E3 auch abgebrochene Assets; T2-Umfang (AKL.4, Setter-Phasen aus L449, AKR.21 nach dem Reset aus V3) | `doc-writer` | E3.8 | S9, S11 | ☐ | — |
+| E3.12 | `BEFUNDE.md`: „Träger: Paket 2026-10-13 (Release E3)" an C65, C49, C54; die Folgebefunde aus §18.10 als eigene Zeilen (M-2, M-4, **Teildatei in `download_file_to_local()`**, Brücke während langer Antworten). **Nicht gleichzeitig mit einer Messzeile des Leads** (R3) | `doc-writer` | E3.10 | S10, S11 | ☐ | — |
+| E3.13 | Einspielzeilen: **nur** ESP-OTA; Hinweis, dass in den ersten rund 60 s die Release Notes leer sind (Startabruf), und dass G7 erst nach AKR.20 beginnt | Lead | E3.10 | **AKZ.8** | — | — |
+| E3.14 | Build, ZIP, Rollout, Commit + Tag + Push (Tag nach DIR-011 mit den Versionen dieses Commits, erwartet `release/3.2.34-3.2.36-1.4.99`) | Lead | E3.11, E3.12, E3.13 | **AKZ.7** | ☐ | — |
+| E3.15 | Wache starten; ESP-OTA; Smoketest samt Update-Quelle; `install-app.sh --check` (ohne Abweichung); `check-pwa.sh`; jedes Ergebnis sofort ins Messprotokoll | Lead | E3.14 | **AKR.11**, **AKZ.4** | — | — |
+| E3.16 | **G7** nach `design.md` §18.8: Startabruf (G7.0b), Ruhe, drei Paare kalt/warm, alte Messweise, Zero-Window-Probe, Vorhersageabruf während einer Ladung, Ruhe nach Last; jeder Lauf sofort ins Messprotokoll; `caffeinate`, falls geplant | Lead | E3.15 | **AKR.12–AKR.20** | — | — |
+| E3.17 | **Weiter oder anhalten:** G7 gegen K30 (Ent-23) auswerten. Ruhewert < 5'120 (AKR.12 ii) oder `low=` < 1'072 ⇒ **kein** T2, dem Nutzer vorlegen. Ist nur AKR.13 nicht erfüllt, geht es weiter; C65 bleibt dann offen, mit Befund | Lead | E3.16 | **AKR.12**, Ent-23 | — | — |
+
+---
+
+## Schritt T2 — `pwa-tester` nach E3 und P2
+
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| T2 | `pwa-tester` Phasen 0–4 und 9; **dazu AKL.4** und die Setter-Phasen, die T1 an der Haltegrenze ausgelassen hat (L449: Phase 3 Rest, E1–E8). Haltegrenze K30 nach Ent-23, gemessen am Ruhewert der Heap-Zeile und an `low=`; I-2-Zeilen im Mitschnitt nach der Entscheidungsregel lesen; nach dem ESP-Neustart aus V3 die Zeilen `- update cache …` prüfen (AKR.21) | `pwa-tester` | P2.13, P2.7, E3.11, E3.17 | **AKZ.6**, **AKL.4**, **AKR.21** | — | — |
 
 ---
 
@@ -269,7 +334,7 @@ P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** aus dem Messprotokoll | `doc-writer` | T2 | S10, S11 | ☐ | — |
+| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** aus dem Messprotokoll — für C65, C49, C54 aus dem Messprotokoll E3 und aus T2 | `doc-writer` | T2 | S10, S11 | ☐ | — |
 | Z.2 | Spec-Endstand | `spec-writer` | Z.1 | jedes Kriterium mit Beleg oder Grund | — | — |
 
 ## Abschluss
@@ -278,5 +343,5 @@ P2.3/P2.4 dürfen im Worktree (R6) vorgezogen werden; in den Hauptbaum erst nach
       E1.11–E1.14, EP.1 und EP.14 entfallen mit Ent-18)
 - [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
 - [ ] Alle Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen
-- [ ] Fünf Releases (S1, S2, E2, EP, P2; sechs mit S3), je Flash-Umfang und Reihenfolge benannt, je
+- [ ] Sechs Releases (S1, S2, E2, EP, P2, E3; sieben mit S3), je Flash-Umfang und Reihenfolge benannt, je
       committet, getaggt, gepusht
