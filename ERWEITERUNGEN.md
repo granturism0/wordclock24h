@@ -13,6 +13,18 @@ Kennung `X<n>`, fortlaufend, wird nie neu vergeben. Status: **Idee** (aufgenomme
 | | Erweiterung | Status | Hängt ab von | Betrifft |
 |---|---|---|---|---|
 | **X1** | **Live-Display der echten LEDs in der PWA** | Idee | C65 (Heap des ESP unter PWA-Last) | STM, ESP, PWA |
+| **X2** | **Ambilight: Haken „Use Display Brightness“** — unterschiedliche Farben, aber gleiche Helligkeit | Idee | — | STM, ESP, PWA |
+| **X3** | **Hintergrundfarbe/-helligkeit für das Ambilight** | Idee | — | STM, ESP, PWA |
+| **X4** | **Daylight-Farbanimation mit fliessendem Übergang** | Idee | — | STM |
+| **X5** | **Neues Overlay „Time“** — lässt „Es ist hh:mm Uhr“ als Ticker durchlaufen | Idee | Flash-Reserve STM | STM, PWA |
+| **X6** | **Overlays mit Uhrzeitbereichen** — neben von–bis-Daten auch z. B. 10:00–12:30 | Idee | Layout-Version EEPROM | STM, ESP, PWA |
+| **X7** | **Daylight-Tabelle über das Webinterface änderbar** | Idee | X4 sinnvoll vorher | STM, ESP, PWA |
+| **X8** | **Rainbow-Animation für SK6812 (Weiss) optimiert** | Idee | — | STM |
+| **X9** | **Harlekin-Farbanimation** — jeder Buchstabe hat eine eigene Farbe | Idee | Flash-Reserve STM | STM, PWA |
+| **X10** | **Farbanimation „jedes Wort eine eigene Farbe“**, evtl. mit Regenbogeneffekt | Idee | Flash-Reserve STM | STM, PWA |
+| **X11** | **Neue Animation „Implode“** | Idee | — | STM, PWA |
+| **X12** | **Mood-Light-Funktion** | Idee | — | STM, ESP, PWA |
+| **X13** | **Hintergrundfarbe/-helligkeit für das Display** | Idee | X3 gemeinsam planen | STM, ESP, PWA |
 
 ## X1 — Live-Display der echten LEDs in der PWA
 
@@ -42,3 +54,60 @@ die Diagnose (siehe die sporadischen Hänger in `CLAUDE.md`, „Offene technisch
 - Takt: laufend, solange die Seite offen ist, oder auf Knopfdruck?
 - Wo das Abbild entsteht (STM sendet Rohzustand, ESP verdichtet, PWA zeichnet) und was es an Flash
   auf der engsten STM-Variante kostet (Reserve über dem Gate siehe `BEFUNDE.md`, L435).
+
+## X2 bis X13 — aus der Liste „Weitere geplante Features“ des Ursprungsprojekts
+
+Aufgenommen am 14.10.2026 auf Wunsch des Nutzers, im Wortlaut der Homepage des
+Ursprungsprojekts. Je Eintrag steht, was der Code heute dazu schon hat (geprüft am Stand
+dieses Tages); daraus ergibt sich der Ansatz, nicht die Spec.
+
+**Gemeinsame Randbedingung für alles, was den STM berührt:** Die engste STM-Variante
+(`wc24h-stm32f103-sk6812-rgbw`) hat über dem Flash-Gate nur noch wenig Reserve (`BEFUNDE.md`,
+L435). Neue Animationen und Overlay-Typen brauchen vorher eine Flash-Analyse an dieser Variante —
+oder gelten nur für den F411.
+
+- **X2 Ambilight „Use Display Brightness“.** Heute gibt es nur den vollständigen Abgleich
+  `DISPLAY_FLAGS_SYNC_AMBILIGHT`: `sync_colors()` (`src/display/display.c`) übernimmt Farbe **und**
+  Helligkeit gemeinsam. Gewünscht ist ein zweiter, getrennter Merker nur für die Helligkeit.
+- **X3 Hintergrundfarbe/-helligkeit für das Ambilight.** Nichts vorhanden. Nicht leuchtende
+  Ambilight-LEDs in einer schwachen Grundfarbe. Mit X13 gemeinsam planen (gleiches Prinzip).
+- **X4 Daylight mit fliessendem Übergang.** Heute springt die Farbe einmal je Stunde: Tabellen
+  `daylight_red/green/blue[24]` in `display.c`, Wechsel bei `gmain.hour != last_hour`, getrennt
+  für Display und Ambilight. Gewünscht ist Interpolation zwischen den Stundenwerten.
+- **X5 Overlay „Time“.** Die Overlay-Typen 0–10 (`src/overlay/overlay.h`) kennen keine Uhrzeit;
+  das Datumsformat des Tickers kennt nur Tag, Monat, Jahr. Neuer Typ mit Ticker „Es ist hh:mm
+  Uhr“; sprachabhängig (Layout-Tabellen), also Text je Sprache klären.
+- **X6 Overlays mit Uhrzeitbereich.** Ein Overlay-Eintrag hat heute Typ, Intervall, Dauer,
+  Datumscode, Startdatum, Tage und Merker (`overlay.h`) — keine Uhrzeit. Braucht neue Felder im
+  EEPROM (Layout-Version, Rückflash und Backup beachten: `BEFUNDE.md`, F-Reihe „Backup
+  versionsfest“).
+- **X7 Daylight-Tabelle im Webinterface.** Die Tabelle ist im STM fest eingebaut; die PWA hält
+  nur eine eigene Kopie für die Vorschau (`DAYLIGHT_RED/GREEN/BLUE`, `getDaylightPreviewColor`
+  in `app.js`). Braucht Setter, EEPROM-Platz (3 × 24 Byte) und Aufnahme ins Backup (S17).
+- **X8 Rainbow für SK6812 mit Weiss.** Die Rainbow-Phasen bilden Weiss heute aus RGB, der
+  Weisskanal bleibt 0. Gewünscht: den Weisskanal in der Animation nutzen.
+- **X9 Harlekin.** Nichts vorhanden. Heute gibt es drei Farbanimationen fürs Display: None,
+  Rainbow, Daylight (`display.h`).
+- **X10 Jedes Wort eine eigene Farbe.** Nichts vorhanden; mit X9 verwandt (Farbe je Buchstabe
+  bzw. je Wort statt je Panel). Gemeinsam planen.
+- **X11 Animation „Implode“.** Teilweise vorhanden: `display_animation_calc_implode()` in
+  `display.c` existiert, dient heute aber nur der Animation „Explode“ (die Implosion wird
+  rückwärts abgespielt). Ein eigener Modus fehlt — der Grossteil der Rechnung ist also schon da.
+  Heute gibt es 13 Animationen: None, Fade, Roll, Explode, Random, Snake, Teletype, Cube,
+  GreenMatrix, Drop, Squeeze, Flicker, Matrix.
+- **X12 Mood-Light.** Nichts vorhanden. Ganzes Panel (und Ambilight) als Stimmungslicht; Umfang
+  (feste Farbe, Verlauf, Zeitsteuerung) in der Spec klären. Berührt die Display-Zustandsmaschine
+  und damit die Restore-Bedingung (`CLAUDE.md`, Architektur-Invarianten).
+- **X13 Hintergrundfarbe/-helligkeit für das Display.** Nichts vorhanden. Mit X3 gemeinsam.
+
+### Aus derselben Liste bereits umgesetzt
+
+Nicht mehr als Erweiterung geführt — geprüft am 14.10.2026:
+
+- **Negative Korrekturwerte für die Temperatur:** ±20 °C in Schritten zu 0,5 °C für RTC und
+  DS18xx, durchgängig in STM (`RTC_TEMP_CORRECTION_LIMIT`, `TEMP_CORRECTION_LIMIT`), ESP
+  (`temperature_correction_set`, Legacy-Felder) und PWA.
+- **STM32-Logbuch im Webinterface:** `/api/stm32_log` und `/api/stm32_log_clear`, in der PWA das
+  Logbuch-Panel im Modul System.
+- **Export/Import der Einstellungen:** Backup-Export und -Import der PWA (Einstellungen, Netzwerk,
+  IR-Codes). In der Legacy-Oberfläche gibt es das nicht.
