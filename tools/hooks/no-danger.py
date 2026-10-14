@@ -5,7 +5,8 @@ Setzt Phase 8 aus TESTPLAN-PWA.md durch. Dort steht, welche sieben Funktionen NI
 scharf ausgefuehrt werden. Bisher stuende das nur in einem Dokument -- und ein
 Dokument verhindert nichts.
 
-Die Uhr ist ein Einzelstueck im Dauerbetrieb. Ein Agent, der eine Teststrategie
+Die Uhr ist eine Test-Uhr (R5, DIR-008), aber ein Einzelstueck, und manche Folgen
+lassen sich nur am Geraet selbst beheben. Ein Agent, der eine Teststrategie
 abarbeitet, trifft frueher oder spaeter auf eine Zeile wie "Netzwerkeinstellungen
 pruefen" und hat dann die Wahl zwischen Auslassen und Ausprobieren. Diese Wahl soll
 er gar nicht erst haben.
@@ -89,10 +90,10 @@ def refuse(what, why):
     print(
         f"Blockiert durch Phase 8 (TESTPLAN-PWA.md): {what}\n\n"
         f"Grund: {why}\n\n"
-        "Die Uhr ist ein Einzelstueck im Dauerbetrieb, kein Testgeraet. Fuer diese "
-        "Funktion sieht der Testplan eine Ersatzpruefung vor — siehe Phase 8. "
-        "Soll sie wirklich scharf ausgefuehrt werden, macht das der Nutzer selbst "
-        "oder die Hauptsitzung nach ausdruecklicher Freigabe.",
+        "Die Uhr ist eine Test-Uhr, aber ein Einzelstueck; ein Agent loest diese "
+        "Funktion nicht nebenbei aus. Der Testplan sieht eine Ersatzpruefung vor — "
+        "siehe Phase 8. Soll sie scharf ausgefuehrt werden, macht das die "
+        "Hauptsitzung gewollt und angekuendigt.",
         file=sys.stderr,
     )
     return 2

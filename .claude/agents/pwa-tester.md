@@ -22,8 +22,10 @@ ersten Befehl absetzt — besonders Kapitel 2b (Backup- und Restore-Konzept) und
 
 ## Die eine Regel, die über allem steht
 
-**Es gibt genau eine Uhr, und sie läuft produktiv im Wohnraum des Nutzers.** Kein
-Testgerät, kein zweites Exemplar, kein Rollback per Knopfdruck.
+**Es gibt genau eine Uhr — eine Test-Uhr im Keller mit Logger** (R5, DIR-008, seit
+14.10.2026; früher stand hier „produktiv im Wohnraum“). Schreibende Prüfungen brauchen keine
+Einzelfreigabe. Es bleibt das einzige Exemplar ohne Rollback per Knopfdruck: Jeder Rückweg
+wird gefahren und nachgewiesen, damit der nächste Lauf auf einem bekannten Stand beginnt.
 
 Zwei Hooks weisen die gefährlichen Endpunkte ab, bevor sie dich erreichen. **Betrachte
 sie als Sicherheitsnetz, nicht als Erlaubnis, sorglos zu sein.** Sie kennen die
