@@ -1,27 +1,28 @@
 <H2>Release Notes WordClock 3.2.34</H2>
-<P><B>WordClock24h &ndash; Weiterentwicklung der Version 3.1.5</B> von Frank Meyer
-(<a href="https://github.com/ukw100/wordclock24h">Originalprojekt</a>).</P>
-<P><B>Das Wichtigste</B></P>
-<UL>
-<LI>Neue Web-App unter <B>/app</B>, Deutsch und Englisch. Die bisherige Oberfl&auml;che bleibt.</LI>
-<LI>Sicherung und Wiederherstellung aller Einstellungen, mit WLAN und IR-Codes.</LI>
-<LI>Stabiler Betrieb: Watchdog, keine dunkle Anzeige mehr nach Ticker oder Wetter, gesicherte Verbindung zwischen ESP und STM.</LI>
-<LI>Sensoren: DS18xx gepr&uuml;ft, Minusgrade und halbe Grad, LDR-Grenzen mit R&uuml;ckmeldung.</LI>
-<LI>Nachtmodus auch nach einem Neustart, Ambilight merkt sich Ein/Aus.</LI>
-<LI>Sicherheit: Der WLAN-Schl&uuml;ssel wird nur noch f&uuml;r die Sicherung herausgegeben.</LI>
-</UL>
-<P><B>Umstieg von 3.1.5 &ndash; genau in dieser Reihenfolge</B></P>
-<OL>
-<LI>Men&uuml; <B>Update</B>: Update Host und Update Path auf diesen Server stellen und speichern.</LI>
-<LI><B>Update ESP8266</B>. Die Uhr startet neu.</LI>
-<LI><B>Update STM32</B>.</LI>
-<LI><B>http://&lt;Uhr&gt;/app/</B> aufrufen und &bdquo;App jetzt installieren&ldquo; w&auml;hlen.</LI>
-<LI>In der App unter <B>Wartung</B>: Icon-Dateien und Layout-Tabelle laden.</LI>
-<LI>Unter <B>Wartung</B> eine Sicherung erstellen.</LI>
-</OL>
+<P><B>WordClock24h &ndash; Weiterentwicklung der Version 3.1.5 von Frank Meyer</B><BR>
+Originalprojekt: <a href="https://github.com/ukw100/wordclock24h">github.com/ukw100/wordclock24h</a></P>
+
+<P><B>Das Wichtigste</B><BR>
+&ndash; Neue Web-App unter /app, Deutsch und Englisch. Die bisherige Oberfl&auml;che bleibt.<BR>
+&ndash; Sicherung und Wiederherstellung aller Einstellungen, mit WLAN und IR-Codes.<BR>
+&ndash; Stabiler Betrieb: Watchdog, keine dunkle Anzeige mehr nach Ticker oder Wetter.<BR>
+&ndash; Sensoren: DS18xx gepr&uuml;ft, Minusgrade und halbe Grad, LDR mit R&uuml;ckmeldung.<BR>
+&ndash; Nachtmodus auch nach einem Neustart, Ambilight merkt sich Ein/Aus.<BR>
+&ndash; Der WLAN-Schl&uuml;ssel wird nur noch f&uuml;r die Sicherung herausgegeben.</P>
+
+<P><B>Umstieg von 3.1.5 &ndash; genau in dieser Reihenfolge</B><BR>
+1. Men&uuml; Update: Update Host und Update Path auf diesen Server stellen, je Save.<BR>
+2. Update ESP Firmware. Die Uhr startet neu.<BR>
+3. Flash STM32.<BR>
+4. http://&lt;Uhr&gt;/app/ aufrufen und &bdquo;App jetzt installieren&ldquo; w&auml;hlen.<BR>
+5. In der App unter Wartung: Icon-Dateien und Layout-Tabelle laden.<BR>
+6. Unter Wartung eine Sicherung erstellen.</P>
+
 <P>Die Einstellungen bleiben erhalten. Von 2.x zuerst auf 3.1.5 nach der Anleitung des Originals.</P>
-<P><B>Sp&auml;tere Updates:</B> zuerst die Firmware (ESP, dann STM), danach in der App
-<B>Wartung &rarr; App-Dateien laden</B>. Zwischen ESP- und App-Update keine Sicherung exportieren.
+
+<P><B>Sp&auml;tere Updates</B><BR>
+Zuerst die Firmware (ESP, dann STM), danach in der App: Wartung &rarr; App-Dateien laden.<BR>
+Zwischen ESP- und App-Update keine Sicherung exportieren.<BR>
 Nennt eine Release Note eine andere Reihenfolge, gilt diese.</P>
-<P>Alle &Auml;nderungen im
-<a href="https://github.com/granturism0/wordclock24h/blob/pwa-decoupling/CHANGELOG.md">Changelog</a>.</P>
+
+<P>Alle &Auml;nderungen: <a href="https://github.com/granturism0/wordclock24h/blob/pwa-decoupling/CHANGELOG.md">github.com/granturism0/wordclock24h &ndash; CHANGELOG.md</a></P>
