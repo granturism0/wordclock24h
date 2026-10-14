@@ -128,14 +128,14 @@ Umsetzer im Scratchpad, der Lead legt sie unter `tools/checks/auszug/` ab und f�
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| 0.1 | **E36:** Ursache (`pmset -g log`), Wache umbauen nach `design.md` §16 | Lead | Freigabe | **AKW.1–AKW.5** | ☐ | — |
-| 0.2 | **Review 0.1** | `code-reviewer` | 0.1 | Weg jeder Meldung bis zum Empfänger (DIR-014) | — | ☐ |
-| 0.3 | **F3** nach §15 | Lead | Freigabe | **AKB.1–AKB.3** | ☐ | — |
-| 0.4 | **Review 0.3** | `code-reviewer` | 0.3 | sieht die Stufe ihren Gegenstand vollständig (L235)? | — | ☐ |
-| 0.5 | **B8:** Zählwerkzeug, Zuordnung, Zahl sofort bei B8 | Lead | Freigabe | **AKD.1** | ☐ | — |
+| 0.1 | **E36:** Ursache (`pmset -g log`), Wache umbauen nach `design.md` §16 | Lead | Freigabe | **AKW.1–AKW.5** | ☑ | — |
+| 0.2 | **Review 0.1** | `code-reviewer` | 0.1 | Weg jeder Meldung bis zum Empfänger (DIR-014) | — | ☑ |
+| 0.3 | **F3** nach §15 | Lead | Freigabe | **AKB.1–AKB.3** | ☑ | — |
+| 0.4 | **Review 0.3** | `code-reviewer` | 0.3 | sieht die Stufe ihren Gegenstand vollständig (L235)? | — | ☑ |
+| 0.5 | **B8:** Zählwerkzeug, Zuordnung, Zahl sofort bei B8 | Lead | Freigabe | **AKD.1** | ☑ | — |
 | 0.6 | **`flash-stm.sh --lokal`** (§2.3) und Probe in `checks/hooks.sh`, dass `no-danger.py` Gefahrenendpunkte auch mit `curl -X POST` abweist. **`--lokal` ist gebaut und bleibt als Werkzeug**; in diesem Paket wird es nicht eingesetzt (Ent-15 aufgehoben) | Lead | Freigabe | **AKZ.12**; Hook-Probe angeschlagen | ☐ | — |
 | 0.7 | **G0 — Grundlinien** nach AKG.0 (Disassembly 3.2.32 im Worktree, Setter-Burst, Heap, `stm32_log`) | Lead | **0.1** | **AKG.0** | — | — |
-| 0.8 | **Befunde:** „Träger: Paket 2026-10-13" an allen Einträgen; neue Zeilen für die zweite C19-Stelle, den 120er-Ring, die Rechnung Netzwerkimport | `doc-writer` | Freigabe | **AKG.1**; S10, S11 | ☐ | — |
+| 0.8 | **Befunde:** „Träger: Paket 2026-10-13" an allen Einträgen; neue Zeilen für die zweite C19-Stelle, den 120er-Ring, die Rechnung Netzwerkimport | `doc-writer` | Freigabe | **AKG.1**; S10, S11 | ☑ | — |
 
 ## ~~Messbau M0 — vorher~~ — entfallen (Ent-15 aufgehoben 13.10.2026, L432)
 
@@ -152,18 +152,18 @@ Umsetzer im Scratchpad, der Lead legt sie unter `tools/checks/auszug/` ab und f�
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| S1.1 | **A15** nach §2.1; Prüfpunkt `uart_putc()`/`CR1`. **Prüfstand a15** im Scratchpad | `stm-developer` | Freigabe | **AKI.1** am Prüfstand | ☐ | — |
+| S1.1 | **A15** nach §2.1; Prüfpunkt `uart_putc()`/`CR1`. **Prüfstand a15** im Scratchpad | `stm-developer` | Freigabe | **AKI.1** am Prüfstand | ☑ | — |
 | S1.2 | **Flash-Gate** F103 und F411, sofort ins Messprotokoll | Lead | S1.1 | **AKM.1** | — | — |
-| S1.3 | Prüfstand a15 ablegen, Gegenprobe; Disassembly nachher gegen den Worktree-Bau des Tags | Lead | S1.2, 0.7 | **AKI.1**, **AKI.2** | ☐ | — |
-| S1.4 | **Review S1** | `firmware-analyst` | S1.3 | Gleichwertigkeit, beide Plattformen | — | ☐ |
-| S1.5 | STM-Version anheben | `release-engineer` | S1.4 | S4 | ☐ | — |
-| S1.6 | `CHANGELOG.md`-Eintrag S1 | Lead | S1.4 | — | ☐ | — |
+| S1.3 | Prüfstand a15 ablegen, Gegenprobe; Disassembly nachher gegen den Worktree-Bau des Tags | Lead | S1.2, 0.7 | **AKI.1**, **AKI.2** | ☑ | — |
+| S1.4 | **Review S1** | `firmware-analyst` | S1.3 | Gleichwertigkeit, beide Plattformen | — | ☑ |
+| S1.5 | STM-Version anheben | `release-engineer` | S1.4 | S4 | ☑ | — |
+| S1.6 | `CHANGELOG.md`-Eintrag S1 | Lead | S1.4 | — | ☑ | — |
 | S1.7 | AKZ.3, ins Messprotokoll | Lead | S1.5, S1.6 | **AKZ.3** | — | — |
-| S1.8 | `--full`, ins Messprotokoll | Lead | S1.7 | **AKZ.2** | ☐ | — |
+| S1.8 | `--full`, ins Messprotokoll | Lead | S1.7 | **AKZ.2** | ☑ | — |
 | S1.9 | ~~Worktree mit Messpatch, Zusatz `-m1`~~ — **entfallen** (Ent-15 aufgehoben) | — | — | — | — | — |
 | S1.10 | ~~M1 bauen~~ — **entfallen** (Ent-15 aufgehoben) | — | — | — | — | — |
 | S1.11 | **Matrix-Lauf** nach der Versionsanhebung | Lead | S1.8 | **AKM.3** | — | — |
-| S1.12 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | S1.11 | **AKZ.7** | ☐ | — |
+| S1.12 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | S1.11 | **AKZ.7** | ☑ | — |
 | S1.13 | **Einspielen des S1-Release:** Wache starten, `flash-stm.sh --check`, `flash-stm.sh`, Version nachgewiesen, Smoketest sofort ins Messprotokoll (der Messteil entfällt) | Lead | S1.12 | **AKZ.4** | — | — |
 | S1.14 | **G1:** Setter-Burst wie G0, 60 min lesend mit `caffeinate` (Regressionslauf) | Lead | S1.13 | **AKI.3** | — | — |
 
@@ -175,28 +175,28 @@ Reisst das Gate bei A82: A82 nach S3 (Ent-17). Bei A70: A70 nach S3 (Ent-14). Vo
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| S2.1 | **B55-STM** nach §6.1. **Prüfstand l55** | `stm-developer` | **S1.12** | **AKL.1** | ☐ | — |
+| S2.1 | **B55-STM** nach §6.1. **Prüfstand l55** | `stm-developer` | **S1.12** | **AKL.1** | ☑ | — |
 | S2.2 | Flash-Gate | Lead | S2.1 | **AKM.1** | — | — |
-| S2.3 | **A56** nach §3.1–§3.3; Prüfpunkt `BLACK_BOARD`. **Prüfstand a56** | `stm-developer` | S2.2 | **AKA.1**, **AKA.2** | ☐ | — |
+| S2.3 | **A56** nach §3.1–§3.3; Prüfpunkt `BLACK_BOARD`. **Prüfstand a56** | `stm-developer` | S2.2 | **AKA.1**, **AKA.2** | ☑ | — |
 | S2.4 | Flash-Gate | Lead | S2.3 | **AKM.1** | — | — |
-| S2.5 | **A81** nach §3.4 (samt Klemmung, falls fehlend). **Prüfstand a81** | `stm-developer` | S2.4 | **AKA.4** | ☐ | — |
+| S2.5 | **A81** nach §3.4 (samt Klemmung, falls fehlend). **Prüfstand a81** | `stm-developer` | S2.4 | **AKA.4** | ☑ | — |
 | S2.6 | Flash-Gate | Lead | S2.5 | **AKM.1** | — | — |
-| S2.7 | **A80** nach §5; Restore-Bedingung nicht anfassen. **Prüfstand a80** | `stm-developer` | S2.6 | **AKC.1** | ☐ | — |
+| S2.7 | **A80** nach §5; Restore-Bedingung nicht anfassen. **Prüfstand a80** | `stm-developer` | S2.6 | **AKC.1** | ☑ | — |
 | S2.8 | Flash-Gate | Lead | S2.7 | **AKM.1** | — | — |
-| S2.9 | **A82** nach §3.5. **Prüfstand a82** | `stm-developer` | S2.8 | **AKA.5** | ☐ | — |
+| S2.9 | **A82** nach §3.5. **Prüfstand a82** | `stm-developer` | S2.8 | **AKA.5** | ☑ | — |
 | S2.10 | Flash-Gate; bei Riss A82 zurücknehmen und nach S3 (Ent-17) | Lead | S2.9 | **AKM.1** | — | — |
-| S2.11 | **A70** nach §4; Kommentar A78 **nicht** anfassen. **Prüfstand a70** | `stm-developer` | S2.10 | **AKN.1–AKN.5** | ☐ | — |
+| S2.11 | **A70** nach §4; Kommentar A78 **nicht** anfassen. **Prüfstand a70** | `stm-developer` | S2.10 | **AKN.1–AKN.5** | ☑ | — |
 | S2.12 | Flash-Gate; bei Riss A70 zurücknehmen und nach S3 (Ent-14) | Lead | S2.11 | **AKM.1** | — | — |
-| S2.13 | Prüfstände l55, a56, a81, a80, a82, a70 ablegen, Gegenproben gegen 3.2.32; a69 OK | Lead | S2.12 | Fallzahlen | ☐ | — |
-| S2.14 | Wache: `icon: verworfen` (Hinweis), `icon_freeze: ENTER` (Alarm), je Gegenprobe | Lead | S2.13 | **AKZ.5** | ☐ | — |
-| S2.15 | **Review S2**, ausdrücklich Restore-Invariante | `firmware-analyst` | S2.14 | **AKN.5** | — | ☐ |
-| S2.16 | STM-Version anheben | `release-engineer` | S2.15 | S4 | ☐ | — |
-| S2.17 | `CHANGELOG.md`-Eintrag S2 | Lead | S2.15 | — | ☐ | — |
-| S2.18 | `TESTPLAN-PWA.md`: A56, A80, A70 (e) | `doc-writer` | S2.15 | S9, S11 | ☐ | — |
+| S2.13 | Prüfstände l55, a56, a81, a80, a82, a70 ablegen, Gegenproben gegen 3.2.32; a69 OK | Lead | S2.12 | Fallzahlen | ☑ | — |
+| S2.14 | Wache: `icon: verworfen` (Hinweis), `icon_freeze: ENTER` (Alarm), je Gegenprobe | Lead | S2.13 | **AKZ.5** | ☑ | — |
+| S2.15 | **Review S2**, ausdrücklich Restore-Invariante | `firmware-analyst` | S2.14 | **AKN.5** | — | ☑ |
+| S2.16 | STM-Version anheben | `release-engineer` | S2.15 | S4 | ☑ | — |
+| S2.17 | `CHANGELOG.md`-Eintrag S2 | Lead | S2.15 | — | ☑ | — |
+| S2.18 | `TESTPLAN-PWA.md`: A56, A80, A70 (e) | `doc-writer` | S2.15 | S9, S11 | ☑ | — |
 | S2.19 | AKZ.3 | Lead | S2.16, S2.17 | **AKZ.3** | — | — |
-| S2.20 | `--full` | Lead | S2.19 | **AKZ.2** | ☐ | — |
+| S2.20 | `--full` | Lead | S2.19 | **AKZ.2** | ☑ | — |
 | S2.21 | Matrix-Lauf | Lead | S2.20 | **AKM.3** | — | — |
-| S2.22 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | S2.21, **S1.14** | **AKZ.7** | ☐ | — |
+| S2.22 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | S2.21, **S1.14** | **AKZ.7** | ☑ | — |
 | S2.23 | Einspielen, Smoketest | Lead | S2.22 | **AKZ.4** | — | — |
 | S2.24 | **G2:** Tagteil (Ambilight, Icon), Nachtteil mit `caffeinate` (Timer, Reset im Aus-Fenster für A70 (e)) | Lead | S2.23 | **AKA.3**, **AKC.2**, **AKN.6** | — | — |
 
@@ -205,12 +205,12 @@ Reisst das Gate bei A82: A82 nach S3 (Ent-17). Bei A70: A70 nach S3 (Ent-14). Vo
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | S3.1 | **Flash-Analyse** an der Map des S2-Builds und der engsten Variante (§1.2) | `firmware-analyst` | S2.24 | Kandidatenliste mit Bytes laut Map | — | — |
-| S3.2 | Verhaltensneutrale Einsparungen, **einzeln**, der Lead misst nach jeder | `stm-developer` | S3.1 | Gewinn je Einsparung im Messprotokoll | ☐ | — |
-| S3.3 | **A70** (und **A82**, falls zurückgestellt) wie S2.9/S2.11, Gate nach jedem | `stm-developer` | S3.2 | **AKN.1–AKN.5**, **AKA.5** | ☐ | — |
-| S3.4 | **Review S3** | `firmware-analyst` | S3.3 | Invariante | — | ☐ |
-| S3.4a | STM-Version anheben | `release-engineer` | S3.4 | S4 | ☐ | — |
-| S3.5 | `CHANGELOG.md`, AKZ.3, `--full`, Matrix | Lead | S3.4a | **AKZ.2**, **AKZ.3**, **AKM.3** | ☐ | — |
-| S3.6 | Build, Commit + Tag + Push | Lead | S3.5 | **AKZ.7** | ☐ | — |
+| S3.2 | Verhaltensneutrale Einsparungen, **einzeln**, der Lead misst nach jeder | `stm-developer` | S3.1 | Gewinn je Einsparung im Messprotokoll | — | — |
+| S3.3 | **A70** (und **A82**, falls zurückgestellt) wie S2.9/S2.11, Gate nach jedem | `stm-developer` | S3.2 | **AKN.1–AKN.5**, **AKA.5** | — | — |
+| S3.4 | **Review S3** | `firmware-analyst` | S3.3 | Invariante | — | — |
+| S3.4a | STM-Version anheben | `release-engineer` | S3.4 | S4 | — | — |
+| S3.5 | `CHANGELOG.md`, AKZ.3, `--full`, Matrix | Lead | S3.4a | **AKZ.2**, **AKZ.3**, **AKM.3** | — | — |
+| S3.6 | Build, Commit + Tag + Push | Lead | S3.5 | **AKZ.7** | — | — |
 | S3.7 | Einspielen, Smoketest | Lead | S3.6 | **AKZ.4** | — | — |
 | S3.8 | **G2b** wie die A70-/A82-Teile von G2 | Lead | S3.7 | **AKN.6** | — | — |
 
@@ -249,19 +249,19 @@ Nach jedem E2-Task misst der Lead „Globale Variablen" und schreibt sie sofort 
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| E2.0 | **Baum nach dem Rückbau feststellen** (Ent-18): In `http.cpp` kein Herkunftsteil aus E1 (`grep` auf `http_request_denied_by_origin` und `Sec-Fetch-Site` leer); die Prüfung über `Sec-Fetch-Dest` aus ESP 3.2.4 an den drei Wartungsendpunkten gegenüber dem Tag des Ausgangsstands (ESP 3.2.33) unverändert; C46 und C19 vorhanden; S16 grün mit c46 und c19, c6h nicht mehr in S16. Ergebnis ins Messprotokoll E2 | Lead | **S2.22** bzw. S3.6 | **AKQ.1**, **AKU.1** am Prüfstand | ☐ | — |
-| E2.1 | **B55-ESP** nach §6.2 | `esp-developer` | E2.0 | **AKL.2** | ☐ | — |
-| E2.2 | **C8** nach §7 | `esp-developer` | E2.1 | **AKK.1** | ☐ | — |
-| E2.3 | **A79** nach §12 | `esp-developer` | E2.2 | **AKE.1** | ☐ | — |
-| E2.4 | **C59** nach §11 | `esp-developer` | E2.3 | **AKT.1** | ☐ | — |
-| E2.5 | Prüfstände l55e, c8, ntp, Gegenproben; statische Prüfung A79. c46 und c19 liegen seit E1.5 in S16 und laufen mit | Lead | E2.4 | Fallzahlen | ☐ | — |
-| E2.6 | Wache: `- rpc keine Antwort`, Gegenprobe (`- abgewiesen: query` seit E1.6 vorhanden) | Lead | E2.5 | **AKZ.5** | ☐ | — |
-| E2.7 | **Review E2** (Wiedereintritt, Quittungen beim Warten), dazu C46, C19 und der Rückbau des Herkunftsteils (Diff gegen den Ausgangsstand ESP 3.2.33) | `code-reviewer` | E2.6 | Checkliste | — | ☐ |
-| E2.8 | ESP-Version anheben | `release-engineer` | E2.7 | S4 | ☐ | — |
-| E2.9 | `CHANGELOG.md` (samt C46, C19), AKZ.3, `--full` | Lead | E2.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
-| E2.10 | `TESTPLAN-PWA.md`: B55 (ESP), C8; **K25 und K26 als entfallen** vermerken (Ent-18, L439), K27 und K28 dem Release E2 zuordnen; die Verweise darauf nachführen (Instrumente „Reset" und „curl mit Kopfzeile", Einleitung zu 7.1, Gefahrentabelle, Ablauf Schritt 9) | `doc-writer` | E2.7 | S9, S11 | ☐ | — |
+| E2.0 | **Baum nach dem Rückbau feststellen** (Ent-18): In `http.cpp` kein Herkunftsteil aus E1 (`grep` auf `http_request_denied_by_origin` und `Sec-Fetch-Site` leer); die Prüfung über `Sec-Fetch-Dest` aus ESP 3.2.4 an den drei Wartungsendpunkten gegenüber dem Tag des Ausgangsstands (ESP 3.2.33) unverändert; C46 und C19 vorhanden; S16 grün mit c46 und c19, c6h nicht mehr in S16. Ergebnis ins Messprotokoll E2 | Lead | **S2.22** bzw. S3.6 | **AKQ.1**, **AKU.1** am Prüfstand | ☑ | — |
+| E2.1 | **B55-ESP** nach §6.2 | `esp-developer` | E2.0 | **AKL.2** | ☑ | — |
+| E2.2 | **C8** nach §7 | `esp-developer` | E2.1 | **AKK.1** | ☑ | — |
+| E2.3 | **A79** nach §12 | `esp-developer` | E2.2 | **AKE.1** | ☑ | — |
+| E2.4 | **C59** nach §11 | `esp-developer` | E2.3 | **AKT.1** | ☑ | — |
+| E2.5 | Prüfstände l55e, c8, ntp, Gegenproben; statische Prüfung A79. c46 und c19 liegen seit E1.5 in S16 und laufen mit | Lead | E2.4 | Fallzahlen | ☑ | — |
+| E2.6 | Wache: `- rpc keine Antwort`, Gegenprobe (`- abgewiesen: query` seit E1.6 vorhanden) | Lead | E2.5 | **AKZ.5** | ☑ | — |
+| E2.7 | **Review E2** (Wiedereintritt, Quittungen beim Warten), dazu C46, C19 und der Rückbau des Herkunftsteils (Diff gegen den Ausgangsstand ESP 3.2.33) | `code-reviewer` | E2.6 | Checkliste | — | ☑ |
+| E2.8 | ESP-Version anheben | `release-engineer` | E2.7 | S4 | ☑ | — |
+| E2.9 | `CHANGELOG.md` (samt C46, C19), AKZ.3, `--full` | Lead | E2.8 | **AKZ.2**, **AKZ.3** | ☑ | — |
+| E2.10 | `TESTPLAN-PWA.md`: B55 (ESP), C8; **K25 und K26 als entfallen** vermerken (Ent-18, L439), K27 und K28 dem Release E2 zuordnen; die Verweise darauf nachführen (Instrumente „Reset" und „curl mit Kopfzeile", Einleitung zu 7.1, Gefahrentabelle, Ablauf Schritt 9) | `doc-writer` | E2.7 | S9, S11 | ☑ | — |
 | E2.11 | Einspielzeilen | Lead | E2.9 | **AKZ.8** | — | — |
-| E2.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | E2.11, **S2.24** bzw. S3.8 | **AKZ.7** | ☐ | — |
+| E2.12 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | E2.11, **S2.24** bzw. S3.8 | **AKZ.7** | ☑ | — |
 | E2.13 | ESP-OTA, Smoketest samt Update-Quelle, `install-app.sh --check` | Lead | E2.12 | **AKZ.4** | — | — |
 | E2.14 | **G4** mit `caffeinate` (nimmt G3 auf: AKQ.2) | Lead | E2.13 | **AKM.2**, **AKE.2**, **AKK.2**, **AKT.2**, **AKQ.2** | — | — |
 
@@ -272,21 +272,21 @@ Nach jedem E2-Task misst der Lead „Globale Variablen" und schreibt sie sofort 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | EP.1 | ~~**C6, ESP:** POST-Zweig nach §8.2, nur POST für die fünf Endpunkte, GET ⇒ 405, anderer POST ⇒ 404~~ — **entfallen** (Ent-18) | — | — | ~~AKH.5~~ | — | — |
-| EP.2 | **C6b, ESP** nach §8.3 (`network_secrets` per GET, ohne Herkunftsprüfung) | `esp-developer` | **E2.12** | **AKS.1**, **AKS.2** | ☐ | — |
-| EP.3 | Prüfstand c6b ablegen, Gegenprobe gegen den E2-Stand (~~c6p~~ entfällt) | Lead | EP.2 | **AKS.2** | ☐ | — |
-| EP.4 | **C6b, PWA** (Export über `network_secrets`); ~~C6 `apiPost`~~ entfällt | `pwa-developer` | EP.3 | **AKS.3** | ☐ | — |
-| EP.5 | **C46, PWA** | `pwa-developer` | EP.4 | **AKQ.3** | ☐ | — |
-| EP.6 | **B55, PWA**; Kennungen 9–11 in DE und EN | `pwa-developer` | EP.5 | **AKL.3** | ☐ | — |
-| EP.7 | PWA-Prüfstände (Mock); **Werkzeuge für C6b** (`snapshot-device.sh` mit `key_set`, `preview/server.py` mit `network_secrets` und `key_set`), gegen die Vorschau gelaufen. Die POST-Umstellung von `flash-stm.sh`, `smoke-device.sh`, `preview/server.py` entfällt (Ent-18) | Lead | EP.6 | **AKZ.11** | ☐ | — |
-| EP.8 | **Review EP** (ESP und PWA zusammen) | `code-reviewer` | EP.7 | Checkliste | — | ☐ |
-| EP.9 | `TESTPLAN-PWA.md`: Backup-Export, B55 (~~POST~~ entfällt) | `doc-writer` | EP.8 | S9, S11 | ☐ | — |
-| EP.10 | ESP-Version, `APP_VERSION` und `CACHE_NAME` | `release-engineer` | EP.8 | S4 zeigt beide | ☐ | — |
-| EP.11 | `CHANGELOG.md`-Eintrag EP (beide Komponenten) | Lead | EP.8 | — | ☐ | — |
+| EP.2 | **C6b, ESP** nach §8.3 (`network_secrets` per GET, ohne Herkunftsprüfung) | `esp-developer` | **E2.12** | **AKS.1**, **AKS.2** | ☑ | — |
+| EP.3 | Prüfstand c6b ablegen, Gegenprobe gegen den E2-Stand (~~c6p~~ entfällt) | Lead | EP.2 | **AKS.2** | ☑ | — |
+| EP.4 | **C6b, PWA** (Export über `network_secrets`); ~~C6 `apiPost`~~ entfällt | `pwa-developer` | EP.3 | **AKS.3** | ☑ | — |
+| EP.5 | **C46, PWA** | `pwa-developer` | EP.4 | **AKQ.3** | ☑ | — |
+| EP.6 | **B55, PWA**; Kennungen 9–11 in DE und EN | `pwa-developer` | EP.5 | **AKL.3** | ☑ | — |
+| EP.7 | PWA-Prüfstände (Mock); **Werkzeuge für C6b** (`snapshot-device.sh` mit `key_set`, `preview/server.py` mit `network_secrets` und `key_set`), gegen die Vorschau gelaufen. Die POST-Umstellung von `flash-stm.sh`, `smoke-device.sh`, `preview/server.py` entfällt (Ent-18) | Lead | EP.6 | **AKZ.11** | ☑ | — |
+| EP.8 | **Review EP** (ESP und PWA zusammen) | `code-reviewer` | EP.7 | Checkliste | — | ☑ |
+| EP.9 | `TESTPLAN-PWA.md`: Backup-Export, B55 (~~POST~~ entfällt) | `doc-writer` | EP.8 | S9, S11 | ☑ | — |
+| EP.10 | ESP-Version, `APP_VERSION` und `CACHE_NAME` | `release-engineer` | EP.8 | S4 zeigt beide | ☑ | — |
+| EP.11 | `CHANGELOG.md`-Eintrag EP (beide Komponenten) | Lead | EP.8 | — | ☑ | — |
 | EP.12 | AKZ.3 (ESP **und** PWA), `git status` (R2) | Lead | EP.10, EP.11 | **AKZ.3** | — | — |
-| EP.13 | `--full` | Lead | EP.12 | **AKZ.2** | ☐ | — |
+| EP.13 | `--full` | Lead | EP.12 | **AKZ.2** | ☑ | — |
 | EP.14 | ~~`CLAUDE.md`: Gefahrentabelle und Hinweise auf POST~~ — **entfallen** (Ent-18) | — | — | — | — | — |
 | EP.15 | Einspielzeilen: OTA, **unmittelbar** `install-app.sh`; Warnung „kein Backup-Export dazwischen"; Rückweg (§8.4) | Lead | EP.13 | **AKZ.8** | — | — |
-| EP.16 | Build, ZIP, Rollout, **ein** Commit + Tag + Push | Lead | EP.15, **E2.14** | **AKZ.7** | ☐ | — |
+| EP.16 | Build, ZIP, Rollout, **ein** Commit + Tag + Push | Lead | EP.15, **E2.14** | **AKZ.7** | ☑ | — |
 | EP.17 | **Einspielen:** ESP-OTA, sofort `install-app.sh`; danach Smoketest samt Update-Quelle, `--check`, `check-pwa.sh` | Lead | EP.16 | **AKG.5** | — | — |
 | EP.18 | **G5** | Lead | EP.17 | **AKL.4**, **AKS.4** (~~AKH.7~~ entfällt) | — | — |
 | T1 | `pwa-tester` Phasen 0–4 und 9 | `pwa-tester` | EP.18, EP.9 | **AKZ.6** | — | — |
@@ -306,17 +306,17 @@ vor T2 abgeschlossen sein.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| P2.1 | `.field-error` (B48) | `ui-developer` | **EP.16** | Kontrast gemessen | ☐ | — |
-| P2.2 | **B48** nach §13 | `pwa-developer` | P2.1 | **AKF.1** | ☐ | — |
-| P2.3 | **B8** in `app.js` und `en.json` | `pwa-developer` | P2.2, 0.5 | 0 offene Texte in `app.js` | ☐ | — |
-| P2.4 | **B8** in `index.html` | `ui-developer` | P2.3 | 0 offene Texte in `index.html` | ☐ | — |
-| P2.5 | B8-Werkzeug als Guardrail-Stufe; Prüfstand B48; Gegenproben | Lead | P2.4 | **AKD.2**, **AKF.1** | ☐ | — |
-| P2.6 | **Review P2** | `code-reviewer` | P2.5 | Checkliste | — | ☐ |
-| P2.7 | `TESTPLAN-PWA.md`: B48 (iPhone), EN-Stichprobe | `doc-writer` | P2.6 | S9, S11 | ☐ | — |
-| P2.8 | `APP_VERSION` und `CACHE_NAME` | `release-engineer` | P2.6 | S4 | ☐ | — |
-| P2.9 | `CHANGELOG.md`, AKZ.3, `git status`, `--full` | Lead | P2.8 | **AKZ.2**, **AKZ.3** | ☐ | — |
+| P2.1 | `.field-error` (B48) | `ui-developer` | **EP.16** | Kontrast gemessen | ☑ | — |
+| P2.2 | **B48** nach §13 | `pwa-developer` | P2.1 | **AKF.1** | ☑ | — |
+| P2.3 | **B8** in `app.js` und `en.json` | `pwa-developer` | P2.2, 0.5 | 0 offene Texte in `app.js` | ☑ | — |
+| P2.4 | **B8** in `index.html` | `ui-developer` | P2.3 | 0 offene Texte in `index.html` | ☑ | — |
+| P2.5 | B8-Werkzeug als Guardrail-Stufe; Prüfstand B48; Gegenproben | Lead | P2.4 | **AKD.2**, **AKF.1** | ☑ | — |
+| P2.6 | **Review P2** | `code-reviewer` | P2.5 | Checkliste | — | ☑ |
+| P2.7 | `TESTPLAN-PWA.md`: B48 (iPhone), EN-Stichprobe | `doc-writer` | P2.6 | S9, S11 | ☑ | — |
+| P2.8 | `APP_VERSION` und `CACHE_NAME` | `release-engineer` | P2.6 | S4 | ☑ | — |
+| P2.9 | `CHANGELOG.md`, AKZ.3, `git status`, `--full` | Lead | P2.8 | **AKZ.2**, **AKZ.3** | ☑ | — |
 | P2.10 | Einspielzeilen | Lead | P2.9 | **AKZ.8** | — | — |
-| P2.11 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | P2.10, **T1** | **AKZ.7** | ☐ | — |
+| P2.11 | Build, ZIP, Rollout, Commit + Tag + Push | Lead | P2.10, **T1** | **AKZ.7** | ☑ | — |
 | P2.12 | `install-app.sh`, `check-pwa.sh` — **erledigt 14.10.2026** (Nutzerentscheid; nicht an E3 gebunden) | Lead | P2.11 | **AKD.3** | — | — |
 | P2.13 | **G6:** EN-Stichprobe; iPhone durch den Nutzer — liegt G6 nach dem OTA von E3, dabei auf `fs write short` und `fail=` achten (Sendezeitgrenze, `design.md` §18.6) | Lead, Nutzer | P2.12 | **AKD.3**, **AKF.2** | — | — |
 
@@ -339,21 +339,21 @@ Der Rest von G7 läuft als **G7R** (E4.20) auf dem Stand E4. AKR.20 ist erfüllt
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | E3.0 | **Grundlagen (lesend):** Zeile „Messprotokoll E3" in `BEFUNDE.md` anlegen mit der Fundstelle **Nutzerentscheid N-5, 13.10.2026, Gespräch**. Von der Uhr: Länge der **gefilterten** Listen (`stm32_files`, `table_files`), freier Platz und Gesamtgrösse des LittleFS (`/api/fs_info`), Grösse von `app-app.js.gz` (`/api/fs_list`), bekannte Hardware (`stm32_default`). Vom Update-Server: Grösse von `releasenote.html`, `wc-list.txt`, `wc-list-tables.txt`. Daraus: Puffergrösse der Tabellenliste, Höchstlänge der `wc-list`-Datei, Platzschwelle (§18.5a), **Sollwert Δ`httpclient_connects` für einen kalten Lauf** (erwartet 6). „Globale Variablen" und Programmgrösse des Stands `8445a10` (ESP-Teilbuild) | Lead | **P2.11** | Werte im Messprotokoll E3 | — | — |
-| E3.1 | **I-1** nach §18.2: Tiefstwerte, vier Messpunkte, `httpclient_connects`, Felder in `device_ready`, Rücksetzen nur mit `heap_low_reset=1` (Ent-21 B), `low=` in der Heap-Zeile (Ent-22; `ESP-uclock.ino` gemischte Zeilenenden, byte-genau). Prüfpunkt Kosten `getMaxFreeBlockSize()` am Core. **Prüfstand c65a** (I-1-Teil) im Scratchpad | `esp-developer` | E3.0 | **AKR.1** | ☐ | — |
-| E3.2 | **I-2** nach §18.3: Felder `blk`/`snd`/`ms` in beiden Zeilen, `fs write short` in Zähler und Ring, `fs_write_short` in `device_ready`. **Prüfstand c65b** mit Attrappe nach der Checkliste | `esp-developer` | E3.1 | **AKR.2** | ☐ | — |
-| E3.3 | **I-3** nach §18.4: `req_max_ms`, `req_max_path` ohne Query, jeder Rückkehrpfad. c65a ergänzt | `esp-developer` | E3.2 | **AKR.3** | ☐ | — |
-| E3.4 | **M-1, Tabellenliste und Antwortform** nach §18.5 (1) und (3): RAM-Zwischenspeicher für `table_files`, `update_table_files` über `update_server_open()`, Kopfkommentar `http.cpp:12596-12620` nachführen. Im Bericht die Tabelle „Wirkung je Leser der PWA" (Vorlage §18.5). **Prüfstand c65m** samt Schlüsselvergleich | `esp-developer` | E3.3 | **AKR.4**, **AKR.6** | ☐ | — |
-| E3.4a | **M-1, Release Notes und `wc-list.txt` im LittleFS** nach §18.5a (Ent-20 C): Dateien `/upd-releasenote.txt`, `/upd-wc-list.txt` mit Kopfzeile, Auftrag `update_cache_poll()` aus `loop()` (Zustandsmaschine, ein Abruf je Durchlauf, Bedingungen: WLAN, Host und Pfad gesetzt, 60 s nach Start, 5 s nach der letzten Anfrage, Sperrfenster, 10 min nach Fehlschlag), Temporärdatei und Umbenennen, Platzschwelle, Ausliefern aus der Datei mit gemeinsamer Maskierung, Zeilen `- update cache …`. Prüfpunkt: Bestandsliste aller festen Dateinamen, keine Kollision mit `upd-`. **Prüfstand c65n** | `esp-developer` | E3.4 | **AKR.5**, **AKR.6** | ☐ | — |
-| E3.5 | **M-3** nach §18.6 (Ent-25): `setTimeout (1000)` nach `accept()`, `2000` in der Dateiauslieferung, `5000` vor beiden `ESPhttpUpdate.update`; Bestandsliste der Stream-Lesestellen; Kommentare mit 5'000 ms nachführen. **Prüfstand c65t** | `esp-developer` | E3.4a | **AKR.7** | ☐ | — |
-| E3.6 | Prüfstände c65a, c65b, c65m, c65n, c65t unter `tools/checks/auszug/esp/c65/` ablegen und in S16 aufnehmen; Gegenproben gegen 3.2.35 und Sabotagen fahren; Fallzahlen nachzählen (L235) | Lead | E3.5 | **AKR.1–AKR.7** am Prüfstand, Fallzahlen | ☐ | — |
-| E3.7 | **Werkzeug:** Wache `- fs write short` (Alarm), `- update liste zu gross` und `- update cache … fehlgeschlagen` (Hinweis), je Gegenprobe; `smoke-device.sh` verlangt die neuen `device_ready`-Felder und setzt nichts zurück, Gegenprobe über `SMOKE_DR_OVERRIDE`; Zero-Window-Probe (Ent-26 a, §18.8), einmal gegen einen lokalen, normal lesenden Server fehlgeschlagen (Exit ≠ 0) | Lead | E3.6 | **AKR.9**, **AKR.10**, **AKZ.5** | ☐ | — |
-| E3.8 | **Review E3:** alle vier Punkte der Checkliste; Attrappen-Semantik in c65b (`connected()` nach FIN 0); jeder Rückkehrpfad in I-3; keine Query in Logs oder `req_max_path`; Rückwärtsverträglichkeit (AKR.6 und Tabelle aus E3.4); LittleFS: Temporärdatei, Längenprüfung, Schreibhäufigkeit, nie der Server des Ursprungsprojekts, Platzschwelle; OTA-Zeitgrenze; Kodierung und Zeilenenden (AKZ.9) | `code-reviewer` | E3.7 | Checkliste | — | ☐ |
-| E3.9 | ESP-Version anheben (erwartet 3.2.36); `APP_VERSION` und `CACHE_NAME` **nicht** | `release-engineer` | E3.8 | S4 | ☐ | — |
-| E3.10 | `CHANGELOG.md`-Eintrag E3; AKZ.3 gegen das Tag von P2 (nur ESP-Dateien); `--full`; alles sofort ins Messprotokoll | Lead | E3.9 | **AKZ.2**, **AKZ.3** | ☐ | — |
-| E3.11 | `TESTPLAN-PWA.md`: **K30** nach Ent-23 (Ruhewert und `low=`, beide Grenzen, Messweise); Logzeilen-Tabelle (`http write lost` und `fs write short` mit `blk`/`snd`/`ms` und der Entscheidungsregel aus §18.3, `- update liste zu gross`, `- update cache …`, `low=`); neue `device_ready`-Felder und `heap_low_reset`; `write_lost_failed` zählt ab E3 auch abgebrochene Assets; T2-Umfang (AKL.4, Setter-Phasen aus L449, AKR.21 nach dem Reset aus V3) | `doc-writer` | E3.8 | S9, S11 | ☐ | — |
-| E3.12 | `BEFUNDE.md`: „Träger: Paket 2026-10-13 (Release E3)" an C65, C49, C54; die Folgebefunde aus §18.10 als eigene Zeilen (M-2, M-4, **Teildatei in `download_file_to_local()`**, Brücke während langer Antworten). **Nicht gleichzeitig mit einer Messzeile des Leads** (R3) | `doc-writer` | E3.10 | S10, S11 | ☐ | — |
+| E3.1 | **I-1** nach §18.2: Tiefstwerte, vier Messpunkte, `httpclient_connects`, Felder in `device_ready`, Rücksetzen nur mit `heap_low_reset=1` (Ent-21 B), `low=` in der Heap-Zeile (Ent-22; `ESP-uclock.ino` gemischte Zeilenenden, byte-genau). Prüfpunkt Kosten `getMaxFreeBlockSize()` am Core. **Prüfstand c65a** (I-1-Teil) im Scratchpad | `esp-developer` | E3.0 | **AKR.1** | ☑ | — |
+| E3.2 | **I-2** nach §18.3: Felder `blk`/`snd`/`ms` in beiden Zeilen, `fs write short` in Zähler und Ring, `fs_write_short` in `device_ready`. **Prüfstand c65b** mit Attrappe nach der Checkliste | `esp-developer` | E3.1 | **AKR.2** | ☑ | — |
+| E3.3 | **I-3** nach §18.4: `req_max_ms`, `req_max_path` ohne Query, jeder Rückkehrpfad. c65a ergänzt | `esp-developer` | E3.2 | **AKR.3** | ☑ | — |
+| E3.4 | **M-1, Tabellenliste und Antwortform** nach §18.5 (1) und (3): RAM-Zwischenspeicher für `table_files`, `update_table_files` über `update_server_open()`, Kopfkommentar `http.cpp:12596-12620` nachführen. Im Bericht die Tabelle „Wirkung je Leser der PWA" (Vorlage §18.5). **Prüfstand c65m** samt Schlüsselvergleich | `esp-developer` | E3.3 | **AKR.4**, **AKR.6** | ☑ | — |
+| E3.4a | **M-1, Release Notes und `wc-list.txt` im LittleFS** nach §18.5a (Ent-20 C): Dateien `/upd-releasenote.txt`, `/upd-wc-list.txt` mit Kopfzeile, Auftrag `update_cache_poll()` aus `loop()` (Zustandsmaschine, ein Abruf je Durchlauf, Bedingungen: WLAN, Host und Pfad gesetzt, 60 s nach Start, 5 s nach der letzten Anfrage, Sperrfenster, 10 min nach Fehlschlag), Temporärdatei und Umbenennen, Platzschwelle, Ausliefern aus der Datei mit gemeinsamer Maskierung, Zeilen `- update cache …`. Prüfpunkt: Bestandsliste aller festen Dateinamen, keine Kollision mit `upd-`. **Prüfstand c65n** | `esp-developer` | E3.4 | **AKR.5**, **AKR.6** | ☑ | — |
+| E3.5 | **M-3** nach §18.6 (Ent-25): `setTimeout (1000)` nach `accept()`, `2000` in der Dateiauslieferung, `5000` vor beiden `ESPhttpUpdate.update`; Bestandsliste der Stream-Lesestellen; Kommentare mit 5'000 ms nachführen. **Prüfstand c65t** | `esp-developer` | E3.4a | **AKR.7** | ☑ | — |
+| E3.6 | Prüfstände c65a, c65b, c65m, c65n, c65t unter `tools/checks/auszug/esp/c65/` ablegen und in S16 aufnehmen; Gegenproben gegen 3.2.35 und Sabotagen fahren; Fallzahlen nachzählen (L235) | Lead | E3.5 | **AKR.1–AKR.7** am Prüfstand, Fallzahlen | ☑ | — |
+| E3.7 | **Werkzeug:** Wache `- fs write short` (Alarm), `- update liste zu gross` und `- update cache … fehlgeschlagen` (Hinweis), je Gegenprobe; `smoke-device.sh` verlangt die neuen `device_ready`-Felder und setzt nichts zurück, Gegenprobe über `SMOKE_DR_OVERRIDE`; Zero-Window-Probe (Ent-26 a, §18.8), einmal gegen einen lokalen, normal lesenden Server fehlgeschlagen (Exit ≠ 0) | Lead | E3.6 | **AKR.9**, **AKR.10**, **AKZ.5** | ☑ | — |
+| E3.8 | **Review E3:** alle vier Punkte der Checkliste; Attrappen-Semantik in c65b (`connected()` nach FIN 0); jeder Rückkehrpfad in I-3; keine Query in Logs oder `req_max_path`; Rückwärtsverträglichkeit (AKR.6 und Tabelle aus E3.4); LittleFS: Temporärdatei, Längenprüfung, Schreibhäufigkeit, nie der Server des Ursprungsprojekts, Platzschwelle; OTA-Zeitgrenze; Kodierung und Zeilenenden (AKZ.9) | `code-reviewer` | E3.7 | Checkliste | — | ☑ |
+| E3.9 | ESP-Version anheben (erwartet 3.2.36); `APP_VERSION` und `CACHE_NAME` **nicht** | `release-engineer` | E3.8 | S4 | ☑ | — |
+| E3.10 | `CHANGELOG.md`-Eintrag E3; AKZ.3 gegen das Tag von P2 (nur ESP-Dateien); `--full`; alles sofort ins Messprotokoll | Lead | E3.9 | **AKZ.2**, **AKZ.3** | ☑ | — |
+| E3.11 | `TESTPLAN-PWA.md`: **K30** nach Ent-23 (Ruhewert und `low=`, beide Grenzen, Messweise); Logzeilen-Tabelle (`http write lost` und `fs write short` mit `blk`/`snd`/`ms` und der Entscheidungsregel aus §18.3, `- update liste zu gross`, `- update cache …`, `low=`); neue `device_ready`-Felder und `heap_low_reset`; `write_lost_failed` zählt ab E3 auch abgebrochene Assets; T2-Umfang (AKL.4, Setter-Phasen aus L449, AKR.21 nach dem Reset aus V3) | `doc-writer` | E3.8 | S9, S11 | ☑ | — |
+| E3.12 | `BEFUNDE.md`: „Träger: Paket 2026-10-13 (Release E3)" an C65, C49, C54; die Folgebefunde aus §18.10 als eigene Zeilen (M-2, M-4, **Teildatei in `download_file_to_local()`**, Brücke während langer Antworten). **Nicht gleichzeitig mit einer Messzeile des Leads** (R3) | `doc-writer` | E3.10 | S10, S11 | ☑ | — |
 | E3.13 | Einspielzeilen: **nur** ESP-OTA; Hinweis, dass in den ersten rund 60 s die Release Notes leer sind (Startabruf), und dass G7 erst nach AKR.20 beginnt | Lead | E3.10 | **AKZ.8** | — | — |
-| E3.14 | Build, ZIP, Rollout, Commit + Tag + Push (Tag nach DIR-011 mit den Versionen dieses Commits, erwartet `release/3.2.34-3.2.36-1.4.99`) | Lead | E3.11, E3.12, E3.13 | **AKZ.7** | ☐ | — |
+| E3.14 | Build, ZIP, Rollout, Commit + Tag + Push (Tag nach DIR-011 mit den Versionen dieses Commits, erwartet `release/3.2.34-3.2.36-1.4.99`) | Lead | E3.11, E3.12, E3.13 | **AKZ.7** | ☑ | — |
 | E3.15 | Wache starten; ESP-OTA; Smoketest samt Update-Quelle; `install-app.sh --check` (ohne Abweichung); `check-pwa.sh`; jedes Ergebnis sofort ins Messprotokoll | Lead | E3.14 | **AKR.11**, **AKZ.4** | — | — |
 | E3.16 | **G7** nach `design.md` §18.8: Startabruf (G7.0b), Ruhe, drei Paare kalt/warm, alte Messweise, Zero-Window-Probe, Vorhersageabruf während einer Ladung, Ruhe nach Last; jeder Lauf sofort ins Messprotokoll; `caffeinate`, falls geplant. **Angehalten nach zwei Ladungen (L450); Rest in E4.20** | Lead | E3.15 | **AKR.12–AKR.20** | — | — |
 | E3.17 | **Weiter oder anhalten:** G7 gegen K30 (Ent-23) auswerten. Ruhewert < 5'120 (AKR.12 ii) oder `low=` < 1'072 ⇒ **kein** T2, dem Nutzer vorlegen. Ist nur AKR.13 nicht erfüllt, geht es weiter; C65 bleibt dann offen, mit Befund. **Ergebnis 14.10.2026: angehalten, vorgelegt; Nutzerentscheid Ent-28 (E4)** | Lead | E3.16 | **AKR.12**, Ent-23 | — | — |
@@ -373,22 +373,22 @@ dann Tor) und Ent-39 (Zero-Window-Probe entfällt); Ent-32 bis Ent-38 vom Lead �
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
 | E4.0 | **Grundlagen (ohne Last an der Uhr):** Zeile „Messprotokoll E4" in `BEFUNDE.md` anlegen mit der Fundstelle **Nutzerentscheid N-5, 13.10.2026, Gespräch** und den Entscheiden Ent-28 bis Ent-39. „Globale Variablen" und Programmgrösse des Stands E3 (Build E3: 68'992 Byte, L450) als Ausgang; Grösse von `app.js.gz` 1.4.99. **Vorher-Werte der PWA in der Vorschau** (`tools/preview/server.py`, Headless-Chrome, **nicht** an der Uhr — dort stünde die Haltegrenze K30 vor jeder Ladung): höchstens gleichzeitige `/api/`-Abrufe beim Start und danach, Zahl `network_scan` in 50 s offenem Netzwerkmodul, Abrufe von `display_power`/`ambilight_power` je Kernladung | Lead | Freigabe, **E3.17** | Werte im Messprotokoll E4 | — | — |
-| E4.1 | **Teil 0 — I-4 und Scan-Zeile** nach `design-e4.md` §19.2: Momentaufnahme nur beim neuen Block-Tiefstwert, `http_cur_path` mit Löschen im Destruktor, privater lwIP-Kopf nur in `http.cpp` (Ent-32), Felder in `device_ready` hinter `upd_cache_max_ms`, Scan-Zeile in Mitschnitt und Ring. Prüfpunkt: kein `yield()`/`delay()` während des Zählens. **Prüfstand c65i** im Scratchpad | `esp-developer` | E4.0, **E3.14** | **AKV.1**, **AKV.2** | ☐ | — |
-| E4.2 | **Teil 2 — Schreibstücke ≤ `TCP_MSS`** nach §19.4 (Ent-33, Variante A) in `http_flush()` und der Dateiauslieferung; Fortschrittsregel; c65b an die Stücke anpassen. **Prüfstand c65w** | `esp-developer` | E4.1 | **AKV.4** | ☐ | — |
-| E4.3 | **Teil 3 — Backlog nach freiem Heap** nach §19.5 (Ent-34): Unterklasse `WcHttpServer`, `begin (80, HTTP_BACKLOG_HIGH)`, Nachführung vor `accept()`, `#error` ohne `TCP_LISTEN_BACKLOG`. **Prüfstand c65k** | `esp-developer` | E4.2 | **AKV.5** | ☐ | — |
-| E4.4 | **Teil 5 — TIME_WAIT ≤ 2** nach §19.7 (Ent-36): `tcp_tw_limit()` über `TCP_TW_LIMIT`, aufgerufen nach `accept()` (vor dem Messpunkt) und vor `connect()` in `httpclient()`. **Link-Prüfpunkt:** der Lead baut unmittelbar danach; scheitert der Link von `tcp_kill_timewait`, wird Teil 5 zurückgenommen und als Befund gemeldet. **Prüfstand c65z** | `esp-developer` | E4.3 | **AKV.10** | ☐ | — |
-| E4.5 | **Teil 6 — verwaiste Lesende überspringen** nach §19.8 (Ent-37): Weissliste im Flash, Prüfung vor dem GET-Verteiler, `api_orphan_skipped`. Im Bericht je Eintrag der Liste: Handler gelesen, keine Nebenwirkung, die beim Überspringen verloren ginge (`ir_codes_get` ausdrücklich). **Prüfstand c65o** | `esp-developer` | E4.4 | **AKV.11** | ☐ | — |
-| E4.6 | **Teil 1 — WLAN-Scan** nach §19.3 (Nutzerentscheid): Merker `scan: true` nur beim Wechsel in das Netzwerkmodul, beim Start mit dem Netzwerkmodul und im Knopf; ein Versuch; alte Liste bleibt. **Prüfstand c65q** (Scan-Teil) im Scratchpad | `pwa-developer` | E4.0, **E3.14** | **AKV.3** | ☐ | — |
-| E4.7 | **Teil 4 — Warteschlange und Kernladung** nach §19.6 (Ent-35, Ent-30 B): Warteschlange in `fetchWithTimeout()`; Frist ab Senden auch in `settleWithTimeout()`; Startphase; Klassen; überholte Abrufe, Zeitstempel erst beim Senden; Wartezeit Lesender 15 s; keine Wiederholung lesender Abrufe nach Zeitüberschreitung; ein offener Abruf je Taktgeber; Displaystrom aus `settings_xml` ohne eigenen Abruf (Ent-30 B), Rückfall nie „aus", Kommentar B11 nachführen; `loadSecondaryData` in der Ladesperre; Netzfristen nach Tabelle. Im Bericht: **Bestandsliste** aller `fetch(`/`XMLHttpRequest` auf `/api/`, **Tabelle** der Wirkung je geänderter Frist. **Prüfstand c65q** vollständig | `pwa-developer` | E4.6 | **AKV.6–AKV.9** | ☐ | — |
-| E4.8 | Prüfstände c65i, c65w, c65k, c65z, c65o, c65q ablegen und in S16 aufnehmen (c65b angepasst); Gegenproben gegen ESP 3.2.36 bzw. PWA 1.4.99 und **je Massnahme mindestens eine Sabotage** fahren; Fallzahlen nachzählen (L235); alles sofort ins Messprotokoll | Lead | **E4.5, E4.7** | **AKV.1–AKV.11** am Prüfstand, Fallzahlen | ☐ | — |
-| E4.9 | **Werkzeuge** nach §19.10: `check-pwa` mit Netzruhe statt fester Wartezeiten, Zählung gleichzeitiger `/api/`, Abrufe je Endpunkt, langsame Verbindungsaufbauten — Gegenproben gegen die Vorschau mit 1'200 ms Verzögerung (alt FEHL, neu OK) und mit einem nie endenden Abruf (Exit ≠ 0, Meldung kommt an); `smoke-device.sh` mit den I-4-Feldern, Gegenproben über `SMOKE_DR_OVERRIDE`; Wache `- scan` (Hinweis), Gegenprobe über `WATCHLOG_QUELLE` | Lead | E4.8 | **AKV.13**, **AKZ.5** | ☐ | — |
-| E4.10 | **Review E4** (ESP und PWA zusammen): alle vier Punkte der Checkliste je Teil (`design-e4.md` §19.16); Gleichzeitigkeit beim Lesen der lwIP-Listen; keine Query in `heap_low_req_path`; `http_cur_path` auf jedem Rückkehrpfad gelöscht; Weissliste je Eintrag gegen den Handler; Setter nie übersprungen; Slot der Warteschlange in `finally` freigegeben, auch bei Abbruch; Reihenfolge der Schreibenden (Backup-Import); Ladesperre auf jedem Pfad freigegeben; Rückfall nie „aus"; RAM; Kodierung und Zeilenenden (AKZ.9) | `code-reviewer` | E4.9 | Checkliste | — | ☐ |
-| E4.11 | ESP-Version anheben (erwartet **3.2.37**), `APP_VERSION` (erwartet **1.4.100**) und `CACHE_NAME` | `release-engineer` | E4.10 | S4 zeigt beide | ☐ | — |
-| E4.12 | `CHANGELOG.md`-Eintrag E4 (beide Komponenten); **AKV.14** (AKZ.3 gegen das Tag von E3), `git status` (R2); `--full`; RAM des Release-Builds; alles sofort ins Messprotokoll | Lead | E4.11 | **AKZ.2**, **AKV.14**, **AKV.12** | ☐ | — |
-| E4.13 | `TESTPLAN-PWA.md`: neue `device_ready`-Felder (I-4, `http_backlog`, `api_orphan_skipped`) und ihre Lesart; Scan-Zeile; Verhalten der Warteschlange (höchstens 2, Startphase 1; verzögerte Verbindungsaufbauten sind kein Fehler); neue Ausgabe von `check-pwa`; K30 mit dem Tor aus Ent-31; Scan nur beim Öffnen und per Knopf; T2-Umfang und -Abhängigkeit (nach G8, G7R, G6) | `doc-writer` | E4.10 | S9, S11 | ☐ | — |
-| E4.14 | `BEFUNDE.md`: „Träger: Paket 2026-10-13 (Release E4)" an C65, C49, C54; bei C65 vermerken, dass M-2 in E4 aufgeht; an C66, C67, C68, C70 „nicht in E4" mit Verweis auf `requirements-e4.md`. **Nicht gleichzeitig mit einer Messzeile des Leads** (R3) | `doc-writer` | E4.12 | S10, S11 | ☐ | — |
+| E4.1 | **Teil 0 — I-4 und Scan-Zeile** nach `design-e4.md` §19.2: Momentaufnahme nur beim neuen Block-Tiefstwert, `http_cur_path` mit Löschen im Destruktor, privater lwIP-Kopf nur in `http.cpp` (Ent-32), Felder in `device_ready` hinter `upd_cache_max_ms`, Scan-Zeile in Mitschnitt und Ring. Prüfpunkt: kein `yield()`/`delay()` während des Zählens. **Prüfstand c65i** im Scratchpad | `esp-developer` | E4.0, **E3.14** | **AKV.1**, **AKV.2** | ☑ | — |
+| E4.2 | **Teil 2 — Schreibstücke ≤ `TCP_MSS`** nach §19.4 (Ent-33, Variante A) in `http_flush()` und der Dateiauslieferung; Fortschrittsregel; c65b an die Stücke anpassen. **Prüfstand c65w** | `esp-developer` | E4.1 | **AKV.4** | ☑ | — |
+| E4.3 | **Teil 3 — Backlog nach freiem Heap** nach §19.5 (Ent-34): Unterklasse `WcHttpServer`, `begin (80, HTTP_BACKLOG_HIGH)`, Nachführung vor `accept()`, `#error` ohne `TCP_LISTEN_BACKLOG`. **Prüfstand c65k** | `esp-developer` | E4.2 | **AKV.5** | ☑ | — |
+| E4.4 | **Teil 5 — TIME_WAIT ≤ 2** nach §19.7 (Ent-36): `tcp_tw_limit()` über `TCP_TW_LIMIT`, aufgerufen nach `accept()` (vor dem Messpunkt) und vor `connect()` in `httpclient()`. **Link-Prüfpunkt:** der Lead baut unmittelbar danach; scheitert der Link von `tcp_kill_timewait`, wird Teil 5 zurückgenommen und als Befund gemeldet. **Prüfstand c65z** | `esp-developer` | E4.3 | **AKV.10** | ☑ | — |
+| E4.5 | **Teil 6 — verwaiste Lesende überspringen** nach §19.8 (Ent-37): Weissliste im Flash, Prüfung vor dem GET-Verteiler, `api_orphan_skipped`. Im Bericht je Eintrag der Liste: Handler gelesen, keine Nebenwirkung, die beim Überspringen verloren ginge (`ir_codes_get` ausdrücklich). **Prüfstand c65o** | `esp-developer` | E4.4 | **AKV.11** | ☑ | — |
+| E4.6 | **Teil 1 — WLAN-Scan** nach §19.3 (Nutzerentscheid): Merker `scan: true` nur beim Wechsel in das Netzwerkmodul, beim Start mit dem Netzwerkmodul und im Knopf; ein Versuch; alte Liste bleibt. **Prüfstand c65q** (Scan-Teil) im Scratchpad | `pwa-developer` | E4.0, **E3.14** | **AKV.3** | ☑ | — |
+| E4.7 | **Teil 4 — Warteschlange und Kernladung** nach §19.6 (Ent-35, Ent-30 B): Warteschlange in `fetchWithTimeout()`; Frist ab Senden auch in `settleWithTimeout()`; Startphase; Klassen; überholte Abrufe, Zeitstempel erst beim Senden; Wartezeit Lesender 15 s; keine Wiederholung lesender Abrufe nach Zeitüberschreitung; ein offener Abruf je Taktgeber; Displaystrom aus `settings_xml` ohne eigenen Abruf (Ent-30 B), Rückfall nie „aus", Kommentar B11 nachführen; `loadSecondaryData` in der Ladesperre; Netzfristen nach Tabelle. Im Bericht: **Bestandsliste** aller `fetch(`/`XMLHttpRequest` auf `/api/`, **Tabelle** der Wirkung je geänderter Frist. **Prüfstand c65q** vollständig | `pwa-developer` | E4.6 | **AKV.6–AKV.9** | ☑ | — |
+| E4.8 | Prüfstände c65i, c65w, c65k, c65z, c65o, c65q ablegen und in S16 aufnehmen (c65b angepasst); Gegenproben gegen ESP 3.2.36 bzw. PWA 1.4.99 und **je Massnahme mindestens eine Sabotage** fahren; Fallzahlen nachzählen (L235); alles sofort ins Messprotokoll | Lead | **E4.5, E4.7** | **AKV.1–AKV.11** am Prüfstand, Fallzahlen | ☑ | — |
+| E4.9 | **Werkzeuge** nach §19.10: `check-pwa` mit Netzruhe statt fester Wartezeiten, Zählung gleichzeitiger `/api/`, Abrufe je Endpunkt, langsame Verbindungsaufbauten — Gegenproben gegen die Vorschau mit 1'200 ms Verzögerung (alt FEHL, neu OK) und mit einem nie endenden Abruf (Exit ≠ 0, Meldung kommt an); `smoke-device.sh` mit den I-4-Feldern, Gegenproben über `SMOKE_DR_OVERRIDE`; Wache `- scan` (Hinweis), Gegenprobe über `WATCHLOG_QUELLE` | Lead | E4.8 | **AKV.13**, **AKZ.5** | ☑ | — |
+| E4.10 | **Review E4** (ESP und PWA zusammen): alle vier Punkte der Checkliste je Teil (`design-e4.md` §19.16); Gleichzeitigkeit beim Lesen der lwIP-Listen; keine Query in `heap_low_req_path`; `http_cur_path` auf jedem Rückkehrpfad gelöscht; Weissliste je Eintrag gegen den Handler; Setter nie übersprungen; Slot der Warteschlange in `finally` freigegeben, auch bei Abbruch; Reihenfolge der Schreibenden (Backup-Import); Ladesperre auf jedem Pfad freigegeben; Rückfall nie „aus"; RAM; Kodierung und Zeilenenden (AKZ.9) | `code-reviewer` | E4.9 | Checkliste | — | ☑ |
+| E4.11 | ESP-Version anheben (erwartet **3.2.37**), `APP_VERSION` (erwartet **1.4.100**) und `CACHE_NAME` | `release-engineer` | E4.10 | S4 zeigt beide | ☑ | — |
+| E4.12 | `CHANGELOG.md`-Eintrag E4 (beide Komponenten); **AKV.14** (AKZ.3 gegen das Tag von E3), `git status` (R2); `--full`; RAM des Release-Builds; alles sofort ins Messprotokoll | Lead | E4.11 | **AKZ.2**, **AKV.14**, **AKV.12** | ☑ | — |
+| E4.13 | `TESTPLAN-PWA.md`: neue `device_ready`-Felder (I-4, `http_backlog`, `api_orphan_skipped`) und ihre Lesart; Scan-Zeile; Verhalten der Warteschlange (höchstens 2, Startphase 1; verzögerte Verbindungsaufbauten sind kein Fehler); neue Ausgabe von `check-pwa`; K30 mit dem Tor aus Ent-31; Scan nur beim Öffnen und per Knopf; T2-Umfang und -Abhängigkeit (nach G8, G7R, G6) | `doc-writer` | E4.10 | S9, S11 | ☑ | — |
+| E4.14 | `BEFUNDE.md`: „Träger: Paket 2026-10-13 (Release E4)" an C65, C49, C54; bei C65 vermerken, dass M-2 in E4 aufgeht; an C66, C67, C68, C70 „nicht in E4" mit Verweis auf `requirements-e4.md`. **Nicht gleichzeitig mit einer Messzeile des Leads** (R3) | `doc-writer` | E4.12 | S10, S11 | ☑ | — |
 | E4.15 | **Einspielzeilen:** nach **Ent-29 PWA zuerst, dann ESP**, unmittelbar hintereinander, „dazwischen nichts — keine Aktion an der Oberfläche"; **Rückweg mit Befehl und Reihenfolge** (`design-e4.md` §19.12: neuer ESP nie mit alter PWA; ESP-Rückflash auf 3.2.36 aus dem ZIP von E3 — Weg festlegen und benennen, **bevor** eingespielt wird) | Lead | E4.12 | **AKZ.8** | — | — |
-| E4.16 | Build, ZIP, Rollout, **ein** Commit + Tag + Push (erwartet `release/3.2.34-3.2.37-1.4.100`) | Lead | E4.13, E4.14, E4.15, **E3.17** | **AKZ.7** | ☐ | — |
+| E4.16 | Build, ZIP, Rollout, **ein** Commit + Tag + Push (erwartet `release/3.2.34-3.2.37-1.4.100`) | Lead | E4.13, E4.14, E4.15, **E3.17** | **AKZ.7** | ☑ | — |
 | E4.17 | **Einspielen** nach Ent-29 und E4.15: Wache läuft; `install-app.sh` und `--check`, **sofort** danach ESP-OTA; danach Smoketest samt Update-Quelle und neuen Feldern, `install-app.sh --check`, `check-pwa.sh` (neue Fassung); Versionen und Zeiten sofort ins Messprotokoll | Lead | E4.16 | **AKV.15**, **AKZ.4** | — | — |
 | E4.18 | **G8** nach `design-e4.md` §19.13 (Ent-31): Ruhe, **erster Lauf, Tor**, Ruhe nach Last, zwei weitere Läufe mit Tor, Scan-Probe, Probe verwaister Lesender, Gesundheit; jeder Lauf sofort ins Messprotokoll, ausgewertet **bevor** der nächste beginnt; `caffeinate`, falls geplant | Lead | E4.17 | **AKV.16–AKV.20** | — | — |
 | E4.19 | **Weiter oder anhalten:** Tor in G8 nicht bestanden oder AKV.17/AKV.18 nicht erfüllt ⇒ **kein** G7R und **kein** T2; dem Nutzer vorlegen mit den I-4-Werten und den nächsten Kandidaten (C70, C67). Sonst weiter | Lead | E4.18 | **AKV.17**, **AKV.18**, Ent-23 | — | — |
@@ -410,14 +410,60 @@ dann Tor) und Ent-39 (Zero-Window-Probe entfällt); Ent-32 bis Ent-38 vom Lead �
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** aus dem Messprotokoll — für C65, C49, C54 aus den Messprotokollen E3 **und E4** und aus T2 | `doc-writer` | T2 | S10, S11 | ☐ | — |
+| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** aus dem Messprotokoll — für C65, C49, C54 aus den Messprotokollen E3 **und E4** und aus T2 | `doc-writer` | T2 | S10, S11 | ☑ | — |
 | Z.2 | Spec-Endstand (samt `requirements-e4.md` und `design-e4.md`) | `spec-writer` | Z.1 | jedes Kriterium mit Beleg oder Grund | — | — |
 
 ## Abschluss
 
 - [ ] Alle Tasks erledigt (S3 nur bei Gate-Riss; M.3, M.4, S1.9, S1.10 entfallen; E1.8, E1.9,
       E1.11–E1.14, EP.1 und EP.14 entfallen mit Ent-18)
-- [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
-- [ ] Alle Akzeptanzkriterien aus `requirements.md` und `requirements-e4.md` erfüllt oder mit Grund offen
+- [x] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
+- [x] Alle Akzeptanzkriterien aus `requirements.md` und `requirements-e4.md` erfüllt oder mit Grund offen
 - [ ] Sieben Releases (S1, S2, E2, EP, P2, E3, E4; acht mit S3), je Flash-Umfang und Reihenfolge benannt, je
       committet, getaggt, gepusht
+
+---
+
+## Endstand 14.10.2026
+
+**Z.2, `spec-writer`, Stand `d1150b9`.** Der Endstand **jedes** Akzeptanzkriteriums und **jedes** Tasks mit Beleg
+oder Grund steht in **`endstand.md`** (dieser Ordner); hier die Kurzfassung. Die Spalten G und R oben sind
+nachgezogen: ☑ erledigt mit Beleg, — entfallen (S3), ☐ ohne Beleg (0.6). Zum Abschluss oben: offen sind P2.13
+(G6) und die Abnahme von 0.6; der Push der Tags ist im Messprotokoll nur für E3 und E4 belegt (L457).
+
+**Releases — sieben, kein S3** (Tags aus `.git/packed-refs` und `.git/refs/tags/release/`):
+
+| Release | Tag |
+|---|---|
+| S1 — STM 3.2.33 | `release/3.2.33-3.2.33-1.4.97` |
+| S2 — STM 3.2.34 | `release/3.2.34-3.2.33-1.4.97` |
+| E2 — ESP 3.2.34 | `release/3.2.34-3.2.34-1.4.97` |
+| EP — ESP 3.2.35, PWA 1.4.98 | `release/3.2.34-3.2.35-1.4.98` |
+| P2 — PWA 1.4.99 | `release/3.2.34-3.2.35-1.4.99` |
+| E3 — ESP 3.2.36 | `release/3.2.34-3.2.36-1.4.99` |
+| E4 — ESP 3.2.37, PWA 1.4.100 | `release/3.2.34-3.2.37-1.4.100` |
+
+**Zählung:** 115 Kriterien (94 in `requirements.md`, 21 in `requirements-e4.md`) — **84 erfüllt, 7 nicht erfüllt,
+10 entfallen, 14 nicht belegt**.
+
+**Erfüllt** und in `BEFUNDE.md` geschlossen: A15 (S1), A56, A80, A81, A82 und A70 (S2; A70 ohne den Timerteil von
+AKN.6), B55 über alle drei Komponenten samt AKL.4 in T2, A79, C59, C46, C19 (E2/EP), C6b (EP), B8 (P2), E36 und F3
+statisch (Schritt 0). Für C65 sind Code und Prüfstände von E3 und E4 abgenommen, und das Tief unter Last ist mit E4
+stark gehoben: G8 `heap_low_block` 2'184 / 1'488 / 1'784 statt 280 unter E3, ohne `fs write short`, ohne `fail`,
+ohne `keine Quittung` (AKV.17, L457).
+
+**Offen, mit Träger in `BEFUNDE.md`:**
+
+| Was | Kriterium | Träger |
+|---|---|---|
+| Ein volles Neuladen der PWA reisst K30: T2 21:28:37 `low=752` (L466) | AKZ.6, AKV.19, AKV.21 | **C65** (hoch) |
+| Ruhewert 4'672 bzw. 4'464 statt ≥ 5'120 | AKV.18, AKR.12 | **C71** |
+| Vorhersage während einer Ladung: Lesefrist statt `ok` | AKR.16 | **C54** |
+| Antwortverluste an einen langsamen Client (L463) | — | **C49** |
+| Lange STM-Zeile in `/api/stm32_log` am Gerät | AKK.2 | **C8** |
+| Fehlerzeile bei offener Tastatur am iPhone — Rückmeldung fehlt | AKF.2 | **B48** |
+| Englische Oberfläche: App-Dateiliste, Statuswerte | AKD.3 | **B63** |
+| Dynamische Gegenprobe des Backup-Umfangs (`design.md` §15) | — | **F3** |
+
+**Nicht belegt, ohne offenen Träger:** AKN.6 (Timerteil), AKZ.12, AKZ.1, AKZ.3, AKZ.7, AKZ.8, AKZ.9, AKR.13,
+AKR.17, AKR.18, AKV.13, AKV.14 — Einzelheiten in `endstand.md` §3 und §4.
