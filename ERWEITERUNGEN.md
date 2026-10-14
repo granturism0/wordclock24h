@@ -26,6 +26,8 @@ Kennung `X<n>`, fortlaufend, wird nie neu vergeben. Status: **Idee** (aufgenomme
 | **X12** | **Mood-Light-Funktion** | Idee | — | STM, ESP, PWA |
 | **X13** | **Hintergrundfarbe/-helligkeit für das Display** | Idee | X3 gemeinsam planen | STM, ESP, PWA |
 | **X14** | **Legacy-Oberfläche durch eine kleine Notfallseite ersetzen** | Idee | C66, C70; Funktionsabgleich PWA ↔ Legacy | ESP |
+| **X15** | **Neue Generation auf ESP32-S3** — ein Chip statt STM32 + ESP8266, neue Platine | Idee | X16 sinnvoll vorher; Entscheid zur Pflege der bestehenden Hardware | Hardware, STM, ESP, PWA |
+| **X16** | **ESP32 statt ESP8266, STM32 bleibt** | Idee | Passendes Modul für die V2-Platine (KiCad prüfen) | ESP, Hardware |
 
 ## X1 — Live-Display der echten LEDs in der PWA
 
@@ -89,6 +91,57 @@ Rettungsweg und hält den Code, der ohne PWA laufen muss, klein und prüfbar. Er
 die PWA selbst robust genug ist: nach **C66** (Teildatei beim Download) und **C70** (Asset-Cache).
 Berührt die Architektur-Invariante „Legacy läuft parallel zur PWA“ — vor einer Spec mit dem
 Nutzer entscheiden.
+
+## X15 — Neue Generation auf ESP32-S3
+
+Aufgenommen am 14.10.2026 auf Wunsch des Nutzers, nach einer Forumsfrage: Warum ist das
+Projekt nicht auf einem ESP32-S3 aufgebaut?
+
+**Warum es heute zwei Chips sind:** Im Ursprungsprojekt macht der STM32 alles Zeitkritische
+(LED-Kette per DMA, RTC, EEPROM, DS18xx, IR, DCF77, LDR, DFPlayer, TFT), der ESP8266 nur das
+Netzwerk. Zur Entstehungszeit konnte ein ESP8266 die LED-Kette neben dem WLAN nicht sauber takten.
+Ein ESP32-S3 kann das über seinen RMT-Baustein, und er hat zwei Kerne.
+
+**Was es lösen würde:**
+
+- **Heap:** rund 512 KB RAM statt der Blöcke um 4 KB, um die C65, C71 und C72 kämpfen.
+- **Die UART-Brücke entfällt** und mit ihr die verlorenen Werte bei beschäftigtem ESP (C68,
+  `var_send_buf … verworfen`, Zähler `v=`/`d=`/`ovr`).
+- **Eine Firmware, ein OTA-Weg**, statt zwei Versionen und STM-Flash über den ESP.
+- **TLS wird machbar** — damit Service Worker und echter Offline-Cache der PWA (C70).
+
+**Was es kostet:**
+
+- **Neue Platine.** Die V2 ist auf den STM32F411 ausgelegt. Übernehmbar sind Pegelwandler,
+  geschaltete LED-Versorgung, RTC und EEPROM am I2C — das Layout ist neu.
+- **Portierung der STM-Firmware** (rund 50 C-Dateien, ST-Standardbibliothek): Die Logik
+  (Wort-Tabellen, Anzeigemodi, Animationen, Timer, Einstellungen) ist gut übertragbar, alle
+  Treiber sind neu — LED-Ausgabe (RMT), 1-Wire, IR, DCF77, DFPlayer-UART, I2C, ADC. Der ADC des
+  ESP32 ist nicht linear; für den LDR genügt er.
+- **Portierung der ESP-Firmware** (Webserver, LittleFS, OTA, WLAN — ähnliche, nicht gleiche
+  Schnittstellen); die Brückenlogik wird zu direkten Aufrufen. Die PWA bliebe fast unverändert.
+- **Bestehende Uhren** brauchen neue Hardware — eine zweite Produktlinie, die alte wird
+  parallel gepflegt oder eingefroren.
+- **Alle Belege neu**: Jede Messung und jeder Befund der bisherigen Arbeit gilt für die neue
+  Hardware erst nach eigener Prüfung.
+
+Grössenordnung: ein Vorhaben von Monaten, kein Paket. **Nicht gemessen, nicht bewertet.**
+
+## X16 — ESP32 statt ESP8266, STM32 bleibt
+
+Aufgenommen am 14.10.2026 zusammen mit X15, als kleinerer Zwischenschritt.
+
+Nur der Netzwerkteil wird ersetzt. Es gibt ESP32-C3-Module im Format des ESP-01; **ob eines auf
+die V2-Platine passt** (Pinbelegung, Versorgung, Boot-Pins, UART zum STM), ist am KiCad-Projekt
+zu prüfen, bevor etwas anderes geplant wird.
+
+- **Gewinn:** Heap-Probleme (C65, C71, C72) erledigt, TLS und PWA-Cache möglich, Platz für eine
+  grössere PWA.
+- **Aufwand:** Portierung nur der ESP-Firmware; STM-Code und STM-Platine bleiben. Grob einige
+  Wochen, **geschätzt, nicht geplant**.
+- **Bleibt:** die UART-Brücke (C68). Ein ESP32 blockiert sie seltener, weil Uploads und lange
+  Antworten ihn weniger lange binden — beseitigt ist sie damit nicht.
+- **Auslöser:** sinnvoll, wenn die Heap-Arbeit auf dem ESP8266 an ihre Grenze kommt.
 
 ## X2 bis X13 — aus der Liste „Weitere geplante Features“ des Ursprungsprojekts
 
