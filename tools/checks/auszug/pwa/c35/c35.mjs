@@ -90,10 +90,12 @@ let simJetzt = 0;
 let aktuellerKontext = null;
 const nichts = () => undefined;
 const attrappen = {
-  settleFetchJson: (url, fallback) => {
+  settleFetchJson: (url, fallback, timeoutMs, attempts, queueOptions) => {
     const art = url === URL_STATUS ? "status" : url === URL_TABELLE ? "tabelle" : null;
     if (!art) return Promise.resolve(fallback);
     zaehler[art]++;
+    // pwa-developer E4.7: ein gezaehlter Abruf ist ein GESENDETER -- wie die echte Schlange
+    if (queueOptions && typeof queueOptions.onSend === "function") queueOptions.onSend();
     if (zaehler.ueberholen && aktuellerKontext) aktuellerKontext.loadRequestSerial += 1;
     if (zaehler.modus === "wirft") return Promise.reject(new Error("simulierter Fehlschlag"));
     if (zaehler.modus === "rueckfall") return Promise.resolve(fallback);
@@ -271,9 +273,9 @@ try {
   {
     const k = neuerKontext();
     const echt = k.settleFetchJson;
-    k.settleFetchJson = (url, fallback) => {
+    k.settleFetchJson = (url, fallback, t, n, q) => {
       if (url === URL_TABELLE) k.loadRequestSerial += 1;
-      return echt(url, fallback);
+      return echt(url, fallback, t, n, q);
     };
     await lauf(k, "main", { startup: true });
     const nachOeffnen = zaehler.tabelle;

@@ -189,6 +189,8 @@ httpclient (const char * host, const char * path, const char * file)
     int             errorcode;
     int             len;
 
+    tcp_tw_limit ();                                                                // E4 Teil 5 (C65): TIME_WAIT <= 2, unmittelbar VOR connect ()
+
     if (! client.connect(host, port))
     {
         return -1;

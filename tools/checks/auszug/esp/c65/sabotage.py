@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Sabotagen fuer c65a, c65b, c65m, c65n, c65e, c65t: jede muss FEHL melden (DIR-014), nicht OK und nicht KAPUTT.
+"""Sabotagen fuer c65a, c65b, c65m, c65n, c65e, c65t und (E4) c65i, c65w, c65k, c65z, c65o: jede muss FEHL melden (DIR-014), nicht OK und nicht KAPUTT.
 Aufruf: sabotage.py <ESP-Quellverzeichnis>. Exit 0, wenn JEDE Sabotage anschlaegt."""
 import os, re, shutil, subprocess, sys, tempfile
 D = os.path.dirname(os.path.abspath(__file__)); Q = os.path.abspath(sys.argv[1])
 RUN = {'a': [os.path.join(D, 'run_a.sh')], 'b': [os.path.join(D, 'run_b.sh')],
-       'm': [os.path.join(D, 'run_mn.sh')], 'n': [os.path.join(D, 'run_mn.sh')], 'e': [os.path.join(D, 'run_mn.sh')], 't': ['python3', os.path.join(D, 'c65t.py')]}
+       'm': [os.path.join(D, 'run_mn.sh')], 'n': [os.path.join(D, 'run_mn.sh')], 'e': [os.path.join(D, 'run_mn.sh')], 't': ['python3', os.path.join(D, 'c65t.py')],
+       **{x: ['sh', os.path.join(D, 'run_x.sh'), x] for x in 'iwkzo'}}
 S = [
   # (Name, Pruefstand, Datei, alt, neu, Anzahl)
   ('c65a Messpunkt accept entfernt', 'a', 'http.cpp', '    heap_low_note (HEAP_LOW_PATH_ACCEPT);', '', 1),
@@ -35,6 +36,33 @@ S = [
   ('c65e Maximum des Auftrags nicht nachgefuehrt', 'e', 'http.cpp', '        req_max_upd_cache_ms = (uint32_t) (millis () - update_cache_step_millis);', '', 1),
   ('c65a upd_cache_max_ms nicht zurueckgesetzt', 'a', 'http.cpp', '        req_max_upd_cache_ms = 0;                                   // E3.8: mit I-1 und I-3', '', 1),
   ('c65a upd_cache_max_ms gibt den Live-Wert aus', 'a', 'http.cpp', '(unsigned long) upd_max_ms);', '(unsigned long) req_max_upd_cache_ms);', 1),
+  # E4 (design-e4.md 19.11): je Massnahme mindestens eine Sabotage
+  ('c65i Momentaufnahme bei jedem Aufruf', 'i', 'http.cpp', '        heap_low_snapshot ();                                   // E4 I-4: NUR beim neuen Block-Tiefstwert\n    }\n', '    }\n    heap_low_snapshot ();\n', 1),
+  ('c65i Query im Pfad', 'i', 'http.cpp', "path[idx] && path[idx] != '?' && idx <", 'path[idx] && idx <', 1),
+  ('c65i Scan-Zeile nur auf Serial', 'i', 'http.cpp', '    Serial.println (buf);\n    Serial.flush ();\n    stm32_log_append (buf);\n', '    Serial.println (buf);\n    Serial.flush ();\n', 1),
+  ('c65i flush nach scanDelete gemessen', 'i', [('http.cpp', '    out_end    = millis ();', '    WiFi.scanDelete ();\n    out_end    = millis ();', 1)]),
+  ('c65w 1072 je Aufruf', 'w', 'http.cpp', '#define HTTP_WRITE_CHUNK                            TCP_MSS', '#define HTTP_WRITE_CHUNK                            MAX_HTTP_RESPONSE_LEN', 1),
+  ('c65w Teilstueck ohne Nachversuch', 'w', 'http.cpp', '                if (written == 0 || retried || ! http_client.connected ())', '                if (1)', 1),
+  ('c65w Nachversuch je Stueck statt je Aufruf', 'w', 'http.cpp', '                    continue;                                   // Stueck ganz untergebracht', '                    retried = 0; continue;', 1),
+  ('c65k Hysterese entfernt', 'k', 'http.cpp', '#define HTTP_BACKLOG_HYST                       256', '#define HTTP_BACKLOG_HYST                       0', 1),
+  ('c65k Nachfuehrung entfernt', 'k', 'http.cpp', '    http_backlog_track ();                                                  // E4 Teil 3: Backlog nach freiem Heap, VOR accept ()\n', '', 1),
+  ('c65k bei jedem Durchlauf gesetzt', 'k', 'http.cpp', '    if (want != http_backlog)\n    {\n        http_server.backlog (want);', '    {\n        http_server.backlog (want);', 1),
+  ('c65z Grenze 5', 'z', 'http.cpp', '#define HTTP_TW_LIMIT                           2', '#define HTTP_TW_LIMIT                           5', 1),
+  ('c65z Makro mit der Grenze selbst (laesst 3)', 'z', 'http.cpp', '    TCP_TW_LIMIT (HTTP_TW_LIMIT - 1);', '    TCP_TW_LIMIT (HTTP_TW_LIMIT);', 1),
+  ('c65z Aufruf nach dem Messpunkt', 'z', 'http.cpp', '    tcp_tw_limit ();                                                        // E4 Teil 5: TIME_WAIT <= 2, VOR dem Messpunkt\n    heap_low_note (HEAP_LOW_PATH_ACCEPT);', '    heap_low_note (HEAP_LOW_PATH_ACCEPT);\n    tcp_tw_limit ();', 1),
+  ('c65z Aufruf vor connect () entfernt', 'z', 'httpclient.cpp', '    tcp_tw_limit ();                                                                // E4 Teil 5 (C65): TIME_WAIT <= 2, unmittelbar VOR connect ()\n', '', 1),
+  ('c65o ldr_min_set in der Liste', 'o', 'http.cpp', '    "/api/ir_codes_get",\n};', '    "/api/ir_codes_get",\n    "/api/ldr_min_set",\n};', 1),
+  ('c65o Pruefung nach dem Verteiler', 'o', [
+      ('http.cpp', '    if (http_api_is_read_only (path) && ! http_api_orphan_trigger (path) && ! http_client.connected ())\n    {\n        if (api_orphan_skipped < 0xFFFF)\n        {\n            api_orphan_skipped++;\n        }\n\n        return 0;\n    }\n\n', '', 1),
+      ('http.cpp', '        http_send_FS ("\\r\\n\\r\\n404 Not Found\\r\\n");\n        http_flush ();\n    }\n\n    return rtc;\n}', '        http_send_FS ("\\r\\n\\r\\n404 Not Found\\r\\n");\n        http_flush ();\n    }\n\n    if (http_api_is_read_only (path) && ! http_client.connected ())\n    {\n        api_orphan_skipped++;\n    }\n\n    return rtc;\n}', 1)]),
+  # E4.5a (Lead 14.10.2026): Abgleich von Notes und Liste nach dem Start und nach refresh=1
+  ('c65e Abgleich ohne Inhaltsvergleich (immer geschrieben)', 'e', 'http.cpp', '    if (compare)\n    {\n        File        old;', '    if (0)\n    {\n        File        old;', 1),
+  ('c65e kein Abgleich beim Start', 'e', 'http.cpp', 'static uint8_t       update_cache_force        = 1;', 'static uint8_t       update_cache_force        = 0;', 1),
+  ('c65e refresh=1 fordert keinen Abgleich an', 'e', 'http.cpp', '        update_cache_due   = 1;\n        update_cache_force = 1;\n', '        update_cache_due   = 1;\n', 1),
+  ('c65e gleicher Anfang nicht aus der alten Datei', 'e', 'http.cpp', '                    while (! reason && same > 0)', '                    while (0)', 1),
+  ('c65e Abgleich nach Fehlschlag nicht vorgemerkt', 'e', 'http.cpp', '        if (update_cache_forcing)\n        {\n            update_cache_force = 1;                                 // E4.5a: der Abgleich steht weiter aus\n        }\n', '', 1),
+  # Review E4.10 M1: update_status?refresh=1 ist ein Ausloeser
+  ('c65o update_status?refresh=1 verwaist uebersprungen', 'o', 'http.cpp', '    if (http_api_is_read_only (path) && ! http_api_orphan_trigger (path) && ! http_client.connected ())', '    if (http_api_is_read_only (path) && ! http_client.connected ())', 1),
 ]
 rc = 0
 for e in S:

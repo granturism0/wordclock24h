@@ -44,6 +44,7 @@ extern uint32_t         heap_low_line_take (void);                             /
 #define HEAP_LOW_PATH_FS        2
 #define HEAP_LOW_PATH_ACCEPT    3
 #define HEAP_LOW_PATH_CLIENT    4
+extern void             tcp_tw_limit (void);                                   // E4 Teil 5 (C65): TIME_WAIT auf 2 begrenzen (http.cpp)
 extern void             update_progress_begin (const char *, const char *, const char *);
 extern void             update_progress_state (const char *, const char *);
 extern void             update_progress_set_progress (uint32_t, uint32_t);

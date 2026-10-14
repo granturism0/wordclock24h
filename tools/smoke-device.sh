@@ -54,7 +54,10 @@ sx=$(curl -s -m "$TIMEOUT" "$U/api/settings_xml" 2>/dev/null)
 stm=$(printf '%s' "$sx" | grep -o '<strvar idx="1" value="[^"]*"' | sed 's/.*value="//;s/"//')
 [ -n "$stm" ] && pass "STM-Version gemeldet" "$stm" || fail "STM-Version gemeldet"
 
-esp=$(curl -s -m "$TIMEOUT" "$U/update" 2>/dev/null | grep -oE '3\.[0-9]+\.[0-9]+' | sed -n 2p)
+# Aus /api/update_status, nicht mehr als "zweite Versionsnummer auf /update": Die Legacy-Seite zeigt dort
+# die Release Notes vom Server, und seit dem 14.10.2026 steht darin "3.1.5" (Umstieg vom Original) --
+# der Smoketest meldete damit ESP 3.1.5 und uebersprang die Pruefungen fuer E3/E4 still.
+esp=$(curl -s -m "$TIMEOUT" "$U/api/update_status" 2>/dev/null | grep -o '"esp_version":"[^"]*"' | cut -d'"' -f4)
 [ -n "$esp" ] && pass "ESP-Version gemeldet" "$esp" || fail "ESP-Version gemeldet"
 
 # Gegen den Repo-Sollstand (E11/L105). Nur ein Hinweis, kein Fehlschlag: Zwischen Build
@@ -235,6 +238,32 @@ if [ -n "${SMOKE_DR_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.36" "${esp:-0}
   fi
 else
   printf '  --    %-34s %s\n' "Heap-Messfelder (E3)" "ESP ${esp:-?} vor 3.2.36, Felder gibt es noch nicht"
+fi
+
+# ------------------------------------- C65 (E4): Momentaufnahme beim Tief (I-4), Backlog, verwaiste Lesende
+# Ab ESP 3.2.37: was beim Block-Tiefstwert los war (wartende Verbindungen, Backlog, PCBs je Zustand,
+# TIME_WAIT, unquittierte Byte, Pfad), dazu der aktuelle Backlog und die uebersprungenen verwaisten
+# Lesenden. Wieder NUR lesen, nichts zuruecksetzen. heap_low_pcb_states muss genau 11 Zahlen tragen
+# (Index = lwIP enum tcp_state) -- eine andere Zahl hiesse, dass Firmware und Lesart auseinanderlaufen.
+E4_FELDER="heap_low_accepts_pending heap_low_backlog heap_low_pcb_states heap_low_tw heap_low_unacked heap_low_req_path http_backlog api_orphan_skipped"
+if [ -n "${SMOKE_DR_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.37" "${esp:-0}" | sort -V | head -1)" = "3.2.37" ]; then
+  fehlend=""
+  for f in $E4_FELDER; do printf '%s' "$dr" | grep -q "\"$f\":" || fehlend="$fehlend $f"; done
+  zust=$(printf '%s' "$dr" | grep -o '"heap_low_pcb_states":\[[^]]*\]' | sed 's/.*\[//; s/\]//')
+  anz=$(printf '%s' "$zust" | tr ',' '\n' | grep -c '^ *-\{0,1\}[0-9][0-9]* *$')
+  if [ -n "$fehlend" ]; then
+    fail "Momentaufnahme beim Tief (E4)" "fehlen:$fehlend"
+  elif [ "$anz" != "11" ]; then
+    fail "Momentaufnahme beim Tief (E4)" "heap_low_pcb_states traegt $anz statt 11 Zahlen"
+  else
+    ap=$(printf '%s' "$dr" | grep -o '"heap_low_accepts_pending":[0-9]*' | cut -d: -f2)
+    tw=$(printf '%s' "$dr" | grep -o '"heap_low_tw":[0-9]*' | cut -d: -f2)
+    bl=$(printf '%s' "$dr" | grep -o '"http_backlog":[0-9]*' | cut -d: -f2)
+    os=$(printf '%s' "$dr" | grep -o '"api_orphan_skipped":[0-9]*' | cut -d: -f2)
+    pass "Momentaufnahme beim Tief (E4)" "beim Tief $ap wartend, $tw TIME_WAIT; Backlog jetzt $bl; $os verwaiste Lesende uebersprungen"
+  fi
+else
+  printf '  --    %-34s %s\n' "Momentaufnahme beim Tief (E4)" "ESP ${esp:-?} vor 3.2.37, Felder gibt es noch nicht"
 fi
 
 # --------------------------------------------------- Legacy bleibt erreichbar

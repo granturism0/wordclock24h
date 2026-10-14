@@ -109,6 +109,7 @@ LAUF=(
   "L411 Start in jedem Modul ohne ReferenceError (PWA)|pwa/tdz/run.sh $E neu"
   "C6b/C46/B55 Schluessel ueber network_secrets, Query-Grenze, LDR-Meldungen, Mock (PWA)|pwa/ep/run.sh $E neu"
   "B48 Fehlerzeile am Feld, Vorschau und headless Chrome (PWA)|pwa/b48/run.sh $E neu"
+  "C65 E4 Warteschlange, WLAN-Scan, Displaystrom, Ladesperre, Proxy + headless Chrome (PWA)|pwa/c65q/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht

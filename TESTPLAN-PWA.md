@@ -356,6 +356,64 @@ Was P1b-9 in `localStorage` schreibt, liegt im Profil des Prüfbrowsers, nicht a
 Uhr. Weil das Skript dabei jedes Modul neu lädt, erzeugt es selbst Abrufe — **nicht
 gleichzeitig mit K19** laufen lassen.
 
+### Was `check-pwa.sh` seit dem Release E4 ausgibt
+
+Seit dem Release E4 (C65, `BEFUNDE.md`, L457) wartet das Skript keine festen Zeiten mehr ab,
+sondern auf **Netzruhe**: 1'500 ms lang kein Abruf an die Uhr unterwegs, höchstens 20 s lang.
+Das gilt nach dem Laden und nach jedem Neuladen; nach dem Öffnen der Navigation wartet es,
+bis das Element sichtbar ist, höchstens 3 s. Grund: Die PWA staffelt ihre Abrufe (unten),
+und der ESP lässt bei knappem Heap Verbindungsaufbauten warten — feste Wartezeiten wären
+einmal zu kurz und einmal zu lang. Chrome lädt die PWA erst, wenn das Skript mitliest; sonst
+wäre die Startphase unsichtbar.
+
+| Zeile | Lesart |
+|---|---|
+| `FEHLT Netzruhe … keine Netzruhe nach 20 s (<wo>) — offen: <Pfade>` | Nach 20 s war noch ein Abruf unterwegs; die Pfade nennen, wer das Netz belegte. **Befund**, der Lauf endet mit Exit ≠ 0. Er misst trotzdem weiter, damit der Rest der Ausgabe nicht verloren geht |
+| `INFO Netzruhe nach dem Laden` | Sekunden vom Start bis zur ersten Netzruhe |
+| `INFO /api/ gleichzeitig, Startphase` und `… danach` | höchstens gleichzeitig unterwegs gewesene `/api/`-Abrufe. Soll: in der Startphase 1, danach höchstens 2. **Nur Ausgabe, kein Fehlschlag** — das Soll prüft der Prüfstand c65q in der Vorschau. Ein höherer Wert am Gerät ist trotzdem ein Befund und gehört in den Bericht |
+| `INFO Abrufe je Endpunkt` | Zahl der Abrufe von `network_scan`, `display_power`, `ambilight_power` und `power_status` über den ganzen Lauf. Soll für die drei letzten **0** — der Display- und Ambilight-Zustand kommt aus `settings_xml` (Ent-30). `network_scan` höchstens so oft, wie das Netzwerkmodul betreten wurde |
+| `INFO als Takt nicht abgewartet` | Pfade, die im selben Warten zweimal endeten und deshalb als periodischer Takt gelten, etwa `stm32_log` alle 2,5 s — sonst käme nie Netzruhe zustande. **Bekannte Grenze:** Bricht ein solcher Pfad spät ab, sieht das Skript es nicht |
+| `INFO Verbindungsaufbau >= 900 ms` | Zahl der neuen Verbindungen, deren Aufbau 900 ms oder länger dauerte, mit dem längsten Wert — die Spur eines SYN, das der ESP bei vollem Backlog verworfen hat. **Eine 0 ist kein Beleg** (Review E4, M2): Die Zählung ist am Gerät noch nie angeschlagen, die Vorschau kann kein verworfenes SYN nachstellen, und Verbindungen, die der Browser vorab geöffnet hat, sieht sie nicht. Ein Wert über 0 ist kein Fehler (unten), sondern eine Messung |
+| `INFO Laufzeit` | Dauer des ganzen Laufs |
+
+Abrufe des alten Dokuments verwirft das Skript beim Neuladen, weil Chrome ihr Ende nie meldet;
+die Startphase zählt erst ab der Navigation des neuen Dokuments (Review E4, N2).
+
+### Wie die PWA seit dem Release E4 abfragt — was kein Fehler ist
+
+Seit dem Release E4 laufen alle `/api/`-Abrufe der PWA durch **eine Warteschlange**
+(`fetchWithTimeout()` in `app.js`; `specs/paket-2026-10-13/design-e4.md` §19.6). Assets
+und `/app/…` laufen nicht hindurch. Wer das Verhalten im Netzwerk-Tab der DevTools oder im
+Mitschnitt verfolgt, sieht:
+
+- **Höchstens 2 Abrufe gleichzeitig, in der Startphase 1.** Die Startphase endet, wenn das
+  Fenster geladen **und** die erste Kernladung beendet ist, spätestens 15 s nach dem Start
+  des Skripts.
+- **Schreibende vor Lesenden**, innerhalb jeder Klasse in Ankunftsreihenfolge; ein
+  Backup-Import bleibt in seiner Reihenfolge.
+- **Lesende, die 15 s in der Schlange warten, werden verworfen**, ohne gesendet zu werden;
+  die Anzeige behält ihren letzten Stand. Schreibende werden nie verworfen.
+- Lesende Abrufe eines **überholten** Ladelaufs werden nicht gesendet.
+- **Die Netzfrist zählt ab dem Senden**, nicht ab dem Einreihen. Ein lesender Abruf wird nach
+  Fristablauf **nicht** wiederholt — die abgebrochene Anfrage läge beim ESP sonst noch im
+  Backlog, und die Wiederholung wäre eine zweite Verbindung für dieselbe Antwort. Bei
+  `Failed to fetch` und 5xx wird weiter wiederholt.
+- **Verzögerte Verbindungsaufbauten sind kein Fehler.** Bei knappem Heap senkt der ESP seinen
+  Backlog (`http_backlog`, 5b) und beantwortet überzählige SYN nicht; das Betriebssystem
+  des Browsers wiederholt nach rund 1 s. Im Netzwerk-Tab steht der Abruf dann rund eine
+  Sekunde im Verbindungsaufbau. Ein Befund ist es erst, wenn ein Abruf daran scheitert.
+- **WLAN-Scan nur auf Anlass:** beim Wechsel ins Netzwerkmodul, beim Start dort und per Knopf
+  „WLANs neu laden“ — nicht mehr im 15-s-Takt der Selbstaktualisierung (6.2).
+- **Display- und Ambilight-Zustand** im Hauptmodul kommen aus `settings_xml` (`numvar` 3
+  und 30), ohne eigenen Abruf. Fehlt ein Wert, zeigt die PWA „nicht verfügbar“, **nie
+  „aus“**. Steht dort „aus“, während das Display leuchtet, ist das ein Befund — genau
+  diesen Fehler hatte die PWA vor E4 bei einem abgelaufenen Abruf.
+- **„Server erneut prüfen“** nach dem Speichern von Update-Host oder -Pfad (S97, S98): genau
+  ein `update_status?refresh=1`. Grün („Server-Verfügbarkeit wurde neu geprüft“) nur, wenn er
+  gesendet **und** beantwortet wurde, sonst die Fehlermeldung. Rund 9 s danach lädt die PWA
+  `update_status` einmal nach — **erst dann** erscheint eine auf dem Server geänderte Release
+  Note (5b, „Release Notes und STM-Liste aus dem Dateisystem“).
+
 ---
 
 ## 5. Phase 2 — Alles Lesende
@@ -588,7 +646,8 @@ Erwartung an `ovr` beim ESP-Start (A79); diese Zeilen stehen ebenfalls am Ende, 
 beiden `- abgewiesen: …`. Das ESP-Release E3 (C65) brachte `low=` in der Heap-Zeile, die
 Felder `blk`, `snd` und `ms` in `- http write lost` und `- fs write short`, den Ring und die
 Zähler für `- fs write short` sowie die Zeilen `- update liste zu gross` und
-`- update cache …`; sie stehen danach, ebenfalls vor den beiden `- abgewiesen: …`. Die
+`- update cache …`; sie stehen danach, ebenfalls vor den beiden `- abgewiesen: …`. Das
+ESP-Release E4 (C65) brachte `- scan …`; sie steht dahinter, ebenfalls vor den beiden. Die
 Entscheidungsregel für die beiden Schreibzeilen steht unter der Tabelle. Die stehen ganz am Schluss: Die Abweisung über `Sec-Fetch-Dest`
 gibt es seit ESP 3.2.4, die zu lange Query bringt das ESP-Release E2 (C46); E1 ist
 zurückgestellt (L439). Die
@@ -630,6 +689,7 @@ in `/api/stm32_log`.
 | `- update cache <datei> geschrieben n=<byte> ms=<dauer>` | Der Hintergrundauftrag hat die Release Notes (`upd-releasenote.txt`) bzw. die STM-Liste (`upd-wc-list.txt`) vom Update-Server geholt und im Dateisystem des ESP abgelegt; `n` = Inhalt ohne Kopfzeile. **`ms` gilt für alle drei `update cache`-Zeilen gleich:** die Dauer des **einen** Schritts, in dem `loop()` stand, nicht des ganzen Durchgangs; 0 bei `quelle-leer` und bei einem Abbruch durch das Sperrfenster. Den längsten Schritt seit dem letzten Rücksetzen meldet `upd_cache_max_ms` in `device_ready` | Je Datei einmal rund 60 s nach dem **ersten** Start mit E3, nach einem neuen Release auf dem Server, nach einer Änderung von Update-Host oder -Pfad, und wenn die Datei fehlt oder ungültig ist (gelöscht, `maintenance_format_fs`) | ohne einen dieser Anlässe, insbesondere **nach einem ESP-Neustart bei unverändertem Server** (AKR.21): Dann schreibt jeder Start den Flash neu. `ms` über 3'000: Befund, weil der STM dann `keine Quittung` meldet |
 | `- update cache <datei> unveraendert ms=<dauer>` | Der Auftrag hat die drei Versionszeilen vom Server geholt, der Stand passt zur abgelegten Datei, **nichts geschrieben** | Je Datei einmal frühestens rund 60 s nach jedem ESP-Start, wenn auf dem Server nichts Neues liegt — das ist das Soll von **AKR.21** in T2 (6.0e). Die Wache bleibt still | `ms` über 3'000 (wie oben). Fehlt die Zeile nach einem ESP-Start ganz und steht auch kein `fehlgeschlagen`, ist der Auftrag nicht gelaufen — WLAN, Update-Quelle (S97/S98) und den Mitschnitt der ersten Minuten prüfen |
 | `- update cache <datei> fehlgeschlagen <grund> ms=<dauer>` | Der Auftrag hat **nichts** geschrieben; eine vorhandene gültige Datei bleibt und wird weiter ausgeliefert. Gründe: `abruf` (Server nicht erreichbar oder Datei fehlt dort, auch ein schnelles 404), `abgerissen` (Abruf mitten im Inhalt abgebrochen), `schreiben` (Schreibfehler im Flash), `platz` (danach bliebe weniger frei als die grösste PWA-Datei plus ein Block — eine PWA-Installation darf nie am Zwischenspeicher scheitern), `zu-gross` (Notes über 3'072 Zeichen bzw. Liste über 2'048 Byte; nicht abgelegt, nicht gekürzt), `quelle-leer` (Update-Host oder -Pfad leer — der Auftrag fragt dann nie den Server des Ursprungsprojekts, L42; einmal, solange die Lage besteht). Nächster Versuch frühestens nach 10 Minuten. **Hinweis** der Logwache | nur, wenn der Update-Server nicht erreichbar ist | `abruf` oder `abgerissen` **wiederholt bei erreichbarem Server** (die Versionsfelder in `update_status` kommen an) — dann fehlt auf dem Server eine Datei, und der ESP fragt alle 10 Minuten erneut. **Immer ein Befund:** `schreiben`, `platz` (dazu `/api/fs_info` lesend), `zu-gross` (die Notes erscheinen dann gar nicht, siehe unten) und `quelle-leer` — Letzteres heisst Variablenverlust, sofort die Update-Quelle gegen `tools/device.conf` prüfen (S97/S98). `ms` über 3'000 wie oben |
+| `- scan n=<n> vor=<free>/<blk> nach=<free>/<blk> flush=<free>/<blk> ms=<scan>/<ausgabe>` | Seit dem ESP-Release E4: ein WLAN-Scan über `/api/network_scan`. `n` = gefundene Netze vor der Kappung (Rohwert des SDK). `vor` und `nach` = freier Heap / grösster freier Block unmittelbar vor und nach dem Scan, `flush` = nach dem letzten Senden der Antwort, solange die Ergebnisliste noch liegt — der Schritt von `nach` zu `flush` ist die Last der Ausgabe. `ms` = Dauer des Scans / Dauer vom Ende des Scans bis nach dem Senden; daran ist für C68 abzulesen, ob die Zeit im Scan oder im Schreiben liegt. Im Mitschnitt und in `/api/stm32_log` textgleich. Die Logwache meldet sie als **Hinweis** | einmal je Wechsel ins Netzwerkmodul (auch beim Start dort) und je Druck auf „WLANs neu laden“, nie im Takt der Selbstaktualisierung | **mehr als eine je Minute**, ohne dass so oft bedient wurde — dann scannt die PWA wieder im Takt, ein Rückfall von E4. Ein `flush`-Block unter 1'072 Byte gehört zu K30 |
 | `- abgewiesen: <was> als Sec-Fetch-Dest=<wert>` | Der ESP hat einen Wartungsaufruf als eingebetteten Abruf (`Sec-Fetch-Dest` etwa `image`) mit 403 und `{"ok":false,"error":"embedded-subresource"}` abgewiesen und **nichts ausgeführt**. `<was>` ist einer der drei Wege, die das seit ESP 3.2.4 prüfen: `maintenance_format_fs`, `maintenance_reset_stm32`, `maintenance_reset_eeprom`. Die vorangehende Zeile `- request <IP> [<Browser>]: …` nennt den Absender. **Hinweis**, kein Alarm; die Logwache meldet sie als Hinweis. **Im Browser wirkt diese Prüfung nicht:** Browser senden `Sec-Fetch-*` über `http://` an die Uhr gar nicht (`BEFUNDE.md`, L439, am Gerät belegt) — die Zeile entsteht nur, wenn ein Werkzeug die Kopfzeile selbst setzt. Die Erweiterung um `Sec-Fetch-Site` und die Legacy-Wege (E1; C6, C6v, C60) ist **nicht ausgeliefert**, Entscheidung des Nutzers 13.10.2026; eine Zeile `als Sec-Fetch-Site=…` gibt es deshalb nicht | Nur noch vom Smoketest: `maintenance_reset_stm32 als Sec-Fetch-Dest=image` bei **jedem** Lauf (Phase 9, Schritt 6) — er löst sie absichtlich aus, wie seit ESP 3.2.4 | Jede ausserhalb eines laufenden Smoketests: Ein Werkzeug hat die Kopfzeile gesetzt — Uhrzeit, `<was>`, Wert und Absender aus der `- request`-Zeile in den Bericht. Umgekehrt ist das **Fehlen** dieser Zeile kein Zeichen von Schutz: Ein Aufruf von einer fremden Seite im Browser kommt ohne Kopfzeile an und wird ausgeführt (L439) |
 | `- abgewiesen: query <n> Zeichen` | Eine Anfrage unter `/api/` hatte eine Query über 255 Zeichen; der ESP hat sie mit `{"ok":false,"error":9,"detail":"query too long"}` beantwortet und keinen Handler aufgerufen, statt still zu kürzen (C46). `n` ist die Länge der Query hinter `?`; der Inhalt steht bewusst nicht darin (L179). Legacy-Pfade kürzen weiter still und geben keine Zeile. **Hinweis**; die Logwache meldet sie als Hinweis | Nur in **K27a** | Jede andere. Kommt sie aus der PWA, hat die Oberfläche eine zu lange Anfrage gebaut — Endpunkt aus der `- request`-Zeile davor und `n` in den Bericht. Seit dem PWA-Teil von C46 (Release EP) prüft die PWA die Länge **vor** dem Senden: Eine Query über 255 Zeichen geht gar nicht hinaus, die Meldung nennt Länge und Grenze („Die Anfrage ist zu lang: … Zeichen, erlaubt sind höchstens 255. …“), und Kennung 9 vom Gerät ergibt dieselbe Meldung. Mit EP ist deshalb **jede** solche Zeile aus der PWA ein Befund, auch im Backup-Import (Phase 5): Er schreibt die WLAN-Felder seither einzeln (8.3). Vor EP war sie dort die bekannte Lücke aus L431 |
 
@@ -689,6 +749,39 @@ beobachtet `write_lost_failed` (C49) und schlägt damit auch bei einem abgebroch
 — gewollt: Bis E3 war das ein stiller Verlust. Geht dagegen schon der **Kopf** eines Assets
 verloren, zählt es als `http write lost` und **nicht** in `fs_write_short` (Review E3, N1).
 
+#### Die Momentaufnahme beim Tief in `/api/device_ready` (seit dem ESP-Release E4)
+
+Das ESP-Release E4 (C65, `specs/paket-2026-10-13/design-e4.md` §19.2) hängt acht Felder
+**hinter** `upd_cache_max_ms` an, in dieser Reihenfolge; alle bisherigen Felder bleiben in
+Name, Reihenfolge und Typ. Die ersten sechs sind eine **Momentaufnahme** (I-4): Der ESP
+schreibt sie nur in dem Augenblick, in dem `heap_low_block` einen **neuen** Tiefstwert
+erreicht — ein gleich tiefer oder höherer Wert ändert sie nicht, ein neues Tief von
+`heap_low_free` auch nicht. Sie sagen damit, **was beim Tief los war**: wer den Heap
+belegte, nicht nur, wie wenig übrig blieb.
+
+| Feld | Was es heisst | Lesart |
+|---|---|---|
+| `heap_low_accepts_pending` | wartende, vom Programm noch nicht angenommene Verbindungen am Port 80 | jede kostet rund 0,8 KB (L456). Soll: höchstens `heap_low_backlog` |
+| `heap_low_backlog` | der Backlog, der in diesem Augenblick galt (3, 2 oder 1) | zeigt, ob die Absenkung beim Tief schon gegriffen hatte |
+| `heap_low_pcb_states` | genau **11 Zahlen**: Zahl der Verbindungen je Zustand in der Liste der aktiven Verbindungen. Index = lwIP `enum tcp_state`: 0 `CLOSED`, 1 `LISTEN`, 2 `SYN_SENT`, 3 `SYN_RCVD`, 4 `ESTABLISHED`, 5 `FIN_WAIT_1`, 6 `FIN_WAIT_2`, 7 `CLOSE_WAIT`, 8 `CLOSING`, 9 `LAST_ACK`, 10 `TIME_WAIT` (Reihenfolge am Core nachgeprüft, `lwip/tcpbase.h`) | Verbindungen in TIME_WAIT führt lwIP in einer eigenen Liste, sie stehen in `heap_low_tw`. Viele in 7 (`CLOSE_WAIT`): Die Gegenstellen haben geschlossen, der ESP noch nicht |
+| `heap_low_tw` | Zahl der Verbindungen in TIME_WAIT | seit E4 räumt der ESP vor jeder Annahme und vor jedem ausgehenden Verbindungsaufbau auf höchstens 2 ab; Soll im Gerätenachweis G8: höchstens 2. Jede kostet rund 192 Byte |
+| `heap_low_unacked` | unquittierte Byte der gerade bedienten Verbindung (Sendepuffer minus freier Platz darin); **−1** = keine Verbindung bedient | nahe 1'072: Der ganze Sendepuffer war belegt, die Gegenstelle hatte noch nicht quittiert |
+| `heap_low_req_path` | Pfad der Anfrage, die gerade bedient wurde, **ohne Query**, höchstens 31 Zeichen; `-` = Messpunkt ohne Anfrage (Annahme vor dem Lesen, ausgehender Abruf beim Start) | `heap_low_path` sagt, an welchem Messpunkt, dieses Feld, bei welcher Anfrage |
+| `http_backlog` | **aktueller** Backlog nach freiem Heap: 3 ab 5'900 Byte, 2 ab 5'100, darunter 1; erhöht wird erst 256 Byte über der Schwelle | **Zustand, wird nie zurückgesetzt.** In Ruhe 3 — eine 2 oder 1 in Ruhe heisst, der freie Heap liegt dauerhaft tief. Die Schwellen sind gerechnet, nicht gemessen |
+| `api_orphan_skipped` | lesende `/api/`-Abfragen seit dem ESP-Start, deren Gegenstelle schon weg war und die der ESP deshalb nicht ausgeführt hat | **Zähler, wird nie zurückgesetzt**, bleibt bei 65'535 stehen. Steigt, wenn die PWA einen Abruf abbricht, der beim ESP noch wartet. Setter, Wartung und Auslöser überspringt der ESP nie (C53), auch `update_status?refresh=1` nicht |
+
+**Rücksetzen:** `device_ready?heap_low_reset=1` setzt die sechs Felder der Momentaufnahme
+zusammen mit den Feldern aus E3 zurück — Zahlen auf 0, `heap_low_unacked` auf −1,
+`heap_low_req_path` leer. Ob seit dem Rücksetzen etwas gemessen wurde, zeigt wie bisher
+`heap_low_path` (leer = nichts). `http_backlog` und `api_orphan_skipped` bleiben stehen.
+Wer ein Tief auswertet, liest **zuerst ohne Parameter** und setzt erst danach zurück.
+
+**Der Smoketest verlangt die acht Felder ab dem ESP-Release E4** und meldet „FEHLT“, wenn
+eines fehlt oder `heap_low_pcb_states` nicht genau 11 Zahlen trägt — dann liefen Firmware
+und diese Lesart auseinander. Vorher meldet er „gibt es noch nicht“. Er liest nur, setzt
+nichts zurück und gibt wartende Verbindungen und TIME_WAIT beim Tief, den aktuellen Backlog
+und die übersprungenen Lesenden aus; einen Sollwert prüft er dabei nicht.
+
 #### Release Notes und STM-Liste aus dem Dateisystem (seit dem ESP-Release E3)
 
 Bis E3 holte der ESP die Release Notes und die STM-Dateiliste (`wc-list.txt`) bei **jedem**
@@ -697,7 +790,12 @@ Auftrag in `loop()` — einmal nach dem ESP-Start, frühestens rund 60 s danach 
 5 s nach der letzten Anfrage — und legt sie im LittleFS ab: `/upd-releasenote.txt` und
 `/upd-wc-list.txt`. **Neu geschrieben wird nur, wenn sich die Release-Versionen auf dem
 Server oder Update-Host bzw. -Pfad geändert haben**, oder wenn eine Datei fehlt oder
-ungültig ist. `update_status` liefert aus der Datei. Was das beim Prüfen heisst:
+ungültig ist. **Seit dem ESP-Release E4** gleicht der Auftrag im ersten Durchgang nach jedem
+Start und nach `update_status?refresh=1` beide Dateien zusätzlich gegen den Server ab, auch
+bei gleicher Version, und schreibt nur bei abweichendem Inhalt (E4.5a, `BEFUNDE.md`, L457).
+Eine bei gleicher Version geänderte Release Note kommt damit an; bis dahin blieb die alte bis
+zum nächsten Release stehen, auch über einen Neustart. Bei gleichem Inhalt meldet der Abgleich
+`unveraendert` — AKR.21 gilt weiter. `update_status` liefert aus der Datei. Was das beim Prüfen heisst:
 
 - **Release Notes leer:** in den ersten rund 60 s nach einem Start, solange noch keine
   gültige Datei liegt — beim ersten Start mit E3, nach `maintenance_format_fs` und nach dem
@@ -841,7 +939,7 @@ Kapitel 15 greift, ist der Durchlauf wirklich beendet.
 Der Durchlauf T1 vom 14.10.2026 hielt nach dem lesenden Teil an der Haltegrenze K30 an
 (`BEFUNDE.md`, L449): Phase 3 (113 von 114 Prüfungen), die Grenzfälle E1 bis E8 aus
 Phase 4 und AKL.4 sind **nicht** gefahren. Der nächste vollständige Durchlauf, **T2**, fährt
-nach dem ESP-Release E3 die Phasen 0 bis 4 und 9 und dazu ausdrücklich:
+nach den Releases E3 und E4 die Phasen 0 bis 4 und 9 und dazu ausdrücklich:
 
 1. **AKL.4** — S25, S25b und S26 **über die Oberfläche**, wie in S25b unter „In der
    Oberfläche (Release EP, AKL.4)“ beschrieben: beide Abweisungen, danach „gespeichert“,
@@ -853,11 +951,18 @@ nach dem ESP-Release E3 die Phasen 0 bis 4 und 9 und dazu ausdrücklich:
    `- update cache <datei> unveraendert ms=…` stehen und **kein** `geschrieben`; die Release
    Notes bleiben in der PWA sichtbar. Ist V3 nicht freigegeben, AKR.21 als „nicht
    aussagekräftig: kein ESP-Neustart“ führen.
+4. **Bei jedem Halt an K30 die Momentaufnahme** aus `device_ready` in den Bericht — die
+   I-4-Felder aus 5b („Die Momentaufnahme beim Tief“), gelesen ohne Parameter, bevor
+   zurückgesetzt wird.
+
+**Wann T2 läuft:** erst nach dem Gerätenachweis G8 zu E4, dem Entscheid danach (E4.19), dem
+Rest von G7 auf dem Stand E4 (G7R) **und** G6 (`specs/paket-2026-10-13/tasks.md`). Verfehlt
+G8 sein Ziel, läuft T2 nur nach Entscheidung des Nutzers (`design-e4.md` §19.13).
 
 Die Haltegrenze ist K30 in der Fassung nach Ent-23 (7.1): Ruhewert `max` unter 5'120 oder
 Tiefstwert unter 1'072 — dazwischen wird protokolliert, nicht angehalten. Die Schreibzeilen
 `http write lost` und `fs write short` werden nach der Entscheidungsregel aus 5b gelesen.
-Fehlt einer der drei Punkte im Bericht, ist T2 nicht abgenommen; die Abdeckungszahl aus 6.0c
+Fehlt einer der vier Punkte im Bericht, ist T2 nicht abgenommen; die Abdeckungszahl aus 6.0c
 nennt ihn dann mit Grund.
 
 ### 6.0 `main`
@@ -902,6 +1007,15 @@ Dasselbe gilt für **WPS**, für **AP-SSID und AP-Schlüssel** (`network_ap_set`
 belegt, dass die Uhr **jetzt** im WLAN ist — die Funktion ist in Benutzung. Geprüft
 wird lesend in Phase 2: Liefert `network_scan` Treffer, erscheint die aktive SSID
 darin, zeigt die Oberfläche den Verbindungszustand richtig an.
+
+**Seit dem Release E4 scannt die PWA nur auf Anlass** (4b, „Wie die PWA seit dem Release E4
+abfragt“): beim Wechsel ins Modul, beim Start dort und per „WLANs neu laden“ — nicht mehr im
+15-s-Takt. Soll je Anlass genau ein `network_scan` und eine Zeile `- scan …` im Mitschnitt
+(5b); ein erneuter Klick auf das schon offene Modul scannt nicht. Läuft die Frist ab, wird
+nicht wiederholt: Die alte Liste bleibt stehen, der Knopf meldet den Fehlschlag. **Bekannte
+Lücke** (`BEFUNDE.md`, B60): Wer vor dem Ende der ersten Kernladung ins Netzwerkmodul
+wechselt, sieht keine Netzliste, bis er den Knopf drückt oder das Modul neu betritt. Kein
+Fehler dieses Durchlaufs, aber benennen, wenn es auftritt.
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
@@ -1091,7 +1205,7 @@ sichern** und die Sicherung benennen. Ohne diese Sicherung wird der Schritt
 
 | Kennung | Was | Klasse | Soll (nachprüfbar) | Besonderheit |
 |---|---|---|---|---|
-| **S97** | Update-Host setzen (`update_host_set?value=`, 63 Zeichen) | S | `strvar[idx=9].value` (`UPDATE_HOST`) trägt den Wert | **Danach sofort gegen `DEVICE_UPDATE_HOST` aus `tools/device.conf` prüfen.** Ein falscher Host holt beim nächsten Update fremde Firmware, ohne Fehlermeldung (L42) |
+| **S97** | Update-Host setzen (`update_host_set?value=`, 63 Zeichen) | S | `strvar[idx=9].value` (`UPDATE_HOST`) trägt den Wert | **Danach sofort gegen `DEVICE_UPDATE_HOST` aus `tools/device.conf` prüfen.** Ein falscher Host holt beim nächsten Update fremde Firmware, ohne Fehlermeldung (L42). Seit dem Release E4 folgt dem Speichern genau ein `update_status?refresh=1`: „Server-Verfügbarkeit wurde neu geprüft“ nur, wenn er gesendet und beantwortet wurde, sonst „… konnte nicht neu geprüft werden“; rund 9 s später lädt die PWA `update_status` einmal nach (4b) |
 | **S98** | Update-Pfad setzen (`update_path_set?value=`, 63 Zeichen) | S | `strvar[idx=10].value` (`UPDATE_PATH`) | wie S97 |
 | **S99** | Update-Host mit 64 Zeichen | S | `error=2`, Detail nennt die Grenze in Byte (`value too long (max. 63 bytes)`), `strvar[idx=9].value` **unverändert** | Leerer Wert ⇒ `error=1`. Seit ESP 3.2.24 abgewiesen statt gekürzt, am Gerät gemessen am 05.10.2026 (L302) |
 | **S100** | Tabellendatei vom Server laden (`update_download_table`) | S | Die Datei erscheint in `/api/fs_list` mit Grösse > 0, danach stehen in `settings_xml` neue `dispmode`-Einträge | Wechselt das Layout der Uhr — **Ausgangstabelle vorher aus `/api/update_status` notieren**. Der Name allein reicht nicht: **Rückweg nur mit der lokal gesicherten Ausgangsdatei** (Vorbemerkung zu S100 bis S106). Kam die bisherige Tabelle aus S102 und liegt nicht auf dem Server, ist sie danach weg |
@@ -1307,7 +1421,7 @@ Zugangsdaten schreibt.
 | **K27** | **Query über 255 Zeichen** (C46), rein lesend. **K27a:** `/api/device_ready?x=` mit 300 Zeichen Fülltext, also eine Query von 302 Zeichen: `curl -s "http://$DEVICE_HOST/api/device_ready?x=$(head -c 300 /dev/zero \| tr '\0' a)"`. **K27b**, Gegenprobe an der Grenze: 253 Zeichen Fülltext, Query genau 255. **Immer mit `=`** — ein Parameter ohne `=` ist der Absturzfall aus Kapitel 11. Ein lesender Endpunkt genügt: `http_api_query_too_long()` in `http.cpp` weist **jeden** Pfad unter `/api/` ab, bevor ein Handler läuft | curl, Mitschnitt | **K27a:** HTTP 200 mit `{"ok":false,"error":9,"detail":"query too long"}`, im Mitschnitt `- abgewiesen: query 302 Zeichen`. **K27b:** die gewohnte Antwort von `device_ready`, keine `- abgewiesen:`-Zeile. **Befund:** in K27a die gewohnte Antwort (dann wird still gekürzt, der Stand vor C46), in K27b Kennung 9 (die Grenze sitzt falsch) | Keine, nichts geschrieben |
 | **K28** | **Legacy-Update-Quelle leer oder überlang** (C19, L311). **Am Gerät nicht gefahren**, auch nicht mit sofortigem Rückweg: Versagt die Prüfung, steht die Update-Quelle leer, und der ESP fällt auf den Server des Ursprungsprojekts zurück (L42) — das nächste Update holte fremde Firmware ohne Meldung | — | Belegt am Prüfstand c19, an beiden Stellen (`/fs` und `/update`), leer und über 63 Byte (L437). Im Bericht als „nur Prüfstand“ führen. Am Gerät bleibt die lesende Nachprüfung, dass Update-Host und -Pfad nach dem Durchlauf mit `tools/device.conf` übereinstimmen (S97/S98) | Keine |
 | **K29** | **Lange STM-Logzeile in `/api/stm32_log`** (C8, L430). Vorher im Mitschnitt die Länge einer bekannten langen Zeile messen — erste Wahl `info: weather forecast = …` (AKK.2), sie kommt nach dem Vorhersageabruf. Auslöser S19 (`weather_get_forecast`). Danach `/api/stm32_log` lesen und die Einträge ab dieser Zeile zusammensetzen: `~` am Ende des ersten und am Anfang jedes Folgeeintrags weglassen. Ist die Vorhersagezeile 120 Zeichen oder kürzer, eine andere Zeile über 120 Zeichen aus dem Mitschnitt nehmen (etwa `set_display_power` oder die `diag`-Zeile, falls sie so lang wird), sonst den Fall als „nicht aussagekräftig“ führen | API lesend, Mitschnitt, Auslöser S19 | Bei einer Zeile von 121 bis 255 Zeichen: zwei oder drei Einträge im Ring, der erste mit 119 Zeichen und `~` am Ende, die folgenden mit `~` am Anfang; zusammengesetzt **zeichengleich** mit dem Mitschnitt. Die PWA zeigt die Teile als eigene Zeilen (Modul `maintenance`, Logbuch). **Befund:** ein einziger Eintrag mit `~` am Ende und der Rest fehlt (der Stand vor C8), oder zusammengesetzt ungleich. Über 255 Zeichen kappt die Brücke; dann endet der letzte Teil mit `~`, benannte Grenze | Keine eigene Freigabe über die des Durchlaufs hinaus; S19 ist kein lesender Aufruf (L54). Nichts zurückzustellen, der Wetterticker läuft danach wieder an. Nicht zwischen den beiden Paaren von K16 auslösen |
-| **K30** | **ESP-Start ohne Empfangsüberlauf, Heap danach und während des Durchlaufs** (A79, L421; Haltegrenze seit dem ESP-Release E3 nach Ent-23, Entscheid des Nutzers). Gemessen wird an den ESP-Starts, die ohnehin stattfinden: dem OTA vor dem Durchlauf (falls in dieser Sitzung eingespielt) und dem STM-Reset aus V3, der den ESP mit neu startet (L183). **Kein eigener Reset.** Je Start die ersten 2 Minuten im Mitschnitt auf `- ovr #` durchsehen und die Heap-Zeilen ablesen. `free`, `max` und `low=` der Heap-Zeile notieren: nach dem Start, nach dem Vorhersageabruf (S19 bzw. K29), nach dem Laden der PWA (Phase 1b) und **vor jeder Setter-Phase den Ruhewert** | Mitschnitt, API lesend | Je Start in den ersten 2 Minuten **kein** `- ovr #`, jede Heap-Zeile `ovr=0`. `free` liegt rund 768 Byte unter dem Stand vor E2 — der grössere Puffer, erwartet. **Anhalten — zwei Grenzen, jede für sich:** (1) **Ruhewert** `max` unter **5'120** Byte: Ein OTA braucht 4 KB am Stück plus Reserve, und der Vorhersageabruf belegt 5'120 am Stück; darunter ist `oom` zu erwarten und das nächste Update gefährdet. (2) **Tiefstwert** unter **1'072** Byte: Darunter bringt das Gerät keinen vollen Sendepuffer mehr unter, jede Antwort scheitert (abgeleitet, nicht gemessen). Greift eine der beiden: keine weiteren Setter-Phasen, melden. **Dazwischen kein Anhaltegrund**, sondern ins Protokoll: Uhrzeit, Wert, Pfad (`heap_low_path`), Last, Messweise. Ausdrücklich **kein** Anhaltegrund ist ein Tiefstwert unter 5 KB — nach L449 läge schon jede einzelne PWA-Ladung darunter, und der Durchlauf käme nie zu den Settern, ohne dass das Gerät gefährdet wäre. **Befund:** `- ovr #` mit kleinem `t` nach einem Start, `ovr` über 0. Den Vergleich gegen die Heap-Zeilen vor E2 über 30 Zeilen (AKM.2) führt der Gerätenachweis G4, nicht dieser Durchlauf. **Messweise (L449, C65):** Der **Ruhewert** ist `max` der Heap-Zeile nach mindestens 150 s ohne eigene Anfrage des Testers — kein Klick, kein curl. Ent-23 verlangt mindestens 60 s nach der letzten Aktion; die 150 s aus dem Gerätenachweis G7 erfüllen beides. Eine offen gelassene PWA darf dabei weiter abfragen: So liegt das Gerät da, wenn aus der PWA ein OTA gestartet wird. Der **Tiefstwert** kommt aus den Messpunkten **während** der Antworten, nicht aus einer Stichprobe: entweder `low=` der Heap-Zeile (setzt sich je Zeile selbst zurück) oder `heap_low_block` über `device_ready` — zu Beginn eines Fensters `device_ready?heap_low_reset=1`, am Ende **ohne** Parameter lesen; Lesen ohne Parameter setzt nichts zurück (5b, „Die Messfelder in `/api/device_ready`“). **Werte verschiedener Messweisen nicht direkt vergleichen:** `max` der Heap-Zeile ist eine Stichprobe je Minute, `max_free_block` aus `device_ready` eine Stichprobe beim Abruf mit dessen eigener Rückwirkung (L449: 1'448 bei Abfragen alle 0,2 s), der Tiefstwert ein Minimum über die Messpunkte. Ein Tief der einen gegen ein Tief der anderen belegt weder einen Rückschritt noch einen Fortschritt. Feines Abfragen von `device_ready` ist seit E3 nicht mehr nötig, um das Tief zu sehen, und belastet das Gerät selbst; wer es trotzdem tut, nennt es im Protokoll | Freigabe nur über V3 bzw. das OTA, kein zusätzlicher Eingriff. Keine Rückstellung; `heap_low_reset=1` setzt nur Messwerte zurück. Ist V3 nicht freigegeben und kein OTA gelaufen, den Start-Teil als „ausgelassen: kein ESP-Start“ führen — die Haltegrenze gilt trotzdem für den ganzen Durchlauf |
+| **K30** | **ESP-Start ohne Empfangsüberlauf, Heap danach und während des Durchlaufs** (A79, L421; Haltegrenze seit dem ESP-Release E3 nach Ent-23, Entscheid des Nutzers). Gemessen wird an den ESP-Starts, die ohnehin stattfinden: dem OTA vor dem Durchlauf (falls in dieser Sitzung eingespielt) und dem STM-Reset aus V3, der den ESP mit neu startet (L183). **Kein eigener Reset.** Je Start die ersten 2 Minuten im Mitschnitt auf `- ovr #` durchsehen und die Heap-Zeilen ablesen. `free`, `max` und `low=` der Heap-Zeile notieren: nach dem Start, nach dem Vorhersageabruf (S19 bzw. K29), nach dem Laden der PWA (Phase 1b) und **vor jeder Setter-Phase den Ruhewert** | Mitschnitt, API lesend | Je Start in den ersten 2 Minuten **kein** `- ovr #`, jede Heap-Zeile `ovr=0`. `free` liegt rund 768 Byte unter dem Stand vor E2 — der grössere Puffer, erwartet. **Anhalten — zwei Grenzen, jede für sich:** (1) **Ruhewert** `max` unter **5'120** Byte: Ein OTA braucht 4 KB am Stück plus Reserve, und der Vorhersageabruf belegt 5'120 am Stück; darunter ist `oom` zu erwarten und das nächste Update gefährdet. (2) **Tiefstwert** unter **1'072** Byte: Darunter bringt das Gerät keinen vollen Sendepuffer mehr unter, jede Antwort scheitert (abgeleitet, nicht gemessen). Greift eine der beiden: keine weiteren Setter-Phasen, melden. **Dazwischen kein Anhaltegrund**, sondern ins Protokoll: Uhrzeit, Wert, Pfad (`heap_low_path`), Last, Messweise. Ausdrücklich **kein** Anhaltegrund ist ein Tiefstwert unter 5 KB — nach L449 läge schon jede einzelne PWA-Ladung darunter, und der Durchlauf käme nie zu den Settern, ohne dass das Gerät gefährdet wäre. **Befund:** `- ovr #` mit kleinem `t` nach einem Start, `ovr` über 0. Den Vergleich gegen die Heap-Zeilen vor E2 über 30 Zeilen (AKM.2) führt der Gerätenachweis G4, nicht dieser Durchlauf. **Messweise (L449, C65):** Der **Ruhewert** ist `max` der Heap-Zeile nach mindestens 150 s ohne eigene Anfrage des Testers — kein Klick, kein curl. Ent-23 verlangt mindestens 60 s nach der letzten Aktion; die 150 s aus dem Gerätenachweis G7 erfüllen beides. Eine offen gelassene PWA darf dabei weiter abfragen: So liegt das Gerät da, wenn aus der PWA ein OTA gestartet wird. Der **Tiefstwert** kommt aus den Messpunkten **während** der Antworten, nicht aus einer Stichprobe: entweder `low=` der Heap-Zeile (setzt sich je Zeile selbst zurück) oder `heap_low_block` über `device_ready` — zu Beginn eines Fensters `device_ready?heap_low_reset=1`, am Ende **ohne** Parameter lesen; Lesen ohne Parameter setzt nichts zurück (5b, „Die Messfelder in `/api/device_ready`“). **Werte verschiedener Messweisen nicht direkt vergleichen:** `max` der Heap-Zeile ist eine Stichprobe je Minute, `max_free_block` aus `device_ready` eine Stichprobe beim Abruf mit dessen eigener Rückwirkung (L449: 1'448 bei Abfragen alle 0,2 s), der Tiefstwert ein Minimum über die Messpunkte. Ein Tief der einen gegen ein Tief der anderen belegt weder einen Rückschritt noch einen Fortschritt. Feines Abfragen von `device_ready` ist seit E3 nicht mehr nötig, um das Tief zu sehen, und belastet das Gerät selbst; wer es trotzdem tut, nennt es im Protokoll. **Seit dem ESP-Release E4 zeigt die Momentaufnahme, was beim Tief los war** (I-4, 5b „Die Momentaufnahme beim Tief“): Bei jedem Halt an K30 und bei jedem protokollierten Tief dazwischen gehören `heap_low_accepts_pending`, `heap_low_backlog`, `heap_low_pcb_states`, `heap_low_tw`, `heap_low_unacked` und `heap_low_req_path` neben `heap_low_block` und `heap_low_path` ins Protokoll, gelesen ohne Parameter. Die beiden Grenzen bleiben wie nach Ent-23. **Nicht verwechseln mit dem Tor aus Ent-31:** Im Gerätenachweis G8 nach dem Einspielen von E4 ist die erste Ladung die Messung und K30 erst danach das Tor vor jeder weiteren — das gilt für G8, nicht für diesen Durchlauf | Freigabe nur über V3 bzw. das OTA, kein zusätzlicher Eingriff. Keine Rückstellung; `heap_low_reset=1` setzt nur Messwerte zurück. Ist V3 nicht freigegeben und kein OTA gelaufen, den Start-Teil als „ausgelassen: kein ESP-Start“ führen — die Haltegrenze gilt trotzdem für den ganzen Durchlauf |
 | **K31** | **Stündliche Netzzeit mit Bindung an die Anfrage** (C59, L406). Rein lesend über die ganze Dauer des Durchlaufs: Jede volle Stunde, in die der Durchlauf fällt, im Mitschnitt nachsehen. Den eingestellten Zeitserver aus dem Rohabzug notieren | Mitschnitt | Je Stunde `cmd: set time to …` mit richtiger Zeit, und im ganzen Durchlauf **keine** Zeile `- ntp verworfen #n ungefragt` oder `- ntp verworfen #n originate`. Nach dem Reset aus V3 die Folge `time: sprung, bestaetigung angefordert` und rund 15 s später `cmd: set time to …` (5b) — sie braucht zwei angenommene Antworten auf zwei Anfragen. **Befund:** jede `ungefragt`- oder `originate`-Zeile im Normalbetrieb — Uhrzeit, `#n` und Zeitserver in den Bericht. Fehlt danach auch `cmd: set time to …` zur vollen Stunde, schreibt der Server das Originate-Feld vermutlich nicht zurück; dann bekommt die Uhr mit diesem Server keine Netzzeit mehr, sofort melden. Die zweistündige Messung (AKT.2) führt G4 | Keine, nichts geschrieben. Läuft der Durchlauf über keine volle Stunde, als „nicht aussagekräftig“ führen |
 | **K32** | **Fehlerzeile am Feld** (B48). Je Fall einen ungültigen Wert per Tasten eintippen und den zugehörigen Knopf drücken. **K32a:** Modul `display`, „Datumsformat im Ticker“ `yyyyy`, „Datumsformat speichern“. **K32b:** Modul `network`, „WLAN-Passwort“ mit 40-mal `ä` (80 Byte, die Uhr nimmt höchstens 63), „Als WLAN-Client verbinden“. Die SSID-Auswahl **nicht** anfassen; steht dort keine SSID, kommt nur „Bitte zuerst ein WLAN auswählen …“ ohne Zeile — dann den Fall als „nicht aussagekräftig“ führen, **nicht** eine SSID eintragen. **K32c:** Modul `timers`, Zeitfeld eines Display-Timers leeren, „Speichern“ dieser Zeile (wie K1). **K32d:** Modul `display`, „Ticker-Verzögerung“ `256`, „Ticker-Verzögerung speichern“. Danach an K32a: **K32e** denselben Wert noch einmal speichern; **K32f** ein Zeichen ins Feld tippen; **K32g** den Fehler wiederherstellen, das Modul wechseln und im Dialog verwerfen | Browser, API lesend | Je Fall: Banner mit der Meldung wie bisher, Fokus im Feld, und **direkt unter dem Feld** ein `span.field-error` mit demselben Text, `aria-hidden="true"` und **ohne** `role="alert"` (bewusst, sonst kommt die Ansage dreifach); am Feld `aria-invalid="true"` und `aria-describedby` mit der Kennung der Zeile, vorhandene Kennungen bleiben erhalten. K32b nennt 80 Byte und höchstens 63. **Kein** `date_ticker_format_set`, `network_client_set`, `timer_set` bzw. `ticker_deceleration_set` im Netzprotokoll, Rohwerte unverändert. K32e: weiterhin **genau eine** Zeile. K32f und K32g: Zeile weg, `aria-invalid` weg, die Kennung aus `aria-describedby` entfernt. **Befund:** Zeile fehlt, steht doppelt, bleibt nach der Eingabe stehen, trägt `role="alert"`, oder ein Setter geht hinaus. Am Gerät **nicht** gefahren und am Prüfstand b48 belegt: das Räumen bei Kartenübernahme, Backup-Import und Typwechsel eines Overlays, und dass die Regler der Dimmkurven keine Zeile bekommen | Vorher notieren: `strvar[idx=11].value` (Datumsformat), `nighttime[idx=N]` der gewählten Zeile, `numvar[idx=31].value` (Tickerverzögerung). Im Erfolgsfall Seite neu laden. Geht doch ein Setter hinaus, über S40, S82 bzw. S41 auf den notierten Wert zurück. **Geht in K32b `network_client_set` hinaus, sofort anhalten und den Nutzer verständigen** — die Uhr weist über 63 Byte zwar selbst ab (C38), aber ein `{"ok":true}` hiesse, dass sie sich neu verbindet. Nicht selbst reparieren |
 | **K33** | **Englische Oberfläche, Stichprobe** (B8, AKD.3). Oben unter „Sprache“ auf „English“ stellen und der Reihe nach öffnen: **Overview** (`main`, deutsch „Hauptseite“), **Display**, **Network**, **Maintenance** samt Bereich „Backup“ — das sind die fünf aus AKD.3 —, dazu **System** und **Overlays**, weil dort die B8-Stellen liegen. Jedes Modul ganz durchscrollen, Aufklappbares aufklappen. **Nichts drücken, was speichert, lädt oder installiert** — insbesondere in der Wartung keinen App-Ordner wählen und nicht „Install app files directly“ | Browser | Kein deutscher Text in diesen Modulen. Gezielt hinsehen: **System**, Hardware-Liste „Board“, „Processor“, „Oscillator“, „Frequency“, „Hardware“ (vorher „Platine“, „Prozessor“, „Oszillator“, „Taktfrequenz“), ein unbekannter Wert als „unknown“; die **Gerätezeit-Vorschau** unter Datum und Uhrzeit mit englischem Wochentag („Monday, …“), ohne Gerätezeit „Device time is currently unavailable.“ **Hauptseite**, „Last start“ notfalls „not available“; die Beschriftungen von Wortraster und Minutenecken (nur im DOM: `aria-label` „WordClock preview“ und „Minute corners“). **Wartung**, Liste der lokalen App-Dateien: ohne gewählten Ordner steht jede Datei auf „missing“, nicht „fehlt“. **Overlays**, Icon-Auswahl: „No icons found“ erscheint nur, wenn die Uhr keine Icons meldet. **Hinweis Layout-Tabelle** oben auf der Seite: „Please install the layout table … on LittleFS.“ erscheint nur, wenn keine Tabelle installiert ist. Die beiden letzten am Gerät meist nicht herstellbar; dann als „nicht herstellbar, statisch über S18 belegt“ führen. **Kein Befund** sind Gerätedaten und Nutzertexte (Ort, Tickertext, SSID, Dateinamen), Logzeilen von STM und ESP und Eigennamen wie WordClock, Ambilight, DFPlayer, LittleFS. **Befund:** jedes andere deutsche Wort — Modul, Stelle und Wortlaut ins Protokoll | Sprache zurück auf „Deutsch“. Die Wahl liegt nur im `localStorage` des Prüfbrowsers, nicht auf der Uhr. **Niemals eine Datei auf der Uhr löschen, um den Hinweis zur Layout-Tabelle oder „No icons found“ herzustellen** |

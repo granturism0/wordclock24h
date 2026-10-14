@@ -23,6 +23,13 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 # PREVIEW_APP: anderes App-Verzeichnis (Gegenproben der Pruefstaende gegen einen alten Stand).
 APP = os.environ.get("PREVIEW_APP") or os.path.join(REPO, "ESP8266", "ESP-uclock", "data", "app")
 
+# Gegenproben fuer tools/check-pwa.mjs (Netzruhe statt fester Wartezeiten, E4.9):
+#   PREVIEW_API_DELAY_MS=1200          jede /api/-Antwort kommt so viel spaeter
+#   PREVIEW_HANG_PATH=/api/update_status  dieser Pfad (ohne Query) antwortet NIE
+# Beide abgeschaltet, solange die Variablen fehlen -- das Standardverhalten bleibt.
+API_DELAY = int(os.environ.get("PREVIEW_API_DELAY_MS") or 0) / 1000.0
+HANG_PATH = os.environ.get("PREVIEW_HANG_PATH") or ""
+
 NUM = {0:1, 1:1, 2:1, 3:1, 4:0, 5:0, 6:10, 7:1, 8:3, 9:1, 10:0, 11:0, 12:0, 13:0,
        14:8, 15:0, 16:0, 17:1, 18:0, 19:0, 20:1, 21:44, 22:0, 23:45, 24:0, 25:0,
        26:0, 27:3, 28:0, 29:0, 30:0, 31:0, 32:0, 33:0, 34:0, 35:0, 36:0, 37:0,
@@ -122,6 +129,13 @@ class H(BaseHTTPRequestHandler):
         self._send(json.dumps({"ok":True}), "application/json")
     def do_GET(self):
         path = urlparse(self.path).path
+        if HANG_PATH and path == HANG_PATH:
+            # Kein Statuscode, keine Kopfzeilen: der Abruf bleibt offen, bis der Browser
+            # aufgibt. Der Thread schlaeft; ThreadingHTTPServer raeumt ihn beim Beenden ab.
+            while True:
+                time.sleep(60)
+        if API_DELAY and path.startswith("/api/"):
+            time.sleep(API_DELAY)
         if path == "/frame":
             from urllib.parse import parse_qs
             q = parse_qs(urlparse(self.path).query)

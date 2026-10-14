@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-10-14 ESP 3.2.37 und PWA 1.4.100: Uhr bleibt auch beim Laden der App reaktionsfähig (Paket 2026-10-13, E4; C65)
+
+ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-14-180012.zip`, Tag `release/3.2.34-3.2.37-1.4.100`.
+
+**Einspielen — Reihenfolge zwingend, diesmal App zuerst:** erst die App (`install-app.sh` bzw. in der App Wartung →
+App-Dateien laden), **unmittelbar** danach der ESP (OTA). Dazwischen nichts tun. Grund: Der neue ESP nimmt nur noch
+wenige Verbindungen gleichzeitig an; die alte App mit ihren gleichzeitigen Abrufen liefe darauf schlechter. Die neue
+App läuft dagegen auch auf dem bisherigen ESP.
+
+- **Weniger gleichzeitige Verbindungen** (C65): Die App stellt ihre Abrufe in eine Warteschlange (höchstens 2
+  gleichzeitig, beim Start 1, Speichern vor Lesen) und holt beim Laden nur noch eine Datei statt drei — den Zustand von
+  Anzeige und Ambilight liest sie aus den Einstellungen. Fehlt ein Wert, zeigt sie „nicht verfügbar“ statt still „aus“.
+- **WLAN-Scan** nur noch beim Öffnen des Netzwerkmoduls und per Knopf, nicht mehr alle 15 s. Jeder Scan hielt die Uhr
+  rund 2 s an und brauchte viel Speicher am Stück.
+- **ESP:** schreibt Antworten in kleineren Stücken, nimmt bei knappem Speicher weniger wartende Verbindungen an,
+  begrenzt geschlossene Verbindungen im Wartezustand und überspringt abgebrochene Leseabfragen. Einstellungen und
+  Wartungsaufrufe werden immer ausgeführt.
+- **Release Notes:** werden nach jedem Neustart und mit „Server erneut prüfen“ neu abgeglichen — eine geänderte Release
+  Note erscheint jetzt auch ohne neue Version.
+- **Messbar:** `/api/device_ready` zeigt zusätzlich, was beim tiefsten Speicherstand los war (wartende Verbindungen,
+  Zustände, unquittierte Daten, Pfad), den aktuellen Verbindungs-Backlog und die übersprungenen Abfragen.
+
 ## 2026-10-14 ESP 3.2.36: Heap unter PWA-Last entlastet und messbar (Paket 2026-10-13, E3; C65)
 
 Nur der ESP, STM (3.2.34) und PWA (1.4.99) unverändert. `wordclock-release-2026-10-14-153447.zip`, Tag `release/3.2.34-3.2.36-1.4.99`.

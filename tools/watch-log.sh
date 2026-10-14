@@ -37,6 +37,7 @@
 #   icon_freeze: ENTER     Icon wartet auf das Display -- seit A80 ein Alarm
 #   - fs write short:      Asset abgebrochen ausgeliefert (C65/E3) -- Alarm: der Browser bekommt eine
 #                           verstuemmelte Datei, bei app.js ein halb geladenes Skript
+#   - scan n=...           WLAN-Scan mit Heap vor/nach (E4) -- Hinweis
 #   - update liste zu gross / - update cache ... fehlgeschlagen   Zwischenspeicher des ESP fuer
 #                           Tabellenliste, Release Notes, wc-list.txt (E3, M-1) -- Hinweis
 #   i2c: frist abgelaufen   I2C-Zugriff ueber 5 ms, Bus zurueckgesetzt (STM ab Paket 2026-10-11, A60)
@@ -182,7 +183,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #|- fs write short:|- update liste zu gross|- update cache .* fehlgeschlagen'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #|- fs write short:|- update liste zu gross|- update cache .* fehlgeschlagen|- scan n='
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
@@ -333,6 +334,10 @@ while :; do
           # sagen warum (design.md 18.3): snd voll und Fehlschlag = Heap, snd 0 = Gegenstelle quittiert nicht.
           printf '  %s  *** Asset abgebrochen ausgeliefert (fs write short) ***   <%s>\n' "$stamp" "$z"
           alarm=1 ;;
+        *"- scan n="*)
+          # E4 (C65): WLAN-Scan mit Heap vor/nach Scan und nach dem Flush -- gewollt (beim Oeffnen des
+          # Netzwerkmoduls oder per Knopf), deshalb Hinweis. Mehr als einer je Minute waere ein Befund.
+          printf '  %s  Hinweis: WLAN-Scan   <%s>\n' "$stamp" "$z" ;;
         *"- update liste zu gross"*)
           # E3 M-1: die Tabellenliste passt nicht in den Zwischenspeicher, sie wird live geholt.
           printf '  %s  Hinweis: Tabellenliste zu gross fuer den Zwischenspeicher   <%s>\n' "$stamp" "$z" ;;

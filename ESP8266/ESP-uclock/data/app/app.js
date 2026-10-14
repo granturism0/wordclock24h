@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.99";
+const APP_VERSION = "1.4.100";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -1076,25 +1076,69 @@ const LOCAL_APP_REQUIRED_ASSETS = [
   "app/icons/icon-192.svg.gz",
   "app/icons/icon-512.svg.gz"
 ];
+// E4.7 (C65, Ent-35, design-e4.md §19.6): Jede LESENDE Frist ist um 1'000 ms laenger als bis
+// PWA 1.4.99 -- Platz fuer eine SYN-Wiederholung, wenn der ESP seinen Backlog nach freiem
+// Heap verkleinert und eine Verbindung erst im zweiten Anlauf annimmt (§19.5). Jede Frist
+// zaehlt ab dem SENDEN, nicht ab dem Einreihen in die Warteschlange (fetchWithTimeout,
+// settleWithTimeout). apiWriteTimeoutMs bleibt bewusst, wie es war.
 const CONNECTION_STABILITY = {
   fastReadAttempts: 1,
   slowReadAttempts: 2,
   retryDelayMs: 220,
   apiWriteTimeoutMs: 6500,
-  coreSettingsTimeoutMs: 3200,
-  corePowerTimeoutMs: 2200,
-  updateStatusTimeoutMs: 4500,
-  updateTableInfoTimeoutMs: 4500,
-  networkScanTimeoutMs: 3800,
-  overlayIconsTimeoutMs: 2200,
-  fsInfoTimeoutMs: 5500,
-  fsListTimeoutMs: 6500,
-  eepromSettingsTimeoutMs: 5500,
-  stm32LogTimeoutMs: 3800,
-  progressPollTimeoutMs: 1800,
+  coreSettingsTimeoutMs: 4200,
+  // Seit E4 (Ent-30 B) ohne eigenen Abruf: Displaystrom und Ambilight kommen aus settings_xml
+  // (loadCoreData). Der Wert folgt der Tabelle in design-e4.md §19.6, die ihn fuer einen
+  // power_status-Abruf (Ent-30 A) vorsieht.
+  corePowerTimeoutMs: 3200,
+  updateStatusTimeoutMs: 5500,
+  updateTableInfoTimeoutMs: 5500,
+  networkScanTimeoutMs: 4800,
+  overlayIconsTimeoutMs: 3200,
+  fsInfoTimeoutMs: 6500,
+  fsListTimeoutMs: 7500,
+  eepromSettingsTimeoutMs: 6500,
+  stm32LogTimeoutMs: 4800,
+  progressPollTimeoutMs: 2800,
   progressPollIntervalMs: 900,
-  frameProbeTimeoutMs: 2500
+  frameProbeTimeoutMs: 3500
 };
+
+// E4.7 (C65, Ent-35, design-e4.md §19.6): Warteschlange fuer alle Abrufe auf /api/. Jede
+// Verbindung belegt beim ESP einen ClientContext samt Sendepuffer auf dem Heap; der Tiefstwert
+// nach E3 entstand, als die PWA mehrere Verbindungen zugleich offen hielt (L456). Hoechstens
+// zwei sind gleichzeitig unterwegs, in der Startphase eine. Die Startphase endet, wenn das
+// load-Ereignis gefeuert hat UND die erste Kernladung (loadCoreData) beendet ist, spaetestens
+// 15 s nach dem Start des Skripts. Schreibende gehen vor Lesenden, innerhalb einer Klasse in
+// Ankunftsreihenfolge -- ein Backup-Import bleibt in seiner Reihenfolge. Lesende warten
+// hoechstens 15 s und werden danach ohne Senden verworfen; Schreibende werden nie verworfen.
+// Assets und /app/... laufen nicht durch die Schlange.
+const API_QUEUE_LIMITS = Object.freeze({
+  maxInFlight: 2,
+  startupMaxInFlight: 1,
+  startupMaxMs: 15000,
+  readMaxWaitMs: 15000
+});
+// Zaehler statt stiller Verwerfung: sent (gesendet), droppedSuperseded (ueberholter Lauf,
+// nicht gesendet), droppedWaitedTooLong (Lesender nach 15 s in der Schlange verworfen).
+const apiQueueState = {
+  inFlight: 0,
+  writes: [],
+  reads: [],
+  scriptStartedAt: Date.now(),
+  windowLoaded: document.readyState === "complete",
+  firstCoreLoadDone: false,
+  startupOver: false,
+  sent: 0,
+  droppedSuperseded: 0,
+  droppedWaitedTooLong: 0
+};
+window.addEventListener("load", () => {
+  apiQueueState.windowLoaded = true;
+  pumpApiQueue();
+}, { once: true });
+// Endet die Startphase nur ueber die Zeit, muss jemand die wartenden Eintraege anstossen.
+window.setTimeout(pumpApiQueue, API_QUEUE_LIMITS.startupMaxMs + 50);
 const DIM_CURVE_PRESETS = {
   linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
   sanft: [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15],
@@ -1356,6 +1400,10 @@ let stm32ProgressTimer = 0;
 let stm32ProgressStage = 0;
 let stm32ProgressAdvanceTimer = 0;
 let updateProgressPollTimer = 0;
+// E4.7: hoechstens ein update_progress-Abruf offen; ein Takt, der einen offenen findet, entfaellt.
+let updateProgressPollInFlight = false;
+// E4.5a/E4.7: der eine Nachlade-Abruf nach "update_status?refresh=1" (refreshUpdateServerAvailability).
+let updateServerRecheckFollowupTimer = 0;
 let stm32AutoResetStarted = false;
 let stm32RemoteStreamOffset = 0;
 let stm32RemoteRequestInFlight = false;
@@ -1385,6 +1433,8 @@ let wordclockSizingFrame = 0;
 let wordclockSizingTimeout = 0;
 let wordclockResizeObserver = null;
 let liveDisplayColorTimer = 0;
+// E4.7: hoechstens ein Abruf der Live-Farbe offen; ein Takt, der einen offenen findet, entfaellt.
+let liveDisplayColorRefreshInFlight = false;
 let currentLiveDisplayColor = null;
 let lastLiveDisplayColorMode = 0;
 const LIVE_DISPLAY_COLOR_POLL_INTERVAL_MS = 5000;
@@ -2007,7 +2057,8 @@ window.setTimeout(() => {
   startupLoadIssued = true;
   startupLoadIssuedAt = Date.now();
   const startupModule = getActiveModuleName();
-  void loadData(buildLoadOptionsForModule(startupModule, { startup: true }));
+  // E4.6: Start mit dem Netzwerkmodul fragt nach dem WLAN-Scan (design-e4.md §19.3).
+  void loadData(buildLoadOptionsForModule(startupModule, { startup: true, scan: startupModule === "network" }));
 }, 0);
 if (!APP_STABILITY_MODE.disableStartupAutoRefresh) {
   startAlignedAutoRefresh();
@@ -2606,14 +2657,21 @@ async function apiFetch(url, options) {
   const requestOptions = { ...(options || {}) };
   const timeoutMs = Number(requestOptions.timeoutMs || CONNECTION_STABILITY.apiWriteTimeoutMs);
   const attempts = Number(requestOptions.attempts || 1);
+  // E4.7 (Ent-35): apiFetch ist der Weg der Setter, Wartungs- und Upload-Aufrufe -- sie
+  // gelten als SCHREIBEND, gehen in der Warteschlange vor und werden nie verworfen. Die
+  // wenigen lesenden Aufrufer nennen sich selbst (apiKind: "read"). Die Voreinstellung ist
+  // absichtlich "schreibend": Ein lesender Abruf, der faelschlich vorgeht, kostet nichts;
+  // ein Setter, der faelschlich als lesend nach 15 s verworfen wuerde, verloere eine Eingabe.
+  const queueKind = requestOptions.apiKind === "read" ? "read" : "write";
 
   delete requestOptions.timeoutMs;
   delete requestOptions.attempts;
+  delete requestOptions.apiKind;
 
   const response = await fetchWithRetry(url, {
     cache: "no-store",
     ...requestOptions
-  }, timeoutMs, attempts);
+  }, timeoutMs, attempts, { kind: queueKind });
 
   if (!response.ok) {
     throw new Error("http-" + response.status);
@@ -2862,6 +2920,7 @@ function finishButtonFeedback(button, idleText, state, temporaryText, preserveCu
 
 function setActiveModule(moduleName) {
   const target = moduleName || "main";
+  const previousModule = getActiveModuleName();
   document.querySelectorAll(".module-chip").forEach((button) => {
     button.classList.toggle("is-active", button.getAttribute("data-module-target") === target);
   });
@@ -2879,7 +2938,13 @@ function setActiveModule(moduleName) {
   }
   scheduleModuleNavHintSync();
   if (getCurrentSettingsSnapshot()) {
-    void refreshVisibleModuleData({ moduleChange: true, moduleName: target });
+    // E4.6: Nur der Wechsel IN das Netzwerkmodul fragt nach dem WLAN-Scan, nicht ein
+    // erneuter Klick auf das schon offene Modul (design-e4.md §19.3).
+    void refreshVisibleModuleData({
+      moduleChange: true,
+      moduleName: target,
+      scan: target === "network" && previousModule !== "network"
+    });
   }
   syncLiveDisplayColorPolling(getCurrentSettingsSnapshot());
   syncStm32LogPolling();
@@ -3040,13 +3105,14 @@ async function loadData(options) {
   activeLoadCount += 1;
   const hadSnapshotBeforeLoad = !!getCurrentSettingsSnapshot();
   let editGuard = null;
+  let secondaryLoad = null;
 
   if (!hadSnapshotBeforeLoad && !opts.auto) {
     announceStatus(translate("status.waiting_for_data"), "warn");
   }
 
   try {
-    const coreData = await loadCoreData();
+    const coreData = await loadCoreData(requestId);
     if (requestId !== loadRequestSerial) {
       return;
     }
@@ -3055,6 +3121,9 @@ async function loadData(options) {
     if (!hasSettingsSnapshotContent(settings) && !hadSnapshotBeforeLoad) {
       throw new Error("initial-data-pending");
     }
+    // E4.7 (Ent-30 B): Displaystrom und Ambilight aus settings_xml, ohne eigenen Abruf.
+    coreData.displayPower = getPowerTextFromSettings(settings, NUM.DISPLAY_POWER);
+    coreData.ambilightPower = getPowerTextFromSettings(settings, NUM.DISPLAY_AMBILIGHT_POWER);
 
     clearInitialLoadRetry();
     initialLoadAttemptCount = 0;
@@ -3134,7 +3203,24 @@ async function loadData(options) {
       time: new Date().toLocaleTimeString(currentLanguage === "en" ? "en-CH" : "de-CH")
     }));
 
-    void loadSecondaryData(requestId, settings, coreData, debugOverrides, opts);
+    // E4.6: Ein Lauf ohne vorherigen Datenstand ist der Start (auch ein Wiederholungs- oder
+    // Bootstrap-Lauf, der den Startabruf ersetzt) -- er fragt wie der Startabruf nach dem
+    // Scan. Jeder andere Lauf nur, wenn sein Aufrufer es ausdruecklich verlangt (opts.scan).
+    const secondaryOptions = { ...opts, scan: !!opts.scan || !hadSnapshotBeforeLoad };
+    // E4.7 (design-e4.md §19.6, AKV.8): Die Ladesperre (activeLoadCount) gilt jetzt bis zum
+    // Ende der Nebenabrufe -- bis PWA 1.4.99 gab das finally sie frei, waehrend update_status,
+    // Scan, Dateiliste noch unterwegs waren, und die naechste Selbstaktualisierung legte ihre
+    // Abrufe daneben. Freigegeben wird im finally unten, auch wenn loadSecondaryData() wirft.
+    // Der Aufrufer wartet trotzdem nur auf die erste Darstellung: Ein Speichern meldet Erfolg
+    // nicht erst nach Dateiliste und Logbuch. Wer das Ergebnis eines Nebenabrufs braucht (der
+    // Knopf "WLANs neu laden"), verlangt es mit waitForSecondary.
+    secondaryLoad = loadSecondaryData(requestId, settings, coreData, debugOverrides, secondaryOptions)
+      .catch((error) => {
+        console.warn("Secondary data load failed", error);
+      });
+    if (opts.waitForSecondary) {
+      await secondaryLoad;
+    }
   } catch (error) {
     if (!getCurrentSettingsSnapshot()) {
       if (handleInitialLoadPending(error, opts)) {
@@ -3147,8 +3233,17 @@ async function loadData(options) {
   } finally {
     // Brach das Neuzeichnen mit einem Fehler ab, kommen die Eingaben trotzdem zurueck.
     endUnsavedEditGuard(editGuard, false);
-    activeLoadCount = Math.max(0, activeLoadCount - 1);
+    if (secondaryLoad) {
+      // secondaryLoad wirft nie (catch oben) -- die Sperre faellt also auf jedem Pfad.
+      void secondaryLoad.then(releaseLoadLock);
+    } else {
+      releaseLoadLock();
+    }
   }
+}
+
+function releaseLoadLock() {
+  activeLoadCount = Math.max(0, activeLoadCount - 1);
 }
 
 function hasSettingsSnapshotContent(settings) {
@@ -3224,19 +3319,57 @@ function handleInitialLoadPending(error, options) {
   return true;
 }
 
-async function loadCoreData() {
-  // Base snapshot first, richer metadata afterwards.
-  const [settingsText, displayPowerText, ambilightPowerText] = await Promise.all([
-    settleFetchText(getSettingsUrl(), "", CONNECTION_STABILITY.coreSettingsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
-    settleFetchText(getDisplayPowerUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts),
-    settleFetchText(getAmbilightPowerUrl(), "off", CONNECTION_STABILITY.corePowerTimeoutMs, CONNECTION_STABILITY.fastReadAttempts)
-  ]);
+// E4.7 (Ent-30 B, Nutzerentscheid, design-e4.md §19.6): Die Kernladung ist EINE Verbindung.
+// Bis PWA 1.4.99 holte sie neben settings_xml noch display_power und ambilight_power -- zwei
+// weitere Verbindungen je Lauf fuer zwei Werte, die settings_xml aus demselben Feld numvars[]
+// schon traegt (numvar 3 und 30). Schlimmer: Lief einer der beiden Abrufe ab, galt der feste
+// Rueckfall "off", und die Oberflaeche zeigte STILL "aus", obwohl die Anzeige lief. Die Werte
+// leitet jetzt loadData() aus dem Einstellungsstand ab (getPowerTextFromSettings); fehlt einer,
+// heisst das "unbekannt", nie "aus".
+async function loadCoreData(requestId) {
+  try {
+    const settingsText = await settleFetchText(getSettingsUrl(), "", CONNECTION_STABILITY.coreSettingsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, {
+      // Ein neuerer loadData() hat diesen Lauf ueberholt: nicht mehr senden.
+      isStale: () => requestId !== loadRequestSerial
+    });
 
-  return {
-    settingsText,
-    displayPower: String(displayPowerText || "off").trim(),
-    ambilightPower: String(ambilightPowerText || "off").trim()
-  };
+    return { settingsText };
+  } finally {
+    if (!apiQueueState.firstCoreLoadDone) {
+      apiQueueState.firstCoreLoadDone = true;
+      pumpApiQueue();
+    }
+  }
+}
+
+// "on" oder "off" nur, wenn settings_xml den Wert wirklich traegt; sonst "" (unbekannt).
+// Die Regel entspricht dem ESP-Handler display_power: ungleich 0 heisst an.
+function getPowerTextFromSettings(settings, index) {
+  const numvars = settings && settings.numvars ? settings.numvars : null;
+  if (!numvars || !Object.prototype.hasOwnProperty.call(numvars, index)) {
+    return "";
+  }
+
+  const value = Number(numvars[index]);
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+
+  return value !== 0 ? "on" : "off";
+}
+
+function getPowerStateName(powerText) {
+  return powerText === "on" || powerText === "off" ? powerText : "unknown";
+}
+
+function getPowerStateLabel(powerText) {
+  if (powerText === "on") {
+    return translate("climate.status_on");
+  }
+  if (powerText === "off") {
+    return translate("climate.status_off");
+  }
+  return translate("common.not_available");
 }
 
 function resolveSettingsSnapshot(settingsText) {
@@ -3260,7 +3393,9 @@ function isDisplayPowerOn(displayPowerText, settings) {
     return false;
   }
 
-  return !!(settings && settings.numvars && settings.numvars[NUM.DISPLAY_POWER]);
+  // E4.7 (Ent-30): Unbekannt ist nicht "aus". Die Vorschau zeigt dann die Uhr, statt eine
+  // dunkle Front vorzutaeuschen, die das Geraet nie gemeldet hat.
+  return getPowerTextFromSettings(settings, NUM.DISPLAY_POWER) !== "off";
 }
 
 // C35 (Ent-6 = A, L310): Jeder update_status-Abruf laesst den ESP Release Notes und
@@ -3313,16 +3448,28 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   // Secondary data is intentionally additive:
   // update/meta information may fail without taking down maintenance/files/network/overlay data.
 
-  // C35/N1: Ein Abruf zaehlt, sobald er beginnt. Ueberholt ein neuerer loadData() diesen
-  // Lauf, wird sein Ergebnis trotzdem global uebernommen -- sonst stuende das Hauptmodul
-  // bis zu 5 min ohne Daten da. Nur die Oberflaeche frischt der ueberholte Lauf nicht mehr
-  // auf. Die laufende Nummer verhindert, dass ein spaeter eintreffendes aelteres Ergebnis
-  // ein neueres ueberschreibt.
+  // E4.7 (design-e4.md §19.6): Jeder Abruf dieses Laufs ist lesend und traegt die Pruefung
+  // "ueberholt?". Sie laeuft in der Warteschlange unmittelbar vor dem Senden: Hat ein neuerer
+  // loadData() diesen Lauf abgeloest, wird der Abruf nicht mehr gesendet, und der Aufrufer
+  // erhaelt seinen Rueckfallwert.
+  const isStale = () => requestId !== loadRequestSerial;
+
+  // C35/N1, seit E4.7: Ein Abruf zaehlt, sobald er GESENDET wird (onSend), nicht schon beim
+  // Einreihen -- ein ueberholter Abruf, den die Schlange verwirft, setzt keinen Zeitstempel,
+  // sonst stuende das Hauptmodul bis zu 5 min ohne diese Daten da. Ueberholt ein neuerer
+  // loadData() diesen Lauf erst NACH dem Senden, wird sein Ergebnis trotzdem global
+  // uebernommen; nur die Oberflaeche frischt der ueberholte Lauf nicht mehr auf. Die laufende
+  // Nummer verhindert, dass ein spaeter eintreffendes aelteres Ergebnis ein neueres
+  // ueberschreibt.
   if (shouldFetchUpdateStatus(moduleProfile)) {
-    lastUpdateStatusFetchAt = Date.now();
     const fetchSerial = ++updateStatusFetchSerial;
     try {
-      const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      const updateStatus = await settleFetchJson(getUpdateStatusUrl(), getNormalizedUpdateStatus(), CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, {
+        isStale,
+        onSend: () => {
+          lastUpdateStatusFetchAt = Date.now();
+        }
+      });
       if (fetchSerial === updateStatusFetchSerial) {
         setCurrentUpdateStatus(updateStatus);
       }
@@ -3336,10 +3483,14 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
   }
 
   if (shouldFetchUpdateTableFiles(moduleProfile)) {
-    lastUpdateTableFilesFetchAt = Date.now();
     const fetchSerial = ++updateTableFilesFetchSerial;
     try {
-      const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts);
+      const updateTableInfo = await settleFetchJson(getUpdateTableFilesUrl(), getNormalizedUpdateTableInfo(), CONNECTION_STABILITY.updateTableInfoTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, {
+        isStale,
+        onSend: () => {
+          lastUpdateTableFilesFetchAt = Date.now();
+        }
+      });
       if (fetchSerial === updateTableFilesFetchSerial) {
         setCurrentUpdateTableInfo(updateTableInfo);
       }
@@ -3381,7 +3532,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
     // ohne "auto" neu. Der Endpunkt liefert auch den WLAN-Schluessel im Klartext; er wird
     // hier nur abgelegt (setCurrentEepromSettings), weder angezeigt noch protokolliert.
     try {
-      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts, { isStale });
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -3398,21 +3549,45 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
     }
   }
 
-  if (networkActive) {
+  // E4.6 (C65, Nutzerentscheid 14.10.2026, design-e4.md §19.3): Der Scan haelt loop() des
+  // ESP synchron an (gemessen rund 2,2 s, L456) und legt die Ergebnisliste auf den Heap. Bis
+  // PWA 1.4.99 lief er bei offenem Netzwerkmodul in JEDER Selbstaktualisierung, alle 15 s,
+  // mit Wiederholung nach Fristablauf. Jetzt nur, wenn der Lauf ausdruecklich danach fragt
+  // (opts.scan): beim Wechsel IN das Netzwerkmodul, beim Start mit dem Netzwerkmodul und
+  // ueber den Knopf "WLANs neu laden". Die Selbstaktualisierung und jedes andere Neuladen
+  // behalten die letzte Liste. EIN Versuch: Laeuft die Frist ab, bleibt die alte Liste
+  // stehen -- eine Wiederholung waere eine zweite Verbindung fuer dieselbe Antwort, waehrend
+  // die abgebrochene beim ESP noch im Backlog liegt (L456, C53).
+  if (networkActive && opts.scan) {
+    const previousNetworkInfo = getCurrentNetworkInfo() || { networks: [] };
+    let scanOk = false;
     try {
-      setCurrentNetworkInfo(await settleFetchJson(getNetworkScanUrl(), getCurrentNetworkInfo() || { networks: [] }, CONNECTION_STABILITY.networkScanTimeoutMs, CONNECTION_STABILITY.slowReadAttempts));
-      if (requestId !== loadRequestSerial) {
-        return;
+      const scanned = await settleFetchJson(getNetworkScanUrl(), previousNetworkInfo, CONNECTION_STABILITY.networkScanTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, { isStale });
+      // settleFetchJson gibt bei Fehler, Fristablauf oder Verwerfen genau den Rueckfallwert
+      // zurueck, ohne zu werfen -- daran erkennt der Knopf, ob wirklich gescannt wurde.
+      scanOk = scanned !== previousNetworkInfo;
+      if (scanOk) {
+        setCurrentNetworkInfo(scanned);
       }
-      refreshNetworkUi(settings);
     } catch (error) {
       console.warn("Network scan load failed", error);
+    }
+    if (typeof opts.onNetworkScan === "function") {
+      opts.onNetworkScan(scanOk);
+    }
+    if (requestId !== loadRequestSerial) {
+      return;
+    }
+    try {
+      refreshNetworkUi(settings);
+    } catch (error) {
+      console.warn("Network UI refresh failed", error);
     }
   }
 
   if (overlaysActive) {
     try {
-      setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], CONNECTION_STABILITY.overlayIconsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts));
+      setOverlayIconsCache(await settleFetchJson(getOverlayIconsUrl(), getOverlayIconsCache() || [], CONNECTION_STABILITY.overlayIconsTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, { isStale }));
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -3428,15 +3603,15 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (maintenanceActive) {
     try {
-      const fsInfo = await settleFetchJson(getFsInfoUrl(), {}, CONNECTION_STABILITY.fsInfoTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      const fsInfo = await settleFetchJson(getFsInfoUrl(), {}, CONNECTION_STABILITY.fsInfoTimeoutMs, CONNECTION_STABILITY.slowReadAttempts, { isStale });
       if (requestId !== loadRequestSerial) {
         return;
       }
-      const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, CONNECTION_STABILITY.fsListTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      const fsList = await settleFetchJson(getFsListUrl(), { files: [] }, CONNECTION_STABILITY.fsListTimeoutMs, CONNECTION_STABILITY.slowReadAttempts, { isStale });
       if (requestId !== loadRequestSerial) {
         return;
       }
-      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      const eepromSettings = await settleFetchJson(getEepromSettingsUrl(), {}, CONNECTION_STABILITY.eepromSettingsTimeoutMs, CONNECTION_STABILITY.slowReadAttempts, { isStale });
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -3457,7 +3632,7 @@ async function loadSecondaryData(requestId, settings, coreData, debugOverrides, 
 
   if (maintenanceActive) {
     try {
-      const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, CONNECTION_STABILITY.stm32LogTimeoutMs, CONNECTION_STABILITY.slowReadAttempts);
+      const stm32Log = await settleFetchJson(getStm32LogUrl(), { lines: [] }, CONNECTION_STABILITY.stm32LogTimeoutMs, CONNECTION_STABILITY.slowReadAttempts, { isStale });
       if (requestId !== loadRequestSerial) {
         return;
       }
@@ -3562,7 +3737,7 @@ async function fetchStm32Log(silent) {
   stm32LogRefreshInFlight = true;
 
   try {
-    const response = await apiFetch(getStm32LogUrl());
+    const response = await apiFetch(getStm32LogUrl(), { apiKind: "read" });
     const data = await response.json();
     updateStm32Log(data);
     return data;
@@ -4598,7 +4773,7 @@ const IR_BACKUP_POLL_INTERVAL_MS = 400;
 const IR_BACKUP_POLL_ATTEMPTS = 15;
 
 async function readIrCodesStatus() {
-  const response = await apiFetch(getIrCodesGetUrl());
+  const response = await apiFetch(getIrCodesGetUrl(), { apiKind: "read" });
   const payload = await response.json();
 
   return payload && typeof payload === "object" ? payload : null;
@@ -5117,7 +5292,7 @@ async function loadBackupNetworkSecrets(eepromSettings) {
   let secrets = null;
 
   try {
-    const response = await apiFetch(getNetworkSecretsUrl(), { timeoutMs: CONNECTION_STABILITY.eepromSettingsTimeoutMs });
+    const response = await apiFetch(getNetworkSecretsUrl(), { timeoutMs: CONNECTION_STABILITY.eepromSettingsTimeoutMs, apiKind: "read" });
     secrets = await response.json();
   } catch (error) {
     console.warn("network_secrets nicht lesbar: " + (error && error.message ? error.message : String(error)));
@@ -10092,11 +10267,30 @@ async function refreshNetworkScan() {
 
   beginButtonFeedback(button, translate("network.scan_busy"));
 
+  // E4.6 (design-e4.md §19.3): Der Knopf fragt ausdruecklich nach dem Scan und wartet auf
+  // ihn. Bis PWA 1.4.99 meldete er "aktualisiert", bevor der Scan ueberhaupt lief: loadData()
+  // wirft nicht, und die Nebenabrufe liefen erst nach der Rueckkehr. Erfolg heisst jetzt:
+  // Das Geraet hat eine Liste geliefert. Lief die Frist ab, wurde der Abruf verworfen oder
+  // kam der Lauf gar nicht bis zum Scan, bleibt die alte Liste stehen, und der Knopf meldet
+  // den Fehlschlag.
+  let scanOk = false;
   try {
-    await loadData();
+    await loadData({
+      scan: true,
+      waitForSecondary: true,
+      onNetworkScan: (ok) => {
+        scanOk = !!ok;
+      }
+    });
+  } catch (error) {
+    console.warn("Network scan reload failed", error);
+    scanOk = false;
+  }
+
+  if (scanOk) {
     announceStatus(translate("network.scan_success"), "ok");
     finishButtonFeedback(button, translate("network.scan"), "success", translate("common.loaded"));
-  } catch (error) {
+  } else {
     announceStatus(translate("network.scan_failed"), "error");
     finishButtonFeedback(button, translate("network.scan"), "error", translate("common.error"));
   }
@@ -11089,7 +11283,6 @@ const getDisplayUseRgbwSetUrl = createConfiguredUrlGetter("display_use_rgbw_set_
 const getTickerSetUrl = createConfiguredUrlGetter("ticker_set_url");
 const getDateTickerFormatSetUrl = createConfiguredUrlGetter("date_ticker_format_set_url");
 const getTickerDecelerationSetUrl = createConfiguredUrlGetter("ticker_deceleration_set_url");
-const getAmbilightPowerUrl = createConfiguredUrlGetter("ambilight_power_url");
 const getAmbilightPowerSetUrl = createConfiguredUrlGetter("ambilight_power_set_url");
 const getAmbilightOnlineSetUrl = createConfiguredUrlGetter("ambilight_online_set_url");
 // B11 (L111): getPowerStatusUrl ist ENTFERNT worden, nicht in Benutzung genommen.
@@ -11104,6 +11297,15 @@ const getAmbilightOnlineSetUrl = createConfiguredUrlGetter("ambilight_online_set
 // einem Geraet, bei dem ab vier parallelen Verbindungen gar keine Antwort mehr kommt
 // (L149). Der Schluessel power_status_url bleibt in den Vorgaben stehen: Die Tabelle
 // spiegelt die vom ESP veroeffentlichte Endpunktliste, und dort steht er.
+//
+// Nachgefuehrt mit E4.7 (Ent-30 B, Nutzerentscheid 14.10.2026): Bis PWA 1.4.99 stimmte die
+// Begruendung oben nur halb -- loadCoreData() holte die beiden Werte trotzdem, ueber
+// display_power und ambilight_power, also mit ZWEI zusaetzlichen Verbindungen je Lauf, und
+// ein abgelaufener Abruf zeigte still "aus". Seit E4 kommen beide Werte aus settings_xml
+// (getPowerTextFromSettings); die Kernladung ist eine Verbindung. getDisplayPowerUrl bleibt
+// fuer die Wiederverbindungsprobe auf Geraeten ohne reconnect_probe. getAmbilightPowerUrl
+// hatte danach keinen Aufrufer mehr und ist aus demselben Grund wie getPowerStatusUrl
+// entfernt; der Schluessel ambilight_power_url bleibt in den Vorgaben wie power_status_url.
 const getMaintenanceResetStm32Url = createConfiguredUrlGetter("maintenance_reset_stm32_url");
 const getMaintenanceResetEepromUrl = createConfiguredUrlGetter("maintenance_reset_eeprom_url");
 const getMaintenanceFormatFsUrl = createConfiguredUrlGetter("maintenance_format_fs_url");
@@ -12363,7 +12565,7 @@ async function showFsFile(fileName, knownSize) {
   }
 
   try {
-    const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName));
+    const response = await apiFetch(getFsShowBaseUrl() + encodeURIComponent(fileName), { apiKind: "read" });
     const contentType = String(response.headers && response.headers.get("content-type") || "").toLowerCase();
 
     // Ein JSON-Rumpf, den apiFetch durchgelassen hat, ist kein Dateiinhalt -- etwa
@@ -13091,44 +13293,215 @@ function clearEspReloadWatchdog() {
   espReloadWatchdogId = 0;
 }
 
-async function fetchWithTimeout(url, options, timeoutMs) {
+// E4.7 (C65, Ent-35, design-e4.md §19.6): Pfad ohne Herkunft, Query und Anker -- nur damit
+// entscheidet sich, ob ein Abruf durch die Warteschlange geht. Bewusst ohne URL(): Der
+// Prüfstand tdz laedt app.js ohne diese Klasse.
+function getApiQueuePath(url) {
+  const withoutOrigin = String(url || "").replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "");
+  const end = withoutOrigin.search(/[?#]/);
+  return end < 0 ? withoutOrigin : withoutOrigin.slice(0, end);
+}
+
+function isQueuedApiUrl(url) {
+  return getApiQueuePath(url).indexOf("/api/") === 0;
+}
+
+function isApiQueueStartupPhase() {
+  if (apiQueueState.startupOver) {
+    return false;
+  }
+
+  const elapsedMs = Date.now() - apiQueueState.scriptStartedAt;
+  if ((apiQueueState.windowLoaded && apiQueueState.firstCoreLoadDone) || elapsedMs < 0 || elapsedMs >= API_QUEUE_LIMITS.startupMaxMs) {
+    // Einmal vorbei, immer vorbei -- auch wenn die Uhr des Browsers spaeter springt.
+    apiQueueState.startupOver = true;
+    return false;
+  }
+
+  return true;
+}
+
+function getApiQueueLimit() {
+  return isApiQueueStartupPhase() ? API_QUEUE_LIMITS.startupMaxInFlight : API_QUEUE_LIMITS.maxInFlight;
+}
+
+function createApiQueueDropError(reason) {
+  const error = new Error("api-queue-" + reason);
+  error.name = "ApiQueueDropError";
+  error.apiQueueDrop = reason;
+  return error;
+}
+
+// Liefert eine Freigabefunktion, sobald der Abruf senden darf. Ein lesender Eintrag wird
+// verworfen (Promise abgewiesen, nichts gesendet), wenn er 15 s gewartet hat oder wenn seine
+// Pruefung "ueberholt?" beim Herausnehmen zutrifft. Ein schreibender wartet, bis er dran ist:
+// Jeder Abruf vor ihm hat seine eigene Netzfrist, die Schlange laeuft also immer weiter.
+function acquireApiSlot(kind, isStale) {
+  return new Promise((resolve, reject) => {
+    const entry = {
+      kind: kind === "write" ? "write" : "read",
+      isStale: typeof isStale === "function" ? isStale : null,
+      resolve,
+      reject,
+      waitTimer: 0
+    };
+
+    if (entry.kind === "write") {
+      apiQueueState.writes.push(entry);
+    } else {
+      apiQueueState.reads.push(entry);
+      entry.waitTimer = window.setTimeout(() => {
+        entry.waitTimer = 0;
+        const index = apiQueueState.reads.indexOf(entry);
+        if (index < 0) {
+          return;
+        }
+        apiQueueState.reads.splice(index, 1);
+        apiQueueState.droppedWaitedTooLong += 1;
+        reject(createApiQueueDropError("waited-too-long"));
+      }, API_QUEUE_LIMITS.readMaxWaitMs);
+    }
+
+    pumpApiQueue();
+  });
+}
+
+function pumpApiQueue() {
+  while (apiQueueState.inFlight < getApiQueueLimit()) {
+    const entry = apiQueueState.writes.length ? apiQueueState.writes.shift() : apiQueueState.reads.shift();
+    if (!entry) {
+      return;
+    }
+
+    if (entry.waitTimer) {
+      window.clearTimeout(entry.waitTimer);
+      entry.waitTimer = 0;
+    }
+
+    if (entry.kind === "read" && entry.isStale && entry.isStale()) {
+      apiQueueState.droppedSuperseded += 1;
+      entry.reject(createApiQueueDropError("superseded-run"));
+      continue;
+    }
+
+    apiQueueState.inFlight += 1;
+    apiQueueState.sent += 1;
+    let released = false;
+    entry.resolve(() => {
+      if (released) {
+        return;
+      }
+      released = true;
+      apiQueueState.inFlight = Math.max(0, apiQueueState.inFlight - 1);
+      pumpApiQueue();
+    });
+  }
+}
+
+// Der Platz in der Schlange gilt, bis die Antwort VOLLSTAENDIG gelesen ist: Fuer den ESP ist
+// die Verbindung erst dann zu Ende. Gab man ihn schon mit den Kopfzeilen frei, lief der Rumpf
+// neben dem naechsten Abruf weiter, und es waeren mehr als zwei Verbindungen offen.
+async function readApiResponseFully(response) {
+  const body = await response.arrayBuffer();
+  const status = response.status;
+
+  return new Response([204, 205, 304].indexOf(status) >= 0 ? null : body, {
+    status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+
+// queueOptions (nur fuer /api/): kind "write" | "read" (Voreinstellung "read"), isStale
+// (Pruefung "ueberholt?" vor dem Senden, nur fuer Lesende), onSend (wird unmittelbar vor dem
+// Senden gerufen). Die Frist beginnt erst, wenn der Abruf seinen Platz hat -- beim Senden,
+// nicht beim Einreihen (E4.7). Sie deckt den ganzen Rumpf ab, nicht nur die Kopfzeilen.
+async function fetchWithTimeout(url, options, timeoutMs, queueOptions) {
+  const queueOpts = queueOptions || {};
+  const queued = isQueuedApiUrl(url);
+  const release = queued ? await acquireApiSlot(queueOpts.kind, queueOpts.isStale) : null;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
 
   try {
-    return await fetch(url, {
+    if (typeof queueOpts.onSend === "function") {
+      queueOpts.onSend();
+    }
+    const response = await fetch(url, {
       ...(options || {}),
       signal: controller.signal
     });
+    return queued ? await readApiResponseFully(response) : response;
   } finally {
     window.clearTimeout(timer);
+    if (release) {
+      release();
+    }
   }
 }
 
-function settleWithTimeout(promise, fallbackValue, timeoutMs) {
+// sentSignal (E4.7): Ein Promise, das beim Senden erfuellt wird. Erst dann beginnt die
+// aeussere Frist -- bis PWA 1.4.99 lief sie ab dem Aufruf, und ein Abruf, der in der Schlange
+// wartete, haette seinen Rueckfallwert geliefert, bevor er ueberhaupt gesendet war. Wird der
+// Abruf nie gesendet (verworfen), erfuellt sich das Promise nie; dann endet der Wettlauf ueber
+// den abgewiesenen Abruf mit dem Rueckfallwert.
+function settleWithTimeout(promise, fallbackValue, timeoutMs, sentSignal) {
   return Promise.race([
     Promise.resolve(promise).catch(() => fallbackValue),
     new Promise((resolve) => {
-      window.setTimeout(() => resolve(fallbackValue), timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
+      const arm = () => {
+        window.setTimeout(() => resolve(fallbackValue), timeoutMs || CONNECTION_STABILITY.frameProbeTimeoutMs);
+      };
+      if (sentSignal && typeof sentSignal.then === "function") {
+        void sentSignal.then(arm);
+      } else {
+        arm();
+      }
     })
   ]);
 }
 
-function settleFetchText(url, fallbackValue, timeoutMs, attempts) {
+// Haengt an queueOptions ein onSend, das zusaetzlich das Signal fuer settleWithTimeout setzt.
+function createApiSendSignal(queueOptions) {
+  const base = queueOptions || {};
+  let markSent = null;
+  const promise = new Promise((resolve) => {
+    markSent = resolve;
+  });
+
+  return {
+    promise,
+    queueOptions: {
+      ...base,
+      onSend: () => {
+        markSent();
+        if (typeof base.onSend === "function") {
+          base.onSend();
+        }
+      }
+    }
+  };
+}
+
+function settleFetchText(url, fallbackValue, timeoutMs, attempts, queueOptions) {
+  const sent = createApiSendSignal(queueOptions);
   return settleWithTimeout(
-    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts)
+    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts, sent.queueOptions)
       .then((response) => response.ok ? response.text() : fallbackValue),
     fallbackValue,
-    timeoutMs
+    timeoutMs,
+    sent.promise
   );
 }
 
-function settleFetchJson(url, fallbackValue, timeoutMs, attempts) {
+function settleFetchJson(url, fallbackValue, timeoutMs, attempts, queueOptions) {
+  const sent = createApiSendSignal(queueOptions);
   return settleWithTimeout(
-    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts)
+    fetchWithRetry(url, { cache: "no-store" }, timeoutMs, attempts || CONNECTION_STABILITY.fastReadAttempts, sent.queueOptions)
       .then((response) => response.ok ? response.json() : fallbackValue),
     fallbackValue,
-    timeoutMs
+    timeoutMs,
+    sent.promise
   );
 }
 
@@ -13144,13 +13517,14 @@ function isRetryableFetchError(error) {
   return /^http-5\d\d$/.test(String(error.message || ""));
 }
 
-async function fetchWithRetry(url, options, timeoutMs, attempts) {
+async function fetchWithRetry(url, options, timeoutMs, attempts, queueOptions) {
   const maxAttempts = Math.max(1, Number(attempts || 1));
+  const isWrite = !!(queueOptions && queueOptions.kind === "write");
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url, options, timeoutMs);
+      const response = await fetchWithTimeout(url, options, timeoutMs, queueOptions);
       if (!response.ok && response.status >= 500 && attempt < maxAttempts) {
         await sleep(CONNECTION_STABILITY.retryDelayMs * attempt);
         continue;
@@ -13158,7 +13532,12 @@ async function fetchWithRetry(url, options, timeoutMs, attempts) {
       return response;
     } catch (error) {
       lastError = error;
-      if (attempt >= maxAttempts || !isRetryableFetchError(error)) {
+      // E4.7 (Ent-35): Ein LESENDER Abruf wird nach einer Zeitueberschreitung nicht
+      // wiederholt. Die abgebrochene Anfrage liegt beim ESP noch im Backlog; die Wiederholung
+      // waere eine zweite Verbindung fuer dieselbe Antwort (L456, C53). Wiederholt wird
+      // weiter bei "Failed to fetch" und 5xx.
+      const readTimedOut = !isWrite && !!error && error.name === "AbortError";
+      if (attempt >= maxAttempts || !isRetryableFetchError(error) || readTimedOut) {
         throw error;
       }
       await sleep(CONNECTION_STABILITY.retryDelayMs * attempt);
@@ -13256,8 +13635,18 @@ function startUpdateProgressPolling(initialDelayMs) {
   stopUpdateProgressPolling();
 
   const poll = async () => {
-    const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, CONNECTION_STABILITY.progressPollTimeoutMs);
-    applyUpdateProgressStatus(progress);
+    // E4.7: Ist der vorige Abruf noch offen, entfaellt dieser Takt. Mit Frist 2'800 ms und
+    // Takt 900 ms laegen sonst bis zu vier Abrufe gleichzeitig in der Schlange.
+    if (updateProgressPollInFlight) {
+      return;
+    }
+    updateProgressPollInFlight = true;
+    try {
+      const progress = await settleFetchJson(getUpdateProgressUrl(), { ok: false }, CONNECTION_STABILITY.progressPollTimeoutMs);
+      applyUpdateProgressStatus(progress);
+    } finally {
+      updateProgressPollInFlight = false;
+    }
   };
 
   const start = () => {
@@ -13733,14 +14122,110 @@ async function runTextSave(buttonId, endpoint, value, buttonText, errorText) {
   return runValueSave(buttonId, endpoint, value, buttonText, errorText);
 }
 
+// E4.5a/E4.7 (Lead-Entscheid 14.10.2026): Nach dem Speichern von Update-Host oder -Pfad
+// fordert die PWA beim ESP GENAU EINMAL den Abgleich von Release Notes und STM-Liste an
+// (update_status?refresh=1, lesend durch die Warteschlange) und laedt danach wie bisher. Der ESP
+// holt die Dateien nicht in dieser Anfrage, sondern im naechsten Hintergrunddurchgang, und der
+// beginnt fruehestens 5 s nach der zuletzt bedienten Verbindung (UPDATE_CACHE_IDLE_MS, http.cpp).
+// Deshalb ein einziger Nachlade-Abruf von update_status, damit die neuen Notes ohne zweiten Klick
+// erscheinen -- keine Wiederholung, auch wenn er noch die alte Fassung liefert.
+//
+// Die 9 s zaehlen ab dem Ende des Neuladens samt Nebenabrufen (waitForSecondary), nicht ab dem
+// Klick: Jeder dieser Abrufe schiebt das Ruhefenster des ESP hinaus. 5 s Ruhe plus rund 4 s fuer
+// zwei ausgehende Abrufe beim Update-Server (Notes, Liste) -- frueher kaeme der Nachlade-Abruf vor
+// dem Durchgang an und schoebe ihn selbst noch einmal 5 s hinaus. Spaeter als 9 s hilft wenig:
+// Im Update- und Wartungsmodul holt die Selbstaktualisierung update_status ohnehin alle 15 s.
+const UPDATE_SERVER_RECHECK_FOLLOWUP_MS = 9000;
+
 async function refreshUpdateServerAvailability() {
   announceStatus(translate("maintenance.server_recheck_running"), "warn");
 
+  let refreshSent = false;
+  let refreshAnswered = false;
   try {
-    await loadData();
-    announceStatus(translate("maintenance.server_recheck_done"), "ok");
+    const separator = getUpdateStatusUrl().indexOf("?") >= 0 ? "&" : "?";
+    const fallback = getNormalizedUpdateStatus();
+    const fetchSerial = ++updateStatusFetchSerial;
+    // Review E4.10 M1: refresh=1 ist ein AUSLOESER -- er setzt beim ESP den Abgleich. Deshalb
+    // schreibend eingereiht: vor Lesenden, nie nach 15 s Wartezeit verworfen.
+    const status = await settleFetchJson(getUpdateStatusUrl() + separator + "refresh=1", fallback, CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, {
+      kind: "write",
+      onSend: () => {
+        refreshSent = true;
+        lastUpdateStatusFetchAt = Date.now();
+      }
+    });
+    refreshAnswered = status !== fallback;
+    if (refreshAnswered && fetchSerial === updateStatusFetchSerial) {
+      setCurrentUpdateStatus(status);
+    }
   } catch (error) {
+    console.warn("update_status refresh request failed", error);
+  }
+
+  try {
+    await loadData({ waitForSecondary: true });
+  } catch (error) {
+    console.warn("Reload after server recheck failed", error);
+  }
+
+  // Review E4.10 H1: Erfolg nur bei belegtem Erfolg. loadData() wirft nie -- die Meldung haengt
+  // deshalb am refresh=1-Abruf selbst: gesendet UND vom Geraet beantwortet. Lief er ab, wurde er
+  // nicht gesendet oder kam ein Fehlerstatus, ist "neu geprueft" nicht belegt.
+  if (refreshSent && refreshAnswered) {
+    announceStatus(translate("maintenance.server_recheck_done"), "ok");
+  } else {
     announceStatus(translate("maintenance.server_recheck_failed"), "error");
+  }
+
+  // Nur wenn die Anforderung das Geraet erreicht haben kann: Ohne gesendetes refresh=1 holt der
+  // ESP nichts Neues, und der Nachlade-Abruf waere eine Verbindung ohne Zweck.
+  if (refreshSent) {
+    scheduleUpdateServerRecheckFollowup();
+  }
+}
+
+function scheduleUpdateServerRecheckFollowup() {
+  if (updateServerRecheckFollowupTimer) {
+    window.clearTimeout(updateServerRecheckFollowupTimer);
+  }
+  updateServerRecheckFollowupTimer = window.setTimeout(() => {
+    updateServerRecheckFollowupTimer = 0;
+    void loadUpdateStatusFollowup();
+  }, UPDATE_SERVER_RECHECK_FOLLOWUP_MS);
+}
+
+async function loadUpdateStatusFollowup() {
+  if (isBackgroundPauseActive()) {
+    return;
+  }
+
+  const fallback = getNormalizedUpdateStatus();
+  const fetchSerial = ++updateStatusFetchSerial;
+  const status = await settleFetchJson(getUpdateStatusUrl(), fallback, CONNECTION_STABILITY.updateStatusTimeoutMs, CONNECTION_STABILITY.fastReadAttempts, {
+    onSend: () => {
+      lastUpdateStatusFetchAt = Date.now();
+    }
+  });
+
+  // Fehlschlag: keine Wiederholung. Die Anzeige behaelt den Stand, die naechste regulaere
+  // Ladung holt ihn ohnehin.
+  if (status === fallback || fetchSerial !== updateStatusFetchSerial) {
+    return;
+  }
+  setCurrentUpdateStatus(status);
+
+  const settings = getCurrentSettingsSnapshot();
+  if (!settings) {
+    return;
+  }
+  try {
+    refreshUpdateUi(settings, {
+      displayPower: getPowerTextFromSettings(settings, NUM.DISPLAY_POWER),
+      ambilightPower: getPowerTextFromSettings(settings, NUM.DISPLAY_AMBILIGHT_POWER)
+    }, getDebugOverrides());
+  } catch (error) {
+    console.warn("Update UI refresh after server recheck failed", error);
   }
 }
 
@@ -15211,10 +15696,11 @@ function getOverviewUiMeta(settings, displayPower, ambilightPower, debugOverride
     ledCapabilities: featureMeta.ledCapabilities,
     ambilightOnline: featureMeta.moduleState.ambilightOnline,
     dfplayerOnline: featureMeta.moduleState.dfplayerOnline,
-    displayPowerLabel: displayPower === "on" ? translate("climate.status_on") : translate("climate.status_off"),
-    displayPowerState: displayPower === "on" ? "on" : "off",
-    ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? translate("climate.status_on") : translate("climate.status_off")) : translate("common.offline"),
-    ambilightPowerState: featureMeta.moduleState.ambilightOnline ? (ambilightPower === "on" ? "on" : "off") : "offline",
+    // E4.7 (Ent-30): Ein fehlender Wert steht als "nicht verfuegbar" da, nie als "aus".
+    displayPowerLabel: getPowerStateLabel(displayPower),
+    displayPowerState: getPowerStateName(displayPower),
+    ambilightPowerLabel: featureMeta.moduleState.ambilightOnline ? getPowerStateLabel(ambilightPower) : translate("common.offline"),
+    ambilightPowerState: featureMeta.moduleState.ambilightOnline ? getPowerStateName(ambilightPower) : "offline",
     firmwareVersion: displayMeta.firmwareVersion || "-",
     espVersion: getUpdateAvailableVersion(updateStatus, "esp_version") || displayMeta.espVersion || "-",
     lastStartLabel: formatLastStartFromSettings(settings),
@@ -15866,7 +16352,17 @@ async function refreshLiveDisplayColor() {
     return;
   }
 
-  const response = await settleFetchJson(getLiveDisplayColorUrl(), null, 3000);
+  // E4.7: Ist der vorige Abruf noch offen, entfaellt dieser Takt.
+  if (liveDisplayColorRefreshInFlight) {
+    return;
+  }
+  let response = null;
+  liveDisplayColorRefreshInFlight = true;
+  try {
+    response = await settleFetchJson(getLiveDisplayColorUrl(), null, 3000);
+  } finally {
+    liveDisplayColorRefreshInFlight = false;
+  }
 
   if (!response || response.ok !== true) {
     return;

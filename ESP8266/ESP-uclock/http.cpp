@@ -15,6 +15,8 @@
 #include <WString.h>
 #include <FS.h>
 #include <LittleFS.h>
+#include <lwip/tcp.h>
+#include <lwip/priv/tcp_priv.h>                                                 // E4 Ent-32: privater lwIP-Kopf NUR in dieser Datei, nur lesend
 #include "base.h"
 #include "vars.h"
 #include "wifi.h"
@@ -30,7 +32,43 @@
 const char *                wdays_en[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
 const char *                wdays_de[7] = { "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" };
 
-WiFiServer                  http_server(80);                                        // create an instance of the server on Port 80
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E4 (C65, design-e4.md 19.2, 19.5): Server mit Zugriff auf den Listen-PCB
+ *
+ * WiFiServer haelt _listen_pcb protected (WiFiServer.h:71-78). Die Unterklasse liest daraus die Zahl der
+ * wartenden, von lwIP schon angenommenen, aber von accept () noch nicht abgeholten Verbindungen (I-4). Jede davon
+ * traegt einen ClientContext auf dem Heap (WiFiServer.cpp:187-205). Kein eigenes Feld, gleiche Groesse wie WiFiServer.
+ * backlog () setzt den Backlog zur Laufzeit (tcp_backlog_set, lwip/tcp.h:444-448; 0 wird dort zu 1). Er gilt fuer
+ * NEUE SYN, schon wartende Verbindungen bleiben; bei vollem Backlog antwortet lwIP auf ein SYN nicht, und die
+ * Gegenstelle wiederholt (WiFiServer.h:53-64).
+ * Ohne TCP_LISTEN_BACKLOG gibt es accepts_pending nicht (lwip/tcp.h:234-237), und tcp_backlog_set () waere leer
+ * (lwip/tcp.h:450-454) - eine Massnahme darauf waere still wirkungslos. Deshalb bricht der Build ab.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#if ! TCP_LISTEN_BACKLOG
+#error "TCP_LISTEN_BACKLOG ist 0 - lwIP-Variante im FQBN pruefen (ip=lm2f, LWIP_FEATURES=1)"
+#endif
+
+class WcHttpServer : public WiFiServer
+{
+    public:
+        using WiFiServer::WiFiServer;
+
+        uint8_t pending (void) const                                                // accepts_pending, 0 ohne _listen_pcb
+        {
+            return _listen_pcb ? ((const struct tcp_pcb_listen *) _listen_pcb)->accepts_pending : 0;
+        }
+
+        void backlog (uint8_t n)                                                    // nur mit _listen_pcb
+        {
+            if (_listen_pcb)
+            {
+                tcp_backlog_set (_listen_pcb, n);
+            }
+        }
+};
+
+WcHttpServer                http_server(80);                                        // create an instance of the server on Port 80
 static WiFiClient           http_client;
 
 static const char *         pgm_name = "unknown Clock";
@@ -163,6 +201,16 @@ static int                                          bgcolor_cnt;
 #endif
 
 #define MAX_HTTP_RESPONSE_LEN                       (2 * TCP_MSS)   // 1072 bei ip=lm2f, genau TCP_SND_BUF
+
+/* E4 Teil 2 (C65, design-e4.md 19.4, Ent-33 Variante A): geschrieben wird in Stuecken von hoechstens TCP_MSS Byte,
+ * gelesen und gepuffert weiter in MAX_HTTP_RESPONSE_LEN. Der Core schreibt je write () min (tcp_sndbuf, Rest) am
+ * Stueck und versucht bei ERR_MEM KEIN kleineres Stueck (ClientContext.h:507-541); danach wartet er die volle Frist
+ * (HTTP_WRITE_TIMEOUT_MS bzw. HTTP_FILE_WRITE_TIMEOUT_MS) auf einen Rueckruf. Ein tcp_write () mit 1072 Byte
+ * braucht rund 1,35 KB freien Heap am Stueck, mit 536 rund 0,67 KB (L456, nicht gemessen). Sind 0,7 KB frei, aber
+ * keine 1,4 KB, kommt die Antwort jetzt durch statt "w=0". Kosten: ein Schleifendurchlauf und ein tcp_output ()
+ * je 536 Byte; bei abgeschaltetem Nagle-Verfahren gingen ohnehin zwei Segmente hinaus.
+ */
+#define HTTP_WRITE_CHUNK                            TCP_MSS         // 536 bei ip=lm2f
 static char     http_response[MAX_HTTP_RESPONSE_LEN + 1];
 static int      http_response_len = 0;
 
@@ -269,6 +317,220 @@ static uint32_t         req_max_upd_cache_ms = 0;
 static unsigned long    http_last_request_millis = 0;           // Ende der zuletzt bedienten Verbindung, fuer update_cache_poll ()
 static uint8_t          http_request_seen = 0;                  // ueberhaupt schon eine Verbindung bedient
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E4 I-4 (C65, design-e4.md 19.2): WER den Heap belegt, wenn heap_low_block einen neuen Tiefstwert erreicht
+ *
+ * Festgehalten NUR im Zweig "neuer Block-Tiefstwert" von heap_low_note () - nicht fuer heap_line_low und nicht
+ * fuer heap_low_free. Kein Heap, kein String, keine Ausgabe: Die lwIP-Listen werden nur gelesen und in diese
+ * statischen Felder gezaehlt. Die Listen sind kurz (MEMP_NUM_TCP_PCB 5, TIME_WAIT hoechstens 5).
+ *
+ * Gleichzeitigkeit: lwIP laeuft im Systemkontext, loop () im Benutzerkontext, und der Systemkontext laeuft nur,
+ * wenn der Benutzerkontext abgibt. heap_low_snapshot () gibt nicht ab - kein yield (), kein delay (), kein
+ * WiFiClient::connected ()/available () (die rufen optimistic_yield (), WiFiClient.cpp:246-257). Die Listen
+ * aendern sich waehrend des Zaehlens also nicht.
+ *
+ *     heap_low_accepts_pending  wartende Verbindungen am Port 80 (WcHttpServer::pending ())
+ *     heap_low_backlog          der in diesem Augenblick gesetzte Backlog (http_backlog)
+ *     heap_low_pcb_states[11]   PCBs je Zustand in tcp_active_pcbs, Index = lwIP enum tcp_state
+ *                               (0 CLOSED ... 10 TIME_WAIT), saettigend bei 255
+ *     heap_low_tw               Laenge von tcp_tw_pcbs, saettigend
+ *     heap_low_unacked          TCP_SND_BUF - availableForWrite () der bedienten Verbindung; -1, wenn http_client
+ *                               nicht verbunden ist (status () CLOSED) - sonst stuende dort 1072 als scheinbarer
+ *                               Hoechstwert, weil availableForWrite () ohne PCB 0 liefert (ClientContext.h:161-164)
+ *     heap_low_req_path         Pfad der gerade bedienten Anfrage OHNE Query (dort koennen SSID und Schluessel
+ *                               stehen, network_client_set), hoechstens 31 Zeichen; "-" ohne Anfrage (accept vor
+ *                               dem Lesen, client im Startabruf)
+ *
+ * Zurueckgesetzt mit I-1 ueber device_ready?heap_low_reset=1: Zahlen 0, unacked -1, Pfad leer. Dass nichts
+ * gemessen wurde, zeigt wie bisher heap_low_path leer.
+ *
+ * http_cur_req zeigt auf sPath in http_server_loop () - KEINE zweite Kopie. Gesetzt im Konstruktor von
+ * HttpRequestTimer, der ohnehin eine Referenz auf sPath haelt, und im Destruktor auf NULL gesetzt, also auf jedem
+ * Rueckkehrpfad: Er kann nie auf ein zerstoertes String zeigen (sPath wird VOR dem Messobjekt angelegt und lebt
+ * laenger). Bis sPath feststeht, ist es leer - die Momentaufnahme schreibt dann "-". Ein Zeiger auf das
+ * String-Objekt statt auf seinen Inhalt, weil c_str () nach einer Zuweisung woanders hinzeigen kann; gelesen wird
+ * c_str () erst in der Momentaufnahme. Die Zuweisungen an sPath bleiben dadurch unberuehrt.
+ *
+ * RAM: 48 Byte Felder, 4 Byte Zeiger.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HEAP_LOW_PCB_STATES                     11                      // CLOSED (0) ... TIME_WAIT (10), lwip/tcpbase.h
+
+static uint8_t          heap_low_accepts_pending = 0;
+static uint8_t          heap_low_backlog         = 0;
+static uint8_t          heap_low_pcb_states[HEAP_LOW_PCB_STATES];
+static uint8_t          heap_low_tw              = 0;
+static int16_t          heap_low_unacked         = -1;
+static char             heap_low_req_path[32]    = "";
+static const String *   http_cur_req             = (const String *) 0;
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E4 Teil 3 (C65, design-e4.md 19.5, Ent-34): Backlog des Servers am Port 80 nach freiem Heap
+ *
+ * Der Core nimmt neben der bedienten Verbindung bis zu MAX_PENDING_CLIENTS_PER_PORT = 5 wartende an, jede sofort
+ * mit ClientContext und gepufferter Anfrage auf dem Heap (rund 0,8 KB, L456). Beim Tief in L450 fehlte genau das.
+ * Backlog n ist zulaessig, solange free >= 1072 (Haltegrenze K30) + 2400 (Grundbedarf) + n x 800:
+ *     getFreeHeap () >= 5900  ->  3
+ *     getFreeHeap () >= 5100  ->  2
+ *     darunter                ->  1      (0 geht nicht: tcp_backlog_set macht daraus 1)
+ * Gesenkt wird sofort, erhoeht erst ab Schwelle + HTTP_BACKLOG_HYST - sonst pendelte der Backlog bei jeder Antwort.
+ * Gesetzt wird nur bei einer Aenderung. getFreeHeap () ist ein Zaehlerstand (umm_local.c:186-191);
+ * getMaxFreeBlockSize () ginge mit gesperrten Interrupts ueber den ganzen Heap und taugt nicht je Durchlauf.
+ * Die Schwellen sind GERECHNET, nicht gemessen; G8 liest an heap_low_accepts_pending und heap_low_backlog ab, ob
+ * sie greifen. Gilt nur zusammen mit der Warteschlange der PWA (Teil 4): Ein kleiner Backlog laesst SYN fallen,
+ * die Gegenstelle wiederholt nach rund 1 s.
+ * RAM: 1 Byte Zustand. Zurueckgesetzt wird er nie (Zustand, kein Messwert); in device_ready als "http_backlog".
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_BACKLOG_HIGH                       3
+#define HTTP_BACKLOG_MID                        2
+#define HTTP_BACKLOG_LOW                        1
+#define HTTP_BACKLOG_HEAP_HIGH                  5900                    // Byte getFreeHeap () fuer HTTP_BACKLOG_HIGH
+#define HTTP_BACKLOG_HEAP_MID                   5100                    // Byte getFreeHeap () fuer HTTP_BACKLOG_MID
+#define HTTP_BACKLOG_HYST                       256                     // Byte Hysterese nach oben
+
+static uint8_t          http_backlog             = HTTP_BACKLOG_HIGH;
+
+/* E4 Teil 6 (C65, design-e4.md 19.8): verwaiste lesende /api/-Abfragen, die http () uebersprungen hat. Seit dem
+ * Start, saettigend, nie zurueckgesetzt (wie write_lost_*); in device_ready als "api_orphan_skipped". 2 Byte.
+ */
+static uint16_t         api_orphan_skipped       = 0;
+
+static uint8_t
+http_backlog_level (uint32_t free_heap)
+{
+    if (free_heap >= HTTP_BACKLOG_HEAP_HIGH)
+    {
+        return HTTP_BACKLOG_HIGH;
+    }
+
+    if (free_heap >= HTTP_BACKLOG_HEAP_MID)
+    {
+        return HTTP_BACKLOG_MID;
+    }
+
+    return HTTP_BACKLOG_LOW;
+}
+
+static uint8_t
+http_backlog_want (uint32_t free_heap, uint8_t current)
+{
+    uint8_t     down = http_backlog_level (free_heap);
+    uint8_t     up;
+
+    if (down < current)
+    {
+        return down;                                                    // senken sofort
+    }
+
+    up = http_backlog_level (free_heap > HTTP_BACKLOG_HYST ? free_heap - HTTP_BACKLOG_HYST : 0);
+
+    return (up > current) ? up : current;                               // erhoehen erst ab Schwelle + Hysterese
+}
+
+static void
+http_backlog_track (void)
+{
+    uint8_t     want = http_backlog_want (ESP.getFreeHeap (), http_backlog);
+
+    if (want != http_backlog)
+    {
+        http_server.backlog (want);
+        http_backlog = want;
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E4 Teil 5 (C65, design-e4.md 19.7, Ent-36): TIME_WAIT auf HTTP_TW_LIMIT begrenzen
+ *
+ * Der ESP baut als Server zuerst ab und haelt deshalb nach jeder Antwort ein PCB in TIME_WAIT, je rund 192 Byte
+ * (L456, nicht gemessen). Der Core begrenzt auf MEMP_NUM_TCP_PCB_TIME_WAIT = 5 (lwipopts.h:3692-3697). Zwei decken
+ * die zuletzt bedienten Verbindungen; jede weitere schuetzt nur vor verspaeteten Segmenten einer Verbindung, deren
+ * Gegenstelle schon geantwortet hat. Gewinn bis rund 0,6 KB.
+ * Mittel ist das Makro des Cores TCP_TW_LIMIT (lwipopts.h:3677-3689): Es zaehlt tcp_tw_pcbs und ruft
+ * tcp_kill_timewait () fuer die AELTESTEN - keine eigene Listenpflege.
+ * ACHTUNG, um eins verschoben (am Pruefstand c65z mit dem woertlich kopierten Makro belegt): Trotz des Namens ist
+ * count_plus_1 nach der Zaehlschleife die ANZAHL n der Eintraege, nicht n + 1 (Start 1, je Nachfolger + 1), und
+ * "while (--count_plus_1 > (l))" laesst deshalb l + 1 PCBs uebrig. TCP_TW_LIMIT (2) haette drei behalten. Deshalb
+ * HTTP_TW_LIMIT - 1 als Argument. Wird das Makro in einem kuenftigen Core berichtigt, bleibt hoechstens eines
+ * uebrig - die sichere Richtung; c65z zeigt die Abweichung dann an.
+ * Aufgerufen genau an zwei Stellen, an denen gleich neuer Speicher gebraucht wird: in http_server_loop ()
+ * unmittelbar nach einem erfolgreichen accept () (VOR dem Messpunkt accept, I-1 sieht den Stand ohne die
+ * abgeraeumten PCBs) und in httpclient () unmittelbar vor connect () (httpclient.cpp).
+ * Risiko (benannt): Ein verspaetetes Segment einer abgeraeumten Verbindung wird mit RST beantwortet; die
+ * Gegenstelle hat ihre Seite da schon geschlossen.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_TW_LIMIT                           2
+
+void
+tcp_tw_limit (void)
+{
+    TCP_TW_LIMIT (HTTP_TW_LIMIT - 1);                                   // laesst HTTP_TW_LIMIT uebrig, siehe oben
+}
+
+static void
+heap_low_snapshot (void)
+{
+    struct tcp_pcb *    pcb;
+    uint_fast8_t        idx;
+    uint_fast8_t        tw = 0;
+    const char *        path = http_cur_req ? http_cur_req->c_str () : (const char *) 0;
+
+    for (idx = 0; idx < HEAP_LOW_PCB_STATES; idx++)
+    {
+        heap_low_pcb_states[idx] = 0;
+    }
+
+    for (pcb = tcp_active_pcbs; pcb; pcb = pcb->next)
+    {
+        idx = (uint_fast8_t) pcb->state;
+
+        if (idx < HEAP_LOW_PCB_STATES && heap_low_pcb_states[idx] < 0xFF)
+        {
+            heap_low_pcb_states[idx]++;
+        }
+    }
+
+    for (pcb = tcp_tw_pcbs; pcb; pcb = pcb->next)
+    {
+        if (tw < 0xFF)
+        {
+            tw++;
+        }
+    }
+
+    heap_low_tw              = (uint8_t) tw;
+    heap_low_accepts_pending = http_server.pending ();
+    heap_low_backlog         = http_backlog;
+
+    if (http_client.status () == CLOSED)                        // status () gibt nicht ab, connected () schon
+    {
+        heap_low_unacked = -1;
+    }
+    else
+    {
+        heap_low_unacked = (int16_t) (TCP_SND_BUF - http_client.availableForWrite ());
+    }
+
+    idx = 0;
+
+    if (! path || ! path[0])
+    {
+        heap_low_req_path[idx++] = '-';
+    }
+    else
+    {
+        while (path[idx] && path[idx] != '?' && idx < sizeof (heap_low_req_path) - 1)
+        {
+            heap_low_req_path[idx] = path[idx];
+            idx++;
+        }
+    }
+
+    heap_low_req_path[idx] = '\0';
+}
+
 void
 heap_low_note (uint8_t path)
 {
@@ -280,6 +542,7 @@ heap_low_note (uint8_t path)
         heap_low_block = blk;
         heap_low_path  = path;
         heap_low_ms    = millis ();
+        heap_low_snapshot ();                                   // E4 I-4: NUR beim neuen Block-Tiefstwert
     }
 
     if (free_heap < heap_low_free)
@@ -1445,7 +1708,8 @@ http_ota_restart_poll (void)
  * geschrieben hat: Ein Aufruf, der gar nichts unterbringt, hat bereits die ganze Frist
  * (seit E3 1000 ms, vorher 5000 ms) auf Fortschritt gewartet - ein zweiter wartet erneut
  * so lange und findet dieselbe Lage vor. Schlimmster Fehlschlag seit E3: 2 x 1000 ms
- * plus abort () (Rechnung bei HTTP_WRITE_TIMEOUT_MS).
+ * plus abort () (Rechnung bei HTTP_WRITE_TIMEOUT_MS). Seit E4 wird in Stuecken von
+ * HTTP_WRITE_CHUNK geschrieben; die Regel gilt je Aufruf von http_flush (), nicht je Stueck.
  *
  * Das frueher hier stehende http_client.flush () ist entfallen. Es ist im Core 3.1.2
  * kein Leeren, sondern ein Warten bis zur Quittung mit bis zu 300 ms
@@ -1472,30 +1736,51 @@ http_flush (void)
         if (! http_write_broken)
         {
             const uint8_t * p = (const uint8_t *) http_response;
-            uint_fast8_t    attempt;
+            uint_fast8_t    retried    = 0;                     // E4: hoechstens EIN Nachversuch je Aufruf
+            size_t          chunk_left = 0;                     // E4: Rest des laufenden Stuecks
             unsigned long   write_start;
 
             heap_low_note (HEAP_LOW_PATH_FLUSH);                // E3 I-1: vor dem ersten write () dieses Aufrufs
             write_start = millis ();                            // E3 I-2: Beginn des ersten Versuchs, nach der Messung
 
-            for (attempt = 0; attempt < 2; attempt++)
+            /* E4 Teil 2 (design-e4.md 19.4): Stuecke von hoechstens HTTP_WRITE_CHUNK Byte. Fortschrittsregel:
+             *   ganz untergebracht         -> naechstes Stueck
+             *   nichts untergebracht       -> Ende (die Frist ist im Core schon abgelaufen)
+             *   teilweise untergebracht    -> EINMAL je Aufruf mit dem Rest des Stuecks nachversucht, danach Ende
+             * Jeder unvollstaendige write () kostet eine volle Frist ohne Fortschritt; mit einem Nachversuch je
+             * Aufruf bleibt der schlimmste Fehlschlag wie bisher bei 2 x HTTP_WRITE_TIMEOUT_MS plus abort ().
+             */
+            while (rest > 0)
             {
-                size_t written = http_client.write (p, rest);
+                size_t  written;
 
-                if (written >= rest)
+                if (chunk_left == 0)
                 {
-                    rest = 0;
+                    chunk_left = (rest < HTTP_WRITE_CHUNK) ? rest : HTTP_WRITE_CHUNK;
+                }
+
+                written = http_client.write (p, chunk_left);
+
+                if (written > chunk_left)                       // nie mehr als verlangt; nur zur Sicherheit
+                {
+                    written = chunk_left;
+                }
+
+                p          += written;
+                rest       -= written;
+                chunk_left -= written;
+
+                if (chunk_left == 0)
+                {
+                    continue;                                   // Stueck ganz untergebracht
+                }
+
+                if (written == 0 || retried || ! http_client.connected ())
+                {
                     break;
                 }
 
-                p    += written;
-                rest -= written;
-
-                if (written == 0 || ! http_client.connected ())
-                {
-                    break;
-                }
-
+                retried = 1;
                 yield ();
             }
 
@@ -1848,9 +2133,40 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
                  * uebergebene Menge und bricht nach seinem Zeitlimit oder bei
                  * geschlossener Verbindung frueher ab. Ungeprueft entstuende eine
                  * stillschweigend verstuemmelte Datei beim Client.
+                 *
+                 * E4 Teil 2 (design-e4.md 19.4): gelesen wird weiter in Bloecken von MAX_HTTP_RESPONSE_LEN,
+                 * geschrieben in Stuecken von hoechstens HTTP_WRITE_CHUNK. Ein Versuch je Stueck, wie bisher
+                 * einer je Block: Ein unvollstaendiges Stueck beendet den Block, schlimmster Fehlschlag damit
+                 * unveraendert 1 x HTTP_FILE_WRITE_TIMEOUT_MS. written zaehlt die Byte DIESES Blocks
+                 * (w= in "fs write short": 0, 536 oder dazwischen).
                  */
-                unsigned long   write_start = millis ();            // E3 I-2: ein Versuch je Block
-                size_t          written     = http_client.write ((const uint8_t *) http_response, (size_t) len);
+                unsigned long   write_start = millis ();            // E3 I-2: Beginn des Blocks
+                size_t          written     = 0;
+
+                while (written < (size_t) len)
+                {
+                    size_t  chunk = (size_t) len - written;
+                    size_t  w;
+
+                    if (chunk > HTTP_WRITE_CHUNK)
+                    {
+                        chunk = HTTP_WRITE_CHUNK;
+                    }
+
+                    w = http_client.write ((const uint8_t *) http_response + written, chunk);
+
+                    if (w > chunk)                                  // nie mehr als verlangt; nur zur Sicherheit
+                    {
+                        w = chunk;
+                    }
+
+                    written += w;
+
+                    if (w < chunk)
+                    {
+                        break;
+                    }
+                }
 
                 if (written != (size_t) len)
                 {
@@ -9433,8 +9749,23 @@ http_api_network_scan ()
     int     networks;
     int     idx;
     int     first = 1;
+    int     networks_raw;                                       // E4 (Scan-Zeile): Rohwert des SDK vor der Kappung
+    uint32_t        vor_free  = ESP.getFreeHeap ();             // E4: unmittelbar vor dem Scan
+    uint32_t        vor_blk   = ESP.getMaxFreeBlockSize ();
+    uint32_t        nach_free;
+    uint32_t        nach_blk;
+    uint32_t        flush_free;
+    uint32_t        flush_blk;
+    unsigned long   scan_start = millis ();
+    unsigned long   scan_end;
+    unsigned long   out_end;
 
     networks = WiFi.scanNetworks ();                            // (1) vor der ersten Ausgabe, bei vollem Haufen
+
+    scan_end     = millis ();                                   // E4: unmittelbar nach dem Scan
+    nach_free    = ESP.getFreeHeap ();
+    nach_blk     = ESP.getMaxFreeBlockSize ();
+    networks_raw = networks;
 
     if (networks < 0)                                           // WIFI_SCAN_FAILED / WIFI_SCAN_RUNNING
     {
@@ -9494,7 +9825,25 @@ http_api_network_scan ()
     http_send (FS("]}"));
     http_flush ();
 
+    out_end    = millis ();                                     // E4: nach dem letzten Flush, VOR scanDelete () - die Liste
+    flush_free = ESP.getFreeHeap ();                            // liegt noch, nach -> flush ist die Last der Ausgabe
+    flush_blk  = ESP.getMaxFreeBlockSize ();
+
     WiFi.scanDelete ();                                         // Ergebnisliste sofort freigeben, nicht erst beim naechsten Scan
+
+    /* E4 Scan-Zeile (C65/C68, design-e4.md 19.2): EINE Zeile je Scan, einmal formatiert, in Mitschnitt UND Ring
+     * (L185). ms=<scan>/<ausgabe>: Dauer des Scans und vom Ende des Scans bis nach dem Flush - damit ist C68
+     * beantwortbar (Zeit im Scan oder im Schreiben). Nur Zahlen, keine SSID. buf ist nach der Ausgabe frei.
+     * Laengste Form (n hoechstens 4 Zeichen, scanNetworks () liefert int8_t; sonst zehnstellig): 119 Zeichen,
+     * also ein Ringeintrag (C8).
+     */
+    snprintf_P (buf, sizeof (buf), PSTR ("- scan n=%d vor=%lu/%lu nach=%lu/%lu flush=%lu/%lu ms=%lu/%lu"),
+                networks_raw, (unsigned long) vor_free, (unsigned long) vor_blk, (unsigned long) nach_free,
+                (unsigned long) nach_blk, (unsigned long) flush_free, (unsigned long) flush_blk,
+                (unsigned long) (scan_end - scan_start), (unsigned long) (out_end - scan_end));
+    Serial.println (buf);
+    Serial.flush ();
+    stm32_log_append (buf);
 
     return 0;
 }
@@ -13007,6 +13356,16 @@ update_server_fetch_line (const char * host, const char * path, const char * fil
  * SCHREIBHAEUFIGKEIT: nur bei geaendertem Schluessel oder ungueltiger Datei - je Release hoechstens einmal je
  * Datei. Ein ESP-Start mit gleichem Schluessel schreibt nichts (AKR.21).
  *
+ * E4.5a (Lead-Entscheid 14.10.2026, Nutzeridee aus Ent-20): Aendern sich Notes oder Liste auf dem Server bei
+ * GLEICHER Version, sah der Schluessel das nicht - der ESP lieferte die alte Fassung bis zum naechsten Release,
+ * auch ueber einen Neustart hinweg (am Geraet belegt). Deshalb holt der Auftrag im ERSTEN Durchgang nach jedem
+ * Start und nach /api/update_status?refresh=1 beide Dateien auch bei passendem Schluessel ("Abgleich"). Geschrieben
+ * wird dabei nur, wenn der Inhalt abweicht: Ist die Laenge gleich, wird der Rumpf Byte fuer Byte gegen die Datei
+ * gelesen, OHNE die Datei zum Schreiben zu oeffnen - gleich ergibt "unveraendert". Weicht ein Byte ab, entsteht die
+ * Temporaerdatei aus dem schon verglichenen, gleichen Anfang der alten Datei und dem Rest vom Server, im SELBEN
+ * Abruf; weicht die Laenge ab, wird wie bisher geschrieben. Ein Abruf je Datei, Flash nur bei echter Aenderung.
+ * Scheitert der Durchgang, bleibt der Abgleich fuer den naechsten (nach der 10-min-Sperre) vorgemerkt.
+ *
  * PLATZ: Geschrieben wird nur, wenn danach noch die Groesse von app-app.js.gz plus ein Block frei bleibt
  * (fehlt die Datei, die in E3.0 gemessenen 163'621 Byte, L450) - eine PWA-Installation darf nie am Cache
  * scheitern.
@@ -13056,6 +13415,9 @@ static uint16_t      update_cache_src_sum      = 0;
 static unsigned long update_cache_src_millis   = 0;
 static unsigned long update_cache_step_millis  = 0;            // Beginn des laufenden Schritts, fuer ms= (E3.8 M1)
 static uint8_t       update_cache_tmp_checked  = 0;            // Temporaerdateien nach dem Start geprueft (E3.8 N4)
+static uint8_t       update_cache_force        = 1;            // E4.5a: Abgleich angefordert - beim Start und mit refresh=1
+static uint8_t       update_cache_forcing      = 0;            // E4.5a: der laufende Durchgang gleicht ab
+static uint8_t       update_cache_cmp          = 0;            // E4.5a: Bit 0 Notes, Bit 1 Liste: Schluessel passt, nur abgleichen
 
 /* what und reason liegen im Flash (PSTR, AKR.8: kein RAM fuer Literale) und werden mit strncpy_P geholt; reason darf
  * NULL sein. Laengste Form "- update cache upd-releasenote.txt fehlgeschlagen quelle-leer ms=4294967295" = 75 Zeichen.
@@ -13217,7 +13579,7 @@ update_cache_space_ok (uint32_t total)
  */
 static uint_fast8_t
 update_cache_write (const char * remote, const char * fname, const char * tmpname, size_t max_len,
-                    const char * host, const char * path)
+                    const char * host, const char * path, uint_fast8_t compare)
 {
     char            hdr[UPDATE_CACHE_HDR_LEN];
     PGM_P           reason = (PGM_P) 0;                         // Grund im Flash
@@ -13227,6 +13589,8 @@ update_cache_write (const char * remote, const char * fname, const char * tmpnam
     int             len;
     int             body;
     uint_fast8_t    server = 0;                                 // Fehlschlag am Server, nicht hier
+    uint32_t        same   = 0;                                 // E4.5a: gleicher Anfang, schon vom Server gelesen
+    int             diff   = -1;                                // E4.5a: erstes abweichendes Byte, schon gelesen
 
     len = update_server_open (host, path, remote);                  // hinter dem Sperrfenster, mit update_server_note ()
 
@@ -13249,7 +13613,58 @@ update_cache_write (const char * remote, const char * fname, const char * tmpnam
 
     LittleFS.begin ();
 
-    if (hlen <= 0 || hlen >= (int) sizeof (hdr))
+    /* E4.5a: Abgleich bei passendem Schluessel. Nur wenn die Datei gueltig ist, denselben Schluessel traegt und die
+     * Laenge stimmt; sonst wird wie bisher geschrieben. Gelesen wird aus der Datei, geschrieben nichts.
+     */
+    if (compare)
+    {
+        File        old;
+        char        old_key[UPDATE_CACHE_KEY_LEN];
+        uint32_t    old_body;
+
+        if (update_cache_open (fname, old, old_key, sizeof (old_key), &old_body))
+        {
+            if (! strcmp (old_key, update_cache_key) && old_body == (uint32_t) len)
+            {
+                while (len > 0)
+                {
+                    int ch = httpclient_read (&len);
+
+                    if (ch < 0)
+                    {
+                        reason = PSTR ("abgerissen");               // die alte Datei bleibt, wie sie ist
+                        server = 1;
+                        break;
+                    }
+
+                    if (old.read () != ch)
+                    {
+                        diff = ch;                                  // ab hier wird geschrieben
+                        break;
+                    }
+
+                    same++;
+                }
+
+                if (! reason && diff < 0)
+                {
+                    old.close ();
+                    httpclient_stop ();
+                    LittleFS.end ();
+                    update_cache_line (fname, PSTR ("unveraendert"), (PGM_P) 0, -1);
+                    return 1;
+                }
+            }
+
+            old.close ();
+        }
+    }
+
+    if (reason)
+    {
+        ;                                                           // E4.5a: Abgleich am Server gescheitert
+    }
+    else if (hlen <= 0 || hlen >= (int) sizeof (hdr))
     {
         reason = PSTR ("schreiben");                                // kann bei 64 Byte Schluessel nicht eintreten
     }
@@ -13270,6 +13685,38 @@ update_cache_write (const char * remote, const char * fname, const char * tmpnam
             if (f.write ((const uint8_t *) hdr, (size_t) hlen) != (size_t) hlen)
             {
                 reason = PSTR ("schreiben");
+            }
+
+            /* E4.5a: Der gleiche Anfang ist vom Server schon gelesen - er kommt aus der alten Datei, die gleich
+             * ersetzt wird; danach das abweichende Byte, dann der Rest vom Server wie bisher.
+             */
+            if (! reason && diff >= 0)
+            {
+                File        old;
+                char        old_key[UPDATE_CACHE_KEY_LEN];
+                uint32_t    old_body;
+
+                if (! update_cache_open (fname, old, old_key, sizeof (old_key), &old_body) || old_body < same)
+                {
+                    reason = PSTR ("schreiben");
+                }
+                else
+                {
+                    while (! reason && same > 0)
+                    {
+                        size_t  n = (same < sizeof (http_download_buf)) ? (size_t) same : sizeof (http_download_buf);
+
+                        if (old.read (http_download_buf, n) != (int) n || f.write (http_download_buf, n) != n)
+                        {
+                            reason = PSTR ("schreiben");
+                        }
+
+                        same -= (uint32_t) n;
+                    }
+
+                    old.close ();
+                    http_download_buf[idx++] = (unsigned char) diff;
+                }
             }
 
             while (! reason && len > 0)
@@ -13357,7 +13804,14 @@ update_cache_finish (void)
         update_cache_due         = 1;                               // erneut, aber fruehestens nach 10 min
         update_cache_retry_wait  = 1;
         update_cache_fail_millis = millis ();
+
+        if (update_cache_forcing)
+        {
+            update_cache_force = 1;                                 // E4.5a: der Abgleich steht weiter aus
+        }
     }
+
+    update_cache_forcing = 0;
 }
 
 static void
@@ -13375,6 +13829,9 @@ update_cache_step_run (const char * host, const char * path)
             update_cache_need    = 0;
             update_cache_key[0]  = '\0';
             update_cache_step    = 1;
+            update_cache_cmp     = 0;
+            update_cache_forcing = update_cache_force;              // E4.5a: ein refresh=1 waehrend des Durchgangs gilt fuer den naechsten
+            update_cache_force   = 0;
 
             if (! update_cache_tmp_checked)                         // E3.8 N4: nach Stromausfall liegengeblieben
             {
@@ -13428,22 +13885,32 @@ update_cache_step_run (const char * host, const char * path)
 
             LittleFS.begin ();
 
-            if (update_cache_file_matches (UPDATE_CACHE_NOTES_FILE, update_cache_key))
-            {
-                update_cache_line (UPDATE_CACHE_NOTES_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
-            }
-            else
+            if (! update_cache_file_matches (UPDATE_CACHE_NOTES_FILE, update_cache_key))
             {
                 update_cache_need |= 1;
             }
-
-            if (update_cache_file_matches (UPDATE_CACHE_LIST_FILE, update_cache_key))
+            else if (update_cache_forcing)                          // E4.5a: Schluessel passt, Inhalt abgleichen
             {
-                update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
+                update_cache_need |= 1;
+                update_cache_cmp  |= 1;
             }
             else
             {
+                update_cache_line (UPDATE_CACHE_NOTES_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
+            }
+
+            if (! update_cache_file_matches (UPDATE_CACHE_LIST_FILE, update_cache_key))
+            {
                 update_cache_need |= 2;
+            }
+            else if (update_cache_forcing)
+            {
+                update_cache_need |= 2;
+                update_cache_cmp  |= 2;
+            }
+            else
+            {
+                update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
             }
 
             LittleFS.end ();
@@ -13459,7 +13926,7 @@ update_cache_step_run (const char * host, const char * path)
         }
 
         case 4:
-            w = update_cache_write (RELEASENOTE_HTML, UPDATE_CACHE_NOTES_FILE, UPDATE_CACHE_NOTES_TMP, UPDATE_CACHE_NOTES_MAX, host, path);
+            w = update_cache_write (RELEASENOTE_HTML, UPDATE_CACHE_NOTES_FILE, UPDATE_CACHE_NOTES_TMP, UPDATE_CACHE_NOTES_MAX, host, path, update_cache_cmp & 1);
             update_cache_need &= (uint8_t) ~1u;                     // Notes haben ihre Zeile
 
             if (w != 1)
@@ -13483,7 +13950,7 @@ update_cache_step_run (const char * host, const char * path)
             return;
 
         case 5:
-            w = update_cache_write (WC_LIST_TXT, UPDATE_CACHE_LIST_FILE, UPDATE_CACHE_LIST_TMP, UPDATE_CACHE_LIST_MAX, host, path);
+            w = update_cache_write (WC_LIST_TXT, UPDATE_CACHE_LIST_FILE, UPDATE_CACHE_LIST_TMP, UPDATE_CACHE_LIST_MAX, host, path, update_cache_cmp & 2);
             update_cache_need &= (uint8_t) ~2u;                     // Liste hat ihre Zeile
 
             if (w != 1)
@@ -13556,6 +14023,13 @@ update_cache_poll (void)
 
         update_cache_step = 0;                                      // ein laufender Durchgang beginnt spaeter neu
         update_cache_due  = 1;
+
+        if (update_cache_forcing)
+        {
+            update_cache_force   = 1;                               // E4.5a: der Abgleich steht weiter aus
+            update_cache_forcing = 0;
+        }
+
         return;
     }
 
@@ -13782,6 +14256,15 @@ http_api_update_status ()
 
     source_sum = update_source_checksum (update_host, update_path);
     refresh    = http_get_param ("refresh");
+
+    /* E4.5a: refresh=1 fordert zusaetzlich den Abgleich von Notes und Liste an. Geholt wird NICHT hier, sondern im
+     * naechsten Durchgang des Auftrags aus loop () - mit Sperrfenster und 10-min-Sperre wie jeder Durchgang.
+     */
+    if (refresh[0] && refresh[0] != '0')
+    {
+        update_cache_due   = 1;
+        update_cache_force = 1;
+    }
 
     /* Zwischenspeicher nur verwenden, wenn ALLE vier Bedingungen stimmen: gefuellt,
      * gleiche Quelle (Host, Pfad, Hardware), nicht aelter als update_cache_window und
@@ -14191,7 +14674,17 @@ http_api_device_ready ()
     uint32_t        upd_max_ms      = req_max_upd_cache_ms;         // E3.8: ebenfalls vor dem Senden
     char            max_path[sizeof (req_max_path)];
 
+    uint8_t         low_accepts     = heap_low_accepts_pending;     // E4 I-4: ebenfalls vor dem Senden
+    uint8_t         low_backlog     = heap_low_backlog;
+    uint8_t         low_states[HEAP_LOW_PCB_STATES];
+    uint8_t         low_tw          = heap_low_tw;
+    int16_t         low_unacked     = heap_low_unacked;
+    char            low_req_path[sizeof (heap_low_req_path)];
+    char            num[48];                                        // E4 I-4: 11 Zahlen bis 255 samt Rahmen, oder eine Zahl
+
     memcpy (max_path, req_max_path, sizeof (max_path));
+    memcpy (low_states, heap_low_pcb_states, sizeof (low_states));
+    memcpy (low_req_path, heap_low_req_path, sizeof (low_req_path));
 
     if (reset_param[0] && strcmp (reset_param, "0"))
     {
@@ -14202,6 +14695,12 @@ http_api_device_ready ()
         req_max_ms      = 0;                                        // E3 I-3: Ruecksetzen mit I-1 (Ent-21 B)
         req_max_path[0] = '\0';
         req_max_upd_cache_ms = 0;                                   // E3.8: mit I-1 und I-3
+        heap_low_accepts_pending = 0;                               // E4 I-4: mit I-1; http_backlog bleibt (Zustand)
+        heap_low_backlog         = 0;
+        memset (heap_low_pcb_states, 0, sizeof (heap_low_pcb_states));
+        heap_low_tw              = 0;
+        heap_low_unacked         = -1;
+        heap_low_req_path[0]     = '\0';
     }
 
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
@@ -14243,6 +14742,32 @@ http_api_device_ready ()
     http_json_send_uint_field (FS("req_max_ms"), (unsigned long) max_ms);                           // E3 I-3
     http_json_send_string_field (FS("req_max_path"), max_path);
     http_json_send_uint_field (FS("upd_cache_max_ms"), (unsigned long) upd_max_ms);                 // E3.8: laengster Schritt des Auftrags
+    /* E4 I-4 (C65, design-e4.md 19.2): hinter upd_cache_max_ms, bestehende Felder unveraendert. heap_low_pcb_states
+     * ist ein Feld aus 11 Zahlen, Index = lwIP enum tcp_state (0 CLOSED ... 10 TIME_WAIT); heap_low_unacked -1 heisst
+     * "keine Verbindung bedient", heap_low_req_path "-" "Messpunkt ohne Anfrage", leer "nichts gemessen".
+     */
+    http_json_send_uint_field (FS("heap_low_accepts_pending"), (unsigned long) low_accepts);
+    http_json_send_uint_field (FS("heap_low_backlog"), (unsigned long) low_backlog);
+    http_json_send_field_prefix (FS("heap_low_pcb_states"));
+    {
+        size_t          n = 0;
+        uint_fast8_t    idx;
+
+        for (idx = 0; idx < HEAP_LOW_PCB_STATES; idx++)
+        {
+            n += snprintf_P (num + n, sizeof (num) - n, PSTR ("%c%u"), idx ? ',' : '[', (unsigned) low_states[idx]);
+        }
+
+        snprintf_P (num + n, sizeof (num) - n, PSTR ("]"));
+        http_send (num);
+    }
+    http_json_send_uint_field (FS("heap_low_tw"), (unsigned long) low_tw);
+    http_json_send_field_prefix (FS("heap_low_unacked"));
+    snprintf_P (num, sizeof (num), PSTR ("%d"), (int) low_unacked);
+    http_send (num);
+    http_json_send_string_field (FS("heap_low_req_path"), low_req_path);
+    http_json_send_uint_field (FS("http_backlog"), (unsigned long) http_backlog);                   // E4 Teil 3: Zustand, nie zurueckgesetzt
+    http_json_send_uint_field (FS("api_orphan_skipped"), (unsigned long) api_orphan_skipped);       // E4 Teil 6: seit dem Start
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -15210,6 +15735,87 @@ http_api_query_too_long (const char * path, size_t query_len)
     return 1;
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E4 Teil 6 (C65, design-e4.md 19.8, Ent-37, Nutzerentscheid 14.10.2026): verwaiste LESENDE /api/-Abfragen
+ *
+ * Bricht die PWA einen Abruf ab, waehrend er beim ESP noch im Backlog liegt, bleibt die Anfrage im Empfangspuffer;
+ * http_server_loop () liest sie spaeter und fuehrt sie aus (C53), und die Antwort erreicht niemanden - in
+ * CLOSE_WAIT schreibt der Core nichts mehr (ClientContext.h:476, :508). Fuer einen Scan sind das 2,2 s Stillstand
+ * und 80 x n Byte fuer nichts. Deshalb: Steht der Pfad in DIESER Liste und meldet http_client.connected () 0, laeuft
+ * der Handler nicht, nichts wird gesendet, api_orphan_skipped steigt, und http_server_loop () beendet die
+ * Verbindung wie gewohnt. Keine Logzeile je Fall (STM-UART, wie no_request_*).
+ *
+ * WEISSLISTE, KEIN MUSTER: vollstaendige Pfade im Flash. Ein kuenftiger Endpunkt ist NICHT lesend, bis ihn jemand
+ * hier eintraegt - und wer ihn eintraegt, hat seinen Handler auf Nebenwirkungen gelesen. Nicht hierher gehoeren:
+ *     device_ready      Messinstrument; heap_low_reset=1 setzt Diagnose zurueck
+ *     reconnect_probe   ihr Sinn ist "antwortet der ESP"
+ *     alles, was schreibt oder ausloest (Setter, *_default, maintenance_*, fs_remove, Uploads, weather_get_*,
+ *     network_get_time, ir_codes_request, temperature_display, overlay_display, dfplayer_play, test_display,
+ *     learn_ir, ...) - Setter und Wartung laufen IMMER (C53), der Nutzer hat gedrueckt.
+ * update_status und update_table_files haben als Nebenwirkung nur den Zwischenspeicher bzw. den
+ * Auffrischungsauftrag; Ueberspringen verschiebt beides auf den naechsten Aufruf, verliert nichts.
+ * 24 Byte je Eintrag (laengster Pfad 23 Zeichen), alles im Flash, kein RAM.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define HTTP_ORPHAN_PATH_LEN    24
+
+static const char http_api_read_only_paths[][HTTP_ORPHAN_PATH_LEN] PROGMEM =
+{
+    "/api/settings_xml",
+    "/api/display_power",
+    "/api/ambilight_power",
+    "/api/power_status",
+    "/api/network_scan",
+    "/api/eeprom_settings",
+    "/api/network_secrets",
+    "/api/update_status",
+    "/api/update_table_files",
+    "/api/update_progress",
+    "/api/stm32_log",
+    "/api/overlay_icons",
+    "/api/fs_info",
+    "/api/fs_list",
+    "/api/fs_show",
+    "/api/ir_codes_get",
+};
+
+static uint_fast8_t
+http_api_is_read_only (const char * path)
+{
+    uint_fast8_t    idx;
+
+    if (strncmp (path, "/api/", 5))
+    {
+        return 0;
+    }
+
+    for (idx = 0; idx < sizeof (http_api_read_only_paths) / sizeof (http_api_read_only_paths[0]); idx++)
+    {
+        if (! strcmp_P (path, http_api_read_only_paths[idx]))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/* Review E4.10 M1: ein gelisteter Pfad, der wegen seiner Parameter doch ausloest - wird nie uebersprungen.
+ * Die Parameter sind beim Aufruf schon gesetzt (http_set_params () steht davor).
+ */
+static uint_fast8_t
+http_api_orphan_trigger (const char * path)
+{
+    if (! strcmp_P (path, PSTR ("/api/update_status")))
+    {
+        char * refresh = http_get_param ("refresh");
+
+        return (refresh[0] && refresh[0] != '0') ? 1 : 0;
+    }
+
+    return 0;
+}
+
 uint_fast8_t
 http (const char * path, const char * const_param)
 {
@@ -15266,6 +15872,25 @@ http (const char * path, const char * const_param)
                 hardware        = "uClock";
                 break;
         }
+    }
+
+    /* E4 Teil 6: verwaiste lesende Abfrage - VOR dem Verteiler. Erst die Liste (billig, gibt nicht ab), dann
+     * connected (). Das genuegt auch fuer "Daten im Puffer, Gegenstelle hat halb geschlossen" (CLOSE_WAIT): Dort
+     * kaeme eine Antwort ohnehin nicht mehr an.
+     * Ausnahme (Review E4.10 M1): update_status MIT refresh ist ein Ausloeser - es fordert den Abgleich von Notes
+     * und Liste an (E4.5a, update_cache_force/_due). Verwaist uebersprungen ginge diese Anforderung verloren statt
+     * sich zu verschieben. Deshalb laeuft es wie jeder Ausloeser immer (C53). Bewusst NICHT "Merker setzen und
+     * ueberspringen": Das waere eine zweite Stelle, die die Wirkung von refresh kennt, und sie liefe still
+     * auseinander, sobald der Handler mehr daraus macht. Dieselbe Bedingung wie im Handler.
+     */
+    if (http_api_is_read_only (path) && ! http_api_orphan_trigger (path) && ! http_client.connected ())
+    {
+        if (api_orphan_skipped < 0xFFFF)
+        {
+            api_orphan_skipped++;
+        }
+
+        return 0;
     }
 
     if (! strcmp (path, "/") || ! strcmp (path, "/legacy") || ! strcmp (path, "/legacy/"))
@@ -15945,8 +16570,8 @@ http_request_note (const char * path, unsigned long duration)
 class HttpRequestTimer
 {
     public:
-        explicit HttpRequestTimer (const String & path) : _path (path), _start (millis ()) {}
-        ~HttpRequestTimer () { http_request_note (_path.c_str (), millis () - _start); }
+        explicit HttpRequestTimer (const String & path) : _path (path), _start (millis ()) { http_cur_req = &path; }  // E4 I-4
+        ~HttpRequestTimer () { http_cur_req = (const String *) 0; http_request_note (_path.c_str (), millis () - _start); }   // E4 I-4: vor dem Ende von sPath
     private:
         const String &  _path;
         unsigned long   _start;
@@ -15967,6 +16592,7 @@ http_server_loop (void)
     String  sRemoteIp;
     String  sHeaderLine;
 
+    http_backlog_track ();                                                  // E4 Teil 3: Backlog nach freiem Heap, VOR accept ()
     http_client = http_server.accept();                                     // check if a client has connected
 
     if (!http_client)                                                       // wait until the client sends some data
@@ -15974,6 +16600,7 @@ http_server_loop (void)
         return;
     }
 
+    tcp_tw_limit ();                                                        // E4 Teil 5: TIME_WAIT <= 2, VOR dem Messpunkt
     heap_low_note (HEAP_LOW_PATH_ACCEPT);                                   // E3 I-1: unmittelbar nach dem Annehmen
     http_client.setTimeout (HTTP_WRITE_TIMEOUT_MS);                         // E3 M-3: vor jedem Schreiben in diese Verbindung
 
@@ -16231,5 +16858,6 @@ http_server_loop (void)
 void
 http_server_begin (void)
 {
-    http_server.begin();
+    http_backlog = HTTP_BACKLOG_HIGH;                                       // E4 Teil 3: Start mit dem hoechsten Backlog
+    http_server.begin (80, HTTP_BACKLOG_HIGH);
 }

@@ -47,6 +47,11 @@ def lines(s, rx):
     r = re.compile(rx)
     return ''.join(l + '\n' for l in s.split('\n') if r.search(l))
 
+def cur_req(s):
+    """E4 I-4: http_cur_req brauchen i3.inc (HttpRequestTimer) UND i4.inc (heap_low_snapshot) - einmal, mit Waechter"""
+    l = lines(s, r'^static const String \* +http_cur_req')
+    return f'#ifndef CUR_REQ_DEKLARIERT\n#define CUR_REQ_DEKLARIERT\n{l}#endif\n' if l else ''
+
 def put(name, inhalt, makro=None):
     open(os.path.join(ziel, px + name), 'w').write(inhalt)
     if makro and inhalt.strip():
@@ -55,9 +60,12 @@ def put(name, inhalt, makro=None):
 # ---------------- gemeinsam
 put('defs.inc', lines(H, r'^#define (HTTP_FIRST_LINE_TIMEOUT|HTTP_DEBUG_CLIENT_LOG|HTTP_WRITE_TIMEOUT_MS|HTTP_FILE_WRITE_TIMEOUT_MS|HTTP_OTA_TIMEOUT_MS|MAX_UPDATE_FILENAME_LEN|UPDATE_[A-Z_]+|DEFAULT_UPDATE_(HOST|PATH)|ESP_WORDCLOCK_TXT|APP_VERSION_TXT|RELEASENOTE_HTML|WC_TXT|WC_LIST_TXT|WC_TABLES_LIST_TXT|POST_(ICON|ICON_WEATHER|TABLES|DISPLAY)_FILE)\s')
               + lines(B, r'^#define HEAP_LOW_PATH_'))
-put('i1.inc', lines(H, r'^static (uint32_t|uint8_t) +(heap_low_|heap_line_low)')
+# E4: die I-4-Felder (heap_low_accepts_pending, _backlog, _pcb_states, _tw) gehoeren in i4.inc, nicht hierher
+put('i1.inc', ('static void heap_low_snapshot (void);\n' if 'heap_low_snapshot (void)' in H else '')
+              + lines(H, r'^static (uint32_t|uint8_t) +(heap_low_(?!accepts_pending|backlog|pcb_states|tw\b)|heap_line_low)')
               + func(H, 'heap_low_note (') + func(H, 'heap_low_line_take (') + func(H, 'heap_low_path_name ('), 'HAVE_I1')
 put('i3.inc', lines(H, r'^static (uint32_t|char|unsigned long|uint_fast8_t|uint8_t) +(req_max_|http_last_request_millis|http_request_seen)')
+              + cur_req(H)                                                           # E4 I-4: setzt HttpRequestTimer
               + func(H, 'http_request_note (') + block(H, 'class HttpRequestTimer', '};'), 'HAVE_I3')
 put('zaehler.inc', block(H, '#define MAX_HTTP_RESPONSE_LEN', 'static uint_fast8_t http_write_broken')
               + lines(H, r'^static uint16_t +http_no_request_(timeouts|aborts)'))
@@ -91,6 +99,27 @@ put('upd_helpers.inc', func(H, 'app_asset_filename (') + func(H, 'app_asset_stor
               + func(H, 'http_json_send_field_prefix (') + func(H, 'http_json_send_bool_field (')
               + func(H, 'http_json_send_uint_field (') + func(H, 'http_json_send_string_field ('))
 put('fsexists.inc', func(H, 'http_fs_file_exists_and_nonempty ('))
+# ---------------- E4 (design-e4.md 19.2-19.8): I-4, Backlog, TIME_WAIT, verwaiste Lesende, Scan-Zeile
+def bis_funktion(s, start, kopf):
+    """von der Zeile, die mit start beginnt, bis zum Ende der Funktion kopf (Spalte 0)"""
+    L = s.split('\n')
+    i = next((k for k, l in enumerate(L) if l.startswith(start)), None)
+    if i is None: return ''
+    j = next((k for k in range(i, len(L)) if L[k].startswith(kopf)), None)
+    if j is None: return ''
+    while not L[j].startswith('}'): j += 1
+    return '\n'.join(L[i:j + 1]) + '\n'
+i4 = bis_funktion(H, '#define HEAP_LOW_PCB_STATES', 'heap_low_snapshot (void)')
+put('i4.inc', cur_req(H) + ''.join(l + '\n' for l in i4.split('\n')[:-1] if not re.match(r'^static const String \* +http_cur_req', l)), 'HAVE_I4')
+put('scan.inc', lines(H, r'^#define HTTP_MAX_SCAN_NETWORKS\s') + func(H, 'http_api_network_scan ('), 'HAVE_SCAN')
+if 'HTTP_WRITE_CHUNK' in H: have.append('HAVE_CHUNK')
+if 'update_cache_force' in H: have.append('HAVE_ABGLEICH')            # E4.5a
+put('begin.inc', func(H, 'http_server_begin ('))
+put('orphan.inc', bis_funktion(H, '#define HTTP_ORPHAN_PATH_LEN', 'http_api_orphan_trigger (' if 'http_api_orphan_trigger (const' in H else 'http_api_is_read_only ('), 'HAVE_ORPHAN')
+# http () bis VOR den Verteiler (erste Zeile 'if (! strcmp (path, "/")'), der Pruefstand haengt einen Ersatzverteiler an
+hl = func(H, 'http (const char * path, const char * const_param)').split('\n')
+k = next((i for i, l in enumerate(hl) if l.startswith('    if (! strcmp (path, "/")')), None)
+put('http_vor.inc', '\n'.join(hl[:k]) + '\n' if k is not None else '')
 open(os.path.join(ziel, px + 'have.inc'), 'w').write(''.join(f'#define {px.upper()}{m} 1\n' for m in have))
 for k in ('device_ready.inc', 'server_loop.inc', 'flush.inc', 'fsfile.inc', 'upd_status.inc', 'upd_base.inc'):
     if not open(os.path.join(ziel, px + k)).read().strip():

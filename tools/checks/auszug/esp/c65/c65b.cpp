@@ -7,6 +7,7 @@
  * availableForWrite () ist tcp_sndbuf () und bleibt nach einem FIN stehen, 0 erst ohne pcb (ClientContext.h:161-164).
  */
 #include "basis.h"
+#include "lwip_attrappe.h"                                  /* E4: Listen fuer I-4 */
 #include "have.inc"
 #include "defs.inc"
 #define TCP_MSS 536
@@ -19,7 +20,7 @@ struct ClientB
     int writes = 0; unsigned long timeout = 5000;
     size_t write (const uint8_t * p, size_t n)
     {
-        writes++;
+        writes++; laengen.push_back (n);
         Versuch v = plan.empty () ? Versuch { (size_t) -1, 0, false, 1072 } : plan.front ();
         if (! plan.empty ()) plan.pop_front ();
         size_t r = std::min (n, v.ret);
@@ -37,7 +38,10 @@ struct ClientB
     void setTimeout (unsigned long t) { timeout = t; }
     void flush () {}
     void stop () {}
+    uint8_t status () { return fin ? CLOSED : ESTABLISHED; }          /* E4 I-4 */
+    std::vector<size_t> laengen;                                     /* E4 c65w: Laenge jedes write () */
 } http_client;
+struct ServerB { uint8_t pending () const { return 0; } void backlog (uint8_t) {} } http_server;   /* E4 I-4 */
 static void sdk_abgabe (void) { if (http_client.fin_offen) { http_client.fin = true; http_client.fin_offen = false; } }
 
 /* ---- LittleFS */
@@ -66,6 +70,10 @@ static uint16_t http_fs_write_short = 0;
 #include "i1.inc"
 #ifndef HAVE_I1
 void heap_low_note (uint8_t) {}
+#endif
+#include "i4.inc"
+#ifndef HAVE_I4
+static void heap_low_snapshot (void) {}
 #endif
 static void http_flush (void);
 static bool http_fs_file_exists_and_nonempty (const char *);
@@ -134,6 +142,9 @@ int main (void)
         neu (); Stand v = stand ();
         http_client.plan.push_back ({ (size_t) -1, 1, false, 1072 });     /* Kopfzeilen */
         http_client.plan.push_back ({ (size_t) -1, 5, false, 1072 });     /* Block 1: 1072 */
+#ifdef HAVE_CHUNK
+        http_client.plan.push_back ({ (size_t) -1, 0, false, 1072 });     /* E4: Block 1, zweites Stueck zu 536 */
+#endif
         for (auto & x : L.plan) http_client.plan.push_back (x);
         ESP.blk_seq = { 7000, 7000, 7000, 1234 };      /* Kopfzeilen-flush, fs-Block 1 (Messpunkt), fs-Block 2 entfaellt (jeder achte), Erhebung */
         ESP.blk_seq = { 7000, 7000, 1234 };
@@ -179,7 +190,12 @@ int main (void)
         neu (); std::string name = "/" + std::string (30, 'n');
         LittleFS.f[name] = inhalt;
         http_client.plan.push_back ({ (size_t) -1, 1, false, 1072 });
+#ifdef HAVE_CHUNK
+        http_client.plan.push_back ({ (size_t) -1, 0, false, 1072 });     /* E4: erstes Stueck des Blocks voll, das zweite kurz */
+        http_client.plan.push_back ({ 535, 4294967295ul, false, 2147483647 });
+#else
         http_client.plan.push_back ({ 1071, 4294967295ul, false, 2147483647 });
+#endif
         ESP.blk_seq = { 1, 1, 4294967295u };
         http_send_fs_file (name.c_str (), "x", 1);
         std::string z = zeile ("- fs write short: ");

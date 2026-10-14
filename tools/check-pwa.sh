@@ -3,6 +3,13 @@
 #
 #   ./tools/check-pwa.sh            gegen DEVICE_HOST aus tools/device.conf
 #   ./tools/check-pwa.sh --keep     DOM und Konsolenmitschnitt behalten
+#   CHECK_PWA_HOST=127.0.0.1:8099 ./tools/check-pwa.sh
+#                                   gegen die Vorschau (tools/preview/server.py) statt
+#                                   gegen die Uhr -- fuer Gegenproben (DIR-014), ohne
+#                                   das Geraet anzufassen. Ueberschreibt device.conf.
+#   CHECK_PWA_NETZLOG=/pfad/netz.log ./tools/check-pwa.sh
+#                                   jedes Senden/Ende eines Abrufs an die Uhr mit Zeit
+#                                   mitschreiben -- wenn "keine Netzruhe" kommt.
 #
 # WARUM ES DIESES SKRIPT GIBT
 #
@@ -40,11 +47,14 @@ cd "$(git rev-parse --show-toplevel)" || exit 2
 # Marke fuer den Stop-Hook: hier wurde am GERAET gemessen. Er fragt beim Beenden
 # nach, ob die Erkenntnis in BEFUNDE.md steht, falls die Datei seither unberuehrt
 # blieb. Grund: Am 04.10.2026 musste der Nutzer dreimal nachfragen (L184).
-mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
-  && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
+# Gegen die Vorschau (CHECK_PWA_HOST) ist das keine Geraetemessung -- dann keine Marke.
+if [ -z "${CHECK_PWA_HOST:-}" ]; then
+  mkdir -p "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null \
+    && touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
+fi
 
 [ -f tools/device.conf ] && . tools/device.conf
-HOST=${DEVICE_HOST:-}
+HOST=${CHECK_PWA_HOST:-${DEVICE_HOST:-}}
 if [ -z "$HOST" ]; then
   echo "DEVICE_HOST fehlt. tools/device.conf anlegen (Vorlage: tools/device.conf.example)." >&2
   exit 2
@@ -99,10 +109,15 @@ elif curl -s -m 1 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; the
   rm -rf "$WORK"; exit 1
 fi
 
-printf '  starte Chrome und lade /app/'
+# Chrome startet auf einer leeren Seite mit eigener Marke; die PWA laedt erst
+# check-pwa.mjs, nachdem es Netz und Konsole mitliest (E4.9). Die Marke ersetzt die
+# Geraeteadresse als Erkennungszeichen des eigenen Seitenziels (L301). Eine data:-URL,
+# weil Chrome "about:blank#..." auf der Kommandozeile uebergeht und "Neuer Tab" oeffnet.
+START_MARKE="data:text/html,check-pwa-$$-$RANDOM"
+printf '  starte Chrome'
 "$CHROME" --headless=new --disable-gpu --no-sandbox \
   --user-data-dir="$PROFILE" --remote-debugging-port="$CDP_PORT" \
-  "$U/app/" >"$LOG" 2>&1 &
+  "$START_MARKE" >"$LOG" 2>&1 &
 CHROME_PID=$!
 
 i=0
@@ -118,7 +133,8 @@ if ! curl -s -m 2 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; the
   rm -rf "$WORK"; exit 1
 fi
 
-STM_SOLL="$stm" CDP_PORT="$CDP_PORT" GERAET_URL="$U/app/" node tools/check-pwa.mjs
+printf '  lade %s/app/ ueber das DevTools-Protokoll\n\n' "$U"
+STM_SOLL="$stm" CDP_PORT="$CDP_PORT" GERAET_URL="$U/app/" START_MARKE="$START_MARKE" node tools/check-pwa.mjs
 RC=$?
 
 kill "$CHROME_PID" 2>/dev/null

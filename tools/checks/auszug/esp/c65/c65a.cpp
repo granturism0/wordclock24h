@@ -5,6 +5,7 @@
  * Anfrage-Helfer von http_server_loop () und das JSON-Ausgeben.
  */
 #include "basis.h"
+#include "lwip_attrappe.h"                                  /* E4: Listen fuer I-4 und TIME_WAIT */
 #include "have.inc"
 #include "defs.inc"
 #ifndef HEAP_LOW_PATH_FLUSH
@@ -30,6 +31,7 @@ static std::map<std::string, std::string> params;
 static void http_send (const char * s) { out += s; }
 static void http_flush (void) {}
 static char * http_get_param (const char * n) { static char b[8][300]; static int i; char * p = b[i++ % 8]; snprintf (p, 300, "%s", params.count (n) ? params[n].c_str () : ""); return p; }
+static void http_json_send_field_prefix (const char * k) { out += std::string (",\"") + k + "\":"; }   /* E4 */
 static void http_json_send_uint_field (const char * k, unsigned long v) { out += std::string (",\"") + k + "\":" + std::to_string (v); }
 static void http_json_send_string_field (const char * k, const char * v) { out += std::string (",\"") + k + "\":\"" + v + "\""; }
 static uint16_t update_cache_hits = 7, update_server_down_count = 3;
@@ -67,9 +69,16 @@ struct ClientA
     void setNoDelay (bool) {}
     void setTimeout (unsigned long t) { timeout_set = (int) t; }
     IPAttrappe remoteIP () { return IPAttrappe (); }
+    uint8_t status () { return sz.verbunden ? ESTABLISHED : CLOSED; }      /* E4 I-4 */
+    int availableForWrite () { return 1072; }
 };
-struct ServerA { bool bereit = false; ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; } } http_server;
+struct ServerA { bool bereit = false; ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; }
+                 uint8_t pending () const { return 0; } void backlog (uint8_t) {} } http_server;   /* E4 */
 static ClientA http_client;
+#include "i4.inc"                                           /* E4: heap_low_snapshot (), Backlog, tcp_tw_limit () */
+#ifndef HAVE_I4
+static void heap_low_snapshot (void) {}
+#endif
 
 static void http_clear_request_user_agent (void) {}
 static void http_clear_request_fetch_dest (void) {}
@@ -272,7 +281,7 @@ int main (void)
         m = dr ("1");
         fall ("upd_cache_max_ms: Ruecksetzen gibt den GELESENEN Wert aus", m["upd_cache_max_ms"] == "4321", m["upd_cache_max_ms"]);
         m = dr ();
-        fall ("upd_cache_max_ms: nach dem Ruecksetzen 0, letztes Feld", m["upd_cache_max_ms"] == "0" && out.find ("\"upd_cache_max_ms\":0}") != std::string::npos, out.substr (out.size () > 40 ? out.size () - 40 : 0));
+        fall ("upd_cache_max_ms: nach dem Ruecksetzen 0, letztes Feld von E3 (E4 haengt dahinter an)", m["upd_cache_max_ms"] == "0" && (out.find ("\"upd_cache_max_ms\":0}") != std::string::npos || out.find ("\"upd_cache_max_ms\":0,\"heap_low_accepts_pending\":") != std::string::npos), out.substr (out.size () > 40 ? out.size () - 40 : 0));
         fall ("Sendezeitgrenze nach accept gesetzt (M-3)", timeout_set == 1000, std::to_string (timeout_set));
     }
 
