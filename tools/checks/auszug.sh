@@ -103,6 +103,7 @@ LAUF=(
   "C8 Kommandopuffer 260, Folgeeintraege im Ring (ESP)|esp/c8/run.sh $E neu"
   "A79 setRxBufferSize (1024) vor Serial.begin, statisch (ESP)|esp/a79/static.sh $E neu"
   "C6b Schluessel nur ueber network_secrets, no-store, keine CORS, statisch (ESP)|esp/c6b/static.sh $E neu"
+  "C65 I-1..I-3, Tabellenliste, LittleFS-Cache, Sendezeitgrenze (ESP)|esp/c65/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
   "L411 Start in jedem Modul ohne ReferenceError (PWA)|pwa/tdz/run.sh $E neu"

@@ -14,6 +14,7 @@
 #include "base.h"
 
 static WiFiClient      client;
+static uint16_t        httpclient_connects = 0;                // E3 I-1 (C65): erfolgreiche connect () seit dem Start, saettigend
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
  * Warten auf Daten der Gegenstelle - mit Abbruchbedingung (BEFUNDE.md L152, L173)
@@ -193,6 +194,17 @@ httpclient (const char * host, const char * path, const char * file)
         return -1;
     }
 
+    /* E3 I-1 (C65, design.md 18.2): Messpunkt "client" nach erfolgreichem connect (). Hier laufen ALLE
+     * ausgehenden Abrufe ueber httpclient () durch - die der Anfragen, der Auftrag update_cache_poll (),
+     * die Legacy-Seiten und der STM-Flash-Download. Der Wetterabruf hat einen eigenen Client und zaehlt nicht.
+     */
+    heap_low_note (HEAP_LOW_PATH_CLIENT);
+
+    if (httpclient_connects < 0xFFFF)
+    {
+        httpclient_connects++;
+    }
+
     httpclient_grace_left = HTTPCLIENT_PEER_GONE_GRACE;                             // Nachlaufbudget gilt je Abruf (L173)
 
     client.print (String("GET ") + "/" + path + "/" + file + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
@@ -305,4 +317,10 @@ void
 httpclient_stop (void)
 {
     client.stop ();
+}
+
+uint16_t
+httpclient_connects_get (void)
+{
+    return httpclient_connects;
 }

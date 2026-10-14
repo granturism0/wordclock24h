@@ -21,6 +21,7 @@ struct SerialStub {
 struct EspStub { uint32_t getFreeHeap (void) { return 1000; } uint32_t getMaxFreeBlockSize (void) { return 900; } } ESP;
 static std::vector<std::string> logring;
 static void stm32_log_append (const char * l) { logring.push_back (l); }
+static uint32_t heap_low_line_take (void) { return 4294967295u; }   /* E3 I-1: kein Messpunkt seit der vorigen Zeile, low= = max= */
 static void var_sync_check (void) {}
 #include "z_var.inc"
 #include "z_heap.inc"
@@ -55,7 +56,7 @@ int main (void)
      *    die Ueberlaufzeile kommt sofort, nicht erst nach 60 s. */
     durchlauf (7123, true);
     faelle++;
-    if (heap () != "- heap free=1000 max=900 ovr=1") fehl ("erste Heap-Zeile zeigt den aktuellen Stand", "bekam \"" + heap () + "\"");
+    if (heap () != "- heap free=1000 max=900 ovr=1 low=900") fehl ("erste Heap-Zeile zeigt den aktuellen Stand", "bekam \"" + heap () + "\"");
     faelle++;
     if (order_bad) fehl ("Heap-Zeile nach der Ueberlaufabfrage", "Heap-Zeile vor hasOverrun() ausgegeben");
     erwarte_zeile ("erste Zeile sofort", "- ovr #1 t=7123");
@@ -69,7 +70,7 @@ int main (void)
     /* 3. Heap-Zeile eine Minute spaeter zeigt den aktuellen Stand samt diesem Durchlauf */
     durchlauf (127125, true);
     faelle++;
-    if (heap () != "- heap free=1000 max=900 ovr=7") fehl ("Heap-Zeile im Betrieb", "bekam \"" + heap () + "\"");
+    if (heap () != "- heap free=1000 max=900 ovr=7 low=900") fehl ("Heap-Zeile im Betrieb", "bekam \"" + heap () + "\"");
     erwarte_zeile ("Zeile im selben Durchlauf wie die Heap-Zeile", "- ovr #7 t=127125");
     faelle++;
     if (order_bad) fehl ("Reihenfolge im Betrieb", "Heap-Zeile vor hasOverrun() ausgegeben");

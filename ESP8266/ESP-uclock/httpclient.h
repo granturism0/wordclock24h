@@ -28,5 +28,6 @@ extern int    httpclient (const char *, const char *, const char *);
 extern int    httpclient_read (int *);
 extern int    httpclient_read_line (unsigned char *, int, int *);
 extern void   httpclient_stop (void);
+extern uint16_t httpclient_connects_get (void);                                // E3 I-1 (C65): ausgehende Verbindungen seit dem Start
 
 #endif

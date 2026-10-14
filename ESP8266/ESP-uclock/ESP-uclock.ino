@@ -621,15 +621,30 @@ esp_heap_log (void)
 
         /* EINMAL formatieren, ZWEIMAL ausgeben: Mitschnitt und API duerfen nicht
          * auseinanderlaufen - eine zweite Formatierung waere eine zweite Wahrheit.
-         * Laengste Form: "- heap free=4294967295 max=4294967295 ovr=4294967295" = 52 Zeichen.
+         * Laengste Form: "- heap free=4294967295 max=4294967295 ovr=4294967295 low=4294967295" = 67 Zeichen.
          * ovr= steht HINTEN: tools/mess-stabilitaet.sh liest "free=<n> max=<n>" und bleibt so gueltig.
+         *
+         * E3 I-1 (C65, Ent-22): low= ist das kleinste max_free_block seit der vorigen Zeile, gespeist von
+         * den vier Messpunkten (heap_low_note () in http.cpp) und hier nach jeder Zeile geloescht. Die
+         * Messung dieser Zeile selbst (max=) zaehlt mit: Lief seit der vorigen Zeile kein Messpunkt, steht
+         * low= gleich max=, und low= ist nie groesser als max=. low= steht hinter ovr= - die Wache liest
+         * ovr= und bleibt gueltig. Puffer 64 -> 80 Byte.
          */
-        char line[64];
+        char            line[80];
+        unsigned long   heap_free = (unsigned long) ESP.getFreeHeap ();
+        unsigned long   heap_max  = (unsigned long) ESP.getMaxFreeBlockSize ();
+        unsigned long   heap_low  = (unsigned long) heap_low_line_take ();
 
-        snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu"),
-                  (unsigned long) ESP.getFreeHeap (),
-                  (unsigned long) ESP.getMaxFreeBlockSize (),
-                  (unsigned long) esp_uart_overruns);
+        if (heap_max < heap_low)
+        {
+            heap_low = heap_max;
+        }
+
+        snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu low=%lu"),
+                  heap_free,
+                  heap_max,
+                  (unsigned long) esp_uart_overruns,
+                  heap_low);
 
         Serial.println (line);
         Serial.flush ();
@@ -1505,6 +1520,7 @@ loop()
     wifi_check_if_started ();
     http_server_loop ();
     http_ota_restart_poll ();                                               // Rueckfall-Neustart nach lokalem Upload (Review E.6)
+    update_cache_poll ();                                                   // E3 (C65): Release Notes und wc-list.txt ins LittleFS, nie in einer Anfrage
     udp_server_loop ();
     ntp_poll_time ();                                                       // poll NTP
 

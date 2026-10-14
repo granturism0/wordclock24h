@@ -21,6 +21,7 @@ struct SerialStub {
 struct EspStub { uint32_t getFreeHeap (void) { return 4294967295u; } uint32_t getMaxFreeBlockSize (void) { return 4294967295u; } } ESP;
 static std::vector<std::string> logring;
 static void stm32_log_append (const char * l) { logring.push_back (l); }
+static uint32_t heap_low_line_take (void) { return 4294967295u; }   /* E3 I-1: kein Messpunkt seit der vorigen Zeile, low= = max= */
 #include "ovr_var.inc"
 #include "ovr_heap.inc"
 static void poll (void)
@@ -33,7 +34,7 @@ static std::string heapline (void) { fake_ms += 60000; Serial.out.clear (); size
 static void erwarte (const char * f, unsigned long ovr)
 {
     faelle++;
-    std::string s = "- heap free=4294967295 max=4294967295 ovr=" + std::to_string (ovr);
+    std::string s = "- heap free=4294967295 max=4294967295 ovr=" + std::to_string (ovr) + " low=4294967295";   /* E3: low= hinten */
     std::string l = heapline ();
     if (l != s) fehl (f, "API-Ring: erwartet \"" + s + "\", bekam \"" + l + "\"");
     if (Serial.out != s + "\r\n") fehl (f, "Mitschnitt: erwartet \"" + s + "\"");
@@ -56,7 +57,7 @@ int main (void)
     Serial.overrun = true; hc = has_calls; poll (); erwarte ("gesaettigt, kein Umlauf auf 0", 4294967295ul);
     faelle++;
     if (has_calls != hc + 1 || Serial.overrun) fehl ("gesaettigt", "Merkmal nicht mehr abgefragt/geloescht");
-    /* Laengste Form passt ungekuerzt (52 Zeichen) -- geprueft im Fall darueber ueber den exakten Vergleich */
+    /* Laengste Form passt ungekuerzt (67 Zeichen seit E3) -- geprueft im Fall darueber ueber den exakten Vergleich */
     printf ("  Faelle: %d\n", faelle);
     printf ("%s  ovr %s: %d Fehler\n", fails ? "FEHL" : "OK  ", BEZEICHNUNG, fails);
     return fails ? 1 : 0;

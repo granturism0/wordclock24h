@@ -38,6 +38,12 @@ extern uint16_t         stm32_log_get_count (void);
 extern const char *     stm32_log_get_line (uint16_t);
 extern void             stm_bridge_poll (void);                                // B55: Bruecke lesen, auch aus einem wartenden Handler
 extern uint_fast8_t     stm_rpcr_get (uint_fast8_t, uint_fast8_t *);           // B55: laufende Nummer und Ergebnis von "RPCR"
+extern void             heap_low_note (uint8_t);                               // E3 I-1 (C65): Heap-Tiefstwert, EIN Ort (http.cpp)
+extern uint32_t         heap_low_line_take (void);                             // E3 I-1: Minimum fuer low= der Heap-Zeile, liest und loescht
+#define HEAP_LOW_PATH_FLUSH     1                                               // E3 I-1: Pfadkennungen fuer heap_low_note ()
+#define HEAP_LOW_PATH_FS        2
+#define HEAP_LOW_PATH_ACCEPT    3
+#define HEAP_LOW_PATH_CLIENT    4
 extern void             update_progress_begin (const char *, const char *, const char *);
 extern void             update_progress_state (const char *, const char *);
 extern void             update_progress_set_progress (uint32_t, uint32_t);

@@ -209,6 +209,34 @@ else
   fail "Antwortverluste" "$lk Block(e), $lb Byte verloren - Antworten kamen unvollstaendig an"
 fi
 
+# ------------------------------------- C65 (E3): Heap-Tiefstwert und Messfelder
+# Ab ESP 3.2.36 meldet device_ready den Tiefstwert des Heaps je Pfad (I-1), die laengste
+# Anfrage (I-3), die ausgehenden Verbindungen und abgebrochene Assets (I-2). Der Smoketest
+# verlangt die Felder und LIEST nur -- er setzt den Tiefstwert nie zurueck (Ent-21: das darf
+# nur heap_low_reset=1, sonst loeschte jeder Smoketest die Messung eines laufenden Tests).
+# Vor 3.2.36 fehlen sie zu Recht; mit SMOKE_DR_OVERRIDE gelten sie immer als Pflicht (Gegenprobe).
+E3_FELDER="heap_low_block heap_low_free heap_low_path heap_low_ms httpclient_connects fs_write_short req_max_ms req_max_path upd_cache_max_ms"
+if [ -n "${SMOKE_DR_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.36" "${esp:-0}" | sort -V | head -1)" = "3.2.36" ]; then
+  fehlend=""
+  for f in $E3_FELDER; do printf '%s' "$dr" | grep -q "\"$f\":" || fehlend="$fehlend $f"; done
+  if [ -n "$fehlend" ]; then
+    fail "Heap-Messfelder (E3)" "fehlen:$fehlend"
+  else
+    hb=$(printf '%s' "$dr" | grep -o '"heap_low_block":[0-9]*' | cut -d: -f2)
+    hp=$(printf '%s' "$dr" | grep -o '"heap_low_path":"[^"]*"' | cut -d'"' -f4)
+    fw=$(printf '%s' "$dr" | grep -o '"fs_write_short":[0-9]*' | cut -d: -f2)
+    rm=$(printf '%s' "$dr" | grep -o '"req_max_ms":[0-9]*' | cut -d: -f2)
+    if [ "${fw:-0}" != "0" ]; then
+      fail "Heap-Messfelder (E3)" "$fw Asset(s) abgebrochen ausgeliefert (fs_write_short) - Tiefstwert $hb${hp:+ ($hp)}"
+    else
+      um=$(printf '%s' "$dr" | grep -o '"upd_cache_max_ms":[0-9]*' | cut -d: -f2)
+      pass "Heap-Messfelder (E3)" "Tiefstwert $hb Byte${hp:+ ($hp)}, laengste Anfrage $rm ms, laengster Cache-Schritt $um ms, nichts zurueckgesetzt"
+    fi
+  fi
+else
+  printf '  --    %-34s %s\n' "Heap-Messfelder (E3)" "ESP ${esp:-?} vor 3.2.36, Felder gibt es noch nicht"
+fi
+
 # --------------------------------------------------- Legacy bleibt erreichbar
 code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' "$U/" 2>/dev/null)
 [ "$code" = "200" ] && pass "Legacy-Oberflaeche" "HTTP 200" || fail "Legacy-Oberflaeche" "HTTP $code"

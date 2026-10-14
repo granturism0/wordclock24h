@@ -14,7 +14,7 @@ P
 }
 sab reihenfolge     'if (Serial.hasOverrun () && esp_uart_overruns < 0xFFFFFFFFUL)' 'if (esp_uart_overruns < 0xFFFFFFFFUL && Serial.hasOverrun ())'
 sab nicht_saettigend 'if (Serial.hasOverrun () && esp_uart_overruns < 0xFFFFFFFFUL)' 'if (Serial.hasOverrun ())'
-sab ohne_ovr_feld   'PSTR ("- heap free=%lu max=%lu ovr=%lu"),' 'PSTR ("- heap free=%lu max=%lu"),'
-sab puffer_zu_klein '        char line[64];' '        char line[48];'
+sab ohne_ovr_feld   'PSTR ("- heap free=%lu max=%lu ovr=%lu low=%lu"),' 'PSTR ("- heap free=%lu max=%lu low=%lu"),'   # E3: low= hinten
+sab puffer_zu_klein '        char            line[80];' '        char            line[48];'   # E3: 80 statt 64
 sab nie_gezaehlt    '        esp_uart_overruns++;' '        ;'
 rm -rf "$T"; exit $rc

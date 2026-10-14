@@ -1,7 +1,8 @@
 /* Pruefstand F.5c (C25 / L270): http_flush () mit Attrappe fuer http_client (write/connected).
  * 4 Faelle: Browser weg, Verbindung steht ohne Fortschritt, Teilschreiben dann Abbau, alles
  * hinaus (keine Zeile). Geprueft wird die Verlustzeile im Logring: "gone=" und "fail=".
- * Gegenprobe ESP 3.2.25: 3 Fehler (Zeile ohne Zaehler).
+ * Gegenprobe ESP 3.2.25: 3 Fehler (Zeile ohne Zaehler). Seit E3 traegt die Zeile hinten blk/snd/ms;
+ * die Teilzeichenketten unten bleiben gueltig (c65b prueft die neuen Felder).
  */
 #include <stdio.h>
 #include <string.h>
@@ -10,7 +11,15 @@
 #include <string>
 #define TCP_MSS 536
 static int conn = 1; static size_t wmax = 0;
-struct Client { size_t write (const uint8_t *, size_t n) { return n < wmax ? n : wmax; } int connected () { return conn; } } http_client;
+struct Client { size_t write (const uint8_t *, size_t n) { return n < wmax ? n : wmax; } int connected () { return conn; }
+                int availableForWrite () { return conn ? 1072 : 0; } } http_client;
+/* E3 (Paket 2026-10-13): http_flush () misst seit I-1/I-2 den Heap und die Dauer */
+#define HEAP_LOW_PATH_FLUSH 1
+#define PSTR(s)     (s)                  /* E3: die Zeile liegt im Flash (snprintf_P), der Text ist byte-gleich */
+#define snprintf_P  snprintf
+static void heap_low_note (uint8_t) {}
+static unsigned long millis () { return 0; }
+struct EspStub { uint32_t getMaxFreeBlockSize () { return 4000; } } ESP;
 struct SerialStub { void println (const char *) {} void flush () {} } Serial;
 static std::string lastlog; static int nlog;
 static void stm32_log_append (const char * l) { lastlog = l; nlog++; }

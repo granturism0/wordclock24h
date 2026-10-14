@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-14 ESP 3.2.36: Heap unter PWA-Last entlastet und messbar (Paket 2026-10-13, E3; C65)
+
+Nur der ESP, STM (3.2.34) und PWA (1.4.99) unverändert. `wordclock-release-2026-10-14-153447.zip`, Tag `release/3.2.34-3.2.36-1.4.99`.
+
+**Einspielen:** nur der ESP (OTA). Rund 60 s nach dem Start holt der ESP Release Notes und `wc-list.txt` einmal vom
+Update-Server und legt sie im LittleFS ab (`/upd-releasenote.txt`, `/upd-wc-list.txt`) — bis dahin sind die Notes leer.
+
+- **Weniger Last beim Laden der PWA** (C65, M-1): `update_status` holt Release Notes und STM-Liste nicht mehr bei jedem
+  Aufruf vom Update-Server, sondern liefert sie aus dem LittleFS; neu geholt wird nur bei geänderter Release-Version.
+  Die Tabellenliste von `update_table_files` wird 60 s zwischengespeichert. Ist der Server nicht erreichbar, versucht
+  es der ESP höchstens alle 10 min, und zwar mit einem einzigen Abruf.
+- **Kein langer Stillstand mehr bei hängenden Verbindungen** (M-3): Ein Schreibvorgang gibt nach 1 s (Antworten) bzw.
+  2 s (Dateien) auf statt nach 5 s — so bleiben die Quittungen an den STM nicht mehr aus. Vor einem OTA gelten
+  weiterhin mindestens 5 s.
+- **Messbar** (I-1 bis I-3): `/api/device_ready` meldet den Tiefstwert des Heaps samt Pfad, die längste Anfrage, die
+  ausgehenden Verbindungen, abgebrochene Assets und den längsten Schritt des Hintergrundabrufs; zurückgesetzt nur mit
+  `?heap_low_reset=1`. Die Heap-Zeile trägt `low=`. Ein abgebrochen ausgeliefertes Asset steht jetzt auch im Logbuch
+  (`- fs write short`) und im Zähler.
+- Release Notes über 3'072 Zeichen werden nicht mehr gekürzt angezeigt, sondern gar nicht.
+
 ## 2026-10-14 PWA 1.4.99: Fehler direkt am Feld, keine deutschen Texte mehr in der englischen Oberfläche (Paket 2026-10-13, P2)
 
 Nur die PWA, STM (3.2.34) und ESP (3.2.35) unverändert. `wordclock-release-2026-10-14-101643.zip`, Tag `release/3.2.34-3.2.35-1.4.99`.

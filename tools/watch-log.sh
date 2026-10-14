@@ -35,6 +35,10 @@
 #   icon: verworfen ...    Icon bei Display aus verworfen (A80), Hinweis
 #   - abgewiesen: ...      Herkunft (C6/C60) oder Query-Laenge (C46) abgewiesen, Hinweis
 #   icon_freeze: ENTER     Icon wartet auf das Display -- seit A80 ein Alarm
+#   - fs write short:      Asset abgebrochen ausgeliefert (C65/E3) -- Alarm: der Browser bekommt eine
+#                           verstuemmelte Datei, bei app.js ein halb geladenes Skript
+#   - update liste zu gross / - update cache ... fehlgeschlagen   Zwischenspeicher des ESP fuer
+#                           Tabellenliste, Release Notes, wc-list.txt (E3, M-1) -- Hinweis
 #   i2c: frist abgelaufen   I2C-Zugriff ueber 5 ms, Bus zurueckgesetzt (STM ab Paket 2026-10-11, A60)
 #   time: ungueltig         Netzzeit verworfen (STM ab Paket 2026-10-11, A62)
 #   time: sprung            Bestaetigung angefordert -- Hinweis; Alarm ab der vierten in Folge
@@ -178,7 +182,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #'
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #|- fs write short:|- update liste zu gross|- update cache .* fehlgeschlagen'
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
@@ -324,6 +328,18 @@ while :; do
           # A80 (Paket 2026-10-13): ein Icon kam bei ausgeschaltetem Display und wurde verworfen,
           # statt bis zum Einschalten vorgemerkt zu bleiben. Erwartet im Nachtfenster -- Hinweis.
           printf '  %s  Hinweis: Icon verworfen, Display aus   <%s>\n' "$stamp" "$z" ;;
+        *"- fs write short:"*)
+          # C65 (Paket 2026-10-13, E3): ein Asset wurde nicht vollstaendig ausgeliefert. blk/snd/ms
+          # sagen warum (design.md 18.3): snd voll und Fehlschlag = Heap, snd 0 = Gegenstelle quittiert nicht.
+          printf '  %s  *** Asset abgebrochen ausgeliefert (fs write short) ***   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
+        *"- update liste zu gross"*)
+          # E3 M-1: die Tabellenliste passt nicht in den Zwischenspeicher, sie wird live geholt.
+          printf '  %s  Hinweis: Tabellenliste zu gross fuer den Zwischenspeicher   <%s>\n' "$stamp" "$z" ;;
+        *"- update cache "*" fehlgeschlagen"*)
+          # E3 M-1 (Ent-20 C): Release Notes bzw. wc-list.txt nicht ins LittleFS geschrieben; der
+          # Grund steht am Zeilenende (abruf, abgerissen, schreiben, platz, zu-gross, quelle-leer).
+          printf '  %s  Hinweis: Zwischenspeicher im LittleFS nicht geschrieben   <%s>\n' "$stamp" "$z" ;;
         *"icon_freeze: ENTER"*)
           # A80: seit STM-Release S2 darf ein Icon nicht mehr auf das Einschalten warten (L19, L422).
           printf '  %s  *** Icon wartet auf das Display (icon_freeze) *** -- Rueckfall von A80?   <%s>\n' "$stamp" "$z"

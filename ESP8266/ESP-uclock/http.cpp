@@ -175,6 +175,7 @@ static uint32_t     http_write_lost_bytes  = 0;
 static uint16_t     http_write_lost_blocks = 0;
 static uint16_t     http_write_lost_gone   = 0;     // C25/L270: verlorene Bloecke, Gegenstelle hatte schon abgebaut (Tab zu, Abbruch)
 static uint16_t     http_write_lost_failed = 0;     // C25/L270: verlorene Bloecke bei stehender Verbindung - das Geraet bekam nichts los
+static uint16_t     http_fs_write_short    = 0;     // E3 I-2 (C65): Dateiauslieferungen, die mitten in der Datei abbrachen (Teil von write_lost_blocks)
 static uint_fast8_t http_write_broken      = 0;
 
 /* Verbindungen, die angenommen wurden, aber nie eine Anfrage brachten. Zwei
@@ -188,6 +189,132 @@ static uint16_t     http_no_request_timeouts = 0;
 static uint16_t     http_no_request_aborts   = 0;
 
 #define HTTP_FIRST_LINE_TIMEOUT                 250                     // msec Wartezeit auf die erste Anfragezeile
+
+/* E3 M-3 (C65, Ent-25, design.md 18.6): Sendezeitgrenze von http_client. WiFiClient::write () gibt sie bei
+ * jedem Aufruf an ClientContext weiter (WiFiClient.cpp:219); _write_from_source () bricht ab, wenn so lange
+ * KEIN Fortschritt kam (ClientContext.h:463-494). Vorgabe des Cores sind 5000 ms (WiFiClient.cpp:80, :87) -
+ * zu lang: Nach 3 s ohne loop () meldet der STM "keine Quittung". Schlimmster Fehlschlag:
+ *     API    2 Versuche x 1000 + abort () 300 (flush (0), WiFiClient.cpp:381-388) = 2300 ms
+ *            (regulaer: flush () 300 + stop () 300, je bis zur Quittung, WiFiClient.h:36, ClientContext.h:316-356)
+ *     Datei  1 Versuch x 2000 + flush () 300 + stop () 300             = 2600 ms
+ * Was das NICHT begrenzt: Jeder Fortschritt setzt die Frist neu. Eine Antwort, die langsam, aber stetig
+ * abfliesst, kann laenger dauern - das zeigt req_max_ms (I-3). Fuer ESPhttpUpdate.update (), das dasselbe
+ * Objekt fuer den Download der Firmware benutzt, steht die Grenze ausdruecklich wieder auf 5000 ms; der Client
+ * von HTTPClient setzt beim Verbinden ohnehin seine eigene (8000 ms aus ESP8266httpUpdate.cpp:31 und :167,
+ * gesetzt in ESP8266HTTPClient.cpp:896).
+ */
+#define HTTP_WRITE_TIMEOUT_MS                   1000                    // msec ohne Fortschritt, API und Legacy
+#define HTTP_FILE_WRITE_TIMEOUT_MS              2000                    // msec ohne Fortschritt, Dateiauslieferung
+#define HTTP_OTA_TIMEOUT_MS                     5000                    // msec, vor ESPhttpUpdate.update - nie kleiner
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E3 I-1 (C65, Paket 2026-10-13, design.md 18.2): Heap-Tiefstwert statt Stichprobe
+ *
+ * /api/device_ready misst max_free_block nur in dem Augenblick, in dem es selbst laeuft - also in der Ruhe
+ * zwischen zwei Anfragen. Das Tief entsteht aber MITTEN in einer Antwort (L449). Deshalb vier Messpunkte,
+ * je genau einer:
+ *     flush   http_flush (), vor dem ersten write () je Aufruf
+ *     fs      http_send_fs_file (), vor dem write () der Leseschleife (erster und jeder achte Block)
+ *     accept  http_server_loop (), unmittelbar nach dem Annehmen der Verbindung
+ *     client  httpclient () (httpclient.cpp), nach erfolgreichem connect ()
+ * heap_low_note () ist der EINE Ort, der misst: kein String, keine Heap-Anforderung, keine Ausgabe. Die
+ * Pfadkennung ist eine Zahl (HEAP_LOW_PATH_* in base.h); erst device_ready macht daraus einen Namen.
+ *
+ * ZWEI Minima, unabhaengig voneinander zurueckgesetzt:
+ *     heap_low_block/_free/_path/_ms   liest /api/device_ready. Zurueckgesetzt wird NUR mit
+ *                                      device_ready?heap_low_reset=1 (Ent-21 B), und zwar NACH dem Lesen:
+ *                                      ausgegeben werden die gelesenen Werte. Der lesende Aufruf geht mit
+ *                                      seinem accept noch in das gelesene Fenster ein, mit seinen eigenen
+ *                                      Schreibvorgaengen (flush) schon in das naechste. Smoketest,
+ *                                      flash-stm.sh, snapshot-device.sh und die PWA setzen nichts zurueck.
+ *     heap_line_low                    liest und loescht esp_heap_log () (ESP-uclock.ino) je Heap-Zeile,
+ *                                      ausgegeben als low= (Ent-22).
+ * Bei Gleichstand bleibt der erste Pfad stehen (strikt kleiner). heap_low_free ist das Minimum von
+ * free_heap fuer sich, nicht der Wert zum Block-Tiefstwert.
+ *
+ * KOSTEN (Core 3.1.2, nachgelesen, nicht gemessen): ESP.getMaxFreeBlockSize () ruft umm_max_block_size ()
+ * und damit umm_info () (Esp.cpp:226-229, umm_info.c:201-204). umm_info () geht ueber ALLE Eintraege des
+ * Heaps, belegte wie freie, und tut das mit gesperrten Interrupts (UMM_CRITICAL_ENTRY = xt_rsil (15),
+ * umm_info.c:36, umm_malloc_cfg.h:367 und :459). Die Dauer waechst mit der Zahl der Heap-Eintraege. Gebaut
+ * wird ohne UMM_INLINE_METRICS (Vorgabe UMM_INFO + UMM_STATS, umm_malloc_cfgport.h:136-146), einen
+ * billigeren Weg gibt es also nicht. ESP.getFreeHeap () ist dagegen ein Zaehlerstand (umm_local.c:186-191).
+ * Weil die 50 us der Spec ohne Messung nicht auszuschliessen sind, misst der fs-Pfad nur den ersten und
+ * danach jeden achten Block - bei app.js.gz rund 20 statt rund 150 Aufrufe. Das kann das Tief im fs-Pfad
+ * UNTERSCHAETZEN; die anderen drei Pfade messen je Ereignis.
+ *
+ * RAM: 17 Byte (dazu 2 Byte httpclient_connects in httpclient.cpp).
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static uint32_t     heap_low_block = UINT32_MAX;                // kleinster max_free_block seit dem letzten Ruecksetzen
+static uint32_t     heap_low_free  = UINT32_MAX;                // kleinster free_heap, unabhaengig vom Block
+static uint8_t      heap_low_path  = 0;                         // 0 nichts gemessen, sonst HEAP_LOW_PATH_* des Block-Tiefstwerts
+static uint32_t     heap_low_ms    = 0;                         // millis () beim Block-Tiefstwert
+static uint32_t     heap_line_low  = UINT32_MAX;                // eigenes Minimum fuer low= der Heap-Zeile (Ent-22)
+
+/* E3 I-3 (C65, design.md 18.4): laengste Verbindung von accept () bis zum Verlassen von http_server_loop ()
+ * und ihr Pfad OHNE Query - die Query kann Zugangsdaten tragen (network_client_set). Gekuerzt auf 31
+ * Zeichen; eine Diagnose, nichts davon wird gespeichert oder an den STM gemeldet. req_max_path ist ""
+ * solange seit dem Ruecksetzen keine Verbindung endete, "-" fuer eine Verbindung ohne Anfrage.
+ * Zurueckgesetzt zusammen mit I-1 (heap_low_reset=1, Ent-21 B). Gemessen von HttpRequestTimer
+ * (vor http_server_loop ()). RAM 41 Byte samt http_last_request_millis.
+ */
+static uint32_t         req_max_ms        = 0;
+static char             req_max_path[32]  = "";
+/* E3.8 (Lead-Entscheid): laengster SCHRITT des Auftrags update_cache_poll () seit dem Start bzw. dem Ruecksetzen,
+ * in device_ready als "upd_cache_max_ms" (ganz hinten). Ein Schritt ist ein Aufruf aus loop (), in dem loop ()
+ * stand - dieselbe Dauer wie ms= in den Zeilen "- update cache". Zurueckgesetzt mit heap_low_reset=1 wie req_max_ms.
+ * Der Name traegt das Praefix req_max_, weil er mit den I-3-Maxima zusammen gehalten und zurueckgesetzt wird.
+ */
+static uint32_t         req_max_upd_cache_ms = 0;
+static unsigned long    http_last_request_millis = 0;           // Ende der zuletzt bedienten Verbindung, fuer update_cache_poll ()
+static uint8_t          http_request_seen = 0;                  // ueberhaupt schon eine Verbindung bedient
+
+void
+heap_low_note (uint8_t path)
+{
+    uint32_t    blk       = ESP.getMaxFreeBlockSize ();
+    uint32_t    free_heap = ESP.getFreeHeap ();
+
+    if (blk < heap_low_block)
+    {
+        heap_low_block = blk;
+        heap_low_path  = path;
+        heap_low_ms    = millis ();
+    }
+
+    if (free_heap < heap_low_free)
+    {
+        heap_low_free = free_heap;
+    }
+
+    if (blk < heap_line_low)
+    {
+        heap_line_low = blk;
+    }
+}
+
+uint32_t
+heap_low_line_take (void)
+{
+    uint32_t    value = heap_line_low;
+
+    heap_line_low = UINT32_MAX;
+    return value;
+}
+
+static const char *
+heap_low_path_name (uint8_t path)
+{
+    switch (path)
+    {
+        case HEAP_LOW_PATH_FLUSH:   return "flush";
+        case HEAP_LOW_PATH_FS:      return "fs";
+        case HEAP_LOW_PATH_ACCEPT:  return "accept";
+        case HEAP_LOW_PATH_CLIENT:  return "client";
+    }
+
+    return "";                                                  // seit dem Ruecksetzen kein Messpunkt gelaufen
+}
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display flags:
@@ -1298,8 +1425,10 @@ http_ota_restart_poll (void)
  *
  * WiFiClient::write () liefert die Zahl der tatsaechlich uebernommenen Byte, und die
  * darf kleiner sein als die uebergebene Laenge: ClientContext::_write_from_source ()
- * bricht ab, sobald _timeout_ms (Vorgabe 5000 ms) ohne jeden Fortschritt verstrichen
- * ist, und gibt zurueck, was bis dahin durchkam (Core 3.1.2, ClientContext.h:463-494).
+ * bricht ab, sobald _timeout_ms ohne jeden Fortschritt verstrichen ist, und gibt zurueck,
+ * was bis dahin durchkam (Core 3.1.2, ClientContext.h:463-494). Seit E3 (M-3) sind das
+ * HTTP_WRITE_TIMEOUT_MS = 1000 ms, in der Dateiauslieferung HTTP_FILE_WRITE_TIMEOUT_MS =
+ * 2000 ms; bis ESP 3.2.35 galt die Vorgabe des Cores, 5000 ms.
  * Ohne Fortschritt bleibt es, wenn tcp_sndbuf () leer bleibt oder tcp_write () mit
  * ERR_MEM antwortet. Letzteres ist hier real: _sync ist aus, also kopiert lwIP jeden
  * Block in frisch angeforderte pbufs - bei rund 5'400 Byte freiem Heap und 4'648 Byte
@@ -1313,9 +1442,10 @@ http_ota_restart_poll (void)
  * Feldern gegen 7012 Byte mit 136 Feldern, ohne eine Fehlermeldung irgendwo.
  *
  * Hoechstens ein Wiederholungsversuch, und nur wenn der erste Aufruf ueberhaupt etwas
- * geschrieben hat: Ein Aufruf, der gar nichts unterbringt, hat bereits fuenf Sekunden
- * auf Fortschritt gewartet - ein zweiter wartet erneut so lange und findet dieselbe
- * Lage vor. So bleibt die Dauer eines Fehlschlags bei den heutigen rund 5 s.
+ * geschrieben hat: Ein Aufruf, der gar nichts unterbringt, hat bereits die ganze Frist
+ * (seit E3 1000 ms, vorher 5000 ms) auf Fortschritt gewartet - ein zweiter wartet erneut
+ * so lange und findet dieselbe Lage vor. Schlimmster Fehlschlag seit E3: 2 x 1000 ms
+ * plus abort () (Rechnung bei HTTP_WRITE_TIMEOUT_MS).
  *
  * Das frueher hier stehende http_client.flush () ist entfallen. Es ist im Core 3.1.2
  * kein Leeren, sondern ein Warten bis zur Quittung mit bis zu 300 ms
@@ -1334,12 +1464,19 @@ http_flush (void)
 {
     if (http_response_len > 0)
     {
-        size_t rest = (size_t) http_response_len;
+        size_t          rest     = (size_t) http_response_len;
+        uint32_t        lost_blk = 0;                           // E3 I-2: Rohwerte unmittelbar nach dem letzten Versuch
+        int             lost_snd = 0;
+        unsigned long   lost_ms  = 0;
 
         if (! http_write_broken)
         {
             const uint8_t * p = (const uint8_t *) http_response;
             uint_fast8_t    attempt;
+            unsigned long   write_start;
+
+            heap_low_note (HEAP_LOW_PATH_FLUSH);                // E3 I-1: vor dem ersten write () dieses Aufrufs
+            write_start = millis ();                            // E3 I-2: Beginn des ersten Versuchs, nach der Messung
 
             for (attempt = 0; attempt < 2; attempt++)
             {
@@ -1360,6 +1497,19 @@ http_flush (void)
                 }
 
                 yield ();
+            }
+
+            /* E3 I-2 (C65, design.md 18.3): Ursache des kurzen Schreibvorgangs festhalten, BEVOR irgendetwas
+             * anderes laeuft. snd = availableForWrite () ist tcp_sndbuf () der Verbindung, 0 bei getrennter
+             * (ClientContext.h:161-164, WiFiClient.cpp:203-206). Lesart: connected () 0 = Gegenstelle weg;
+             * 1 mit snd = 1072 (voller Sendepuffer) oder mindestens dem Rest = Heap (tcp_write () bekam keinen
+             * Speicher); 1 mit snd = 0 = Quittung fehlt (Fenster 0, Funkloch); dazwischen unklar.
+             */
+            if (rest > 0)
+            {
+                lost_blk = ESP.getMaxFreeBlockSize ();
+                lost_snd = http_client.availableForWrite ();
+                lost_ms  = millis () - write_start;
             }
         }
 
@@ -1397,19 +1547,22 @@ http_flush (void)
                  * nicht auseinanderlaufen. snprintf in einen Stackpuffer, KEIN
                  * String - dessen Aufbau ist nach L175 der benannte Treiber der
                  * Fragmentierung. Laengste Form: "- http write lost 4294967295
-                 * gone=65535 fail=65535" = 50 Zeichen (C25: beide Zaehler, Stand nach
-                 * diesem Verlust - welcher gestiegen ist, nennt den Grund).
+                 * gone=65535 fail=65535 blk=4294967295 snd=4294967295 ms=4294967295"
+                 * = 94 Zeichen (C25: beide Zaehler, Stand nach diesem Verlust - welcher
+                 * gestiegen ist, nennt den Grund; E3 I-2: blk, snd und ms hinten, die
+                 * Muster "- http write lost" und "fail=[1-9]" bleiben gueltig).
                  *
                  * Ohne das stm32_log_append () war diese Zeile nur mit
                  * angeschlossenem Mitschnitt zu sehen; ueber /api/stm32_log kam
                  * nichts an (C14, L185).
                  */
-                char line[64];
+                char line[96];
 
                 http_write_broken = 1;
 
-                snprintf (line, sizeof (line), "- http write lost %lu gone=%u fail=%u",
-                          (unsigned long) rest, (unsigned) http_write_lost_gone, (unsigned) http_write_lost_failed);
+                snprintf_P (line, sizeof (line), PSTR ("- http write lost %lu gone=%u fail=%u blk=%lu snd=%lu ms=%lu"),
+                          (unsigned long) rest, (unsigned) http_write_lost_gone, (unsigned) http_write_lost_failed,
+                          (unsigned long) lost_blk, (unsigned long) (lost_snd > 0 ? lost_snd : 0), lost_ms);
 
                 Serial.println (line);
                 Serial.flush ();
@@ -1624,6 +1777,7 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
              * geschlossen, und jede neue Verbindung setzt den Wert wieder auf 1.
              */
             http_client.setNoDelay (0);
+            http_client.setTimeout (HTTP_FILE_WRITE_TIMEOUT_MS);   // E3 M-3: Dateiauslieferung, gilt auch fuer die Kopfzeilen
 
             http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
             http_send (content_type);
@@ -1649,7 +1803,19 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
              * BEDINGUNG: Zwischen dem http_flush() oben und dem Ende der Schleife darf
              * kein http_send() stehen, sonst ueberschreiben sich beide Nutzungen.
              */
-            while (fp.available ())
+            uint32_t    fs_block = 0;                           // E3 I-1: Blockzaehler fuer den Messpunkt fs
+            uint32_t    fs_sent  = 0;                           // E3 I-2: bis hierher ausgelieferte Byte der Datei
+
+            /* E3 M-3: Gingen schon die Kopfzeilen nicht hinaus (http write lost), ist der Rumpf wertlos, und
+             * jeder weitere Versuch kostete noch einmal bis zu HTTP_FILE_WRITE_TIMEOUT_MS. Gemeldet und
+             * gezaehlt ist der Verlust schon in http_flush ().
+             */
+            if (http_write_broken)
+            {
+                rtc = 2;
+            }
+
+            while (! http_write_broken && fp.available ())
             {
                 int len = fp.read ((uint8_t *) http_response, MAX_HTTP_RESPONSE_LEN);
 
@@ -1668,20 +1834,84 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
                     break;
                 }
 
+                /* E3 I-1: Messpunkt fs vor dem write (). Nur der erste und jeder achte Block - die
+                 * Begruendung (umm_info () mit gesperrten Interrupts) steht bei heap_low_note ().
+                 */
+                if ((fs_block & 7) == 0)
+                {
+                    heap_low_note (HEAP_LOW_PATH_FS);
+                }
+
+                fs_block++;
+
                 /* Kurzschreibung: WiFiClient::write () liefert die tatsaechlich
                  * uebergebene Menge und bricht nach seinem Zeitlimit oder bei
                  * geschlossener Verbindung frueher ab. Ungeprueft entstuende eine
                  * stillschweigend verstuemmelte Datei beim Client.
                  */
-                if (http_client.write ((const uint8_t *) http_response, (size_t) len) != (size_t) len)
+                unsigned long   write_start = millis ();            // E3 I-2: ein Versuch je Block
+                size_t          written     = http_client.write ((const uint8_t *) http_response, (size_t) len);
+
+                if (written != (size_t) len)
                 {
-                    Serial.print ("- fs write short: ");
-                    Serial.println (filename);
-                    Serial.flush ();
+                    /* E3 I-2 (C65, design.md 18.3): wie "http write lost" in http_flush () - Rohwerte
+                     * unmittelbar nach dem Versuch, Zaehler, EINE Zeile je Verbindung, einmal formatiert und
+                     * zweimal ausgegeben (Mitschnitt und Ring, L185). Bis ESP 3.2.35 stand hier nur eine
+                     * Serial-Zeile: kein Ring, kein Zaehler - ein abgebrochenes Asset war ueber die API
+                     * unsichtbar. write_lost_bytes waechst um die NICHT ausgelieferten Byte der Datei.
+                     * Laengste Form bei 31 Zeichen Dateiname rund 110 Zeichen, also ein Ringeintrag (C8);
+                     * snprintf kappt bei 119.
+                     */
+                    uint32_t        lost_blk = ESP.getMaxFreeBlockSize ();
+                    int             lost_snd = http_client.availableForWrite ();
+                    unsigned long   lost_ms  = millis () - write_start;
+                    uint32_t        fs_size  = (uint32_t) fp.size ();
+
+                    fs_sent += (uint32_t) written;
+                    http_write_lost_bytes += (fs_size > fs_sent) ? (fs_size - fs_sent) : 0;
+
+                    if (http_write_lost_blocks < 0xFFFF)
+                    {
+                        http_write_lost_blocks++;
+                    }
+
+                    if (! http_client.connected ())
+                    {
+                        if (http_write_lost_gone < 0xFFFF)
+                        {
+                            http_write_lost_gone++;
+                        }
+                    }
+                    else if (http_write_lost_failed < 0xFFFF)
+                    {
+                        http_write_lost_failed++;
+                    }
+
+                    if (http_fs_write_short < 0xFFFF)
+                    {
+                        http_fs_write_short++;
+                    }
+
+                    if (! http_write_broken)
+                    {
+                        char line[120];
+
+                        http_write_broken = 1;
+
+                        snprintf_P (line, sizeof (line), PSTR ("- fs write short: %s n=%d w=%lu blk=%lu snd=%lu ms=%lu"),
+                                  filename, len, (unsigned long) written, (unsigned long) lost_blk,
+                                  (unsigned long) (lost_snd > 0 ? lost_snd : 0), lost_ms);
+
+                        Serial.println (line);
+                        Serial.flush ();
+                        stm32_log_append (line);
+                    }
+
                     rtc = 2;
                     break;
                 }
 
+                fs_sent += (uint32_t) len;
                 yield ();
             }
 
@@ -7734,6 +7964,7 @@ http_update (void)
                 update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
     
                 http_ota_announce ();                                           // A67: STM offline, VOR dem Download
+                http_client.setTimeout (HTTP_OTA_TIMEOUT_MS);                   // E3 M-3 (Ent-25): nie mit der 1-s-Grenze der Anfragen
                 t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
     
                 switch(ret)
@@ -8366,7 +8597,8 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
  * Genau das war die Ursache der verstuemmelten Antworten: lwIP kopiert jeden Block in
  * frisch angeforderte pbufs (TCP_WRITE_FLAG_COPY, weil _sync aus ist), bekam keinen
  * Speicher mehr, tcp_write () antwortete mit ERR_MEM, und _write_from_source () gab
- * nach 5000 ms ohne Fortschritt auf - am Geraet gemessen 7012 statt 8084 Byte in 11 von
+ * nach 5000 ms ohne Fortschritt auf (damals die Vorgabe des Cores; seit E3 1000 ms,
+ * HTTP_WRITE_TIMEOUT_MS) - am Geraet gemessen 7012 statt 8084 Byte in 11 von
  * 12 Abrufen. Die Pruefung in http_flush () macht diesen Verlust seit ESP 3.2.14
  * sichtbar; sie verhindert ihn nicht. Der Endpunkt soll aber GELINGEN, nicht ehrlich
  * scheitern - deshalb hier die Ursache statt nur die Meldung.
@@ -8389,91 +8621,69 @@ http_fetch_remote_line (const char * host, const char * path, const char * filen
  * es im String, und http_send () brach die Ausgabe dort per strlen () ab - die Release
  * Notes waren ab dieser Stelle weg. Hier wird das Byte uebersprungen, zaehlt aber wie
  * zuvor gegen max_len. Ein rohes 0x00 in einem JSON-String waere ohnehin ungueltig.
+ *
+ * SEIT E3 (C65, Ent-20 C, design.md 18.5a) holt keine Anfrage die Release Notes mehr: Sie liegen im
+ * LittleFS (/upd-releasenote.txt), geholt vom Auftrag update_cache_poll (). Die Funktion
+ * http_json_send_remote_text_field () ist deshalb entfallen. Geblieben ist ihre Maskierung als
+ * gemeinsamer Baustein http_json_text_put ()/http_json_text_flush () - unveraendert Zeichen fuer Zeichen,
+ * damit die Antwort aus der Datei byte-gleich zu der des Live-Wegs bis 3.2.35 ist (Pruefstand c65n).
+ * Der Puffer liegt weiter auf dem Stack, beim Aufrufer.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
-/* Rueckgabewert wie bei http_fetch_remote_line (): > 0 bei Antwort des Servers, sonst
- * <= 0. Das Feld wird in jedem Fall ausgegeben, notfalls leer - die Antwortform bleibt
- * gleich. Auch hier gilt: len wird heruntergezaehlt und taugt nicht als Rueckgabewert,
- * zumal die Schleife bei max_len absichtlich mit len > 0 endet.
- */
-static int
-http_json_send_remote_text_field (const char * key, const char * host, const char * path, const char * filename, size_t max_len)
+typedef struct
 {
     char    buf[132];                                   // 128 Nutzzeichen plus Reserve fuer eine Escape-Folge und die Null
-    size_t  idx = 0;
-    size_t  taken = 0;                                  // gelesene Quellzeichen, Vergleichsgroesse fuer max_len
-    int     len;
-    int     rtc;
+    size_t  idx;
+} HTTP_JSON_TEXT_OUT;
 
-    http_json_send_field_prefix (key);
-    http_send (FS("\""));
+static void
+http_json_text_put (HTTP_JSON_TEXT_OUT * out, int ch)
+{
+    const char *    esc;
+    char            raw[2];
+    size_t          esc_len;
 
-    len = httpclient (host, path, filename);
-    rtc = len;
-
-    if (len > 0)
+    if (ch == 0)
     {
-        while (len > 0 && taken < max_len)
-        {
-            int             ch = httpclient_read (&len);
-            const char *    esc;
-            char            raw[2];
-            size_t          esc_len;
-
-            if (ch < 0)
-            {
-                break;                                  // Lesefehler oder Zeitgrenze (L152): *lenp bleibt stehen, sonst dreht die Schleife endlos
-            }
-
-            taken++;
-
-            if (ch == 0)
-            {
-                continue;                               // siehe Kommentar oben
-            }
-
-            switch (ch)
-            {
-                case '\\': esc = "\\\\"; break;
-                case '"':  esc = "\\\""; break;
-                case '\r': esc = "\\r";  break;
-                case '\n': esc = "\\n";  break;
-                case '\t': esc = "\\t";  break;
-                default:
-                    raw[0] = (char) ch;
-                    raw[1] = '\0';
-                    esc    = raw;
-                    break;
-            }
-
-            esc_len = strlen (esc);
-
-            if (idx + esc_len >= sizeof (buf))          // Escape-Folge nie zerschneiden
-            {
-                buf[idx] = '\0';
-                http_send (buf);
-                idx = 0;
-            }
-
-            memcpy (buf + idx, esc, esc_len);
-            idx += esc_len;
-        }
-
-        if (idx > 0)
-        {
-            buf[idx] = '\0';
-            http_send (buf);
-        }
-
-        /* Wie zuvor: Bei Erreichen von max_len wird der Rest NICHT nachgelesen, die
-         * Verbindung wird einfach geschlossen.
-         */
-        httpclient_stop ();
+        return;                                         // siehe Kommentar oben
     }
 
-    http_send (FS("\""));
+    switch (ch)
+    {
+        case '\\': esc = "\\\\"; break;
+        case '"':  esc = "\\\""; break;
+        case '\r': esc = "\\r";  break;
+        case '\n': esc = "\\n";  break;
+        case '\t': esc = "\\t";  break;
+        default:
+            raw[0] = (char) ch;
+            raw[1] = '\0';
+            esc    = raw;
+            break;
+    }
 
-    return rtc;
+    esc_len = strlen (esc);
+
+    if (out->idx + esc_len >= sizeof (out->buf))        // Escape-Folge nie zerschneiden
+    {
+        out->buf[out->idx] = '\0';
+        http_send (out->buf);
+        out->idx = 0;
+    }
+
+    memcpy (out->buf + out->idx, esc, esc_len);
+    out->idx += esc_len;
+}
+
+static void
+http_json_text_flush (HTTP_JSON_TEXT_OUT * out)
+{
+    if (out->idx > 0)
+    {
+        out->buf[out->idx] = '\0';
+        http_send (out->buf);
+        out->idx = 0;
+    }
 }
 
 static void
@@ -12597,11 +12807,18 @@ http_api_fs_remove ()
  *
  * 1. ZWISCHENSPEICHER fuer die fuenf billigen Serverwerte (drei Versionszeilen, zwei
  *    Existenzpruefungen). Sie aendern sich nicht im Sekundentakt. 54 Byte im statischen
- *    Bereich; ein warmer Aufruf macht statt sieben nur noch zwei Abrufe.
- *    Die Release Notes und wc-list.txt werden BEWUSST NICHT zwischengespeichert: beide
- *    werden unmittelbar in die laufende Antwort gestroemt, ein Puffer dafuer waere bis
- *    zu 3072 Byte gross und wuerde den freien Speicher dauerhaft um mehr als die
- *    Haelfte dessen verringern, was L147 gerade erst freigeraeumt hat.
+ *    Bereich.
+ *    Die Release Notes und wc-list.txt werden BEWUSST NICHT im RAM zwischengespeichert:
+ *    ein Puffer dafuer waere bis zu 3072 Byte gross und wuerde den freien Speicher
+ *    dauerhaft um mehr als die Haelfte dessen verringern, was L147 gerade erst
+ *    freigeraeumt hat. Seit E3 (C65, Ent-20 C, design.md 18.5a) liegen beide stattdessen
+ *    im LITTLEFS (/upd-releasenote.txt, /upd-wc-list.txt): geholt vom Auftrag
+ *    update_cache_poll () aus loop (), nie in einer Anfrage; update_status liest sie aus
+ *    der Datei. Die Tabellenliste fuer update_table_files liegt in einem kleinen
+ *    RAM-Puffer (update_tables_cache, 256 Byte, design.md 18.5 (1)).
+ *    Wirkung je Paar update_status + update_table_files (bei bekannter Hardware):
+ *    bis 3.2.35 8 Abrufe kalt und 3 warm; seit E3 6 kalt (drei Versionen, zwei
+ *    Existenzpruefungen, Tabellenliste) und 0 warm. Gezaehlt in httpclient_connects.
  *
  * 2. SPERRFENSTER. Faellt ein Abruf langsam aus - also nicht mit "404 sofort", sondern
  *    nach einer Zeitgrenze -, gilt der Server fuer UPDATE_SERVER_DOWN_MS als nicht
@@ -12638,11 +12855,13 @@ static unsigned long update_server_down_millis  = 0;
 static uint_fast8_t  update_server_down         = 0;
 static uint16_t      update_server_down_count   = 0;            // Diagnose, steht in /api/device_ready
 
+/* E3 (design.md 18.5a): der Algorithmus mit waehlbarem Startwert. update_source_checksum () startet wie bisher
+ * mit der Hardware; die Dateien im LittleFS starten mit 0 - ohne Hardware, weil hardware_configuration nach
+ * jedem ESP-Start zunaechst 65535 ist (L42) und sonst jeder Start neu schriebe.
+ */
 static uint16_t
-update_source_checksum (const char * host, const char * path)
+update_checksum_text (uint16_t sum, const char * host, const char * path)
 {
-    uint16_t sum = (uint16_t) hardware_configuration;
-
     while (*host)
     {
         sum = (uint16_t) (sum * 31u + (unsigned char) *host++);
@@ -12656,6 +12875,12 @@ update_source_checksum (const char * host, const char * path)
     }
 
     return sum;
+}
+
+static uint16_t
+update_source_checksum (const char * host, const char * path)
+{
+    return update_checksum_text ((uint16_t) hardware_configuration, host, path);
 }
 
 static uint_fast8_t
@@ -12739,6 +12964,779 @@ update_server_fetch_line (const char * host, const char * path, const char * fil
     return len;
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E3 M-1 (C65, Ent-20 C, design.md 18.5a): Release Notes und wc-list.txt im LittleFS
+ *
+ * Bis 3.2.35 holte JEDER Aufruf von /api/update_status die Release Notes (bis 3 KB) und wc-list.txt beim
+ * Update-Server - mitten in der eigenen Antwort, bei zerstueckeltem Heap (L449). Jetzt holt sie nur noch ein
+ * Auftrag in loop (): beim Start, solange der Heap unzerstueckelt ist, und danach nur, wenn sich der Stand
+ * auf dem Server geaendert hat. update_status liest aus der Datei; keine Anfrage holt Notes oder Liste live,
+ * solange die Datei gueltig ist (AKR.5).
+ *
+ * DATEIEN: /upd-releasenote.txt und /upd-wc-list.txt, beim Schreiben /upd-releasenote.tmp bzw.
+ * /upd-wc-list.tmp. Kein "app-"-Praefix und kein ".gz": http_app () liefert nur app-*.gz aus, die Dateien sind
+ * ueber /app/ nicht erreichbar. Jeder Name 19 bzw. 15 Zeichen, unter LFS_NAME_MAX 32 (LittleFS.h:37, :323).
+ *
+ * FORMAT: "U1 <schluessel> <laenge>\n", dann genau <laenge> Byte roh wie vom Server. <schluessel> ist
+ * "<esp>|<app>|<wc>|<quelle>": die drei Versionszeilen wie update_server_fetch_line () sie liefert und eine
+ * Pruefsumme ueber Host und Pfad OHNE Hardware (update_checksum_text (0, ...), vier Hex-Ziffern). Ein Schluessel
+ * entsteht NUR, wenn alle drei Versionszeilen geholt wurden (E3.8 M2): Ein Schluessel mit leerem Feld wuerde
+ * beide Dateien schreiben und beim naechsten vollstaendigen Abruf noch einmal - gegen "nur je Release". wc-list.txt liegt UNGEFILTERT in der Datei; gefiltert wird beim Ausgeben, wie live.
+ * GUELTIG ist eine Datei nur, wenn sie existiert, groesser als 0 ist (http_fs_file_exists_and_nonempty (),
+ * Architektur-Invariante), die Kopfzeile mit "U1 " beginnt und lesbar ist und die Dateigroesse GENAU
+ * Kopfzeile plus <laenge> betraegt. Alles andere gilt als fehlend.
+ *
+ * DER AUFTRAG (update_cache_poll (), aus loop ()): Faellig beim Start, wenn beim Ausliefern eine Datei
+ * ungueltig ist, wenn ein kalter update_status einen anderen Schluessel sieht als den der Datei, und wenn sich
+ * Host oder Pfad aendern. Er laeuft nur, wenn ALLES zutrifft: WLAN verbunden, Host UND Pfad als Variablen
+ * gesetzt - nie der Rueckfall auf DEFAULT_UPDATE_HOST, den Server des Ursprungsprojekts (L42, DIR-009) -,
+ * mindestens 60 s seit dem Start (A79, L421), mindestens 5 s seit der zuletzt bedienten Verbindung, nicht
+ * im Sperrfenster, und nach einem eigenen Fehlschlag fruehestens nach 10 min. Je Durchlauf von loop ()
+ * hoechstens EIN Abruf: drei Versionszeilen (Schritte 1-3), dann je Datei, die nicht passt, ein Abruf in die
+ * Temporaerdatei (Schritte 4 und 5). Der ERSTE Fehlschlag am Server (eine Versionszeile fehlt, Notes "abruf" oder
+ * "abgerissen") bricht den Durchgang ab, ebenso ein Sperrfenster, das waehrend des Durchgangs scharf wird
+ * (E3.8 M1): Sonst wartete der Durchgang das Sperrfenster ab und liefe bei schlafendem Server in jede weitere
+ * Zeitgrenze - bis zu dreimal 5-10 s Stillstand von loop () je Versuch. Die Dateien ohne eigene Zeile erhalten
+ * "fehlgeschlagen abruf", danach gilt die 10-min-Sperre. Beim ersten Durchgang nach dem Start werden liegen-
+ * gebliebene Temporaerdateien (Stromausfall waehrend des Schreibens) geloescht (E3.8 N4) - sie belegten
+ * sonst dauerhaft je einen Block. Umbenannt wird erst nach vollstaendigem Lesen (len 0, kein ch < 0) UND
+ * Schreiben (Dateigroesse stimmt); sonst wird die Temporaerdatei geloescht, die alte Datei bleibt gueltig.
+ * Die drei Versionszeilen fuellen den Versions-Cache von update_status NICHT: Dessen Eintrag umfasst auch
+ * assets_available (zwei Existenzpruefungen), das der Auftrag nicht holt.
+ *
+ * SCHREIBHAEUFIGKEIT: nur bei geaendertem Schluessel oder ungueltiger Datei - je Release hoechstens einmal je
+ * Datei. Ein ESP-Start mit gleichem Schluessel schreibt nichts (AKR.21).
+ *
+ * PLATZ: Geschrieben wird nur, wenn danach noch die Groesse von app-app.js.gz plus ein Block frei bleibt
+ * (fehlt die Datei, die in E3.0 gemessenen 163'621 Byte, L450) - eine PWA-Installation darf nie am Cache
+ * scheitern.
+ *
+ * ZEILEN (Mitschnitt UND Ring, einmal formatiert), je Datei und Durchgang genau eine:
+ *     - update cache <datei> geschrieben n=<byte> ms=<dauer>       (n = Inhalt ohne Kopfzeile)
+ *     - update cache <datei> unveraendert ms=<dauer>
+ *     - update cache <datei> fehlgeschlagen <grund> ms=<dauer>     (abruf, abgerissen, schreiben, platz, zu-gross,
+ *                                                                   quelle-leer)
+ * ms = Dauer des SCHRITTS, der die Zeile erzeugt, also des einen Durchlaufs von update_cache_poll (), in dem
+ * loop () stand - nicht des ganzen Durchgangs, der sich ueber mehrere Durchlaeufe verteilt und dazwischen die
+ * Bruecke liest (E3.8 M1). "quelle-leer" und ein Abbruch durch das Sperrfenster melden ms=0.
+ * "quelle-leer" einmal, solange Host oder Pfad leer sind.
+ *
+ * BLOCKADE: Jeder Abruf haelt loop () so lange an wie derselbe Abruf frueher in einer Anfrage, schlimmstenfalls
+ * bis HTTPCLIENT_READ_TIMEOUT (5 s). Der Unterschied: einmal je Release statt in jeder Anfrage.
+ *
+ * RAM: 64 Byte Schluessel plus rund 25 Byte Zustand. Zeilen, Gruende und Formate liegen im Flash (PSTR); im RAM
+ * stehen nur die vier Dateinamen, die LittleFS als RAM-Zeiger braucht.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define UPDATE_CACHE_NOTES_FILE                 "/upd-releasenote.txt"
+#define UPDATE_CACHE_NOTES_TMP                  "/upd-releasenote.tmp"
+#define UPDATE_CACHE_LIST_FILE                  "/upd-wc-list.txt"
+#define UPDATE_CACHE_LIST_TMP                   "/upd-wc-list.tmp"
+#define UPDATE_CACHE_NOTES_MAX                  3072            // wie bisher live; laenger wird NICHT abgelegt (kein stilles Kuerzen)
+#define UPDATE_CACHE_LIST_MAX                   2048            // E3.0 (L450): wc-list.txt 69 Byte
+#define UPDATE_CACHE_KEY_LEN                    64              // hoechstens 3 x 15 + 3 x '|' + 4 = 52 Zeichen
+#define UPDATE_CACHE_HDR_LEN                    96              // "U1 " + Schluessel + ' ' + Laenge + '\n'
+#define UPDATE_CACHE_START_MS                   60000UL         // fruehestens 60 s nach dem Start
+#define UPDATE_CACHE_IDLE_MS                    5000UL          // fruehestens 5 s nach der zuletzt bedienten Verbindung
+#define UPDATE_CACHE_RETRY_MS                   600000UL        // nach eigenem Fehlschlag fruehestens nach 10 min
+#define UPDATE_CACHE_SRC_CHECK_MS               1000UL          // Host und Pfad hoechstens einmal je Sekunde vergleichen
+#define UPDATE_CACHE_APPJS_FALLBACK             163621UL        // app-app.js.gz in E3.0 (L450), falls die Datei fehlt
+
+static char          update_cache_key[UPDATE_CACHE_KEY_LEN];   // Schluessel des laufenden Durchgangs
+static uint8_t       update_cache_due          = 1;            // beim Start faellig
+static uint8_t       update_cache_step         = 0;            // 0 ruht, 1-3 Versionszeilen, 4 Notes, 5 Liste
+static uint8_t       update_cache_need         = 0;            // Bit 0 Notes, Bit 1 Liste: noch offen, ohne Zeile
+static uint8_t       update_cache_failed       = 0;            // Fehlschlag im laufenden Durchgang
+static uint8_t       update_cache_retry_wait   = 0;
+static unsigned long update_cache_fail_millis  = 0;
+static uint8_t       update_cache_started      = 0;            // 60 s nach dem Start vergangen
+static uint8_t       update_cache_src_logged   = 0;            // "quelle-leer" gemeldet
+static uint8_t       update_cache_src_known    = 0;
+static uint16_t      update_cache_src_sum      = 0;
+static unsigned long update_cache_src_millis   = 0;
+static unsigned long update_cache_step_millis  = 0;            // Beginn des laufenden Schritts, fuer ms= (E3.8 M1)
+static uint8_t       update_cache_tmp_checked  = 0;            // Temporaerdateien nach dem Start geprueft (E3.8 N4)
+
+/* what und reason liegen im Flash (PSTR, AKR.8: kein RAM fuer Literale) und werden mit strncpy_P geholt; reason darf
+ * NULL sein. Laengste Form "- update cache upd-releasenote.txt fehlgeschlagen quelle-leer ms=4294967295" = 75 Zeichen.
+ * ms: seit update_cache_step_millis, siehe Kopfkommentar.
+ */
+static void
+update_cache_line (const char * fname, PGM_P what, PGM_P reason, long n)
+{
+    char            line[80];
+    char            w[16];
+    char            r[16];
+    unsigned long   ms = millis () - update_cache_step_millis;
+
+    strncpy_P (w, what, sizeof (w) - 1);
+    w[sizeof (w) - 1] = '\0';
+    r[0] = '\0';
+
+    if (reason)
+    {
+        strncpy_P (r, reason, sizeof (r) - 1);
+        r[sizeof (r) - 1] = '\0';
+    }
+
+    if (*fname == '/')
+    {
+        fname++;
+    }
+
+    if (n >= 0)
+    {
+        snprintf_P (line, sizeof (line), PSTR ("- update cache %s %s n=%ld ms=%lu"), fname, w, n, ms);
+    }
+    else if (r[0])
+    {
+        snprintf_P (line, sizeof (line), PSTR ("- update cache %s %s %s ms=%lu"), fname, w, r, ms);
+    }
+    else
+    {
+        snprintf_P (line, sizeof (line), PSTR ("- update cache %s %s ms=%lu"), fname, w, ms);
+    }
+
+    Serial.println (line);
+    Serial.flush ();
+    stm32_log_append (line);
+}
+
+/* Datei pruefen und oeffnen. true: gueltig, fp steht hinter der Kopfzeile, key und *body_len sind gefuellt.
+ * false: ungueltig oder fehlend, fp ist geschlossen. LittleFS muss gemountet sein.
+ */
+static bool
+update_cache_open (const char * fname, File & fp, char * key, size_t key_size, uint32_t * body_len)
+{
+    char            hdr[UPDATE_CACHE_HDR_LEN];
+    size_t          n  = 0;
+    int             ch = -1;
+
+    if (! http_fs_file_exists_and_nonempty (fname))
+    {
+        return false;
+    }
+
+    fp = LittleFS.open (fname, "r");
+
+    if (! fp)
+    {
+        return false;
+    }
+
+    while (n < sizeof (hdr) - 1)
+    {
+        ch = fp.read ();
+
+        if (ch < 0 || ch == '\n')
+        {
+            break;
+        }
+
+        hdr[n++] = (char) ch;
+    }
+
+    hdr[n] = '\0';
+
+    if (ch == '\n' && ! strncmp (hdr, "U1 ", 3))
+    {
+        char *  sp = strrchr (hdr + 3, ' ');
+
+        if (sp && sp > hdr + 3 && sp[1] >= '0' && sp[1] <= '9')
+        {
+            char *          endp;
+            unsigned long   body     = strtoul (sp + 1, &endp, 10);
+            size_t          key_len  = (size_t) (sp - (hdr + 3));
+
+            if (! *endp && key_len < key_size && (unsigned long) fp.size () == (unsigned long) n + 1 + body)
+            {
+                memcpy (key, hdr + 3, key_len);
+                key[key_len] = '\0';
+                *body_len = (uint32_t) body;
+                return true;
+            }
+        }
+    }
+
+    fp.close ();
+    return false;
+}
+
+static bool
+update_cache_file_matches (const char * fname, const char * key)
+{
+    File        fp;
+    char        file_key[UPDATE_CACHE_KEY_LEN];
+    uint32_t    body;
+    bool        rtc = false;
+
+    if (update_cache_open (fname, fp, file_key, sizeof (file_key), &body))
+    {
+        rtc = ! strcmp (file_key, key);
+        fp.close ();
+    }
+
+    return rtc;
+}
+
+/* Reicht der Platz? Nach dem Schreiben muss app-app.js.gz plus ein Block frei bleiben. LittleFS gemountet. */
+static bool
+update_cache_space_ok (uint32_t total)
+{
+    FSInfo          info;
+    char            appjs[48];
+    unsigned long   reserve = UPDATE_CACHE_APPJS_FALLBACK;
+    unsigned long   blocks;
+    unsigned long   free_bytes;
+
+    if (! LittleFS.info (info) || info.blockSize == 0)
+    {
+        return false;
+    }
+
+    if (app_asset_storage_filename ("app/app.js", 1, appjs, sizeof (appjs)))
+    {
+        File a = LittleFS.open (appjs, "r");
+
+        if (a)
+        {
+            reserve = (unsigned long) a.size ();
+            a.close ();
+        }
+    }
+
+    blocks     = ((unsigned long) total + info.blockSize - 1) / info.blockSize;
+    free_bytes = (info.totalBytes > info.usedBytes) ? (unsigned long) (info.totalBytes - info.usedBytes) : 0;
+
+    return free_bytes >= blocks * info.blockSize + reserve + info.blockSize;
+}
+
+/* Einen Abruf in die Temporaerdatei schreiben und erst bei vollstaendigem Lesen UND Schreiben umbenennen.
+ * Schreibt genau eine Zeile. Rueckgabe 1 bei Erfolg, 0 bei einem Fehlschlag hier (schreiben, platz, zu-gross),
+ * 2 bei einem Fehlschlag am Server (abruf, abgerissen) - dann bricht der Aufrufer den Durchgang ab (E3.8 M1).
+ */
+static uint_fast8_t
+update_cache_write (const char * remote, const char * fname, const char * tmpname, size_t max_len,
+                    const char * host, const char * path)
+{
+    char            hdr[UPDATE_CACHE_HDR_LEN];
+    PGM_P           reason = (PGM_P) 0;                         // Grund im Flash
+    size_t          idx    = 0;
+    uint32_t        total;
+    int             hlen;
+    int             len;
+    int             body;
+    uint_fast8_t    server = 0;                                 // Fehlschlag am Server, nicht hier
+
+    len = update_server_open (host, path, remote);                  // hinter dem Sperrfenster, mit update_server_note ()
+
+    if (len <= 0)
+    {
+        update_cache_line (fname, PSTR ("fehlgeschlagen"), PSTR ("abruf"), -1);
+        return 2;
+    }
+
+    if ((size_t) len > max_len)
+    {
+        httpclient_stop ();
+        update_cache_line (fname, PSTR ("fehlgeschlagen"), PSTR ("zu-gross"), -1);
+        return 0;
+    }
+
+    body  = len;
+    hlen  = snprintf_P (hdr, sizeof (hdr), PSTR ("U1 %s %d\n"), update_cache_key, len);
+    total = (uint32_t) hlen + (uint32_t) len;
+
+    LittleFS.begin ();
+
+    if (hlen <= 0 || hlen >= (int) sizeof (hdr))
+    {
+        reason = PSTR ("schreiben");                                // kann bei 64 Byte Schluessel nicht eintreten
+    }
+    else if (! update_cache_space_ok (total))
+    {
+        reason = PSTR ("platz");
+    }
+    else
+    {
+        File f = LittleFS.open (tmpname, "w");
+
+        if (! f)
+        {
+            reason = PSTR ("schreiben");
+        }
+        else
+        {
+            if (f.write ((const uint8_t *) hdr, (size_t) hlen) != (size_t) hlen)
+            {
+                reason = PSTR ("schreiben");
+            }
+
+            while (! reason && len > 0)
+            {
+                int ch = httpclient_read (&len);
+
+                if (ch < 0)
+                {
+                    reason = PSTR ("abgerissen");                   // *lenp bleibt stehen (L152)
+                    server = 1;
+                    break;
+                }
+
+                http_download_buf[idx++] = (unsigned char) ch;      // ausserhalb jeder Anfrage: der Puffer ist frei
+
+                if (idx == sizeof (http_download_buf))
+                {
+                    if (f.write (http_download_buf, idx) != idx)
+                    {
+                        reason = PSTR ("schreiben");
+                    }
+
+                    idx = 0;
+                }
+            }
+
+            if (! reason && idx > 0 && f.write (http_download_buf, idx) != idx)
+            {
+                reason = PSTR ("schreiben");
+            }
+
+            if (! reason && (uint32_t) f.size () != total)
+            {
+                reason = PSTR ("schreiben");
+            }
+
+            f.close ();
+        }
+
+        if (! reason && ! LittleFS.rename (tmpname, fname))         // ersetzt die alte Datei in einem Schritt (lfs.c:3693 ff.)
+        {
+            reason = PSTR ("schreiben");
+        }
+
+        if (reason)
+        {
+            LittleFS.remove (tmpname);                              // die alte Datei bleibt unberuehrt
+        }
+    }
+
+    httpclient_stop ();
+    LittleFS.end ();
+
+    if (reason)
+    {
+        update_cache_line (fname, PSTR ("fehlgeschlagen"), reason, -1);
+        return server ? 2 : 0;
+    }
+
+    update_cache_line (fname, PSTR ("geschrieben"), (PGM_P) 0, (long) body);
+    return 1;
+}
+
+/* Durchgang beenden. Bei einem Fehlschlag erhaelt jede Datei, die noch offen ist (Bit in update_cache_need) und
+ * daher noch keine Zeile hat, "fehlgeschlagen abruf" - je Datei und Durchgang genau eine Zeile (E3.8 M1).
+ */
+static void
+update_cache_finish (void)
+{
+    update_cache_step = 0;
+
+    if (update_cache_failed)
+    {
+        if (update_cache_need & 1)
+        {
+            update_cache_line (UPDATE_CACHE_NOTES_FILE, PSTR ("fehlgeschlagen"), PSTR ("abruf"), -1);
+        }
+
+        if (update_cache_need & 2)
+        {
+            update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("fehlgeschlagen"), PSTR ("abruf"), -1);
+        }
+
+        update_cache_need        = 0;
+        update_cache_due         = 1;                               // erneut, aber fruehestens nach 10 min
+        update_cache_retry_wait  = 1;
+        update_cache_fail_millis = millis ();
+    }
+}
+
+static void
+update_cache_step_run (const char * host, const char * path)
+{
+    uint_fast8_t    w;
+
+    update_cache_step_millis = millis ();                           // ms= in den Zeilen dieses Schritts
+
+    switch (update_cache_step)
+    {
+        case 0:
+            update_cache_due     = 0;                               // ein kalter update_status darf ihn waehrenddessen neu setzen
+            update_cache_failed  = 0;
+            update_cache_need    = 0;
+            update_cache_key[0]  = '\0';
+            update_cache_step    = 1;
+
+            if (! update_cache_tmp_checked)                         // E3.8 N4: nach Stromausfall liegengeblieben
+            {
+                update_cache_tmp_checked = 1;
+                LittleFS.begin ();
+
+                if (LittleFS.exists (UPDATE_CACHE_NOTES_TMP))
+                {
+                    LittleFS.remove (UPDATE_CACHE_NOTES_TMP);
+                }
+
+                if (LittleFS.exists (UPDATE_CACHE_LIST_TMP))
+                {
+                    LittleFS.remove (UPDATE_CACHE_LIST_TMP);
+                }
+
+                LittleFS.end ();
+            }
+            /* weiter mit Schritt 1, im selben Durchlauf: ein Abruf */
+            // fall through
+        case 1:
+        case 2:
+        case 3:
+        {
+            const char *    remote = (update_cache_step == 1) ? ESP_WORDCLOCK_TXT : (update_cache_step == 2) ? APP_VERSION_TXT : WC_TXT;
+            char            version[16];
+            size_t          k = strlen (update_cache_key);
+
+            if (update_server_fetch_line (host, path, remote, version, sizeof (version)) <= 0)
+            {
+                /* E3.8 M1/M2: der erste Fehlschlag beendet den Durchgang - kein Schluessel mit leerem Feld (es
+                 * wuerde geschrieben und beim naechsten vollstaendigen Abruf noch einmal), und kein weiterer Abruf
+                 * an einen Server, der gerade nicht antwortet. Beide Dateien "fehlgeschlagen abruf", 10 min Sperre.
+                 */
+                update_cache_need   = 3;
+                update_cache_failed = 1;
+                update_cache_finish ();
+                return;
+            }
+
+            snprintf_P (update_cache_key + k, sizeof (update_cache_key) - k, (update_cache_step == 1) ? PSTR ("%s") : PSTR ("|%s"), version);
+
+            if (update_cache_step < 3)
+            {
+                update_cache_step++;
+                return;
+            }
+
+            k = strlen (update_cache_key);
+            snprintf_P (update_cache_key + k, sizeof (update_cache_key) - k, PSTR ("|%04x"), (unsigned) update_checksum_text (0, host, path));
+
+            LittleFS.begin ();
+
+            if (update_cache_file_matches (UPDATE_CACHE_NOTES_FILE, update_cache_key))
+            {
+                update_cache_line (UPDATE_CACHE_NOTES_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
+            }
+            else
+            {
+                update_cache_need |= 1;
+            }
+
+            if (update_cache_file_matches (UPDATE_CACHE_LIST_FILE, update_cache_key))
+            {
+                update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("unveraendert"), (PGM_P) 0, -1);
+            }
+            else
+            {
+                update_cache_need |= 2;
+            }
+
+            LittleFS.end ();
+
+            if (! update_cache_need)
+            {
+                update_cache_finish ();
+                return;
+            }
+
+            update_cache_step = (update_cache_need & 1) ? 4 : 5;
+            return;
+        }
+
+        case 4:
+            w = update_cache_write (RELEASENOTE_HTML, UPDATE_CACHE_NOTES_FILE, UPDATE_CACHE_NOTES_TMP, UPDATE_CACHE_NOTES_MAX, host, path);
+            update_cache_need &= (uint8_t) ~1u;                     // Notes haben ihre Zeile
+
+            if (w != 1)
+            {
+                update_cache_failed = 1;
+            }
+
+            if (w == 2)                                             // Server antwortet nicht: Liste nicht mehr versuchen (M1)
+            {
+                update_cache_finish ();
+                return;
+            }
+
+            if (update_cache_need & 2)
+            {
+                update_cache_step = 5;
+                return;
+            }
+
+            update_cache_finish ();
+            return;
+
+        case 5:
+            w = update_cache_write (WC_LIST_TXT, UPDATE_CACHE_LIST_FILE, UPDATE_CACHE_LIST_TMP, UPDATE_CACHE_LIST_MAX, host, path);
+            update_cache_need &= (uint8_t) ~2u;                     // Liste hat ihre Zeile
+
+            if (w != 1)
+            {
+                update_cache_failed = 1;
+            }
+
+            update_cache_finish ();
+            return;
+
+        default:
+            update_cache_step = 0;
+            return;
+    }
+}
+
+void
+update_cache_poll (void)
+{
+    const char *    host;
+    const char *    path;
+
+    if (! update_cache_started)
+    {
+        if (millis () < UPDATE_CACHE_START_MS)                      // nur bis zum ersten Mal: kein Problem mit dem Umlauf
+        {
+            return;
+        }
+
+        update_cache_started = 1;
+    }
+
+    host = get_strvar (UPDATE_HOST_VAR)->str;
+    path = get_strvar (UPDATE_PATH_VAR)->str;
+
+    if ((millis () - update_cache_src_millis) >= UPDATE_CACHE_SRC_CHECK_MS)   // Host oder Pfad geaendert?
+    {
+        update_cache_src_millis = millis ();
+
+        if (host[0] && path[0])
+        {
+            uint16_t sum = update_checksum_text (0, host, path);
+
+            if (update_cache_src_known && sum != update_cache_src_sum)
+            {
+                update_cache_due        = 1;                        // andere Quelle: auch die 10-min-Sperre entfaellt
+                update_cache_retry_wait = 0;
+            }
+
+            update_cache_src_known  = 1;
+            update_cache_src_sum    = sum;
+            update_cache_src_logged = 0;
+        }
+    }
+
+    if (! update_cache_due && ! update_cache_step)
+    {
+        return;
+    }
+
+    if (! host[0] || ! path[0])                                     // nie DEFAULT_UPDATE_HOST (L42, DIR-009)
+    {
+        if (! update_cache_src_logged)
+        {
+            update_cache_src_logged  = 1;
+            update_cache_step_millis = millis ();                   // ms=0
+            update_cache_line (UPDATE_CACHE_NOTES_FILE, PSTR ("fehlgeschlagen"), PSTR ("quelle-leer"), -1);
+            update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("fehlgeschlagen"), PSTR ("quelle-leer"), -1);
+        }
+
+        update_cache_step = 0;                                      // ein laufender Durchgang beginnt spaeter neu
+        update_cache_due  = 1;
+        return;
+    }
+
+    if (wifi_ap_mode || WiFi.status () != WL_CONNECTED)
+    {
+        return;
+    }
+
+    if (http_request_seen && (millis () - http_last_request_millis) < UPDATE_CACHE_IDLE_MS)
+    {
+        return;
+    }
+
+    if (update_cache_retry_wait)
+    {
+        if ((millis () - update_cache_fail_millis) < UPDATE_CACHE_RETRY_MS)
+        {
+            return;
+        }
+
+        update_cache_retry_wait = 0;
+    }
+
+    if (update_server_blocked ())
+    {
+        if (update_cache_step)
+        {
+            /* E3.8 M1: Das Sperrfenster wurde waehrend des Durchgangs scharf (etwa durch einen kalten
+             * update_status). Nicht abwarten und weitermachen - abbrechen, offene Dateien "abruf", 10 min.
+             */
+            if (update_cache_step <= 3)
+            {
+                update_cache_need = 3;
+            }
+
+            update_cache_step_millis = millis ();                   // ms=0
+            update_cache_failed      = 1;
+            update_cache_finish ();
+        }
+
+        return;
+    }
+
+    update_cache_step_run (host, path);
+
+    if ((uint32_t) (millis () - update_cache_step_millis) > req_max_upd_cache_ms)   // E3.8: fuer upd_cache_max_ms
+    {
+        req_max_upd_cache_ms = (uint32_t) (millis () - update_cache_step_millis);
+    }
+}
+
+/* Notes aus der Datei als Feld "release_notes" ausgeben, maskiert wie bis 3.2.35 live. Ist die Datei ungueltig:
+ * leeres Feld, Auftrag faellig, KEIN Abruf. cold_key: Schluessel eines kalten update_status, sonst NULL.
+ */
+static void
+update_cache_send_notes (const char * cold_key)
+{
+    File        fp;
+    char        key[UPDATE_CACHE_KEY_LEN];
+    uint32_t    body = 0;
+
+    http_json_send_field_prefix (FS("release_notes"));
+    http_send (FS("\""));
+
+    LittleFS.begin ();
+
+    if (update_cache_open (UPDATE_CACHE_NOTES_FILE, fp, key, sizeof (key), &body))
+    {
+        HTTP_JSON_TEXT_OUT  out;
+        uint8_t             chunk[64];                              // Stackpuffer: http_response ist mitten in der Antwort belegt
+
+        out.idx = 0;
+
+        while (body > 0)
+        {
+            int n = fp.read (chunk, (body < sizeof (chunk)) ? (size_t) body : sizeof (chunk));
+
+            if (n <= 0)
+            {
+                update_cache_due = 1;                               // Lesefehler: Datei gilt als ungueltig
+                break;
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                http_json_text_put (&out, chunk[i]);
+            }
+
+            body -= (uint32_t) n;
+        }
+
+        http_json_text_flush (&out);
+        fp.close ();
+
+        if (cold_key && strcmp (cold_key, key))
+        {
+            update_cache_due = 1;                                   // neuer Stand auf dem Server
+        }
+    }
+    else
+    {
+        update_cache_due = 1;
+    }
+
+    LittleFS.end ();
+
+    http_send (FS("\""));
+}
+
+/* stm32_files aus der Datei, gefiltert wie live. Rueckgabe 0: Datei ungueltig - der Aufrufer holt live.
+ * Wie live zaehlt nur eine mit '\n' abgeschlossene Zeile.
+ */
+static uint_fast8_t
+update_cache_send_stm32_list (const char * cold_key, int * first)
+{
+    File            fp;
+    char            key[UPDATE_CACHE_KEY_LEN];
+    uint32_t        body = 0;
+    uint_fast8_t    rtc  = 0;
+
+    LittleFS.begin ();
+
+    if (update_cache_open (UPDATE_CACHE_LIST_FILE, fp, key, sizeof (key), &body))
+    {
+        char    fname[MAX_UPDATE_FILENAME_LEN];
+        int     l = 0;
+
+        while (body > 0)
+        {
+            int ch = fp.read ();
+
+            if (ch < 0)
+            {
+                update_cache_due = 1;
+                break;
+            }
+
+            body--;
+
+            if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
+            {
+                fname[l++] = ch;
+            }
+            else if (ch == '\n')
+            {
+                fname[l] = '\0';
+                l = 0;
+
+                if (http_remote_stm32_filename_matches (fname))
+                {
+                    if (! *first)
+                    {
+                        http_send (FS(","));
+                    }
+
+                    http_send (FS("\""));
+                    http_send_json_escaped (fname);
+                    http_send (FS("\""));
+                    *first = 0;
+                }
+            }
+        }
+
+        fp.close ();
+        rtc = 1;
+
+        if (cold_key && strcmp (cold_key, key))
+        {
+            update_cache_due = 1;
+        }
+    }
+    else
+    {
+        update_cache_due = 1;
+    }
+
+    LittleFS.end ();
+
+    return rtc;
+}
+
 static int
 http_api_update_status ()
 {
@@ -12760,6 +13758,8 @@ http_api_update_status ()
     unsigned long cache_window = UPDATE_INFO_CACHE_MS;
     int len;
     int first = 1;
+    char cold_key[UPDATE_CACHE_KEY_LEN];                        // E3: Schluessel eines kalten Aufrufs fuer den Vergleich mit den Dateien
+    const char * cold_key_p = (const char *) NULL;
 
     sv = get_strvar (UPDATE_HOST_VAR);
     update_host = sv->str;
@@ -12818,6 +13818,18 @@ http_api_update_status ()
          * Sperrfenster: Sobald dieses abgelaufen ist, darf wieder gefragt werden.
          */
         cache_window = (esp_len > 0 || app_len > 0 || wc_len > 0) ? UPDATE_INFO_CACHE_MS : UPDATE_SERVER_DOWN_MS;
+
+        /* E3 (design.md 18.5a): Mit diesen Versionen den Schluessel bilden wie update_cache_poll (). Weicht er
+         * von dem der Dateien ab, setzt das Ausliefern unten den Auftrag - geschrieben wird hier nichts.
+         * Nur mit ALLEN drei Versionszeilen (E3.8 M2), wie der Auftrag: Fehlt eine - auch dauerhaft, weil die
+         * Datei auf dem Server fehlt -, entsteht kein Schluessel und kein Auftrag aus diesem Vergleich.
+         */
+        if (esp_len > 0 && app_len > 0 && wc_len > 0)
+        {
+            snprintf_P (cold_key, sizeof (cold_key), PSTR ("%s|%s|%s|%04x"), new_esp_version, new_app_version, new_wc_version,
+                      (unsigned) update_checksum_text (0, update_host, update_path));
+            cold_key_p = cold_key;
+        }
     }
 
     if (hardware_configuration != 0xFFFF)
@@ -13039,29 +14051,11 @@ http_api_update_status ()
     http_json_send_string_field (FS("app_available"), new_app_version);
     http_json_send_string_field (FS("wc_version"), get_strvar (VERSION_STR_VAR)->str);
     http_json_send_string_field (FS("wc_available"), new_wc_version);
-    /* Die Release Notes werden erst HIER geholt und dabei unmittelbar in die Antwort
-     * geschrieben. Frueher standen sie als 3072-Byte-String schon am Kopf der Funktion
-     * im Heap und blieben dort, bis diese Zeile erreicht war. Der ausgehende Abruf
-     * mitten in der eigenen Antwort ist in dieser Funktion nichts Neues: dreissig
-     * Zeilen weiter unten holt WC_LIST_TXT seine Daten genauso, und httpclient.cpp
-     * benutzt dafuer eine eigene WiFiClient-Instanz (httpclient.cpp:16), nicht
-     * http_client.
+    /* E3 (C65, Ent-20 C): Die Release Notes kommen aus /upd-releasenote.txt, NIE mehr live aus der Anfrage -
+     * auch nicht bei ungueltiger Datei (dann leer, und der Auftrag wird faellig). Bis 3.2.35 holte jeder Aufruf
+     * hier bis zu 3 KB vom Update-Server, mitten in der eigenen Antwort.
      */
-    if (update_server_blocked ())
-    {
-        /* Sperrfenster offen: Feld leer ausgeben statt die laufende Antwort um bis zu
-         * drei Zeitgrenzen anzuhalten. Die Antwortform bleibt unveraendert.
-         */
-        http_json_send_string_field (FS("release_notes"), "");
-    }
-    else
-    {
-        unsigned long   notes_millis = millis ();
-        int             notes_len;
-
-        notes_len = http_json_send_remote_text_field (FS("release_notes"), update_host, update_path, RELEASENOTE_HTML, 3072);
-        update_server_note (notes_len, millis () - notes_millis);
-    }
+    update_cache_send_notes (cold_key_p);
 
     http_json_send_string_field (FS("stm32_default"), stm32_default_filename);
     http_send (FS(",\"stm32_files\":["));
@@ -13069,7 +14063,15 @@ http_api_update_status ()
     /* Ent-5 (F.3): Ohne Filter (65535 oder unbekannter Typ) bleibt die Liste ohnehin leer -
      * dann den Abruf ganz sparen statt bis zu drei Zeitgrenzen fuer ein feststehendes Ergebnis.
      */
-    len = filter ? update_server_open (update_host, update_path, WC_LIST_TXT) : 0;
+    /* E3 (C65, Ent-20 C): aus /upd-wc-list.txt, gefiltert wie live. Nur bei ungueltiger Datei live wie bis
+     * 3.2.35 (hinter dem Sperrfenster) - sonst fehlte die STM-Auswahl, bis der Auftrag gelaufen ist.
+     */
+    len = 0;
+
+    if (filter && ! update_cache_send_stm32_list (cold_key_p, &first))
+    {
+        len = update_server_open (update_host, update_path, WC_LIST_TXT);
+    }
 
     if (len > 0)
     {
@@ -13174,6 +14176,34 @@ http_api_device_ready ()
     unsigned long free_heap      = ESP.getFreeHeap ();
     unsigned long max_free_block = ESP.getMaxFreeBlockSize ();
 
+    /* E3 I-1 (C65): Tiefstwerte ebenfalls VOR dem Senden einlesen. Mit heap_low_reset=1 werden sie danach
+     * zurueckgesetzt und die GELESENEN ausgegeben (Ent-21 B); ohne den Parameter wird nur gelesen. Die
+     * eigenen Schreibvorgaenge dieser Antwort gehen damit schon in das naechste Fenster ein.
+     */
+    char *          reset_param     = http_get_param ("heap_low_reset");
+    uint32_t        low_block       = heap_low_block;
+    uint32_t        low_free        = heap_low_free;
+    uint8_t         low_path        = heap_low_path;
+    uint32_t        low_ms          = heap_low_ms;
+    uint16_t        client_connects = httpclient_connects_get ();
+
+    uint32_t        max_ms          = req_max_ms;                   // E3 I-3: ebenfalls vor dem Senden
+    uint32_t        upd_max_ms      = req_max_upd_cache_ms;         // E3.8: ebenfalls vor dem Senden
+    char            max_path[sizeof (req_max_path)];
+
+    memcpy (max_path, req_max_path, sizeof (max_path));
+
+    if (reset_param[0] && strcmp (reset_param, "0"))
+    {
+        heap_low_block  = UINT32_MAX;
+        heap_low_free   = UINT32_MAX;
+        heap_low_path   = 0;
+        heap_low_ms     = 0;
+        req_max_ms      = 0;                                        // E3 I-3: Ruecksetzen mit I-1 (Ent-21 B)
+        req_max_path[0] = '\0';
+        req_max_upd_cache_ms = 0;                                   // E3.8: mit I-1 und I-3
+    }
+
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"ready\":true"));
     http_json_send_uint_field (FS("free_heap"), free_heap);
@@ -13199,6 +14229,20 @@ http_api_device_ready ()
      */
     http_json_send_uint_field (FS("update_cache_hits"), (unsigned long) update_cache_hits);
     http_json_send_uint_field (FS("update_server_down_count"), (unsigned long) update_server_down_count);
+    /* E3 (C65): ab hier nur hinten angefuegt, bestehende Felder unveraendert in Name, Reihenfolge und Typ.
+     * heap_low_block/_free stehen auf 4294967295, solange seit dem Ruecksetzen kein Messpunkt lief, und
+     * heap_low_path ist dann leer. httpclient_connects laeuft seit dem Start und wird nie zurueckgesetzt -
+     * kalt gegen warm (G7) liest die Differenz.
+     */
+    http_json_send_uint_field (FS("heap_low_block"), (unsigned long) low_block);
+    http_json_send_uint_field (FS("heap_low_free"), (unsigned long) low_free);
+    http_json_send_string_field (FS("heap_low_path"), heap_low_path_name (low_path));
+    http_json_send_uint_field (FS("heap_low_ms"), (unsigned long) low_ms);
+    http_json_send_uint_field (FS("httpclient_connects"), (unsigned long) client_connects);
+    http_json_send_uint_field (FS("fs_write_short"), (unsigned long) http_fs_write_short);           // E3 I-2: seit dem Start
+    http_json_send_uint_field (FS("req_max_ms"), (unsigned long) max_ms);                           // E3 I-3
+    http_json_send_string_field (FS("req_max_path"), max_path);
+    http_json_send_uint_field (FS("upd_cache_max_ms"), (unsigned long) upd_max_ms);                 // E3.8: laengster Schritt des Auftrags
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -13286,6 +14330,7 @@ http_api_remote_esp_update ()
     update_progress_state ("reconnect_wait", "ESP-Firmware wird geladen. Gerät startet danach neu.");
 
     http_ota_announce ();                                           // A67: STM offline, VOR dem Download
+    http_client.setTimeout (HTTP_OTA_TIMEOUT_MS);                   // E3 M-3 (Ent-25): nie mit der 1-s-Grenze der Anfragen
     t_httpUpdate_return ret = ESPhttpUpdate.update (http_client, update_host, 80, path);
 
     switch(ret)
@@ -13310,6 +14355,99 @@ http_api_remote_esp_update ()
     return 0;
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E3 M-1 (C65, design.md 18.5 (1)): Tabellenliste aus einem RAM-Zwischenspeicher
+ *
+ * Gueltigkeit wie die Versionsfelder von update_status: UPDATE_INFO_CACHE_MS, Pruefsumme ueber Host, Pfad und
+ * Hardware (update_source_checksum ()), "?refresh=1" umgeht ihn. current_table bleibt LIVE (tables_fname ()) -
+ * die PWA prueft nach einer Tabelleninstallation genau dieses Feld.
+ *
+ * Abgelegt werden nur die GEFILTERTEN Namen OHNE das Filterpraefix ("wc24h-tables-", "wc12h-tables-"), je mit
+ * '\n' abgeschlossen; ausgegeben wird Praefix + Endung ueber denselben Weg wie live - die Antwort ist byte-gleich.
+ * Das Praefix steckt ueber die Hardware schon in der Pruefsumme. Grundlage E3.0 (L450): 16 Eintraege, 378 Zeichen
+ * als JSON; ohne Praefix rund 140 Byte, also rund 1,8-fache Reserve in 256 Byte.
+ *
+ * Abgelegt wird nur ein VOLLSTAENDIG gelesener Abruf (len bis 0, kein ch < 0). Ein fehlgeschlagener oder
+ * abgerissener Abruf liefert eine LEERE Liste und wird so mit dem kuerzeren Fenster (UPDATE_SERVER_DOWN_MS)
+ * abgelegt - wie die Versionsfelder. Bis 3.2.35 kam dann still eine Teilliste. Gelesen wird deshalb zuerst in
+ * den Puffer und erst danach ausgegeben. Passt die Liste nicht: NICHT kuerzen und nicht ablegen - das
+ * Gepufferte geht hinaus, der Rest live wie bisher (ein Abriss liefert dann wie bisher eine Teilliste), und der
+ * naechste Aufruf holt wieder live; dazu gedrosselt "- update liste zu gross wc-list-tables.txt n=<byte>"
+ * (n = Byte, die der Puffer gebraucht haette). Im Sperrfenster sofort eine leere Liste, ohne Abruf und ohne
+ * Ablage. RAM: 256 + 18 Byte.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define UPDATE_TABLES_CACHE_LEN                 256             // Byte fuer die Namen ohne Filterpraefix, je mit '\n'
+#define UPDATE_LIST_TOO_BIG_LOG_MS              600000UL        // "- update liste zu gross" hoechstens einmal je 10 min
+
+static char          update_tables_cache[UPDATE_TABLES_CACHE_LEN];
+static uint16_t      update_tables_cache_len    = 0;
+static uint16_t      update_tables_cache_sum    = 0;
+static uint8_t       update_tables_cache_valid  = 0;
+static unsigned long update_tables_cache_millis = 0;
+static unsigned long update_tables_cache_window = UPDATE_INFO_CACHE_MS;
+static unsigned long update_list_too_big_millis = 0;
+static uint8_t       update_list_too_big_logged = 0;
+
+static void
+http_tables_send_entry (const char * fname, int * first)
+{
+    if (! *first)
+    {
+        http_send (FS(","));
+    }
+
+    http_send (FS("\""));
+    http_send_json_escaped (fname);
+    http_send (FS("\""));
+    *first = 0;
+}
+
+static void
+http_tables_send_cached (const char * prefix, size_t len, int * first)
+{
+    char    fname[MAX_UPDATE_FILENAME_LEN];
+    size_t  plen = strlen (prefix);
+    size_t  pos  = 0;
+
+    while (pos < len)
+    {
+        size_t n = 0;
+
+        while (pos + n < len && update_tables_cache[pos + n] != '\n')
+        {
+            n++;
+        }
+
+        if (plen + n < sizeof (fname))
+        {
+            memcpy (fname, prefix, plen);
+            memcpy (fname + plen, update_tables_cache + pos, n);
+            fname[plen + n] = '\0';
+            http_tables_send_entry (fname, first);
+        }
+
+        pos += n + 1;
+    }
+}
+
+static void
+update_list_too_big_note (const char * remote_filename, unsigned long needed)
+{
+    if (! update_list_too_big_logged || (millis () - update_list_too_big_millis) >= UPDATE_LIST_TOO_BIG_LOG_MS)
+    {
+        char line[80];
+
+        update_list_too_big_logged = 1;
+        update_list_too_big_millis = millis ();
+
+        snprintf_P (line, sizeof (line), PSTR ("- update liste zu gross %s n=%lu"), remote_filename, needed);
+        Serial.println (line);
+        Serial.flush ();
+        stm32_log_append (line);
+    }
+}
+
 static int
 http_api_update_table_files ()
 {
@@ -13318,6 +14456,8 @@ http_api_update_table_files ()
     char * update_path;
     const char * tables_filter = (const char *) NULL;
     char * current_tables = tables_fname ();
+    char * refresh;
+    uint16_t source_sum;
     int len;
     int first = 1;
 
@@ -13347,6 +14487,9 @@ http_api_update_table_files ()
         }
     }
 
+    source_sum = update_source_checksum (update_host, update_path);
+    refresh    = http_get_param ("refresh");
+
     http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"));
     http_send (FS("{\"ok\":true,\"current_table\":\""));
     http_send_json_escaped (current_tables ? current_tables : "");
@@ -13354,48 +14497,98 @@ http_api_update_table_files ()
 
     if (tables_filter)
     {
-        len = httpclient (update_host, update_path, WC_TABLES_LIST_TXT);
+        size_t plen = strlen (tables_filter);
 
-        if (len > 0)
+        if (update_tables_cache_valid
+            && update_tables_cache_sum == source_sum
+            && (millis () - update_tables_cache_millis) < update_tables_cache_window
+            && ! (refresh[0] && refresh[0] != '0'))
         {
-            char fname[MAX_UPDATE_FILENAME_LEN];
-            int ch;
-            int l = 0;
+            http_tables_send_cached (tables_filter, update_tables_cache_len, &first);     // warm: kein Abruf
+        }
+        else if (! update_server_blocked ())                                            // Sperrfenster: leere Liste
+        {
+            uint_fast8_t    buffering = 1;                      // solange die Liste in den Puffer passt
+            uint_fast8_t    complete  = 0;
+            size_t          used      = 0;
+            unsigned long   needed    = 0;
 
-            while (len > 0)
+            update_tables_cache_valid = 0;                      // der Puffer wird gleich neu beschrieben
+            len = update_server_open (update_host, update_path, WC_TABLES_LIST_TXT);
+
+            if (len > 0)
             {
-                ch = httpclient_read (&len);
+                char fname[MAX_UPDATE_FILENAME_LEN];
+                int ch;
+                int l = 0;
 
-                if (ch < 0)
+                while (len > 0)
                 {
-                    break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
-                }
+                    ch = httpclient_read (&len);
 
-                if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
-                {
-                    fname[l++] = ch;
-                }
-                else if (ch == '\n')
-                {
-                    fname[l] = '\0';
-                    l = 0;
-
-                    if (fname[0] && ! strncmp (fname, tables_filter, strlen (tables_filter)))
+                    if (ch < 0)
                     {
-                        if (! first)
-                        {
-                            http_send (FS(","));
-                        }
+                        break;                                  // Lesefehler oder Zeitgrenze: *lenp bleibt stehen, sonst dreht die Schleife endlos (L152)
+                    }
 
-                        http_send (FS("\""));
-                        http_send_json_escaped (fname);
-                        http_send (FS("\""));
-                        first = 0;
+                    if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t' && l < MAX_UPDATE_FILENAME_LEN - 1)
+                    {
+                        fname[l++] = ch;
+                    }
+                    else if (ch == '\n')
+                    {
+                        fname[l] = '\0';
+                        l = 0;
+
+                        if (fname[0] && ! strncmp (fname, tables_filter, plen))
+                        {
+                            size_t n = strlen (fname + plen);
+
+                            needed += n + 1;
+
+                            if (buffering && used + n + 1 <= sizeof (update_tables_cache))
+                            {
+                                memcpy (update_tables_cache + used, fname + plen, n);
+                                used += n;
+                                update_tables_cache[used++] = '\n';
+                            }
+                            else
+                            {
+                                if (buffering)
+                                {
+                                    http_tables_send_cached (tables_filter, used, &first);  // Ueberlauf: Bisheriges hinaus,
+                                    buffering = 0;                                         // ab hier live wie bis 3.2.35
+                                }
+
+                                http_tables_send_entry (fname, &first);
+                            }
+                        }
                     }
                 }
+
+                complete = (len == 0);
+                httpclient_stop ();
             }
 
-            httpclient_stop ();
+            if (buffering)
+            {
+                if (! complete)
+                {
+                    used = 0;                                   // fehlgeschlagen oder abgerissen: leere Liste, kurzes Fenster
+                }
+
+                http_tables_send_cached (tables_filter, used, &first);
+
+                update_tables_cache_len    = (uint16_t) used;
+                update_tables_cache_sum    = source_sum;
+                update_tables_cache_window = complete ? UPDATE_INFO_CACHE_MS : UPDATE_SERVER_DOWN_MS;
+                update_tables_cache_millis = millis ();
+                update_tables_cache_valid  = 1;
+            }
+            else
+            {
+                update_list_too_big_note (WC_TABLES_LIST_TXT, needed);                  // nicht abgelegt, nicht gekuerzt
+            }
         }
     }
 
@@ -14708,6 +15901,57 @@ http_log_request (const String & remote_ip, const char * label, const String & r
     Serial.flush ();
 }
 
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * E3 I-3 (C65, design.md 18.4): Dauer jeder Verbindung, auf JEDEM Rueckkehrpfad
+ *
+ * Die Spec empfiehlt, den Rumpf von http_server_loop () in eine innere Funktion zu legen. Dasselbe Ziel - kein
+ * kuenftiges return kann die Messung umgehen - erreicht ein Objekt, dessen Destruktor beim Verlassen laeuft,
+ * egal ueber welches return. Der Rumpf bleibt dabei, wo er ist; die Pruefstaende c46 und t15 schneiden
+ * Bloecke aus http_server_loop () aus und bleiben gueltig. Erfasst sind: keine Anfrage, beide Wege der
+ * leeren Anfrage, Schreibabbruch (abort) und Regelfall (stop). sPath wird VOR dem Messobjekt angelegt und
+ * lebt deshalb laenger als dieses; es enthaelt nie die Query (Schnitt bei '?' in beiden Zweigen) - der
+ * Kopierschritt schneidet zur Sicherheit trotzdem noch einmal bei '?' ab.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+http_request_note (const char * path, unsigned long duration)
+{
+    http_last_request_millis = millis ();
+    http_request_seen        = 1;
+
+    if (! req_max_path[0] || duration > req_max_ms)                 // strikt groesser: bei Gleichstand bleibt die erste
+    {
+        size_t n = 0;
+
+        req_max_ms = (uint32_t) duration;
+
+        if (! path || ! path[0])
+        {
+            req_max_path[n++] = '-';                                // Verbindung ohne (verwertbare) Anfrage
+        }
+        else
+        {
+            while (path[n] && path[n] != '?' && n < sizeof (req_max_path) - 1)
+            {
+                req_max_path[n] = path[n];
+                n++;
+            }
+        }
+
+        req_max_path[n] = '\0';
+    }
+}
+
+class HttpRequestTimer
+{
+    public:
+        explicit HttpRequestTimer (const String & path) : _path (path), _start (millis ()) {}
+        ~HttpRequestTimer () { http_request_note (_path.c_str (), millis () - _start); }
+    private:
+        const String &  _path;
+        unsigned long   _start;
+};
+
 void
 http_server_loop (void)
 {
@@ -14729,6 +15973,11 @@ http_server_loop (void)
     {
         return;
     }
+
+    heap_low_note (HEAP_LOW_PATH_ACCEPT);                                   // E3 I-1: unmittelbar nach dem Annehmen
+    http_client.setTimeout (HTTP_WRITE_TIMEOUT_MS);                         // E3 M-3: vor jedem Schreiben in diese Verbindung
+
+    HttpRequestTimer request_timer (sPath);                                 // E3 I-3: misst bis zum Verlassen, jeder Rueckkehrpfad
 
     sRemoteIp = http_client.remoteIP().toString();
     http_clear_request_user_agent ();
