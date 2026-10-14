@@ -63,8 +63,10 @@ dieses Tages); daraus ergibt sich der Ansatz, nicht die Spec.
 
 **Gemeinsame Randbedingung für alles, was den STM berührt:** Die engste STM-Variante
 (`wc24h-stm32f103-sk6812-rgbw`) hat über dem Flash-Gate nur noch wenig Reserve (`BEFUNDE.md`,
-L435). Neue Animationen und Overlay-Typen brauchen vorher eine Flash-Analyse an dieser Variante —
-oder gelten nur für den F411.
+L435: 148 Byte über dem Gate). Neue Animationen und Overlay-Typen brauchen vorher eine Entscheidung
+zwischen drei Wegen: **nur für den F411** (Compiler-Schalter, der F103 bleibt beim heutigen Umfang),
+**vorher Platz schaffen** oder **F103-Varianten einfrieren** (nur noch Fehlerkorrekturen). Die
+Grundlage dafür liefert die Flash-Analyse `BEFUNDE.md`, A85/L451.
 
 - **X2 Ambilight „Use Display Brightness“.** Heute gibt es nur den vollständigen Abgleich
   `DISPLAY_FLAGS_SYNC_AMBILIGHT`: `sync_colors()` (`src/display/display.c`) übernimmt Farbe **und**
