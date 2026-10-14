@@ -194,7 +194,7 @@ Die Kurzregeln bleiben hier, weil sie immer gelten:
   Commit ist ja nichts mehr geändert.
 - **Dokumentation ist lebend oder Momentaufnahme (DIR-006).** Lebend: `CLAUDE.md`,
   `BEFUNDE.md`, `CHANGELOG.md`, alle `README*.md`, `knowledge/**`, `.claude/**`.
-  `HARDWARE.md`, `TESTPLAN-PWA.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
+  `HARDWARE.md`, `TESTPLAN-PWA.md`, `ERWEITERUNGEN.md`. Momentaufnahme mit Datum, wird nicht fortgeschrieben: `REVIEW*.md`,
   `gap-analysis.md`, `specs/**`. **In lebende Dokumente gehören keine
   Versionsnummern** — eine Kopie des Standes veraltet still. Guardrail S9 prüft das.
 
@@ -478,6 +478,10 @@ Der **vollständige Massnahmenkatalog** steht in `BEFUNDE.md` — 34 Massnahmen 
 beiden Reviews plus die Befunde aus der laufenden Arbeit, jeweils mit Status und
 nachprüfbarem Beleg. Die beiden Themen hier stehen zusätzlich, weil sie den
 Projektkontext tragen, den man dem Code nicht ansieht.
+
+**Geplante neue Funktionen stehen getrennt davon in `ERWEITERUNGEN.md`** (Kennung `X<n>`) —
+seit 14.10.2026 auf Wunsch des Nutzers, damit Features nicht mit Mängeln und Verbesserungen am
+Bestand vermischt werden. Ein Feature kommt erst mit einer Spec in die Arbeit.
 
 **Was als Nächstes ansteht, steht im Abschnitt „ToDo" ganz oben in `BEFUNDE.md`** —
 die Arbeitsliste, nach Aufwand und Risiko sortiert. Die Tabellen darunter führen den
