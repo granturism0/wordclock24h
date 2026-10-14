@@ -17,6 +17,9 @@
 # einer fehlschlaegt, 2, wenn einer sich nicht uebersetzen laesst.
 set -uo pipefail
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel) || exit 2
+# Die Pruefstaende laufen aus einer Temp-Kopie; wer Werkzeuge aus dem Repo braucht
+# (b48: tools/preview/server.py), findet die Wurzel hier statt ueber den eigenen Pfad.
+export WORDCLOCK_ROOT="$ROOT"
 export ROOT
 QUELLE="$ROOT"
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/auszug.XXXXXX") || exit 2
@@ -104,6 +107,7 @@ LAUF=(
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
   "L411 Start in jedem Modul ohne ReferenceError (PWA)|pwa/tdz/run.sh $E neu"
   "C6b/C46/B55 Schluessel ueber network_secrets, Query-Grenze, LDR-Meldungen, Mock (PWA)|pwa/ep/run.sh $E neu"
+  "B48 Fehlerzeile am Feld, Vorschau und headless Chrome (PWA)|pwa/b48/run.sh $E neu"
   "A61 Auswerteregel Vollabgleich (Werkzeug)|werkzeug/abgleich/run.sh $ROOT/tools/abgleich.sh|nurneu"
 )
 # Drittes Feld "nurneu": Der Pruefstand ruft eine Funktion, die es vor der Korrektur nicht

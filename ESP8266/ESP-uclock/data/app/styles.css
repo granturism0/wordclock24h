@@ -826,6 +826,54 @@ h2 {
   resize: vertical;
 }
 
+/* B48: Fehlerzeile am Feld. app.js haengt bei ungueltiger Eingabe direkt hinter
+   das Feld <span class="field-error" id="<feld-id>-error" aria-hidden="true">
+   und setzt am Feld aria-invalid="true" sowie aria-describedby auf die Zeile;
+   die naechste Eingabe entfernt das wieder. Kein role="alert" (P2.6, M2): Die
+   Zeile bleibt ueber aria-describedby ansagbar, das Banner (aria-live) meldet
+   den Fehler ohnehin -- sonst laese ein Screenreader ihn bis zu dreimal.
+   Ein span und kein p, weil label.field nur Phrasing Content enthalten darf; als
+   Grid-Eintrag wird er ohnehin blockartig. Kein Markup in index.html.
+
+   Farbe: #ff9696 ist der bestehende Fehlerton (#updated-at.is-error). Eine
+   Fehlervariable gibt es in diesem Stylesheet nicht, und es gibt nur den
+   Dunkelmodus (color-scheme: dark, kein prefers-color-scheme).
+   Kontrast AM BILDPUNKT gemessen (P2.1, 14.10.2026, Vorschau, fuenf Viewports
+   von 320 bis 1280 px, Felder in system, climate, display, timers), Glyphen-
+   bzw. Randpunkt rgb(255, 150, 150) gegen den unmittelbar angrenzenden Punkt:
+     Text   auf rgb(10, 20, 35) 8,84:1 ... auf rgb(29, 37, 51) 7,37:1 (Minimum)
+     Rand   gegen aussen 7,36:1, gegen die Feldflaeche innen 6,54:1 (Minimum)
+   Gefordert 4,5:1 bzw. 3:1. Wer den Ton aendert, misst neu (L245).
+
+   Die Zeile ist ein Grid-Eintrag in .field (label.field ist display: grid) und
+   bleibt damit in der Breite des Felds; lange Woerter brechen statt
+   abzuschneiden. Der Rand behaelt seine 1 px -- nur die Farbe wechselt, damit
+   nichts springt. */
+.field-error {
+  margin: 0;
+  min-width: 0;
+  color: #ff9696;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: #ff9696;
+}
+
+/* Ohne diese Regel zieht die Fehlerzeile die NACHBARFELDER derselben Grid-Zeile
+   mit: Deren label.field streckt sich auf die neue Zeilenhoehe, und mit der
+   Vorgabe align-content: normal wachsen ihre Eingabefelder mit (in der Vorschau
+   bei Tag/Monat/Jahr gesehen: Monat und Jahr 140 px hoch). Bewusst nur fuer die
+   Geschwister eines Felds mit Fehlerzeile -- global gesetzt, aenderte es jede
+   Zeile mit unterschiedlich umbrechenden Beschriftungen. */
+:has(> .field > .field-error) > .field {
+  align-content: start;
+}
+
 .time-grid {
   display: grid;
   gap: 12px;

@@ -9,7 +9,7 @@
  * (at your option) any later version.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
-const APP_VERSION = "1.4.98";
+const APP_VERSION = "1.4.99";
 const DEFAULT_LANGUAGE = "de";
 const LANGUAGE_STORAGE_KEY = "wordclock-language";
 // Deutsch bleibt fest im Bundle, und das ist eine Zusicherung, keine Bequemlichkeit:
@@ -79,6 +79,8 @@ const I18N_DE = {
   "main.ambilight_turn_off": "Ambilight ausschalten",
   "main.display_toggle_failed": "Display konnte nicht geschaltet werden",
   "main.ambilight_toggle_failed": "Ambilight konnte nicht geschaltet werden",
+  "main.minute_corners": "Minuten-Ecken",
+  "main.wordclock_preview": "WordClock-Vorschau",
   "common.auto": "Auto",
   "system.hardware_eyebrow": "System",
   "system.hardware_title": "Hardware",
@@ -1030,7 +1032,29 @@ const I18N_DE = {
   "common.toggle_failed": "Schalter konnte nicht gesetzt werden",
   "common.action_failed": "Aktion konnte nicht ausgeführt werden",
   "common.installing": "wird installiert...",
-  "common.uploading_percent": "lädt hoch... {percent}%"
+  "common.uploading_percent": "lädt hoch... {percent}%",
+  "climate.weather_requested": "angefragt",
+  "local_app.file_found": "gefunden",
+  "local_app.file_missing": "fehlt",
+  "maintenance.layout_table_install_hint": "Bitte installiere die Layout-Tabelle {file} auf LittleFS.",
+  "system.hardware_unknown": "unbekannt",
+  "overlays.no_icons": "Keine Icons gefunden",
+  "system.device_time_unavailable": "Gerätezeit ist derzeit nicht verfügbar.",
+  "common.not_available": "nicht verfügbar",
+  "common.weekday_sunday": "Sonntag",
+  "common.weekday_monday": "Montag",
+  "common.weekday_tuesday": "Dienstag",
+  "common.weekday_wednesday": "Mittwoch",
+  "common.weekday_thursday": "Donnerstag",
+  "common.weekday_friday": "Freitag",
+  "common.weekday_saturday": "Samstag",
+  "common.weekday_unknown": "Unbekannt",
+  "system.label_board": "Platine",
+  "system.label_processor": "Prozessor",
+  "system.label_oscillator": "Oszillator",
+  "system.label_frequency": "Taktfrequenz",
+  "system.label_hardware": "Hardware",
+  "common.error_code": "Fehlercode {code}"
 };
 // Eine Zeile je Sprache. Der Dateiname folgt dem Code: /app/i18n/<code>.json.
 // Der Eigenname steht bewusst in der Sprache selbst -- wer Englisch sucht, findet
@@ -1586,6 +1610,13 @@ function applyStaticTranslations() {
     const key = element.getAttribute("data-i18n-placeholder");
     if (key) {
       element.setAttribute("placeholder", translate(key));
+    }
+  });
+
+  document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+    const key = element.getAttribute("data-i18n-title");
+    if (key) {
+      element.setAttribute("title", translate(key));
     }
   });
 
@@ -2261,6 +2292,8 @@ function markEditsPersisted(scope) {
 // Nur fuer Vorgaenge, die wirklich ALLES ersetzen oder verwerfen: den Backup-Import und
 // das Verwerfen beim Modulwechsel.
 function markAllEditsPersisted() {
+  // B48: Die Felder tragen wieder den Gerätestand -- eine Zeile "ungültig" gilt nicht mehr.
+  clearAllFieldErrors();
   unsavedEditFields.clear();
   syncUnsavedEditsFlag();
 }
@@ -2453,6 +2486,9 @@ function discardUnsavedEdits() {
   document.querySelectorAll("select[data-user-choice]").forEach((select) => {
     delete select.dataset.userChoice;
   });
+  // B48: räumt markAllEditsPersisted() gleich mit; hier ausdrücklich, damit es nicht an
+  // deren Innenleben hängt.
+  clearAllFieldErrors();
   markAllEditsPersisted();
 }
 
@@ -3176,7 +3212,7 @@ function handleInitialLoadPending(error, options) {
   }
 
   initialLoadAttemptCount += 1;
-  announceStatus("Wartet auf Daten...", "warn");
+  announceStatus(translate("status.waiting_for_data"), "warn");
   if (reloadBootstrapPending) {
     scheduleReloadBootstrapLoads();
   }
@@ -3867,12 +3903,12 @@ function renderOverview(settings, displayPower, ambilightPower, debugOverrides, 
   setText("last-start-overview", overviewMeta.lastStartLabel);
 
   renderList("system-list", [
-    ["Board", hw.board],
-    ["Processor", hw.processor],
-    ["Oscillator", hw.oscillator],
-    ["Frequency", hw.frequency],
-    ["Hardware", hw.hardware],
-    ["Display", hw.display]
+    [translate("system.label_board"), hw.board],
+    [translate("system.label_processor"), hw.processor],
+    [translate("system.label_oscillator"), hw.oscillator],
+    [translate("system.label_frequency"), hw.frequency],
+    [translate("system.label_hardware"), hw.hardware],
+    [translate("main.label.display"), hw.display]
   ]);
 
   renderHealthList(settings, ambilightOnline, dfplayerOnline);
@@ -6645,6 +6681,7 @@ function readTextInputOrReport(input, fieldName, statusElement) {
 // die SSID, die getrimmt aus dem freien Feld oder aus der Trefferliste kommt (C38).
 // Der Fokus geht an das Element, aus dem der Wert stammt.
 function checkTextValueOrReport(value, fieldName, input, statusElement) {
+  clearFieldErrors(input);
   const overflow = getTextFieldOverflow(fieldName, value);
 
   if (!overflow) {
@@ -6657,6 +6694,7 @@ function checkTextValueOrReport(value, fieldName, input, statusElement) {
   if (statusElement) {
     statusElement.textContent = message;
   }
+  showFieldError(input, message);
   if (input && input.focus) {
     input.focus();
   }
@@ -6736,11 +6774,176 @@ function isValidWeatherCoordinate(value, limit) {
   return whole < limit || (whole === limit && fractionZero);
 }
 
+// B48 (AKF.1): Die Meldung steht zusätzlich direkt am Feld -- auf dem iPhone verdeckt die
+// Tastatur das Banner. Am Feld: aria-invalid="true", direkt dahinter eine Fehlerzeile
+// <span class="field-error" id="<feld-id>-error" aria-hidden="true"> (span, weil die Felder
+// in label.field stecken und dort nur Phrasing Content erlaubt ist; .field ist ein Grid, die
+// Zeile wird damit trotzdem zum eigenen Block). aria-describedby wird um die ID ergänzt,
+// vorhandene IDs bleiben. Text nur über textContent.
+//
+// Bewusst KEIN role="alert" und aria-hidden="true" (Lead-Entscheid P2.6, Abweichung von
+// design.md §13): Das Banner meldet die Meldung schon über aria-live, und die Zeile steht im
+// label und flösse sonst auch in den Namen des Felds -- ein Screenreader läse sie bis zu
+// dreimal. aria-describedby liest auch versteckten Text, beim Fokus ist sie also zu hören.
+//
+// Weg kommt die Zeile (samt aria-invalid, eigenem describedby-Eintrag und Listener)
+//   - beim nächsten input-Ereignis am Feld,
+//   - beim erneuten Prüfen eines Speicherpfads über clearFieldErrors() -- für alle Felder
+//     dieses Pfads, auch die, die gerade nicht geprüft werden (SSID, Koordinatenpaar),
+//   - wo die PWA selbst Werte ohne input-Ereignis setzt und das bekannt ist: Übernahme
+//     aus der Karte in die Hauptfelder (applyWeatherMapSelection), Öffnen des
+//     Kartenmodals, Typwechsel eines Overlays (handleOverlayTypeChange),
+//   - überall über clearAllFieldErrors(), wenn die Felder wieder den Gerätestand tragen:
+//     Verwerfen (discardUnsavedEdits) und nach dem Backup-Import (markAllEditsPersisted).
+// Ein anderer Weg, der .value setzt, räumt NICHT von selbst; wer einen dazubaut, ruft
+// clearFieldErrors() für die betroffenen Felder.
+let fieldErrorAutoIdCounter = 0;
+const fieldErrorState = new WeakMap();
+
+function ensureFieldErrorTargetId(input) {
+  if (input.id) {
+    return input.id;
+  }
+  let candidate = "";
+  do {
+    fieldErrorAutoIdCounter += 1;
+    candidate = "field-auto-" + fieldErrorAutoIdCounter;
+  } while (document.getElementById(candidate));
+  input.id = candidate;
+  return candidate;
+}
+
+// Die ID der Fehlerzeile. Ein fremdes Element mit derselben ID wird nie übernommen.
+function chooseFieldErrorId(input) {
+  const base = ensureFieldErrorTargetId(input) + "-error";
+  let candidate = base;
+  let suffix = 1;
+  let existing = document.getElementById(candidate);
+
+  while (existing && !(existing.classList && existing.classList.contains("field-error"))) {
+    suffix += 1;
+    candidate = base + "-" + suffix;
+    existing = document.getElementById(candidate);
+  }
+  return candidate;
+}
+
+function getDescribedByIds(input) {
+  return String(input.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+}
+
+function clearFieldError(input) {
+  const state = input ? fieldErrorState.get(input) : null;
+
+  if (!state) {
+    return;
+  }
+  fieldErrorState.delete(input);
+  input.removeEventListener("input", state.onInput);
+
+  const errorLine = document.getElementById(state.errorId);
+
+  if (errorLine && errorLine.parentNode && errorLine.classList && errorLine.classList.contains("field-error")) {
+    errorLine.parentNode.removeChild(errorLine);
+  }
+  input.removeAttribute("aria-invalid");
+
+  const remaining = getDescribedByIds(input).filter((id) => id !== state.errorId);
+
+  if (remaining.length) {
+    input.setAttribute("aria-describedby", remaining.join(" "));
+  } else {
+    input.removeAttribute("aria-describedby");
+  }
+}
+
+// Räumt die Fehlerzeilen der genannten Felder. null und Felder ohne Zeile sind erlaubt.
+function clearFieldErrors(...inputs) {
+  inputs.forEach((input) => clearFieldError(input));
+}
+
+// Räumt jede Fehlerzeile im Dokument. Zu jeder Zeile wird ihr Feld gesucht (direkt davor,
+// sonst über aria-describedby) und über clearFieldError() vollständig zurückgesetzt; eine
+// Zeile ohne auffindbares Feld wird nur entfernt.
+function clearAllFieldErrors() {
+  Array.from(document.querySelectorAll(".field-error")).forEach((errorLine) => {
+    const errorId = errorLine.id;
+    let input = errorLine.previousElementSibling;
+    let state = input ? fieldErrorState.get(input) : null;
+
+    if (!state || state.errorId !== errorId) {
+      input = Array.from(document.querySelectorAll("[aria-describedby]")).find((candidate) => {
+        const candidateState = fieldErrorState.get(candidate);
+        return !!candidateState && candidateState.errorId === errorId;
+      }) || null;
+      state = input ? fieldErrorState.get(input) : null;
+    }
+    if (input && state) {
+      clearFieldError(input);
+    }
+    if (errorLine.parentNode) {
+      errorLine.parentNode.removeChild(errorLine);
+    }
+  });
+}
+
+// Nur ein Eingabeelement, das direkt in einem .field steckt, bekommt eine Fehlerzeile.
+// Alles andere (kein Feld, verschachteltes Markup) behält nur Banner und Fokus wie bisher.
+function canShowFieldError(input) {
+  if (!input || typeof input.closest !== "function" || typeof input.setAttribute !== "function") {
+    return false;
+  }
+  const tag = String(input.tagName || "").toLowerCase();
+
+  if (tag !== "input" && tag !== "textarea" && tag !== "select") {
+    return false;
+  }
+  const field = input.closest(".field");
+
+  return !!field && input.parentNode === field;
+}
+
+function showFieldError(input, message) {
+  if (!canShowFieldError(input)) {
+    return;
+  }
+
+  let state = fieldErrorState.get(input);
+
+  if (!state) {
+    state = { errorId: chooseFieldErrorId(input), onInput: () => clearFieldError(input) };
+    fieldErrorState.set(input, state);
+    input.addEventListener("input", state.onInput);
+  }
+
+  let errorLine = document.getElementById(state.errorId);
+
+  if (!errorLine || !(errorLine.classList && errorLine.classList.contains("field-error"))) {
+    errorLine = document.createElement("span");
+    errorLine.id = state.errorId;
+    errorLine.className = "field-error";
+    errorLine.setAttribute("aria-hidden", "true");
+  }
+  if (input.nextSibling !== errorLine) {
+    input.parentNode.insertBefore(errorLine, input.nextSibling);
+  }
+  errorLine.textContent = message;
+  input.setAttribute("aria-invalid", "true");
+
+  const describedBy = getDescribedByIds(input);
+
+  if (!describedBy.includes(state.errorId)) {
+    describedBy.push(state.errorId);
+    input.setAttribute("aria-describedby", describedBy.join(" "));
+  }
+}
+
 function reportInvalidInput(message, input, statusElement) {
   announceStatus(message, "error");
   if (statusElement) {
     statusElement.textContent = message;
   }
+  showFieldError(input, message);
   if (input && input.focus) {
     input.focus();
   }
@@ -6766,6 +6969,9 @@ function readDateTickerFormatOrReport(input) {
 // das ist der Weg zurück zur Ortsabfrage, und ob dafür ein Ort eingetragen ist, weiss nur
 // das Gerät (Kennung 1).
 function readWeatherCoordinatesOrReport(lonInput, latInput, statusElement) {
+  // B48: beide Felder räumen -- sonst bliebe eine Zeile an der Länge stehen, wenn danach
+  // beide leer gespeichert werden.
+  clearFieldErrors(lonInput, latInput);
   const lon = readTextInputOrReport(lonInput, "weather_lon", statusElement);
   const lat = lon === null ? null : readTextInputOrReport(latInput, "weather_lat", statusElement);
 
@@ -8322,11 +8528,15 @@ function getDisplayUiMeta(settings) {
   return {
     itIsActive: !!((settings.numvars[NUM.DISPLAY_FLAGS] || 0) & 0x01),
     currentDisplayMode: settings.numvars[NUM.DISPLAY_MODE] || 0,
+    // B8: Die Rückfallliste trägt die Namen in der Form, die das Gerät liefert. Übersetzt
+    // wird erst beim Anzeigen, über localizeDisplayModeName() -- nach einem Sprachwechsel
+    // also mit dem nächsten Rendern, nicht beim Laden des Skripts festgeschrieben.
+    // Gerätenamen ausserhalb dieser Zuordnung bleiben wie geliefert.
     displayModes: settings.dispmodes.length ? settings.dispmodes : [
       { idx: 0, name: "Normal" },
-      { idx: 1, name: "Sekunden" },
-      { idx: 2, name: "Datum" },
-      { idx: 3, name: "Temperatur" },
+      { idx: 1, name: "Seconds" },
+      { idx: 2, name: "Date" },
+      { idx: 3, name: "Temperature" },
       { idx: 4, name: "Ticker" }
     ],
     tickerText: settings.strvars[STR.TICKER_TEXT] || "",
@@ -8533,9 +8743,11 @@ function getTftUiMeta(settings) {
 function getAmbilightUiMeta(settings) {
   return {
     currentMode: settings.numvars[NUM.AMBILIGHT_MODE] || 0,
+    // B8: wie bei getDisplayUiMeta() -- Gerätenamen, übersetzt beim Anzeigen über
+    // localizeAmbilightModeName().
     modes: settings.almodes.length ? settings.almodes : [
-      { idx: 0, name: "Uhr" },
-      { idx: 1, name: "Regenbogen" }
+      { idx: 0, name: "Clock" },
+      { idx: 1, name: "Rainbow" }
     ],
     leds: settings.numvars[NUM.AMBILIGHT_LEDS] || 0,
     offset: settings.numvars[NUM.AMBILIGHT_OFFSET] || 0
@@ -9274,7 +9486,7 @@ async function runWeatherAction(buttonId, endpoint, buttonText, errorText) {
   await runButtonRequestById(buttonId, {
     busyText: translate("common.running"),
     idleText: buttonText,
-    successText: "angefragt",
+    successText: translate("climate.weather_requested"),
     errorText,
     request: () => apiFetch(endpoint, { timeoutMs: 12000, attempts: 1 })
   });
@@ -9434,6 +9646,8 @@ function handleModalBackdropClick(event) {
 
 async function openWeatherMapPicker() {
   const modal = document.getElementById("weather-map-modal");
+  // B48: Fehlerzeilen aus einem früheren Öffnen gelten nicht mehr.
+  clearFieldErrors(document.getElementById("weather-map-city-input"), document.getElementById("weather-map-lon-input"), document.getElementById("weather-map-lat-input"));
   const status = document.getElementById("weather-map-status");
   const shell = document.querySelector(".shell");
 
@@ -9829,6 +10043,7 @@ async function applyWeatherMapSelection() {
   // Suche und Karte kommt. Geprüft wird vor dem Übernehmen in die Hauptmaske. Die
   // Meldung steht zusätzlich im Dialog, weil er die globale Statuszeile verdeckt.
   const mapStatus = document.getElementById("weather-map-status");
+  clearFieldErrors(document.getElementById("weather-map-city-input"), document.getElementById("weather-map-lon-input"), document.getElementById("weather-map-lat-input"));
   const city = readTextInputOrReport(document.getElementById("weather-map-city-input"), "weather_city", mapStatus);
   // C44: dieselbe Regel wie beim Speichern im Klimamodul. Aus der Karte selbst kommen nur
   // gültige Werte (formatWeatherCoordinate), die Felder sind aber von Hand editierbar.
@@ -9840,6 +10055,9 @@ async function applyWeatherMapSelection() {
 
   const { lon, lat } = coordinates;
 
+  // B48: Die Hauptfelder bekommen ihre Werte ohne input-Ereignis -- eine Zeile aus einem
+  // früheren Speichern stünde sonst am jetzt gültigen Wert.
+  clearFieldErrors(document.getElementById("weather-city-input"), document.getElementById("weather-lon-input"), document.getElementById("weather-lat-input"));
   document.getElementById("weather-city-input").value = city;
   document.getElementById("weather-lon-input").value = lon;
   document.getElementById("weather-lat-input").value = lat;
@@ -9891,6 +10109,9 @@ async function saveNetworkClient() {
   const manualInput = document.getElementById("network-ssid-manual-input");
   const manualSsid = manualInput ? String(manualInput.value || "").trim() : "";
   const selectElement = document.getElementById("network-ssid-select");
+  // B48: Die SSID kann aus der Liste oder dem Handfeld kommen -- beide räumen, sonst
+  // bliebe die Zeile am Auswahlfeld stehen, wenn im Handfeld gespeichert wird.
+  clearFieldErrors(selectElement, manualInput, document.getElementById("network-key-input"));
   const ssid = manualSsid || (selectElement ? selectElement.value || "" : "");
   const key = document.getElementById("network-key-input").value || "";
 
@@ -10203,7 +10424,7 @@ function uploadRawFile(url, file, onProgress, onUploadComplete) {
 
         if (payload.ok === false) {
           const detail = payload.detail ? " (" + payload.detail + ")" : "";
-          reject(new Error("Fehlercode " + String(payload.error ?? "-") + detail));
+          reject(new Error(translateFormat("common.error_code", { code: String(payload.error ?? "-") }) + detail));
         } else {
           resolve(payload);
         }
@@ -10411,7 +10632,7 @@ function renderLocalAppSelectionStatus() {
   const missingAssets = LOCAL_APP_REQUIRED_ASSETS.filter((assetPath) => !localAppSelectedFiles.has(assetPath));
   const infoItems = LOCAL_APP_REQUIRED_ASSETS.map((assetPath) => [
     assetPath,
-    localAppSelectedFiles.has(assetPath) ? "gefunden" : "fehlt"
+    localAppSelectedFiles.has(assetPath) ? translate("local_app.file_found") : translate("local_app.file_missing")
   ]);
 
   if (listRoot) {
@@ -10484,7 +10705,7 @@ async function installLocalAppFiles() {
 
   setProgressActionContext("app-local-install", "local-app-install-button", translate("local_app.install_button"));
   showRemoteUpdateProgressShell("app-local-install", translate("local_app.installing"), "local-app-install-button");
-  beginButtonFeedback(button, "installiert...");
+  beginButtonFeedback(button, translate("common.installing"));
   announceStatus(translate("local_app.installing"), "warn");
   setFsActionStatus(translate("local_app.installing_fs"));
 
@@ -11518,7 +11739,7 @@ function getLayoutTableWarningFileName(settings, updateTableInfo) {
 }
 
 function getLayoutTableWarningMessage(settings, updateTableInfo) {
-  return "Bitte die Layout-Tabelle " + getLayoutTableWarningFileName(settings, updateTableInfo) + " auf LittleFS installieren.";
+  return translateFormat("maintenance.layout_table_install_hint", { file: getLayoutTableWarningFileName(settings, updateTableInfo) });
 }
 
 function updateLayoutTableWarnings(settings, updateTableInfo) {
@@ -13572,16 +13793,26 @@ function parseTimeInput(value) {
   return { hour, minute };
 }
 
+// B48: dieselbe Fehlerzeile für ein ungültiges Zeitfeld, ob aus readTimeInputOrReport()
+// oder aus der Vorprüfung in saveAllTimerRows().
+function showTimeFieldError(input, rowLabel) {
+  showFieldError(input, translateFormat("input.time_required", { row: rowLabel }));
+}
+
 // B44: Ein Zeitfeld lesen oder abweisen. Die Meldung nennt die Zeile (rowLabel), weil
 // Timer und Alarme als Listen gleich aussehender Karten erscheinen.
 function readTimeInputOrReport(input, rowLabel) {
+  clearFieldErrors(input);
   const time = parseTimeInput(input ? input.value : "");
 
   if (time) {
     return time;
   }
 
-  announceStatus(translateFormat("input.time_required", { row: rowLabel }), "error");
+  const message = translateFormat("input.time_required", { row: rowLabel });
+
+  announceStatus(message, "error");
+  showTimeFieldError(input, rowLabel);
   if (input && input.focus) {
     input.focus();
   }
@@ -14191,7 +14422,7 @@ function cancelOverlayEdit(idx) {
   window.setTimeout(() => {
     markEditsPersisted(document.getElementById("overlay-list"));
     renderOverlayRows(settings);
-    announceStatus("Neues Overlay verworfen", "info");
+    announceStatus(translate("overlays.new_discarded"), "info");
   }, 140);
 }
 
@@ -14247,6 +14478,8 @@ async function saveAllTimerRows(isAmbilight) {
   const indices = buttons.map((slotButton) => Number(slotButton.getAttribute('data-' + prefix + '-save')));
   const originalText = button.textContent;
 
+  clearFieldErrors(...indices.map((idx) => document.getElementById(prefix + "-time-" + idx)));
+
   // B44 (Ent-9): ZUERST alle Zeilen prüfen. Erst wenn jede eine gültige Uhrzeit trägt, geht
   // überhaupt etwas hinaus -- sonst stünde das Gerät halb gespeichert da: die Zeilen vor der
   // ungültigen neu, die danach alt.
@@ -14257,6 +14490,10 @@ async function saveAllTimerRows(isAmbilight) {
       rows: missing.map((idx) => translate("timers.slot") + " " + idx).join(", "),
       clear: translate("timers.clear_slot")
     }), "error");
+    // B48: Jede ungültige Zeile bekommt ihre Fehlerzeile, das Banner nennt alle.
+    missing.forEach((idx) => {
+      showTimeFieldError(document.getElementById(prefix + "-time-" + idx), translate("timers.slot") + " " + idx);
+    });
     const firstMissing = document.getElementById(prefix + "-time-" + missing[0]);
     if (firstMissing && firstMissing.focus) {
       firstMissing.focus();
@@ -14833,15 +15070,16 @@ function isTwelveHourLayout(layoutPreview, config) {
 }
 
 function decodeHardware(config) {
+  const unknown = translate("system.hardware_unknown");
   const backendLabels = getResolvedHardwareMeta(null, null, null).labels;
   if (backendLabels) {
     return {
-      hardware: backendLabels.hardware || "unbekannt",
-      processor: backendLabels.processor || "unbekannt",
-      board: backendLabels.board || "unbekannt",
-      frequency: backendLabels.frequency || "unbekannt",
-      oscillator: backendLabels.oscillator || "unbekannt",
-      display: backendLabels.display || "unbekannt"
+      hardware: backendLabels.hardware || unknown,
+      processor: backendLabels.processor || unknown,
+      board: backendLabels.board || unknown,
+      frequency: backendLabels.frequency || unknown,
+      oscillator: backendLabels.oscillator || unknown,
+      display: backendLabels.display || unknown
     };
   }
 
@@ -14851,7 +15089,7 @@ function decodeHardware(config) {
   const osc = config & HW.OSC_MASK;
 
   return {
-    hardware: ({ 0: "WC24h", 8: "WC12h", 16: "uClock" }[wc] || "unbekannt"),
+    hardware: ({ 0: "WC24h", 8: "WC12h", 16: "uClock" }[wc] || unknown),
     processor: ({
       0: "STM32F103C8",
       1: "STM32F401RE",
@@ -14860,7 +15098,7 @@ function decodeHardware(config) {
       4: "STM32F407VE",
       5: "STM32F401CC",
       6: "STM32F411CE"
-    }[stm32] || "unbekannt"),
+    }[stm32] || unknown),
     board: ({
       0: "BluePill",
       1: "Nucleo",
@@ -14869,7 +15107,7 @@ function decodeHardware(config) {
       4: "BlackBoard",
       5: "BlackPill",
       6: "BlackPill"
-    }[stm32] || "unbekannt"),
+    }[stm32] || unknown),
     frequency: ({
       0: "72 MHz",
       1: "84 MHz",
@@ -14878,8 +15116,8 @@ function decodeHardware(config) {
       4: "168 MHz",
       5: "84 MHz",
       6: "100 MHz"
-    }[stm32] || "unbekannt"),
-    oscillator: ({ 0: "8 MHz", 512: "25 MHz" }[osc] || "unbekannt"),
+    }[stm32] || unknown),
+    oscillator: ({ 0: "8 MHz", 512: "25 MHz" }[osc] || unknown),
     display: ({
       0: "WS2812 GRB",
       64: "WS2812 RGB",
@@ -14887,7 +15125,7 @@ function decodeHardware(config) {
       192: "SK6812 RGB",
       256: "SK6812 RGBW",
       320: "TFT RGB"
-    }[led] || "unbekannt")
+    }[led] || unknown)
   };
 }
 
@@ -15802,7 +16040,7 @@ function buildIconOptions(selected) {
   const cachedIcons = getOverlayIconsCache();
   const icons = cachedIcons.length ? cachedIcons : (selected ? [selected] : []);
   if (!icons.length) {
-    return '<option value="">Keine Icons gefunden</option>';
+    return '<option value="">' + escapeHtml(translate("overlays.no_icons")) + "</option>";
   }
   return icons.map((iconName) => (
     '<option value="' + escapeHtml(iconName) + '"' + (iconName === selected ? " selected" : "") + ">" + escapeHtml(iconName) + "</option>"
@@ -15865,6 +16103,10 @@ function refreshOverlayIconSelect(idx) {
 }
 
 async function handleOverlayTypeChange(idx) {
+  // B48: Felder, die der Typwechsel aus- oder einblendet, sollen keine veraltete Zeile
+  // mitnehmen.
+  clearFieldErrors(...["ov-icon-", "ov-value-", "ov-folder-", "ov-track-", "ov-interval-", "ov-duration-", "ov-days-"]
+    .map((prefix) => document.getElementById(prefix + idx)));
   updateOverlayRowVisibility(idx);
 
   const type = Number(document.getElementById("ov-type-" + idx).value || 0);
@@ -15916,11 +16158,15 @@ function toggleHidden(id, hidden) {
 const INTEGER_INPUT_PATTERN = /^[+-]?[0-9]+$/;
 
 function readNumberInputOrReport(input, min, max) {
+  clearFieldErrors(input);
   const raw = input && input.value !== null && input.value !== undefined ? String(input.value).trim() : "";
   const badInput = !!(input && input.validity && input.validity.badInput);
 
   if (!raw && !badInput) {
-    announceStatus(translateFormat("input.number_required", { min, max }), "error");
+    const message = translateFormat("input.number_required", { min, max });
+
+    announceStatus(message, "error");
+    showFieldError(input, message);
     if (input && input.focus) {
       input.focus();
     }
@@ -15928,7 +16174,10 @@ function readNumberInputOrReport(input, min, max) {
   }
 
   if (badInput || !INTEGER_INPUT_PATTERN.test(raw)) {
-    announceStatus(translateFormat("input.integer_required", { min, max }), "error");
+    const message = translateFormat("input.integer_required", { min, max });
+
+    announceStatus(message, "error");
+    showFieldError(input, message);
     if (input && input.focus) {
       input.focus();
     }
@@ -15938,7 +16187,10 @@ function readNumberInputOrReport(input, min, max) {
   const number = Number(raw);
 
   if (number < min || number > max) {
-    announceStatus(translateFormat("input.number_range", { value: raw, min, max }), "error");
+    const message = translateFormat("input.number_range", { value: raw, min, max });
+
+    announceStatus(message, "error");
+    showFieldError(input, message);
     if (input && input.focus) {
       input.focus();
     }
@@ -15954,6 +16206,10 @@ function readNumberInputOrReport(input, min, max) {
 // geschriebener Zustand auf dem Geraet kann so gar nicht entstehen. Massnahme 17.
 function readNumberFieldsOrReport(fields) {
   const result = {};
+
+  // B48: Bricht die Prüfung am ersten Fehler ab, sähen die späteren Felder ihre alte
+  // Zeile nie wieder geprüft -- deshalb alle vorher räumen.
+  clearFieldErrors(...fields.map((field) => document.getElementById(field.id)));
 
   for (let idx = 0; idx < fields.length; idx += 1) {
     const field = fields[idx];
@@ -15977,12 +16233,19 @@ function readNumberFieldsOrReport(fields) {
 
 function formatDateTimePreview(current) {
   if (!current.year || !current.month || !current.day) {
-    return currentLanguage === "en" ? "Device time is currently unavailable." : "Gerätezeit ist derzeit nicht verfügbar.";
+    return translate("system.device_time_unavailable");
   }
 
-  const weekday = (currentLanguage === "en"
-    ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    : ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"])[current.wday] || (currentLanguage === "en" ? "Unknown" : "Unbekannt");
+  // Ausgeschriebene Schlüssel, damit S3 jeden einzelnen als verwendet sieht.
+  const weekday = [
+    translate("common.weekday_sunday"),
+    translate("common.weekday_monday"),
+    translate("common.weekday_tuesday"),
+    translate("common.weekday_wednesday"),
+    translate("common.weekday_thursday"),
+    translate("common.weekday_friday"),
+    translate("common.weekday_saturday")
+  ][current.wday] || translate("common.weekday_unknown");
   return weekday + ", " +
     pad2(current.day) + "." + pad2(current.month) + "." + current.year +
     " " + pad2(current.hour || 0) + ":" + pad2(current.minute || 0);
@@ -16004,11 +16267,11 @@ function formatLastStartFromSettings(settings) {
   const uptimeSeconds = getUptimeSeconds(settings);
 
   if (!current || !current.year || !current.month || !current.day) {
-    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
+    return translate("common.not_available");
   }
 
   if (uptimeSeconds <= 0) {
-    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
+    return translate("common.not_available");
   }
 
   const currentDate = new Date(
@@ -16021,7 +16284,7 @@ function formatLastStartFromSettings(settings) {
   );
 
   if (Number.isNaN(currentDate.getTime())) {
-    return currentLanguage === "en" ? "not available" : "nicht verfügbar";
+    return translate("common.not_available");
   }
 
   const startDate = new Date(currentDate.getTime() - (uptimeSeconds * 1000));

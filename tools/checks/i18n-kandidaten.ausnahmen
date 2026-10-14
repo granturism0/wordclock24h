@@ -1,8 +1,16 @@
-# B8 (Paket 2026-10-13, AKD.1): Kandidaten, die KEIN sichtbarer UI-Text sind.
-# Je Zeile: datei:Textausschnitt  Grund. Eingeordnet vom Lead am 13.10.2026.
-app.js:#             Buchstabenraster der Wortuhr-Vorschau (Layoutdaten, nicht Sprache)
-app.js:) weicht nach dem Schreiben ab.   Fortsetzung einer console.warn-Zeile (Konsole, nicht UI)
-app.js:) nicht geschrieben.   Fortsetzung einer console.warn-Zeile (Konsole, nicht UI)
-app.js:kennt kein Feld   interner Programmierfehler (throw), erscheint nicht in der UI
-app.js:kennt keinen Knopf   interner Programmierfehler (throw), erscheint nicht in der UI
-index.html:placeholder="Zürich"   Beispiel-Ortsname im Eingabefeld, sprachunabhaengig
+# B8 (Paket 2026-10-13, AKD.1/AKD.2): Kandidaten, die KEIN zu uebersetzender UI-Text sind.
+# Format: datei:muster<mindestens zwei Leerzeichen>grund. Das Muster ist ein Textausschnitt
+# (mindestens 4 Zeichen, darf Leerzeichen enthalten); jede Ausnahme muss einen Kandidaten
+# treffen, sonst meldet das Werkzeug sie als veraltet. Nicht mehr noetig seit dem Umbau vom
+# 14.10.2026 (Review P2.6): Fortsetzungen von console.*-Aufrufen (der Tokenizer kennt die
+# Klammer) und das Buchstabenraster (benannte Regel im Werkzeug).
+app.js:kennt kein Feld  interner Programmierfehler (throw), erscheint nicht in der UI
+app.js:kennt keinen Knopf  interner Programmierfehler (throw), erscheint nicht in der UI
+index.html:placeholder="Zürich"  Beispiel-Ortsname im Eingabefeld, sprachunabhaengig
+index.html:Deutsch  Sprachname in der Sprachauswahl, steht bewusst in der eigenen Sprache
+index.html:English  Sprachname in der Sprachauswahl, steht bewusst in der eigenen Sprache
+index.html:placeholder="pool.ntp.org"  Beispiel-Hostname, sprachunabhaengig
+index.html:placeholder="uclock.de"  Beispiel-Hostname, sprachunabhaengig
+index.html:placeholder="OpenWeather APPID"  Produktname und Feldbezeichnung des Anbieters
+app.js:Deutsch  Sprachname in der Sprachliste LANGUAGES, steht bewusst in der eigenen Sprache
+app.js:English  Sprachname in der Sprachliste LANGUAGES, steht bewusst in der eigenen Sprache

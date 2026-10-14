@@ -20,7 +20,8 @@ from urllib.parse import urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
-APP = os.path.join(REPO, "ESP8266", "ESP-uclock", "data", "app")
+# PREVIEW_APP: anderes App-Verzeichnis (Gegenproben der Pruefstaende gegen einen alten Stand).
+APP = os.environ.get("PREVIEW_APP") or os.path.join(REPO, "ESP8266", "ESP-uclock", "data", "app")
 
 NUM = {0:1, 1:1, 2:1, 3:1, 4:0, 5:0, 6:10, 7:1, 8:3, 9:1, 10:0, 11:0, 12:0, 13:0,
        14:8, 15:0, 16:0, 17:1, 18:0, 19:0, 20:1, 21:44, 22:0, 23:45, 24:0, 25:0,

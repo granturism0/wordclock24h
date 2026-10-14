@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-14 PWA 1.4.99: Fehler direkt am Feld, keine deutschen Texte mehr in der englischen Oberfläche (Paket 2026-10-13, P2)
+
+Nur die PWA, STM (3.2.34) und ESP (3.2.35) unverändert. `wordclock-release-2026-10-14-101643.zip`, Tag `release/3.2.34-3.2.35-1.4.99`.
+
+**Einspielen:** nur die PWA (`install-app.sh`), setzt ESP 3.2.35 voraus (läuft bereits). Ändert die Last auf dem ESP nicht —
+der knappe Heap unter PWA-Last (C65) ist älter und wird im selben Paket mit einem eigenen ESP-Release angegangen.
+
+- **Fehler am Feld** (B48): Eine ungültige Eingabe zeigt die Meldung jetzt direkt unter dem Feld und markiert es
+  (`aria-invalid`), zusätzlich zum Banner. Die nächste Eingabe, ein erneutes Speichern, die Kartenübernahme, das Verwerfen
+  beim Modulwechsel und der Backup-Import räumen sie wieder. Gilt für alle Meldewege — Datumsformat, Koordinaten, zu lange
+  Texte (auch den WLAN-Schlüssel), Zahlenfelder, Uhrzeiten und „Alle speichern“ bei den Timern.
+- **Englische Oberfläche ohne Deutsch** (B8): Alle sichtbaren Texte stehen in den Übersetzungstabellen — unter anderem die
+  Hardware-Liste, die Gerätezeit-Vorschau mit Wochentagen, die Liste der lokalen App-Dateien, „Keine Icons gefunden“ und
+  der Hinweis zur Layout-Tabelle. Umgekehrt heissen die Hardware-Beschriftungen auf Deutsch jetzt „Platine“, „Prozessor“,
+  „Oszillator“, „Taktfrequenz“.
+- Die Rückfalllisten der Anzeige- und Ambilight-Modi folgen der gewählten Sprache.
+
 ## 2026-10-14 ESP 3.2.35 und PWA 1.4.98: WLAN-Schlüssel nur noch für den Export, Import robuster, klare Meldungen (Paket 2026-10-13, EP)
 
 ESP und PWA zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-14-074533.zip`, Tag `release/3.2.34-3.2.35-1.4.98`.

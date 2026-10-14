@@ -8,7 +8,7 @@
 #
 # ZWEI ARTEN VON ABZUG, und der Unterschied ist wesentlich:
 #
-#   Vergleichsabzug (Vorgabe)  Schluessel nur als Pruefsumme. Taugt zum PRUEFEN, ob
+#   Vergleichsabzug (Vorgabe)  seit C6b ohne Schluessel, nur key_set (vorher Pruefsumme). Taugt zum PRUEFEN, ob
 #                              sich etwas geaendert hat -- NICHT zum Zurueckholen.
 #                              Darf liegen bleiben, enthaelt keine Geheimnisse.
 #
@@ -214,7 +214,7 @@ for field in ("key", "ap_key"):
         d[field] = "sha256:" + hashlib.sha256(str(d[field]).encode()).hexdigest()[:16]
 json.dump(d, sys.stdout, ensure_ascii=False, sort_keys=True, indent=2)
 ' > "$OUT/eeprom_settings.txt"
-  printf '  %-22s %7s Byte  (Schluessel als Pruefsumme)\n' "eeprom_settings" "$(wc -c < "$OUT/eeprom_settings.txt" | tr -d ' ')"
+  printf '  %-22s %7s Byte  (ohne Schluessel; aeltere ESP: Pruefsumme)\n' "eeprom_settings" "$(wc -c < "$OUT/eeprom_settings.txt" | tr -d ' ')"
 fi
 
 {
@@ -252,5 +252,5 @@ fi
 
 echo
 echo "  Vergleichen:  ./tools/diff-snapshot.sh $NAME <anderer>"
-echo "  Hinweis: Schluessel sind hier nur Pruefsummen. Fuer eine WIEDERHERSTELLBARE"
+echo "  Hinweis: Schluessel fehlen hier (seit C6b nur key_set). Fuer eine WIEDERHERSTELLBARE"
 echo "           Sicherung:  ./tools/snapshot-device.sh --restore"

@@ -560,6 +560,20 @@ step S16 "Auszugs-Pruefstaende (Runde S) gegen den aktuellen Baum"
 step S17 "Umfang des Backups gegen die *_set-Endpunkte (F3)"
 python3 ./tools/checks/backup-umfang.py || CRIT=$((CRIT+1))
 
+# ------------------------------------------ S18 Deutsche UI-Texte ausserhalb der Tabellen (B8)
+# Jeder sichtbare deutsche Text in app.js und index.html steht in I18N_DE/en.json (bzw. traegt
+# data-i18n*), oder er steht begruendet in tools/checks/i18n-kandidaten.ausnahmen. Sonst sieht
+# ein englischer Nutzer Deutsch (AKD.2). Als deutsch gilt auch ein Wort, das nur in der
+# deutschen Tabelle steht -- Funktionswoerter allein haetten "Speichern" nie gesehen.
+step S18 "Deutsche UI-Texte ausserhalb der i18n-Tabellen (B8)"
+if s18=$(python3 ./tools/checks/i18n-kandidaten.py --liste 2>&1); then
+  printf '%s\n' "$s18" | head -1
+  ok "keine deutschen UI-Texte ausserhalb der Tabellen"
+else
+  printf '%s\n' "$s18" | grep -v '^  andere'
+  crit "deutsche UI-Texte ausserhalb der Tabellen (oder Werkzeugfehler) -- in die Tabellen oder mit Grund in i18n-kandidaten.ausnahmen"
+fi
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then

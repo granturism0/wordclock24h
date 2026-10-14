@@ -1046,6 +1046,13 @@ Feldern bestätigt, L370) — eine stille Kürzung dort wäre ein **Rückfall**.
 noch offen und kein Rückfall ist nur der **Legacy-Zweig**, der unverändert zurechtbiegt
 (L199).
 
+**„Mit Meldung“ heisst seit B48 zweierlei** (`BEFUNDE.md`, L448): das Banner wie bisher,
+und **direkt unter dem Feld eine Fehlerzeile** mit demselben Text; der Fokus springt ins
+Feld. Das gilt für Datumsformat, Koordinaten, zu lange Texte (auch den WLAN-Schlüssel),
+Zahlenfelder, Uhrzeiten und „Alle speichern“ bei den Timern. Fehlt die Zeile bei einem
+abgewiesenen Wert, ist das ein Befund — ausser an den Reglern der Dimmkurven, die bewusst
+keine bekommen. Gezielt prüft das **K32** (7.1).
+
 Die konkreten Grenzen, aus dem Markup erhoben:
 
 | Feld | Grenze |
@@ -1101,7 +1108,11 @@ Durchlauf misst sie, er setzt sie nicht voraus. **K25** bis **K28** wurden für 
 ESP-Release E1 aus demselben Paket geschrieben (C6, C6v, C60, C46, C19); E1 ist entfallen
 (L439). **K29** bis **K31** kamen mit dem ESP-Release E2 dazu (C8, A79, C59); am Prüfstand
 belegt (`BEFUNDE.md`, L441), am Gerät noch nicht. B55 (ESP) steht nicht hier, sondern in
-S25, S25b und S26 (6.3).
+S25, S25b und S26 (6.3). **K32** und **K33** kamen mit dem PWA-Release P2 aus demselben
+Paket dazu (B48, B8): K32 ist am Prüfstand b48 belegt, K33 statisch über Stufe S18
+(`BEFUNDE.md`, L448) — am Gerät beide noch nicht. Seit B48 gehört zu jeder Abweisung in
+K1 bis K4, K13 und K15 zusätzlich die Fehlerzeile unter dem Feld; fehlt sie dort, ist das
+ein Befund unter K32.
 
 **K25 und K26 sind entfallen (13.10.2026, L439).** Die Herkunftsprüfung über `Sec-Fetch-*`
 wird nicht ausgeliefert: Browser senden die Kopfzeilen über `http://` an die Uhr gar nicht,
@@ -1135,7 +1146,9 @@ schreibenden Fälle (K13b, K14, K15b, K16, K18, K20 bis K24) laufen in einer ger
 V1 und V1b (5b). K25 und K26 sind entfallen (L439),
 K27 ist lesend, K28 läuft nicht am Gerät. K29 nutzt den Wetterabruf aus S19 als Auslöser,
 K30 und K31 sind lesend und hängen an Ereignissen, die ohnehin stattfinden (ESP-Start,
-stündliche Netzzeit). **Kein Fall dieser Reihe ruft einen der gefährlichen Endpunkte aus
+stündliche Netzzeit). K32 schreibt nichts aufs Gerät, solange die Abweisung greift, und
+gehört trotzdem in eine gerahmte Setter-Phase — greift sie nicht, geht ein Setter hinaus.
+K33 ändert nur die Sprachwahl im Prüfbrowser. **Kein Fall dieser Reihe ruft einen der gefährlichen Endpunkte aus
 `CLAUDE.md` (R5) auf**, und keiner drückt einen Knopf, der flasht, eine Datei lädt oder
 Zugangsdaten schreibt.
 
@@ -1170,8 +1183,10 @@ Zugangsdaten schreibt.
 | **K27** | **Query über 255 Zeichen** (C46), rein lesend. **K27a:** `/api/device_ready?x=` mit 300 Zeichen Fülltext, also eine Query von 302 Zeichen: `curl -s "http://$DEVICE_HOST/api/device_ready?x=$(head -c 300 /dev/zero \| tr '\0' a)"`. **K27b**, Gegenprobe an der Grenze: 253 Zeichen Fülltext, Query genau 255. **Immer mit `=`** — ein Parameter ohne `=` ist der Absturzfall aus Kapitel 11. Ein lesender Endpunkt genügt: `http_api_query_too_long()` in `http.cpp` weist **jeden** Pfad unter `/api/` ab, bevor ein Handler läuft | curl, Mitschnitt | **K27a:** HTTP 200 mit `{"ok":false,"error":9,"detail":"query too long"}`, im Mitschnitt `- abgewiesen: query 302 Zeichen`. **K27b:** die gewohnte Antwort von `device_ready`, keine `- abgewiesen:`-Zeile. **Befund:** in K27a die gewohnte Antwort (dann wird still gekürzt, der Stand vor C46), in K27b Kennung 9 (die Grenze sitzt falsch) | Keine, nichts geschrieben |
 | **K28** | **Legacy-Update-Quelle leer oder überlang** (C19, L311). **Am Gerät nicht gefahren**, auch nicht mit sofortigem Rückweg: Versagt die Prüfung, steht die Update-Quelle leer, und der ESP fällt auf den Server des Ursprungsprojekts zurück (L42) — das nächste Update holte fremde Firmware ohne Meldung | — | Belegt am Prüfstand c19, an beiden Stellen (`/fs` und `/update`), leer und über 63 Byte (L437). Im Bericht als „nur Prüfstand“ führen. Am Gerät bleibt die lesende Nachprüfung, dass Update-Host und -Pfad nach dem Durchlauf mit `tools/device.conf` übereinstimmen (S97/S98) | Keine |
 | **K29** | **Lange STM-Logzeile in `/api/stm32_log`** (C8, L430). Vorher im Mitschnitt die Länge einer bekannten langen Zeile messen — erste Wahl `info: weather forecast = …` (AKK.2), sie kommt nach dem Vorhersageabruf. Auslöser S19 (`weather_get_forecast`). Danach `/api/stm32_log` lesen und die Einträge ab dieser Zeile zusammensetzen: `~` am Ende des ersten und am Anfang jedes Folgeeintrags weglassen. Ist die Vorhersagezeile 120 Zeichen oder kürzer, eine andere Zeile über 120 Zeichen aus dem Mitschnitt nehmen (etwa `set_display_power` oder die `diag`-Zeile, falls sie so lang wird), sonst den Fall als „nicht aussagekräftig“ führen | API lesend, Mitschnitt, Auslöser S19 | Bei einer Zeile von 121 bis 255 Zeichen: zwei oder drei Einträge im Ring, der erste mit 119 Zeichen und `~` am Ende, die folgenden mit `~` am Anfang; zusammengesetzt **zeichengleich** mit dem Mitschnitt. Die PWA zeigt die Teile als eigene Zeilen (Modul `maintenance`, Logbuch). **Befund:** ein einziger Eintrag mit `~` am Ende und der Rest fehlt (der Stand vor C8), oder zusammengesetzt ungleich. Über 255 Zeichen kappt die Brücke; dann endet der letzte Teil mit `~`, benannte Grenze | Keine eigene Freigabe über die des Durchlaufs hinaus; S19 ist kein lesender Aufruf (L54). Nichts zurückzustellen, der Wetterticker läuft danach wieder an. Nicht zwischen den beiden Paaren von K16 auslösen |
-| **K30** | **ESP-Start ohne Empfangsüberlauf, Heap danach** (A79, L421). Gemessen wird an den ESP-Starts, die ohnehin stattfinden: dem OTA vor dem Durchlauf (falls in dieser Sitzung eingespielt) und dem STM-Reset aus V3, der den ESP mit neu startet (L183). **Kein eigener Reset.** Je Start die ersten 2 Minuten im Mitschnitt auf `- ovr #` durchsehen und die Heap-Zeilen ablesen. `free` und `max` der Heap-Zeile zusätzlich notieren: nach dem Start, nach dem Vorhersageabruf (S19 bzw. K29) und nach dem Laden der PWA (Phase 1b) | Mitschnitt, API lesend | Je Start in den ersten 2 Minuten **kein** `- ovr #`, jede Heap-Zeile `ovr=0`. `free` liegt rund 768 Byte unter dem Stand vor E2 — der grössere Puffer, erwartet. **Anhalten:** kleinster `max` unter rund 5 KB — ein OTA braucht einen zusammenhängenden Block von 4 KB, darunter ist das nächste Update gefährdet. Dann keine weiteren Setter-Phasen, melden. **Befund:** `- ovr #` mit kleinem `t` nach einem Start, `ovr` über 0. Den Vergleich gegen die Heap-Zeilen vor E2 über 30 Zeilen (AKM.2) führt der Gerätenachweis G4, nicht dieser Durchlauf | Freigabe nur über V3 bzw. das OTA, kein zusätzlicher Eingriff. Keine Rückstellung. Ist V3 nicht freigegeben und kein OTA gelaufen, als „ausgelassen: kein ESP-Start“ führen |
+| **K30** | **ESP-Start ohne Empfangsüberlauf, Heap danach** (A79, L421). Gemessen wird an den ESP-Starts, die ohnehin stattfinden: dem OTA vor dem Durchlauf (falls in dieser Sitzung eingespielt) und dem STM-Reset aus V3, der den ESP mit neu startet (L183). **Kein eigener Reset.** Je Start die ersten 2 Minuten im Mitschnitt auf `- ovr #` durchsehen und die Heap-Zeilen ablesen. `free` und `max` der Heap-Zeile zusätzlich notieren: nach dem Start, nach dem Vorhersageabruf (S19 bzw. K29) und nach dem Laden der PWA (Phase 1b) | Mitschnitt, API lesend | Je Start in den ersten 2 Minuten **kein** `- ovr #`, jede Heap-Zeile `ovr=0`. `free` liegt rund 768 Byte unter dem Stand vor E2 — der grössere Puffer, erwartet. **Anhalten:** kleinster `max` unter rund 5 KB — ein OTA braucht einen zusammenhängenden Block von 4 KB, darunter ist das nächste Update gefährdet. Dann keine weiteren Setter-Phasen, melden. **Befund:** `- ovr #` mit kleinem `t` nach einem Start, `ovr` über 0. Den Vergleich gegen die Heap-Zeilen vor E2 über 30 Zeilen (AKM.2) führt der Gerätenachweis G4, nicht dieser Durchlauf. **Messweise (L449, C65):** Die Haltegrenze bezieht sich auf die **Ruhewerte** und auf die Phasen **nach** dem Laden — nach dem Start, nach dem Vorhersageabruf, nach dem Laden der PWA —, abgelesen an der Heap-Zeile im Minutenraster. Wer zusätzlich `/api/device_ready` alle 0,2 s liest (lesend), misst feiner und sieht mehr: Schon eine einzige PWA-Sitzung drückt den grössten freien Block **während** des Ladens kurzzeitig unter 4 KB (L449: 1'448, danach wieder rund 5'000). Ein solches Tief allein ist nach dieser Zeile kein Anhaltegrund; es gehört mit Uhrzeit, Last und Messweise ins Protokoll. **Werte der beiden Messweisen nicht direkt vergleichen** — ein Tief aus der feinen Messung gegen ein Tief aus dem Minutenraster belegt weder einen Rückschritt noch einen Fortschritt. Wo die Grenze künftig liegt und an welcher Messweise sie hängt, klärt C65 | Freigabe nur über V3 bzw. das OTA, kein zusätzlicher Eingriff. Keine Rückstellung. Ist V3 nicht freigegeben und kein OTA gelaufen, als „ausgelassen: kein ESP-Start“ führen |
 | **K31** | **Stündliche Netzzeit mit Bindung an die Anfrage** (C59, L406). Rein lesend über die ganze Dauer des Durchlaufs: Jede volle Stunde, in die der Durchlauf fällt, im Mitschnitt nachsehen. Den eingestellten Zeitserver aus dem Rohabzug notieren | Mitschnitt | Je Stunde `cmd: set time to …` mit richtiger Zeit, und im ganzen Durchlauf **keine** Zeile `- ntp verworfen #n ungefragt` oder `- ntp verworfen #n originate`. Nach dem Reset aus V3 die Folge `time: sprung, bestaetigung angefordert` und rund 15 s später `cmd: set time to …` (5b) — sie braucht zwei angenommene Antworten auf zwei Anfragen. **Befund:** jede `ungefragt`- oder `originate`-Zeile im Normalbetrieb — Uhrzeit, `#n` und Zeitserver in den Bericht. Fehlt danach auch `cmd: set time to …` zur vollen Stunde, schreibt der Server das Originate-Feld vermutlich nicht zurück; dann bekommt die Uhr mit diesem Server keine Netzzeit mehr, sofort melden. Die zweistündige Messung (AKT.2) führt G4 | Keine, nichts geschrieben. Läuft der Durchlauf über keine volle Stunde, als „nicht aussagekräftig“ führen |
+| **K32** | **Fehlerzeile am Feld** (B48). Je Fall einen ungültigen Wert per Tasten eintippen und den zugehörigen Knopf drücken. **K32a:** Modul `display`, „Datumsformat im Ticker“ `yyyyy`, „Datumsformat speichern“. **K32b:** Modul `network`, „WLAN-Passwort“ mit 40-mal `ä` (80 Byte, die Uhr nimmt höchstens 63), „Als WLAN-Client verbinden“. Die SSID-Auswahl **nicht** anfassen; steht dort keine SSID, kommt nur „Bitte zuerst ein WLAN auswählen …“ ohne Zeile — dann den Fall als „nicht aussagekräftig“ führen, **nicht** eine SSID eintragen. **K32c:** Modul `timers`, Zeitfeld eines Display-Timers leeren, „Speichern“ dieser Zeile (wie K1). **K32d:** Modul `display`, „Ticker-Verzögerung“ `256`, „Ticker-Verzögerung speichern“. Danach an K32a: **K32e** denselben Wert noch einmal speichern; **K32f** ein Zeichen ins Feld tippen; **K32g** den Fehler wiederherstellen, das Modul wechseln und im Dialog verwerfen | Browser, API lesend | Je Fall: Banner mit der Meldung wie bisher, Fokus im Feld, und **direkt unter dem Feld** ein `span.field-error` mit demselben Text, `aria-hidden="true"` und **ohne** `role="alert"` (bewusst, sonst kommt die Ansage dreifach); am Feld `aria-invalid="true"` und `aria-describedby` mit der Kennung der Zeile, vorhandene Kennungen bleiben erhalten. K32b nennt 80 Byte und höchstens 63. **Kein** `date_ticker_format_set`, `network_client_set`, `timer_set` bzw. `ticker_deceleration_set` im Netzprotokoll, Rohwerte unverändert. K32e: weiterhin **genau eine** Zeile. K32f und K32g: Zeile weg, `aria-invalid` weg, die Kennung aus `aria-describedby` entfernt. **Befund:** Zeile fehlt, steht doppelt, bleibt nach der Eingabe stehen, trägt `role="alert"`, oder ein Setter geht hinaus. Am Gerät **nicht** gefahren und am Prüfstand b48 belegt: das Räumen bei Kartenübernahme, Backup-Import und Typwechsel eines Overlays, und dass die Regler der Dimmkurven keine Zeile bekommen | Vorher notieren: `strvar[idx=11].value` (Datumsformat), `nighttime[idx=N]` der gewählten Zeile, `numvar[idx=31].value` (Tickerverzögerung). Im Erfolgsfall Seite neu laden. Geht doch ein Setter hinaus, über S40, S82 bzw. S41 auf den notierten Wert zurück. **Geht in K32b `network_client_set` hinaus, sofort anhalten und den Nutzer verständigen** — die Uhr weist über 63 Byte zwar selbst ab (C38), aber ein `{"ok":true}` hiesse, dass sie sich neu verbindet. Nicht selbst reparieren |
+| **K33** | **Englische Oberfläche, Stichprobe** (B8, AKD.3). Oben unter „Sprache“ auf „English“ stellen und der Reihe nach öffnen: **Overview** (`main`, deutsch „Hauptseite“), **Display**, **Network**, **Maintenance** samt Bereich „Backup“ — das sind die fünf aus AKD.3 —, dazu **System** und **Overlays**, weil dort die B8-Stellen liegen. Jedes Modul ganz durchscrollen, Aufklappbares aufklappen. **Nichts drücken, was speichert, lädt oder installiert** — insbesondere in der Wartung keinen App-Ordner wählen und nicht „Install app files directly“ | Browser | Kein deutscher Text in diesen Modulen. Gezielt hinsehen: **System**, Hardware-Liste „Board“, „Processor“, „Oscillator“, „Frequency“, „Hardware“ (vorher „Platine“, „Prozessor“, „Oszillator“, „Taktfrequenz“), ein unbekannter Wert als „unknown“; die **Gerätezeit-Vorschau** unter Datum und Uhrzeit mit englischem Wochentag („Monday, …“), ohne Gerätezeit „Device time is currently unavailable.“ **Hauptseite**, „Last start“ notfalls „not available“; die Beschriftungen von Wortraster und Minutenecken (nur im DOM: `aria-label` „WordClock preview“ und „Minute corners“). **Wartung**, Liste der lokalen App-Dateien: ohne gewählten Ordner steht jede Datei auf „missing“, nicht „fehlt“. **Overlays**, Icon-Auswahl: „No icons found“ erscheint nur, wenn die Uhr keine Icons meldet. **Hinweis Layout-Tabelle** oben auf der Seite: „Please install the layout table … on LittleFS.“ erscheint nur, wenn keine Tabelle installiert ist. Die beiden letzten am Gerät meist nicht herstellbar; dann als „nicht herstellbar, statisch über S18 belegt“ führen. **Kein Befund** sind Gerätedaten und Nutzertexte (Ort, Tickertext, SSID, Dateinamen), Logzeilen von STM und ESP und Eigennamen wie WordClock, Ambilight, DFPlayer, LittleFS. **Befund:** jedes andere deutsche Wort — Modul, Stelle und Wortlaut ins Protokoll | Sprache zurück auf „Deutsch“. Die Wahl liegt nur im `localStorage` des Prüfbrowsers, nicht auf der Uhr. **Niemals eine Datei auf der Uhr löschen, um den Hinweis zur Layout-Tabelle oder „No icons found“ herzustellen** |
 
 **Bekannte Lücke, kein Testfall: L438.** *Geschrieben für die Herkunftsprüfung aus E1, die
 nicht ausgeliefert wird (L439); seither ist der ganze Schutz offen, nicht nur dieser Teil.*
@@ -1196,7 +1211,7 @@ den Backup-Import prüft der Prüfstand; im Durchlauf werden sie nicht eigens ge
 **Auch hier ist die Abdeckung zu melden**, wie in 6.0c:
 
 ```
-Phase 4, Bedienfälle: von K1 bis K31 X gefahren, Y ausgelassen.
+Phase 4, Bedienfälle: von K1 bis K33 X gefahren, Y ausgelassen.
 Je ausgelassenem Fall: Kennung und Grund.
 ```
 
@@ -1369,6 +1384,59 @@ Modalverhalten.
 Zu ergänzen bleibt, was sich nicht messen lässt: Lesbarkeit bei Sonnenlicht,
 Bedienbarkeit mit einer Hand, Verhalten bei 200 % Systemschriftgrösse, Bedienung
 ausschliesslich über die Tastatur, Durchgang mit einem Screenreader.
+
+### 10.1 Fehlerzeile bei offener Tastatur — am iPhone, durch den Nutzer (AKF.2)
+
+Diesen Teil fährst **Du selbst** am iPhone; kein Agent kann ihn ersetzen, denn die
+Vorschau zeigt keine Bildschirmtastatur. Die Frage ist eine einzige: **Siehst Du die
+Fehlerzeile unter dem Feld, während die Tastatur offen ist?** Gespeichert wird dabei
+nichts — alle drei Werte weist die Oberfläche ab, bevor etwas an die Uhr geht. Ohne
+Deine Rückmeldung bleibt AKF.2 offen.
+
+**Vorbereitung**
+
+1. Das iPhone im selben WLAN wie die Uhr. Die PWA so öffnen, wie Du sie sonst nutzt
+   (Safari oder vom Home-Bildschirm), und einmal neu laden. Oben steht „App-Version …“ —
+   sie muss die Version sein, die Dir zum Einspielen genannt wurde. Steht dort eine ältere,
+   App schliessen und neu öffnen.
+2. Für Fall 3 in der Notizen-App eine Zeile aus **40-mal „ä“** anlegen (zehnmal tippen,
+   markieren, kopieren, viermal einfügen) und die ganze Zeile kopieren. Das sind 80 Byte;
+   die Uhr nimmt höchstens 63. **Keinen kürzeren Text nehmen** — der Abstand ist die
+   Sicherung.
+3. Vor Fall 2 im Modul „Timer“ einen Screenshot der Zeile machen, die Du nimmst.
+
+**Die drei Fälle.** Je Fall: Feld antippen, Wert eingeben, den Knopf antippen. Danach
+springt der Fokus zurück ins Feld, und die Tastatur geht in der Regel wieder auf. Geht sie
+nicht auf, tippst Du das Feld einmal an — **ohne etwas einzugeben**, sonst verschwindet
+die Zeile, und das ist richtig so.
+
+| Fall | Wo | Was | Soll: unter dem Feld steht |
+|---|---|---|---|
+| 1 | Modul „Display“, Feld „Datumsformat im Ticker“ | Inhalt löschen, `yyyyy` tippen, „Datumsformat speichern“ | „Ungültiges Datumsformat. …“ |
+| 2 | Modul „Timer“, Zeitfeld eines Display-Timers | Feld antippen, im Zeitwähler von iOS „Löschen“, dann „Speichern“ dieser Zeile | „Keine gültige Uhrzeit bei Slot … “ |
+| 3 | Modul „Netzwerk“, Feld „WLAN-Passwort“ | die 80 Byte aus der Notiz einfügen, die SSID-Auswahl **nicht** ändern, „Als WLAN-Client verbinden“ | „Zu lang für WLAN-Passwort: Der Text belegt 80 Byte, die Uhr speichert höchstens 63. …“ |
+
+Bei Fall 2 öffnet iOS statt der Tastatur ein Rad oder eine Auswahl; die Frage ist
+dieselbe. Bietet Dein iOS keinen Weg, das Zeitfeld zu leeren, ist der Fall „am iPhone nicht
+herstellbar“ — das gehört so in die Rückmeldung, nicht ein anderer Weg.
+
+**Danach** jeweils nichts korrigieren und speichern, sondern die Seite neu laden. Dann
+stehen wieder die Werte der Uhr in den Feldern.
+
+**Abbrechen und melden**, wenn statt der Fehlermeldung etwas wie „gespeichert“,
+„gestartet“ oder „Verbinde…“ erscheint. Bei Fall 3 heisst das, die Uhr könnte sich neu
+verbinden; dann nichts weiter unternehmen. Bei Fall 2 die Zeile mit dem Screenshot
+vergleichen.
+
+**Rückmeldung** je Fall eine von drei Antworten, dazu ein Screenshot mit offener Tastatur
+und die iOS-Version:
+
+- **sichtbar** — die Zeile ist zu sehen, ohne dass Du scrollen musst
+- **erst nach Scrollen** — sie ist da, liegt aber hinter der Tastatur, bis Du schiebst
+- **nicht sichtbar** — sie ist auch mit Scrollen nicht zu sehen, oder es gibt keine
+
+Nur „sichtbar“ an allen drei Feldern schliesst AKF.2. „Erst nach Scrollen“ ist ein Befund,
+kein Durchfallen der Fehlerzeile selbst; ob er tragbar ist, entscheidest Du.
 
 ---
 
