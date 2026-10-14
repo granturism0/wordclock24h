@@ -10,7 +10,8 @@
 # durchlaeuft -- sagt das nichts darueber, ob die Uhr noch funktioniert.
 #
 # Geprueft wird nur LESEND. Schreibende und destruktive Endpunkte bleiben aussen vor
-# (DIR-008): Dies ist die Uhr des Nutzers im Dauerbetrieb, kein Testgeraet.
+# (DIR-008): Er soll das Geraet beobachten, nicht veraendern -- auch auf der Test-Uhr,
+# sonst misst er seine eigene Wirkung.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2

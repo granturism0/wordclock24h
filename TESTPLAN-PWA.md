@@ -12,9 +12,12 @@ ausführbar ist und dass das Ergebnis **nachprüfbar** ist statt behauptet.
 
 ## 0. Die Randbedingung, die alles bestimmt
 
-**Es gibt genau eine Uhr, und sie läuft produktiv im Wohnraum des Nutzers.** Kein
-Testgerät, kein zweites Exemplar, kein Rollback per Knopfdruck. Daraus folgt für jeden
-Schritt dieses Plans:
+**Es gibt genau eine Uhr — eine Test-Uhr im Keller mit angehängtem Logger** (R5, DIR-008).
+Hier stand bis zum 14.10.2026, sie laufe produktiv im Wohnraum; der Nutzer hat das
+richtiggestellt. **Wo dieser Plan unten noch eine „Freigabe des Nutzers im selben Gespräch“
+verlangt, entfällt sie.** Es bleibt aber das einzige Exemplar, ohne Rollback per Knopfdruck,
+und der nächste Lauf braucht einen bekannten Ausgangsstand. Daraus folgt für jeden Schritt
+dieses Plans:
 
 1. **Erst sichern, dann anfassen.** Phase 0 ist nicht optional und nicht abkürzbar.
 2. **Jede Änderung wird einzeln zurückgenommen**, nicht gesammelt am Ende. Bricht der
