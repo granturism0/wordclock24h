@@ -63,6 +63,7 @@ case "$MIT" in /*) ;; *) echo "BROWSER_SITZUNG_MITSCHRIFT muss ein absoluter Pfa
 FEHL=0
 PHASE="Start"
 ESP_ZULETZT=""   # "Port bis hh:mm:ss" der letzten eigenen Lesung
+ZEILE_PHASE=""   # Zusammenfassung je Phase
 
 aus() { printf '%s\n' "$*"; printf '%s\n' "$*" >> "$MIT"; }
 
@@ -96,8 +97,20 @@ except Exception: print("  device_ready: keine JSON-Antwort"); sys.exit(1)
 k=[x for x in d if x in ("free_heap","max_free_block","http_backlog","heap_low_block","heap_low_path","heap_low_ms","heap_low_pcb_states","heap_low_tw","no_request_timeouts","no_request_aborts") or x.startswith("tcp_now")]
 for x in k: print("  %s=%s" % (x, json.dumps(d[x])))
 if not any(x.startswith("tcp_now") for x in d): print("  HINWEIS: keine tcp_now_*-Felder (Firmware vor R1) -- Entscheidungsregel nicht anwendbar")
+g=lambda k: d.get(k, -1)
+print("WERTE %s %s %s %s %s" % (g("free_heap"), g("max_free_block"), g("no_request_timeouts"), g("no_request_aborts"), g("http_accept_dead")))
 '); rc=$?
+    WERTE=$(printf '%s\n' "$felder" | sed -n 's/^WERTE //p')
+    felder=$(printf '%s\n' "$felder" | grep -v '^WERTE ')
     aus "$felder"
+    # Lochsumme und Deltas gegen S0 (design.md 5.4, AKM.3/AKM.4, A.3/A.4): L = free - max; Δ der drei Zaehler.
+    set -- $WERTE
+    if [ $# -eq 5 ]; then
+      if [ "$p" = S0 ]; then B_FREE=$1; B_TO=$3; B_AB=$4; B_AD=$5; fi
+      aus "  Lochsumme L=free-max: $(( $1 - $2 ))   Luecke free(S0)-free: $(( ${B_FREE:-$1} - $1 ))   Δtimeouts=$(( $3 - ${B_TO:-$3} )) Δaborts=$(( $4 - ${B_AB:-$4} )) Δaccept_dead=$(( $5 - ${B_AD:-$5} ))  (gegen S0)"
+      ZEILE_PHASE="$ZEILE_PHASE
+  $p  free=$1 max=$2 L=$(( $1 - $2 )) Luecke=$(( ${B_FREE:-$1} - $1 )) Δtimeouts=$(( $3 - ${B_TO:-$3} )) Δaborts=$(( $4 - ${B_AB:-$4} )) Δaccept_dead=$(( $5 - ${B_AD:-$5} ))"
+    fi
     [ "$rc" -eq 0 ] || FEHL=$((FEHL+1))
   fi
   # Mac-Seite IMMER lesen, auch wenn die Uhr nicht antwortet (Review S4) -- etwa nach einem Neustart.
@@ -189,5 +202,7 @@ fi
 warte "$D4"; lesung S4
 
 if [ -n "$PROZ" ] && pgrep -xq "$PROZ"; then aus "  WARNUNG: $APP laeuft nach S4 noch"; FEHL=$((FEHL+1)); fi
+aus "--- Zusammenfassung je Phase (Lesung am Phasenende; Δ gegen S0):$ZEILE_PHASE"
+aus "    M2 setzt voraus, dass Δtimeouts den Anstieg traegt; Δtimeouts ~ 0 => K1 fuer L461 wirkungslos (A.3)."
 aus "=== Ende $(date +%H:%M:%S): ${FEHL} Fehlschlag/-schlaege ==="
 [ "$FEHL" -eq 0 ] && exit 0 || exit 1
