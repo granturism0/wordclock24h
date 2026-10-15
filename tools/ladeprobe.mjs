@@ -1,4 +1,4 @@
-// Ladeprobe (Paket 2026-10-15, design.md §5.1): Laedt die PWA einmal kalt und fuenfmal warm
+// Ladeprobe (Paket 2026-10-15, design.md §5.1): Laedt die PWA einmal kalt und mehrfach warm
 // in einem Chrome mit DAUERHAFTEM Profil und misst je Laden, was ueber die Leitung geht und
 // wie tief der Heap des ESP dabei faellt.
 //
@@ -10,13 +10,22 @@
 // Oeffnen noch alle ~200 KB holt (C70), sieht man dort nie. Am 14.10.2026 fiel der groesste
 // freie Block beim Neuladen der PWA auf 752 Byte (L466); gemessen hat das niemand gezielt.
 //
-// Je Laden: /app/-Anfragen nach Status (200, 304, aus dem Browser-Cache ohne Anfrage),
-// Summe der uebertragenen Byte an /app/, und aus /api/device_ready den Tiefstwert seit dem
-// Zuruecksetzen (heap_low_block, heap_low_path) samt der Zaehler, die das Geraet meldet.
+// Je Laden: jede /app/-Anfrage mit Leitungsstatus und ob der Browser If-None-Match schickte,
+// Summe der uebertragenen Byte an /app/, und aus /api/device_ready der Tiefstwert seit dem
+// Zuruecksetzen samt I-4-Momentaufnahme.
 //
-// --erwarte-304: Ein WARMES Laden, das ein App-Asset mit 200 holt, ist ein Fehlschlag
-// (Exit 1). Ausnahme: LADEPROBE_AUSNAHME (Pfad), solange ein Asset bewusst no-store bleibt.
+// ZWEI FALLEN, DIE HIER ABGEFANGEN SIND
 //
+// - Den Status der LEITUNG liefert nur responseReceivedExtraInfo. Bei einer Nachpruefung mit
+//   304 meldet responseReceived den Status der Cache-Kopie (200). Gegenprobe 15.10.2026.
+// - /app/-Anfragen, die erst nach einer /api/-Antwort kommen (layout-previews.json nach den
+//   Einstellungen), koennen nach der Ruheerkennung eintreffen. Sie werden als "spaet" gemeldet
+//   und als Fehlschlag gezaehlt, nicht still verworfen (Review 0.5, M3).
+//
+// --erwarte-304: Ein WARMES Laden, das ein App-Asset mit 200 holt, ist ein Fehlschlag.
+// Ausnahme: LADEPROBE_AUSNAHME (Pfad).
+//
+// Exit 0 ohne Fehlschlag, 1 Fehlschlag, 2 Werkzeugfehler.
 // SCHREIBT AM GERAET NUR den Ruecksetzer der Tiefstwert-Messung (device_ready?heap_low_reset=1).
 
 import { appendFileSync } from "node:fs";
@@ -28,53 +37,74 @@ const ERWARTE_304 = process.env.ERWARTE_304 === "1";
 const ENGLISCH = process.env.ENGLISCH === "1";
 const MITSCHRIFT = process.env.LADEPROBE_MITSCHRIFT || "";
 const AUSNAHME = process.env.LADEPROBE_AUSNAHME || "";
-const WARM = Number(process.env.LADEPROBE_WARM || 5);
-const RUHE_MS = 1500, MAX_MS = 30000;
+const WARM = Number(process.env.LADEPROBE_WARM ?? 5);
+const RUHE_MS = 1500, MAX_MS = 30000, NACHLAUF_MS = 1500;
+const I4 = ["heap_low_block", "heap_low_free", "heap_low_path", "heap_low_req_path", "heap_low_ms",
+            "heap_low_accepts_pending", "heap_low_backlog", "heap_low_pcb_states", "heap_low_tw",
+            "heap_low_unacked", "free_heap", "max_free_block", "http_backlog", "app_not_modified", "app_full"];
+
+const zeit = () => new Date().toTimeString().slice(0, 8);
+const aus = z => { console.log(z); if (MITSCHRIFT) appendFileSync(MITSCHRIFT, z + "\n"); };
+let fertig = false;
+const werkzeugfehler = t => { fertig = true; aus(`WERKZEUGFEHLER: ${t}`); process.exit(2); };
+process.on("uncaughtException", e => werkzeugfehler(e.stack || e.message));
+process.on("unhandledRejection", e => werkzeugfehler(String((e && e.stack) || e)));
+
+if (!PORT || !SOLL || !MARKE) werkzeugfehler("CDP_PORT, GERAET_URL oder START_MARKE fehlt (Start ueber ladeprobe.sh)");
+if (!Number.isInteger(WARM) || WARM < 1) werkzeugfehler(`LADEPROBE_WARM ungueltig: ${process.env.LADEPROBE_WARM}`);
 
 const host = new URL(SOLL).host;
 const basis = `http://${host}`;
-const zeit = () => new Date().toTimeString().slice(0, 8);
-const aus = z => { console.log(z); if (MITSCHRIFT) appendFileSync(MITSCHRIFT, z + "\n"); };
-
 let fehl = 0;
+
 const listeHolen = () => fetch(`http://127.0.0.1:${PORT}/json/list`).then(r => r.json());
 let ziele = await listeHolen(), seite;
 for (let v = 0; v < 25 && !(seite = ziele.find(t => t.type === "page" && t.url === MARKE)); v++) {
   await new Promise(r => setTimeout(r, 200));
   ziele = await listeHolen();
 }
-if (!seite) { aus(`ABBRUCH: kein Seitenziel mit der eigenen Startmarke`); process.exit(2); }
+if (!seite) werkzeugfehler("kein Seitenziel mit der eigenen Startmarke");
 
 const ws = new WebSocket(seite.webSocketDebuggerUrl);
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+ws.onclose = () => { if (!fertig) werkzeugfehler("Verbindung zu Chrome abgerissen (Chrome beendet?)"); };
 let seq = 0;
 const wartend = new Map();
-const send = (method, params = {}) => new Promise(res => {
-  const id = ++seq; wartend.set(id, res); ws.send(JSON.stringify({ id, method, params }));
+// CDP-Fehler sind KEIN gewoehnliches Ergebnis (Review S7): send() wirft.
+const send = (method, params = {}) => new Promise((res, rej) => {
+  const id = ++seq; wartend.set(id, { res, rej, method }); ws.send(JSON.stringify({ id, method, params }));
 });
 
 // ----------------------------------------------------------------- Buchhaltung je Laden
-let lauf = null;   // { anfragen: Map(id -> {pfad,status,byte,cache}), letzte: ms, ladeEnde: bool }
+let lauf = null;
+let spaet = [];   // /app/-Anfragen ausserhalb eines Fensters
 const istApp = url => { try { const u = new URL(url); return u.host === host && u.pathname.startsWith("/app/"); } catch { return false; } };
 const pfadVon = url => new URL(url).pathname;
 
 ws.addEventListener("message", e => {
   const m = JSON.parse(e.data);
-  if (m.id && wartend.has(m.id)) { wartend.get(m.id)(m.result || m.error); wartend.delete(m.id); return; }
-  if (!lauf) return;
+  if (m.id && wartend.has(m.id)) {
+    const w = wartend.get(m.id); wartend.delete(m.id);
+    if (m.error) w.rej(new Error(`${w.method}: ${m.error.message}`)); else w.res(m.result);
+    return;
+  }
   const p = m.params || {};
+  if (m.method === "Network.requestWillBeSent" && istApp(p.request.url) && !lauf) {
+    spaet.push(pfadVon(p.request.url));
+    return;
+  }
+  if (!lauf) return;
   if (m.method === "Page.loadEventFired") lauf.ladeEnde = true;
   if (m.method === "Network.requestWillBeSent" && istApp(p.request.url)) {
-    if (!lauf.anfragen.has(p.requestId)) lauf.anfragen.set(p.requestId, { pfad: pfadVon(p.request.url), status: "?", byte: 0, cache: false });
+    if (!lauf.anfragen.has(p.requestId)) lauf.anfragen.set(p.requestId, { pfad: pfadVon(p.request.url), status: "?", byte: 0, cache: false, inm: false });
     lauf.letzte = Date.now();
   }
-  // Den Status der LEITUNG liefert nur responseReceivedExtraInfo: Bei einer Nachpruefung mit 304
-  // meldet responseReceived den Status der Cache-Kopie (200). Gegenprobe 15.10.2026: Pruefserver
-  // sendete 304, responseReceived zeigte 200 bei 290 Byte.
-  if (m.method === "Network.responseReceivedExtraInfo") {
-    lauf.extra.set(p.requestId, p.statusCode);
-  }
-  if (m.method === "Network.requestServedFromCache" && lauf.anfragen.has(p.requestId)) lauf.anfragen.get(p.requestId).cache = true;
+  // If-None-Match steht nur in den tatsaechlich gesendeten Kopfzeilen (Review M4): Ohne sie
+  // laesst sich eine 200 nicht zuordnen -- hat der Browser nicht gefragt (HTTP/1.0, L468),
+  // oder hat der Server die Frage uebergangen?
+  if (m.method === "Network.requestWillBeSentExtraInfo") lauf.inm.set(p.requestId, Object.keys(p.headers || {}).some(k => k.toLowerCase() === "if-none-match"));
+  if (m.method === "Network.responseReceivedExtraInfo") lauf.extra.set(p.requestId, p.statusCode);
+  if (m.method === "Network.requestServedFromCache" && lauf.anfragen.has(p.requestId)) { const a = lauf.anfragen.get(p.requestId); a.cache = true; a.fertig = true; }
   if (m.method === "Network.responseReceived" && lauf.anfragen.has(p.requestId)) {
     const a = lauf.anfragen.get(p.requestId);
     a.status = p.response.status;
@@ -92,30 +122,40 @@ ws.addEventListener("message", e => {
 
 async function geraet(pfad) {
   const r = await fetch(basis + pfad, { signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error(`${pfad}: HTTP ${r.status}`);
   return r.json();
 }
 
-// Warten: Ladeereignis, dann keine /app/-Anfrage offen und RUHE_MS still. Die /api/-Abrufe
-// laufen im Takt weiter und zaehlen hier nicht -- gemessen wird die Asset-Last.
+// Warten: Ladeereignis, dann keine /app/-Anfrage offen und RUHE_MS still, danach NACHLAUF_MS
+// fest -- spaet nachgeladene Assets (nach /api/-Antworten) sollen noch ins Fenster fallen.
 async function warteRuhe() {
   const t0 = Date.now();
   for (;;) {
     await new Promise(r => setTimeout(r, 200));
-    const offen = [...lauf.anfragen.values()].filter(a => !a.fertig && !a.cache).length;
-    if (lauf.ladeEnde && offen === 0 && Date.now() - lauf.letzte >= RUHE_MS) return true;
+    const offen = [...lauf.anfragen.values()].filter(a => !a.fertig).length;
+    if (lauf.ladeEnde && offen === 0 && Date.now() - lauf.letzte >= RUHE_MS) {
+      await new Promise(r => setTimeout(r, NACHLAUF_MS));
+      if ([...lauf.anfragen.values()].every(a => a.fertig)) return true;
+    }
     if (Date.now() - t0 > MAX_MS) return false;
   }
 }
 
 async function laden(nr, art, aktion) {
+  if (spaet.length) { aus(`    SPAET (ausserhalb eines Fensters, nicht gezaehlt): ${spaet.join(", ")}`); fehl++; spaet = []; }
   try { await geraet("/api/device_ready?heap_low_reset=1"); }
   catch (e) { aus(`${zeit()}  #${nr} ${art}: device_ready nicht erreichbar (${e.message})`); fehl++; return; }
-  lauf = { anfragen: new Map(), extra: new Map(), letzte: Date.now(), ladeEnde: false };
+  lauf = { anfragen: new Map(), extra: new Map(), inm: new Map(), letzte: Date.now(), ladeEnde: false };
   const t0 = Date.now();
   await aktion();
   const ruhig = await warteRuhe();
   const ms = Date.now() - t0;
-  for (const [id, a] of lauf.anfragen) if (lauf.extra.has(id) && typeof a.status === "number") a.status = lauf.extra.get(id);
+  let ohneLeitung = 0;
+  for (const [id, a] of lauf.anfragen) {
+    if (lauf.extra.has(id) && typeof a.status === "number") a.status = lauf.extra.get(id);
+    else if (!a.cache && typeof a.status === "number") ohneLeitung++;
+    a.inm = lauf.inm.get(id) === true;
+  }
   const liste = [...lauf.anfragen.values()];
   lauf = null;
   let dr = {};
@@ -125,34 +165,49 @@ async function laden(nr, art, aktion) {
   const nCache = liste.filter(a => a.cache);
   const nFail = liste.filter(a => String(a.status).startsWith("FAIL") || a.status === "?");
   const byte = liste.reduce((s, a) => s + (a.cache ? 0 : a.byte), 0);
-  const felder = ["heap_low_block", "heap_low_path", "heap_low_req_path", "free_heap", "max_free_block",
-                  "app_not_modified", "app_full", "http_backlog"]
-    .filter(k => dr[k] !== undefined).map(k => `${k}=${dr[k]}`).join(" ");
-  aus(`${zeit()}  #${nr} ${art.padEnd(9)} ${ms} ms${ruhig ? "" : " (KEINE RUHE)"}  /app/: ${liste.length} Anfr., 200=${n200.length} 304=${n304.length} cache=${nCache.length} fehl=${nFail.length}  ${byte} Byte  ${felder}`);
+  const nInm = liste.filter(a => a.inm).length;
+  aus(`${zeit()}  #${nr} ${art.padEnd(9)} ${ms} ms${ruhig ? "" : " (KEINE RUHE)"}  /app/: ${liste.length} Anfr., 200=${n200.length} 304=${n304.length} cache=${nCache.length} fehl=${nFail.length} INM=${nInm}${ohneLeitung ? ` ohne-Leitungsstatus=${ohneLeitung}` : ""}  ${byte} Byte`);
+  aus(`    Pfade: ${liste.map(a => `${a.pfad.replace("/app/", "") || "/"}=${a.cache ? "cache" : a.status}${a.inm ? "+INM" : ""}`).join(" ")}`);
+  aus(`    Geraet: ${I4.filter(k => dr[k] !== undefined).map(k => `${k}=${JSON.stringify(dr[k])}`).join(" ")}`);
+  // Die eigene Lesung kann den Tiefstwert selbst verursachen (Review S6) -- kennzeichnen.
+  if (dr.heap_low_req_path === "/api/device_ready") aus(`    HINWEIS: Tiefstwert in der eigenen Lesung (device_ready) -- nicht der Ladung zurechnen`);
+  if (ENGLISCH && art !== "kalt" && !liste.some(a => a.pfad === "/app/i18n/en.json"))
+    aus(`    HINWEIS: kein /app/i18n/en.json in diesem Laden -- englisch nicht nachgewiesen`);
   if (nFail.length) { aus(`    fehlgeschlagen: ${nFail.map(a => a.pfad + " " + a.status).join(", ")}`); fehl++; }
   if (!ruhig) fehl++;
+  // Unabhaengige Nachzaehlung ab R2 (L235): die Zaehler des ESP neben die eigene Zahl.
+  if (dr.app_full !== undefined && dr.app_not_modified !== undefined) aus(`    Geraetezaehler (seit Start): app_full=${dr.app_full} app_not_modified=${dr.app_not_modified}`);
   if (ERWARTE_304 && art !== "kalt") {
     const falsch = n200.filter(a => a.pfad !== AUSNAHME);
-    if (falsch.length) { aus(`    FEHL --erwarte-304: warm mit 200 geholt: ${falsch.map(a => a.pfad).join(", ")}`); fehl++; }
+    if (falsch.length) { aus(`    FEHL --erwarte-304: warm: 304 erwartet, 200 erhalten: ${falsch.map(a => a.pfad + (a.inm ? " (mit INM)" : " (ohne INM)")).join(", ")}`); fehl++; }
   }
 }
 
 await send("Network.enable");
 await send("Page.enable");
-// Startmarke ist eine data:-Seite; localStorage gilt je Herkunft -- die Sprache wird nach dem
-// ersten Laden auf der Uhr gesetzt und gilt ab dem naechsten Laden (deshalb: kalt laedt immer
-// deutsch, die Sprache wirkt auf die warmen Ladungen).
 aus(`=== Ladeprobe ${basis}/app/ — ${new Date().toISOString().slice(0, 16)} — warm=${WARM}${ENGLISCH ? " englisch" : ""}${ERWARTE_304 ? " --erwarte-304" : ""} ===`);
+let vorher = {};
+try { vorher = await geraet("/api/device_ready"); } catch (e) { werkzeugfehler(`device_ready vor dem Lauf: ${e.message}`); }
+aus(`    vorher: free_heap=${vorher.free_heap} max_free_block=${vorher.max_free_block}`);
 await laden(0, "kalt", () => send("Page.navigate", { url: SOLL }));
 if (ENGLISCH) {
-  await send("Runtime.evaluate", { expression: `localStorage.setItem("wordclock-language","en")` });
+  const r = await send("Runtime.evaluate", { expression: `localStorage.setItem("wordclock-language","en"); localStorage.getItem("wordclock-language")`, returnByValue: true });
+  if (r.exceptionDetails || r.result?.value !== "en") werkzeugfehler(`Sprache nicht gesetzt: ${JSON.stringify(r.exceptionDetails || r.result)}`);
   aus(`    Sprache auf Englisch gesetzt (wirkt ab dem naechsten Laden)`);
 }
 for (let i = 1; i <= WARM; i++) {
   // Abwechselnd Neuladen (Browser validiert) und erneutes Oeffnen (das "zweite Oeffnen").
   if (i % 2 === 1) await laden(i, "neuladen", () => send("Page.reload", { ignoreCache: false }));
-  else await laden(i, "oeffnen", async () => { await send("Page.navigate", { url: "about:blank" }); await new Promise(r => setTimeout(r, 300)); lauf.ladeEnde = false; await send("Page.navigate", { url: SOLL }); });
+  else await laden(i, "oeffnen", async () => {
+    await send("Page.navigate", { url: "about:blank" });
+    await new Promise(r => setTimeout(r, 300));
+    lauf.ladeEnde = false;
+    await send("Page.navigate", { url: SOLL });
+  });
 }
+await new Promise(r => setTimeout(r, NACHLAUF_MS));
+if (spaet.length) { aus(`    SPAET (nach dem letzten Fenster, nicht gezaehlt): ${spaet.join(", ")}`); fehl++; }
+fertig = true;
 ws.close();
 aus(fehl ? `ERGEBNIS: ${fehl} Fehlschlag/-schlaege` : `ERGEBNIS: ohne Fehlschlag`);
 process.exit(fehl ? 1 : 0);
