@@ -284,6 +284,23 @@ setup()
     Serial.println ("CAP var-crc");
     Serial.flush ();
 
+    /* Paket 2026-10-15 R1.3 I-6 (e) (C71, design.md 3.3): Flash-Kennung, einmal je Start, VOR WLAN und VOR
+     * EEPROM.begin () - also vor jedem Flash-Schreiben dieses Starts. getFlashChipId () liefert die JEDEC-Kennung
+     * (3 Byte), das unterste Byte ist der Hersteller (0x85 PUYA: der Core legt dann beim ersten Flash-Schreiben einen
+     * 256-Byte-Puffer an, Esp.cpp; Kandidat L0, nach L468 nur bedingt). Nach CAP: CAP muss die erste Zeile bleiben
+     * (siehe oben). Einmal formatiert, Mitschnitt und Ring. 27 Zeichen.
+     */
+    {
+        char        line[40];
+        uint32_t    flash_id = ESP.getFlashChipId ();
+
+        snprintf_P (line, sizeof (line), PSTR ("- flash id=%06lx vendor=%02x"),
+                    (unsigned long) (flash_id & 0xFFFFFFUL), (unsigned) (flash_id & 0xFFU));
+        Serial.println (line);
+        Serial.flush ();
+        stm32_log_append (line);
+    }
+
 #if 0
     Serial.println ("- formatting filesystem");
     Serial.flush ();

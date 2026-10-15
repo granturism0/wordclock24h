@@ -61,8 +61,8 @@ int main (void)
     fall ("Startabruf: 5 Abrufe (3 Versionen, Notes, Liste)", abrufe_gesamt == 5 && abrufe["releasenote.html"] == 1 && abrufe["wc-list.txt"] == 1, std::to_string (abrufe_gesamt));
     fall ("je Durchlauf hoechstens ein Abruf", max_je_durchlauf == 1, std::to_string (max_je_durchlauf));
     fall ("Zeilen: je Datei 'geschrieben n=<Inhalt>'", zeilen (("- update cache upd-releasenote.txt geschrieben n=" + std::to_string (notes1.size ())).c_str ()) == 1 &&
-          zeilen (("- update cache upd-wc-list.txt geschrieben n=" + std::to_string (liste1.size ())).c_str ()) == 1 && Serial.lines.size () == 2, Serial.lines.empty () ? "" : Serial.lines[0]);
-    fall ("Zeilen: Mitschnitt und Ring textgleich", ring_gleich () && ring.size () == 2, std::to_string (ring.size ()));
+          zeilen (("- update cache upd-wc-list.txt geschrieben n=" + std::to_string (liste1.size ())).c_str ()) == 1 && ohne_i6 (Serial.lines) == 2, Serial.lines.empty () ? "" : Serial.lines[0]);   /* R1.3: ohne I-6-Zeilen */
+    fall ("Zeilen: Mitschnitt und Ring textgleich", ring_gleich () && ohne_i6 (ring) == 2, std::to_string (ring.size ()));
     fall ("keine Temporaerdatei", keine_tmp (), "");
     fall ("nie der Server des Ursprungsprojekts", std::find (gefragte_hosts.begin (), gefragte_hosts.end (), std::string ("uclock.de")) == gefragte_hosts.end (), "");
 

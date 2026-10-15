@@ -91,7 +91,10 @@ put('upd_tables.inc', lines(H, r'^static (char|uint16_t|uint_fast8_t|uint8_t|uns
               + func(H, 'http_api_update_table_files ('), )
 if 'update_tables_cache[' in H: have.append('HAVE_TABLES_CACHE')
 put('upd_cache.inc', ''.join(func(H, n + ' (') for n in (
-    'update_cache_line', 'update_cache_open', 'update_cache_file_matches', 'update_cache_space_ok', 'update_cache_write',
+    'update_cache_line',
+    'update_cache_i6_put', 'update_cache_heap_mark', 'update_cache_vorher', 'update_cache_heap_report',   # R1.3 I-6
+    'update_cache_tmp_mask', 'update_cache_tmp_note',
+    'update_cache_open', 'update_cache_file_matches', 'update_cache_space_ok', 'update_cache_write',
     'update_cache_finish', 'update_cache_step_run', 'update_cache_poll', 'update_cache_send_notes', 'update_cache_send_stm32_list')), 'HAVE_CACHE')
 put('upd_status.inc', func(H, 'http_api_update_status (') + func(H, 'http_json_send_remote_update_support_fields (')
               + func(H, 'http_json_send_remote_update_url_fields ('))

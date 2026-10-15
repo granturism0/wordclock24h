@@ -83,6 +83,17 @@ struct EspAttrappe
     uint32_t getMaxFreeBlockSize () { blk_calls++; if (! blk_seq.empty ()) { blk = blk_seq.front (); blk_seq.pop_front (); } return blk; }
     uint32_t getFreeHeap () { if (! heap_seq.empty ()) { heap = heap_seq.front (); heap_seq.pop_front (); } return heap; }
     uint32_t getFlashChipRealSize () { return 4194304; }
+    /* R1.3 I-6 (Paket 2026-10-15): getHeapStats () ist im Core EIN umm_info ()-Gang fuer blk und frag (Esp-frag.cpp:26-45);
+     * hier verbraucht es wie getMaxFreeBlockSize () einen Wert aus blk_seq, frag kommt aus frag_seq. free liest der Code
+     * getrennt ueber getFreeHeap (). stats_haken: der Pruefstand c71i haelt fest, in welchem Zustand gemessen wurde. */
+    std::deque<uint8_t> frag_seq; uint8_t frag = 0; void (* stats_haken) (void) = nullptr; uint32_t flash_id = 0x1640EF;
+    void getHeapStats (uint32_t * f, uint32_t * m, uint8_t * fr)
+    {
+        if (stats_haken) stats_haken ();
+        if (! frag_seq.empty ()) { frag = frag_seq.front (); frag_seq.pop_front (); }
+        uint32_t b = getMaxFreeBlockSize (); if (f) *f = heap; if (m) *m = b; if (fr) *fr = frag;
+    }
+    uint32_t getFlashChipId () { return flash_id; }
 } ESP;
 
 /* Pruefprotokoll */

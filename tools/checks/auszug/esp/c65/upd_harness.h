@@ -61,6 +61,20 @@ static uint_fast8_t http_remote_stm32_filename_matches (const char * f)
     return hardware_configuration != 0xFFFF && ! strncmp (f, "wc24h-", 6);
 }
 
+/* ---- R1.3 I-6 (Paket 2026-10-15): was die Zeilen vorher/heap/nach ausserhalb des Abgleichs lesen. Der Inhalt von tcp=
+ * ist Gegenstand von c72i; hier ein einstellbarer Text. */
+static uint16_t http_accept_count = 0;
+static uint16_t hc_attrappe = 0;
+uint16_t httpclient_connects_get (void) { return hc_attrappe; }
+static std::string tcp_attrappe = "tcp=0/0/0/0/0/0";
+size_t tcp_now_tcp_field (char * b, size_t n) { if (! n) return 0; snprintf (b, n, "%s", tcp_attrappe.c_str ()); return strlen (b); }
+static bool i6_zeile (const std::string & l)
+{
+    return ! l.compare (0, 22, "- update cache vorher ") || ! l.compare (0, 20, "- update cache heap ") ||
+           ! l.compare (0, 20, "- update cache nach ") || ! l.compare (0, 29, "- update cache tmp geloescht ");
+}
+static size_t ohne_i6 (const std::vector<std::string> & v) { size_t n = 0; for (auto & l : v) if (! i6_zeile (l)) n++; return n; }
+
 /* ---- Update-Server: httpclient () und Lesen, mit Zaehlern */
 struct Remote { bool da = true; std::string inhalt; long abbruch_nach = -1; unsigned long kosten = 0; };
 static std::map<std::string, Remote> server;
@@ -73,7 +87,7 @@ int httpclient (const char * host, const char * path, const char * file)
     gefragte_hosts.push_back (host); abrufe[file]++; abrufe_gesamt++;
     auto it = server.find (file);
     if (it == server.end () || ! it->second.da) { fake_ms += it == server.end () ? 0 : it->second.kosten; akt = nullptr; return -1; }
-    fake_ms += it->second.kosten; akt = &it->second; akt_pos = 0;
+    fake_ms += it->second.kosten; akt = &it->second; akt_pos = 0; hc_attrappe++;        /* R1.3: wie httpclient_connects nach connect () */
     return (int) it->second.inhalt.size ();
 }
 int httpclient_read (int * lenp)

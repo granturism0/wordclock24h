@@ -475,9 +475,10 @@ http_backlog_track (void)
  * E4 Teil 5 (C65, design-e4.md 19.7, Ent-36): TIME_WAIT auf HTTP_TW_LIMIT begrenzen
  *
  * Der ESP baut als Server zuerst ab und haelt deshalb nach jeder Antwort ein PCB in TIME_WAIT, je rund 192 Byte
- * (L456, nicht gemessen). Der Core begrenzt auf MEMP_NUM_TCP_PCB_TIME_WAIT = 5 (lwipopts.h:3692-3697). Zwei decken
+ * (L456, nicht gemessen). Der Core ruft TCP_TW_LIMIT (MEMP_NUM_TCP_PCB_TIME_WAIT) mit 5 (lwipopts.h:3692-3697) und
+ * haelt wegen des Versatzes um eins (unten) hoechstens 6 (berichtigt in R1.3, Paket 2026-10-15, P2). Zwei decken
  * die zuletzt bedienten Verbindungen; jede weitere schuetzt nur vor verspaeteten Segmenten einer Verbindung, deren
- * Gegenstelle schon geantwortet hat. Gewinn bis rund 0,6 KB.
+ * Gegenstelle schon geantwortet hat. Gewinn bis rund 0,8 KB (vier PCBs).
  * Mittel ist das Makro des Cores TCP_TW_LIMIT (lwipopts.h:3677-3689): Es zaehlt tcp_tw_pcbs und ruft
  * tcp_kill_timewait () fuer die AELTESTEN - keine eigene Listenpflege.
  * ACHTUNG, um eins verschoben (am Pruefstand c65z mit dem woertlich kopierten Makro belegt): Trotz des Namens ist
@@ -671,6 +672,8 @@ typedef struct
 } TCP_NOW;
 
 static uint16_t         http_accept_dead         = 0;
+static uint16_t         http_accept_count        = 0;                   // R1.3 I-6: jedes erfolgreiche accept (), umlaufend
+static uint8_t          http_first_request_logged = 0;                  // R1.3 I-6 (d): "- heap erste anfrage" geschrieben
 
 static uint8_t
 tcp_now_arg (const struct tcp_pcb * pcb, const void * listen_arg)
@@ -759,6 +762,30 @@ http_accept_dead_note (uint_fast8_t unclaimed_before)
     if (unclaimed_before && http_accept_dead < 0xFFFF)
     {
         http_accept_dead++;
+    }
+}
+
+/* Paket 2026-10-15 R1.3 I-6 (C71, design.md 3.3): bei JEDEM erfolgreichen accept (), in http_server_loop ()
+ * unmittelbar nach dem Messpunkt accept. http_accept_count laeuft um und wird nur als Differenz gelesen (acc= in
+ * "- update cache nach"). Beim ERSTEN angenommenen Anfrage-Eingang seit dem Start genau eine Zeile
+ * "- heap erste anfrage free=<n> max=<n>", einmal formatiert, Mitschnitt und Ring. free ist ein Zaehlerstand, max
+ * kostet einen umm_info ()-Gang - einmal je Start. Laengste Form 56 Zeichen. RAM: 3 Byte samt Merker.
+ */
+static void
+http_accept_note (void)
+{
+    http_accept_count++;
+
+    if (! http_first_request_logged)
+    {
+        char    line[64];
+
+        http_first_request_logged = 1;
+        snprintf_P (line, sizeof (line), PSTR ("- heap erste anfrage free=%lu max=%lu"),
+                    (unsigned long) ESP.getFreeHeap (), (unsigned long) ESP.getMaxFreeBlockSize ());
+        Serial.println (line);
+        Serial.flush ();
+        stm32_log_append (line);
     }
 }
 
@@ -13629,6 +13656,18 @@ static uint8_t       update_cache_force        = 1;            // E4.5a: Abgleic
 static uint8_t       update_cache_forcing      = 0;            // E4.5a: der laufende Durchgang gleicht ab
 static uint8_t       update_cache_cmp          = 0;            // E4.5a: Bit 0 Notes, Bit 1 Liste: Schluessel passt, nur abgleichen
 
+/* Paket 2026-10-15 R1.3 I-6 (C71, design.md 3.3): Messpunkte eines Durchgangs. Index 0 = v (unmittelbar vor Schritt 1),
+ * 1-5 nach dem jeweiligen Schritt, 6 = n (am Ende). free und blk auf 65535 gekappt: Der Heap des ESP8266 ist kleiner,
+ * und so bleibt "- update cache heap ..." sicher bei hoechstens 117 Zeichen. update_cache_heap_set: ein Bit je
+ * gemessenem Punkt, sonst steht "-". update_cache_acc_start: http_accept_count bei v, fuer acc=. RAM 38 Byte.
+ */
+#define UPDATE_CACHE_HEAP_POINTS                7
+static uint16_t      update_cache_heap_free[UPDATE_CACHE_HEAP_POINTS];
+static uint16_t      update_cache_heap_blk[UPDATE_CACHE_HEAP_POINTS];
+static uint8_t       update_cache_heap_frag[UPDATE_CACHE_HEAP_POINTS];
+static uint8_t       update_cache_heap_set     = 0;
+static uint16_t      update_cache_acc_start    = 0;
+
 /* what und reason liegen im Flash (PSTR, AKR.8: kein RAM fuer Literale) und werden mit strncpy_P geholt; reason darf
  * NULL sein. Laengste Form "- update cache upd-releasenote.txt fehlgeschlagen quelle-leer ms=4294967295" = 75 Zeichen.
  * ms: seit update_cache_step_millis, siehe Kopfkommentar.
@@ -13672,6 +13711,171 @@ update_cache_line (const char * fname, PGM_P what, PGM_P reason, long n)
     Serial.println (line);
     Serial.flush ();
     stm32_log_append (line);
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Paket 2026-10-15 R1.3 I-6 (C71, design.md 3.3, Nachtrag A.3): Heap und Startzustand im Durchgang
+ *
+ * Je Durchgang drei Zeilen, je einmal formatiert, Mitschnitt UND Ring (update_cache_i6_put ()), kein String:
+ *     (a) - update cache vorher up=<s> free=<n>/<blk> frag=<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<n>
+ *         unmittelbar vor Schritt 1 - nach dem Loeschen liegengebliebener Temporaerdateien im ersten Durchgang
+ *     (b) - update cache heap v=<free>/<blk> 1=... 5=... n=<free>/<blk>          am Ende oder beim Abbruch
+ *     (c) - update cache nach frag=<v>/<1>/<2>/<3>/<4>/<5>/<n> tcp=... hc=<n> acc=<delta>   unmittelbar nach (b)
+ * dazu (f) - update cache tmp geloescht <datei>   im ersten Durchgang, je Temporaerdatei, die vorher da war und danach
+ * fehlt (gemessen am Ergebnis, nicht am Rueckgabewert von remove ()). "-" heisst: Schritt nicht gelaufen.
+ * Messpunkte 1-3 nach jeder Versionszeile (auch wenn sie fehlschlug), 4 und 5 nach update_cache_write (), also
+ * nach httpclient_stop () und LittleFS.end () auf jedem Ausgang. Keine Zeile enthaelt "fehlgeschlagen".
+ *
+ * frag STATT fe (Spec: "ersatzweise frag=", Wahl des Umsetzers): Die Zahl der freien Eintraege (freeEntries) steht
+ * nur in struct UMM_HEAP_CONTEXT, und die ist ausschliesslich im privaten umm_malloc/umm_local.h erklaert - samt
+ * statischer Funktionen und einem Speicherbild, das von UMM_STATS/UMM_INLINE_METRICS abhaengt. Ein Fehlgriff dort
+ * liefert still falsche Zahlen. ESP.getHeapStats () (Esp-frag.cpp:26-45) gibt blk und frag aus EINEM umm_info ()-Gang
+ * - so teuer wie getMaxFreeBlockSize () allein, das I-6 ohnehin braucht. frag = 100 x (1 - sqrt (Summe Loch^2) /
+ * Summe Loch): 0 heisst ein einziges Loch, steigt mit der Zerstueckelung. free bleibt der Zaehlerstand
+ * getFreeHeap () wie in der Heap-Zeile, damit beide Zeilen vergleichbar sind.
+ *
+ * hc = httpclient_connects (E3 I-1): 0 heisst, der statische httpclient (httpclient.cpp) hat noch keinen
+ * ClientContext. Den Wetter-Client (openweather_client, weather.cpp) erfasst hc NICHT. acc = Differenz von
+ * http_accept_count zwischen v und dem Ende: angenommene Verbindungen waehrend des Durchgangs.
+ * Laengste Formen: (a) 95, (b) 117, (c) 99, (f) 48 Zeichen. Stack je Zeile 120 + 32 Byte, dazu TCP_NOW (84) in
+ * tcp_now_tcp_field (). Alles aus loop (), nie in einer Anfrage.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+static void
+update_cache_i6_put (const char * line)
+{
+    Serial.println (line);
+    Serial.flush ();
+    stm32_log_append (line);
+}
+
+static void
+update_cache_heap_mark (uint_fast8_t point)
+{
+    uint32_t    free_heap = ESP.getFreeHeap ();
+    uint32_t    blk       = 0;
+    uint8_t     frag      = 0;
+
+    if (point >= UPDATE_CACHE_HEAP_POINTS)
+    {
+        return;
+    }
+
+    ESP.getHeapStats ((uint32_t *) 0, &blk, &frag);
+    update_cache_heap_free[point] = (uint16_t) (free_heap > 0xFFFF ? 0xFFFF : free_heap);
+    update_cache_heap_blk[point]  = (uint16_t) (blk > 0xFFFF ? 0xFFFF : blk);
+    update_cache_heap_frag[point] = frag;
+    update_cache_heap_set        |= (uint8_t) (1u << point);
+}
+
+static void
+update_cache_vorher (void)
+{
+    char        line[120];
+    char        tcp[32];
+
+    update_cache_heap_set  = 0;
+    update_cache_acc_start = http_accept_count;
+    update_cache_heap_mark (0);
+    tcp_now_tcp_field (tcp, sizeof (tcp));
+    snprintf_P (line, sizeof (line), PSTR ("- update cache vorher up=%lu free=%u/%u frag=%u %s hc=%u"),
+                (unsigned long) (millis () / 1000UL), (unsigned) update_cache_heap_free[0], (unsigned) update_cache_heap_blk[0],
+                (unsigned) update_cache_heap_frag[0], tcp, (unsigned) httpclient_connects_get ());
+    update_cache_i6_put (line);
+}
+
+/* (b) und (c). Ohne gemessenes v (kein Durchgang begonnen) nichts. Danach ist der Satz leer. */
+static void
+update_cache_heap_report (void)
+{
+    char            line[120];
+    char            tcp[32];
+    size_t          k;
+    uint_fast8_t    i;
+
+    if (! (update_cache_heap_set & 1u))
+    {
+        return;
+    }
+
+    update_cache_heap_mark (UPDATE_CACHE_HEAP_POINTS - 1);             // n
+
+    k = (size_t) snprintf_P (line, sizeof (line), PSTR ("- update cache heap"));
+
+    for (i = 0; i < UPDATE_CACHE_HEAP_POINTS && k < sizeof (line) - 1; i++)
+    {
+        char    name = (i == 0) ? 'v' : (i == UPDATE_CACHE_HEAP_POINTS - 1) ? 'n' : (char) ('0' + i);
+
+        if (update_cache_heap_set & (1u << i))
+        {
+            k += (size_t) snprintf_P (line + k, sizeof (line) - k, PSTR (" %c=%u/%u"), name,
+                                      (unsigned) update_cache_heap_free[i], (unsigned) update_cache_heap_blk[i]);
+        }
+        else
+        {
+            k += (size_t) snprintf_P (line + k, sizeof (line) - k, PSTR (" %c=-"), name);
+        }
+    }
+
+    update_cache_i6_put (line);
+
+    k = (size_t) snprintf_P (line, sizeof (line), PSTR ("- update cache nach frag="));
+
+    for (i = 0; i < UPDATE_CACHE_HEAP_POINTS && k < sizeof (line) - 1; i++)
+    {
+        if (i)
+        {
+            line[k++] = '/';                                        // kein RAM-Literal fuer den Trenner
+            line[k]   = '\0';
+        }
+
+        if (update_cache_heap_set & (1u << i))
+        {
+            k += (size_t) snprintf_P (line + k, sizeof (line) - k, PSTR ("%u"), (unsigned) update_cache_heap_frag[i]);
+        }
+        else if (k < sizeof (line) - 1)
+        {
+            line[k++] = '-';
+            line[k]   = '\0';
+        }
+    }
+
+    tcp_now_tcp_field (tcp, sizeof (tcp));
+
+    if (k < sizeof (line) - 1)
+    {
+        snprintf_P (line + k, sizeof (line) - k, PSTR (" %s hc=%u acc=%u"), tcp, (unsigned) httpclient_connects_get (),
+                    (unsigned) (uint16_t) (http_accept_count - update_cache_acc_start));
+    }
+
+    update_cache_i6_put (line);
+    update_cache_heap_set = 0;
+}
+
+/* (f): Bit 0 Notes-, Bit 1 Listen-Temporaerdatei vorhanden. LittleFS muss gemountet sein. */
+static uint8_t
+update_cache_tmp_mask (void)
+{
+    return (uint8_t) ((LittleFS.exists (UPDATE_CACHE_NOTES_TMP) ? 1u : 0u) | (LittleFS.exists (UPDATE_CACHE_LIST_TMP) ? 2u : 0u));
+}
+
+static void
+update_cache_tmp_note (uint8_t before)
+{
+    uint8_t     gone = (uint8_t) (before & (uint8_t) ~update_cache_tmp_mask ());
+    char        line[64];
+
+    if (gone & 1u)
+    {
+        snprintf_P (line, sizeof (line), PSTR ("- update cache tmp geloescht %s"), UPDATE_CACHE_NOTES_TMP + 1);
+        update_cache_i6_put (line);
+    }
+
+    if (gone & 2u)
+    {
+        snprintf_P (line, sizeof (line), PSTR ("- update cache tmp geloescht %s"), UPDATE_CACHE_LIST_TMP + 1);
+        update_cache_i6_put (line);
+    }
 }
 
 /* Datei pruefen und oeffnen. true: gueltig, fp steht hinter der Kopfzeile, key und *body_len sind gefuellt.
@@ -14022,6 +14226,7 @@ update_cache_finish (void)
     }
 
     update_cache_forcing = 0;
+    update_cache_heap_report ();                                    // R1.3 I-6 (b), (c): am Ende, auch nach Abbruch
 }
 
 static void
@@ -14045,8 +14250,11 @@ update_cache_step_run (const char * host, const char * path)
 
             if (! update_cache_tmp_checked)                         // E3.8 N4: nach Stromausfall liegengeblieben
             {
+                uint8_t     tmp_before;
+
                 update_cache_tmp_checked = 1;
                 LittleFS.begin ();
+                tmp_before = update_cache_tmp_mask ();              // R1.3 I-6 (f)
 
                 if (LittleFS.exists (UPDATE_CACHE_NOTES_TMP))
                 {
@@ -14058,8 +14266,11 @@ update_cache_step_run (const char * host, const char * path)
                     LittleFS.remove (UPDATE_CACHE_LIST_TMP);
                 }
 
+                update_cache_tmp_note (tmp_before);                 // R1.3 I-6 (f): je tatsaechlich geloeschter Datei
                 LittleFS.end ();
             }
+
+            update_cache_vorher ();                                 // R1.3 I-6 (a): unmittelbar vor Schritt 1, Messpunkt v
             /* weiter mit Schritt 1, im selben Durchlauf: ein Abruf */
             // fall through
         case 1:
@@ -14069,8 +14280,11 @@ update_cache_step_run (const char * host, const char * path)
             const char *    remote = (update_cache_step == 1) ? ESP_WORDCLOCK_TXT : (update_cache_step == 2) ? APP_VERSION_TXT : WC_TXT;
             char            version[16];
             size_t          k = strlen (update_cache_key);
+            int             got = update_server_fetch_line (host, path, remote, version, sizeof (version));
 
-            if (update_server_fetch_line (host, path, remote, version, sizeof (version)) <= 0)
+            update_cache_heap_mark (update_cache_step);             // R1.3 I-6: nach jeder Versionszeile, auch ohne Erfolg
+
+            if (got <= 0)
             {
                 /* E3.8 M1/M2: der erste Fehlschlag beendet den Durchgang - kein Schluessel mit leerem Feld (es
                  * wuerde geschrieben und beim naechsten vollstaendigen Abruf noch einmal), und kein weiterer Abruf
@@ -14137,6 +14351,7 @@ update_cache_step_run (const char * host, const char * path)
 
         case 4:
             w = update_cache_write (RELEASENOTE_HTML, UPDATE_CACHE_NOTES_FILE, UPDATE_CACHE_NOTES_TMP, UPDATE_CACHE_NOTES_MAX, host, path, update_cache_cmp & 1);
+            update_cache_heap_mark (4);                             // R1.3 I-6: nach httpclient_stop () und LittleFS.end ()
             update_cache_need &= (uint8_t) ~1u;                     // Notes haben ihre Zeile
 
             if (w != 1)
@@ -14161,6 +14376,7 @@ update_cache_step_run (const char * host, const char * path)
 
         case 5:
             w = update_cache_write (WC_LIST_TXT, UPDATE_CACHE_LIST_FILE, UPDATE_CACHE_LIST_TMP, UPDATE_CACHE_LIST_MAX, host, path, update_cache_cmp & 2);
+            update_cache_heap_mark (5);                             // R1.3 I-6: nach httpclient_stop () und LittleFS.end ()
             update_cache_need &= (uint8_t) ~2u;                     // Liste hat ihre Zeile
 
             if (w != 1)
@@ -14231,6 +14447,7 @@ update_cache_poll (void)
             update_cache_line (UPDATE_CACHE_LIST_FILE, PSTR ("fehlgeschlagen"), PSTR ("quelle-leer"), -1);
         }
 
+        update_cache_heap_report ();                                // R1.3 I-6: Abbruch eines laufenden Durchgangs (sonst nichts)
         update_cache_step = 0;                                      // ein laufender Durchgang beginnt spaeter neu
         update_cache_due  = 1;
 
@@ -16862,6 +17079,7 @@ http_server_loop (void)
 
     tcp_tw_limit ();                                                        // E4 Teil 5: TIME_WAIT <= 2, VOR dem Messpunkt
     heap_low_note (HEAP_LOW_PATH_ACCEPT);                                   // E3 I-1: unmittelbar nach dem Annehmen
+    http_accept_note ();                                                    // R1.3 I-6: http_accept_count, "- heap erste anfrage"
     http_client.setTimeout (HTTP_WRITE_TIMEOUT_MS);                         // E3 M-3: vor jedem Schreiben in diese Verbindung
 
     HttpRequestTimer request_timer (sPath);                                 // E3 I-3: misst bis zum Verlassen, jeder Rueckkehrpfad

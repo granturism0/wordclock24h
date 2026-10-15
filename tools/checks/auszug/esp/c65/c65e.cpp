@@ -9,8 +9,8 @@ static void poll (int n = 12)
     for (int k = 0; k < n; k++) { int v = abrufe_gesamt; neu::update_cache_poll (); max_je_durchlauf = std::max (max_je_durchlauf, abrufe_gesamt - v); }
 }
 static int zeilen (const std::string & teil) { int n = 0; for (auto & l : Serial.lines) if (l.find (teil) != std::string::npos) n++; return n; }
-static int cache_zeilen (void) { int n = 0; for (auto & l : Serial.lines) if (! l.compare (0, 15, "- update cache ")) n++; return n; }
-static bool alle_mit_ms (void) { for (auto & l : Serial.lines) if (! l.compare (0, 15, "- update cache ") && l.find (" ms=") == std::string::npos) return false; return true; }
+static int cache_zeilen (void) { int n = 0; for (auto & l : Serial.lines) if (! l.compare (0, 15, "- update cache ") && ! i6_zeile (l)) n++; return n; }   /* R1.3: I-6 prueft c71i */
+static bool alle_mit_ms (void) { for (auto & l : Serial.lines) if (! l.compare (0, 15, "- update cache ") && ! i6_zeile (l) && l.find (" ms=") == std::string::npos) return false; return true; }
 static bool keine_tmp (void) { for (auto & e : LittleFS.f) if (e.first.find (".tmp") != std::string::npos) return false; return true; }
 static std::string datei (const char * n) { return LittleFS.f.count (n) ? LittleFS.f[n] : std::string ("(fehlt)"); }
 static std::string alle (void) { std::string s; for (auto & l : Serial.lines) s += l + " / "; return s; }
