@@ -267,6 +267,31 @@ else
   printf '  --    %-34s %s\n' "Momentaufnahme beim Tief (E4)" "ESP ${esp:-?} vor 3.2.37, Felder gibt es noch nicht"
 fi
 
+# ------------------------------------- C72 (Paket 2026-10-15, R1, I-5): Verbindungszustaende JETZT
+# Ab ESP 3.2.38: device_ready meldet die lwIP-Listen im Moment der Anfrage -- Zustaende, TIME_WAIT,
+# wartende und abgeholte tote Verbindungen, eine Liste von hoechstens 8 Eintraegen. tcp_now_states muss
+# genau 11 Zahlen tragen (Index = enum tcp_state; LISTEN und TIME_WAIT stehen dort immer auf 0, TIME_WAIT
+# zaehlt tcp_now_tw). Die eigene Abfrage des Smoketests steht selbst in der Liste -- das ist kein Befund.
+R1_FELDER="tcp_now_states tcp_now_tw tcp_now_pending tcp_now_unclaimed tcp_now_self_port tcp_now_list tcp_now_more http_accept_dead"
+if [ -n "${SMOKE_DR_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.38" "${esp:-0}" | sort -V | head -1)" = "3.2.38" ]; then
+  fehlend=""
+  for f in $R1_FELDER; do printf '%s' "$dr" | grep -q "\"$f\":" || fehlend="$fehlend $f"; done
+  zust=$(printf '%s' "$dr" | grep -o '"tcp_now_states":\[[^]]*\]' | sed 's/.*\[//; s/\]//')
+  anz=$(printf '%s' "$zust" | tr ',' '\n' | grep -c '^ *[0-9][0-9]* *$')
+  if [ -n "$fehlend" ]; then
+    fail "Verbindungszustaende jetzt (R1)" "fehlen:$fehlend"
+  elif [ "$anz" != "11" ]; then
+    fail "Verbindungszustaende jetzt (R1)" "tcp_now_states traegt $anz statt 11 Zahlen"
+  else
+    tw=$(printf '%s' "$dr" | grep -o '"tcp_now_tw":[0-9]*' | cut -d: -f2)
+    pe=$(printf '%s' "$dr" | grep -o '"tcp_now_pending":[0-9]*' | cut -d: -f2)
+    ad=$(printf '%s' "$dr" | grep -o '"http_accept_dead":[0-9]*' | cut -d: -f2)
+    pass "Verbindungszustaende jetzt (R1)" "aktiv [$zust], $tw TIME_WAIT, $pe wartend, $ad tote Abholungen"
+  fi
+else
+  printf '  --    %-34s %s\n' "Verbindungszustaende jetzt (R1)" "ESP ${esp:-?} vor 3.2.38, Felder gibt es noch nicht"
+fi
+
 # --------------------------------------------------- Legacy bleibt erreichbar
 code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' "$U/" 2>/dev/null)
 [ "$code" = "200" ] && pass "Legacy-Oberflaeche" "HTTP 200" || fail "Legacy-Oberflaeche" "HTTP $code"
