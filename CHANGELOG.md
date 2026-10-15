@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-10-16 ESP 3.2.38: Verbindungen und Startabgleich messbar (Paket 2026-10-15, R1; C72, C71)
+
+Nur der ESP, STM (3.2.34) und PWA (1.4.100) unverändert. `wordclock-release-2026-10-16-010338.zip`, Tag `release/3.2.34-3.2.38-1.4.100`.
+
+**Einspielen:** nur der ESP (OTA). Die App bleibt, wie sie ist. Für Dich ändert sich an Anzeige und Bedienung nichts —
+das Release misst nur, es behebt nichts.
+
+- **Wozu:** Zwei Heap-Befunde sind offen, deren Ursache noch nicht feststeht. C72: Offen gehaltene Verbindungen eines
+  Browsers binden Speicher, bis der Browser beendet wird (L461). C71: Wird beim Start der Zwischenspeicher für Release
+  Notes und STM-Liste geschrieben, bleibt der grösste freie Block danach dauerhaft kleiner (L460, L468). Die neuen Felder
+  und Zeilen liefern die Messwerte, an denen die Abhilfe im Release R3 entschieden wird.
+- **Verbindungen jetzt** (I-5, C72): `/api/device_ready` meldet am Ende zusätzlich, welche Verbindungen **in diesem
+  Augenblick** bestehen — Zahl je Zustand, TIME_WAIT, wartende und noch nicht abgeholte Verbindungen und eine Liste von
+  höchstens 8 Einträgen mit Zustand, Gegenstelle, Port, Ruhezeit, Wiederholungen und Art. Neu gezählt werden
+  Verbindungen, die schon geschlossen waren, als der ESP sie abholte (`http_accept_dead`). Bisher gab es die Zustände
+  nur als Momentaufnahme beim Tiefstwert (E4). Die Heap-Zeile im Mitschnitt trägt hinten `tcp=…` und `nrt=`.
+- **Startabgleich messbar** (I-6, C71): Jeder Durchgang des Abgleichs schreibt drei Zeilen — Heap und Verbindungen
+  vorher, freier Heap und grösster Block nach jedem Schritt, Zerstückelung, Verbindungen und angenommene Anfragen am
+  Ende. Dazu je Start eine Zeile mit dem Heap bei der ersten Anfrage und eine mit der Kennung des Flash-Chips samt
+  Hersteller, und eine Zeile, wenn der erste Durchgang eine liegengebliebene Temporärdatei löscht. Die bisherigen
+  `- update cache`-Zeilen bleiben wörtlich gleich. Statt der in der Spec genannten Zahl freier Heap-Einträge (`fe=`)
+  meldet der ESP die Zerstückelung des Cores (`frag=`): Die Zahl der Einträge ist nur über einen privaten Kopf des Cores
+  erreichbar.
+- **Speicher:** statisch +32 Byte gegenüber 3.2.37 (Grenze im Paket 60), Programm 534'448 Byte (+2'896). Auf dem Stack
+  +84 Byte bei `device_ready`, einmal je Minute bis +160 Byte für die Heap-Zeile.
+- **Geprüft:** am Prüfstand c72i (47 Fälle × 2, 19 statische Prüfungen, 17 Sabotagen schlagen an) und c71i (35 Fälle,
+  19 statische, 20 Sabotagen), beide gegen den Stand davor rot; die Bestandsprüfstände sind nachgezogen, S16 78/78. Der
+  Smoketest verlangt die neuen `device_ready`-Felder ab dieser Version. Am Gerät nach dem OTA: Smoketest 34/0 mit den
+  neuen Feldern, `check-pwa` 9/0, Logwache ohne Befund ausser dem OTA-Neustart. Der Flash-Chip ist kein PUYA
+  (`vendor=c4`) — eine der Ursachen, die für C71 im Raum standen, fällt damit weg. Die eigentlichen Messungen
+  (Startmessung G9) stehen noch aus. Den vollen Testlauf (`pwa-tester`) gibt es bewusst erst in T3: Das Release ändert
+  nur den ESP und fügt reine Lesefelder hinzu (DIR-012).
+- Intern: Zwei Kommentare zu den lwIP-Grenzen waren falsch und sind berichtigt — die Verbindungslisten sind nicht kurz
+  (`MEMP_NUM_TCP_PCB` begrenzt bei `MEMP_MEM_MALLOC` nichts), und TIME_WAIT hält der Core bei höchstens 6, nicht 5
+  (`BEFUNDE.md`, L472).
+
 ## 2026-10-14 ESP 3.2.37 und PWA 1.4.100: Uhr bleibt auch beim Laden der App reaktionsfähig (Paket 2026-10-13, E4; C65)
 
 ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-14-180012.zip`, Tag `release/3.2.34-3.2.37-1.4.100`.
