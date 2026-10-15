@@ -425,6 +425,203 @@ Mitschnitt verfolgt, sieht:
 
 ---
 
+## 4c. Messwerkzeuge für Paketläufe — Ladeprobe, Browser-Sitzung, P1-Probe
+
+Drei Werkzeuge aus dem Paket 2026-10-15 (`specs/paket-2026-10-15/design.md` §5.1, §5.3,
+§5.6) messen, was Smoketest und `check-pwa.sh` nicht sehen: was ein **wiederholtes** Laden
+der PWA noch über die Leitung schickt (C70), welche Verbindungen ein Browser auf der Uhr
+stehen lässt (C72) und ob ein halb geschlossener Verbindungszustand auf dem ESP von selbst
+abläuft. Sie gehören **nicht** zum Pflichtumfang der Phasen 0 bis 9, sondern zu den
+Messschritten eines Pakets. Massgeblich für Aufruf und Ausgabe ist der Kopfkommentar des
+jeweiligen Werkzeugs; hier steht, wie man die Ausgabe liest.
+
+**Für alle drei gilt Abschnitt 0, Punkt 5:** Während der Messung ist kein anderer Browser an
+der Uhr offen, auch nicht auf dem Telefon, und es läuft weder `check-pwa.sh` noch K19 noch
+eines der beiden anderen Werkzeuge. Jeder fremde Abruf landet in denselben Zählern und
+Tiefstwerten und lässt sich nachträglich nicht herausrechnen. `./tools/watch-log.sh` läuft
+mit (DIR-013); die Browser-Sitzung braucht die Heap-Zeile im Mitschnitt sogar für ihre
+Auswertung.
+
+### `tools/ladeprobe.sh` — kalt und warm laden (C70)
+
+```
+./tools/ladeprobe.sh                  1 kalt + 5 warm, deutsch, gegen DEVICE_HOST
+./tools/ladeprobe.sh --englisch       nach dem kalten Laden Sprache Englisch (wie K33)
+./tools/ladeprobe.sh --erwarte-304    ein warmes Laden mit 200 auf ein App-Asset ist ein Fehlschlag
+```
+
+Das Skript startet einen Headless-Chrome mit einem Profil, das **je Lauf frisch** ist und
+**innerhalb des Laufs bestehen bleibt**: Das erste Laden ist kalt, die folgenden sind warm.
+Die warmen Ladungen wechseln ab — die ungeraden laden neu (der Browser prüft nach), die
+geraden öffnen die PWA über `about:blank` erneut, das „zweite Öffnen“ aus C70. Bei Ende und
+Abbruch räumt das Skript Chrome und Profil ab; ein stehengebliebener Chrome hielte die PWA
+offen und fragte die Uhr weiter ab.
+
+| Umgebungsvariable | Wirkung |
+|---|---|
+| `LADEPROBE_WARM=n` | Zahl der warmen Ladungen, Vorgabe 5 |
+| `LADEPROBE_HOST=host:port` | anderes Ziel, etwa Vorschau oder Prüfserver für die Gegenprobe (DIR-014) |
+| `LADEPROBE_AUSNAHME=/app/pfad` | dieser Pfad ist von `--erwarte-304` ausgenommen |
+| `LADEPROBE_MITSCHRIFT=datei` | jede Zeile zusätzlich in diese Datei |
+| `CHROME=pfad` | anderer Chrome als der im Skript vorgegebene |
+
+Je Laden drei Zeilen:
+
+| Zeile | Lesart |
+|---|---|
+| `#n kalt` / `neuladen` / `oeffnen` `<ms> ms  /app/: <n> Anfr., 200= 304= cache= fehl= INM=  <n> Byte` | die `/app/`-Anfragen nach **Status über die Leitung**, die Zahl der Anfragen mit `If-None-Match` und die übertragenen Byte ohne Treffer im Browser-Cache. `(KEINE RUHE)`: nach 30 s war noch eine Anfrage offen. `ohne-Leitungsstatus=`: Anfragen, für die der Leitungsstatus fehlte |
+| `Pfade: …` | jede Anfrage einzeln als `pfad=status`; `+INM`, wenn der Browser `If-None-Match` schickte, `cache` bei einem Treffer im Browser-Cache |
+| `Geraet: …` | aus `/api/device_ready` nach dem Laden: der Tiefstwert seit dem Zurücksetzen samt I-4-Momentaufnahme (5b), dazu `free_heap`, `max_free_block` und `http_backlog`; liefert die Firmware `app_full` und `app_not_modified`, stehen sie dabei und in einer eigenen Zeile `Geraetezaehler` |
+
+**Der Status ist der der Leitung, nicht der der Seite.** Bei einer Nachprüfung mit 304 meldet
+Chrome im gewöhnlichen Antwortereignis (`responseReceived`) den Status der Cache-Kopie, also
+200. Den Status über die Leitung liefert nur `responseReceivedExtraInfo`, und den nimmt das
+Werkzeug. Ohne diese Unterscheidung sähe jeder Cache-Erfolg wie ein voller Abruf aus.
+
+**INM gehört zur Lesart jeder 200.** Ohne die Angabe, ob der Browser `If-None-Match` schickte,
+lässt sich eine 200 nicht zuordnen: Hat der Browser nicht gefragt, oder hat der ESP die Frage
+übergangen? Ein Fehlschlag unter `--erwarte-304` nennt deshalb je Pfad „(mit INM)“ oder
+„(ohne INM)“.
+
+**Späte Anfragen werden erfasst, nicht verworfen.** Manche Assets fordert die PWA erst nach
+einer `/api/`-Antwort an (`layout-previews.json` nach den Einstellungen). Kommt eine
+`/app/`-Anfrage ausserhalb eines Messfensters, meldet das Werkzeug sie als `SPAET` und zählt
+einen Fehlschlag.
+
+Zwei Hinweise ohne Fehlschlag: `Tiefstwert in der eigenen Lesung (device_ready)` — dieser
+Tiefstwert gehört nicht dem Laden. `kein /app/i18n/en.json in diesem Laden` unter
+`--englisch` — Englisch ist in diesem Laden nicht nachgewiesen.
+
+**Schreibt am Gerät nur den Rücksetzer der Tiefstwert-Messung** (`device_ready?heap_low_reset=1`
+vor jedem Laden). Exit **0** ohne Fehlschlag, **1** mit Fehlschlag (späte oder fehlgeschlagene
+Anfrage, keine Ruhe, `device_ready` nicht lesbar, `--erwarte-304` verletzt), **2**
+Werkzeugfehler. Eine Haltegrenze hat die Ladeprobe nicht; sie protokolliert nur (Ent-7).
+
+**Grundlinie ohne Cache:** `BEFUNDE.md`, L468, G9.1 — jedes Laden holt alles mit 200, INM=0.
+So muss es bei einer Auslieferung ohne Validator aussehen. Ein Lauf mit Cache wird gegen diese
+Grundlinie gestellt.
+
+### `tools/browser-sitzung.sh` — was ein Browser auf der Uhr stehen lässt (C72)
+
+```
+./tools/browser-sitzung.sh safari     Safari auf diesem Mac, über open und osascript bedient
+./tools/browser-sitzung.sh chrome     Chrome auf diesem Mac
+./tools/browser-sitzung.sh manuell    Gerät des Nutzers: das Skript nennt den Handgriff, der Nutzer bedient
+```
+
+Das Werkzeug stellt das Bild aus `BEFUNDE.md`, L461 kontrolliert nach — nach einer kurzen
+Safari-Sitzung blieb der Heap minutenlang tiefer, bis Safari beendet war — und liest am Ende
+jeder Phase:
+
+| Phase | Was | Dauer (Vorgabe) |
+|---|---|---|
+| **S0** | Ruhe, kein Browser — Grundwerte | 180 s |
+| **S1** | Browser öffnet `/app/`, Seite sichtbar | 120 s |
+| **S2** | neuer Tab `about:blank` vorn, PWA verborgen | 180 s |
+| **S3** | PWA-Tab geschlossen, Browser läuft weiter | 300 s |
+| **S4** | Browser beendet | 180 s |
+
+Zusammen rund 16 Minuten. `BROWSER_SITZUNG_DAUER="180 120 180 300 180"` ändert die Dauern
+(genau fünf ganze Zahlen), `BROWSER_SITZUNG_HOST` das Ziel, `BROWSER_SITZUNG_MITSCHRIFT` den
+Ort der Mitschrift (absoluter Pfad; Vorgabe ist der Temporärordner, der Pfad steht in der
+zweiten Zeile der Ausgabe).
+
+**Vorbedingungen.** Bei `safari` und `chrome` darf der Browser **nicht laufen** — geprüft am
+Anfang und noch einmal unmittelbar vor dem Öffnen in S1. Das Skript beendet nie einen Browser,
+den der Nutzer offen hat; läuft er schon, bricht es mit Exit 2 ab. Beim ersten Lauf fragt
+macOS nach der Erlaubnis zur Automation. **Die gibt der Nutzer einmal**; ohne sie scheitern
+alle Handgriffe über `osascript` (Tabs zählen, Tab öffnen, schliessen, Browser beenden) mit
+`BEDIENUNG FEHLGESCHLAGEN`.
+
+**Betriebsart `manuell`** ist für das Gerät des Nutzers, etwa Safari auf dem iPhone. Das Skript
+nennt je Phase den Handgriff und wartet auf die Eingabetaste; ohne Konsole wartet es nicht,
+und die Phasen laufen dem Handgriff davon. `netstat` und `lsof` lesen dabei nur diesen Mac —
+die Verbindungen des Telefons erscheinen dort nicht, sondern nur in `tcp_now_list` der Uhr.
+
+**Lesung am Phasenende, und nur dort:**
+
+- `/api/device_ready`: `free_heap`, `max_free_block`, `http_backlog`, ausgewählte I-4-Felder
+  (`heap_low_*`), `no_request_timeouts`, `no_request_aborts` und alle `tcp_now_*`-Felder (5b).
+  Fehlen die `tcp_now_*`-Felder, meldet das Skript, dass die Entscheidungsregel nicht
+  anwendbar ist.
+- `netstat` und `lsof` auf dem Mac: jede Verbindung zur Uhr mit Zustand und Prozess — auch
+  dann, wenn die Uhr nicht antwortet.
+
+**Die eigene Lesung ist selbst eine Verbindung** und hinterlässt auf der Uhr ein TIME_WAIT von
+rund 120 s. Deshalb liest das Skript zwischen den Phasen nicht, und es nennt je Lesung den
+**lokalen Port** und bis wann ihr TIME_WAIT reicht; die nächste Lesung wiederholt das als
+„TIME_WAIT der vorigen eigenen Lesung“. Ein TIME_WAIT mit diesem Port ist kein Rest des
+Browsers. Die Minutenreihe zwischen den Lesungen liefert die Heap-Zeile im Mitschnitt
+(`tcp=`, `nrt=`, 5b).
+
+**Zusammenfassung je Phase** am Ende, jede Zeile gegen S0:
+
+| Wert | Bedeutung |
+|---|---|
+| `L=` | Lochsumme `free − max`: freier Heap, der nicht im grössten Block liegt |
+| `Luecke=` | `free_heap`(S0) − `free_heap`(Phase), die „Lücke“ aus §5.4 |
+| `Δtimeouts`, `Δaborts`, `Δaccept_dead` | Zunahme von `no_request_timeouts`, `no_request_aborts` und `http_accept_dead` seit S0 |
+
+Die Zahlen sind roh. Eigene Lesungen und ihr TIME_WAIT-Fenster zählen nach §5.4 nicht; ob
+eines davon in eine Lesung fällt, zeigen Port und Uhrzeit der Lesung davor.
+
+**Nicht rein lesend:** Beim Öffnen kann die PWA selbst schreiben (`ambilight_online`,
+`BEFUNDE.md`, L462). Exit **0** Sitzung vollständig, **1** eine Phase gescheitert (Bedienung
+oder Lesung, oder der Browser läuft nach S4 noch), **2** Vorbedingung nicht erfüllt oder
+Abbruch. Bei Strg-C nennt das Skript die Phase und ob der Browser noch läuft — beenden musst
+Du ihn dann selbst.
+
+**Ausgewertet wird nach der Entscheidungsregel M1–M5** in `specs/paket-2026-10-15/design.md`
+§5.4; dort steht, welches Verbindungsbild zu welchem Eingriffskandidaten führt. Die Tabelle
+steht hier bewusst nicht, damit es keine zweite Fassung gibt. Mit Nachtrag A.3 gilt für
+**M2** (Strom von Vorab-Verbindungen): Er führt nur dann zum Eingriff K1, **wenn Δtimeouts den
+Anstieg trägt**. Bleibt Δtimeouts bei rund 0, wäre K1 für L461 wirkungslos; das Skript
+schreibt diesen Satz unter die Zusammenfassung. Widerlegt die P1-Probe P1, ist K2 zwingend.
+
+### `tools/p1-probe.py` — läuft FIN_WAIT_2 auf dem ESP ab? (AKM.7)
+
+```
+./tools/p1-probe.py                          gegen DEVICE_HOST
+P1_PROBE_HOST=<host> ./tools/p1-probe.py     anderes Ziel (Gegenprobe)
+```
+
+Die Probe prüft die Annahme P1: Eine Verbindung, die der ESP geschlossen hat, läuft in
+FIN_WAIT_2 nach rund 20 s ab, **auch wenn die Gegenstelle ihre Seite nicht schliesst**. Eine
+Verbindung schickt `GET /api/device_ready HTTP/1.0`, liest bis zum FIN des ESP und schliesst
+nicht; der ESP steht dann in FIN_WAIT_2, der Mac in CLOSE_WAIT. Über eine zweite Verbindung
+liest die Probe `device_ready` nach 10 s und nach 25 s und sucht in `tcp_now_list` den Eintrag
+mit ihrem lokalen Port; dazu je die Mac-Seite aus `netstat`. Je Lesung gibt sie
+`tcp_now_states`, `tcp_now_tw`, die ganze Liste und `tcp_now_more` aus, für den eigenen
+Eintrag Zustand, `ruhe_s`, `nrtx` und `arg`.
+
+| Exit | Bedeutung |
+|---|---|
+| **0** | P1 bestätigt: nach 10 s zu sehen, nach 25 s weg |
+| **1** | P1 widerlegt: nach 25 s noch da — K2 wird zwingend (§5.4) |
+| **2** | Werkzeugfehler oder Vorbedingung: Uhr nicht erreichbar, `DEVICE_HOST` fehlt, oder die Firmware liefert noch keine `tcp_now_list` (vor dem ESP-Release R1) |
+| **3** | nicht beobachtbar: Der Eintrag war schon nach 10 s nicht zu sehen, oder er fehlte nach 25 s bei gekappter Liste (`tcp_now_more` > 0). **Die Frage ist dann offen, nicht beantwortet** |
+
+Schreibt nichts am Gerät; die beiden Lesungen hinterlassen je ein TIME_WAIT. Ein Lauf dauert
+rund 25 s. Ergebnis am Gerät: `BEFUNDE.md`, L468, G9.2 — P1 bestätigt.
+
+### Wann welches Werkzeug
+
+| Lage | Werkzeug |
+|---|---|
+| jeder Durchlauf, jedes Einspielen | Smoketest, `install-app.sh --check` und `check-pwa.sh` (Phase 1 und 1b) — keines der drei hier |
+| Grundlinie, bevor sich an der Auslieferung der Assets etwas ändert | Ladeprobe ohne Option, ein Lauf davon mit `--englisch` (Paket 2026-10-15, G9.1) |
+| nach einer Änderung am Cache der Assets | Ladeprobe mit `--erwarte-304`, gegen die Grundlinie gestellt (G10.1) |
+| was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9.3 bis G9.5, G10.3, G11.1) |
+| ob ein halb geschlossener Zustand von selbst abläuft | P1-Probe, einmal; das Ergebnis gehört zur Zuordnung M1–M5 (G9.2) |
+| Regression nach einem Eingriff | Ladeprobe warm neben drei `check-pwa.sh` (G11.3) |
+
+**Nie zwei davon gleichzeitig**, auch nicht mit `check-pwa.sh` oder K19 (Abschnitt 0,
+Punkt 5). Zwischen zwei Browser-Sitzungen liegen mindestens 300 s Ruhe (G9.5) — sonst misst
+S0 der nächsten Sitzung die Reste der vorigen. Jedes Ergebnis wird ausgewertet, bevor das
+nächste Werkzeug startet (`specs/paket-2026-10-15/tasks.md`, Schritt G9).
+
+---
+
 ## 5. Phase 2 — Alles Lesende
 
 **Klasse L. Risikofrei, deshalb zuerst und vollständig.**
