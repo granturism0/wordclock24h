@@ -71,14 +71,18 @@ struct ClientA
     IPAttrappe remoteIP () { return IPAttrappe (); }
     uint8_t status () { return sz.verbunden ? ESTABLISHED : CLOSED; }      /* E4 I-4 */
     int availableForWrite () { return 1072; }
+    uint16_t remotePort () { return 0; }                    /* R1.1 I-5 */
 };
-struct ServerA { bool bereit = false; ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; }
+struct ServerA { bool bereit = false; bool hasClient () const { return bereit; } uint8_t unclaimed () const { return 0; }
+                 const void * listen_arg () const { return nullptr; }                       /* R1.1 I-5; c72i prueft sie */
+                 ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; }
                  uint8_t pending () const { return 0; } void backlog (uint8_t) {} } http_server;   /* E4 */
 static ClientA http_client;
 #include "i4.inc"                                           /* E4: heap_low_snapshot (), Backlog, tcp_tw_limit () */
 #ifndef HAVE_I4
 static void heap_low_snapshot (void) {}
 #endif
+#include "i5.inc"                                           /* R1.1 I-5 (Paket 2026-10-15): tcp_now_*, http_accept_dead */
 
 static void http_clear_request_user_agent (void) {}
 static void http_clear_request_fetch_dest (void) {}
@@ -208,7 +212,9 @@ int main (void)
 #endif
         note (HEAP_LOW_PATH_FS, 4294967295u, 4294967295u, fake_ms + 10);
         z = heapzeile ();
-        fall ("laengste Heap-Zeile ungekuerzt (67 Zeichen)", z == "- heap free=4294967295 max=4294967295 ovr=4294967295 low=4294967295", z);
+        /* R1.1 I-5: dahinter darf " tcp=... nrt=..." stehen; dessen Form und die Gesamtlaenge prueft c72i (C1, C3) */
+        fall ("laengste Heap-Zeile: low= ungekuerzt (67 Zeichen bis low=)", ! z.compare (0, 67, "- heap free=4294967295 max=4294967295 ovr=4294967295 low=4294967295") &&
+              (z.size () == 67 || ! z.compare (67, 5, " tcp=")), z);
         ESP.blk = 5000; ESP.heap = 6000;
     }
 

@@ -629,8 +629,15 @@ esp_heap_log (void)
          * Messung dieser Zeile selbst (max=) zaehlt mit: Lief seit der vorigen Zeile kein Messpunkt, steht
          * low= gleich max=, und low= ist nie groesser als max=. low= steht hinter ovr= - die Wache liest
          * ovr= und bleibt gueltig. Puffer 64 -> 80 Byte.
+         *
+         * Paket 2026-10-15 R1.1 I-5 (C72, design.md 3.2, Ent-4): hinten tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> (PCBs je
+         * Zustand in diesem Augenblick, in http.cpp gezaehlt wie /api/device_ready, tcp_now_tcp_field ()) und
+         * nrt=<no_request_timeouts>. Die laengste Form waechst damit auf 67 + 28 + 10 = 105 Zeichen, unter den 119 einer
+         * Ringzeile (STM32_LOG_LINE_LEN 120). Puffer 80 -> 120 Byte, dazu 32 fuer das tcp-Feld, beides auf dem Stack.
+         * Die Zeile entsteht in loop (), nicht in einer Anfrage: Eine eigene Verbindung gibt es hier nicht.
          */
-        char            line[80];
+        char            line[120];
+        char            tcp[32];
         unsigned long   heap_free = (unsigned long) ESP.getFreeHeap ();
         unsigned long   heap_max  = (unsigned long) ESP.getMaxFreeBlockSize ();
         unsigned long   heap_low  = (unsigned long) heap_low_line_take ();
@@ -640,11 +647,15 @@ esp_heap_log (void)
             heap_low = heap_max;
         }
 
-        snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu low=%lu"),
+        tcp_now_tcp_field (tcp, sizeof (tcp));
+
+        snprintf_P (line, sizeof (line), PSTR ("- heap free=%lu max=%lu ovr=%lu low=%lu %s nrt=%u"),
                   heap_free,
                   heap_max,
                   (unsigned long) esp_uart_overruns,
-                  heap_low);
+                  heap_low,
+                  tcp,
+                  (unsigned) http_no_request_timeouts_get ());
 
         Serial.println (line);
         Serial.flush ();

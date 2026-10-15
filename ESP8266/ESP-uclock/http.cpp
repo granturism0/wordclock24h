@@ -17,6 +17,7 @@
 #include <LittleFS.h>
 #include <lwip/tcp.h>
 #include <lwip/priv/tcp_priv.h>                                                 // E4 Ent-32: privater lwIP-Kopf NUR in dieser Datei, nur lesend
+#include <include/ClientContext.h>                                              // R1.1 I-5 (C72): ClientContext::next () fuer die Laenge von _unclaimed, nur lesend
 #include "base.h"
 #include "vars.h"
 #include "wifi.h"
@@ -65,6 +66,33 @@ class WcHttpServer : public WiFiServer
             {
                 tcp_backlog_set (_listen_pcb, n);
             }
+        }
+
+        /* Paket 2026-10-15 R1.1 I-5 (C72, design.md 3.1): Laenge von _unclaimed, lebende UND tote Kontexte, saettigend
+         * bei 255. Ein toter Kontext (Gegenstelle hat vor accept () geschlossen, _pcb NULL oder CLOSE_WAIT ohne Daten)
+         * bleibt in der Liste, bis accept () ihn abholt (WiFiServer.cpp:136-150). Geht nur die Liste entlang, gibt
+         * nicht ab.
+         */
+        uint8_t unclaimed (void) const
+        {
+            const ClientContext *   ctx = _unclaimed;
+            uint_fast16_t           n   = 0;
+
+            while (ctx && n < 0xFF)
+            {
+                n++;
+                ctx = ctx->next ();
+            }
+
+            return (uint8_t) n;
+        }
+
+        /* R1.1 I-5: callback_arg des Listen-PCB (WiFiServer::begin () setzt dort this, WiFiServer.cpp:88). Ein PCB in
+         * SYN_RCVD traegt diesen Wert, bis der ClientContext ihn ersetzt (ClientContext.h:43). NULL ohne _listen_pcb.
+         */
+        const void * listen_arg (void) const
+        {
+            return _listen_pcb ? (const void *) _listen_pcb->callback_arg : (const void *) 0;
         }
 };
 
@@ -322,7 +350,10 @@ static uint8_t          http_request_seen = 0;                  // ueberhaupt sc
  *
  * Festgehalten NUR im Zweig "neuer Block-Tiefstwert" von heap_low_note () - nicht fuer heap_line_low und nicht
  * fuer heap_low_free. Kein Heap, kein String, keine Ausgabe: Die lwIP-Listen werden nur gelesen und in diese
- * statischen Felder gezaehlt. Die Listen sind kurz (MEMP_NUM_TCP_PCB 5, TIME_WAIT hoechstens 5).
+ * statischen Felder gezaehlt. Kurz sind die Listen NICHT (P2, Paket 2026-10-15, berichtigt in R1.1): MEMP_NUM_TCP_PCB 5
+ * begrenzt bei MEMP_MEM_MALLOC 1 nichts (lwipopts.h:279, :444), aktive PCBs sind unbegrenzt. TIME_WAIT haelt der Core
+ * bei hoechstens 6 (sein Patch ruft TCP_TW_LIMIT (MEMP_NUM_TCP_PCB_TIME_WAIT) mit 5, und das Makro laesst l + 1 uebrig,
+ * siehe tcp_tw_limit () unten), nach dem eigenen tcp_tw_limit () bei 2. Deshalb zaehlt jede Schleife saettigend.
  *
  * Gleichzeitigkeit: lwIP laeuft im Systemkontext, loop () im Benutzerkontext, und der Systemkontext laeuft nur,
  * wenn der Benutzerkontext abgibt. heap_low_snapshot () gibt nicht ab - kein yield (), kein delay (), kein
@@ -577,6 +608,185 @@ heap_low_path_name (uint8_t path)
     }
 
     return "";                                                  // seit dem Ruecksetzen kein Messpunkt gelaufen
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Paket 2026-10-15 R1.1 I-5 (C72, design.md 3.1, 3.2): laufende Verbindungszustaende IN DIESEM AUGENBLICK
+ *
+ * I-4 haelt den Zustand beim Block-Tiefstwert fest, I-5 zeigt, was JETZT lebt: in /api/device_ready hinter
+ * api_orphan_skipped und, verkuerzt auf tcp=/nrt=, an der Heap-Zeile (ESP-uclock.ino). Gelesen werden nur
+ * tcp_active_pcbs, tcp_tw_pcbs, accepts_pending und _unclaimed. tcp_now_read () gibt nicht ab - kein yield (), kein
+ * delay (), kein connected ()/available () (die rufen optimistic_yield (), WiFiClient.cpp:246-257), keine Ausgabe;
+ * die Listen aendern sich waehrend des Gangs also nicht (wie heap_low_snapshot () oben). Ergebnis in einem
+ * Stackpuffer TCP_NOW (84 Byte), kein Heap, kein String. device_ready liest ihn VOR dem ersten http_send ().
+ *
+ * Liste: hoechstens TCP_NOW_LIST_MAX Eintraege, erst tcp_active_pcbs, dann tcp_tw_pcbs; was nicht hineinpasst, zaehlt
+ * in more (saettigend). Die Kappung ist noetig, weil nichts sonst die Zahl begrenzt (P2, Kommentar zu I-4). Je Eintrag:
+ *     state    lwIP enum tcp_state (0 CLOSED ... 10 TIME_WAIT)
+ *     peer     letztes Oktett der Gegenstelle (Ent-5)
+ *     port     Port der Gegenstelle, vergleichbar mit tcp_now_self_port (http_client.remotePort () dieser Anfrage)
+ *     ruhe_s   (tcp_ticks - tmr) x TCP_SLOW_INTERVAL / 1000, in 64 Bit gerechnet, saettigend bei 65535. lwIP setzt tmr
+ *              bei jedem angenommenen Segment, aber NICHT mehr nach TF_RXCLOSED und NICHT beim Zustandswechsel (A.2,
+ *              P4): Fuer einen vom ESP geschlossenen PCB heisst ruhe_s "seit dem letzten Segment VOR unserem close ()".
+ *              Ein TIME_WAIT-PCB endet rund 120 s nach dem Schliessen; sein ruhe_s misst NICHT die Zeit in TIME_WAIT.
+ *     nrtx     Wiederholungen des laufenden Segments
+ *     arg      0  callback_arg NULL: kein ClientContext mehr, vom ESP geschlossen. ESTABLISHED oder CLOSE_WAIT mit 0
+ *                 heisst, das FIN konnte nicht eingereiht werden (TF_CLOSEPEND, lwip/tcp.h:255)
+ *              1  ein ClientContext (bediente, wartende oder ausgehende Verbindung)
+ *              2  der callback_arg des Listeners: SYN_RCVD traegt ihn (P3) - kein ClientContext
+ *
+ * http_accept_dead zaehlt Abholungen aus _unclaimed, deren Gegenstelle schon geschlossen hatte: accept () holte einen
+ * Kontext, und !http_client in http_server_loop () verwarf ihn ohne Anfrage (P8). Gezaehlt NUR, wenn vor accept ()
+ * ein Eintrag in _unclaimed stand - sonst zaehlte jeder leere Durchlauf von loop () mit. Seit dem Start, saettigend,
+ * nie zurueckgesetzt (wie api_orphan_skipped).
+ *
+ * RAM: 2 Byte statisch (http_accept_dead). Stack: TCP_NOW (84 Byte) in device_ready und in tcp_now_tcp_field ().
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define TCP_NOW_LIST_MAX                        8                       // Eintraege in tcp_now_list (P2: sonst unbegrenzt)
+#define TCP_NOW_ARG_NONE                        0                       // callback_arg NULL
+#define TCP_NOW_ARG_CLIENT                      1                       // ClientContext
+#define TCP_NOW_ARG_LISTEN                      2                       // callback_arg des Listeners (SYN_RCVD)
+
+typedef struct
+{
+    uint8_t         state;
+    uint8_t         peer;
+    uint16_t        port;
+    uint16_t        ruhe_s;
+    uint8_t         nrtx;
+    uint8_t         arg;
+} TCP_NOW_ENTRY;
+
+typedef struct
+{
+    uint8_t         states[HEAP_LOW_PCB_STATES];                        // PCBs je Zustand in tcp_active_pcbs, saettigend
+    uint8_t         tw;                                                 // Laenge von tcp_tw_pcbs, saettigend
+    uint8_t         pending;                                            // accepts_pending am Listen-PCB
+    uint8_t         unclaimed;                                          // Laenge von _unclaimed, saettigend
+    uint8_t         n;                                                  // belegte Eintraege in list
+    uint16_t        self_port;                                          // Port der Gegenstelle dieser Anfrage, 0 ohne
+    uint16_t        more;                                               // PCBs, die nicht mehr in list passten
+    TCP_NOW_ENTRY   list[TCP_NOW_LIST_MAX];
+} TCP_NOW;
+
+static uint16_t         http_accept_dead         = 0;
+
+static uint8_t
+tcp_now_arg (const struct tcp_pcb * pcb, const void * listen_arg)
+{
+    if (! pcb->callback_arg)
+    {
+        return TCP_NOW_ARG_NONE;
+    }
+
+    if (listen_arg && (const void *) pcb->callback_arg == listen_arg)
+    {
+        return TCP_NOW_ARG_LISTEN;
+    }
+
+    return TCP_NOW_ARG_CLIENT;
+}
+
+static void
+tcp_now_add (TCP_NOW * t, const struct tcp_pcb * pcb, const void * listen_arg)
+{
+    TCP_NOW_ENTRY *     e;
+    uint32_t            ruhe;
+
+    if (t->n >= TCP_NOW_LIST_MAX)
+    {
+        if (t->more < 0xFFFF)
+        {
+            t->more++;
+        }
+
+        return;
+    }
+
+    ruhe      = (uint32_t) (((uint64_t) (u32_t) (tcp_ticks - pcb->tmr) * TCP_SLOW_INTERVAL) / 1000);
+    e         = &t->list[t->n++];
+    e->state  = (uint8_t) pcb->state;
+    e->peer   = (uint8_t) ip4_addr4 (ip_2_ip4 (&pcb->remote_ip));
+    e->port   = (uint16_t) pcb->remote_port;
+    e->ruhe_s = (uint16_t) (ruhe > 0xFFFF ? 0xFFFF : ruhe);
+    e->nrtx   = (uint8_t) pcb->nrtx;
+    e->arg    = tcp_now_arg (pcb, listen_arg);
+}
+
+static void
+tcp_now_read (TCP_NOW * t)
+{
+    const struct tcp_pcb *  pcb;
+    const void *            listen_arg = http_server.listen_arg ();
+    uint_fast8_t            idx;
+
+    memset (t, 0, sizeof (*t));
+
+    for (pcb = tcp_active_pcbs; pcb; pcb = pcb->next)
+    {
+        idx = (uint_fast8_t) pcb->state;
+
+        if (idx < HEAP_LOW_PCB_STATES && t->states[idx] < 0xFF)
+        {
+            t->states[idx]++;
+        }
+
+        tcp_now_add (t, pcb, listen_arg);
+    }
+
+    for (pcb = tcp_tw_pcbs; pcb; pcb = pcb->next)
+    {
+        if (t->tw < 0xFF)
+        {
+            t->tw++;
+        }
+
+        tcp_now_add (t, pcb, listen_arg);
+    }
+
+    t->pending   = http_server.pending ();
+    t->unclaimed = http_server.unclaimed ();
+    t->self_port = http_client.remotePort ();                          // gibt nicht ab (WiFiClient.cpp:355-361)
+}
+
+/* R1.1 I-5: in http_server_loop () am fruehen Ruecksprung nach accept (). Als eigene Funktion, damit der Zweig
+ * "if (!http_client) { ...; return; }" ohne inneren Block bleibt (c65a, c65z lesen ihn).
+ */
+static void
+http_accept_dead_note (uint_fast8_t unclaimed_before)
+{
+    if (unclaimed_before && http_accept_dead < 0xFFFF)
+    {
+        http_accept_dead++;
+    }
+}
+
+/* R1.1 I-5 (design.md 3.2, Ent-4): "tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw>" fuer die Heap-Zeile (ESP-uclock.ino) und
+ * I-6. Dieselbe Zaehlung wie device_ready (tcp_now_read ()), eine Wahrheit. Laengste Form 27 Zeichen, buf also
+ * mindestens 28. Liefert die Laenge.
+ */
+size_t
+tcp_now_tcp_field (char * buf, size_t size)
+{
+    TCP_NOW     t;
+
+    if (! size)
+    {
+        return 0;
+    }
+
+    tcp_now_read (&t);
+    snprintf_P (buf, size, PSTR ("tcp=%u/%u/%u/%u/%u/%u"),
+                (unsigned) t.states[ESTABLISHED], (unsigned) t.states[FIN_WAIT_1], (unsigned) t.states[FIN_WAIT_2],
+                (unsigned) t.states[CLOSE_WAIT], (unsigned) t.states[LAST_ACK], (unsigned) t.tw);
+    return strlen (buf);
+}
+
+uint16_t
+http_no_request_timeouts_get (void)                                     // R1.1 I-5: nrt= der Heap-Zeile
+{
+    return http_no_request_timeouts;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
@@ -14681,10 +14891,12 @@ http_api_device_ready ()
     int16_t         low_unacked     = heap_low_unacked;
     char            low_req_path[sizeof (heap_low_req_path)];
     char            num[48];                                        // E4 I-4: 11 Zahlen bis 255 samt Rahmen, oder eine Zahl
+    TCP_NOW         tcp_now;                                        // R1.1 I-5: Stackpuffer, 84 Byte
 
     memcpy (max_path, req_max_path, sizeof (max_path));
     memcpy (low_states, heap_low_pcb_states, sizeof (low_states));
     memcpy (low_req_path, heap_low_req_path, sizeof (low_req_path));
+    tcp_now_read (&tcp_now);                                        // R1.1 I-5: Listen VOLLSTAENDIG lesen, bevor gesendet wird
 
     if (reset_param[0] && strcmp (reset_param, "0"))
     {
@@ -14768,6 +14980,51 @@ http_api_device_ready ()
     http_json_send_string_field (FS("heap_low_req_path"), low_req_path);
     http_json_send_uint_field (FS("http_backlog"), (unsigned long) http_backlog);                   // E4 Teil 3: Zustand, nie zurueckgesetzt
     http_json_send_uint_field (FS("api_orphan_skipped"), (unsigned long) api_orphan_skipped);       // E4 Teil 6: seit dem Start
+    /* Paket 2026-10-15 R1.1 I-5 (C72, design.md 3.1): hinter api_orphan_skipped, bestehende Felder unveraendert. Alles
+     * aus tcp_now, gelesen vor dem ersten http_send (). tcp_now_states wie heap_low_pcb_states, aber jetzt;
+     * tcp_now_list aus Feldern [zustand, gegenstelle, port, ruhe_s, nrtx, arg], erst aktive, dann TIME_WAIT,
+     * hoechstens TCP_NOW_LIST_MAX; tcp_now_more zaehlt den Rest. Nichts davon wird zurueckgesetzt.
+     */
+    http_json_send_field_prefix (FS("tcp_now_states"));
+    {
+        size_t          n = 0;
+        uint_fast8_t    idx;
+
+        for (idx = 0; idx < HEAP_LOW_PCB_STATES; idx++)
+        {
+            n += snprintf_P (num + n, sizeof (num) - n, PSTR ("%c%u"), idx ? ',' : '[', (unsigned) tcp_now.states[idx]);
+        }
+
+        snprintf_P (num + n, sizeof (num) - n, PSTR ("]"));
+        http_send (num);
+    }
+    http_json_send_uint_field (FS("tcp_now_tw"), (unsigned long) tcp_now.tw);
+    http_json_send_uint_field (FS("tcp_now_pending"), (unsigned long) tcp_now.pending);
+    http_json_send_uint_field (FS("tcp_now_unclaimed"), (unsigned long) tcp_now.unclaimed);
+    http_json_send_uint_field (FS("tcp_now_self_port"), (unsigned long) tcp_now.self_port);
+    http_json_send_field_prefix (FS("tcp_now_list"));
+    {
+        uint_fast8_t    idx;
+
+        if (! tcp_now.n)
+        {
+            http_send (FS("["));                                    // leere Liste: "[]"
+        }
+
+        for (idx = 0; idx < tcp_now.n; idx++)                       // laengster Eintrag 28 Zeichen samt Trenner
+        {
+            const TCP_NOW_ENTRY *   e = &tcp_now.list[idx];
+
+            snprintf_P (num, sizeof (num), PSTR ("%c[%u,%u,%u,%u,%u,%u]"), idx ? ',' : '[',
+                        (unsigned) e->state, (unsigned) e->peer, (unsigned) e->port, (unsigned) e->ruhe_s,
+                        (unsigned) e->nrtx, (unsigned) e->arg);
+            http_send (num);
+        }
+
+        http_send (FS("]"));
+    }
+    http_json_send_uint_field (FS("tcp_now_more"), (unsigned long) tcp_now.more);
+    http_json_send_uint_field (FS("http_accept_dead"), (unsigned long) http_accept_dead);           // R1.1 I-5: seit dem Start
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -16591,12 +16848,15 @@ http_server_loop (void)
     int     end_position_question;
     String  sRemoteIp;
     String  sHeaderLine;
+    uint_fast8_t    unclaimed_before;
 
     http_backlog_track ();                                                  // E4 Teil 3: Backlog nach freiem Heap, VOR accept ()
+    unclaimed_before = http_server.hasClient ();                            // R1.1 I-5: stand etwas in _unclaimed? gibt nicht ab
     http_client = http_server.accept();                                     // check if a client has connected
 
     if (!http_client)                                                       // wait until the client sends some data
     {
+        http_accept_dead_note (unclaimed_before);                           // R1.1 I-5 (P8): toter Kontext abgeholt
         return;
     }
 

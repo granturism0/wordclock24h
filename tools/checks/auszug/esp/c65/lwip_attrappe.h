@@ -7,9 +7,17 @@
 #ifndef LWIP_ATTRAPPE_H
 #define LWIP_ATTRAPPE_H
 typedef uint32_t u32_t;
+typedef uint16_t u16_t;                                         /* R1.1 I-5 (Paket 2026-10-15) */
+typedef uint8_t  u8_t;
+typedef struct { u32_t addr; } ip_addr_t;
+#define ip_2_ip4(ipaddr)                ((const ip_addr_t *) (ipaddr))
+#define ip4_addr4(ipaddr)               (((const u8_t *) (&(ipaddr)->addr))[3])
+#define TCP_SLOW_INTERVAL               500                     /* 2 x TCP_TMR_INTERVAL, tcp_priv.h:127-129 */
+static u32_t tcp_ticks = 0;
 enum tcp_state { CLOSED = 0, LISTEN = 1, SYN_SENT = 2, SYN_RCVD = 3, ESTABLISHED = 4, FIN_WAIT_1 = 5, FIN_WAIT_2 = 6,
                  CLOSE_WAIT = 7, CLOSING = 8, LAST_ACK = 9, TIME_WAIT = 10 };
-struct tcp_pcb { struct tcp_pcb * next; enum tcp_state state; u32_t alter; };
+struct tcp_pcb { struct tcp_pcb * next; enum tcp_state state; u32_t alter;
+                 void * callback_arg; ip_addr_t remote_ip; u16_t remote_port; u32_t tmr; u8_t nrtx; };   /* R1.1 I-5; c72i prueft die Felder */
 static struct tcp_pcb * tcp_active_pcbs = nullptr;
 static struct tcp_pcb * tcp_tw_pcbs = nullptr;
 static struct tcp_pcb   pcb_pool[32];

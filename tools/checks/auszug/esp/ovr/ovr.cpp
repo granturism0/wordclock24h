@@ -22,6 +22,10 @@ struct EspStub { uint32_t getFreeHeap (void) { return 4294967295u; } uint32_t ge
 static std::vector<std::string> logring;
 static void stm32_log_append (const char * l) { logring.push_back (l); }
 static uint32_t heap_low_line_take (void) { return 4294967295u; }   /* E3 I-1: kein Messpunkt seit der vorigen Zeile, low= = max= */
+/* R1.1 I-5 (Paket 2026-10-15): die Heap-Zeile endet auf tcp=/nrt=; hier leer bzw. 0 - Gegenstand ist ovr= */
+static size_t tcp_now_tcp_field (char * b, size_t n) { return n ? (size_t) snprintf (b, n, "tcp=0/0/0/0/0/0") : 0; }
+static uint16_t http_no_request_timeouts_get (void) { return 0; }
+#define HEAP_ZUSATZ " tcp=0/0/0/0/0/0 nrt=0"
 #include "ovr_var.inc"
 #include "ovr_heap.inc"
 static void poll (void)
@@ -36,8 +40,8 @@ static void erwarte (const char * f, unsigned long ovr)
     faelle++;
     std::string s = "- heap free=4294967295 max=4294967295 ovr=" + std::to_string (ovr) + " low=4294967295";   /* E3: low= hinten */
     std::string l = heapline ();
-    if (l != s) fehl (f, "API-Ring: erwartet \"" + s + "\", bekam \"" + l + "\"");
-    if (Serial.out != s + "\r\n") fehl (f, "Mitschnitt: erwartet \"" + s + "\"");
+    if (l != s && l != s + HEAP_ZUSATZ) fehl (f, "API-Ring: erwartet \"" + s + "\", bekam \"" + l + "\"");   /* R1.1: mit oder ohne Zusatz */
+    if (Serial.out != s + "\r\n" && Serial.out != s + HEAP_ZUSATZ + "\r\n") fehl (f, "Mitschnitt: erwartet \"" + s + "\"");
 }
 int main (void)
 {

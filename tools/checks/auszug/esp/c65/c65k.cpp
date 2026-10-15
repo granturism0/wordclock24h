@@ -52,10 +52,13 @@ struct ClientA
     IPAttrappe remoteIP () { return IPAttrappe (); }
     uint8_t status () { return (uint8_t) c_status; }
     int availableForWrite () { return c_status == CLOSED ? 0 : c_avail; }
+    uint16_t remotePort () { return 0; }                    /* R1.1 I-5 */
 };
 static int s_pending = 0;
 static std::vector<std::string> ereignisse; static std::vector<int> gesetzt;
-struct ServerA { bool bereit = false; ClientA accept () { ereignisse.push_back ("accept"); ClientA c; c.valid = bereit; bereit = false; return c; }
+struct ServerA { bool bereit = false; bool hasClient () const { return bereit; } uint8_t unclaimed () const { return 0; }
+                 const void * listen_arg () const { return nullptr; }                       /* R1.1 I-5; c72i prueft sie */
+                 ClientA accept () { ereignisse.push_back ("accept"); ClientA c; c.valid = bereit; bereit = false; return c; }
                  uint8_t pending () const { return (uint8_t) s_pending; }
                  void backlog (uint8_t n) { ereignisse.push_back ("backlog"); gesetzt.push_back (n); }
                  int begin_port = -1, begin_backlog = -1;
@@ -66,6 +69,7 @@ static ClientA http_client;
 #ifndef HAVE_I4
 static void heap_low_snapshot (void) {}
 #endif
+#include "i5.inc"                                           /* R1.1 I-5 (Paket 2026-10-15): tcp_now_*, http_accept_dead */
 
 static void http_clear_request_user_agent (void) {}
 static void http_clear_request_fetch_dest (void) {}

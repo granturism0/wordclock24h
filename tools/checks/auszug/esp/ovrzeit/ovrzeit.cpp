@@ -22,6 +22,10 @@ struct EspStub { uint32_t getFreeHeap (void) { return 1000; } uint32_t getMaxFre
 static std::vector<std::string> logring;
 static void stm32_log_append (const char * l) { logring.push_back (l); }
 static uint32_t heap_low_line_take (void) { return 4294967295u; }   /* E3 I-1: kein Messpunkt seit der vorigen Zeile, low= = max= */
+/* R1.1 I-5 (Paket 2026-10-15): die Heap-Zeile endet auf tcp=/nrt=; hier leer bzw. 0 - Gegenstand ist ovr= */
+static size_t tcp_now_tcp_field (char * b, size_t n) { return n ? (size_t) snprintf (b, n, "tcp=0/0/0/0/0/0") : 0; }
+static uint16_t http_no_request_timeouts_get (void) { return 0; }
+#define HEAP_ZUSATZ " tcp=0/0/0/0/0/0 nrt=0"
 static void var_sync_check (void) {}
 #include "z_var.inc"
 #include "z_heap.inc"
@@ -48,7 +52,8 @@ static void erwarte_zeile (const char * f, const std::string & soll)
     std::string ist = ovrzeile ();
     if (ist != soll) fehl (f, "erwartet \"" + soll + "\", bekam \"" + ist + "\"");
 }
-static std::string heap (void) { for (auto & l : Serial.out) if (! l.compare (0, 7, "- heap ")) return l; return ""; }
+/* R1.1 I-5: der Zusatz tcp=/nrt= wird abgeschnitten, Gegenstand hier sind ovr= und die Reihenfolge */
+static std::string heap (void) { for (auto & l : Serial.out) if (! l.compare (0, 7, "- heap ")) { size_t z = l.find (HEAP_ZUSATZ); return z == std::string::npos ? l : l.substr (0, z); } return ""; }
 int main (void)
 {
     printf ("ovrzeit (%s)\n", BEZEICHNUNG);

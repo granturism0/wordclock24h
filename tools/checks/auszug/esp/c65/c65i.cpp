@@ -54,15 +54,19 @@ struct ClientA
     IPAttrappe remoteIP () { return IPAttrappe (); }
     uint8_t status () { return (uint8_t) c_status; }
     int availableForWrite () { return c_status == CLOSED ? 0 : c_avail; }
+    uint16_t remotePort () { return 0; }                    /* R1.1 I-5 */
 };
 static int s_pending = 0;
-struct ServerA { bool bereit = false; ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; }
+struct ServerA { bool bereit = false; bool hasClient () const { return bereit; } uint8_t unclaimed () const { return 0; }
+                 const void * listen_arg () const { return nullptr; }                       /* R1.1 I-5; c72i prueft sie */
+                 ClientA accept () { ClientA c; c.valid = bereit; bereit = false; return c; }
                  uint8_t pending () const { return (uint8_t) s_pending; } void backlog (uint8_t) {} } http_server;
 static ClientA http_client;
 #include "i4.inc"
 #ifndef HAVE_I4
 static void heap_low_snapshot (void) {}
 #endif
+#include "i5.inc"                                           /* R1.1 I-5 (Paket 2026-10-15): tcp_now_*, http_accept_dead */
 
 static void http_clear_request_user_agent (void) {}
 static void http_clear_request_fetch_dest (void) {}
@@ -227,7 +231,9 @@ int main (void)
             "http_backlog", "api_orphan_skipped" };
         std::vector<std::string> ist = schluessel ();
         std::string w; for (auto & k : ist) w += k + " ";
-        fall ("D1 Felder: E3 unveraendert in Name und Reihenfolge, E4 hinter upd_cache_max_ms", ist == soll, w);
+        /* R1.1 I-5: dahinter folgen die I-5-Felder; deren Namen und Reihenfolge prueft c72i A8 */
+        fall ("D1 Felder: E3 unveraendert in Name und Reihenfolge, E4 hinter upd_cache_max_ms (Anfang der Liste)",
+              ist.size () >= soll.size () && std::equal (soll.begin (), soll.end (), ist.begin ()), w);
         m = dr ();
         std::string a = m["heap_low_pcb_states"]; int zahlen = a.size () > 2 ? 1 : 0; for (char c : a) if (c == ',') zahlen++;
         fall ("D2 heap_low_pcb_states ist ein Feld aus genau 11 Zahlen", a.front () == '[' && a.back () == ']' && zahlen == 11, a);
