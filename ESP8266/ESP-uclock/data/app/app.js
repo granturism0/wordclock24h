@@ -11652,7 +11652,7 @@ async function loadLayoutPreviewRowsMap() {
     return layoutPreviewRowsMapPromise;
   }
 
-  layoutPreviewRowsMapPromise = fetchWithTimeout(LAYOUT_PREVIEW_ROWS_URL, { cache: "no-store" }, 3500)
+  layoutPreviewRowsMapPromise = fetchWithTimeout(LAYOUT_PREVIEW_ROWS_URL, { cache: "no-cache" }, 3500)
     .then((response) => response.ok ? response.json() : {})
     .then((payload) => {
       layoutPreviewRowsMap = payload && typeof payload === "object" ? payload : {};
