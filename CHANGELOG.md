@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-16 ESP 3.2.39: Speicher nach Update-Prüfungen sofort wieder frei (Paket 2026-10-15, R1b; C71, C75)
+
+Nur der ESP, STM (3.2.34) und PWA (1.4.100) unverändert. `wordclock-release-2026-10-16-080958.zip`, Tag `release/3.2.34-3.2.39-1.4.100`.
+
+**Einspielen:** nur der ESP (OTA). An Anzeige und Bedienung ändert sich nichts.
+
+- **Was behoben ist** (C71): Fragt die App nach Updates, prüft der ESP auf dem Update-Server, ob die Icon- und die
+  Wetterdatei vorhanden sind, und liest dabei nur den Kopf der Antwort. Der Rest blieb bis zum nächsten Abruf im
+  Speicher liegen — nach jeder solchen Prüfung **1'704 Byte**, genau die Lücke, die nach dem Start und in der
+  Safari-Messung (L461) dauerhaft fehlte (`BEFUNDE.md`, L468). Jetzt gibt der ESP die Verbindung samt ungelesener
+  Antwort beim Schliessen frei. Das gilt für jede Prüfung, die nur nach der Existenz einer Datei fragt, auch für die
+  der App-Dateien und für eine Datei, die für den Zwischenspeicher zu gross ist.
+- **Fehlerwege** (C75): Auch eine Fehlerseite des Servers (etwa 404), eine ausbleibende Antwort, eine gescheiterte
+  Namensauflösung und eine leere Antwort geben die Verbindung jetzt frei. Bisher blieb sie in diesen Fällen bis zum
+  nächsten Abruf offen. Die Rückgabewerte sind unverändert; der Wetterabruf hat eine eigene Verbindung und ist nicht
+  betroffen.
+- **Speicher:** statisch 0 Byte, Programm 534'480 Byte (+32).
+- **Geprüft:** am neuen Prüfstand c71e (24 Fälle, 8 statische Prüfungen), gegen 3.2.38 rot, alle 10 Sabotagen schlagen
+  an; S16 79/79.
+
 ## 2026-10-16 ESP 3.2.38: Verbindungen und Startabgleich messbar (Paket 2026-10-15, R1; C72, C71)
 
 Nur der ESP, STM (3.2.34) und PWA (1.4.100) unverändert. `wordclock-release-2026-10-16-010338.zip`, Tag `release/3.2.34-3.2.38-1.4.100`.
