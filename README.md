@@ -34,6 +34,12 @@ BlackPill, weshalb die Firmware-Konfiguration `BLACKPILL_BOARD` passt.
 Pinbelegung, Signalwege und der Abgleich gegen den Firmware-Code stehen in
 [HARDWARE.md](HARDWARE.md).
 
+Für den geplanten **Umbau auf einen ESP32-S3** (ein Chip statt STM32F411 und ESP-12F, Platinenformat
+und LED-Board unverändert) gibt es ein eigenes Hardware-Team, Komponentenblätter mit Datenblattbelegen
+und eigene Prüfungen. Rahmen, Rollen und Stand: [knowledge/hardware-esp32s3-umbau.md](knowledge/hardware-esp32s3-umbau.md),
+Einstieg in die Unterlagen: `hardware/README.md`. Wo `HARDWARE.md` und die V2-Netzliste voneinander
+abweichen, gilt die Netzliste; die Berichtigungen stehen in `HARDWARE.md`.
+
 - `PB1` ist der Datenpin der LED-Kette (`TIM3_CH4 / DMA1`).
 - Ein Fehler im SK6812-Treiber für genau diese Kanalzuordnung wurde am `2026-04-08` korrigiert.
 - Bei dunkler LED-Kette trotz laufender Firmware: Auf **V2** übernimmt `U3` die
@@ -47,7 +53,7 @@ Pinbelegung, Signalwege und der Abgleich gegen den Firmware-Code stehen in
 | Befehl | Zweck |
 |---|---|
 | `make release-zip` | vollständiger Build aller Komponenten plus Release-ZIP |
-| `./tools/guardrails.sh` | Prüfungen vor jeder Übergabe — Syntax, undefinierte Aufrufe, i18n, Versionen, `.gz`, Muster, Aktualität der Doku |
+| `./tools/guardrails.sh` | Prüfungen vor jeder Übergabe — Syntax, undefinierte Aufrufe, i18n, Versionen, `.gz`, Muster, Aktualität der Doku und die Hardware des ESP32-S3-Umbaus (Stufen S19/S20, siehe [tools/checks/README.md](tools/checks/README.md)) |
 | `python3 tools/preview/server.py 8099` | PWA ohne Gerät ansehen, siehe [tools/preview/README.md](tools/preview/README.md) |
 | `./tools/deploy.sh` | Release auf den Update-Server ausrollen |
 | `./tools/install-app.sh` | PWA ins LittleFS des Geräts laden (`--check` zeigt nur den Stand) |

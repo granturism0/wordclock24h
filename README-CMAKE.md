@@ -259,11 +259,14 @@ Neben den `make`-Zielen gibt es drei Werkzeuge unter `tools/`.
 
 ### `./tools/guardrails.sh`
 
-Prüfungen, die nach jedem Task laufen und vor einer Übergabe bestehen müssen. Acht
-Stufen, Laufzeit Sekunden, ohne zusätzliche Abhängigkeiten: Syntax, undefinierte
-Funktionsaufrufe, i18n-Schlüssel, Versionspflicht, `.gz`-Artefakte, ungenutzte
-CSS-Klassen, Muster aus `knowledge/quick-reference.md`, Kodierung der C-Quellen und ein
-Smoke-Test, der `app.js` mit gestubbtem Browser-Umfeld lädt.
+Prüfungen, die nach jedem Task laufen und vor einer Übergabe bestehen müssen. Die Stufen
+(Aufzählung und Stand zeigt der Lauf selbst, nicht diese Datei) decken unter anderem ab:
+Syntax, undefinierte Funktionsaufrufe, i18n-Schlüssel, Versionspflicht, `.gz`-Artefakte,
+ungenutzte CSS-Klassen, Muster aus `knowledge/quick-reference.md`, Kodierung der C-Quellen,
+einen Smoke-Test, der `app.js` mit gestubbtem Browser-Umfeld lädt, die Aktualität der
+Dokumentation (S9) und die Vollständigkeit des Befundkatalogs (S10). Die Stufen **S19** und
+**S20** prüfen die Hardware des ESP32-S3-Umbaus (`hardware/esp32s3/`) und ihre Gegenproben;
+sie rufen `kicad-cli` auf, siehe [tools/checks/README.md](tools/checks/README.md).
 
 `--full` ergänzt die Compile-Smoke-Tests `f103`, `f411` und `esp`. Exit 0 heisst: keine
 Kritisch-Findings.

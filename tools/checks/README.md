@@ -52,3 +52,20 @@ Pflegefall des Prüfstands, kein bestandener Test.
 
 Die `.mjs`-Dateien daneben sind keine Prüfstände, sondern **Guardrail-Stufen**: Sie lesen den
 Quelltext und melden Abweichungen, statt Logik nachzurechnen.
+
+## Hardware-Prüfungen (Stufen S19 und S20)
+
+Seit dem 17.10.2026 gibt es für den Umbau auf den ESP32-S3 (`hardware/esp32s3/`) eigene Prüfungen.
+Sie rechnen keine Firmware nach, sondern lesen KiCad-Dateien und rufen `kicad-cli` auf — fehlt es,
+sagen sie es. Hintergrund und Rahmen: [knowledge/hardware-esp32s3-umbau.md](../../knowledge/hardware-esp32s3-umbau.md).
+
+| Datei | Zweck |
+|---|---|
+| `hardware.py` | **Stufe S19.** Acht Prüfungen H1 bis H8: ERC, Netzliste gegen Soll, Pinregeln am Modul, Stückliste, Komponentenblätter, V2-Referenz, Leiterplattenformat und DRC, LED-Board-Schnittstelle. Jede nennt, wie viele Dinge sie betrachtet hat. Einzeln: `python3 tools/checks/hardware.py --nur H1,H3` |
+| `hardware-gegenproben.sh` | **Stufe S20.** Fährt jede Prüfung aus S19 gegen eine Kopie mit hergestellter Verletzung und verlangt, dass sie anschlägt (DIR-014); wo es eine Gegenrichtung gibt, muss die unveränderte Kopie bestehen |
+| `hardware-erc.baseline`, `hardware-drc.baseline` | Zählung der Meldungen je Art im V2-Bestand. Der Entwurf darf nicht schlechter sein — das ist **keine Zusicherung, dass V2 sauber sei** (`BEFUNDE.md`, L490) |
+| `hardware-pinregeln.json` | Regeln am Modul `U2`: welche Pins offen bleiben, welche nur an ihr Netz gehören, mit Grund je Pin |
+| `hardware-led-schnittstelle.ausnahmen` | Freigegebene Abweichungen am Weg zum LED-Board (Prüfung H8). Ein Eintrag ohne Freigabe des Nutzers ist keiner |
+
+Die Umgebungsvariablen `HW_SCH`, `HW_NETLIST`, `HW_BOM`, `HW_PCB`, `HW_KOMP` und `HW_V2` gibt es **nur**
+für die Gegenproben: Wer sie sonst setzt, prüft eine Kopie statt des Entwurfs.
