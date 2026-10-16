@@ -3,7 +3,8 @@
 # neu an -- mit 200 und neuem ETag --, waehrend alle anderen Dateien 304 bleiben. Danach das Original zurueck: 200 mit
 # dem urspruenglichen ETag.
 #
-#   ./tools/probe-u.sh                     gegen DEVICE_HOST aus tools/device.conf
+#   ./tools/probe-u.sh                     gegen DEVICE_HOST aus tools/device.conf (Ablauf U1a)
+#   ./tools/probe-u.sh U1b|U2|U3           ab R2b: versionierte Dateien (tools/probe-u-c.py, design.md 18.8)
 #   PROBE_U_OHNE_UPLOAD=1 ./tools/probe-u.sh   Gegenprobe (DIR-014): nichts hochladen -- muss FEHL melden
 #
 # Ablauf: Ladeprobe mit 5 warmen Ladungen in EINEM Profil. Vor warm #2 wird layout-previews.json mit angehaengtem
@@ -15,6 +16,12 @@
 # Exit 0 bestanden, 1 Fehlschlag, 2 Werkzeugfehler/Vorbedingung.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 2
+# R2b (C70 Variante c, AKL.8 iv): Abläufe U1b, U2, U3 in tools/probe-u-c.py; ohne Argument oder U1a wie bisher.
+case "${1:-U1a}" in
+  U1a) ;;
+  U1b|U2|U3) exec python3 tools/probe-u-c.py "$1" ;;
+  *) echo "Aufruf: $0 [U1a|U1b|U2|U3]" >&2; exit 2 ;;
+esac
 [ -f tools/device.conf ] && . tools/device.conf
 HOST=${DEVICE_HOST:-}; [ -n "$HOST" ] || { echo "DEVICE_HOST fehlt (tools/device.conf)." >&2; exit 2; }
 U="http://$HOST"
