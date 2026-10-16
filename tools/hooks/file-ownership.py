@@ -193,14 +193,31 @@ def main():
 
     if tool == "Bash":
         command = str(tool_input.get("command", ""))
+        # Nach 'cd verzeichnis && ... datei.md' steht in der Zeile nur der Dateiname. Ohne das
+        # Verzeichnis sah der Hook 'jlcpcb-bestand.md' als Wurzeldatei und verweigerte dem
+        # Besitzer seine eigene Datei (17.10.2026, hw-datasheet-analyst); umgekehrt entging ihm
+        # 'cd src && sed -i ... main.c', denn ein blosses 'main.c' liegt in keinem beobachteten
+        # Verzeichnis. Darum wird der Name mit dem letzten 'cd'-Ziel zusammengesetzt.
+        cds = re.findall(r"\bcd\s+(?:'([^']+)'|\"([^\"]+)\"|([^\s;&|]+))", command)
+        cd_dir = ""
+        if cds:
+            c = [x for x in cds[-1] if x][0]
+            if not c.startswith(("/", "~", "$")) and c not in (".", ".."):
+                cd_dir = c.strip("/")
+            else:
+                n = normalize(c)
+                if n and n != c:
+                    cd_dir = n.strip("/")
         # Kandidaten einsammeln: alles, was wie ein Pfad im Repo aussieht.
         for match in re.finditer(r"[A-Za-z0-9_./-]+\.(?:c|h|cpp|ino|js|html|css|md|json|webmanifest|sh|py|mjs)\b", command):
-            path = normalize(match.group(0))
+            raw = match.group(0)
+            joined = (cd_dir + "/" + raw) if (cd_dir and "/" not in raw) else raw
+            path = normalize(joined)
             if not TRACKED.match(path):
                 continue
             if allowed(agent, path):
                 continue
-            if bash_writes_to(command, match.group(0)) or bash_writes_to(command, path):
+            if bash_writes_to(command, raw) or bash_writes_to(command, path):
                 return refuse(agent, path, "Bash")
         return 0
 

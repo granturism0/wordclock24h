@@ -88,6 +88,15 @@ probe "hw-doc-writer: eigene Doku"           file-ownership.py hw-doc-writer Edi
 probe "hw-doc-writer: README"                file-ownership.py hw-doc-writer Edit "$(pwd)/hardware/README.md" allow
 probe "hw-doc-writer: Entscheid (fremd)"     file-ownership.py hw-doc-writer Edit "$(pwd)/hardware/architektur/entscheidungen.md" deny
 probe "hw-architect: README (jetzt fremd)"   file-ownership.py hw-architect Edit "$(pwd)/hardware/README.md" deny
+probe "cd + eigene Datei per sed -i"         file-ownership.py hw-datasheet-analyst Bash "cd hardware/komponenten && sed -i '' 's/a/b/' jlcpcb-bestand.md" allow
+probe "cd + eigene Datei per cat >"          file-ownership.py hw-datasheet-analyst Bash "cd hardware/komponenten && cat > jlcpcb-bestand.md <<'EOF'
+x
+EOF" allow
+probe "cd + fremde Datei per sed -i"         file-ownership.py esp-developer Bash "cd src && sed -i '' 's/a/b/' main.c" deny
+probe "cd + fremde Datei per cat >"          file-ownership.py hw-datasheet-analyst Bash "cd hardware/esp32s3 && cat > gen.py <<'EOF'
+x
+EOF" deny
+probe "cd + fremde Datei nur lesen"          file-ownership.py hw-datasheet-analyst Bash "cd hardware/esp32s3 && cat gen.py | head" allow
 probe "hw-reviewer: eigenes Gutachten"     file-ownership.py hw-reviewer Edit "$(pwd)/hardware/review/2026-10-17-schema.md" allow
 probe "hw-reviewer: Entwurf aendern"       file-ownership.py hw-reviewer Edit "$(pwd)/hardware/esp32s3/gen.py" deny
 probe "doc-writer: hardware-Doku (fremd)"  file-ownership.py doc-writer Edit "$(pwd)/hardware/architektur/entscheidungen.md" deny
