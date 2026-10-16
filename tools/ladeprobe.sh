@@ -5,6 +5,8 @@
 #   ./tools/ladeprobe.sh                   gegen DEVICE_HOST, 1 kalt + 5 warm, deutsch
 #   ./tools/ladeprobe.sh --englisch        Sprache nach dem kalten Laden auf Englisch (wie K33)
 #   ./tools/ladeprobe.sh --erwarte-304     ein warmes Laden mit 200 auf ein App-Asset ist FEHL
+#   ./tools/ladeprobe.sh --erwarte-cache   ab R2b (C70 Variante c): warm Dokument und layout-previews.json mit 304 ueber
+#                                          die Leitung, alles Versionierte aus dem Cache -- sonst FEHL
 #   LADEPROBE_HOST=127.0.0.1:8099 ...      gegen Vorschau oder Pruefserver (Gegenprobe, DIR-014)
 #   LADEPROBE_WARM=n                       Zahl der warmen Ladungen
 #   LADEPROBE_AUSNAHME=/app/pfad           von --erwarte-304 ausgenommen
@@ -26,10 +28,11 @@ if [ -z "${LADEPROBE_HOST:-}" ]; then
   touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
 fi
 
-ERWARTE_304=0; ENGLISCH=0
+ERWARTE_304=0; ERWARTE_CACHE=0; ENGLISCH=0
 for a in "$@"; do
   case "$a" in
     --erwarte-304) ERWARTE_304=1 ;;
+    --erwarte-cache) ERWARTE_CACHE=1 ;;
     --englisch) ENGLISCH=1 ;;
     *) meld "Unbekannte Option: $a"; exit 2 ;;
   esac
@@ -61,5 +64,5 @@ if ! curl -s -m 2 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; the
 fi
 
 CDP_PORT="$CDP_PORT" GERAET_URL="http://$HOST/app/" START_MARKE="$START_MARKE" \
-  ERWARTE_304="$ERWARTE_304" ENGLISCH="$ENGLISCH" node tools/ladeprobe.mjs
+  ERWARTE_304="$ERWARTE_304" ERWARTE_CACHE="$ERWARTE_CACHE" ENGLISCH="$ENGLISCH" node tools/ladeprobe.mjs
 exit $?

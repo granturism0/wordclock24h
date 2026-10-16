@@ -35,6 +35,9 @@ const PORT = process.env.CDP_PORT;
 const SOLL = process.env.GERAET_URL;          // http://<host>/app/
 const MARKE = process.env.START_MARKE;
 const ERWARTE_304 = process.env.ERWARTE_304 === "1";
+// R2b (C70 Variante c, AKL.8 iii): unversionierte Pfade warm auf der Leitung mit 304, alle anderen aus dem Cache.
+const ERWARTE_CACHE = process.env.ERWARTE_CACHE === "1";
+const UNVERSIONIERT = new Set(["/app/", "/app/index.html", "/app/layout-previews.json"]);
 const ENGLISCH = process.env.ENGLISCH === "1";
 const MITSCHRIFT = process.env.LADEPROBE_MITSCHRIFT || "";
 const AUSNAHME = process.env.LADEPROBE_AUSNAHME || "";
@@ -46,6 +49,7 @@ const ETAG_PFAD = process.env.LADEPROBE_ETAG_PFAD || "";
 // Pfade, die dieses Profil schon einmal geladen hat. Ein 200 auf einen NEUEN Pfad ist kein Verstoss gegen --erwarte-304:
 // Der Browser kann nicht nachfragen, was er nie hatte (G10.1, 16.10.2026: i18n/en.json erst nach dem Sprachwechsel).
 const gesehen = new Set();
+const vorZ = {};   // Geraetezaehler der vorigen Lesung, fuer die Δ je Laden
 const RUHE_MS = 1500, MAX_MS = 30000, NACHLAUF_MS = 1500;
 const I4 = ["heap_low_block", "heap_low_free", "heap_low_path", "heap_low_req_path", "heap_low_ms",
             "heap_low_accepts_pending", "heap_low_backlog", "heap_low_pcb_states", "heap_low_tw",
@@ -191,7 +195,26 @@ async function laden(nr, art, aktion) {
   if (nFail.length) { aus(`    fehlgeschlagen: ${nFail.map(a => a.pfad + " " + a.status).join(", ")}`); fehl++; }
   if (!ruhig) fehl++;
   // Unabhaengige Nachzaehlung ab R2 (L235): die Zaehler des ESP neben die eigene Zahl.
-  if (dr.app_full !== undefined && dr.app_not_modified !== undefined) aus(`    Geraetezaehler (seit Start): app_full=${dr.app_full} app_not_modified=${dr.app_not_modified}`);
+  if (dr.app_full !== undefined && dr.app_not_modified !== undefined) {
+    const z = ["app_full", "app_not_modified", "app_immutable", "app_token_miss"].filter(k => dr[k] !== undefined);
+    const d = z.map(k => `${k}=${dr[k]}${vorZ[k] !== undefined ? ` (Δ${dr[k] - vorZ[k] >= 0 ? "+" : ""}${dr[k] - vorZ[k]})` : ""}`);
+    aus(`    Geraetezaehler (seit Start): ${d.join(" ")}`);
+    // Zwei unabhaengige Instrumente (L235, design.md 18.8): Leitungsanfragen an /app/ = Δapp_full + Δapp_not_modified.
+    // Die eigenen device_ready-Lesungen gehen an /api/ und zaehlen dort nicht.
+    if (vorZ.app_full !== undefined) {
+      const leitung = liste.filter(a => !a.cache).length, dz = (dr.app_full - vorZ.app_full) + (dr.app_not_modified - vorZ.app_not_modified);
+      if (leitung !== dz) aus(`    HINWEIS: Leitung ${leitung} Anfragen, Geraet zaehlt ${dz} -- Instrumente uneinig`);
+    }
+    for (const k of z) vorZ[k] = dr[k];
+  }
+  if (ERWARTE_CACHE && art !== "kalt") {
+    const leitung304 = liste.filter(a => !a.cache && a.status === 304 && !UNVERSIONIERT.has(a.pfad) && !a.neu);
+    const leitung200 = liste.filter(a => !a.cache && a.status === 200 && !UNVERSIONIERT.has(a.pfad) && !a.neu);
+    const unvNicht = liste.filter(a => UNVERSIONIERT.has(a.pfad) && (a.cache || a.status !== 304));
+    if (leitung304.length) { aus(`    FEHL --erwarte-cache: warm: Cache erwartet, 304 erhalten: ${leitung304.map(a => a.pfad).join(", ")}`); fehl++; }
+    if (leitung200.length) { aus(`    FEHL --erwarte-cache: warm: Cache erwartet, 200 erhalten: ${leitung200.map(a => a.pfad).join(", ")}`); fehl++; }
+    if (unvNicht.length) { aus(`    FEHL --erwarte-cache: warm: unversioniert auf der Leitung mit 304 erwartet: ${unvNicht.map(a => a.pfad + "=" + (a.cache ? "cache" : a.status)).join(", ")}`); fehl++; }
+  }
   if (ETAG_PFAD) for (const a of liste.filter(x => x.pfad === ETAG_PFAD)) aus(`    ETag ${a.pfad}: ${a.etag || "-"} (${a.cache ? "cache" : a.status})`);
   if (ERWARTE_304 && art !== "kalt") {
     const erstmals = n200.filter(a => a.neu);
