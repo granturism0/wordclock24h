@@ -190,6 +190,16 @@ EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx ve
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
 printf '%s\n' "$basis_roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
+# Neustarts, Exceptions und Watchdog-Resets werden ebenso an der ZEILE erkannt, nicht als
+# Zahl im Fenster (BEFUNDE L475). Bis zum 16.10.2026 verglich die Wache die Anzahl der
+# Treffer in den letzten 3000 Zeilen mit der Grundlinie. Das Fenster gleitet aber: Faellt
+# ein alter Neustart hinten heraus, waehrend ein neuer vorne hereinkommt, bleibt die Zahl
+# gleich -- und die Wache meldet "ruhig". Genau so beim OTA auf ESP 3.2.39: Der Neustart
+# des R1-OTA von 01:44 lag in der Grundlinie, bis 08:14 war er aus dem Fenster gefallen,
+# der neue stand drin, Zahl 1 = 1. Bemerkt hat es der Lead beim Nachsehen, nicht die Wache.
+KRIT_MUSTER='rst cause|exception \(29\)|wdt reset'
+GESEHEN_K="$(git rev-parse --git-dir 2>/dev/null)/watch-log.kritisch$WL_SFX"
+printf '%s\n' "$basis_roh" | grep -aiE -e "$KRIT_MUSTER" > "$GESEHEN_K" || true
 letzte_vt=""
 letzte_vn=""
 sprung_folge=0
@@ -248,14 +258,19 @@ while :; do
     basis_rst=$(printf '%s' "$roh" | grep -ac 'rst cause')
     basis_wdt=$(printf '%s' "$roh" | grep -aci 'wdt reset')
     printf '%s\n' "$roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
+    printf '%s\n' "$roh" | grep -aiE -e "$KRIT_MUSTER" > "$GESEHEN_K" || true
     basis_fehlt=0
     printf '  %s  Grundlinie nachgeholt: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n' \
       "$(date '+%H:%M:%S')" "$basis_exc" "$basis_rst" "$basis_wdt"
   fi
 
-  exc=$(printf '%s' "$roh" | grep -ac 'Exception (29)')
-  rst=$(printf '%s' "$roh" | grep -ac 'rst cause')
-  wdt=$(printf '%s' "$roh" | grep -aci 'wdt reset')
+  # Nur Zeilen, die noch nicht gesehen wurden (L475) -- exc/rst/wdt sind die Zahl der NEUEN.
+  [ -s "$GESEHEN_K" ] || printf '%s\n' '#watch-log-leer#' > "$GESEHEN_K"
+  neu_k=$(printf '%s' "$roh" | grep -aiE -e "$KRIT_MUSTER" | grep -aFxv -f "$GESEHEN_K")
+  [ -n "$neu_k" ] && printf '%s\n' "$neu_k" >> "$GESEHEN_K"
+  exc=$(printf '%s' "$neu_k" | grep -ac 'Exception (29)')
+  rst=$(printf '%s' "$neu_k" | grep -ac 'rst cause')
+  wdt=$(printf '%s' "$neu_k" | grep -aci 'wdt reset')
 
   # NUR aus der letzten diag-Zeile lesen, nicht aus dem ganzen Mitschnitt.
   #
@@ -456,20 +471,20 @@ while :; do
     done <<< "$neu"
   fi
 
-  if [ "$exc" -gt "$basis_exc" ]; then
-    printf '  %s  *** %d NEUE Exception(s) ***\n' "$stamp" "$((exc - basis_exc))"
+  if [ "$exc" -gt 0 ]; then
+    printf '  %s  *** %d NEUE Exception(s) ***\n' "$stamp" "$exc"
     printf '%s' "$roh" | grep -aB3 'Exception (29)' | grep -aE 'request|GET|POST' | tail -2 | sed 's/^/             davor: /'
     printf '%s' "$roh" | grep -aA2 'Exception (29)' | grep -aE 'epc1|ctx:' | tail -2 | sed 's/^/             /'
     basis_exc=$exc; alarm=1
   fi
 
-  if [ "$wdt" -gt "$basis_wdt" ]; then
+  if [ "$wdt" -gt 0 ]; then
     printf '  %s  *** WATCHDOG-RESET *** seit STM 3.2.8 waere das ein Rueckfall\n' "$stamp"
     basis_wdt=$wdt; alarm=1
   fi
 
-  if [ "$rst" -gt "$basis_rst" ]; then
-    printf '  %s  *** %d Neustart(s) ***\n' "$stamp" "$((rst - basis_rst))"
+  if [ "$rst" -gt 0 ]; then
+    printf '  %s  *** %d Neustart(s) ***\n' "$stamp" "$rst"
     basis_rst=$rst; alarm=1
   fi
 
