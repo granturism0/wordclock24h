@@ -17,10 +17,13 @@ def code(name):
     p = os.path.join(q, name)
     if not os.path.exists(p): return []
     s = open(p, 'rb').read().decode('utf-8', 'replace').replace('\r\n', '\n')
+    n0 = s.count('\n') + 1
     s = re.sub(r'/\*.*?\*/', lambda m: '\n' * m.group(0).count('\n'), s, flags=re.S)
     s = re.sub(r"'(?:\\.|[^'\\\n])'", "''", s)                # Zeichenliterale zuerst ('"' oeffnete sonst eine Zeichenkette)
     s = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', s)              # Zeichenketten enden in ihrer Zeile - sonst verschwinden Zeilen
-    return [re.sub(r'//.*', '', l) for l in s.split('\n')]
+    L = [re.sub(r'//.*', '', l) for l in s.split('\n')]
+    if len(L) != n0: print(f'KAPUTT: Bereinigung veraendert die Zeilenzahl ({n0} -> {len(L)}) - Pruefung saehe ihren Gegenstand nicht vollstaendig (L477/E40)'); sys.exit(2)
+    return L
 def body(L, kopf):
     i = next((k for k, l in enumerate(L) if l.startswith(kopf)), None)
     if i is None: return []

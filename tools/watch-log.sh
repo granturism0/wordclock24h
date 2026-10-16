@@ -195,8 +195,8 @@ printf '%s\n' "$basis_roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
 # Treffer in den letzten 3000 Zeilen mit der Grundlinie. Das Fenster gleitet aber: Faellt
 # ein alter Neustart hinten heraus, waehrend ein neuer vorne hereinkommt, bleibt die Zahl
 # gleich -- und die Wache meldet "ruhig". Genau so beim OTA auf ESP 3.2.39: Der Neustart
-# des R1-OTA von 01:44 lag in der Grundlinie, bis 08:14 war er aus dem Fenster gefallen,
-# der neue stand drin, Zahl 1 = 1. Bemerkt hat es der Lead beim Nachsehen, nicht die Wache.
+# von 01:44 (G9.6 Start 4, local_esp_restart) lag in der Grundlinie, bis 08:14 war er aus
+# dem Fenster gefallen, der neue stand drin, Zahl 1 = 1. Bemerkt hat es der Lead beim Nachsehen, nicht die Wache.
 KRIT_MUSTER='rst cause|exception \(29\)|wdt reset'
 GESEHEN_K="$(git rev-parse --git-dir 2>/dev/null)/watch-log.kritisch$WL_SFX"
 printf '%s\n' "$basis_roh" | grep -aiE -e "$KRIT_MUSTER" > "$GESEHEN_K" || true

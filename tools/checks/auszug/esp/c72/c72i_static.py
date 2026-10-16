@@ -20,9 +20,13 @@ def roh(name):
     p = os.path.join(q, name)
     return open(p, 'rb').read().decode('utf-8', 'replace').replace('\r\n', '\n') if os.path.exists(p) else ''
 def code(s):
+    n0 = s.count('\n') + 1
     s = re.sub(r'/\*.*?\*/', lambda m: '\n' * m.group(0).count('\n'), s, flags=re.S)
-    s = re.sub(r'"(?:\\.|[^"\\])*"', '""', s)                  # Zeichenketten leeren
-    return [re.sub(r'//.*', '', l) for l in s.split('\n')]
+    s = re.sub(r"'(?:\\.|[^'\\\n])'", "''", s)                # L477/E40: Zeichenliterale zuerst
+    s = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', s)              # Zeichenketten leeren, enden in ihrer Zeile
+    L = [re.sub(r'//.*', '', l) for l in s.split('\n')]
+    if len(L) != n0: print(f'KAPUTT: Bereinigung veraendert die Zeilenzahl ({n0} -> {len(L)}) - Pruefung saehe ihren Gegenstand nicht vollstaendig (L477/E40)'); sys.exit(2)
+    return L
 Hr, Ir, Br = roh('http.cpp'), roh('ESP-uclock.ino'), roh('base.h')
 H, I, B = code(Hr), code(Ir), code(Br)
 def body(L, kopf):
