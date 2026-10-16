@@ -294,7 +294,8 @@ PWA-Backup lässt sich als JSON einlesen.
    fehl, ist das ein Befund und kein Teststart. (Die Zahl der Prüfungen steht hier
    bewusst nicht: Sie hängt an der Zahl der Assets und wächst mit dem Skript.)
 2. `./tools/install-app.sh --check` — Version **und** abgelegte Dateien gegen die
-   Weissliste.
+   Weissliste, seit dem ESP-Release R2b dazu die Markenprüfung (5b, „Versionierte URLs
+   und `immutable`“).
 3. Rohabzug S2 als **Referenzdatei** ablegen. Gegen sie läuft Phase 9.
 4. Festhalten: welche Teilsysteme sind da (RTC, EEPROM, DS18B20, TFT, DFPlayer,
    Ambilight), welche Module sind folglich sichtbar.
@@ -457,6 +458,7 @@ die Browser-Sitzung braucht die Heap-Zeile im Mitschnitt sogar für ihre Auswert
 ./tools/ladeprobe.sh                  1 kalt + 5 warm, deutsch, gegen DEVICE_HOST
 ./tools/ladeprobe.sh --englisch       nach dem kalten Laden Sprache Englisch (wie K33)
 ./tools/ladeprobe.sh --erwarte-304    ein warmes Laden mit 200 auf ein App-Asset ist ein Fehlschlag
+./tools/ladeprobe.sh --erwarte-cache  ab R2b: warm nur Dokument und layout-previews.json auf der Leitung, mit 304
 ```
 
 Das Skript startet einen Headless-Chrome mit einem Profil, das **je Lauf frisch** ist und
@@ -474,6 +476,7 @@ offen und fragte die Uhr weiter ab.
 | `LADEPROBE_MITSCHRIFT=datei` | jede Zeile zusätzlich in diese Datei |
 | `LADEPROBE_HAKEN=programm` | wird vor jedem warmen Laden mit dessen Nummer aufgerufen; Exit ≠ 0 ist ein Werkzeugfehler. Dafür gebaut, dass Probe U zwischen zwei Ladungen eine Datei tauschen kann |
 | `LADEPROBE_ETAG_PFAD=/app/pfad` | gibt je Laden für diesen Pfad das ETag und den Leitungsstatus aus (`ETag <pfad>: <etag> (<status>)`) |
+| `LADEPROBE_DETAIL=1` | gibt je Anfrage eine Zeile `D <url> <leitung\|cache> <status> cc=<Cache-Control> etag=<ETag>` aus, die URL samt Query und damit samt Marke. Dafür gebaut, dass die Probe U1b bis U3 den Kopf jeder einzelnen Antwort auswerten kann |
 | `CHROME=pfad` | anderer Chrome als der im Skript vorgegebene |
 
 Je Laden drei Zeilen:
@@ -482,7 +485,7 @@ Je Laden drei Zeilen:
 |---|---|
 | `#n kalt` / `neuladen` / `oeffnen` `<ms> ms  /app/: <n> Anfr., 200= 304= cache= fehl= INM=  <n> Byte` | die `/app/`-Anfragen nach **Status über die Leitung**, die Zahl der Anfragen mit `If-None-Match` und die übertragenen Byte ohne Treffer im Browser-Cache. `(KEINE RUHE)`: nach 30 s war noch eine Anfrage offen. `ohne-Leitungsstatus=`: Anfragen, für die der Leitungsstatus fehlte |
 | `Pfade: …` | jede Anfrage einzeln als `pfad=status`; `+INM`, wenn der Browser `If-None-Match` schickte, `cache` bei einem Treffer im Browser-Cache |
-| `Geraet: …` | aus `/api/device_ready` nach dem Laden: der Tiefstwert seit dem Zurücksetzen samt I-4-Momentaufnahme (5b), dazu `free_heap`, `max_free_block` und `http_backlog`; liefert die Firmware `app_full` und `app_not_modified`, stehen sie dabei und in einer eigenen Zeile `Geraetezaehler` |
+| `Geraet: …` | aus `/api/device_ready` nach dem Laden: der Tiefstwert seit dem Zurücksetzen samt I-4-Momentaufnahme (5b), dazu `free_heap`, `max_free_block` und `http_backlog`; liefert die Firmware `app_full` und `app_not_modified`, stehen sie dabei und in einer eigenen Zeile `Geraetezaehler (seit Start)`, ab R2b dort auch `app_immutable` und `app_token_miss`, ab dem zweiten Laden je Zähler mit Δ zum vorigen Laden |
 
 **Der Status ist der der Leitung, nicht der der Seite.** Bei einer Nachprüfung mit 304 meldet
 Chrome im gewöhnlichen Antwortereignis (`responseReceived`) den Status der Cache-Kopie, also
@@ -501,6 +504,22 @@ Profil, 200 ohne Vorgaenger`. Typischer Fall ist `i18n/en.json` im ersten warmen
 Sprachwechsel unter `--englisch`; ohne diese Regel meldete G10.1 dort einen Fehlalarm
 (`BEFUNDE.md`, L468). Für schon geladene Pfade bleibt jede warme `200` ein Fehlschlag.
 
+**`--erwarte-cache` ist das Soll ab dem ESP-Release R2b** (`specs/paket-2026-10-15/requirements.md`,
+AKG.2). In jedem warmen Laden gehen nur die unversionierten Pfade über die Leitung — `/app/`,
+`/app/index.html` und `/app/layout-previews.json` —, und zwar mit `304`; jede andere `/app/`-Anfrage
+kommt aus dem Browser-Cache. Drei Meldungen, jede ein Fehlschlag: `warm: Cache erwartet, 304
+erhalten: <pfade>` und `warm: Cache erwartet, 200 erhalten: <pfade>` für versionierte Dateien auf
+der Leitung, `warm: unversioniert auf der Leitung mit 304 erwartet: <pfad>=<cache|status>` für
+Dokument und `layout-previews.json`. Ein Pfad, den das Profil zum ersten Mal anfordert, ist wie
+bei `--erwarte-304` ausgenommen. Gegen R2 muss die Option mit „Cache erwartet, 304 erhalten“
+fehlschlagen — das ist ihre Gegenprobe (`design.md` §18.8).
+
+**Zwei Instrumente, ein Ergebnis** (L235). Ab dem zweiten Laden stellt das Werkzeug die Zahl der
+eigenen Leitungsanfragen an `/app/` gegen Δ`app_full` + Δ`app_not_modified` des Geräts. Weichen
+sie ab, steht `HINWEIS: Leitung <n> Anfragen, Geraet zaehlt <m> -- Instrumente uneinig` — kein
+Fehlschlag. Genau dieses Bild erzeugt ein fremder Abruf im Fenster (Abschnitt 0, Punkt 5); die
+eigenen Lesungen von `device_ready` gehen an `/api/` und zählen nicht mit.
+
 **Späte Anfragen werden erfasst, nicht verworfen.** Manche Assets fordert die PWA erst nach
 einer `/api/`-Antwort an (`layout-previews.json` nach den Einstellungen). Kommt eine
 `/app/`-Anfrage ausserhalb eines Messfensters, meldet das Werkzeug sie als `SPAET` und zählt
@@ -512,7 +531,7 @@ Tiefstwert gehört nicht dem Laden. `kein /app/i18n/en.json in diesem Laden` unt
 
 **Schreibt am Gerät nur den Rücksetzer der Tiefstwert-Messung** (`device_ready?heap_low_reset=1`
 vor jedem Laden). Exit **0** ohne Fehlschlag, **1** mit Fehlschlag (späte oder fehlgeschlagene
-Anfrage, keine Ruhe, `device_ready` nicht lesbar, `--erwarte-304` verletzt), **2**
+Anfrage, keine Ruhe, `device_ready` nicht lesbar, `--erwarte-304` oder `--erwarte-cache` verletzt), **2**
 Werkzeugfehler. Eine Haltegrenze hat die Ladeprobe nicht; sie protokolliert nur (Ent-7).
 
 **Grundlinie ohne Cache:** `BEFUNDE.md`, L468, G9.1 — jedes Laden holt alles mit 200, INM=0.
@@ -520,13 +539,15 @@ So muss es bei einer Auslieferung ohne Validator aussehen. Ein Lauf mit Cache wi
 Grundlinie gestellt. Das Soll mit Cache ab dem ESP-Release R2 steht in AKW.2
 (`specs/paket-2026-10-15/requirements.md`), wie die Antworten des ESP dann aussehen, in 5b unter
 „Asset-Cache: `ETag`, `304` und die Zähler in `/api/device_ready`“. Der Gegenwert mit Cache steht
-in L468, G10.1.
+in L468, G10.1. Ab R2b gilt für das warme Laden das schärfere Soll aus AKG.2, geprüft mit
+`--erwarte-cache` (oben); sein Ergebnis gehört nach L468, G10b.1.
 
-### `tools/probe-u.sh` — kommt eine ersetzte App-Datei sofort an? (AKW.3)
+### `tools/probe-u.sh` — kommt eine ersetzte App-Datei sofort an? (AKW.3, ab R2b AKG.3 bis AKG.5)
 
 ```
-./tools/probe-u.sh                          gegen DEVICE_HOST
-PROBE_U_OHNE_UPLOAD=1 ./tools/probe-u.sh    Gegenprobe: nichts hochladen, muss FEHL melden
+./tools/probe-u.sh                          gegen DEVICE_HOST, Ablauf U1a
+./tools/probe-u.sh U1a|U1b|U2|U3            ab R2b ein einzelner Ablauf; U1b, U2, U3 in tools/probe-u-c.py
+PROBE_U_OHNE_UPLOAD=1 ./tools/probe-u.sh    Gegenprobe: nichts hochladen, muss FEHL melden (alle vier Abläufe)
 ```
 
 Mit Cache darf eine Aktualisierung nicht hängen bleiben: Wird eine App-Datei auf der Uhr ersetzt,
@@ -541,6 +562,25 @@ beim Verlassen immer zurück, auch beim Abbruch, und ruft danach `install-app.sh
 bricht vorher ab, wenn das ETag auf dem Gerät nicht zum Repo passt — dann zuerst
 `./tools/install-app.sh`. Exit **0** bestanden, **1** Fehlschlag, **2** Werkzeugfehler oder
 Vorbedingung. Ergebnis am Gerät: `BEFUNDE.md`, L468, G10.2.
+
+**Ab R2b vier Abläufe** (`specs/paket-2026-10-15/design.md` §18.8). Ohne Argument oder mit `U1a`
+läuft die Probe wie oben beschrieben: `layout-previews.json` bleibt unversioniert (Ent-20 B), für
+sie gilt „sofort neu“ unverändert. Die versionierten Dateien sollen in den warmen Ladungen dabei
+aus dem Browser-Cache kommen statt mit `304` (AKG.3). Die drei anderen Abläufe prüfen eine
+**versionierte** Datei, `styles.css`:
+
+| Ablauf | Was | Erwartet |
+|---|---|---|
+| **U1b** | `styles.css` ersetzt, Dokument gleich | ein direkter Abruf mit der **alten** Marke: `200`, neues `ETag`, `no-cache`, Δ`app_token_miss` +1; der warme Browser liefert weiter den alten Inhalt aus dem Cache — den, den sein Dokument nennt. Nach dem Zurücklegen wieder `immutable` |
+| **U2** | Dokument mit neuer Marke für `styles.css` **zuerst**, die Datei erst danach — das Upload-Fenster von `install-app.sh` | erst `no-cache` mit dem alten Inhalt, nach dem Upload der Datei `200` mit `immutable`; mit beiden Originalen kommt die ursprüngliche URL wieder aus dem Cache |
+| **U3** | Dokument mit anderer `v` — der Rückweg über die Version | jede versionierte URL `200` mit `immutable`, im folgenden Laden aus dem Cache; mit dem Original kommen die ursprünglichen URLs wieder aus dem Cache |
+
+Die Dokumente für U2 und U3 baut die Probe mit `tools/app-marken.py` aus einer Kopie von
+`data/app` — derselbe Code wie im Build. Ausgewertet wird über `LADEPROBE_DETAIL=1`. **Schreibt
+am Gerät** `index.html` und `styles.css` über `app_file_upload`, legt beim Verlassen immer die
+gebauten Originale zurück und ruft danach `marken-pruefen.py --erwartet` auf. Vorbedingung: ESP
+mit `immutable` und das gebaute Dokument auf dem Gerät, also `install-app.sh --check` mit
+bestandener Markenprüfung (5b). Exit wie oben. Das Ergebnis gehört nach L468, G10b.2 bis G10b.4.
 
 ### `tools/browser-sitzung.sh` — was ein Browser auf der Uhr stehen lässt (C72)
 
@@ -709,6 +749,8 @@ Messprotokoll (L468) und erst danach, mit Beleg, an C71 und C75.
 | Grundlinie, bevor sich an der Auslieferung der Assets etwas ändert | Ladeprobe ohne Option, ein Lauf davon mit `--englisch` (Paket 2026-10-15, G9.1) |
 | nach einer Änderung am Cache der Assets | Ladeprobe mit `--erwarte-304`, gegen die Grundlinie gestellt (G10.1) |
 | ob eine ersetzte App-Datei trotz Cache sofort ankommt | Probe U, einmal (G10.2) |
+| nach dem Langzeit-Cache aus R2b | Ladeprobe mit `--erwarte-cache`, drei Läufe, der dritte mit `--englisch` (G10b.1) |
+| ob eine ersetzte Datei mit Langzeit-Cache richtig ankommt, unversioniert und versioniert | Probe U1a, U1b, U2 und U3, je einmal (G10b.2 bis G10b.4) |
 | was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9b.4 — nach Ent-18 A an Stelle von G9.3 bis G9.5 —, G10.3 mit Vorwärmen, G11.1) |
 | ob nach einem kalten `update_status` Heap liegen bleibt (Wirkung von L7) | Messung AKS.4, dreimal (G9b.1) |
 | ob ein halb geschlossener Zustand von selbst abläuft | P1-Probe, einmal; das Ergebnis gehört zur Zuordnung M1–M5 (G9.2) |
@@ -1152,7 +1194,7 @@ Ent-2 Variante T) gilt für die **App-Assets** — die `.gz`-Dateien aus der Wei
 **Was das `ETag` nicht abdeckt:** nur den Rumpf. Ändert sich allein der Kopf einer Antwort —
 etwa der Inhaltstyp, den `http_content_type()` einer Endung zuordnet —, antwortet der ESP weiter
 mit `304`, und der Browser behält den alten Kopf, bis sich die Datei selbst ändert (Review R2.7,
-H4; `BEFUNDE.md`, C70).
+H4; `BEFUNDE.md`, C70). Seit R2b ist daraus eine Regel geworden, siehe den nächsten Abschnitt.
 
 **Ein abgebrochenes Senden endet seit R2 mit RST.** Bis dahin schloss der ESP auch im Abbruch
 regulär (FIN); das dafür vorgesehene `abort()` kam danach und fand keine Verbindung mehr. Der
@@ -1182,6 +1224,87 @@ als `If-None-Match` muss eine `304` als `HTTP/1.1` mit 0 Byte ergeben, ein falsc
 erzwingt ihn auf einem älteren Stand — die Gegenprobe nach DIR-014, dort muss er fehlschlagen.
 **Der Smoketest erhöht beide Zähler selbst.** Wer `app_full` oder `app_not_modified` über einen
 Zeitraum vergleicht, lässt dazwischen keinen Smoketest laufen.
+
+#### Versionierte URLs und `immutable`: die Zähler `app_immutable` und `app_token_miss` (seit dem ESP-Release R2b, Paket 2026-10-15)
+
+Mit R2 fragte der Browser bei jedem Öffnen jede App-Datei nach und bekam `304` — schnell, aber je
+Datei eine Verbindung zum ESP. Seit R2b (`specs/paket-2026-10-15/design.md` §18, Variante c,
+Ent-19 C) nennt das ausgelieferte Dokument die Dateien mit Version und **Inhaltsmarke**, und der ESP
+erlaubt dem Browser, eine Datei ein Jahr lang zu behalten — **aber nur, wenn die Marke zu genau der
+Datei passt, die er gerade ausliefert.**
+
+| Was | Wie |
+|---|---|
+| URL-Form | `<pfad>?v=<APP_VERSION>&h=<marke>`; im Markup steht das `&` als `&amp;`. Jeder Parameter mit `=`, nur `[0-9a-z.=&-]`, höchstens 64 Zeichen (AKL.5) |
+| Marke `h` | das `ETag` nach Variante T (Abschnitt davor) **ohne** Anführungszeichen: `<grösse der .gz>-<16 Hexziffern>` |
+| `v` | wertet der ESP nicht aus. Sie trägt den Rückweg: Eine neue `APP_VERSION` gibt jeder versionierten Datei eine neue URL |
+| versioniert | die sechs Verweise im Dokument — `manifest.webmanifest`, `icons/icon-192.svg`, `icons/icon-192.png`, `icons/icon-180.png`, `styles.css`, `app.js` — und jede Sprachdatei unter `i18n/`. Deren Marke steht im Meta-Element `wc-asset-tokens`, aus dem `app.js` sie für den Abruf in `ensureLanguageTable()` nimmt |
+| nie versioniert | das Dokument (`/app`, `/app/`, `/app/index.html`) und `sw.js` — beide schliesst der ESP **selbst** aus, auch bei treffender Marke. `layout-previews.json` bleibt bei Verhalten (a): ohne Marke, mit `ETag` und `304` wie in R2 (Ent-20 B). Eine einzeln ersetzte Fassung wirkt damit beim nächsten Laden |
+| Marke trifft | `Cache-Control: public, max-age=31536000, immutable` (Ent-23: ein Jahr) — für `200` **und** `304` gleich |
+| alles andere | `Cache-Control: no-cache` wie in R2: Marke fehlt oder ist leer, Marke falsch, Dokument, `sw.js`, Datei ohne `ETag` |
+
+**Warum die Marke und nicht die Version.** Eine URL, die einmal mit `immutable` beantwortet wurde,
+fragt der Browser bis zum Ablauf nicht mehr nach (Regel I-L, `design.md` §18.3). `install-app.sh`
+lädt das Dokument zuerst; trüge die URL nur die neue Version, hielte ein Browser, der in diesem
+Fenster lädt, die **alte** Datei ein Jahr lang unter der **neuen** Adresse fest. Mit der Marke kann
+das nicht passieren: Passt sie nicht zur Datei, antwortet der ESP mit `no-cache`, und der Browser
+fragt beim nächsten Laden wieder nach.
+
+Zwei Felder **hinter** `app_full`, alle bisherigen bleiben in Name, Reihenfolge und Typ:
+
+| Feld | Was es heisst | Lesart |
+|---|---|---|
+| `app_immutable` | Antworten auf App-Assets mit `immutable`, `200` und `304` | kalt steigt es um die versionierten Dateien des Ladens. Warm soll es stehen bleiben (AKG.2): Was der Browser behält, fragt er nicht mehr nach |
+| `app_token_miss` | Antworten auf Anfragen mit **nicht leerem** `h`, die **kein** `immutable` bekamen | warm Soll 0. Steigt es, nennt ein Dokument eine Marke, die nicht zur Datei auf dem Gerät passt — Upload-Fenster, eine einzeln ersetzte Datei (Probe U1b) oder ein Dokument aus einem anderen Build. `install-app.sh --check` nennt die Datei beim Namen |
+
+**Die Zählregel steht in `http.cpp`** (`http_send_fs_file()`, Suchmuster `http_app_token_miss++`):
+Gezählt wird jede Antwort im Zweig `HTTP/1.1` der App-Assets, deren Anfrage ein nicht leeres `h`
+trägt — mit `immutable` in `app_immutable`, sonst in `app_token_miss`. **Jede Antwort mit nicht
+leerem `h` ohne `immutable` ist ein Fehltreffer, Dokument und `sw.js` eingeschlossen**, auch wenn
+ihre Marke stimmt; ebenso eine Datei im Zweig `HTTP/1.1` ohne `ETag`. **Nicht gezählt** werden der
+Zweig `HTTP/1.0` (ausserhalb der Weissliste oder ohne `.gz`), ein gescheitertes Zurückspulen
+(`- fs seek error`), eine fehlende oder leere Datei und die Hinweisseite. Beide Zähler laufen quer
+zu `app_full` und `app_not_modified`: Eine gezählte Antwort steht in genau einem der beiden neuen
+und in genau einem der beiden alten. Seit dem ESP-Start, sättigend bei 65'535, nie zurückgesetzt,
+auch nicht mit `heap_low_reset=1`. Die Ladeprobe gibt beide in der Zeile `Geraetezaehler` aus (4c).
+
+**Werkzeuge an der Marke:**
+
+| Werkzeug | Wann | Was |
+|---|---|---|
+| `tools/app-marken.py` | Build, `make app-gz` | rechnet die Marken aus den eben gepackten `.gz` und schreibt eine **Kopie** von `index.html` mit den sechs versionierten Verweisen und gefülltem Meta-Element; erst bei Exit 0 entsteht daraus `index.html.gz`. Bricht mit Meldung ab, wenn eine `.gz` fehlt, leer oder keine gzip-Datei ist, die Zahl der Verweise nicht 6 ist, ein Verweis schon eine Query trägt, `layout-previews.json`, `index.html` oder `sw.js` eine Marke bekäme, `APP_VERSION` nicht die erwartete Form hat oder eine erzeugte Query AKL.5 verletzt. Die Quelle `index.html` ändert es nie |
+| `tools/checks/app-marken/gegenprobe.sh` | nach einer Änderung am Werkzeug, von Hand | je Abbruchgrund eine hergestellte Verletzung in einer Kopie von `data/app` — jede muss Exit 1 mit Meldung ergeben und keine Kopie hinterlassen —, dazu ein sabotiertes Werkzeug, das `?v` ohne `=` erzeugt. Meldet die Fallzahl; Exit 0 nur, wenn alle wie erwartet ausgehen (DIR-014) |
+| `tools/marken-pruefen.py <host>` | am Gerät | liest das ausgelieferte Dokument, fragt jede versionierte URL und jeden Meta-Eintrag ab und verlangt `200`, `immutable` und `ETag` gleich Marke. Nennt jede Abweichung beim Namen: „Marke passt nicht“, „kein immutable“, „Meta-Eintrag fehlt“, „nicht erreichbar“. `--erwartet`: ein Dokument ohne Marken ist ein Fehlschlag. `--dokument <datei>`: eine lokale Datei statt des ausgelieferten Dokuments, für Gegenproben. Liest nur |
+| `tools/marken-pruefen.py --lokal <data/app>` | vor dem Hochladen | jede Marke im gebauten `index.html.gz` gegen die lokale `.gz` — „Marke veraltet“ heisst: erst `make app-gz`. Trägt die Quelle das Meta-Element, ist ein gebautes Dokument ohne Marken ein Fehler: Es ist nicht über `make app-gz` entstanden |
+| `install-app.sh --check` | Phase 1, nach jedem Einspielen | ruft `marken-pruefen.py` auf, mit `--erwartet`, sobald das gebaute `index.html.gz` Marken trägt |
+| `install-app.sh`, `deploy.sh` | vor dem Hochladen bzw. Ausrollen | prüfen mit `--lokal` und brechen ab, bevor irgendetwas hochgeht |
+
+**Der Smoketest prüft das ab dem ESP-Release R2b**, Block C70c, nur lesend. Er bildet die Marke
+selbst aus dem `ETag` des Geräts und prüft den ESP damit unabhängig davon, ob das ausgelieferte
+Dokument schon Marken trägt: `app.js` mit treffender Marke muss `immutable` bekommen; mit falscher
+Marke, ohne `h`, `/app/` und `/app/sw.js` mit ihrer eigenen Marke `no-cache`. Dazu Δ`app_immutable`
+= 1 und Δ`app_token_miss` = 3 — die Zählregel oben. Liefert `device_ready` die beiden Felder nicht,
+schlägt der Block fehl, statt still zu bestehen. Vor R2b meldet er ihn als „gibt es noch nicht“;
+`SMOKE_C70C_OVERRIDE=1` erzwingt ihn auf einem älteren Stand — die Gegenprobe nach DIR-014, dort
+muss er fehlschlagen. **Er erhöht damit selbst `app_immutable`, `app_token_miss` und `app_full`.**
+
+**Rückweg für Browser — und was ein ESP-Rückweg nicht kann.** Ein Zurückspielen des ESP verhindert
+nur **neue** Langzeit-Einträge. Was ein Browser schon mit `immutable` gespeichert hat, behält er,
+denn er fragt ja nicht mehr nach. Für schon gespeicherte Einträge hilft nur eine **neue, noch nie
+benutzte** `APP_VERSION`: Das Dokument bleibt `no-cache`, nennt dann nur noch neue URLs und geht
+damit an jedem alten Eintrag vorbei (`design.md` §18.9). Eine schon einmal ausgelieferte Version
+taugt dafür nicht — unter ihren URLs können genau die Einträge liegen, um die es geht. In einem
+einzelnen Browser hilft daneben das Löschen der Website-Daten. Gebraucht wird der Rückweg für die
+Fälle, die die Marke nicht fängt: eine Änderung nur am Kopf (die Regel unten), eine Kollision von
+Grösse und CRC-32 (rund 2⁻³² je Änderung) und eine Quelle, die beim Packen halb geschrieben war (Regel
+R2 in `CLAUDE.md`).
+
+**Regel: Eine Kopfänderung an einem App-Asset kommt nur mit neuer `APP_VERSION`.** Die Marke deckt
+wie das `ETag` nur den Rumpf ab. Ändert sich allein der Kopf einer Antwort — etwa der
+`Content-Type`, den `http_content_type()` einer Endung zuordnet —, bleibt die Marke gleich, und ein
+Browser behält den alten Kopf seit R2b nicht nur bis zur nächsten Änderung der Datei, sondern bis
+zum Ablauf des Eintrags. Deshalb steigt mit jeder solchen Änderung am ESP auch `APP_VERSION`, selbst
+wenn sich an der PWA sonst nichts ändert (`design.md` §18.9).
 
 #### Release Notes und STM-Liste aus dem Dateisystem (seit dem ESP-Release E3)
 
