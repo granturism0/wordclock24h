@@ -433,23 +433,23 @@ Mitschnitt verfolgt, sieht:
 
 ---
 
-## 4c. Messwerkzeuge für Paketläufe — Ladeprobe, Browser-Sitzung, P1-Probe
+## 4c. Messwerkzeuge für Paketläufe — Ladeprobe, Probe U, Browser-Sitzung, P1-Probe
 
-Drei Werkzeuge aus dem Paket 2026-10-15 (`specs/paket-2026-10-15/design.md` §5.1, §5.3,
+Vier Werkzeuge aus dem Paket 2026-10-15 (`specs/paket-2026-10-15/design.md` §5.1, §5.3,
 §5.6) messen, was Smoketest und `check-pwa.sh` nicht sehen: was ein **wiederholtes** Laden
-der PWA noch über die Leitung schickt (C70), welche Verbindungen ein Browser auf der Uhr
-stehen lässt (C72) und ob ein halb geschlossener Verbindungszustand auf dem ESP von selbst
-abläuft. Sie gehören **nicht** zum Pflichtumfang der Phasen 0 bis 9, sondern zu den
-Messschritten eines Pakets. Massgeblich für Aufruf und Ausgabe ist der Kopfkommentar des
-jeweiligen Werkzeugs; hier steht, wie man die Ausgabe liest. Dazu kommt die Messung AKS.4
-(weiter unten), ein Ablauf am Mitschnitt ohne eigenes Werkzeug.
+der PWA noch über die Leitung schickt (C70), ob eine ersetzte App-Datei trotzdem sofort
+ankommt (Probe U), welche Verbindungen ein Browser auf der Uhr stehen lässt (C72) und ob ein
+halb geschlossener Verbindungszustand auf dem ESP von selbst abläuft. Sie gehören **nicht**
+zum Pflichtumfang der Phasen 0 bis 9, sondern zu den Messschritten eines Pakets. Massgeblich
+für Aufruf und Ausgabe ist der Kopfkommentar des jeweiligen Werkzeugs; hier steht, wie man die
+Ausgabe liest. Dazu kommt die Messung AKS.4 (weiter unten), ein Ablauf am Mitschnitt ohne
+eigenes Werkzeug.
 
-**Für alle drei gilt Abschnitt 0, Punkt 5:** Während der Messung ist kein anderer Browser an
+**Für alle vier gilt Abschnitt 0, Punkt 5:** Während der Messung ist kein anderer Browser an
 der Uhr offen, auch nicht auf dem Telefon, und es läuft weder `check-pwa.sh` noch K19 noch
-eines der beiden anderen Werkzeuge. Jeder fremde Abruf landet in denselben Zählern und
-Tiefstwerten und lässt sich nachträglich nicht herausrechnen. `./tools/watch-log.sh` läuft
-mit (DIR-013); die Browser-Sitzung braucht die Heap-Zeile im Mitschnitt sogar für ihre
-Auswertung.
+eines der anderen Werkzeuge. Jeder fremde Abruf landet in denselben Zählern und Tiefstwerten
+und lässt sich nachträglich nicht herausrechnen. `./tools/watch-log.sh` läuft mit (DIR-013);
+die Browser-Sitzung braucht die Heap-Zeile im Mitschnitt sogar für ihre Auswertung.
 
 ### `tools/ladeprobe.sh` — kalt und warm laden (C70)
 
@@ -472,6 +472,8 @@ offen und fragte die Uhr weiter ab.
 | `LADEPROBE_HOST=host:port` | anderes Ziel, etwa Vorschau oder Prüfserver für die Gegenprobe (DIR-014) |
 | `LADEPROBE_AUSNAHME=/app/pfad` | dieser Pfad ist von `--erwarte-304` ausgenommen |
 | `LADEPROBE_MITSCHRIFT=datei` | jede Zeile zusätzlich in diese Datei |
+| `LADEPROBE_HAKEN=programm` | wird vor jedem warmen Laden mit dessen Nummer aufgerufen; Exit ≠ 0 ist ein Werkzeugfehler. Dafür gebaut, dass Probe U zwischen zwei Ladungen eine Datei tauschen kann |
+| `LADEPROBE_ETAG_PFAD=/app/pfad` | gibt je Laden für diesen Pfad das ETag und den Leitungsstatus aus (`ETag <pfad>: <etag> (<status>)`) |
 | `CHROME=pfad` | anderer Chrome als der im Skript vorgegebene |
 
 Je Laden drei Zeilen:
@@ -492,6 +494,13 @@ lässt sich eine 200 nicht zuordnen: Hat der Browser nicht gefragt, oder hat der
 übergangen? Ein Fehlschlag unter `--erwarte-304` nennt deshalb je Pfad „(mit INM)“ oder
 „(ohne INM)“.
 
+**Was das Profil noch nie geladen hat, zählt nicht.** Eine `200` auf einen Pfad, den dieses Profil
+zum ersten Mal anfordert, ist kein Verstoss gegen `--erwarte-304` — der Browser kann nicht
+nachfragen, was er nie hatte. Das Werkzeug nennt solche Pfade in der Zeile `erstmals in diesem
+Profil, 200 ohne Vorgaenger`. Typischer Fall ist `i18n/en.json` im ersten warmen Laden nach dem
+Sprachwechsel unter `--englisch`; ohne diese Regel meldete G10.1 dort einen Fehlalarm
+(`BEFUNDE.md`, L468). Für schon geladene Pfade bleibt jede warme `200` ein Fehlschlag.
+
 **Späte Anfragen werden erfasst, nicht verworfen.** Manche Assets fordert die PWA erst nach
 einer `/api/`-Antwort an (`layout-previews.json` nach den Einstellungen). Kommt eine
 `/app/`-Anfrage ausserhalb eines Messfensters, meldet das Werkzeug sie als `SPAET` und zählt
@@ -510,7 +519,28 @@ Werkzeugfehler. Eine Haltegrenze hat die Ladeprobe nicht; sie protokolliert nur 
 So muss es bei einer Auslieferung ohne Validator aussehen. Ein Lauf mit Cache wird gegen diese
 Grundlinie gestellt. Das Soll mit Cache ab dem ESP-Release R2 steht in AKW.2
 (`specs/paket-2026-10-15/requirements.md`), wie die Antworten des ESP dann aussehen, in 5b unter
-„Asset-Cache: `ETag`, `304` und die Zähler in `/api/device_ready`“.
+„Asset-Cache: `ETag`, `304` und die Zähler in `/api/device_ready`“. Der Gegenwert mit Cache steht
+in L468, G10.1.
+
+### `tools/probe-u.sh` — kommt eine ersetzte App-Datei sofort an? (AKW.3)
+
+```
+./tools/probe-u.sh                          gegen DEVICE_HOST
+PROBE_U_OHNE_UPLOAD=1 ./tools/probe-u.sh    Gegenprobe: nichts hochladen, muss FEHL melden
+```
+
+Mit Cache darf eine Aktualisierung nicht hängen bleiben: Wird eine App-Datei auf der Uhr ersetzt,
+muss das nächste Laden sie mit `200` und neuem ETag holen, während alle anderen Dateien `304`
+bleiben. Die Probe fährt dazu eine Ladeprobe mit fünf warmen Ladungen in einem Profil und tauscht
+über `LADEPROBE_HAKEN` vor warm #2 `layout-previews.json` gegen eine inhaltlich veränderte Fassung
+und legt vor warm #4 das Original aus dem Repo zurück. Erwartet: #1 `304`, #2 `200` mit neuem
+ETag, #3 `304`, #4 `200` mit dem ursprünglichen ETag, #5 `304`.
+
+**Schreibt am Gerät** zweimal eine App-Datei über `app_file_upload`. Das Original legt das Skript
+beim Verlassen immer zurück, auch beim Abbruch, und ruft danach `install-app.sh --check` auf. Es
+bricht vorher ab, wenn das ETag auf dem Gerät nicht zum Repo passt — dann zuerst
+`./tools/install-app.sh`. Exit **0** bestanden, **1** Fehlschlag, **2** Werkzeugfehler oder
+Vorbedingung. Ergebnis am Gerät: `BEFUNDE.md`, L468, G10.2.
 
 ### `tools/browser-sitzung.sh` — was ein Browser auf der Uhr stehen lässt (C72)
 
@@ -537,12 +567,24 @@ Zusammen rund 16 Minuten. `BROWSER_SITZUNG_DAUER="180 120 180 300 180"` ändert 
 Ort der Mitschrift (absoluter Pfad; Vorgabe ist der Temporärordner, der Pfad steht in der
 zweiten Zeile der Ausgabe).
 
-**Vorbedingungen.** Bei `safari` und `chrome` darf der Browser **nicht laufen** — geprüft am
-Anfang und noch einmal unmittelbar vor dem Öffnen in S1. Das Skript beendet nie einen Browser,
-den der Nutzer offen hat; läuft er schon, bricht es mit Exit 2 ab. Beim ersten Lauf fragt
-macOS nach der Erlaubnis zur Automation. **Die gibt der Nutzer einmal**; ohne sie scheitern
-alle Handgriffe über `osascript` (Tabs zählen, Tab öffnen, schliessen, Browser beenden) mit
-`BEDIENUNG FEHLGESCHLAGEN`.
+**`BROWSER_SITZUNG_VORWAERMEN=1`** setzt vor S0 eine Phase V: Der Browser öffnet die PWA einmal
+und wird beendet, damit S1 mit gefülltem Cache beginnt und nachfragen kann (`304`). Ohne
+Vorwärmen beginnt Chrome mit leerem Wegwerfprofil, S1 wäre also kalt. Chrome behält dabei sein
+Wegwerfprofil, Safari wird nur per `quit` beendet; in der Betriebsart `manuell` wirkt die
+Variable nicht. Genutzt in G10.3 (AKW.4).
+
+**Vorbedingungen.** Bei `safari` darf der Browser **nicht laufen** — geprüft am Anfang und noch
+einmal unmittelbar vor dem Öffnen in S1. Das Skript beendet nie einen Browser, den der Nutzer
+offen hat; läuft er schon, bricht es mit Exit 2 ab. **`chrome`** läuft mit einem eigenen
+Wegwerfprofil und bedient nur diesen Prozess. Ein **sichtbares** Chrome ist das des Nutzers und
+führt zum Abbruch; ein **kopfloses** gehört einem Prüfstand (`check-pwa.sh`, Ladeprobe) und wird
+nur vermerkt, denn es könnte die Uhr ansprechen. **Safari hat kein Wegwerfprofil:** Vor einer
+Safari-Sitzung werden die Tabs des Nutzers mit Fenstern gesichert, der Tab mit der Uhr geschlossen
+und Safari per `quit` beendet, nie per Signal; danach wird aus der Sicherung wiederhergestellt
+(`BEFUNDE.md`, L478). Ein Abbruch nach dem ersten Bedienungsfehler fehlt noch (E41). Beim
+ersten Lauf fragt macOS nach der Erlaubnis zur Automation. **Die gibt der Nutzer einmal**; ohne
+sie scheitern alle Handgriffe über `osascript` (Tabs zählen, Tab öffnen, schliessen, Browser
+beenden) mit `BEDIENUNG FEHLGESCHLAGEN`.
 
 **Betriebsart `manuell`** ist für das Gerät des Nutzers, etwa Safari auf dem iPhone. Das Skript
 nennt je Phase den Handgriff und wartet auf die Eingabetaste; ohne Konsole wartet es nicht,
@@ -593,7 +635,7 @@ Phasenende `hc` und `update_info_cached` ins Protokoll (`specs/paket-2026-10-15/
 `httpclient_stop()` den Kontext samt ungelesener Antwort bei jedem Schliessen frei (L7); das
 Freistellen **entfällt**. Es läuft nur noch **einmal**, in G9b.4, als Vergleichslauf gegen G9
 (`specs/paket-2026-10-15/tasks.md`). Dass die Belegung tatsächlich ausbleibt, belegt erst die
-Messung AKS.4 (unten) — bis sie vorliegt, ist L7 umgesetzt, nicht nachgewiesen.
+Messung AKS.4 (unten); sie ist in G9b.1 bestanden, 3/3 (`BEFUNDE.md`, L468).
 
 **Ausgewertet wird nach der Entscheidungsregel M1–M5** in `specs/paket-2026-10-15/design.md`
 §5.4; dort steht, welches Verbindungsbild zu welchem Eingriffskandidaten führt. Die Tabelle
@@ -666,7 +708,8 @@ Messprotokoll (L468) und erst danach, mit Beleg, an C71 und C75.
 | jeder Durchlauf, jedes Einspielen | Smoketest, `install-app.sh --check` und `check-pwa.sh` (Phase 1 und 1b) — keines der drei hier |
 | Grundlinie, bevor sich an der Auslieferung der Assets etwas ändert | Ladeprobe ohne Option, ein Lauf davon mit `--englisch` (Paket 2026-10-15, G9.1) |
 | nach einer Änderung am Cache der Assets | Ladeprobe mit `--erwarte-304`, gegen die Grundlinie gestellt (G10.1) |
-| was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9b.4 — nach Ent-18 A an Stelle von G9.3 bis G9.5 —, G10.3, G11.1) |
+| ob eine ersetzte App-Datei trotz Cache sofort ankommt | Probe U, einmal (G10.2) |
+| was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9b.4 — nach Ent-18 A an Stelle von G9.3 bis G9.5 —, G10.3 mit Vorwärmen, G11.1) |
 | ob nach einem kalten `update_status` Heap liegen bleibt (Wirkung von L7) | Messung AKS.4, dreimal (G9b.1) |
 | ob ein halb geschlossener Zustand von selbst abläuft | P1-Probe, einmal; das Ergebnis gehört zur Zuordnung M1–M5 (G9.2) |
 | Regression nach einem Eingriff | Ladeprobe warm neben drei `check-pwa.sh` (G11.3) |
