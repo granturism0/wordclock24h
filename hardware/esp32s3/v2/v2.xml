@@ -1,0 +1,4453 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export version="E">
+  <design>
+    <source>/Users/daniel/Documents/WordClock-USB C - STM32F411 - V2/WordClock-USB C - STM32F411 - V2.kicad_sch</source>
+    <date>2026-10-17T00:37:51</date>
+    <tool>Eeschema 10.0.2</tool>
+    <sheet number="1" name="/" tstamps="/">
+      <title_block>
+        <title>WordClock Controller STM32F411</title>
+        <company/>
+        <rev>3.2</rev>
+        <date>2026-04-12</date>
+        <source>WordClock-USB C - STM32F411 - V2.kicad_sch</source>
+        <comment number="1" value="(c) Daniel Kocher"/>
+        <comment number="2" value=""/>
+        <comment number="3" value=""/>
+        <comment number="4" value=""/>
+        <comment number="5" value=""/>
+        <comment number="6" value=""/>
+        <comment number="7" value=""/>
+        <comment number="8" value=""/>
+        <comment number="9" value=""/>
+      </title_block>
+    </sheet>
+  </design>
+  <components>
+    <comp ref="C1">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>69adcd8e-0d4d-4082-aa6d-05719b568ced</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C2">
+      <value>10nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C1710</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C1710"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>930523b2-cabf-442a-92fe-0c69e68e6eaf</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C3">
+      <value>8pF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C7419434</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C7419434"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ba8f8278-dabd-47f9-a23e-07b00c5fe9cb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C4">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b6f4b06b-77c5-4ed8-adcb-d43fa477c3d1</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C5">
+      <value>8pF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C7419434</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C7419434"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>bce36edf-7fc8-49ac-9b9a-6d66402dd4d2</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C6">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>be48568e-8a1a-4e14-9406-6341d526384b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C7">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3e19354b-8f80-4ec0-a0b4-ab016991e75c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C8">
+      <value>22uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C45783</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C45783"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c381c1c2-93ee-4d37-8814-1089db6c6e76</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C9">
+      <value>2.2uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C377773</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C377773"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>647c2f90-843e-4526-ac6d-648b441f7e2b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C10">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e3a501c8-f323-4ec7-8235-39b79d135bd5</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C11">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e528ecc1-8fa4-42b4-bbc8-c8976082cfe2</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C12">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c85354bd-6c1b-4ae2-869e-659c66581501</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C14">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>243ac0d5-42da-4702-8b00-afee9c6b5397</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C15">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>313ae45e-b532-473f-8270-d8121141e875</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C16">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>0b46ad24-44f4-4f11-9a7e-8c921cf05e79</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C17">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2bf1d183-1172-41e3-90fc-b694e4be4ff2</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C18">
+      <value>1uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C28323</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C28323"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2f307ca0-7b95-401a-bba9-e63e5318485b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C19">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d455db24-3bca-442c-8bc8-9c8e13d585bc</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C20">
+      <value>10V/10uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Polarized capacitor</description>
+      <fields>
+        <field name="LCSC">C1969735</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Polarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C_Polarized" description="Polarized capacitor"/>
+      <property name="LCSC" value="C1969735"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="CP_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>66ac4d9f-667d-4ea7-8089-952b4b999fc9</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C21">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>fbc6a00e-cd72-4ba3-921f-98ffaff903d1</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C22">
+      <value>10V/10uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Polarized capacitor</description>
+      <fields>
+        <field name="LCSC">C1969735</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Polarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C_Polarized" description="Polarized capacitor"/>
+      <property name="LCSC" value="C1969735"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="CP_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>080e5e94-04fa-4c0b-aa0f-e802c0ef3932</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C23">
+      <value>47uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C124129</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C124129"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e80f2737-d638-4919-ab69-6b8cc2848d5b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C24">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2cd644b7-0496-4d4b-9dd0-b447251e0387</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C25">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>305e00bf-70e2-4885-9a8b-c9609a539da7</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C26">
+      <value>10uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C440198</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C440198"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1140ace0-b219-4ec1-9336-6ad6336d8a6b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C27">
+      <value>22uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C45783</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C45783"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>55e1d56f-b246-4db3-8ad3-71e32a2707e3</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C28">
+      <value>22uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C45783</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C45783"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c8ac5ab0-6109-418b-85ad-30138297a6a0</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="C29">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Unpolarized capacitor</description>
+      <fields>
+        <field name="LCSC">C49678</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <property name="LCSC" value="C49678"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="cap capacitor"/>
+      <property name="ki_fp_filters" value="C_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>12b98be2-d3a6-4948-8cac-0e5bc1b85c20</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="D1">
+      <value>PMEG2010ER</value>
+      <footprint>Diode_SMD:Nexperia_CFP3_SOD-123W</footprint>
+      <datasheet>https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</datasheet>
+      <description>20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</description>
+      <fields>
+        <field name="LCSC">C82288</field>
+        <field name="Footprint">Diode_SMD:Nexperia_CFP3_SOD-123W</field>
+        <field name="Datasheet">https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</field>
+        <field name="Description">20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</field>
+      </fields>
+      <libsource lib="Diode" part="PMEG2010ER" description="20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W"/>
+      <property name="LCSC" value="C82288"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="forward voltage diode"/>
+      <property name="ki_fp_filters" value="Nexperia*CFP3*SOD?123W*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>31f7978b-f124-4b5a-8ef1-20088a186703</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="D2">
+      <value>PMEG2010ER</value>
+      <footprint>Diode_SMD:Nexperia_CFP3_SOD-123W</footprint>
+      <datasheet>https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</datasheet>
+      <description>20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</description>
+      <fields>
+        <field name="LCSC">C82288</field>
+        <field name="Footprint">Diode_SMD:Nexperia_CFP3_SOD-123W</field>
+        <field name="Datasheet">https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</field>
+        <field name="Description">20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</field>
+      </fields>
+      <libsource lib="Diode" part="PMEG2010ER" description="20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W"/>
+      <property name="LCSC" value="C82288"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="forward voltage diode"/>
+      <property name="ki_fp_filters" value="Nexperia*CFP3*SOD?123W*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>cd56b1d6-05d9-41bb-88a0-cfabc89c4a4c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="D3">
+      <value>PMEG2010ER</value>
+      <footprint>Diode_SMD:Nexperia_CFP3_SOD-123W</footprint>
+      <datasheet>https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</datasheet>
+      <description>20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</description>
+      <fields>
+        <field name="LCSC">C82288</field>
+        <field name="Footprint">Diode_SMD:Nexperia_CFP3_SOD-123W</field>
+        <field name="Datasheet">https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</field>
+        <field name="Description">20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</field>
+      </fields>
+      <libsource lib="Diode" part="PMEG2010ER" description="20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W"/>
+      <property name="LCSC" value="C82288"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="forward voltage diode"/>
+      <property name="ki_fp_filters" value="Nexperia*CFP3*SOD?123W*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>19677ae2-542a-4cb4-92a3-9695560b6d71</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="D4">
+      <value>SMAJ5.0CA_C10756</value>
+      <footprint>EasyEDA:SMA_L4.4-W2.6-LS5.0-BI</footprint>
+      <datasheet>https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C10756</field>
+        <field name="LCSC">C10756</field>
+        <field name="Footprint">EasyEDA:SMA_L4.4-W2.6-LS5.0-BI</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SMAJ5.0CA_C10756" description=""/>
+      <property name="LCSC Part" value="C10756"/>
+      <property name="LCSC" value="C10756"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>00f49328-a7b6-4829-b14b-95f2787978aa</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="D5">
+      <value>SMAJ5.0CA_C10756</value>
+      <footprint>EasyEDA:SMA_L4.4-W2.6-LS5.0-BI</footprint>
+      <datasheet>https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C10756</field>
+        <field name="LCSC">C10756</field>
+        <field name="Footprint">EasyEDA:SMA_L4.4-W2.6-LS5.0-BI</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SMAJ5.0CA_C10756" description=""/>
+      <property name="LCSC Part" value="C10756"/>
+      <property name="LCSC" value="C10756"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>a399a852-97fc-4807-82f7-1c7909a6c1c6</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="F1">
+      <value>SMD1206-150-16</value>
+      <footprint>EasyEDA:F1206</footprint>
+      <description>-40℃~+85℃ 1.5A 1.6mm 1.9mm 130mΩ 16V 1W 25mΩ 3.6mm 300ms 3A 40A 1206 Resettable Fuses ROHS</description>
+      <fields>
+        <field name="LCSC Part">C46641031</field>
+        <field name="LCSC">C46641031</field>
+        <field name="Footprint">EasyEDA:F1206</field>
+        <field name="Datasheet"/>
+        <field name="Description">-40℃~+85℃ 1.5A 1.6mm 1.9mm 130mΩ 16V 1W 25mΩ 3.6mm 300ms 3A 40A 1206 Resettable Fuses ROHS</field>
+      </fields>
+      <libsource lib="EasyEDA" part="SMD1206-150-16" description=""/>
+      <property name="LCSC Part" value="C46641031"/>
+      <property name="LCSC" value="C46641031"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>91c67a0d-3da6-4aec-9ea4-271e8f4ced41</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="F2">
+      <value>1812L300/24GR</value>
+      <footprint>EasyEDA:F1812</footprint>
+      <description>-40℃~+85℃ 1.4W 1.5mm 10mΩ 24V 3.41mm 3A 4.73mm 40A 4s 5A 60mΩ 1812 Resettable Fuses ROHS</description>
+      <fields>
+        <field name="LCSC Part">C20627123</field>
+        <field name="LCSC">C20627123</field>
+        <field name="Footprint">EasyEDA:F1812</field>
+        <field name="Datasheet"/>
+        <field name="Description">-40℃~+85℃ 1.4W 1.5mm 10mΩ 24V 3.41mm 3A 4.73mm 40A 4s 5A 60mΩ 1812 Resettable Fuses ROHS</field>
+      </fields>
+      <libsource lib="EasyEDA" part="1812L300_24GR" description=""/>
+      <property name="LCSC Part" value="C20627123"/>
+      <property name="LCSC" value="C20627123"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b5ae032f-9dce-4d9e-ba62-f6abeec17b89</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H1">
+      <value>MountingHole_Pad</value>
+      <footprint>MountingHole:MountingHole_2.2mm_M2_DIN965_Pad</footprint>
+      <description>Mounting Hole with connection</description>
+      <fields>
+        <field name="Footprint">MountingHole:MountingHole_2.2mm_M2_DIN965_Pad</field>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <libsource lib="Mechanical" part="MountingHole_Pad" description="Mounting Hole with connection"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="mounting hole"/>
+      <property name="ki_fp_filters" value="MountingHole*Pad*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>543d2c4e-60be-406f-b571-ffbec2284de6</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H2">
+      <value>MountingHole_Pad</value>
+      <footprint>MountingHole:MountingHole_2.2mm_M2_DIN965_Pad</footprint>
+      <description>Mounting Hole with connection</description>
+      <fields>
+        <field name="Footprint">MountingHole:MountingHole_2.2mm_M2_DIN965_Pad</field>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <libsource lib="Mechanical" part="MountingHole_Pad" description="Mounting Hole with connection"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="mounting hole"/>
+      <property name="ki_fp_filters" value="MountingHole*Pad*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>76a668dd-7057-43a2-ae6c-55765cae4edf</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H3">
+      <value>PZ254R-11-04P</value>
+      <footprint>EasyEDA:HDR-TH_4P-P2.54-H-M-W10.4</footprint>
+      <datasheet>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C492412</field>
+        <field name="LCSC">C492412</field>
+        <field name="Footprint">EasyEDA:HDR-TH_4P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="PZ254R-11-04P" description=""/>
+      <property name="LCSC Part" value="C492412"/>
+      <property name="LCSC" value="C492412"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c31dd6ab-c12e-4c72-beb4-cf129b7beba9</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H4">
+      <value>PZ254R-11-03P</value>
+      <footprint>EasyEDA:HDR-TH_3P-P2.54-H-M-W10.4</footprint>
+      <datasheet>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-03P_C492411.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C492411</field>
+        <field name="LCSC">C492411</field>
+        <field name="Footprint">EasyEDA:HDR-TH_3P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-03P_C492411.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="PZ254R-11-03P" description=""/>
+      <property name="LCSC Part" value="C492411"/>
+      <property name="LCSC" value="C492411"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>7344eddb-7773-4c1a-9e17-e0ed9a446ac4</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H5">
+      <value>PZ254R-11-02P</value>
+      <footprint>EasyEDA:HDR-TH_2P-P2.54-H-M-W10.4</footprint>
+      <datasheet>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-02P_C492410.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C492410</field>
+        <field name="LCSC">C492410</field>
+        <field name="Footprint">EasyEDA:HDR-TH_2P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-02P_C492410.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="PZ254R-11-02P" description=""/>
+      <property name="LCSC Part" value="C492410"/>
+      <property name="LCSC" value="C492410"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6fad93c7-446a-466d-acf8-06a24997fabb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H6">
+      <value>PZ254R-11-04P</value>
+      <footprint>EasyEDA:HDR-TH_4P-P2.54-H-M-W10.4</footprint>
+      <datasheet>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C492412</field>
+        <field name="LCSC">C492412</field>
+        <field name="Footprint">EasyEDA:HDR-TH_4P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="PZ254R-11-04P" description=""/>
+      <property name="LCSC Part" value="C492412"/>
+      <property name="LCSC" value="C492412"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ccd8a36e-c224-40f1-b300-43d106c84ab6</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H7">
+      <value>PZ254R-11-07P</value>
+      <footprint>EasyEDA:HDR-TH_7P-P2.54-H-M-W10.4</footprint>
+      <datasheet>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-07P_C492415.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C492415</field>
+        <field name="LCSC">C492415</field>
+        <field name="Footprint">EasyEDA:HDR-TH_7P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-07P_C492415.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="PZ254R-11-07P" description=""/>
+      <property name="LCSC Part" value="C492415"/>
+      <property name="LCSC" value="C492415"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>af4cc011-3561-4ade-b3f6-a4a95727db76</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H8">
+      <value>MountingHole_Pad</value>
+      <footprint>MountingHole:MountingHole_2.7mm_M2.5_Pad</footprint>
+      <description>Mounting Hole with connection</description>
+      <fields>
+        <field name="Footprint">MountingHole:MountingHole_2.7mm_M2.5_Pad</field>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <libsource lib="Mechanical" part="MountingHole_Pad" description="Mounting Hole with connection"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="mounting hole"/>
+      <property name="ki_fp_filters" value="MountingHole*Pad*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>389a38b9-f1b2-4ca0-946c-e8100e900e2e</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H9">
+      <value>MountingHole_Pad</value>
+      <footprint>MountingHole:MountingHole_2.7mm_M2.5_Pad</footprint>
+      <description>Mounting Hole with connection</description>
+      <fields>
+        <field name="Footprint">MountingHole:MountingHole_2.7mm_M2.5_Pad</field>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <libsource lib="Mechanical" part="MountingHole_Pad" description="Mounting Hole with connection"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="mounting hole"/>
+      <property name="ki_fp_filters" value="MountingHole*Pad*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>260fbf39-e237-42fd-89f6-d76c877b3a6c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="H10">
+      <value>MountingHole_Pad</value>
+      <footprint>MountingHole:MountingHole_2.7mm_M2.5_Pad</footprint>
+      <description>Mounting Hole with connection</description>
+      <fields>
+        <field name="Footprint">MountingHole:MountingHole_2.7mm_M2.5_Pad</field>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <libsource lib="Mechanical" part="MountingHole_Pad" description="Mounting Hole with connection"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="mounting hole"/>
+      <property name="ki_fp_filters" value="MountingHole*Pad*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c1d2c980-ebb5-43d9-805e-03e245061065</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP2">
+      <value>SolderJumper_2_Open</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm</footprint>
+      <description>Solder Jumper, 2-pole, open</description>
+      <fields>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">Solder Jumper, 2-pole, open</field>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Open" description="Solder Jumper, 2-pole, open"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Open*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>77e2b8d1-1b92-4bf4-bcf2-a246dce2742c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="JP3">
+      <value>SolderJumper_2_Open</value>
+      <footprint>Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm</footprint>
+      <description>Solder Jumper, 2-pole, open</description>
+      <fields>
+        <field name="Footprint">Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">Solder Jumper, 2-pole, open</field>
+      </fields>
+      <libsource lib="Jumper" part="SolderJumper_2_Open" description="Solder Jumper, 2-pole, open"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="solder jumper SPST"/>
+      <property name="ki_fp_filters" value="SolderJumper*Open*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2101d9da-5168-48b7-87e6-9e5acc70704c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="L1">
+      <value>BLM18AG102SN1D</value>
+      <footprint>EasyEDA:L0603</footprint>
+      <datasheet>https://lcsc.com/product-detail/Ferrite-Beads-And-Chips_muRata_BLM18AG102SN1D_1KR-25-at100MHz_C85824.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C85824</field>
+        <field name="LCSC">C85824</field>
+        <field name="Footprint">EasyEDA:L0603</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Ferrite-Beads-And-Chips_muRata_BLM18AG102SN1D_1KR-25-at100MHz_C85824.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="BLM18AG102SN1D" description=""/>
+      <property name="LCSC Part" value="C85824"/>
+      <property name="LCSC" value="C85824"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>04d2f4ce-ba6e-44f0-ae09-a891a39f6ac1</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="L2">
+      <value>FTC252010S4R7MBCA</value>
+      <footprint>EasyEDA:IND-SMD_L2.5-W2.0-VLS252012CX-150M</footprint>
+      <fields>
+        <field name="LCSC Part">C5832360</field>
+        <field name="LCSC">C5832360</field>
+        <field name="Footprint">EasyEDA:IND-SMD_L2.5-W2.0-VLS252012CX-150M</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="FTC252010S4R7MBCA" description=""/>
+      <property name="LCSC Part" value="C5832360"/>
+      <property name="LCSC" value="C5832360"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1f625a37-2b67-44e4-b93c-5207aed2e75b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="LED1">
+      <value>LTST-C171KGKT</value>
+      <footprint>EasyEDA:LED0805-RD</footprint>
+      <datasheet>https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_LTST-C171KGKT_C98224.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C98224</field>
+        <field name="LCSC">C98224</field>
+        <field name="Footprint">EasyEDA:LED0805-RD</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_LTST-C171KGKT_C98224.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="LTST-C171KGKT" description=""/>
+      <property name="LCSC Part" value="C98224"/>
+      <property name="LCSC" value="C98224"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ca92f99c-62d3-43e6-b0c7-39b7c39e6e4f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="LED4">
+      <value>LTST-C171KRKT</value>
+      <footprint>EasyEDA:LED0805-RD</footprint>
+      <datasheet>https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C284871</field>
+        <field name="LCSC">C284871</field>
+        <field name="Footprint">EasyEDA:LED0805-RD</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="LTST-C171KRKT" description=""/>
+      <property name="LCSC Part" value="C284871"/>
+      <property name="LCSC" value="C284871"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>adc0604e-be7d-4784-ba6e-8689fa3ee1f5</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="LED5">
+      <value>LTST-C171KRKT</value>
+      <footprint>EasyEDA:LED0805-RD</footprint>
+      <datasheet>https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C284871</field>
+        <field name="LCSC">C284871</field>
+        <field name="Footprint">EasyEDA:LED0805-RD</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="LTST-C171KRKT" description=""/>
+      <property name="LCSC Part" value="C284871"/>
+      <property name="LCSC" value="C284871"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b599010d-7db8-4d67-afb1-8da9c2011af0</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="Q1">
+      <value>SI7149DP-T1-GE3</value>
+      <footprint>Snapeda:POWERPAK_SO-8</footprint>
+      <description>VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</description>
+      <fields>
+        <field name="MANUFACTURER_NAME">Vishay</field>
+        <field name="MF">Vishay</field>
+        <field name="MOUSER_PRICE-STOCK">https://www.mouser.co.uk/ProductDetail/Vishay-Semiconductors/SI7149DP-T1-GE3?qs=%252BPu8jn5UVnFbGEUOhBqxFg%3D%3D</field>
+        <field name="MOUSER_PART_NUMBER">781-SI7149DP-GE3</field>
+        <field name="Price">None</field>
+        <field name="Package">PowerPAK SO-8 Vishay</field>
+        <field name="Check_prices">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=eda</field>
+        <field name="HEIGHT">mm</field>
+        <field name="SnapEDA_Link">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=snap</field>
+        <field name="MP">SI7149DP-T1-GE3</field>
+        <field name="Purchase-URL">https://www.snapeda.com/api/url_track_click_mouser/?unipart_id=547405&amp;manufacturer=Vishay&amp;part_name=SI7149DP-T1-GE3&amp;search_term=None</field>
+        <field name="Description_1">P-Channel 30 V 50A (Tc) 69W (Tc) Surface Mount PowerPAK® SO-8</field>
+        <field name="Availability">In Stock</field>
+        <field name="MANUFACTURER_PART_NUMBER">SI7149DP-T1-GE3</field>
+        <field name="LCSC">C553982</field>
+        <field name="Footprint">Snapeda:POWERPAK_SO-8</field>
+        <field name="Datasheet"/>
+        <field name="Description">VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</field>
+      </fields>
+      <libsource lib="Snapeda" part="SI7149DP-T1-GE3" description="VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8"/>
+      <property name="MANUFACTURER_NAME" value="Vishay"/>
+      <property name="MF" value="Vishay"/>
+      <property name="MOUSER_PRICE-STOCK" value="https://www.mouser.co.uk/ProductDetail/Vishay-Semiconductors/SI7149DP-T1-GE3?qs=%252BPu8jn5UVnFbGEUOhBqxFg%3D%3D"/>
+      <property name="MOUSER_PART_NUMBER" value="781-SI7149DP-GE3"/>
+      <property name="Price" value="None"/>
+      <property name="Package" value="PowerPAK SO-8 Vishay"/>
+      <property name="Check_prices" value="https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=eda"/>
+      <property name="HEIGHT" value="mm"/>
+      <property name="SnapEDA_Link" value="https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=snap"/>
+      <property name="MP" value="SI7149DP-T1-GE3"/>
+      <property name="Purchase-URL" value="https://www.snapeda.com/api/url_track_click_mouser/?unipart_id=547405&amp;manufacturer=Vishay&amp;part_name=SI7149DP-T1-GE3&amp;search_term=None"/>
+      <property name="Description_1" value="P-Channel 30 V 50A (Tc) 69W (Tc) Surface Mount PowerPAK® SO-8"/>
+      <property name="Availability" value="In Stock"/>
+      <property name="MANUFACTURER_PART_NUMBER" value="SI7149DP-T1-GE3"/>
+      <property name="LCSC" value="C553982"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>f77b13b9-32c9-487b-b8cf-54d568dd6239</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="4"/>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+            <pin num="8"/>
+            <pin num="9"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="Q2">
+      <value>MMBF170</value>
+      <footprint>Package_TO_SOT_SMD:SOT-23</footprint>
+      <datasheet>https://www.diodes.com/assets/Datasheets/ds30104.pdf</datasheet>
+      <description>0.5A Id, 60V Vds, N-Channel MOSFET, SOT-23</description>
+      <fields>
+        <field name="LCSC">C130879</field>
+        <field name="Footprint">Package_TO_SOT_SMD:SOT-23</field>
+        <field name="Datasheet">https://www.diodes.com/assets/Datasheets/ds30104.pdf</field>
+        <field name="Description">0.5A Id, 60V Vds, N-Channel MOSFET, SOT-23</field>
+      </fields>
+      <libsource lib="Transistor_FET" part="MMBF170" description="0.5A Id, 60V Vds, N-Channel MOSFET, SOT-23"/>
+      <property name="LCSC" value="C130879"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="N-Channel MOSFET"/>
+      <property name="ki_fp_filters" value="SOT?23*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>5321f182-9b82-4995-b606-0917a9760d77</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="Q3">
+      <value>SI7149DP-T1-GE3</value>
+      <footprint>Snapeda:POWERPAK_SO-8</footprint>
+      <description>VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</description>
+      <fields>
+        <field name="MANUFACTURER_NAME">Vishay</field>
+        <field name="MF">Vishay</field>
+        <field name="MOUSER_PRICE-STOCK">https://www.mouser.co.uk/ProductDetail/Vishay-Semiconductors/SI7149DP-T1-GE3?qs=%252BPu8jn5UVnFbGEUOhBqxFg%3D%3D</field>
+        <field name="MOUSER_PART_NUMBER">781-SI7149DP-GE3</field>
+        <field name="Price">None</field>
+        <field name="Package">PowerPAK SO-8 Vishay</field>
+        <field name="Check_prices">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=eda</field>
+        <field name="HEIGHT">mm</field>
+        <field name="SnapEDA_Link">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=snap</field>
+        <field name="MP">SI7149DP-T1-GE3</field>
+        <field name="Purchase-URL">https://www.snapeda.com/api/url_track_click_mouser/?unipart_id=547405&amp;manufacturer=Vishay&amp;part_name=SI7149DP-T1-GE3&amp;search_term=None</field>
+        <field name="Description_1">P-Channel 30 V 50A (Tc) 69W (Tc) Surface Mount PowerPAK® SO-8</field>
+        <field name="Availability">In Stock</field>
+        <field name="MANUFACTURER_PART_NUMBER">SI7149DP-T1-GE3</field>
+        <field name="LCSC">C553982</field>
+        <field name="Footprint">Snapeda:POWERPAK_SO-8</field>
+        <field name="Datasheet"/>
+        <field name="Description">VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</field>
+      </fields>
+      <libsource lib="Snapeda" part="SI7149DP-T1-GE3" description="VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8"/>
+      <property name="MANUFACTURER_NAME" value="Vishay"/>
+      <property name="MF" value="Vishay"/>
+      <property name="MOUSER_PRICE-STOCK" value="https://www.mouser.co.uk/ProductDetail/Vishay-Semiconductors/SI7149DP-T1-GE3?qs=%252BPu8jn5UVnFbGEUOhBqxFg%3D%3D"/>
+      <property name="MOUSER_PART_NUMBER" value="781-SI7149DP-GE3"/>
+      <property name="Price" value="None"/>
+      <property name="Package" value="PowerPAK SO-8 Vishay"/>
+      <property name="Check_prices" value="https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=eda"/>
+      <property name="HEIGHT" value="mm"/>
+      <property name="SnapEDA_Link" value="https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=snap"/>
+      <property name="MP" value="SI7149DP-T1-GE3"/>
+      <property name="Purchase-URL" value="https://www.snapeda.com/api/url_track_click_mouser/?unipart_id=547405&amp;manufacturer=Vishay&amp;part_name=SI7149DP-T1-GE3&amp;search_term=None"/>
+      <property name="Description_1" value="P-Channel 30 V 50A (Tc) 69W (Tc) Surface Mount PowerPAK® SO-8"/>
+      <property name="Availability" value="In Stock"/>
+      <property name="MANUFACTURER_PART_NUMBER" value="SI7149DP-T1-GE3"/>
+      <property name="LCSC" value="C553982"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3236fe5b-53f2-4776-be87-5db8190cd365</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="4"/>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+            <pin num="8"/>
+            <pin num="9"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R1">
+      <value>330Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17630</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17630"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>875c3ca8-57ad-4451-80b4-763fcf563483</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R2">
+      <value>10kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17414</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17414"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>cb1abe75-ef71-4541-896b-6c5d24dd010a</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R3">
+      <value>5.1kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C27834</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C27834"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>8b2d8c25-34f9-49b7-9bde-dbaba21d7dd5</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R4">
+      <value>5.1kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C27834</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C27834"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6b7caeb7-1fc4-4a5d-8bd4-c1c29416abee</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R5">
+      <value>4.7kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17673</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17673"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>92671442-885f-459c-b71a-14ce841df202</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R6">
+      <value>510Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17734</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17734"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>694c4fcb-2dff-489b-abe9-c79a4a88a5c2</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R7">
+      <value>1MΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17514</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17514"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="dnp"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4bf0f6e4-36f0-47f6-990a-f71427fd0c24</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R8">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>42e8314a-3ea6-4880-9bfa-2f8f5a528e19</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R9">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>866d55b7-966f-401d-b9a8-e550ab91623a</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R10">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>01b64a05-7816-4241-952b-fe4969841914</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R11">
+      <value>330Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17630</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17630"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>39533cad-6cec-4eaf-a88e-795cdd5d3ce9</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R12">
+      <value>10kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17414</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17414"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>76b47aed-7996-44cd-87fe-6252a1b7dbe8</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R13">
+      <value>0Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17477</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17477"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>581af50d-1dca-41ed-8529-56f0ee2a80c1</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R14">
+      <value>10kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17414</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17414"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1fa65f5c-c708-45ac-80ae-12dc95743645</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R15">
+      <value>10kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17414</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17414"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ba78931e-0762-4d6c-a3b0-1681c52ccad6</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R16">
+      <value>10kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17414</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17414"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9a87f866-1bf9-444f-9f14-ae810a0f5e48</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R17">
+      <value>0Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="dnp"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c9d12cc2-ffc5-4c63-aa8d-8cc5d05932db</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R18">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>80e7674d-d5d8-4c3c-8445-c0ba52baffc7</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R19">
+      <value>82Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17841</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17841"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9e8b7c98-650c-4cba-8f6a-a9952b25c295</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R20">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3c78903b-a590-442c-9ee6-7faf165a5ca7</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R21">
+      <value>3.3kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C26010</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C26010"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>95204d99-d721-4592-97e9-0e75facd00c9</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R22">
+      <value>1kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17513</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17513"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9bd73778-5c02-4bb7-a0dc-8dfc2128bf44</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R23">
+      <value>2.2kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17841</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17841"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>909dd23b-3a34-447e-87e8-ff711637045b</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R24">
+      <value>100Ω</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17408</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17408"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>376db689-985d-4466-8970-183ebaa9f388</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R25">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d47cf66e-f82f-4ccf-9e5e-040880a3b450</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R26">
+      <value>22.1kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C204311</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C204311"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9b237958-df49-4b94-80ba-83130613375d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R27">
+      <value>510Ω</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17734</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17734"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>f37e1ee5-c85a-4589-a860-a24374ab4b38</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R28">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6bbba111-23c4-4f9f-8733-3cef0c8f379d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R29">
+      <value>32kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C2930156</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C2930156"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4530f852-e4f6-460e-8ded-2ecddfa99200</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R30">
+      <value>510Ω</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C17734</field>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C17734"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>78e8c2e5-2720-4c0d-b92d-1247a59621fb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="R31">
+      <value>100kΩ</value>
+      <footprint>Resistor_SMD:R_0805_2012Metric</footprint>
+      <description>Resistor</description>
+      <fields>
+        <field name="LCSC">C149504</field>
+        <field name="Footprint">Resistor_SMD:R_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value="C149504"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b3d2aac2-3c11-4bb2-badc-97e46ee55530</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="RN1">
+      <value>4.7kΩ</value>
+      <footprint>EasyEDA:RES-ARRAY-SMD_0402-8P-L2.0-W1.0-BL</footprint>
+      <datasheet>https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</datasheet>
+      <description>4D02WGJ0472TCE</description>
+      <fields>
+        <field name="LCSC Part">C29586</field>
+        <field name="LCSC">C29586</field>
+        <field name="Footprint">EasyEDA:RES-ARRAY-SMD_0402-8P-L2.0-W1.0-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</field>
+        <field name="Description">4D02WGJ0472TCE</field>
+      </fields>
+      <libsource lib="EasyEDA" part="4D02WGJ0472TCE" description=""/>
+      <property name="LCSC Part" value="C29586"/>
+      <property name="LCSC" value="C29586"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>90e66ba9-e91a-4495-8a9c-4a1460903384</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="8"/>
+            <pin num="7"/>
+            <pin num="6"/>
+            <pin num="5"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="RN2">
+      <value>4.7kΩ</value>
+      <footprint>EasyEDA:RES-ARRAY-SMD_0402-8P-L2.0-W1.0-BL</footprint>
+      <datasheet>https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</datasheet>
+      <description>4D02WGJ0472TCE</description>
+      <fields>
+        <field name="LCSC Part">C29586</field>
+        <field name="LCSC">C29586</field>
+        <field name="Footprint">EasyEDA:RES-ARRAY-SMD_0402-8P-L2.0-W1.0-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</field>
+        <field name="Description">4D02WGJ0472TCE</field>
+      </fields>
+      <libsource lib="EasyEDA" part="4D02WGJ0472TCE" description=""/>
+      <property name="LCSC Part" value="C29586"/>
+      <property name="LCSC" value="C29586"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>73068684-04bd-4875-88c2-cce8238a062c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="8"/>
+            <pin num="7"/>
+            <pin num="6"/>
+            <pin num="5"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="SW1">
+      <value>K2-1157SP-I4SW-01</value>
+      <footprint>EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</footprint>
+      <datasheet>https://www.lcsc.com/datasheet/C2909692.pdf</datasheet>
+      <description>K2-1157SP-I4SW-01</description>
+      <fields>
+        <field name="LCSC Part">C2909692</field>
+        <field name="LCSC">C2909692</field>
+        <field name="Footprint">EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</field>
+        <field name="Datasheet">https://www.lcsc.com/datasheet/C2909692.pdf</field>
+        <field name="Description">K2-1157SP-I4SW-01</field>
+      </fields>
+      <libsource lib="EasyEDA" part="K2-1157SP-I4SW-04" description=""/>
+      <property name="LCSC Part" value="C2909692"/>
+      <property name="LCSC" value="C2909692"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4b7ad782-2b7d-4d04-bd6a-c8f57c000fdb</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="2"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="SW2">
+      <value>K2-1157SP-I4SW-01</value>
+      <footprint>EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</footprint>
+      <datasheet>https://www.lcsc.com/datasheet/C2909692.pdf</datasheet>
+      <description>K2-1157SP-I4SW-01</description>
+      <fields>
+        <field name="LCSC Part">C2909692</field>
+        <field name="LCSC">C2909692</field>
+        <field name="Footprint">EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</field>
+        <field name="Datasheet">https://www.lcsc.com/datasheet/C2909692.pdf</field>
+        <field name="Description">K2-1157SP-I4SW-01</field>
+      </fields>
+      <libsource lib="EasyEDA" part="K2-1157SP-I4SW-04" description=""/>
+      <property name="LCSC Part" value="C2909692"/>
+      <property name="LCSC" value="C2909692"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>18d609d4-aa8b-4e6b-8888-89af8498bec4</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="2"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="SW3">
+      <value>K2-1157SP-I4SW-01</value>
+      <footprint>EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</footprint>
+      <datasheet>https://www.lcsc.com/datasheet/C2909692.pdf</datasheet>
+      <description>K2-1157SP-I4SW-01</description>
+      <fields>
+        <field name="LCSC Part">C2909692</field>
+        <field name="LCSC">C2909692</field>
+        <field name="Footprint">EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</field>
+        <field name="Datasheet">https://www.lcsc.com/datasheet/C2909692.pdf</field>
+        <field name="Description">K2-1157SP-I4SW-01</field>
+      </fields>
+      <libsource lib="EasyEDA" part="K2-1157SP-I4SW-04" description=""/>
+      <property name="LCSC Part" value="C2909692"/>
+      <property name="LCSC" value="C2909692"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6d9b268a-5fd1-439b-817f-57dcbe0da25c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="2"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="SW4">
+      <value>SSSS811101</value>
+      <footprint>EasyEDA:SW-SMD_SSSS811101</footprint>
+      <datasheet>https://lcsc.com/product-detail/Toggle-Switches_ALPS_SSSS811101_SSSS811101_C109335.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C109335</field>
+        <field name="LCSC">C109335</field>
+        <field name="Footprint">EasyEDA:SW-SMD_SSSS811101</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Toggle-Switches_ALPS_SSSS811101_SSSS811101_C109335.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SSSS811101" description=""/>
+      <property name="LCSC Part" value="C109335"/>
+      <property name="LCSC" value="C109335"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ad7869cc-b154-47fc-a816-19b5a9bb93b8</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP1">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3cba1cbe-69a7-4980-bd66-4ceb38f0f505</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP4">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>5b96689d-f0fe-47be-be44-f4c1e3989e9d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP5">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>80b630c5-3b31-494e-b75c-cd47e4fb0a7c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP6">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>fcfab34b-3364-4530-ab46-9791f42edd7d</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP7">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>10abd612-3c94-4076-b840-fa5a4a326d14</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="TP8">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TestPoint_Pad_D1.0mm</footprint>
+      <description>test point</description>
+      <fields>
+        <field name="Footprint">TestPoint:TestPoint_Pad_D1.0mm</field>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <libsource lib="Connector" part="TestPoint" description="test point"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="test point tp"/>
+      <property name="ki_fp_filters" value="Pin* Test*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>65647a76-d203-4516-b036-32a8df927344</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U1">
+      <value>DS18B20</value>
+      <footprint>Package_TO_SOT_THT:TO-92_Inline</footprint>
+      <datasheet>http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</datasheet>
+      <description>Programmable Resolution 1-Wire Digital Thermometer TO-92</description>
+      <fields>
+        <field name="LCSC">C5451632</field>
+        <field name="Footprint">Package_TO_SOT_THT:TO-92_Inline</field>
+        <field name="Datasheet">http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</field>
+        <field name="Description">Programmable Resolution 1-Wire Digital Thermometer TO-92</field>
+      </fields>
+      <libsource lib="Sensor_Temperature" part="DS18B20" description="Programmable Resolution 1-Wire Digital Thermometer TO-92"/>
+      <property name="LCSC" value="C5451632"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="OneWire 1Wire Dallas Maxim"/>
+      <property name="ki_fp_filters" value="TO*92*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9c05e98d-abd2-44fd-833f-127bf987b939</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="3"/>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U2">
+      <value>STM32F411CEU6</value>
+      <footprint>Package_DFN_QFN:QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm</footprint>
+      <datasheet>https://www.st.com/resource/en/datasheet/stm32f411ce.pdf</datasheet>
+      <description>STMicroelectronics Arm Cortex-M4 MCU, 512KB flash, 128KB RAM, 100 MHz, 1.7-3.6V, 36 GPIO, UFQFPN48</description>
+      <fields>
+        <field name="LCSC">C60420</field>
+        <field name="Footprint">Package_DFN_QFN:QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm</field>
+        <field name="Datasheet">https://www.st.com/resource/en/datasheet/stm32f411ce.pdf</field>
+        <field name="Description">STMicroelectronics Arm Cortex-M4 MCU, 512KB flash, 128KB RAM, 100 MHz, 1.7-3.6V, 36 GPIO, UFQFPN48</field>
+      </fields>
+      <libsource lib="MCU_ST_STM32F4" part="STM32F411CEUx" description="STMicroelectronics Arm Cortex-M4 MCU, 512KB flash, 128KB RAM, 100 MHz, 1.7-3.6V, 36 GPIO, UFQFPN48"/>
+      <property name="LCSC" value="C60420"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="Arm Cortex-M4 STM32F4 STM32F411"/>
+      <property name="ki_fp_filters" value="QFN*1EP*7x7mm*P0.5mm*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>cfc7e474-0976-42f9-a607-4c7fc7464859</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="7"/>
+            <pin num="44"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="4"/>
+            <pin num="18"/>
+            <pin num="19"/>
+            <pin num="20"/>
+            <pin num="39"/>
+            <pin num="40"/>
+            <pin num="41"/>
+            <pin num="42"/>
+            <pin num="43"/>
+            <pin num="45"/>
+            <pin num="46"/>
+            <pin num="21"/>
+            <pin num="25"/>
+            <pin num="26"/>
+            <pin num="27"/>
+            <pin num="28"/>
+            <pin num="22"/>
+            <pin num="1"/>
+            <pin num="24"/>
+            <pin num="36"/>
+            <pin num="49"/>
+            <pin num="35"/>
+            <pin num="23"/>
+            <pin num="47"/>
+            <pin num="48"/>
+            <pin num="8"/>
+            <pin num="9"/>
+            <pin num="10"/>
+            <pin num="11"/>
+            <pin num="12"/>
+            <pin num="13"/>
+            <pin num="14"/>
+            <pin num="15"/>
+            <pin num="16"/>
+            <pin num="17"/>
+            <pin num="29"/>
+            <pin num="30"/>
+            <pin num="31"/>
+            <pin num="32"/>
+            <pin num="33"/>
+            <pin num="34"/>
+            <pin num="37"/>
+            <pin num="38"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U3">
+      <value>SN74AHCT1G125DBVR</value>
+      <footprint>EasyEDA:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</footprint>
+      <datasheet>https://lcsc.com/product-detail/74-Series_TI_SN74AHCT1G125DBVR_SN74AHCT1G125DBVR_C7484.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C7484</field>
+        <field name="LCSC">C7484</field>
+        <field name="Footprint">EasyEDA:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/74-Series_TI_SN74AHCT1G125DBVR_SN74AHCT1G125DBVR_C7484.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SN74AHCT1G125DBVR" description=""/>
+      <property name="LCSC Part" value="C7484"/>
+      <property name="LCSC" value="C7484"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>652504a8-f3d6-45e1-aa3f-be7998144db0</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="2"/>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U4">
+      <value>ESP-12F</value>
+      <footprint>RF_Module:ESP-12F</footprint>
+      <datasheet>http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</datasheet>
+      <description>802.11 b/g/n Wi-Fi Module</description>
+      <fields>
+        <field name="LCSC">C19949064</field>
+        <field name="Footprint">RF_Module:ESP-12F</field>
+        <field name="Datasheet">http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</field>
+        <field name="Description">802.11 b/g/n Wi-Fi Module</field>
+      </fields>
+      <libsource lib="RF_Module" part="ESP-12F" description="802.11 b/g/n Wi-Fi Module"/>
+      <property name="LCSC" value="C19949064"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <property name="ki_keywords" value="802.11 Wi-Fi"/>
+      <property name="ki_fp_filters" value="ESP?12*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>8390d259-a92d-4d9d-aa6f-21d3f7a07675</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="3"/>
+            <pin num="2"/>
+            <pin num="9"/>
+            <pin num="10"/>
+            <pin num="11"/>
+            <pin num="12"/>
+            <pin num="13"/>
+            <pin num="14"/>
+            <pin num="8"/>
+            <pin num="15"/>
+            <pin num="18"/>
+            <pin num="22"/>
+            <pin num="17"/>
+            <pin num="21"/>
+            <pin num="19"/>
+            <pin num="20"/>
+            <pin num="6"/>
+            <pin num="7"/>
+            <pin num="5"/>
+            <pin num="16"/>
+            <pin num="4"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U5">
+      <value>DS3231MZ+TRL</value>
+      <footprint>Samacsys:SOIC127P600X175-8N</footprint>
+      <datasheet>https://datasheet.lcsc.com/szlcsc/Maxim-Integrated-DS3231MZ_C107410.pdf</datasheet>
+      <description>Real-time Clocks Clock/Calendar I2C, 2-Wire Serial 130uA ~ 200uA @ 3.63V ~ 5.5V SOIC-8_150mil RoHS</description>
+      <fields>
+        <field name="Height">1.75</field>
+        <field name="Mouser Part Number">700-DS3231MZ+TRL</field>
+        <field name="Mouser Price/Stock">https://www.mouser.co.uk/ProductDetail/Analog-Devices-Maxim-Integrated/DS3231MZ%2bTRL?qs=4Rc5iGDDRGgh%2Fh2%252BvSsz9A%3D%3D</field>
+        <field name="Manufacturer_Name">Analog Devices</field>
+        <field name="Manufacturer_Part_Number">DS3231MZ+TRL</field>
+        <field name="LCSC">C107410</field>
+        <field name="Footprint">Samacsys:SOIC127P600X175-8N</field>
+        <field name="Datasheet">https://datasheet.lcsc.com/szlcsc/Maxim-Integrated-DS3231MZ_C107410.pdf</field>
+        <field name="Description">Real-time Clocks Clock/Calendar I2C, 2-Wire Serial 130uA ~ 200uA @ 3.63V ~ 5.5V SOIC-8_150mil RoHS</field>
+      </fields>
+      <libsource lib="Samacsys" part="DS3231MZ+TRL" description="Real-time Clocks Clock/Calendar I2C, 2-Wire Serial 130uA ~ 200uA @ 3.63V ~ 5.5V SOIC-8_150mil RoHS"/>
+      <property name="Height" value="1.75"/>
+      <property name="Mouser Part Number" value="700-DS3231MZ+TRL"/>
+      <property name="Mouser Price/Stock" value="https://www.mouser.co.uk/ProductDetail/Analog-Devices-Maxim-Integrated/DS3231MZ%2bTRL?qs=4Rc5iGDDRGgh%2Fh2%252BvSsz9A%3D%3D"/>
+      <property name="Manufacturer_Name" value="Analog Devices"/>
+      <property name="Manufacturer_Part_Number" value="DS3231MZ+TRL"/>
+      <property name="LCSC" value="C107410"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>36171339-67e5-47ed-a7e4-efb6e105e77f</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="8"/>
+            <pin num="7"/>
+            <pin num="4"/>
+            <pin num="2"/>
+            <pin num="6"/>
+            <pin num="5"/>
+            <pin num="1"/>
+            <pin num="3"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U6">
+      <value>AT24C32M/TR</value>
+      <footprint>EasyEDA:SOP-8_L4.9-W3.9-P1.27-LS6.0-BL</footprint>
+      <fields>
+        <field name="LCSC Part">C2688466</field>
+        <field name="LCSC">C2688466</field>
+        <field name="Footprint">EasyEDA:SOP-8_L4.9-W3.9-P1.27-LS6.0-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="AT24C02CDR630" description=""/>
+      <property name="LCSC Part" value="C2688466"/>
+      <property name="LCSC" value="C2688466"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e0bf6cc4-c130-4d12-92fd-35e35ff95ea1</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="8"/>
+            <pin num="4"/>
+            <pin num="5"/>
+            <pin num="6"/>
+            <pin num="7"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U7">
+      <value>SMTU2032-LF</value>
+      <footprint>EasyEDA:BAT-SMD_SMTU2032-LF</footprint>
+      <fields>
+        <field name="LCSC Part">C18212226</field>
+        <field name="LCSC">C18212226</field>
+        <field name="Footprint">EasyEDA:BAT-SMD_SMTU2032-LF</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SMTU2032-LF" description=""/>
+      <property name="LCSC Part" value="C18212226"/>
+      <property name="LCSC" value="C18212226"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4cee9373-6e07-46f7-860f-097be23c521e</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U9">
+      <value>TPS2121RUXR</value>
+      <footprint>EasyEDA:VQFN-HR-12_L2.5-W2.0-P0.50-BL</footprint>
+      <datasheet>https://lcsc.com/product-detail/New-Arrivals_Texas-Instruments-Texas-Instruments-TPS2121RUXR_C485916.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C485916</field>
+        <field name="LCSC">C485916</field>
+        <field name="Footprint">EasyEDA:VQFN-HR-12_L2.5-W2.0-P0.50-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/New-Arrivals_Texas-Instruments-Texas-Instruments-TPS2121RUXR_C485916.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="TPS2121RUXR" description=""/>
+      <property name="LCSC Part" value="C485916"/>
+      <property name="LCSC" value="C485916"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d418fe61-e892-43db-a5d1-f930a165a5ed</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="7"/>
+            <pin num="6"/>
+            <pin num="2"/>
+            <pin num="3"/>
+            <pin num="5"/>
+            <pin num="4"/>
+            <pin num="1"/>
+            <pin num="8"/>
+            <pin num="9"/>
+            <pin num="10"/>
+            <pin num="11"/>
+            <pin num="12"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="U10">
+      <value>SY8301ABC</value>
+      <footprint>EasyEDA:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</footprint>
+      <fields>
+        <field name="LCSC Part">C2927130</field>
+        <field name="LCSC">C2927130</field>
+        <field name="Footprint">EasyEDA:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="SY8301ABC" description=""/>
+      <property name="LCSC Part" value="C2927130"/>
+      <property name="LCSC" value="C2927130"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>bcdf3762-6855-4834-aec1-ecf93e3166e0</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="5"/>
+            <pin num="4"/>
+            <pin num="6"/>
+            <pin num="3"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="USB1">
+      <value>TYPE-C 6P</value>
+      <footprint>EasyEDA:TYPE-C-SMD_TYPE-C-6P</footprint>
+      <datasheet>https://lcsc.com/product-detail/USB-Connectors_SHOU-HAN-TYPE-C-6P_C456012.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C456012</field>
+        <field name="LCSC">C456012</field>
+        <field name="Footprint">EasyEDA:TYPE-C-SMD_TYPE-C-6P</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/USB-Connectors_SHOU-HAN-TYPE-C-6P_C456012.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="TYPE-C6P" description=""/>
+      <property name="LCSC Part" value="C456012"/>
+      <property name="LCSC" value="C456012"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1ca37bf9-3ae0-48b4-8756-a4bbfeef8754</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="A9"/>
+            <pin num="B9"/>
+            <pin num="A5"/>
+            <pin num="B5"/>
+            <pin num="A12"/>
+            <pin num="B12"/>
+            <pin num="7"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="X1">
+      <value>X1E0002510077</value>
+      <footprint>EasyEDA:OSC-SMD_4P-L1.6-W1.2-BL</footprint>
+      <datasheet>https://lcsc.com/product-detail/Others_Seiko-Epson_X1E0002510077_Seiko-Epson-X1E0002510077_C255980.html</datasheet>
+      <fields>
+        <field name="LCSC Part">C255980</field>
+        <field name="LCSC">C255980</field>
+        <field name="Footprint">EasyEDA:OSC-SMD_4P-L1.6-W1.2-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Others_Seiko-Epson_X1E0002510077_Seiko-Epson-X1E0002510077_C255980.html</field>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="EasyEDA" part="X1E0002510077" description=""/>
+      <property name="LCSC Part" value="C255980"/>
+      <property name="LCSC" value="C255980"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="WordClock-USB C - STM32F411 - V2.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3f6de65f-d3b3-4b97-8dc9-bf6b0cca368c</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="4"/>
+            <pin num="3"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+  </components>
+  <libparts>
+    <libpart lib="Connector" part="TestPoint">
+      <description>test point</description>
+      <footprints>
+        <fp>Pin*</fp>
+        <fp>Test*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">TP</field>
+        <field name="Value">TestPoint</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">test point</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="C">
+      <description>Unpolarized capacitor</description>
+      <footprints>
+        <fp>C_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">C</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Unpolarized capacitor</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="C_Polarized">
+      <description>Polarized capacitor</description>
+      <footprints>
+        <fp>CP_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">C_Polarized</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Polarized capacitor</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="R">
+      <description>Resistor</description>
+      <footprints>
+        <fp>R_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">R</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Resistor</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Diode" part="PMEG2010ER">
+      <description>20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</description>
+      <docs>https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</docs>
+      <footprints>
+        <fp>Nexperia*CFP3*SOD?123W*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">D</field>
+        <field name="Value">PMEG2010ER</field>
+        <field name="Footprint">Diode_SMD:Nexperia_CFP3_SOD-123W</field>
+        <field name="Datasheet">https://assets.nexperia.com/documents/data-sheet/PMEG2010ER.pdf</field>
+        <field name="Description">20V, 1A low Vf MEGA Schottky barrier rectifier, SOD-123W</field>
+      </fields>
+      <pins>
+        <pin num="1" name="K" type="passive"/>
+        <pin num="2" name="A" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="1812L300_24GR">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">1812L300/24GR</field>
+        <field name="Footprint">EasyEDA:F1812</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C20627123</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="4D02WGJ0472TCE">
+      <docs>https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</docs>
+      <fields>
+        <field name="Reference">RN</field>
+        <field name="Value">4D02WGJ0472TCE</field>
+        <field name="Footprint">EasyEDA:RES-ARRAY-SMD_0402-8P-L2.0-W1.0-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Resistor-Networks-Arrays_4-7KR-472-5_C29586.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C29586</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="input"/>
+        <pin num="2" name="2" type="input"/>
+        <pin num="3" name="3" type="input"/>
+        <pin num="4" name="4" type="input"/>
+        <pin num="5" name="5" type="input"/>
+        <pin num="6" name="6" type="input"/>
+        <pin num="7" name="7" type="input"/>
+        <pin num="8" name="8" type="input"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="AT24C02CDR630">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">AT24C02CDR630</field>
+        <field name="Footprint">EasyEDA:SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C51026300</field>
+      </fields>
+      <pins>
+        <pin num="1" name="E0" type="unspecified"/>
+        <pin num="2" name="E1" type="unspecified"/>
+        <pin num="3" name="E2" type="unspecified"/>
+        <pin num="4" name="GND" type="unspecified"/>
+        <pin num="5" name="SDA" type="unspecified"/>
+        <pin num="6" name="SCL" type="unspecified"/>
+        <pin num="7" name="WCB" type="unspecified"/>
+        <pin num="8" name="VCC" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="BLM18AG102SN1D">
+      <docs>https://lcsc.com/product-detail/Ferrite-Beads-And-Chips_muRata_BLM18AG102SN1D_1KR-25-at100MHz_C85824.html</docs>
+      <fields>
+        <field name="Reference">L</field>
+        <field name="Value">BLM18AG102SN1D</field>
+        <field name="Footprint">EasyEDA:L0603</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Ferrite-Beads-And-Chips_muRata_BLM18AG102SN1D_1KR-25-at100MHz_C85824.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C85824</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="FTC252010S4R7MBCA">
+      <fields>
+        <field name="Reference">L</field>
+        <field name="Value">FTC252010S4R7MBCA</field>
+        <field name="Footprint">EasyEDA:IND-SMD_L2.5-W2.0-VLS252012CX-150M</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C5832360</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="K2-1157SP-I4SW-04">
+      <fields>
+        <field name="Reference">SW</field>
+        <field name="Value">K2-1157SP-I4SW-04</field>
+        <field name="Footprint">EasyEDA:SW-SMD_4P-L6.2-W6.2-P4.50-LS8.6</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C2909692</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+        <pin num="3" name="3" type="unspecified"/>
+        <pin num="4" name="4" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="LTST-C171KGKT">
+      <docs>https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_LTST-C171KGKT_C98224.html</docs>
+      <fields>
+        <field name="Reference">LED</field>
+        <field name="Value">LTST-C171KGKT</field>
+        <field name="Footprint">EasyEDA:LED0805-RD</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_LTST-C171KGKT_C98224.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C98224</field>
+      </fields>
+      <pins>
+        <pin num="1" name="C" type="passive"/>
+        <pin num="2" name="A" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="LTST-C171KRKT">
+      <docs>https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</docs>
+      <fields>
+        <field name="Reference">LED</field>
+        <field name="Value">LTST-C171KRKT</field>
+        <field name="Footprint">EasyEDA:LED-SMD_L2.0-W1.25-RD_RED</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Light-Emitting-Diodes-LED_Lite-On-LTST-C171KRKT_C284871.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C284871</field>
+      </fields>
+      <pins>
+        <pin num="1" name="C" type="passive"/>
+        <pin num="2" name="A" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="PZ254R-11-02P">
+      <docs>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-02P_C492410.html</docs>
+      <fields>
+        <field name="Reference">H</field>
+        <field name="Value">PZ254R-11-02P</field>
+        <field name="Footprint">EasyEDA:HDR-TH_2P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-02P_C492410.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C492410</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="PZ254R-11-03P">
+      <docs>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-03P_C492411.html</docs>
+      <fields>
+        <field name="Reference">H</field>
+        <field name="Value">PZ254R-11-03P</field>
+        <field name="Footprint">EasyEDA:HDR-TH_3P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-03P_C492411.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C492411</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+        <pin num="3" name="3" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="PZ254R-11-04P">
+      <docs>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</docs>
+      <fields>
+        <field name="Reference">H</field>
+        <field name="Value">PZ254R-11-04P</field>
+        <field name="Footprint">EasyEDA:HDR-TH_4P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-04P_C492412.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C492412</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+        <pin num="3" name="3" type="unspecified"/>
+        <pin num="4" name="4" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="PZ254R-11-07P">
+      <docs>https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-07P_C492415.html</docs>
+      <fields>
+        <field name="Reference">H</field>
+        <field name="Value">PZ254R-11-07P</field>
+        <field name="Footprint">EasyEDA:HDR-TH_7P-P2.54-H-M-W10.4</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-07P_C492415.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C492415</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+        <pin num="3" name="3" type="unspecified"/>
+        <pin num="4" name="4" type="unspecified"/>
+        <pin num="5" name="5" type="unspecified"/>
+        <pin num="6" name="6" type="unspecified"/>
+        <pin num="7" name="7" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SMAJ5.0CA_C10756">
+      <docs>https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</docs>
+      <fields>
+        <field name="Reference">D</field>
+        <field name="Value">SMAJ5.0CA_C10756</field>
+        <field name="Footprint">EasyEDA:SMA_L4.4-W2.6-LS5.0-BI</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/TVS_SMAJ5-0CA_C10756.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C10756</field>
+      </fields>
+      <pins>
+        <pin num="1" name="K" type="unspecified"/>
+        <pin num="2" name="A" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SMD1206-150-16">
+      <fields>
+        <field name="Reference">F</field>
+        <field name="Value">SMD1206-150-16</field>
+        <field name="Footprint">EasyEDA:F1206</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C46641031</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SMTU2032-LF">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">SMTU2032-LF</field>
+        <field name="Footprint">EasyEDA:BAT-SMD_SMTU2032-LF</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C18212226</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="input"/>
+        <pin num="2" name="2" type="input"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SN74AHCT1G125DBVR">
+      <docs>https://lcsc.com/product-detail/74-Series_TI_SN74AHCT1G125DBVR_SN74AHCT1G125DBVR_C7484.html</docs>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">SN74AHCT1G125DBVR</field>
+        <field name="Footprint">EasyEDA:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/74-Series_TI_SN74AHCT1G125DBVR_SN74AHCT1G125DBVR_C7484.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C7484</field>
+      </fields>
+      <pins>
+        <pin num="1" name="~{OE}" type="unspecified"/>
+        <pin num="2" name="A" type="unspecified"/>
+        <pin num="3" name="GND" type="unspecified"/>
+        <pin num="4" name="Y" type="unspecified"/>
+        <pin num="5" name="VCC" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SSSS811101">
+      <docs>https://lcsc.com/product-detail/Toggle-Switches_ALPS_SSSS811101_SSSS811101_C109335.html</docs>
+      <fields>
+        <field name="Reference">SW</field>
+        <field name="Value">SSSS811101</field>
+        <field name="Footprint">EasyEDA:SW-SMD_SSSS811101</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Toggle-Switches_ALPS_SSSS811101_SSSS811101_C109335.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C109335</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="unspecified"/>
+        <pin num="2" name="2" type="unspecified"/>
+        <pin num="3" name="3" type="unspecified"/>
+        <pin num="4" name="4" type="unspecified"/>
+        <pin num="5" name="5" type="unspecified"/>
+        <pin num="6" name="6" type="unspecified"/>
+        <pin num="7" name="7" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="SY8301ABC">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">SY8301ABC</field>
+        <field name="Footprint">EasyEDA:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+        <field name="LCSC Part">C2927130</field>
+      </fields>
+      <pins>
+        <pin num="1" name="BS" type="unspecified"/>
+        <pin num="2" name="GND" type="unspecified"/>
+        <pin num="3" name="FB" type="unspecified"/>
+        <pin num="4" name="EN" type="unspecified"/>
+        <pin num="5" name="IN" type="unspecified"/>
+        <pin num="6" name="LX" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="TPS2121RUXR">
+      <docs>https://lcsc.com/product-detail/New-Arrivals_Texas-Instruments-Texas-Instruments-TPS2121RUXR_C485916.html</docs>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TPS2121RUXR</field>
+        <field name="Footprint">EasyEDA:VQFN-HR-12_L2.5-W2.0-P0.50-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/New-Arrivals_Texas-Instruments-Texas-Instruments-TPS2121RUXR_C485916.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C485916</field>
+      </fields>
+      <pins>
+        <pin num="1" name="OUT" type="unspecified"/>
+        <pin num="2" name="IN2" type="unspecified"/>
+        <pin num="3" name="CP2" type="unspecified"/>
+        <pin num="4" name="OV2" type="unspecified"/>
+        <pin num="5" name="OV1" type="unspecified"/>
+        <pin num="6" name="PR1" type="unspecified"/>
+        <pin num="7" name="IN1" type="unspecified"/>
+        <pin num="8" name="OUT" type="unspecified"/>
+        <pin num="9" name="ST" type="unspecified"/>
+        <pin num="10" name="ILM" type="unspecified"/>
+        <pin num="11" name="SS" type="unspecified"/>
+        <pin num="12" name="GND" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="TYPE-C6P">
+      <docs>https://lcsc.com/product-detail/USB-Connectors_SHOU-HAN-TYPE-C-6P_C456012.html</docs>
+      <fields>
+        <field name="Reference">USB</field>
+        <field name="Value">TYPE-C 6P</field>
+        <field name="Footprint">EasyEDA:TYPE-C-SMD_TYPE-C-6P</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/USB-Connectors_SHOU-HAN-TYPE-C-6P_C456012.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C456012</field>
+      </fields>
+      <pins>
+        <pin num="7" name="EH" type="unspecified"/>
+        <pin num="A5" name="CC1" type="unspecified"/>
+        <pin num="A9" name="VBUS" type="unspecified"/>
+        <pin num="A12" name="GND" type="unspecified"/>
+        <pin num="B5" name="CC2" type="unspecified"/>
+        <pin num="B9" name="VBUS" type="unspecified"/>
+        <pin num="B12" name="GND" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="EasyEDA" part="X1E0002510077">
+      <docs>https://lcsc.com/product-detail/Others_Seiko-Epson_X1E0002510077_Seiko-Epson-X1E0002510077_C255980.html</docs>
+      <fields>
+        <field name="Reference">X</field>
+        <field name="Value">X1E0002510077</field>
+        <field name="Footprint">EasyEDA:OSC-SMD_4P-L1.6-W1.2-BL</field>
+        <field name="Datasheet">https://lcsc.com/product-detail/Others_Seiko-Epson_X1E0002510077_Seiko-Epson-X1E0002510077_C255980.html</field>
+        <field name="Description"/>
+        <field name="LCSC Part">C255980</field>
+      </fields>
+      <pins>
+        <pin num="1" name="OSC1" type="unspecified"/>
+        <pin num="2" name="GND" type="unspecified"/>
+        <pin num="3" name="OSC2" type="unspecified"/>
+        <pin num="4" name="GND" type="unspecified"/>
+      </pins>
+    </libpart>
+    <libpart lib="Jumper" part="SolderJumper_2_Open">
+      <description>Solder Jumper, 2-pole, open</description>
+      <footprints>
+        <fp>SolderJumper*Open*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">JP</field>
+        <field name="Value">SolderJumper_2_Open</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Solder Jumper, 2-pole, open</field>
+      </fields>
+      <pins>
+        <pin num="1" name="A" type="passive"/>
+        <pin num="2" name="B" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="MCU_ST_STM32F4" part="STM32F411CEUx">
+      <description>STMicroelectronics Arm Cortex-M4 MCU, 512KB flash, 128KB RAM, 100 MHz, 1.7-3.6V, 36 GPIO, UFQFPN48</description>
+      <docs>https://www.st.com/resource/en/datasheet/stm32f411ce.pdf</docs>
+      <footprints>
+        <fp>QFN*1EP*7x7mm*P0.5mm*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">STM32F411CEUx</field>
+        <field name="Footprint">Package_DFN_QFN:QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm</field>
+        <field name="Datasheet">https://www.st.com/resource/en/datasheet/stm32f411ce.pdf</field>
+        <field name="Description">STMicroelectronics Arm Cortex-M4 MCU, 512KB flash, 128KB RAM, 100 MHz, 1.7-3.6V, 36 GPIO, UFQFPN48</field>
+      </fields>
+      <pins>
+        <pin num="1" name="VBAT" type="power_in"/>
+        <pin num="2" name="PC13" type="bidirectional"/>
+        <pin num="3" name="PC14" type="bidirectional"/>
+        <pin num="4" name="PC15" type="bidirectional"/>
+        <pin num="5" name="PH0" type="bidirectional"/>
+        <pin num="6" name="PH1" type="bidirectional"/>
+        <pin num="7" name="NRST" type="input"/>
+        <pin num="8" name="VSSA" type="power_in"/>
+        <pin num="9" name="VDDA" type="power_in"/>
+        <pin num="10" name="PA0" type="bidirectional"/>
+        <pin num="11" name="PA1" type="bidirectional"/>
+        <pin num="12" name="PA2" type="bidirectional"/>
+        <pin num="13" name="PA3" type="bidirectional"/>
+        <pin num="14" name="PA4" type="bidirectional"/>
+        <pin num="15" name="PA5" type="bidirectional"/>
+        <pin num="16" name="PA6" type="bidirectional"/>
+        <pin num="17" name="PA7" type="bidirectional"/>
+        <pin num="18" name="PB0" type="bidirectional"/>
+        <pin num="19" name="PB1" type="bidirectional"/>
+        <pin num="20" name="PB2" type="bidirectional"/>
+        <pin num="21" name="PB10" type="bidirectional"/>
+        <pin num="22" name="VCAP1" type="power_out"/>
+        <pin num="23" name="VSS" type="power_in"/>
+        <pin num="24" name="VDD" type="power_in"/>
+        <pin num="25" name="PB12" type="bidirectional"/>
+        <pin num="26" name="PB13" type="bidirectional"/>
+        <pin num="27" name="PB14" type="bidirectional"/>
+        <pin num="28" name="PB15" type="bidirectional"/>
+        <pin num="29" name="PA8" type="bidirectional"/>
+        <pin num="30" name="PA9" type="bidirectional"/>
+        <pin num="31" name="PA10" type="bidirectional"/>
+        <pin num="32" name="PA11" type="bidirectional"/>
+        <pin num="33" name="PA12" type="bidirectional"/>
+        <pin num="34" name="PA13" type="bidirectional"/>
+        <pin num="35" name="VSS" type="passive"/>
+        <pin num="36" name="VDD" type="power_in"/>
+        <pin num="37" name="PA14" type="bidirectional"/>
+        <pin num="38" name="PA15" type="bidirectional"/>
+        <pin num="39" name="PB3" type="bidirectional"/>
+        <pin num="40" name="PB4" type="bidirectional"/>
+        <pin num="41" name="PB5" type="bidirectional"/>
+        <pin num="42" name="PB6" type="bidirectional"/>
+        <pin num="43" name="PB7" type="bidirectional"/>
+        <pin num="44" name="BOOT0" type="input"/>
+        <pin num="45" name="PB8" type="bidirectional"/>
+        <pin num="46" name="PB9" type="bidirectional"/>
+        <pin num="47" name="VSS" type="passive"/>
+        <pin num="48" name="VDD" type="power_in"/>
+        <pin num="49" name="VSS" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Mechanical" part="MountingHole_Pad">
+      <description>Mounting Hole with connection</description>
+      <footprints>
+        <fp>MountingHole*Pad*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">H</field>
+        <field name="Value">MountingHole_Pad</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description">Mounting Hole with connection</field>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="input"/>
+      </pins>
+    </libpart>
+    <libpart lib="RF_Module" part="ESP-12F">
+      <description>802.11 b/g/n Wi-Fi Module</description>
+      <docs>http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</docs>
+      <footprints>
+        <fp>ESP?12*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">ESP-12F</field>
+        <field name="Footprint">RF_Module:ESP-12E</field>
+        <field name="Datasheet">http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</field>
+        <field name="Description">802.11 b/g/n Wi-Fi Module</field>
+      </fields>
+      <pins>
+        <pin num="1" name="~{RST}" type="input"/>
+        <pin num="2" name="ADC" type="input"/>
+        <pin num="3" name="EN" type="input"/>
+        <pin num="4" name="GPIO16" type="bidirectional"/>
+        <pin num="5" name="GPIO14" type="bidirectional"/>
+        <pin num="6" name="GPIO12" type="bidirectional"/>
+        <pin num="7" name="GPIO13" type="bidirectional"/>
+        <pin num="8" name="VCC" type="power_in"/>
+        <pin num="9" name="CS0" type="input"/>
+        <pin num="10" name="MISO" type="bidirectional"/>
+        <pin num="11" name="GPIO9" type="bidirectional"/>
+        <pin num="12" name="GPIO10" type="bidirectional"/>
+        <pin num="13" name="MOSI" type="bidirectional"/>
+        <pin num="14" name="SCLK" type="bidirectional"/>
+        <pin num="15" name="GND" type="power_in"/>
+        <pin num="16" name="GPIO15" type="bidirectional"/>
+        <pin num="17" name="GPIO2" type="bidirectional"/>
+        <pin num="18" name="GPIO0" type="bidirectional"/>
+        <pin num="19" name="GPIO4" type="bidirectional"/>
+        <pin num="20" name="GPIO5" type="bidirectional"/>
+        <pin num="21" name="GPIO3/RXD" type="bidirectional"/>
+        <pin num="22" name="GPIO1/TXD" type="bidirectional"/>
+      </pins>
+    </libpart>
+    <libpart lib="Samacsys" part="DS3231MZ+TRL">
+      <description>Real-time Clocks Clock/Calendar I2C, 2-Wire Serial 130uA ~ 200uA @ 3.63V ~ 5.5V SOIC-8_150mil RoHS</description>
+      <docs>https://datasheet.lcsc.com/szlcsc/Maxim-Integrated-DS3231MZ_C107410.pdf</docs>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">DS3231MZ+TRL</field>
+        <field name="Footprint">Samacsys:SOIC127P600X175-8N</field>
+        <field name="Datasheet">https://datasheet.lcsc.com/szlcsc/Maxim-Integrated-DS3231MZ_C107410.pdf</field>
+        <field name="Description">Real-time Clocks Clock/Calendar I2C, 2-Wire Serial 130uA ~ 200uA @ 3.63V ~ 5.5V SOIC-8_150mil RoHS</field>
+        <field name="Height">1.75</field>
+        <field name="Mouser Part Number">700-DS3231MZ+TRL</field>
+        <field name="Mouser Price/Stock">https://www.mouser.co.uk/ProductDetail/Analog-Devices-Maxim-Integrated/DS3231MZ%2bTRL?qs=4Rc5iGDDRGgh%2Fh2%252BvSsz9A%3D%3D</field>
+        <field name="Manufacturer_Name">Analog Devices</field>
+        <field name="Manufacturer_Part_Number">DS3231MZ+TRL</field>
+      </fields>
+      <pins>
+        <pin num="1" name="32KHZ" type="output"/>
+        <pin num="2" name="VCC" type="power_in"/>
+        <pin num="3" name="~{INT}/SQW" type="output"/>
+        <pin num="4" name="~{RST}" type="bidirectional"/>
+        <pin num="5" name="GND" type="power_in"/>
+        <pin num="6" name="VBAT" type="power_in"/>
+        <pin num="7" name="SDA" type="bidirectional"/>
+        <pin num="8" name="SCL" type="input"/>
+      </pins>
+    </libpart>
+    <libpart lib="Sensor_Temperature" part="DS18B20">
+      <description>Programmable Resolution 1-Wire Digital Thermometer TO-92</description>
+      <docs>http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</docs>
+      <footprints>
+        <fp>TO*92*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">DS18B20</field>
+        <field name="Footprint">Package_TO_SOT_THT:TO-92_Inline</field>
+        <field name="Datasheet">http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</field>
+        <field name="Description">Programmable Resolution 1-Wire Digital Thermometer TO-92</field>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="power_in"/>
+        <pin num="2" name="DQ" type="bidirectional"/>
+        <pin num="3" name="V_{DD}" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="Snapeda" part="SI7149DP-T1-GE3">
+      <description>VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</description>
+      <fields>
+        <field name="Reference">Q</field>
+        <field name="Value">SI7149DP-T1-GE3</field>
+        <field name="Footprint">Snapeda:POWERPAK_SO-8</field>
+        <field name="Datasheet"/>
+        <field name="Description">VISHAY - SI7149DP-T1-GE3 - MOSFET, P CH, 30V, 50A, PPAK SO8</field>
+        <field name="MANUFACTURER_NAME">Vishay</field>
+        <field name="MF">Vishay</field>
+        <field name="MOUSER_PRICE-STOCK">https://www.mouser.co.uk/ProductDetail/Vishay-Semiconductors/SI7149DP-T1-GE3?qs=%252BPu8jn5UVnFbGEUOhBqxFg%3D%3D</field>
+        <field name="MOUSER_PART_NUMBER">781-SI7149DP-GE3</field>
+        <field name="Price">None</field>
+        <field name="Package">PowerPAK SO-8 Vishay</field>
+        <field name="Check_prices">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=eda</field>
+        <field name="HEIGHT">mm</field>
+        <field name="SnapEDA_Link">https://www.snapeda.com/parts/SI7149DP-T1-GE3/Vishay+Siliconix/view-part/?ref=snap</field>
+        <field name="MP">SI7149DP-T1-GE3</field>
+        <field name="Purchase-URL">https://www.snapeda.com/api/url_track_click_mouser/?unipart_id=547405&amp;manufacturer=Vishay&amp;part_name=SI7149DP-T1-GE3&amp;search_term=None</field>
+        <field name="Description_1">P-Channel 30 V 50A (Tc) 69W (Tc) Surface Mount PowerPAK® SO-8</field>
+        <field name="Availability">In Stock</field>
+        <field name="MANUFACTURER_PART_NUMBER">SI7149DP-T1-GE3</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+        <pin num="3" name="" type="passive"/>
+        <pin num="4" name="" type="passive"/>
+        <pin num="5" name="" type="passive"/>
+        <pin num="6" name="" type="passive"/>
+        <pin num="7" name="" type="passive"/>
+        <pin num="8" name="" type="passive"/>
+        <pin num="9" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Transistor_FET" part="MMBF170">
+      <description>0.5A Id, 60V Vds, N-Channel MOSFET, SOT-23</description>
+      <docs>https://www.diodes.com/assets/Datasheets/ds30104.pdf</docs>
+      <footprints>
+        <fp>SOT?23*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">Q</field>
+        <field name="Value">MMBF170</field>
+        <field name="Footprint">Package_TO_SOT_SMD:SOT-23</field>
+        <field name="Datasheet">https://www.diodes.com/assets/Datasheets/ds30104.pdf</field>
+        <field name="Description">0.5A Id, 60V Vds, N-Channel MOSFET, SOT-23</field>
+      </fields>
+      <pins>
+        <pin num="1" name="G" type="input"/>
+        <pin num="2" name="S" type="passive"/>
+        <pin num="3" name="D" type="passive"/>
+      </pins>
+    </libpart>
+  </libparts>
+  <libraries>
+    <library logical="Connector">
+      <uri>${KICAD10_SYMBOL_DIR}/Connector.kicad_sym</uri>
+    </library>
+    <library logical="Device">
+      <uri>${KICAD10_SYMBOL_DIR}/Device.kicad_sym</uri>
+    </library>
+    <library logical="Diode">
+      <uri>${KICAD10_SYMBOL_DIR}/Diode.kicad_sym</uri>
+    </library>
+    <library logical="EasyEDA">
+      <uri>${KICAD_3RD_PARTY}/EasyEDA.kicad_sym</uri>
+    </library>
+    <library logical="Jumper">
+      <uri>${KICAD10_SYMBOL_DIR}/Jumper.kicad_sym</uri>
+    </library>
+    <library logical="MCU_ST_STM32F4">
+      <uri>${KICAD10_SYMBOL_DIR}/MCU_ST_STM32F4.kicad_sym</uri>
+    </library>
+    <library logical="Mechanical">
+      <uri>${KICAD10_SYMBOL_DIR}/Mechanical.kicad_sym</uri>
+    </library>
+    <library logical="RF_Module">
+      <uri>${KICAD10_SYMBOL_DIR}/RF_Module.kicad_sym</uri>
+    </library>
+    <library logical="Samacsys">
+      <uri>${KICAD_3RD_PARTY}/Samacsys.kicad_sym</uri>
+    </library>
+    <library logical="Sensor_Temperature">
+      <uri>${KICAD10_SYMBOL_DIR}/Sensor_Temperature.kicad_sym</uri>
+    </library>
+    <library logical="Snapeda">
+      <uri>${KICAD_3RD_PARTY}/Snapeda.kicad_sym</uri>
+    </library>
+    <library logical="Transistor_FET">
+      <uri>${KICAD10_SYMBOL_DIR}/Transistor_FET.kicad_sym</uri>
+    </library>
+  </libraries>
+  <nets>
+    <net code="1" name="32K_DS3231" class="Default">
+      <node ref="RN2" pin="6" pinfunction="6_6" pintype="input"/>
+      <node ref="U5" pin="1" pinfunction="32KHZ_1" pintype="output"/>
+    </net>
+    <net code="2" name="ALT_5V_INPUT" class="Power_1">
+      <node ref="D5" pin="1" pinfunction="K_1" pintype="unspecified"/>
+      <node ref="F2" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="H1" pin="1" pinfunction="1_1" pintype="input"/>
+    </net>
+    <net code="3" name="ALT_5V_PROT" class="Power_1">
+      <node ref="C2" pin="1" pintype="passive"/>
+      <node ref="C21" pin="1" pintype="passive"/>
+      <node ref="C22" pin="1" pintype="passive"/>
+      <node ref="Q3" pin="1" pintype="passive"/>
+      <node ref="Q3" pin="2" pintype="passive"/>
+      <node ref="Q3" pin="3" pintype="passive"/>
+      <node ref="TP6" pin="1" pinfunction="1_1" pintype="passive"/>
+      <node ref="U9" pin="2" pinfunction="IN2_2" pintype="unspecified"/>
+    </net>
+    <net code="4" name="BOOT0" class="Default">
+      <node ref="R18" pin="2" pintype="passive"/>
+      <node ref="U2" pin="44" pinfunction="BOOT0_44" pintype="input"/>
+    </net>
+    <net code="5" name="BOOT1" class="Default">
+      <node ref="R10" pin="1" pintype="passive"/>
+      <node ref="U2" pin="20" pinfunction="PB2_20" pintype="bidirectional"/>
+    </net>
+    <net code="6" name="DCF77" class="Default">
+      <node ref="R9" pin="1" pintype="passive"/>
+      <node ref="U2" pin="45" pinfunction="PB8_45" pintype="bidirectional"/>
+    </net>
+    <net code="7" name="DCLK_STM" class="Default">
+      <node ref="H3" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="U2" pin="37" pinfunction="PA14_37" pintype="bidirectional"/>
+    </net>
+    <net code="8" name="DIO_STM" class="Default">
+      <node ref="H3" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="U2" pin="34" pinfunction="PA13_34" pintype="bidirectional"/>
+    </net>
+    <net code="9" name="DS18B20" class="Default">
+      <node ref="R5" pin="1" pintype="passive"/>
+      <node ref="U1" pin="2" pinfunction="DQ_2" pintype="bidirectional"/>
+      <node ref="U2" pin="41" pinfunction="PB5_41" pintype="bidirectional"/>
+    </net>
+    <net code="10" name="ESP_EN" class="Default">
+      <node ref="R12" pin="1" pintype="passive"/>
+      <node ref="U2" pin="39" pinfunction="PB3_39" pintype="bidirectional"/>
+      <node ref="U4" pin="3" pinfunction="EN_3" pintype="input"/>
+    </net>
+    <net code="11" name="GND" class="Power_1">
+      <node ref="C1" pin="2" pintype="passive"/>
+      <node ref="C11" pin="2" pintype="passive"/>
+      <node ref="C12" pin="2" pintype="passive"/>
+      <node ref="C14" pin="2" pintype="passive"/>
+      <node ref="C15" pin="2" pintype="passive"/>
+      <node ref="C16" pin="2" pintype="passive"/>
+      <node ref="C17" pin="2" pintype="passive"/>
+      <node ref="C18" pin="2" pintype="passive"/>
+      <node ref="C19" pin="2" pintype="passive"/>
+      <node ref="C20" pin="2" pintype="passive"/>
+      <node ref="C21" pin="2" pintype="passive"/>
+      <node ref="C22" pin="2" pintype="passive"/>
+      <node ref="C23" pin="1" pintype="passive"/>
+      <node ref="C24" pin="1" pintype="passive"/>
+      <node ref="C26" pin="2" pintype="passive"/>
+      <node ref="C27" pin="2" pintype="passive"/>
+      <node ref="C28" pin="2" pintype="passive"/>
+      <node ref="C29" pin="2" pintype="passive"/>
+      <node ref="C3" pin="2" pintype="passive"/>
+      <node ref="C4" pin="2" pintype="passive"/>
+      <node ref="C5" pin="2" pintype="passive"/>
+      <node ref="C6" pin="2" pintype="passive"/>
+      <node ref="C7" pin="2" pintype="passive"/>
+      <node ref="C8" pin="2" pintype="passive"/>
+      <node ref="C9" pin="2" pintype="passive"/>
+      <node ref="D4" pin="2" pinfunction="A_2" pintype="unspecified"/>
+      <node ref="D5" pin="2" pinfunction="A_2" pintype="unspecified"/>
+      <node ref="H10" pin="1" pinfunction="1_1" pintype="input"/>
+      <node ref="H2" pin="1" pinfunction="1_1" pintype="input"/>
+      <node ref="H3" pin="4" pinfunction="4_4" pintype="unspecified"/>
+      <node ref="H4" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="H6" pin="4" pinfunction="4_4" pintype="unspecified"/>
+      <node ref="H7" pin="6" pinfunction="6_6" pintype="unspecified"/>
+      <node ref="H7" pin="7" pinfunction="7_7" pintype="unspecified"/>
+      <node ref="H8" pin="1" pinfunction="1_1" pintype="input"/>
+      <node ref="H9" pin="1" pinfunction="1_1" pintype="input"/>
+      <node ref="LED4" pin="1" pinfunction="C_1" pintype="passive"/>
+      <node ref="LED5" pin="1" pinfunction="C_1" pintype="passive"/>
+      <node ref="Q2" pin="2" pinfunction="S_2" pintype="passive"/>
+      <node ref="R10" pin="2" pintype="passive"/>
+      <node ref="R14" pin="1" pintype="passive"/>
+      <node ref="R16" pin="1" pintype="passive"/>
+      <node ref="R20" pin="2" pintype="passive"/>
+      <node ref="R22" pin="1" pintype="passive"/>
+      <node ref="R25" pin="2" pintype="passive"/>
+      <node ref="R26" pin="1" pintype="passive"/>
+      <node ref="R29" pin="2" pintype="passive"/>
+      <node ref="R3" pin="2" pintype="passive"/>
+      <node ref="R31" pin="2" pintype="passive"/>
+      <node ref="R4" pin="2" pintype="passive"/>
+      <node ref="SW1" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="SW2" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="SW3" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="SW4" pin="4" pinfunction="4_4" pintype="unspecified"/>
+      <node ref="SW4" pin="5" pinfunction="5_5" pintype="unspecified"/>
+      <node ref="SW4" pin="6" pinfunction="6_6" pintype="unspecified"/>
+      <node ref="SW4" pin="7" pinfunction="7_7" pintype="unspecified"/>
+      <node ref="U1" pin="1" pinfunction="GND_1" pintype="power_in"/>
+      <node ref="U10" pin="2" pinfunction="GND_2" pintype="unspecified"/>
+      <node ref="U2" pin="23" pinfunction="VSS_23" pintype="power_in"/>
+      <node ref="U2" pin="35" pinfunction="VSS_35" pintype="passive"/>
+      <node ref="U2" pin="47" pinfunction="VSS_47" pintype="passive"/>
+      <node ref="U2" pin="49" pinfunction="VSS_49" pintype="passive"/>
+      <node ref="U2" pin="8" pinfunction="VSSA_8" pintype="power_in"/>
+      <node ref="U3" pin="1" pinfunction="~{OE}_1" pintype="unspecified"/>
+      <node ref="U3" pin="3" pinfunction="GND_3" pintype="unspecified"/>
+      <node ref="U4" pin="15" pinfunction="GND_15" pintype="power_in"/>
+      <node ref="U5" pin="5" pinfunction="GND_5" pintype="power_in"/>
+      <node ref="U6" pin="4" pinfunction="GND_4" pintype="unspecified"/>
+      <node ref="U6" pin="7" pinfunction="WCB_7" pintype="unspecified"/>
+      <node ref="U7" pin="2" pinfunction="2_2" pintype="input"/>
+      <node ref="U9" pin="12" pinfunction="GND_12" pintype="unspecified"/>
+      <node ref="U9" pin="3" pinfunction="CP2_3" pintype="unspecified"/>
+      <node ref="U9" pin="4" pinfunction="OV2_4" pintype="unspecified"/>
+      <node ref="U9" pin="5" pinfunction="OV1_5" pintype="unspecified"/>
+      <node ref="USB1" pin="7" pinfunction="EH_7" pintype="unspecified"/>
+      <node ref="USB1" pin="A12" pinfunction="GND_A12" pintype="unspecified"/>
+      <node ref="USB1" pin="B12" pinfunction="GND_B12" pintype="unspecified"/>
+      <node ref="X1" pin="2" pinfunction="GND_2" pintype="unspecified"/>
+      <node ref="X1" pin="4" pinfunction="GND_4" pintype="unspecified"/>
+    </net>
+    <net code="12" name="GPIO0_ESP" class="Default">
+      <node ref="U2" pin="14" pinfunction="PA4_14" pintype="bidirectional"/>
+      <node ref="U4" pin="18" pinfunction="GPIO0_18" pintype="bidirectional"/>
+    </net>
+    <net code="13" name="GPIO2_ESP" class="Default">
+      <node ref="R15" pin="1" pintype="passive"/>
+      <node ref="U4" pin="17" pinfunction="GPIO2_17" pintype="bidirectional"/>
+    </net>
+    <net code="14" name="GPIO15_ESP" class="Default">
+      <node ref="R14" pin="2" pintype="passive"/>
+      <node ref="SW4" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="U4" pin="16" pinfunction="GPIO15_16" pintype="bidirectional"/>
+    </net>
+    <net code="15" name="LDR" class="Default">
+      <node ref="H5" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="H7" pin="5" pinfunction="5_5" pintype="unspecified"/>
+      <node ref="R22" pin="2" pintype="passive"/>
+      <node ref="U2" pin="15" pinfunction="PA5_15" pintype="bidirectional"/>
+    </net>
+    <net code="16" name="LED_STM" class="Default">
+      <node ref="LED1" pin="1" pinfunction="C_1" pintype="passive"/>
+      <node ref="U2" pin="2" pinfunction="PC13_2" pintype="bidirectional"/>
+    </net>
+    <net code="17" name="Net-(C2-Pad2)" class="Default">
+      <node ref="C2" pin="2" pintype="passive"/>
+      <node ref="R24" pin="2" pintype="passive"/>
+      <node ref="R25" pin="1" pintype="passive"/>
+    </net>
+    <net code="18" name="Net-(C10-Pad2)" class="Default">
+      <node ref="C10" pin="2" pintype="passive"/>
+      <node ref="Q1" pin="4" pintype="passive"/>
+      <node ref="R23" pin="2" pintype="passive"/>
+    </net>
+    <net code="19" name="Net-(D1-A)" class="Default">
+      <node ref="D1" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="H3" pin="1" pinfunction="1_1" pintype="unspecified"/>
+    </net>
+    <net code="20" name="Net-(D2-A)" class="Default">
+      <node ref="C27" pin="1" pintype="passive"/>
+      <node ref="C28" pin="1" pintype="passive"/>
+      <node ref="C29" pin="1" pintype="passive"/>
+      <node ref="D2" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="L2" pin="2" pinfunction="2_2" pintype="unspecified"/>
+    </net>
+    <net code="21" name="Net-(D3-A)" class="Default">
+      <node ref="D3" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="H6" pin="1" pinfunction="1_1" pintype="unspecified"/>
+    </net>
+    <net code="22" name="Net-(F2-Pad2)" class="Default">
+      <node ref="F2" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="Q3" pin="5" pintype="passive"/>
+      <node ref="Q3" pin="6" pintype="passive"/>
+      <node ref="Q3" pin="7" pintype="passive"/>
+      <node ref="Q3" pin="8" pintype="passive"/>
+      <node ref="Q3" pin="9" pintype="passive"/>
+      <node ref="TP5" pin="1" pinfunction="1_1" pintype="passive"/>
+    </net>
+    <net code="23" name="Net-(H6-Pad2)" class="Default">
+      <node ref="H6" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="SW4" pin="3" pinfunction="3_3" pintype="unspecified"/>
+    </net>
+    <net code="24" name="Net-(LED1-A)" class="Default">
+      <node ref="LED1" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="R6" pin="2" pintype="passive"/>
+    </net>
+    <net code="25" name="Net-(LED4-A)" class="Default">
+      <node ref="LED4" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="R27" pin="2" pintype="passive"/>
+    </net>
+    <net code="26" name="Net-(LED5-A)" class="Default">
+      <node ref="LED5" pin="2" pinfunction="A_2" pintype="passive"/>
+      <node ref="R30" pin="2" pintype="passive"/>
+    </net>
+    <net code="27" name="Net-(Q2-D)" class="Default">
+      <node ref="Q2" pin="3" pinfunction="D_3" pintype="passive"/>
+      <node ref="R21" pin="2" pintype="passive"/>
+      <node ref="R23" pin="1" pintype="passive"/>
+    </net>
+    <net code="28" name="Net-(Q2-G)" class="Default">
+      <node ref="Q2" pin="1" pinfunction="G_1" pintype="input"/>
+      <node ref="R19" pin="2" pintype="passive"/>
+      <node ref="R20" pin="1" pintype="passive"/>
+    </net>
+    <net code="29" name="Net-(Q3-Pad4)" class="Default">
+      <node ref="Q3" pin="4" pintype="passive"/>
+      <node ref="R24" pin="1" pintype="passive"/>
+    </net>
+    <net code="30" name="Net-(R1-Pad2)" class="Default">
+      <node ref="R1" pin="2" pintype="passive"/>
+      <node ref="SW2" pin="1" pinfunction="1_1" pintype="unspecified"/>
+    </net>
+    <net code="31" name="Net-(U2-VCAP1)" class="Default">
+      <node ref="C9" pin="1" pintype="passive"/>
+      <node ref="U2" pin="22" pinfunction="VCAP1_22" pintype="power_out"/>
+    </net>
+    <net code="32" name="Net-(U2-VDDA)" class="Default">
+      <node ref="C11" pin="1" pintype="passive"/>
+      <node ref="C14" pin="1" pintype="passive"/>
+      <node ref="L1" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="U2" pin="9" pinfunction="VDDA_9" pintype="power_in"/>
+    </net>
+    <net code="33" name="Net-(U3-VCC)" class="Default">
+      <node ref="R13" pin="1" pintype="passive"/>
+      <node ref="R17" pin="1" pintype="passive"/>
+      <node ref="U3" pin="5" pinfunction="VCC_5" pintype="unspecified"/>
+    </net>
+    <net code="34" name="Net-(U3-Y)" class="Default">
+      <node ref="R11" pin="1" pintype="passive"/>
+      <node ref="U3" pin="4" pinfunction="Y_4" pintype="unspecified"/>
+    </net>
+    <net code="35" name="Net-(U4-GPIO4)" class="Default">
+      <node ref="R16" pin="2" pintype="passive"/>
+      <node ref="R18" pin="1" pintype="passive"/>
+      <node ref="U4" pin="19" pinfunction="GPIO4_19" pintype="bidirectional"/>
+    </net>
+    <net code="36" name="Net-(U5-VBAT)" class="Default">
+      <node ref="U5" pin="6" pinfunction="VBAT_6" pintype="power_in"/>
+      <node ref="U7" pin="1" pinfunction="1_1" pintype="input"/>
+    </net>
+    <net code="37" name="Net-(U6-E0)" class="Default">
+      <node ref="RN1" pin="7" pinfunction="7_7" pintype="input"/>
+      <node ref="U6" pin="1" pinfunction="E0_1" pintype="unspecified"/>
+    </net>
+    <net code="38" name="Net-(U6-E1)" class="Default">
+      <node ref="RN1" pin="6" pinfunction="6_6" pintype="input"/>
+      <node ref="U6" pin="2" pinfunction="E1_2" pintype="unspecified"/>
+    </net>
+    <net code="39" name="Net-(U6-E2)" class="Default">
+      <node ref="RN1" pin="5" pinfunction="5_5" pintype="input"/>
+      <node ref="U6" pin="3" pinfunction="E2_3" pintype="unspecified"/>
+    </net>
+    <net code="40" name="Net-(U9-ILM)" class="Default">
+      <node ref="R26" pin="2" pintype="passive"/>
+      <node ref="U9" pin="10" pinfunction="ILM_10" pintype="unspecified"/>
+    </net>
+    <net code="41" name="Net-(U9-SS)" class="Default">
+      <node ref="C24" pin="2" pintype="passive"/>
+      <node ref="U9" pin="11" pinfunction="SS_11" pintype="unspecified"/>
+    </net>
+    <net code="42" name="Net-(U10-BS)" class="Default">
+      <node ref="C25" pin="1" pintype="passive"/>
+      <node ref="U10" pin="1" pinfunction="BS_1" pintype="unspecified"/>
+    </net>
+    <net code="43" name="Net-(U10-FB)" class="Default">
+      <node ref="R28" pin="1" pintype="passive"/>
+      <node ref="R29" pin="1" pintype="passive"/>
+      <node ref="U10" pin="3" pinfunction="FB_3" pintype="unspecified"/>
+    </net>
+    <net code="44" name="Net-(U10-LX)" class="Default">
+      <node ref="C25" pin="2" pintype="passive"/>
+      <node ref="L2" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="U10" pin="6" pinfunction="LX_6" pintype="unspecified"/>
+    </net>
+    <net code="45" name="Net-(USB1-CC1)" class="Default">
+      <node ref="R4" pin="1" pintype="passive"/>
+      <node ref="USB1" pin="A5" pinfunction="CC1_A5" pintype="unspecified"/>
+    </net>
+    <net code="46" name="Net-(USB1-CC2)" class="Default">
+      <node ref="R3" pin="1" pintype="passive"/>
+      <node ref="USB1" pin="B5" pinfunction="CC2_B5" pintype="unspecified"/>
+    </net>
+    <net code="47" name="RESET" class="Default">
+      <node ref="C1" pin="1" pintype="passive"/>
+      <node ref="R2" pin="2" pintype="passive"/>
+      <node ref="SW3" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="SW3" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="U2" pin="7" pinfunction="NRST_7" pintype="input"/>
+      <node ref="U4" pin="5" pinfunction="GPIO14_5" pintype="bidirectional"/>
+    </net>
+    <net code="48" name="RST_ESP" class="Default">
+      <node ref="U2" pin="21" pinfunction="PB10_21" pintype="bidirectional"/>
+      <node ref="U4" pin="1" pinfunction="~{RST}_1" pintype="input"/>
+    </net>
+    <net code="49" name="RXD_ESP" class="Default">
+      <node ref="U2" pin="12" pinfunction="PA2_12" pintype="bidirectional"/>
+      <node ref="U4" pin="21" pinfunction="GPIO3/RXD_21" pintype="bidirectional"/>
+    </net>
+    <net code="50" name="RX_UART" class="Default">
+      <node ref="H6" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="U2" pin="30" pinfunction="PA9_30" pintype="bidirectional"/>
+      <node ref="U4" pin="7" pinfunction="GPIO13_7" pintype="bidirectional"/>
+    </net>
+    <net code="51" name="SCL_DS3231" class="Default">
+      <node ref="RN2" pin="7" pinfunction="7_7" pintype="input"/>
+      <node ref="U2" pin="42" pinfunction="PB6_42" pintype="bidirectional"/>
+      <node ref="U5" pin="8" pinfunction="SCL_8" pintype="input"/>
+      <node ref="U6" pin="6" pinfunction="SCL_6" pintype="unspecified"/>
+    </net>
+    <net code="52" name="SDA_DS3231" class="Default">
+      <node ref="RN2" pin="8" pinfunction="8_8" pintype="input"/>
+      <node ref="U2" pin="43" pinfunction="PB7_43" pintype="bidirectional"/>
+      <node ref="U5" pin="7" pinfunction="SDA_7" pintype="bidirectional"/>
+      <node ref="U6" pin="5" pinfunction="SDA_5" pintype="unspecified"/>
+    </net>
+    <net code="53" name="SQW_DS3231" class="Default">
+      <node ref="RN2" pin="5" pinfunction="5_5" pintype="input"/>
+      <node ref="U5" pin="3" pinfunction="~{INT}/SQW_3" pintype="output"/>
+    </net>
+    <net code="54" name="TO_SK6812_IN" class="Default">
+      <node ref="H4" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="H7" pin="4" pinfunction="4_4" pintype="unspecified"/>
+      <node ref="R11" pin="2" pintype="passive"/>
+      <node ref="R31" pin="1" pintype="passive"/>
+    </net>
+    <net code="55" name="TO_VCC_RGB_5V" class="Power_1">
+      <node ref="C6" pin="1" pintype="passive"/>
+      <node ref="H4" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="H7" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="H7" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="JP2" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="Q1" pin="5" pintype="passive"/>
+      <node ref="Q1" pin="6" pintype="passive"/>
+      <node ref="Q1" pin="7" pintype="passive"/>
+      <node ref="Q1" pin="8" pintype="passive"/>
+      <node ref="Q1" pin="9" pintype="passive"/>
+      <node ref="R13" pin="2" pintype="passive"/>
+    </net>
+    <net code="56" name="TSOP" class="Default">
+      <node ref="R8" pin="1" pintype="passive"/>
+      <node ref="U2" pin="40" pinfunction="PB4_40" pintype="bidirectional"/>
+    </net>
+    <net code="57" name="TXD_ESP" class="Default">
+      <node ref="U2" pin="13" pinfunction="PA3_13" pintype="bidirectional"/>
+      <node ref="U4" pin="22" pinfunction="GPIO1/TXD_22" pintype="bidirectional"/>
+    </net>
+    <net code="58" name="TX_UART" class="Default">
+      <node ref="SW4" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="U2" pin="31" pinfunction="PA10_31" pintype="bidirectional"/>
+    </net>
+    <net code="59" name="USB_5V_INPUT" class="Power_1">
+      <node ref="D4" pin="1" pinfunction="K_1" pintype="unspecified"/>
+      <node ref="F1" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="TP1" pin="1" pinfunction="1_1" pintype="passive"/>
+      <node ref="USB1" pin="A9" pinfunction="VBUS_A9" pintype="unspecified"/>
+      <node ref="USB1" pin="B9" pinfunction="VBUS_B9" pintype="unspecified"/>
+    </net>
+    <net code="60" name="USB_5V_PROT" class="Power_1">
+      <node ref="C20" pin="1" pintype="passive"/>
+      <node ref="C4" pin="1" pintype="passive"/>
+      <node ref="F1" pin="2" pinfunction="2_2" pintype="unspecified"/>
+      <node ref="JP3" pin="2" pinfunction="B_2" pintype="passive"/>
+      <node ref="TP4" pin="1" pinfunction="1_1" pintype="passive"/>
+      <node ref="U9" pin="6" pinfunction="PR1_6" pintype="unspecified"/>
+      <node ref="U9" pin="7" pinfunction="IN1_7" pintype="unspecified"/>
+    </net>
+    <net code="61" name="USER" class="Default">
+      <node ref="R1" pin="1" pintype="passive"/>
+      <node ref="U2" pin="10" pinfunction="PA0_10" pintype="bidirectional"/>
+    </net>
+    <net code="62" name="VCC_3.3V" class="Power_1">
+      <node ref="C12" pin="1" pintype="passive"/>
+      <node ref="C15" pin="1" pintype="passive"/>
+      <node ref="C16" pin="1" pintype="passive"/>
+      <node ref="C17" pin="1" pintype="passive"/>
+      <node ref="C18" pin="1" pintype="passive"/>
+      <node ref="C19" pin="1" pintype="passive"/>
+      <node ref="C7" pin="1" pintype="passive"/>
+      <node ref="C8" pin="1" pintype="passive"/>
+      <node ref="D1" pin="1" pinfunction="K_1" pintype="passive"/>
+      <node ref="D2" pin="1" pinfunction="K_1" pintype="passive"/>
+      <node ref="D3" pin="1" pinfunction="K_1" pintype="passive"/>
+      <node ref="H5" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="H7" pin="3" pinfunction="3_3" pintype="unspecified"/>
+      <node ref="L1" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="R12" pin="2" pintype="passive"/>
+      <node ref="R15" pin="2" pintype="passive"/>
+      <node ref="R2" pin="1" pintype="passive"/>
+      <node ref="R28" pin="2" pintype="passive"/>
+      <node ref="R30" pin="1" pintype="passive"/>
+      <node ref="R5" pin="2" pintype="passive"/>
+      <node ref="R6" pin="1" pintype="passive"/>
+      <node ref="R8" pin="2" pintype="passive"/>
+      <node ref="R9" pin="2" pintype="passive"/>
+      <node ref="RN1" pin="2" pinfunction="2_2" pintype="input"/>
+      <node ref="RN1" pin="3" pinfunction="3_3" pintype="input"/>
+      <node ref="RN1" pin="4" pinfunction="4_4" pintype="input"/>
+      <node ref="RN2" pin="1" pinfunction="1_1" pintype="input"/>
+      <node ref="RN2" pin="2" pinfunction="2_2" pintype="input"/>
+      <node ref="RN2" pin="3" pinfunction="3_3" pintype="input"/>
+      <node ref="RN2" pin="4" pinfunction="4_4" pintype="input"/>
+      <node ref="TP8" pin="1" pinfunction="1_1" pintype="passive"/>
+      <node ref="U1" pin="3" pinfunction="V_{DD}_3" pintype="power_in"/>
+      <node ref="U2" pin="1" pinfunction="VBAT_1" pintype="power_in"/>
+      <node ref="U2" pin="24" pinfunction="VDD_24" pintype="power_in"/>
+      <node ref="U2" pin="36" pinfunction="VDD_36" pintype="power_in"/>
+      <node ref="U2" pin="48" pinfunction="VDD_48" pintype="power_in"/>
+      <node ref="U4" pin="8" pinfunction="VCC_8" pintype="power_in"/>
+      <node ref="U5" pin="2" pinfunction="VCC_2" pintype="power_in"/>
+      <node ref="U6" pin="8" pinfunction="VCC_8" pintype="unspecified"/>
+    </net>
+    <net code="63" name="VCC_5V" class="Power_1">
+      <node ref="C10" pin="1" pintype="passive"/>
+      <node ref="C23" pin="2" pintype="passive"/>
+      <node ref="C26" pin="1" pintype="passive"/>
+      <node ref="JP2" pin="2" pinfunction="B_2" pintype="passive"/>
+      <node ref="JP3" pin="1" pinfunction="A_1" pintype="passive"/>
+      <node ref="Q1" pin="1" pintype="passive"/>
+      <node ref="Q1" pin="2" pintype="passive"/>
+      <node ref="Q1" pin="3" pintype="passive"/>
+      <node ref="R17" pin="2" pintype="passive"/>
+      <node ref="R21" pin="1" pintype="passive"/>
+      <node ref="R27" pin="1" pintype="passive"/>
+      <node ref="TP7" pin="1" pinfunction="1_1" pintype="passive"/>
+      <node ref="U10" pin="4" pinfunction="EN_4" pintype="unspecified"/>
+      <node ref="U10" pin="5" pinfunction="IN_5" pintype="unspecified"/>
+      <node ref="U9" pin="1" pinfunction="OUT_1" pintype="unspecified"/>
+      <node ref="U9" pin="8" pinfunction="OUT_8" pintype="unspecified"/>
+    </net>
+    <net code="64" name="WPS" class="Default">
+      <node ref="SW1" pin="1" pinfunction="1_1" pintype="unspecified"/>
+      <node ref="U2" pin="17" pinfunction="PA7_17" pintype="bidirectional"/>
+    </net>
+    <net code="65" name="WS2812_BUS" class="Default">
+      <node ref="U2" pin="19" pinfunction="PB1_19" pintype="bidirectional"/>
+      <node ref="U3" pin="2" pinfunction="A_2" pintype="unspecified"/>
+    </net>
+    <net code="66" name="WS2812_POWER" class="Default">
+      <node ref="R19" pin="1" pintype="passive"/>
+      <node ref="U2" pin="18" pinfunction="PB0_18" pintype="bidirectional"/>
+    </net>
+    <net code="67" name="XTALA" class="Default">
+      <node ref="C3" pin="1" pintype="passive"/>
+      <node ref="R7" pin="1" pintype="passive"/>
+      <node ref="U2" pin="5" pinfunction="PH0_5" pintype="bidirectional"/>
+      <node ref="X1" pin="1" pinfunction="OSC1_1" pintype="unspecified"/>
+    </net>
+    <net code="68" name="XTALB" class="Default">
+      <node ref="C5" pin="1" pintype="passive"/>
+      <node ref="R7" pin="2" pintype="passive"/>
+      <node ref="U2" pin="6" pinfunction="PH1_6" pintype="bidirectional"/>
+      <node ref="X1" pin="3" pinfunction="OSC2_3" pintype="unspecified"/>
+    </net>
+    <net code="69" name="unconnected-(RN1-Pad1)" class="Default">
+      <node ref="RN1" pin="1" pinfunction="1_1" pintype="input+no_connect"/>
+    </net>
+    <net code="70" name="unconnected-(RN1-Pad8)" class="Default">
+      <node ref="RN1" pin="8" pinfunction="8_8" pintype="input+no_connect"/>
+    </net>
+    <net code="71" name="unconnected-(SW1-Pad2)" class="Default">
+      <node ref="SW1" pin="2" pinfunction="2_2" pintype="unspecified+no_connect"/>
+    </net>
+    <net code="72" name="unconnected-(SW1-Pad4)" class="Default">
+      <node ref="SW1" pin="4" pinfunction="4_4" pintype="unspecified+no_connect"/>
+    </net>
+    <net code="73" name="unconnected-(SW2-Pad2)" class="Default">
+      <node ref="SW2" pin="2" pinfunction="2_2" pintype="unspecified+no_connect"/>
+    </net>
+    <net code="74" name="unconnected-(SW2-Pad4)" class="Default">
+      <node ref="SW2" pin="4" pinfunction="4_4" pintype="unspecified+no_connect"/>
+    </net>
+    <net code="75" name="unconnected-(SW3-Pad4)" class="Default">
+      <node ref="SW3" pin="4" pinfunction="4_4" pintype="unspecified+no_connect"/>
+    </net>
+    <net code="76" name="unconnected-(U2-PA1-Pad11)" class="Default">
+      <node ref="U2" pin="11" pinfunction="PA1_11" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="77" name="unconnected-(U2-PA6-Pad16)" class="Default">
+      <node ref="U2" pin="16" pinfunction="PA6_16" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="78" name="unconnected-(U2-PA8-Pad29)" class="Default">
+      <node ref="U2" pin="29" pinfunction="PA8_29" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="79" name="unconnected-(U2-PA11-Pad32)" class="Default">
+      <node ref="U2" pin="32" pinfunction="PA11_32" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="80" name="unconnected-(U2-PA12-Pad33)" class="Default">
+      <node ref="U2" pin="33" pinfunction="PA12_33" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="81" name="unconnected-(U2-PA15-Pad38)" class="Default">
+      <node ref="U2" pin="38" pinfunction="PA15_38" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="82" name="unconnected-(U2-PB9-Pad46)" class="Default">
+      <node ref="U2" pin="46" pinfunction="PB9_46" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="83" name="unconnected-(U2-PB12-Pad25)" class="Default">
+      <node ref="U2" pin="25" pinfunction="PB12_25" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="84" name="unconnected-(U2-PB13-Pad26)" class="Default">
+      <node ref="U2" pin="26" pinfunction="PB13_26" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="85" name="unconnected-(U2-PB14-Pad27)" class="Default">
+      <node ref="U2" pin="27" pinfunction="PB14_27" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="86" name="unconnected-(U2-PB15-Pad28)" class="Default">
+      <node ref="U2" pin="28" pinfunction="PB15_28" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="87" name="unconnected-(U2-PC14-Pad3)" class="Default">
+      <node ref="U2" pin="3" pinfunction="PC14_3" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="88" name="unconnected-(U2-PC15-Pad4)" class="Default">
+      <node ref="U2" pin="4" pinfunction="PC15_4" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="89" name="unconnected-(U4-ADC-Pad2)" class="Default">
+      <node ref="U4" pin="2" pinfunction="ADC_2" pintype="input+no_connect"/>
+    </net>
+    <net code="90" name="unconnected-(U4-CS0-Pad9)" class="Default">
+      <node ref="U4" pin="9" pinfunction="CS0_9" pintype="input+no_connect"/>
+    </net>
+    <net code="91" name="unconnected-(U4-GPIO5-Pad20)" class="Default">
+      <node ref="U4" pin="20" pinfunction="GPIO5_20" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="92" name="unconnected-(U4-GPIO9-Pad11)" class="Default">
+      <node ref="U4" pin="11" pinfunction="GPIO9_11" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="93" name="unconnected-(U4-GPIO10-Pad12)" class="Default">
+      <node ref="U4" pin="12" pinfunction="GPIO10_12" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="94" name="unconnected-(U4-GPIO12-Pad6)" class="Default">
+      <node ref="U4" pin="6" pinfunction="GPIO12_6" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="95" name="unconnected-(U4-GPIO16-Pad4)" class="Default">
+      <node ref="U4" pin="4" pinfunction="GPIO16_4" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="96" name="unconnected-(U4-MISO-Pad10)" class="Default">
+      <node ref="U4" pin="10" pinfunction="MISO_10" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="97" name="unconnected-(U4-MOSI-Pad13)" class="Default">
+      <node ref="U4" pin="13" pinfunction="MOSI_13" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="98" name="unconnected-(U4-SCLK-Pad14)" class="Default">
+      <node ref="U4" pin="14" pinfunction="SCLK_14" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="99" name="unconnected-(U5-~{RST}-Pad4)" class="Default">
+      <node ref="U5" pin="4" pinfunction="~{RST}_4" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="100" name="unconnected-(U9-ST-Pad9)" class="Default">
+      <node ref="U9" pin="9" pinfunction="ST_9" pintype="unspecified+no_connect"/>
+    </net>
+  </nets>
+</export>
