@@ -54,13 +54,24 @@ OWNERSHIP = {
                          r"^ESP8266/ESP-uclock/data/app/i18n/.*\.json$"],
     "ui-developer":     [r"^ESP8266/ESP-uclock/data/app/(index\.html|styles\.css|manifest\.webmanifest)$",
                          r"^ESP8266/ESP-uclock/data/app/icons/"],
-    "doc-writer":       [r"\.md$", r"^knowledge/"],
-    "spec-writer":      [r"^specs/"],
+    # hardware/ hat eigene Schreiber je Unterverzeichnis. Die .md-Muster von doc-writer und
+    # Lead schliessen es aus, sonst haette dieselbe Datei zwei Besitzer (R3).
+    "doc-writer":       [r"^(?!hardware/|specs/multiboard-quelle/).*\.md$", r"^knowledge/"],
+    "spec-writer":      [r"^specs/(?!multiboard-quelle/)"],
+    "sw-architect":     [r"^specs/multiboard-quelle/"],
+    "hw-architect":     [r"^hardware/architektur/"],
+    "hw-datasheet-analyst": [r"^hardware/komponenten/"],
+    # Schaltplan und Layout liegen im selben Verzeichnis (KiCad-Projekt), haben aber getrennte Schreiber:
+    # das Layout (.kicad_pcb, .kicad_dru, layout/, fertigung/) gehoert dem hw-layouter, der Rest dem hw-designer.
+    "hw-designer":      [r"^hardware/esp32s3/(?!layout/|fertigung/)(?!.*\.(kicad_pcb|kicad_dru)$)"],
+    "hw-layouter":      [r"^hardware/esp32s3/(layout/|fertigung/|.*\.(kicad_pcb|kicad_dru)$)"],
+    "hw-doc-writer":    [r"^hardware/dokumentation/", r"^hardware/README\.md$"],
+    "hw-reviewer":      [r"^hardware/review/"],
     "release-engineer": [r"^(Makefile|CMakeLists\.txt)$", r"^cmake/", r"^ESP8266/ESP-uclock/version\.h$",
                          r"^src/main\.h$", r"^ESP8266/ESP-uclock/data/app/(app|sw)\.js$"],
     # Der Lead baut, prueft und pflegt Werkzeug und Doku -- er schreibt keinen
     # Produktcode mehr. Das ist die Entscheidung vom 03.10.2026.
-    "lead":             [r"^tools/", r"^\.claude/", r"\.md$", r"^knowledge/", r"^specs/",
+    "lead":             [r"^tools/", r"^\.claude/", r"^(?!hardware/|specs/multiboard-quelle/).*\.md$", r"^knowledge/", r"^specs/(?!multiboard-quelle/)",
                          r"^\.gitignore$", r"^(Makefile|CMakeLists\.txt)$", r"^cmake/"],
 }
 
@@ -95,7 +106,7 @@ def normalize(path):
 # Dateien, die ueberhaupt jemandem gehoeren. Alles andere (Scratchpad, /tmp,
 # build/) ist frei -- dort entsteht kein gemeinsamer Stand.
 TRACKED = re.compile(
-    r"^(src/|ESP8266/ESP-uclock/|tools/|\.claude/|knowledge/|specs/|cmake/|Makefile|CMakeLists\.txt|[A-Za-z0-9_-]+\.md)"
+    r"^(src/|ESP8266/ESP-uclock/|tools/|\.claude/|knowledge/|specs/|hardware/|cmake/|Makefile|CMakeLists\.txt|[A-Za-z0-9_-]+\.md)"
 )
 
 # Ein Pfad allein ist kein Schreibvorgang. Erst zusammen mit einem dieser Zeichen

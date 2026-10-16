@@ -47,3 +47,10 @@ tools/checks/auszug/**/extract.log
 # (14.10.2026 von einem Agenten so gestartet). In anderen Pruefstaenden sind .inc echte Quellen.
 tools/checks/auszug/esp/c46/c46.bin
 tools/checks/auszug/esp/c46/c46_*.inc
+
+# Heruntergeladene Bauteil-Datenblaetter (Urheberrecht, Gewicht)
+hardware/komponenten/datenblaetter/
+
+# Hardware: lokaler KiCad-Zustand und Python-Zwischendateien
+hardware/**/__pycache__/
+hardware/esp32s3/*.kicad_prl

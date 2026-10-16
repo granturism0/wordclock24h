@@ -89,6 +89,8 @@ Wissen verloren geht.
 |---|---|---|
 | `/release` | Build, Versionspflicht DIR-004, Rollout DIR-005, was zu flashen ist | bei Bedarf |
 | `/pwa-vorschau` | PWA ohne Gerät ansehen und vermessen | bei Bedarf |
+| `kicad-schema` | KiCad bei der WordClock: `kicad-cli`, Netzlistenexport, ERC, Vergleich nach Pin-Mengen, V2-Netzliste als Wahrheit | automatisch bei Arbeit an `hardware/**` |
+| `jlcpcb-bauteile` | Bauteilwahl und Stückliste für JLCPCB, Standard-Katalog (Basic) zuerst, LCSC-Nummer je Zeile geprüft | automatisch bei Arbeit an `hardware/**` |
 | `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006, DIR-018 | bei Bedarf |
 | `stm-firmware` | belegtes Detailwissen zur STM-Firmware und zur Platine | automatisch bei Arbeit an `src/**` |
 
@@ -373,8 +375,24 @@ Dokumentation blockiert, wird umgangen statt befolgt.
 | `ui-developer` | Markup, Stilvorlage, Manifest, `icons/**` |
 | `doc-writer` | `*.md`, `knowledge/**` |
 | `spec-writer` | `specs/**` |
+| `sw-architect` | `specs/multiboard-quelle/**` (eine Quelle für alle Boards; `spec-writer` und Lead schreiben dort nicht) |
+| `hw-architect` | `hardware/architektur/**` |
+| `hw-datasheet-analyst` | `hardware/komponenten/**` |
+| `hw-designer` | `hardware/esp32s3/**` ausser Layout (Schaltplan, Generator, Prüfskripte) |
+| `hw-layouter` | `hardware/esp32s3/*.kicad_pcb`, `*.kicad_dru`, `layout/`, `fertigung/` |
+| `hw-doc-writer` | `hardware/dokumentation/**`, `hardware/README.md` |
+| `hw-reviewer` | `hardware/review/**` |
 | `release-engineer` | `Makefile`, `CMakeLists.txt`, `cmake/**`, die vier Versionsdateien |
-| Lead | `tools/**`, `.claude/**`, Doku, Build, Rollout |
+| Lead | `tools/**`, `.claude/**`, Doku ausser `hardware/`, Build, Rollout |
+
+**Das Hardware-Team (seit 17.10.2026) trägt eine eigene Beweispflicht:** Jede Aussage über ein
+Bauteil trägt ein Beleg-Zeichen — ✔ im Datenblatt gelesen (mit Seite), ● Sekundärquelle,
+○ Annahme — und ein Wert aus dem Gedächtnis ist keiner. Der Anlass steht im Schaltplan selbst:
+`HARDWARE.md` nannte IR-Empfänger und DCF77 als angeschlossen, der echte Schaltplan hat dafür
+keinen Stecker, und die Nachprüfung hat der Netzlistenexport geliefert, nicht die Doku.
+Reihenfolge nach R3b: **Analyst → Architekt → Designer → Reviewer**; der Designer zeichnet
+nichts, was der Architekt nicht entschieden hat, und der Architekt entscheidet keine Zahl, die der
+Analyst nicht belegt hat. Das V2-Projekt unter `~/Documents` bleibt für alle **nur lesend**.
 
 ### R3b — Dateibesitz ist nicht Reihenfolge
 

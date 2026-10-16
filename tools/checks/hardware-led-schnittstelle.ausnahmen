@@ -1,0 +1,13 @@
+# Abweichungen der LED-/Power-/LDR-Schnittstelle von V2 (Pruefung H8 in tools/checks/hardware.py).
+#
+# Das LED-Board bleibt unveraendert; LED-Ansteuerung, Schalten der LED-Versorgung und LDR-Lesung
+# muessen pin- und funktionskompatibel zu V2 bleiben (Vorgabe des Nutzers, 17.10.2026).
+# Ein Eintrag hier heisst: Der Nutzer hat diese Abweichung gesehen und freigegeben.
+#
+# Format, eine Zeile je Ausnahme (Schluessel: Grund):
+#   wert:R22: Grund      -- das Teil darf einen anderen Wert haben
+#   pin:Q2: Grund        -- das Teil darf andere Pinanschluesse haben
+#   zusatz:C32: Grund    -- das Teil darf zusaetzlich an einem Schnittstellennetz haengen
+#   fehlt:R20: Grund     -- das Teil darf an einem Schnittstellennetz fehlen
+#
+# Stand 17.10.2026: keine Ausnahme freigegeben.

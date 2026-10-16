@@ -1,0 +1,29 @@
+{
+  "modul": "U2",
+  "quelle": "hardware/komponenten/esp32s3-wroom-1.md (Datenblatt-Auswertung vom 17.10.2026): Abschnitt 3 Pins, 4 Strapping, 5 5-V-Toleranz, 6 ADC, 7 USB",
+  "muss_offen_sein": ["IO3", "IO45", "IO46", "IO35", "IO36", "IO37", "IO38", "IO48"],
+  "gruende": {
+    "IO3": "Strapping-Pin (JTAG-Quelle)",
+    "IO45": "Strapping-Pin, VDD_SPI-Spannung; beim Einschalten nicht High",
+    "IO46": "Strapping-Pin (Boot-Meldungen)",
+    "IO35": "Flash/PSRAM der R8-Varianten, das DevKit ist N8R8 oder N32R16V",
+    "IO36": "Flash/PSRAM der R8-Varianten",
+    "IO37": "Flash/PSRAM der R8-Varianten",
+    "IO38": "RGB-LED des DevKitC-1 v1.1",
+    "IO48": "RGB-LED des DevKitC-1 v1.0"
+  },
+  "nur_an_netzen": {
+    "IO0": ["BOOT"],
+    "USB_D+": ["USB_DP"],
+    "USB_D-": ["USB_DN"],
+    "TXD0": ["TX_UART"],
+    "RXD0": ["RX_UART"],
+    "EN": ["EN"],
+    "3V3": ["VCC_3.3V"],
+    "GND": ["GND"]
+  },
+  "netze_5v": ["VCC_5V", "USB_5V_INPUT", "USB_5V_PROT", "ALT_5V_INPUT", "ALT_5V_PROT", "TO_VCC_RGB_5V"],
+  "adc_signal": "LDR",
+  "adc1_pins": ["IO1", "IO2", "IO3", "IO4", "IO5", "IO6", "IO7", "IO8", "IO9", "IO10"],
+  "pinbelegung": {}
+}

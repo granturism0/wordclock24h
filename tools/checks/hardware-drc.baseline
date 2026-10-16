@@ -1,0 +1,12 @@
+{
+  "silk_overlap": 142,
+  "silk_edge_clearance": 58,
+  "text_thickness": 14,
+  "text_height": 9,
+  "silk_over_copper": 8,
+  "annular_width": 5,
+  "track_dangling": 2,
+  "padstack": 2,
+  "lib_footprint_issues": 1,
+  "unconnected_items": 1
+}

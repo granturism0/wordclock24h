@@ -574,6 +574,23 @@ else
   crit "deutsche UI-Texte ausserhalb der Tabellen (oder Werkzeugfehler) -- in die Tabellen oder mit Grund in i18n-kandidaten.ausnahmen"
 fi
 
+# ------------------------------------------ S19 Hardware-Entwurf (ESP32-S3-Umbau)
+# Acht Pruefungen H1-H8 in tools/checks/hardware.py: ERC gegen Baseline, Netzliste gegen Soll,
+# Pinregeln am Modul, Stueckliste mit LCSC-Nummern, Komponentenblaetter, V2-Referenz,
+# Leiterplattenformat 1:1 und die LED-/Power-/LDR-Schnittstelle zum LED-Board (Vorgabe 17.10.2026).
+# Jede nennt, wie viele Dinge sie betrachtet hat. Zeilen mit 'HOCH' zaehlen als Warnung.
+step S19 "Hardware-Entwurf ESP32-S3 (H1-H8)"
+s19=$(python3 ./tools/checks/hardware.py 2>&1); s19rc=$?
+printf '%s\n' "$s19"
+s19w=$(printf '%s\n' "$s19" | grep -c '^  HOCH'); WARN=$((WARN+s19w))
+[ "$s19rc" -eq 0 ] || CRIT=$((CRIT+1))
+
+# ------------------------------------------ S20 Gegenproben der Hardware-Pruefungen (DIR-014)
+# Jede Pruefung aus S19 wird gegen eine KOPIE mit hergestellter Verletzung gefahren und muss
+# anschlagen; wo es eine Gegenrichtung gibt, muss die unveraenderte Kopie bestehen.
+step S20 "Hardware-Gegenproben in beide Richtungen"
+./tools/checks/hardware-gegenproben.sh || CRIT=$((CRIT+1))
+
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
 if [ "$CRIT" -gt 0 ]; then

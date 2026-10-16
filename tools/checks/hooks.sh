@@ -68,6 +68,45 @@ p='ESP8266/ESP-uclock/data/app/app.js'
 open(p,'w').write('x')
 PY" deny
 
+# Hardware-Team (17.10.2026): hardware/ hat je Unterverzeichnis genau einen Schreiber. Die
+# .md-Muster von doc-writer und Lead muessen hardware/ ausschliessen, sonst haette eine Datei
+# zwei Besitzer. Beide Richtungen: das Ausschliessen darf die alten .md-Rechte nicht brechen.
+echo "  --- file-ownership.py: hardware/ (hw-designer, hw-datasheet-analyst, hw-architect, hw-reviewer)"
+probe "hw-designer: eigener Generator"     file-ownership.py hw-designer Edit "$(pwd)/hardware/esp32s3/gen.py" allow
+probe "hw-designer: fremdes Komponentenblatt" file-ownership.py hw-designer Edit "$(pwd)/hardware/komponenten/sy8301.md" deny
+probe "hw-analyst: eigenes Komponentenblatt" file-ownership.py hw-datasheet-analyst Edit "$(pwd)/hardware/komponenten/sy8301.md" allow
+probe "hw-analyst: fremder Schaltplan"     file-ownership.py hw-datasheet-analyst Edit "$(pwd)/hardware/esp32s3/WordClock.kicad_sch" deny
+probe "hw-architect: eigener Entscheid"    file-ownership.py hw-architect Edit "$(pwd)/hardware/architektur/entscheidungen.md" allow
+probe "hw-architect: Schaltplan per Bash"  file-ownership.py hw-architect Bash \
+      "python3 -c \"open('hardware/esp32s3/gen.py','w').write('x')\"" deny
+probe "hw-layouter: eigenes Layout"         file-ownership.py hw-layouter Edit "$(pwd)/hardware/esp32s3/WordClock-ESP32S3-V3.kicad_pcb" allow
+probe "hw-layouter: Schaltplan (fremd)"      file-ownership.py hw-layouter Edit "$(pwd)/hardware/esp32s3/WordClock-ESP32S3-V3.kicad_sch" deny
+probe "hw-designer: Layout (fremd)"          file-ownership.py hw-designer Edit "$(pwd)/hardware/esp32s3/WordClock-ESP32S3-V3.kicad_pcb" deny
+probe "hw-designer: Schaltplan weiter"       file-ownership.py hw-designer Edit "$(pwd)/hardware/esp32s3/WordClock-ESP32S3-V3.kicad_sch" allow
+probe "hw-layouter: Fertigungsdaten"         file-ownership.py hw-layouter Edit "$(pwd)/hardware/esp32s3/fertigung/bom.csv" allow
+probe "hw-doc-writer: eigene Doku"           file-ownership.py hw-doc-writer Edit "$(pwd)/hardware/dokumentation/wissensstand.md" allow
+probe "hw-doc-writer: README"                file-ownership.py hw-doc-writer Edit "$(pwd)/hardware/README.md" allow
+probe "hw-doc-writer: Entscheid (fremd)"     file-ownership.py hw-doc-writer Edit "$(pwd)/hardware/architektur/entscheidungen.md" deny
+probe "hw-architect: README (jetzt fremd)"   file-ownership.py hw-architect Edit "$(pwd)/hardware/README.md" deny
+probe "hw-reviewer: eigenes Gutachten"     file-ownership.py hw-reviewer Edit "$(pwd)/hardware/review/2026-10-17-schema.md" allow
+probe "hw-reviewer: Entwurf aendern"       file-ownership.py hw-reviewer Edit "$(pwd)/hardware/esp32s3/gen.py" deny
+probe "doc-writer: hardware-Doku (fremd)"  file-ownership.py doc-writer Edit "$(pwd)/hardware/architektur/entscheidungen.md" deny
+probe "lead: hardware-Doku (fremd)"        file-ownership.py lead Edit "$(pwd)/hardware/architektur/entscheidungen.md" deny
+probe "doc-writer: CLAUDE.md weiter erlaubt" file-ownership.py doc-writer Edit "$(pwd)/CLAUDE.md" allow
+probe "lead: CLAUDE.md weiter erlaubt"     file-ownership.py lead Edit "$(pwd)/CLAUDE.md" allow
+
+# sw-architect (17.10.2026): specs/multiboard-quelle/ hat einen eigenen Schreiber; spec-writer und Lead
+# duerfen dort nicht schreiben, behalten aber alle uebrigen Specs.
+echo "  --- file-ownership.py: specs/multiboard-quelle/ (sw-architect)"
+probe "sw-architect: eigene Spec"          file-ownership.py sw-architect Edit "$(pwd)/specs/multiboard-quelle/design.md" allow
+probe "sw-architect: fremde Spec"          file-ownership.py sw-architect Edit "$(pwd)/specs/esp32s3-port/design.md" deny
+probe "sw-architect: Code"                 file-ownership.py sw-architect Edit "$(pwd)/src/main.c" deny
+probe "spec-writer: multiboard (fremd)"    file-ownership.py spec-writer Edit "$(pwd)/specs/multiboard-quelle/design.md" deny
+probe "spec-writer: eigene Specs weiter"   file-ownership.py spec-writer Edit "$(pwd)/specs/esp32s3-port/design.md" allow
+probe "lead: multiboard (fremd)"           file-ownership.py lead Edit "$(pwd)/specs/multiboard-quelle/design.md" deny
+probe "doc-writer: multiboard (fremd)"      file-ownership.py doc-writer Edit "$(pwd)/specs/multiboard-quelle/design.md" deny
+probe "lead: andere Specs weiter"          file-ownership.py lead Edit "$(pwd)/specs/esp32s3-port/design.md" allow
+
 echo "  --- no-danger.py (AKW.4): Aufruf verboten, Erwaehnung erlaubt"
 probe "lesender Endpunkt"             no-danger.py "" Bash 'curl -s http://1.2.3.4/api/update_status' allow
 probe "test_display aufrufen"         no-danger.py "" Bash 'curl -s http://1.2.3.4/api/test_display' deny
