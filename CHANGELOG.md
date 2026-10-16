@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-16 ESP 3.2.40 und PWA 1.4.101: App lädt beim zweiten Öffnen fast nichts mehr (Paket 2026-10-15, R2; C70)
+
+ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-16-113409.zip`, Tag `release/3.2.34-3.2.40-1.4.101`.
+
+**Einspielen — Reihenfolge zwingend: erst der ESP (OTA), dann die App** (`install-app.sh` bzw. in der App Wartung →
+App-Dateien laden). Die neue App verlässt sich darauf, dass der ESP ihre Dateien als „unverändert" melden kann; auf
+dem alten ESP lädt sie wie bisher alles neu, aber sie hat dann keinen Vorteil.
+
+- **Was sich ändert** (C70): Bisher holte der Browser bei jedem Öffnen und Neuladen der App alle Dateien neu vom
+  Gerät, rund 200 KB, und ein einziger `check-pwa`-Lauf zog 2,5 MB. Jetzt trägt jede App-Datei eine Kennung (ETag).
+  Fragt der Browser beim nächsten Mal mit dieser Kennung nach und hat sich die Datei nicht geändert, antwortet der ESP
+  nur „unverändert" (304), ohne die Datei zu lesen oder zu senden. Das entlastet Speicher und Verbindungen des ESP genau
+  dort, wo er bisher am knappsten war — beim Laden der App.
+- Damit Chrome das überhaupt nutzt, antwortet der ESP für App-Dateien jetzt mit HTTP/1.1; alles andere (API,
+  Legacy-Oberfläche) bleibt bei HTTP/1.0. Die Kennung wird aus der Datei selbst gebildet und ändert sich mit jedem
+  neuen Inhalt — eine neue App-Version kommt also sofort an.
+- Die App holt die Layout-Vorschauen nicht mehr mit „nie zwischenspeichern", sondern mit „nachfragen", damit auch diese
+  Datei vom neuen Verhalten profitiert.
+- **Nebenbei behoben:** Brach das Senden einer Datei ab, schloss der ESP die Verbindung bisher regulär, und der Browser
+  erkannte den Schaden erst an der falschen Länge. Der dafür vorgesehene harte Abbruch kam zu spät und war wirkungslos.
+  Jetzt bricht der ESP die Verbindung sofort hart ab (RST); der Browser meldet einen Verbindungsabbruch und behält die
+  halbe Datei nicht.
+- Neu in `/api/device_ready`: `app_not_modified` zählt, wie oft eine App-Datei als unverändert (304) beantwortet wurde,
+  `app_full`, wie oft sie mit vollem Inhalt begonnen wurde — Abbrüche zählen dort mit.
+- **Speicher:** statisch +48 Byte (im ganzen Paket +80 von erlaubten 250), Programm +1'248 Byte.
+- **Geprüft:** Prüfstände c70e (63 Fälle, 23 statische, 27 Sabotagen) und c70p (30 Fälle, 7 Sabotagen), beide gegen
+  den Stand davor rot; Bestandsprüfstände nachgezogen, S16 81/81. Review ohne Einwände.
+
 ## 2026-10-16 ESP 3.2.39: Speicher nach Update-Prüfungen sofort wieder frei (Paket 2026-10-15, R1b; C71, C75)
 
 Nur der ESP, STM (3.2.34) und PWA (1.4.100) unverändert. `wordclock-release-2026-10-16-080958.zip`, Tag `release/3.2.34-3.2.39-1.4.100`.

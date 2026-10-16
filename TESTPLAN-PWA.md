@@ -383,10 +383,18 @@ wäre die Startphase unsichtbar.
 | `INFO Abrufe je Endpunkt` | Zahl der Abrufe von `network_scan`, `display_power`, `ambilight_power` und `power_status` über den ganzen Lauf. Soll für die drei letzten **0** — der Display- und Ambilight-Zustand kommt aus `settings_xml` (Ent-30). `network_scan` höchstens so oft, wie das Netzwerkmodul betreten wurde |
 | `INFO als Takt nicht abgewartet` | Pfade, die im selben Warten zweimal endeten und deshalb als periodischer Takt gelten, etwa `stm32_log` alle 2,5 s — sonst käme nie Netzruhe zustande. **Bekannte Grenze:** Bricht ein solcher Pfad spät ab, sieht das Skript es nicht |
 | `INFO Verbindungsaufbau >= 900 ms` | Zahl der neuen Verbindungen, deren Aufbau 900 ms oder länger dauerte, mit dem längsten Wert — die Spur eines SYN, das der ESP bei vollem Backlog verworfen hat. **Eine 0 ist kein Beleg** (Review E4, M2): Die Zählung ist am Gerät noch nie angeschlagen, die Vorschau kann kein verworfenes SYN nachstellen, und Verbindungen, die der Browser vorab geöffnet hat, sieht sie nicht. Ein Wert über 0 ist kein Fehler (unten), sondern eine Messung |
+| `INFO App-Assets je Antwort` | Seit dem Werkzeugstand für R2 (C70): die Antworten der Uhr ausserhalb von `/api/` über den ganzen Lauf, aufgeteilt nach **Status auf der Leitung** — `200`, `304`, `Cache` (aus dem Browser-Cache oder vom Service Worker, ohne Leitungsstatus) und `andere`. Den Leitungsstatus nimmt das Skript wie die Ladeprobe aus `responseReceivedExtraInfo`, weil Chrome für eine `304` im gewöhnlichen Antwortereignis die `200` der Cache-Kopie meldet. **Nur Ausgabe, kein Soll** — das Soll prüft die Ladeprobe mit `--erwarte-304` (4c) |
+| `INFO App-Assets uebertragen` | Byte, die Chrome für diese Antworten empfangen hat (`encodedDataLength`, Summe über den Lauf) |
+| `INFO Verbindungsfehler` | Zahl **aller** fehlgeschlagenen Abrufe des Laufs, dazu die ersten drei mit Fehlertext und Pfad. Anders als P1b-7 zählt die Zeile auch `ERR_ABORTED` und das Favicon mit. Seit dem ESP-Release R2 endet ein Schreibabbruch mit RST: Ein `net::ERR_CONNECTION_RESET` auf einem App-Asset ist dann ein abgebrochenes Senden (`fs_write_short` in `device_ready` vorher und nachher vergleichen) oder C74. Die Zahl der `net::ERR_CONNECTION_RESET` und `net::ERR_EMPTY_RESPONSE` je Lauf ist die Grundlinie für AKE.3 (AKW.6, `specs/paket-2026-10-15/requirements.md`) |
 | `INFO Laufzeit` | Dauer des ganzen Laufs |
 
 Abrufe des alten Dokuments verwirft das Skript beim Neuladen, weil Chrome ihr Ende nie meldet;
 die Startphase zählt erst ab der Navigation des neuen Dokuments (Review E4, N2).
+
+**Grundlinie der App-Assets ohne Cache (16.10.2026, ESP 3.2.39):** 76 Antworten, alle `200` auf
+der Leitung, keine `304`, keine aus dem Cache, 2'466'348 Byte, keine Verbindungsfehler
+(`BEFUNDE.md`, L468). Jeder Modulstart in P1b-9 lädt alle Assets neu. Gegen diese Zahlen wird
+ein Lauf nach dem ESP-Release R2 gestellt (G10); das Ergebnis gehört nach L468.
 
 ### Wie die PWA seit dem Release E4 abfragt — was kein Fehler ist
 
@@ -500,7 +508,9 @@ Werkzeugfehler. Eine Haltegrenze hat die Ladeprobe nicht; sie protokolliert nur 
 
 **Grundlinie ohne Cache:** `BEFUNDE.md`, L468, G9.1 — jedes Laden holt alles mit 200, INM=0.
 So muss es bei einer Auslieferung ohne Validator aussehen. Ein Lauf mit Cache wird gegen diese
-Grundlinie gestellt.
+Grundlinie gestellt. Das Soll mit Cache ab dem ESP-Release R2 steht in AKW.2
+(`specs/paket-2026-10-15/requirements.md`), wie die Antworten des ESP dann aussehen, in 5b unter
+„Asset-Cache: `ETag`, `304` und die Zähler in `/api/device_ready`“.
 
 ### `tools/browser-sitzung.sh` — was ein Browser auf der Uhr stehen lässt (C72)
 
@@ -899,7 +909,7 @@ beiden `- abgewiesen: …`. Das ESP-Release E3 (C65) brachte `low=` in der Heap-
 Felder `blk`, `snd` und `ms` in `- http write lost` und `- fs write short`, den Ring und die
 Zähler für `- fs write short` sowie die Zeilen `- update liste zu gross` und
 `- update cache …`; sie stehen danach, ebenfalls vor den beiden `- abgewiesen: …`. Das
-ESP-Release E4 (C65) brachte `- scan …`; sie steht dahinter, ebenfalls vor den beiden. Das ESP-Release R1 aus `specs/paket-2026-10-15/` (C71, C72) brachte `tcp=` und `nrt=` in der Heap-Zeile sowie `- update cache vorher`, `heap`, `nach` und `tmp geloescht`, `- heap erste anfrage` und `- flash id`; sie stehen hinter `- scan`, ebenfalls vor den beiden. Die
+ESP-Release E4 (C65) brachte `- scan …`; sie steht dahinter, ebenfalls vor den beiden. Das ESP-Release R1 aus `specs/paket-2026-10-15/` (C71, C72) brachte `tcp=` und `nrt=` in der Heap-Zeile sowie `- update cache vorher`, `heap`, `nach` und `tmp geloescht`, `- heap erste anfrage` und `- flash id`; sie stehen hinter `- scan`, ebenfalls vor den beiden. Das ESP-Release R2 (C70) brachte `- fs seek error`; sie steht zusammen mit der älteren `- fs read error` dahinter, ebenfalls vor den beiden. Die
 Entscheidungsregel für die beiden Schreibzeilen steht unter der Tabelle. Die stehen ganz am Schluss: Die Abweisung über `Sec-Fetch-Dest`
 gibt es seit ESP 3.2.4, die zu lange Query bringt das ESP-Release E2 (C46); E1 ist
 zurückgestellt (L439). Die
@@ -911,7 +921,8 @@ lief.
 
 Die STM-Zeilen stehen im Mitschnitt; `i2c: frist abgelaufen` steht **nur** dort, nicht in
 `/api/stm32_log`. Die ESP-Zeilen mit vorangestelltem `- ` stehen im Mitschnitt **und**
-in `/api/stm32_log`.
+in `/api/stm32_log` — **ausser** `- fs seek error` und `- fs read error`, die nur im
+Mitschnitt stehen (`BEFUNDE.md`, L481).
 
 | Zeile | Was sie bedeutet | Erwartet | Befund |
 |---|---|---|---|
@@ -936,7 +947,7 @@ in `/api/stm32_log`.
 | Folgeeinträge mit `~` in `/api/stm32_log` | Eine STM-Zeile über 120 Zeichen steht seit dem ESP-Release E2 als **mehrere** Einträge im Ring (C8): der erste mit 119 Zeichen und `~` am Ende, jeder folgende beginnt mit `~`. Zusammengesetzt (die `~` an diesen Stellen weglassen) ergibt sich die Zeile, wie sie im Mitschnitt steht. Die PWA zeigt Folgeeinträge als eigene Zeilen. Vor E2 endete eine solche Zeile mit `~`, der Rest war weg (L99, L430) | Bei jeder Zeile über 120 Zeichen, gezielt in **K29** | Zusammengesetzt **ungleich** dem Mitschnitt; ein Rest fehlt. Eine Zeile über 255 Zeichen kappt schon die Brücke, ihr letzter Folgeeintrag endet dann mit `~` — das ist die benannte Grenze, kein Befund. Eine Logzeile, die selbst mit `~` beginnt, sähe aus wie ein Folgeeintrag; solche Zeilen gibt es heute nicht |
 | `low=` in der Heap-Zeile | Seit dem ESP-Release E3 (Ent-22): der kleinste grösste freie Block **seit der vorigen Heap-Zeile**, gemessen an vier Stellen **während** des Betriebs — beim Senden einer API-Antwort (`flush`), beim Ausliefern einer Datei (`fs`, erster und jeder achte Block), beim Annehmen einer Verbindung (`accept`) und nach jedem ausgehenden Verbindungsaufbau (`client`). Die Heap-Zeile setzt dieses Minimum nach jeder Zeile selbst zurück, unabhängig von `heap_low_reset` in `device_ready`. `low=` steht hinten; `free=`, `max=` und `ovr=` behalten ihre Stellung. Lief seit der vorigen Zeile kein Messpunkt, steht `low=` gleich `max=`; grösser als `max=` ist es nie | In Ruhe gleich oder nahe `max=`; unter PWA-Last deutlich tiefer — die feine Abfrage aus L449 sah beim Laden der PWA 1'448 | **Anhalten** unter 1'072 (K30). Dazwischen **kein** Anhaltegrund, sondern ins Protokoll: Uhrzeit, Wert, Last (was lief), Messweise; den Pfad des Tiefs liefert `heap_low_path` aus `device_ready`. Ein `low=` unter 5 KB allein ist kein Befund — nach L449 läge jede PWA-Ladung darunter |
 | `- http write lost <rest> gone=<n> fail=<n> blk=<n> snd=<n> ms=<n>` | Eine Antwort ging nicht vollständig hinaus; `rest` = nicht ausgelieferte Byte, `gone` und `fail` = Stand von `write_lost_gone` bzw. `write_lost_failed` nach diesem Verlust — welcher gestiegen ist, nennt den Grund (C25). Seit dem ESP-Release E3 hinten angefügt: `blk` = grösster freier Block und `snd` = freier Platz im Sendepuffer, beide unmittelbar nach dem letzten Versuch erhoben; `ms` = Dauer vom Beginn des ersten bis zum Ende des letzten Versuchs. Eine Zeile je Verbindung, Mitschnitt und Ring textgleich. Geht der **Kopf** einer Dateiauslieferung verloren, steht diese Zeile und nicht `fs write short`; der Rumpf wird dann nicht mehr versucht (Review E3, N1) | Mit gestiegenem `gone`: Der Browser hat abgebrochen (Tab zu, Abbruch, L270) — erwartet, nur zählen | Mit gestiegenem `fail`: jede — Lesart nach der Entscheidungsregel unter der Tabelle, dazu Uhrzeit, Endpunkt aus der `- request`-Zeile davor und alle Rohwerte. **`ms` über 3'000 ist ein Befund für sich**, auch bei `gone`: Dann stand `loop()` länger als die Frist des STM, und im Mitschnitt folgt `keine Quittung` (L449) |
-| `- fs write short: <datei> n=<n> w=<n> blk=<n> snd=<n> ms=<n>` | Eine Dateiauslieferung (PWA-Asset) brach **mitten in der Datei** ab: `n` = Länge des Blocks, `w` = davon geschrieben, `blk`, `snd` und `ms` wie bei `http write lost`. Der Browser bekommt die Datei unvollständig und verwirft sie (die Länge ist im Kopf angesagt); der Service Worker behält seinen Stand, bei einer Erstinstallation fehlt das Asset bis zum Neuladen. Bis E3 stand die Zeile nur im Mitschnitt, ohne Ring und ohne Zähler; seither zählt sie in `fs_write_short`, `write_lost_blocks` und je nach Verbindung in `write_lost_gone` oder `write_lost_failed`, und `write_lost_bytes` wächst um den nicht ausgelieferten Rest der Datei. Die Logwache schlägt **Alarm**. Dieselbe Zeile **ohne** die Felder `n=` bis `ms=` kommt aus dem Laden einer Datei vom Update-Server ins Dateisystem und meint einen Schreibfehler im Flash — ebenfalls Alarm | nie | **jede**, mit Uhrzeit, Datei, Rohwerten und der Lesart nach der Entscheidungsregel unter der Tabelle. Welche Verbindungslage vorlag, steht nicht in der Zeile: `write_lost_gone` und `write_lost_failed` aus `device_ready` vor und nach dem Fall vergleichen. Danach meldet der Smoketest „FEHLT“, solange `fs_write_short` über 0 steht — bis zum nächsten ESP-Start |
+| `- fs write short: <datei> n=<n> w=<n> blk=<n> snd=<n> ms=<n>` | Eine Dateiauslieferung (PWA-Asset) brach **mitten in der Datei** ab: `n` = Länge des Blocks, `w` = davon geschrieben, `blk`, `snd` und `ms` wie bei `http write lost`. Der Browser bekommt die Datei unvollständig und verwirft sie. Seit dem ESP-Release R2 bricht der ESP die Verbindung dabei hart ab (RST), und Chrome meldet `net::ERR_CONNECTION_RESET`; bis dahin schloss er regulär, und der Browser erkannte den Schaden erst an der Länge, die im Kopf angesagt war. der Service Worker behält seinen Stand, bei einer Erstinstallation fehlt das Asset bis zum Neuladen. Bis E3 stand die Zeile nur im Mitschnitt, ohne Ring und ohne Zähler; seither zählt sie in `fs_write_short`, `write_lost_blocks` und je nach Verbindung in `write_lost_gone` oder `write_lost_failed`, und `write_lost_bytes` wächst um den nicht ausgelieferten Rest der Datei. Die Logwache schlägt **Alarm**. Dieselbe Zeile **ohne** die Felder `n=` bis `ms=` kommt aus dem Laden einer Datei vom Update-Server ins Dateisystem und meint einen Schreibfehler im Flash — ebenfalls Alarm | nie | **jede**, mit Uhrzeit, Datei, Rohwerten und der Lesart nach der Entscheidungsregel unter der Tabelle. Welche Verbindungslage vorlag, steht nicht in der Zeile: `write_lost_gone` und `write_lost_failed` aus `device_ready` vor und nach dem Fall vergleichen. Danach meldet der Smoketest „FEHLT“, solange `fs_write_short` über 0 steht — bis zum nächsten ESP-Start |
 | `- update liste zu gross wc-list-tables.txt n=<byte>` | Seit E3 hält der ESP die gefilterte Tabellenliste vom Update-Server bis 60 s im RAM (256 Byte). Hier passte sie nicht hinein: Sie wird **nicht** gekürzt und nicht abgelegt, sondern bei jedem Aufruf wieder vom Server geholt. `n` = Byte, die der Zwischenspeicher gebraucht hätte. Gedrosselt: die erste sofort, danach höchstens eine je 10 Minuten. **Hinweis** der Logwache | nie — die heutige Liste braucht rund 140 Byte (E3.0, L450) | jede: Die Liste auf dem Server ist gewachsen, und jeder Aufruf von `update_table_files` geht wieder hinaus. `n` und Uhrzeit in den Bericht |
 | `- update cache <datei> geschrieben n=<byte> ms=<dauer>` | Der Hintergrundauftrag hat die Release Notes (`upd-releasenote.txt`) bzw. die STM-Liste (`upd-wc-list.txt`) vom Update-Server geholt und im Dateisystem des ESP abgelegt; `n` = Inhalt ohne Kopfzeile. **`ms` gilt für alle drei `update cache`-Zeilen gleich:** die Dauer des **einen** Schritts, in dem `loop()` stand, nicht des ganzen Durchgangs; 0 bei `quelle-leer` und bei einem Abbruch durch das Sperrfenster. Den längsten Schritt seit dem letzten Rücksetzen meldet `upd_cache_max_ms` in `device_ready` | Je Datei einmal rund 60 s nach dem **ersten** Start mit E3, nach einem neuen Release auf dem Server, nach einer Änderung von Update-Host oder -Pfad, und wenn die Datei fehlt oder ungültig ist (gelöscht, `maintenance_format_fs`) | ohne einen dieser Anlässe, insbesondere **nach einem ESP-Neustart bei unverändertem Server** (AKR.21): Dann schreibt jeder Start den Flash neu. `ms` über 3'000: Befund, weil der STM dann `keine Quittung` meldet |
 | `- update cache <datei> unveraendert ms=<dauer>` | Der Auftrag hat die drei Versionszeilen vom Server geholt, der Stand passt zur abgelegten Datei, **nichts geschrieben** | Je Datei einmal frühestens rund 60 s nach jedem ESP-Start, wenn auf dem Server nichts Neues liegt — das ist das Soll von **AKR.21** in T2 (6.0e). Die Wache bleibt still | `ms` über 3'000 (wie oben). Fehlt die Zeile nach einem ESP-Start ganz und steht auch kein `fehlgeschlagen`, ist der Auftrag nicht gelaufen — WLAN, Update-Quelle (S97/S98) und den Mitschnitt der ersten Minuten prüfen |
@@ -949,6 +960,7 @@ in `/api/stm32_log`.
 | `- update cache tmp geloescht <datei>` | Der erste Durchgang nach einem Start hat eine liegengebliebene Temporärdatei (`upd-releasenote.tmp` oder `upd-wc-list.tmp`) gelöscht; gemessen am Ergebnis — vorher da, danach weg —, nicht am Rückgabewert des Löschens. Das ist ein Flash-Schreiben beim Start, das bis dahin ohne Zeile blieb | nie — eine Temporärdatei bleibt nur liegen, wenn ein Schreibvorgang mittendrin abbrach | jede: Im Protokoll als „Flash-Schreiben beim Start: ja“ vermerken, und im Mitschnitt vor dem Start nachsehen, was den letzten Schreibvorgang unterbrochen hat (Neustart, Absturz, Stromunterbruch) |
 | `- heap erste anfrage free=<n> max=<n>` | Seit dem ESP-Release R1 (I-6): einmal je ESP-Start beim ersten Annehmen einer **lebenden** Verbindung — auch einer, die ein Browser auf Vorrat öffnet und über die nie eine Anfragezeile kommt; eine tote Abholung (`http_accept_dead`) löst sie nicht aus. Inhalt: freier Heap und grösster freier Block in diesem Augenblick | Genau einmal je Start. In der Startmessung (keine Anfrage, bis `heap` erschienen ist, plus 130 s) kommt sie erst mit dem Smoketest danach | Mehr als eine je Start: Der ESP ist unbemerkt neu gestartet — Mitschnitt prüfen. Fehlt sie nach einem Start, obwohl Anfragen kamen. Kam die erste Anfrage **vor** dem Abgleich und liegt `max` schon deutlich unter dem Ruhewert: Zerstückelung vor dem Abgleich (Spec §5.5, N4) |
 | `- flash id=<hex6> vendor=<hex2>` | Seit dem ESP-Release R1 (I-6): einmal je ESP-Start in `setup()`, vor dem WLAN und vor dem ersten Flash-Schreiben: die JEDEC-Kennung des Flash-Chips (3 Byte, hexadezimal) und das Herstellerbyte. **`vendor=85` heisst PUYA:** Für diesen Hersteller legt der Core beim ersten Flash-Schreiben einen 256-Byte-Puffer an und gibt ihn nicht mehr frei | Genau einmal je Start, am selben Gerät immer derselbe Wert. Die Uhr meldet `vendor=c4`, kein PUYA (16.10.2026, L468) — N0 entfällt für sie | `vendor=85`: Kandidat N0 bzw. L0 aus der Spec (§5.5) prüfen — im ersten Schreibschritt ΔFree rund −264 ohne Erholung. Ein anderer Wert als beim vorigen Start; fehlt die Zeile nach einem Start |
+| `- fs seek error: <datei>` | Seit dem ESP-Release R2 (C70): Nach dem Lesen der beiden Dateienden für das `ETag` liess sich die Datei nicht an den Anfang zurückspulen. Der ESP liefert sie dann **nicht** aus, damit kein Rumpf hinausgeht, der nicht am Dateianfang beginnt — beim Index erscheint die Hinweisseite „WordClock App ist noch nicht installiert“, bei jedem anderen Asset `404`, obwohl die Datei da ist (`BEFUNDE.md`, L479). **Nur im Mitschnitt**, nicht in `/api/stm32_log` und in keinem Zähler (L481). Ebenso `- fs read error: <datei>`: Lesefehler mitten in der Datei, seit R2 mit RST abgebrochen, nicht in `fs_write_short`. Die Logwache kennt beide Zeilen nicht | nie | jede, mit Uhrzeit und Datei; danach `./tools/install-app.sh --check` |
 | `- abgewiesen: <was> als Sec-Fetch-Dest=<wert>` | Der ESP hat einen Wartungsaufruf als eingebetteten Abruf (`Sec-Fetch-Dest` etwa `image`) mit 403 und `{"ok":false,"error":"embedded-subresource"}` abgewiesen und **nichts ausgeführt**. `<was>` ist einer der drei Wege, die das seit ESP 3.2.4 prüfen: `maintenance_format_fs`, `maintenance_reset_stm32`, `maintenance_reset_eeprom`. Die vorangehende Zeile `- request <IP> [<Browser>]: …` nennt den Absender. **Hinweis**, kein Alarm; die Logwache meldet sie als Hinweis. **Im Browser wirkt diese Prüfung nicht:** Browser senden `Sec-Fetch-*` über `http://` an die Uhr gar nicht (`BEFUNDE.md`, L439, am Gerät belegt) — die Zeile entsteht nur, wenn ein Werkzeug die Kopfzeile selbst setzt. Die Erweiterung um `Sec-Fetch-Site` und die Legacy-Wege (E1; C6, C6v, C60) ist **nicht ausgeliefert**, Entscheidung des Nutzers 13.10.2026; eine Zeile `als Sec-Fetch-Site=…` gibt es deshalb nicht | Nur noch vom Smoketest: `maintenance_reset_stm32 als Sec-Fetch-Dest=image` bei **jedem** Lauf (Phase 9, Schritt 6) — er löst sie absichtlich aus, wie seit ESP 3.2.4 | Jede ausserhalb eines laufenden Smoketests: Ein Werkzeug hat die Kopfzeile gesetzt — Uhrzeit, `<was>`, Wert und Absender aus der `- request`-Zeile in den Bericht. Umgekehrt ist das **Fehlen** dieser Zeile kein Zeichen von Schutz: Ein Aufruf von einer fremden Seite im Browser kommt ohne Kopfzeile an und wird ausgeführt (L439) |
 | `- abgewiesen: query <n> Zeichen` | Eine Anfrage unter `/api/` hatte eine Query über 255 Zeichen; der ESP hat sie mit `{"ok":false,"error":9,"detail":"query too long"}` beantwortet und keinen Handler aufgerufen, statt still zu kürzen (C46). `n` ist die Länge der Query hinter `?`; der Inhalt steht bewusst nicht darin (L179). Legacy-Pfade kürzen weiter still und geben keine Zeile. **Hinweis**; die Logwache meldet sie als Hinweis | Nur in **K27a** | Jede andere. Kommt sie aus der PWA, hat die Oberfläche eine zu lange Anfrage gebaut — Endpunkt aus der `- request`-Zeile davor und `n` in den Bericht. Seit dem PWA-Teil von C46 (Release EP) prüft die PWA die Länge **vor** dem Senden: Eine Query über 255 Zeichen geht gar nicht hinaus, die Meldung nennt Länge und Grenze („Die Anfrage ist zu lang: … Zeichen, erlaubt sind höchstens 255. …“), und Kennung 9 vom Gerät ergibt dieselbe Meldung. Mit EP ist deshalb **jede** solche Zeile aus der PWA ein Befund, auch im Backup-Import (Phase 5): Er schreibt die WLAN-Felder seither einzeln (8.3). Vor EP war sie dort die bekannte Lücke aus L431 |
 
@@ -1074,6 +1086,59 @@ In Ruhe zeigt die Heap-Zeile deshalb `ESTABLISHED` 0, `device_ready` 1.
 fehlt oder `tcp_now_states` nicht genau 11 Zahlen trägt; vorher meldet er sie als „gibt es noch
 nicht“. Er liest nur, gibt die aktiven Zustände, TIME_WAIT, wartende Verbindungen und
 `http_accept_dead` aus und prüft keinen Sollwert.
+
+#### Asset-Cache: `ETag`, `304` und die Zähler in `/api/device_ready` (seit dem ESP-Release R2, Paket 2026-10-15)
+
+Bis zum ESP-Release R2 holte der Browser bei jedem Öffnen und Neuladen alle App-Dateien
+vollständig vom ESP (C70, `BEFUNDE.md`, L456). Seit R2 (`specs/paket-2026-10-15/design.md` §4.4,
+Ent-2 Variante T) gilt für die **App-Assets** — die `.gz`-Dateien aus der Weissliste
+`APP_INSTALL_ASSETS`:
+
+| Was | Wie |
+|---|---|
+| `ETag` | `"<grösse der .gz>-<16 Hexziffern>"`: die Grösse der `.gz` in Byte, ein Bindestrich und die **letzten 8 Byte** der `.gz` in Dateireihenfolge, Kleinbuchstaben, mit den Anführungszeichen. Diese 8 Byte sind CRC-32 und Länge des entpackten Inhalts (RFC 1952). Der ESP bildet den Wert bei jeder Antwort aus der Datei selbst; ein neues Hochladen ändert ihn damit ohne weiteres Zutun. Beginnt die Datei nicht mit `1f 8b` oder ist sie kürzer als 18 Byte, gibt es kein `ETag` und nie eine `304` |
+| erwarteter Wert | aus derselben `.gz`, die auf dem Gerät liegt: `"$(wc -c < <datei>.gz \| tr -d ' ')-$(tail -c 8 <datei>.gz \| xxd -p)"` |
+| `If-None-Match` trifft | `HTTP/1.1 304 Not Modified` mit `ETag`, `Cache-Control: no-cache` und `Connection: close`, **ohne Rumpf** und ohne `Content-Length`. Gelesen werden dafür nur die beiden Dateienden. Ein vorangestelltes `W/` wird übergangen, eine Komma-Liste ausgewertet; `*` trifft nie, ein Wert über 35 Zeichen ebenfalls nicht |
+| trifft nicht oder fehlt | `HTTP/1.1 200 OK` mit `Content-Length` gleich der Dateigrösse, `ETag`, `Cache-Control: no-cache` und `Connection: close` |
+| alles andere | **bleibt `HTTP/1.0` ohne `ETag`**: `/api/*`, die Legacy-Oberfläche, die Hinweisseiten unter `/app/` (Installation, „noch nicht installiert“) und Dateien unter `/app/` ausserhalb der Weissliste |
+
+**Warum `HTTP/1.1` nur dort:** Chrome schickt bei `HTTP/1.0` für das Dokument kein
+`If-None-Match` (AKC.7, L468). Keep-Alive entsteht trotzdem nicht — beide Antworten tragen
+`Connection: close`, und der ESP schliesst danach wie bisher.
+
+**Was das `ETag` nicht abdeckt:** nur den Rumpf. Ändert sich allein der Kopf einer Antwort —
+etwa der Inhaltstyp, den `http_content_type()` einer Endung zuordnet —, antwortet der ESP weiter
+mit `304`, und der Browser behält den alten Kopf, bis sich die Datei selbst ändert (Review R2.7,
+H4; `BEFUNDE.md`, C70).
+
+**Ein abgebrochenes Senden endet seit R2 mit RST.** Bis dahin schloss der ESP auch im Abbruch
+regulär (FIN); das dafür vorgesehene `abort()` kam danach und fand keine Verbindung mehr. Der
+Browser erkannte den Schaden erst an der falschen Länge. Jetzt meldet Chrome
+`net::ERR_CONNECTION_RESET` — in `check-pwa.sh` unter `INFO Verbindungsfehler` (4b), in der
+Ladeprobe als `fehl=` mit `FAIL net::ERR_CONNECTION_RESET` in der Pfadzeile (4c). Mit RST endet
+jeder Abbruch in `http_send_fs_file()`: ein Schreibabbruch (`- fs write short`), ein verlorener
+Kopf (`- http write lost`) und ein Lesefehler (`- fs read error`). **Für AKE.3 heisst das:** Resets werden gegen die Grundlinie
+auf R2 gezählt (AKW.6), nicht gegen Läufe davor.
+
+Zwei Felder **hinter** `http_accept_dead`, alle bisherigen bleiben in Name, Reihenfolge und Typ:
+
+| Feld | Was es heisst | Lesart |
+|---|---|---|
+| `app_not_modified` | App-Assets, die der ESP seit seinem Start mit `304` beantwortet hat | in einer warmen Ladeprobe mit Cache steigt es um die Zahl der `/app/`-Anfragen |
+| `app_full` | App-Assets, für die der ESP seit seinem Start eine `200` mit Rumpf **begonnen** hat. **Gezählt wird beim Kopf**, bevor der Rumpf läuft — ein Abbruch zählt also mit | Soll in einer warmen Ladeprobe: Δ`app_full` = 0 (AKW.2). **Vollständige Auslieferungen** sind Δ`app_full` minus Δ`fs_write_short`. Das ist eine Obergrenze: Geht schon der Kopf verloren (zählt als `http write lost`, nicht in `fs_write_short`) oder bricht das Lesen ab (`- fs read error`, in keinem Zähler), steht die Auslieferung in `app_full` und wird nicht abgezogen |
+
+Beide zählen seit dem ESP-Start, bleiben bei 65'535 stehen und werden nie zurückgesetzt, auch
+nicht mit `heap_low_reset=1`. Die Ladeprobe gibt sie nach jedem Laden in der Zeile
+`Geraetezaehler` aus (4c).
+
+**Der Smoketest prüft beides ab dem ESP-Release R2.** Im Block C70 holt er `/app/`,
+`/app/app.js` und `/app/styles.css` je einmal; die Antwort muss ein `ETag` tragen. Derselbe Wert
+als `If-None-Match` muss eine `304` als `HTTP/1.1` mit 0 Byte ergeben, ein falscher Wert
+(`"c70-falsch"`) eine `200` mit Rumpf. „Asset-Zähler (C70)“ verlangt die beiden Felder in
+`device_ready`. Vor R2 meldet er den Block als „gibt es noch nicht“; `SMOKE_C70_OVERRIDE=1`
+erzwingt ihn auf einem älteren Stand — die Gegenprobe nach DIR-014, dort muss er fehlschlagen.
+**Der Smoketest erhöht beide Zähler selbst.** Wer `app_full` oder `app_not_modified` über einen
+Zeitraum vergleicht, lässt dazwischen keinen Smoketest laufen.
 
 #### Release Notes und STM-Liste aus dem Dateisystem (seit dem ESP-Release E3)
 
