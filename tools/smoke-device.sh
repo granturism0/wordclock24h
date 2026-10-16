@@ -298,6 +298,10 @@ fi
 # L468). Ein falsches ETag muss die volle Datei liefern. SMOKE_C70_OVERRIDE=1 prueft auch aeltere
 # Staende (Gegenprobe nach DIR-014: auf 3.2.39 muss der Block fehlschlagen).
 if [ -n "${SMOKE_C70_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.40" "${esp:-0}" | sort -V | head -1)" = "3.2.40" ]; then
+  am=$(printf '%s' "$dr" | grep -o '"app_not_modified":[0-9]*' | cut -d: -f2)
+  af=$(printf '%s' "$dr" | grep -o '"app_full":[0-9]*' | cut -d: -f2)
+  if [ -n "$am" ] && [ -n "$af" ]; then pass "Asset-Zaehler (C70)" "app_not_modified=$am app_full=$af"
+  else fail "Asset-Zaehler (C70)" "device_ready ohne app_not_modified/app_full"; fi
   for path in /app/ /app/app.js /app/styles.css; do
     et=$(curl -s -m "$TIMEOUT" -D - -o /dev/null -H 'Accept-Encoding: gzip' "$U$path" 2>/dev/null \
          | tr -d '\r' | grep -i '^etag:' | head -1 | sed 's/^[Ee][Tt][Aa][Gg]: *//')
