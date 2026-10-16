@@ -112,9 +112,19 @@ def clone(ref, srcref, value=None):
     inst[ref] = d
 clone("SW5", "SW1")                 # BOOT-Taster wie die uebrigen Taster
 clone("R32", "R12", "10kΩ")         # Pull-up GPIO0
-clone("C30", "C12", "10uF")         # Abblockung Modul
-clone("C31", "C12", "100nF")        # Abblockung Modul
-clone("C32", "C12", "100nF")        # Filter am ADC-Eingang
+clone("C30", "C8", "22uF")          # Abblockung Modul 22 uF (AE-08, Referenzschema DS-M Abb. 9-1), Klon von C8
+clone("C31", "C12", "100nF")        # Abblockung Modul 0,1 uF
+clone("C32", "C12", "100nF")        # Filter am ADC-Eingang (Antrag A1, ungeklaert, siehe NOCH_OFFEN)
+inst["C32"]["flags"]["dnp"] = "yes"          # A1 nicht freigegeben: Platz bleibt, unbestueckt (Auftrag des Lead 17.10.2026)
+clone("C33", "C12", "100nF")        # AE-02: VBUS-Kondensator am USBLC6 (U11)
+clone("R33", "R27", "510Ω")         # AE-05: Serienwiderstand in TXD0 (Konsole H6)
+clone("R34", "R13", "0Ω")           # AE-02: Bruecke 0 Ohm in USB D+ (Modulseite)
+clone("R35", "R13", "0Ω")           # AE-02: Bruecke 0 Ohm in USB D-
+# AE-02: unbestueckte Plaetze (DNP): zwei Kondensatoren nach GND, D+-Pull-up. Wert offen, kein LCSC-Feld.
+clone("C34", "C12", "DNP (Wert offen)"); clone("C35", "C12", "DNP (Wert offen)")
+clone("R36", "R12", "DNP (Wert+Schiene ungeprueft)")
+for _r in ("C34", "C35", "R36"): inst[_r]["flags"]["dnp"] = "yes"
+inst["R29"]["props"] = [(k, ("31.6kΩ" if k == "Value" else v)) for k, v in inst["R29"]["props"]]   # AE-08: Wert des bestellten Teils C2930156
 for r, v in (("C1", "1uF"),):   # R22 bleibt V2-Wert 1 kOhm (LDR-Pfad 1:1, Vorgabe 17.10.2026)
     inst[r]["props"] = [(k, (v if k == "Value" else val)) for k, val in inst[r]["props"]]
 
@@ -124,14 +134,17 @@ for r, v in (("C1", "1uF"),):   # R22 bleibt V2-Wert 1 kOhm (LDR-Pfad 1:1, Vorga
 #  - C1: V2 = 100 nF (C49678). BEWUSSTE ABWEICHUNG VON V2: V3 setzt 1 uF (EN-Verzoegerung 10 kOhm + 1 uF nach
 #    Espressif), also C28323 (1 uF 50 V X7R, Basic). C1 liegt nicht im LED-, Power- oder LDR-Pfad (H8 prueft das).
 #  - R23: das Feld trug C17841 (= 82 Ohm, Extended); richtig ist C17520 (2,2 kOhm 0805, Basic).
-#  - C30 ist als Klon von C12 (100 nF, C49678) entstanden; 10 uF = C15850 (25 V X5R, Basic;
-#    Alternative C440198, 50 V).
+#  - C30: 22 uF (AE-08), Klon von C8; Nummer C45783 (22 uF 25 V X5R 0805, Basic, schon in der Stueckliste).
+#  - R33 (Klon von R27, 510 Ohm) C17734; R34, R35 (Klone von R13, 0 Ohm) C17477; C33 (Klon von C12) C49678.
+#  - C34, C35, R36: unbestueckte Plaetze (dnp ja), das LCSC-Feld bleibt leer.
+#  - R29: Wert 31,6 kOhm (AE-08), LCSC C2930156 unveraendert.
 #  - U2, USB1, U11: neue Teile, das Feld fehlte (die Bibliothekssymbole haben keins) und wird neu angelegt.
 #  - SW5 ist Klon von SW1 und traegt dessen Nummer (C2909692); R32 (Klon von R12) C17414; C31, C32 (Klone von C12) C49678.
 LCSC_SET = {
-    "C1": "C28323", "R23": "C17520", "C30": "C15850",
+    "C1": "C28323", "R23": "C17520",
     "U2": "C2913198", "USB1": "C165948", "U11": "C7519",
     "SW5": "C2909692", "R32": "C17414", "C31": "C49678", "C32": "C49678",
+    "C30": "C45783", "C33": "C49678", "R33": "C17734", "R34": "C17477", "R35": "C17477",
 }
 def set_lcsc(ref, nr):
     props = inst[ref]["props"]
@@ -153,8 +166,8 @@ modpin("IO8", "SDA_DS3231"); modpin("IO9", "SCL_DS3231")
 modpin("IO2", "DS18B20"); modpin("IO1", "LDR")
 modpin("IO7", "TSOP"); modpin("IO15", "DCF77")
 modpin("IO16", "USER"); modpin("IO17", "WPS"); modpin("IO18", "LED_STM")
-modpin("USB_D-", "USB_DN"); modpin("USB_D+", "USB_DP")
-modpin("TXD0", "TX_UART"); modpin("RXD0", "RX_UART")
+modpin("USB_D-", "USB_DN_M"); modpin("USB_D+", "USB_DP_M")   # AE-02: Modulseite hinter den 0-Ohm-Bruecken
+modpin("TXD0", "UART0_TXD"); modpin("RXD0", "TX_UART")          # AE-05: TXD0 ueber R33 an RX_UART (H6.3), RXD0 <- TX_UART (H6.2)
 modpin("EN", "EN"); modpin("IO0", "BOOT")
 modpin("3V3", "VCC_3.3V"); modpin("GND", "GND")
 # Reset/EN: RESET und ESP_EN wurden ein Netz
@@ -162,6 +175,7 @@ for k, v in list(conn.items()):
     if v in ("RESET", "ESP_EN"): conn[k] = "EN"
 # Konsole: H6 hing ueber SW4 an TX/RX
 setnet("H6", "2", "TX_UART"); setnet("H6", "3", "RX_UART")
+setnet("R33", "1", "UART0_TXD"); setnet("R33", "2", "RX_UART")
 # BOOT-Taste und Pull-up
 setnet("SW5", "1", "BOOT"); setnet("SW5", "2", "BOOT"); setnet("SW5", "3", "GND")
 setnet("R32", "1", "BOOT"); setnet("R32", "2", "VCC_3.3V")
@@ -175,6 +189,13 @@ for p in ("A1", "A12", "B1", "B12", "SH"): setnet("USB1", p, "GND")
 setnet("USB1", "A5", "Net-(USB1-CC1)"); setnet("USB1", "B5", "Net-(USB1-CC2)")
 setnet("USB1", "A6", "USB_DP"); setnet("USB1", "B6", "USB_DP")
 setnet("USB1", "A7", "USB_DN"); setnet("USB1", "B7", "USB_DN")
+# AE-02: 0-Ohm-Bruecken, VBUS-Kondensator, unbestueckte Plaetze
+setnet("R34", "1", "USB_DP"); setnet("R34", "2", "USB_DP_M")
+setnet("R35", "1", "USB_DN"); setnet("R35", "2", "USB_DN_M")
+setnet("C33", "1", "USB_5V_INPUT"); setnet("C33", "2", "GND")
+setnet("C34", "1", "USB_DP_M"); setnet("C34", "2", "GND")
+setnet("C35", "1", "USB_DN_M"); setnet("C35", "2", "GND")
+setnet("R36", "1", "USB_DP_M"); setnet("R36", "2", "VCC_3.3V")   # Schiene UNGEPRUEFT (AE-02: offen, wartet auf Analyst)
 # ESD-Schutz USBLC6-2SC6
 for p in esdp:
     n = p["name"]
@@ -260,12 +281,12 @@ def extent(ref):
     return P["box"]
 
 BLOCKS = [
-    ("USB-C, Eingangsschutz und Power-Mux", ["USB1", "U11", "R3", "R4", "D4", "F1", "TP1", "TP4", "JP3", "C4", "C20",
+    ("USB-C, Eingangsschutz und Power-Mux", ["USB1", "U11", "C33", "R3", "R4", "D4", "F1", "TP1", "TP4", "JP3", "C4", "C20",
         "D5", "F2", "H1", "TP5", "Q3", "R24", "R25", "C2", "C21", "C22", "TP6", "U9", "R26", "C24"]),
     ("Versorgung 5 V und 3,3 V", ["U10", "L2", "C25", "R28", "R29", "D2", "C27", "C28", "C29", "C23", "C26",
         "C7", "C8", "C12", "C15", "C16", "C17", "C18", "C19", "TP7", "TP8", "LED4", "R27", "LED5", "R30"]),
     ("ESP32-S3-WROOM-1 mit Reset, Boot und Konsole", ["U2", "C1", "R12", "SW3", "SW5", "R32", "C30", "C31",
-        "H6", "D3", "SW1", "SW2", "R1", "LED1", "R6"]),
+        "R33", "R34", "R35", "C34", "C35", "R36", "H6", "D3", "SW1", "SW2", "R1", "LED1", "R6"]),
     ("LED-Ausgang, Pegelwandler und 5-V-Schalter", ["U3", "R11", "R13", "R17", "R31", "JP2", "Q1", "Q2",
         "R19", "R20", "R21", "R23", "C10", "C6", "H4", "H7", "H5"]),
     ("Sensoren, RTC und EEPROM", ["U1", "R5", "U5", "U7", "U6", "RN1", "RN2", "R22", "C32", "R8", "R9"]),
@@ -395,8 +416,9 @@ for net in FLAGS:
 notes = [
     "Entwurf V3: Umbau von V2 auf ESP32-S3-WROOM-1, erzeugt aus der V2-Netzliste (kicad-cli).",
     "Entfallen gegenueber V2: STM32F411 (U2), ESP-12F (U4), Quarz X1 samt Lastkondensatoren, VDDA-Filter, SWD-Stecker H3, Umschalter SW4, Boot-Widerstaende des ESP8266.",
-    "Neu: ESP32-S3-WROOM-1 (U2), USB-C 16P mit D+/D- (USB1), ESD-Schutz U11, BOOT-Taste SW5 mit Pull-up R32, Abblockung C30/C31, ADC-Filter C32.",
-    "Geaendert: C1 = 1 uF (EN-Verzoegerung, bewusste Abweichung von V2: dort 100 nF, LCSC C28323), H6 = UART0-Konsole.",
+    "Neu: ESP32-S3-WROOM-1 (U2), USB-C 16P (USB1), ESD-Schutz U11 mit C33 am VBUS-Pin, 0-Ohm-Bruecken R34/R35 in D+/D- (Modulseite USB_DP_M/USB_DN_M), BOOT-Taste SW5 mit Pull-up R32, Abblockung C30 (22 uF)/C31, R33 (510 Ohm) in TXD0.",
+    "Unbestueckte Plaetze (DNP, AE-02): C34/C35 (USB-Leitungen nach GND), R36 (D+-Pull-up; Wert und Schiene UNGEPRUEFT, 3,3 V nur als Platzhalter). C32 (ADC-Filter, Antrag A1): UNBESTUECKT (dnp), Freigabe des Nutzers fehlt; Platz bleibt.",
+    "Geaendert: C1 = 1 uF (EN-Verzoegerung, bewusste Abweichung von V2: dort 100 nF, LCSC C28323), H6 = UART0-Konsole (TXD0 -> R33 -> RX_UART/H6.3, RXD0 <- TX_UART/H6.2, wie V2-Belegung), R29 = 31,6 kOhm (Wert des Teils C2930156).",
     "Unveraendert: Versorgung, 3,3-V-ODER-Schaltung (D2/D3), LED-Pfad (U3, Q1, Q2), LDR-Pfad (R22 = 1 kOhm wie V2), RTC, EEPROM, DS18B20, Taster, Test-Pads.",
     "Noch nicht geprueft: Footprints neuer Teile gegen die Bestueckung, 3,3-V-Reserve des SY8301, Platzierung der Antenne.",
 ]

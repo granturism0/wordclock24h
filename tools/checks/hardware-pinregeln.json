@@ -14,10 +14,10 @@
   },
   "nur_an_netzen": {
     "IO0": ["BOOT"],
-    "USB_D+": ["USB_DP"],
-    "USB_D-": ["USB_DN"],
-    "TXD0": ["TX_UART"],
-    "RXD0": ["RX_UART"],
+    "USB_D+": ["USB_DP_M"],
+    "USB_D-": ["USB_DN_M"],
+    "TXD0": ["UART0_TXD"],
+    "RXD0": ["TX_UART"],
     "EN": ["EN"],
     "3V3": ["VCC_3.3V"],
     "GND": ["GND"]
