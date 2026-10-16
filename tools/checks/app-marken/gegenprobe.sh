@@ -27,5 +27,13 @@ probe sprache-gz-fehlt 1 'rm i18n/en.json.gz'
 probe layout-mit-marke 1 'sed -i "" "s|</head>|<link rel=\"preload\" href=\"/app/layout-previews.json?v=1\"></head>|" index.html'
 probe version-falsch 1 'sed -i "" "s|^const APP_VERSION = \"[^\"]*\";|const APP_VERSION = \"1.4.x\";|" app.js'
 probe version-doppelt 1 'printf "\nconst APP_VERSION = \"9.9.9\";\n" >> app.js'
+# AKL.5 (Review R2b.9 SOLL-1): ein sabotiertes Werkzeug, das "?v<version>" ohne "=" erzeugt, muss sich selbst abweisen.
+WS="$T/app-marken-sabotiert.py"; sed 's|?v={version}&amp;h={m}|?v{version}\&amp;h={m}|' "$W" > "$WS"
+if cmp -s "$W" "$WS"; then echo "  FALSCH query-ohne-gleich: Sabotage-Anker nicht gefunden"; BAD=1
+else
+  K="$T/q"; mkdir -p "$K"; cp -R "$A/." "$K/"; out=$(python3 "$WS" "$K" "$K/kopie.html" 2>/dev/null); rc=$?; N=$((N+1))
+  if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q "verletzt AKL.5" && [ ! -e "$K/kopie.html" ]; then echo "  ok    query-ohne-gleich: Exit 1  ${out#app-marken: }"
+  else echo "  FALSCH query-ohne-gleich: Exit $rc -- $out"; BAD=1; fi
+fi
 echo "app-marken Gegenprobe: $N Faelle"
 [ "$BAD" = 0 ] && { echo "ALLE WIE ERWARTET"; exit 0; } || { echo "ABWEICHUNG"; exit 1; }

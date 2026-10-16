@@ -121,6 +121,10 @@ for a in $ASSETS; do
   [ "$(wc -c < "$src" | tr -d ' ')" -gt 0 ] || { echo "  ABBRUCH: $src ist leer"; exit 1; }
 done
 
+# Review R2b.9 SOLL-2: Marken im gebauten Dokument gegen die .gz, bevor irgendetwas hochgeht -- sonst landen nach einem
+# abgebrochenen 'make app-gz' ein altes Dokument und neue .gz auf dem Geraet (alles no-cache, R2b still unwirksam).
+python3 tools/marken-pruefen.py --lokal "$D" || { echo "  ABBRUCH: Marken in index.html.gz passen nicht zu den .gz -- erst 'make app-gz'"; exit 1; }
+
 i=0; total=$(set -- $ASSETS; echo $#); fail=0
 for a in $ASSETS; do
   i=$((i+1))

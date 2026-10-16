@@ -110,6 +110,16 @@ def main():
     if html.count(inhalt) != 1 or len(eintraege) != len(sprachen):
         abbruch("Meta-Element nicht vollstaendig gefuellt")
 
+    # AKL.5: jede erzeugte Query nur aus Paaren name=wert, Zeichen [0-9a-z.=&-], hoechstens 64 Zeichen. Ein Parameter
+    # ohne "=" hat den ESP frueher abgestuerzt; Review R2b.9 SOLL-1 -- die Form wird geprueft, nicht nur angenommen.
+    import html as _html
+    qs = [_html.unescape(q) for q in re.findall(r'(?:href|src)="/app/[^"?]+\?([^"]*)"', html)]
+    for q in qs:
+        if len(q) > 64 or not re.match(r"^[a-z]+=[0-9a-z.-]+(&[a-z]+=[0-9a-z.-]+)*$", q):
+            abbruch(f"erzeugte Query {q!r} verletzt AKL.5 (nur name=wert, [0-9a-z.=&-], hoechstens 64 Zeichen)")
+    if len(qs) != 6:
+        abbruch(f"{len(qs)} Queries im Dokument statt 6")
+
     tmp = aus + ".tmp"
     with open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write(html)

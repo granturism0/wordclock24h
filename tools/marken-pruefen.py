@@ -37,6 +37,11 @@ def lokal(app):
     meta = re.findall(r'<meta name="wc-asset-tokens" content="([^"]*)"', dok)
     if meta and meta[0]: paare += [tuple(e.split("=", 1)) for e in meta[0].split(";")]
     if not paare:
+        q = os.path.join(app, "index.html")
+        if os.path.isfile(q) and 'name="wc-asset-tokens"' in open(q, encoding="utf-8", errors="replace").read():
+            # Review R2b.9 SOLL-3: Die Quelle traegt das Meta-Element -- ein Dokument ohne Marken ist dann nicht ueber
+            # make app-gz entstanden (etwa gzip -k index.html von Hand) und wuerde still Verhalten (a) ausrollen.
+            print("  FEHL  index.html.gz ohne Marken, obwohl die Quelle wc-asset-tokens traegt -- nicht ueber 'make app-gz' gebaut"); return 1
         print("  --    index.html.gz ohne Marken (Stand vor R2b) -- nichts zu pruefen"); return 0
     fehl = 0
     for pfad, m in paare:
