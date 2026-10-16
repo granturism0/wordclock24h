@@ -12,6 +12,7 @@
 #include <ESP8266WiFi.h>
 #include <strings.h>
 #include "base.h"
+#include "httpclient.h"                                         // R1b L7: httpclient_stop () steht weiter unten
 
 static WiFiClient      client;
 static uint16_t        httpclient_connects = 0;                // E3 I-1 (C65): erfolgreiche connect () seit dem Start, saettigend
@@ -182,6 +183,12 @@ httpclient_read_header (int * lenp)
     return complete ? errorcode : -1;                   // abgerissener Kopf ist ein Fehlschlag, kein 200
 }
 
+/* Paket 2026-10-15 R1b (L7b, L7c = C75): JEDER Rueckweg mit einem Wert <= 0 laeuft ueber httpclient_stop () und gibt
+ * damit den ClientContext frei. Kein Aufrufer muss das wissen: Alle pruefen auf len > 0 und schliessen nur in diesem
+ * Zweig selbst; bei <= 0 geben sie auf. Bis R1 blieben dabei offen bzw. gebunden: der Rumpf einer Fehlerseite
+ * (Status != 200, etwa 404), eine Antwort nach der Zeitgrenze und ein 200 ohne Rumpf (len 0, C75). Der Rueckgabewert
+ * bleibt in allen Faellen derselbe wie bisher.
+ */
 int
 httpclient (const char * host, const char * path, const char * file)
 {
@@ -193,6 +200,7 @@ httpclient (const char * host, const char * path, const char * file)
 
     if (! client.connect(host, port))
     {
+        httpclient_stop ();                                                         // R1b L7: scheitert schon der DNS, laesst connect () einen alten Kontext stehen
         return -1;
     }
 
@@ -213,7 +221,7 @@ httpclient (const char * host, const char * path, const char * file)
 
     if (! httpclient_wait_for_data ())                                              // erstes Antwortbyte
     {
-        client.stop();                                                              // auch bei Reset der Gegenstelle: nicht 5 s leer drehen
+        httpclient_stop ();                                                         // auch bei Reset der Gegenstelle: nicht 5 s leer drehen; R1b L7b: freigeben
         return -1;
     }
 
@@ -221,8 +229,14 @@ httpclient (const char * host, const char * path, const char * file)
 
     if (errorcode != 200)                                                               // webserver errorcode != 200 (OK)
     {
-        client.stop ();
+        httpclient_stop ();                                                             // R1b L7b: Rumpf der Fehlerseite (etwa 404) nicht liegen lassen
         return -1;
+    }
+
+    if (len <= 0)                                                                       // R1b L7c (C75): 200 ohne Rumpf - nichts zu lesen
+    {
+        httpclient_stop ();
+        return len;
     }
 
     return len;                                                                         // length of content to be read
@@ -315,10 +329,35 @@ httpclient_read_line (unsigned char * bufp, int buflen, int * lenp)
     return bufpos;
 }
 
+/*----------------------------------------------------------------------------------------------------------------------------------------
+ * httpclient_stop () - Verbindung schliessen UND den ClientContext freigeben (Paket 2026-10-15, R1b, L7a; C71)
+ *
+ * WiFiClient::stop () ruft nur ClientContext::close (): Der PCB wird geschlossen, die schon empfangene, aber nicht
+ * gelesene Antwort bleibt als pbuf-Kette in _rx_buf stehen (ClientContext.h:73-92, WiFiClient.cpp:316-325). Frei wird
+ * sie erst, wenn der Refcount auf 0 faellt: unref () ruft dann discard_received (), close () und delete
+ * (ClientContext.h:115-127, :302-314). Der statische client hier hielt seinen Kontext aber bis zum NAECHSTEN connect ()
+ * (WiFiClient.cpp:145-151). Jede Pruefung, die den Rumpf nicht liest - update_status mit wc12h-icon.txt und
+ * wc12h-weather.txt, die Pruefung auf app.js.gz, der Zweig zu-gross in update_cache_write () -, band so die ganze
+ * Antwort bis zum naechsten Abruf: am Geraet 1'704 Byte in drei pbufs nach jedem kalten update_status (BEFUNDE L468,
+ * Ursache von C71).
+ *
+ * Deshalb nach stop () die Zuweisung eines leeren WiFiClient. operator= ruft unref () auf den alten Kontext
+ * (WiFiClient.cpp:117-128); er gehoert nur diesem client (Refcount 1, keine Kopie), faellt auf 0 und wird samt _rx_buf
+ * freigegeben. Danach ist der Zeiger im client NULL: Kein Code kann den alten Kontext mehr erreichen, available (),
+ * read () und connected () liefern ohne Kontext 0 bzw. -1, und der naechste connect () legt einen frischen an (rund
+ * 56 Byte), wie bisher beim ersten Abruf nach dem Start. Der leere WiFiClient bringt _timeout 5000 mit
+ * (WiFiClient.cpp:76-81) - dieselbe Vorgabe, die client hier immer hatte, denn niemand setzt eine eigene.
+ * Ein zweiter Aufruf ist harmlos: stop () und operator= tun ohne Kontext nichts.
+ *
+ * Der Wetter-Client (openweather_client, weather.cpp) ist ein eigener WiFiClient und bleibt unberuehrt.
+ * RAM: 0 Byte statisch.
+ *----------------------------------------------------------------------------------------------------------------------------------------
+ */
 void
 httpclient_stop (void)
 {
     client.stop ();
+    client = WiFiClient ();                                     // R1b L7a: Kontext samt ungelesener Antwort freigeben
 }
 
 uint16_t

@@ -105,6 +105,7 @@ LAUF=(
   "C6b Schluessel nur ueber network_secrets, no-store, keine CORS, statisch (ESP)|esp/c6b/static.sh $E neu"
   "C65 I-1..I-3, Tabellenliste, LittleFS-Cache, Sendezeitgrenze (ESP)|esp/c65/run.sh $E neu"
   "C71 I-6 Heap und Startzustand im Abgleich, tmp geloescht, erste Anfrage, Flash-Kennung (ESP)|esp/c71/run.sh $E neu"
+  "C71e L7 httpclient gibt den Kontext auf jedem Weg frei (ESP)|esp/c71e/run.sh $E neu"
   "C72 I-5 laufende Verbindungszustaende, tote Abholungen, Heap-Zeile tcp=/nrt= (ESP)|esp/c72/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"

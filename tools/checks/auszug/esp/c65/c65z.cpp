@@ -92,6 +92,7 @@ static unsigned int httpclient_grace_left;
 #define HTTPCLIENT_PEER_GONE_GRACE 300
 static bool httpclient_wait_for_data (void) { return false; }
 int httpclient_read_header (int *) { return -1; }
+static void httpclient_stop (void) { client.stop (); }             /* R1b L7: Freigabe des Kontexts prueft c71e */
 #include "client.inc"
 #ifndef HAVE_CONNECTS
 uint16_t httpclient_connects_get (void) { return 0; }
