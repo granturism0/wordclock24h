@@ -433,7 +433,8 @@ der PWA noch über die Leitung schickt (C70), welche Verbindungen ein Browser au
 stehen lässt (C72) und ob ein halb geschlossener Verbindungszustand auf dem ESP von selbst
 abläuft. Sie gehören **nicht** zum Pflichtumfang der Phasen 0 bis 9, sondern zu den
 Messschritten eines Pakets. Massgeblich für Aufruf und Ausgabe ist der Kopfkommentar des
-jeweiligen Werkzeugs; hier steht, wie man die Ausgabe liest.
+jeweiligen Werkzeugs; hier steht, wie man die Ausgabe liest. Dazu kommt die Messung AKS.4
+(weiter unten), ein Ablauf am Mitschnitt ohne eigenes Werkzeug.
 
 **Für alle drei gilt Abschnitt 0, Punkt 5:** Während der Messung ist kein anderer Browser an
 der Uhr offen, auch nicht auf dem Telefon, und es läuft weder `check-pwa.sh` noch K19 noch
@@ -571,6 +572,19 @@ oder Lesung, oder der Browser läuft nach S4 noch), **2** Vorbedingung nicht erf
 Abbruch. Bei Strg-C nennt das Skript die Phase und ob der Browser noch läuft — beenden musst
 Du ihn dann selbst.
 
+**Client freistellen — seit dem ESP-Release R1b entfallen, nur noch einmal zum Vergleich.**
+Vor dem ESP-Release R1b band ein kalter `update_status` 1'704 Byte im httpclient, bis dieser
+das nächste Mal verband (C71, `BEFUNDE.md`, L468). Die PWA fragt `update_status` beim Öffnen
+ab; ohne Gegenmassnahme erschien die Belegung in S2/S3 als „Lücke“ und landete fälschlich in
+M2 oder M5. Die Spec verlangte deshalb vor S0 jeder Sitzung, den Client freizustellen — ein
+kalter `update_table_files`, der zu Ende liest, oder ein Durchgang des Abgleichs — und je
+Phasenende `hc` und `update_info_cached` ins Protokoll (`specs/paket-2026-10-15/design.md`
+§5.3, Nachtrag A.5). Das Werkzeug tut das nicht selbst. Seit dem ESP-Release R1b gibt
+`httpclient_stop()` den Kontext samt ungelesener Antwort bei jedem Schliessen frei (L7); das
+Freistellen **entfällt**. Es läuft nur noch **einmal**, in G9b.4, als Vergleichslauf gegen G9
+(`specs/paket-2026-10-15/tasks.md`). Dass die Belegung tatsächlich ausbleibt, belegt erst die
+Messung AKS.4 (unten) — bis sie vorliegt, ist L7 umgesetzt, nicht nachgewiesen.
+
 **Ausgewertet wird nach der Entscheidungsregel M1–M5** in `specs/paket-2026-10-15/design.md`
 §5.4; dort steht, welches Verbindungsbild zu welchem Eingriffskandidaten führt. Die Tabelle
 steht hier bewusst nicht, damit es keine zweite Fassung gibt. Mit Nachtrag A.3 gilt für
@@ -604,6 +618,37 @@ Eintrag Zustand, `ruhe_s`, `nrtx` und `arg`.
 Schreibt nichts am Gerät; die beiden Lesungen hinterlassen je ein TIME_WAIT. Ein Lauf dauert
 rund 25 s. Ergebnis am Gerät: `BEFUNDE.md`, L468, G9.2 — P1 bestätigt.
 
+### Messung AKS.4 — bleibt nach einem kalten `update_status` Heap liegen? (C71)
+
+Kein eigenes Werkzeug, sondern ein Ablauf am Mitschnitt (`specs/paket-2026-10-15/design.md`
+§5.5, `requirements.md` AKS.4; Schritt G9b.1). Er prüft die Wirkung von L7: Vor dem
+ESP-Release R1b blieb nach einem kalten `update_status` die ungelesene Antwort der letzten
+Existenzprüfung im httpclient liegen, 1'704 Byte in `free` und `max` (`BEFUNDE.md`, L468,
+G9.6 Start 4 und M1).
+
+1. ESP in Ruhe, kein Browser an der Uhr, `./tools/watch-log.sh` läuft (DIR-013). Warten, bis
+   eine Heap-Zeile `tw=0` zeigt; ihr `free` und `max` sind der Wert **vorher**.
+2. **Einen** kalten `update_status` senden: `curl -s "http://$DEVICE_HOST/api/update_status"`.
+   Kalt heisst: Der letzte Abruf liegt mehr als 60 s zurück, und die Antwort trägt
+   `"update_info_cached":false`. Steht dort `true`, war der Abruf warm und zählt nicht.
+   **Ohne `refresh=1`** — der Parameter stösst zusätzlich einen Durchgang des Abgleichs an,
+   und der kann ins Dateisystem schreiben.
+3. Danach **keine HTTP-Lesung**, auch kein `device_ready`: Jede Lesung ist selbst eine
+   Verbindung und hinterlässt ein TIME_WAIT. Gelesen wird nur der Mitschnitt.
+4. Massgeblich ist die erste Heap-Zeile **mindestens 130 s** nach dem Abruf, die `tw=0` zeigt
+   (vorher kann eine Verbindung in TIME_WAIT den Block scheinbar teilen, Spec H4). Ihr `free`
+   und `max` sind der Wert **nachher**.
+5. Dreimal, je mit eigenem Vorher-Wert.
+
+| Ergebnis | Lesart |
+|---|---|
+| `free` und `max` in allen drei Durchgängen je höchstens 300 Byte unter dem Wert vorher | AKS.4 erfüllt: Der kalte `update_status` lässt nichts liegen |
+| eine Lücke um 1'704 Byte | das Bild vor L7 — entweder wirkt L7 nicht, oder auf dem Gerät läuft noch der Stand vor dem ESP-Release R1b (gemeldete Version prüfen) |
+| eine andere Lücke über 300 Byte | ein anderer Weg bindet Heap: Uhrzeit, Werte, `tcp=` und die Zeilen dazwischen ins Protokoll |
+
+Vergleichswert auf dem Vorstand: −1'704 Byte (`BEFUNDE.md`, L468). Das Ergebnis gehört ins
+Messprotokoll (L468) und erst danach, mit Beleg, an C71 und C75.
+
 ### Wann welches Werkzeug
 
 | Lage | Werkzeug |
@@ -611,7 +656,8 @@ rund 25 s. Ergebnis am Gerät: `BEFUNDE.md`, L468, G9.2 — P1 bestätigt.
 | jeder Durchlauf, jedes Einspielen | Smoketest, `install-app.sh --check` und `check-pwa.sh` (Phase 1 und 1b) — keines der drei hier |
 | Grundlinie, bevor sich an der Auslieferung der Assets etwas ändert | Ladeprobe ohne Option, ein Lauf davon mit `--englisch` (Paket 2026-10-15, G9.1) |
 | nach einer Änderung am Cache der Assets | Ladeprobe mit `--erwarte-304`, gegen die Grundlinie gestellt (G10.1) |
-| was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9.3 bis G9.5, G10.3, G11.1) |
+| was ein Browser an Verbindungen und Heap stehen lässt | Browser-Sitzung `safari` und `chrome`, dazu einmal `manuell` auf dem Gerät des Nutzers (G9b.4 — nach Ent-18 A an Stelle von G9.3 bis G9.5 —, G10.3, G11.1) |
+| ob nach einem kalten `update_status` Heap liegen bleibt (Wirkung von L7) | Messung AKS.4, dreimal (G9b.1) |
 | ob ein halb geschlossener Zustand von selbst abläuft | P1-Probe, einmal; das Ergebnis gehört zur Zuordnung M1–M5 (G9.2) |
 | Regression nach einem Eingriff | Ladeprobe warm neben drei `check-pwa.sh` (G11.3) |
 
@@ -898,8 +944,8 @@ in `/api/stm32_log`.
 | `- scan n=<n> vor=<free>/<blk> nach=<free>/<blk> flush=<free>/<blk> ms=<scan>/<ausgabe>` | Seit dem ESP-Release E4: ein WLAN-Scan über `/api/network_scan`. `n` = gefundene Netze vor der Kappung (Rohwert des SDK). `vor` und `nach` = freier Heap / grösster freier Block unmittelbar vor und nach dem Scan, `flush` = nach dem letzten Senden der Antwort, solange die Ergebnisliste noch liegt — der Schritt von `nach` zu `flush` ist die Last der Ausgabe. `ms` = Dauer des Scans / Dauer vom Ende des Scans bis nach dem Senden; daran ist für C68 abzulesen, ob die Zeit im Scan oder im Schreiben liegt. Im Mitschnitt und in `/api/stm32_log` textgleich. Die Logwache meldet sie als **Hinweis** | einmal je Wechsel ins Netzwerkmodul (auch beim Start dort) und je Druck auf „WLANs neu laden“, nie im Takt der Selbstaktualisierung | **mehr als eine je Minute**, ohne dass so oft bedient wurde — dann scannt die PWA wieder im Takt, ein Rückfall von E4. Ein `flush`-Block unter 1'072 Byte gehört zu K30 |
 | `tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> nrt=<n>` in der Heap-Zeile | Seit dem ESP-Release R1 (I-5, C72) hinter `low=`; `free=`, `max=`, `ovr=` und `low=` behalten ihre Stellung. `tcp=` = Verbindungen **in diesem Augenblick**, gezählt wie `tcp_now_states` in `device_ready`: ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT und LAST_ACK aus der Liste der aktiven Verbindungen, `tw` = Länge der TIME_WAIT-Liste. Die Zeile entsteht in `loop()`, nicht in einer Anfrage — anders als in `device_ready` zählt hier keine eigene Abfrage mit. `nrt` = `no_request_timeouts` aus `device_ready`: angenommene Verbindungen, über die bis zur Frist keine Anfrage kam, seit dem ESP-Start, bleibt bei 65'535 stehen | In Ruhe ohne Browser `tcp=0/0/0/0/0/0` oder nur `tw` über 0, das rund 120 s nach der letzten Anfrage auf 0 fällt. Mit offener PWA zeitweise ESTABLISHED und TIME_WAIT. `nrt` steigt, wenn ein Browser Verbindungen auf Vorrat öffnet und nicht benutzt — mit Browser erwartet, Δ ins Protokoll | ESTABLISHED oder CLOSE_WAIT über mehrere Heap-Zeilen ohne bedienten Browser — gehaltene Verbindungen, das Bild von C72: `device_ready` **ohne Parameter** lesen und `tcp_now_list` ins Protokoll. FIN_WAIT_1 oder LAST_ACK über Minuten (die Gegenstelle quittiert nicht). `tw` dauerhaft über 2. `nrt` steigt, während kein Browser offen ist |
 | `- update cache vorher up=<s> free=<n>/<blk> frag=<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<n>` | Seit dem ESP-Release R1 (I-6, C71): einmal je Durchgang des Abgleichs, unmittelbar vor dem ersten Abruf — im ersten Durchgang nach einem Start erst nach dem Löschen liegengebliebener Temporärdateien. `up` = Sekunden seit dem ESP-Start; `free`/`blk` = freier Heap / grösster freier Block (Messpunkt `v`). `frag` = Zerstückelung des Heaps nach dem Core, 0 bis 100: **0 heisst ein einziges Loch**, der Wert steigt mit der Zerstückelung. Auf ein zusätzliches kleines Loch neben einem grossen reagiert `frag` kaum — massgeblich für C71 ist `free − blk` je Messpunkt aus `- update cache heap`. Die Spec nennt `fe=` (Zahl der freien Einträge); der ESP meldet `frag=`, weil die Zahl der Einträge nur über einen privaten Kopf des Cores erreichbar ist. `tcp=` wie in der Heap-Zeile. `hc` = `httpclient_connects`: 0 heisst, der httpclient hat seit dem Start noch keine Verbindung angelegt. **`hc` erfasst den Wetter-Client nicht** — ein Wetter-Overlay vor dem Abgleich legt eine eigene Verbindung an; ob eines lief, gehört ins Protokoll | Je Durchgang genau einmal: rund 60 s nach jedem ESP-Start, nach `update_status?refresh=1` und bei jedem Wiederholversuch. Die Werte sind Ausgangspunkt für `heap` und `nach`, kein Soll | Fehlt sie vor einer `- update cache <datei> …`-Zeile, oder folgen ihr nicht `heap` und `nach` — dann lief der Durchgang anders als gebaut. `blk` schon hier deutlich unter dem Ruhewert nach dem Start: Die Zerstückelung lag vor dem Abgleich (Spec §5.5, N4) |
-| `- update cache heap v=<free>/<blk> 1=… 2=… 3=… 4=… 5=… n=<free>/<blk>` | Am Ende des Durchgangs oder bei dessen Abbruch: freier Heap / grösster Block an sieben Messpunkten — `v` vor dem ersten Abruf (wie in `vorher`), `1` bis `3` nach je einer der drei Versionszeilen vom Update-Server (auch wenn sie scheiterte), `4` nach den Release Notes, `5` nach der STM-Liste — beide nach dem Schliessen des Abrufs und dem Aushängen des LittleFS —, `n` am Ende. `-` heisst: Schritt nicht gelaufen. Werte auf 65'535 gekappt. `free − blk` je Punkt ist der Teil des freien Heaps ausserhalb des grössten Blocks — für C71 die massgebliche Grösse, nicht `frag`. **Liefert der Server eine leere Antwort** (200 ohne Inhalt), bleibt dessen Verbindung offen, und die Punkte danach messen mit ihr (L473) | Genau einmal je `vorher`, unmittelbar gefolgt von `nach`. Bei einem Durchgang ohne Schreiben (`unveraendert`) kehrt `blk` bis `n` auf den Wert von `v` zurück (L468) | Ein Schritt, in dem `blk` um 1'000 oder mehr fällt und bis `n` nicht zurückkommt — das Bild von C71: Schritt, Werte, die `- update cache <datei> …`-Zeilen und den Vermerk „Flash-Schreiben beim Start“ ins Protokoll. „Erholt sich nicht“ gilt erst an einer Heap-Zeile mindestens 130 s nach `n`, die `tw` = 0 zeigt — vorher kann eine Verbindung in TIME_WAIT den Block noch scheinbar teilen (Spec §5.5) |
-| `- update cache nach frag=<v>/<1>/<2>/<3>/<4>/<5>/<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<n> acc=<n>` | Unmittelbar nach `heap`: `frag` an denselben sieben Messpunkten (`-` = nicht gelaufen; Lesart wie in `vorher`), dazu `tcp=` und `hc` am Ende des Durchgangs. `acc` = eingehende Verbindungen, die der ESP **während** des Durchgangs angenommen hat. So ist zu sehen, ob eine Anfrage in den Durchgang fiel und ob eine Verbindung der eigenen Abrufe noch in TIME_WAIT steht. `tcp=` und `hc` sind rund 10 ms **nach** `n` erhoben, weil dazwischen die Ausgabe der `heap`-Zeile abgewartet wird (`Serial.flush`) | Genau einmal je `vorher`. In einer Messung ohne Browser `acc=0`; `tw` über 0 aus den eigenen Abrufen ist erwartet und verfällt nach rund 120 s | `frag` steigt in einem Schritt und bleibt bis `n` oben — zusammen mit `heap` auswerten (C71). `acc` über 0 in einer Messung, die ohne Anfrage laufen sollte (Startmessung): Die Messung ist gestört, den Start so kennzeichnen |
+| `- update cache heap v=<free>/<blk> 1=… 2=… 3=… 4=… 5=… n=<free>/<blk>` | Am Ende des Durchgangs oder bei dessen Abbruch: freier Heap / grösster Block an sieben Messpunkten — `v` vor dem ersten Abruf (wie in `vorher`), `1` bis `3` nach je einer der drei Versionszeilen vom Update-Server (auch wenn sie scheiterte), `4` nach den Release Notes, `5` nach der STM-Liste — beide nach dem Schliessen des Abrufs und dem Aushängen des LittleFS —, `n` am Ende. `-` heisst: Schritt nicht gelaufen. Werte auf 65'535 gekappt. `free − blk` je Punkt ist der Teil des freien Heaps ausserhalb des grössten Blocks — für C71 die massgebliche Grösse, nicht `frag`. **Liefert der Server eine leere Antwort** (200 ohne Inhalt), blieb vor dem ESP-Release R1b dessen Verbindung offen, und die Punkte danach massen mit ihr (L473); seither schliesst `httpclient()` in diesem Fall selbst (C75) | Genau einmal je `vorher`, unmittelbar gefolgt von `nach`. Bei einem Durchgang ohne Schreiben (`unveraendert`) kehrt `blk` bis `n` auf den Wert von `v` zurück (L468) | Ein Schritt, in dem `blk` um 1'000 oder mehr fällt und bis `n` nicht zurückkommt — das Bild von C71: Schritt, Werte, die `- update cache <datei> …`-Zeilen und den Vermerk „Flash-Schreiben beim Start“ ins Protokoll. „Erholt sich nicht“ gilt erst an einer Heap-Zeile mindestens 130 s nach `n`, die `tw` = 0 zeigt — vorher kann eine Verbindung in TIME_WAIT den Block noch scheinbar teilen (Spec §5.5) |
+| `- update cache nach frag=<v>/<1>/<2>/<3>/<4>/<5>/<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<n> acc=<n>` | Unmittelbar nach `heap`: `frag` an denselben sieben Messpunkten (`-` = nicht gelaufen; Lesart wie in `vorher`), dazu `tcp=` und `hc` am Ende des Durchgangs. `acc` = eingehende Verbindungen, die der ESP **während** des Durchgangs angenommen hat. So ist zu sehen, ob eine Anfrage in den Durchgang fiel und ob eine Verbindung der eigenen Abrufe noch in TIME_WAIT steht. `tcp=` und `hc` sind rund 10 ms **nach** `n` erhoben, weil dazwischen die Ausgabe der `heap`-Zeile abgewartet wird (`Serial.flush`). **Lesart von `hc` seit dem ESP-Release R1b:** `hc` > 0 heisst nur noch „der httpclient hat seit dem Start so viele Verbindungen angelegt“, **nicht** mehr „ein Kontext liegt auf dem Heap“. Vorher hielt der statische httpclient seinen Kontext samt ungelesener Antwort bis zum nächsten Verbindungsaufbau; seit L7 gibt `httpclient_stop()` ihn bei jedem Schliessen frei. Eine Belegung zeigen `free` und `blk`, nicht `hc` | Genau einmal je `vorher`. In einer Messung ohne Browser `acc=0`; `tw` über 0 aus den eigenen Abrufen ist erwartet und verfällt nach rund 120 s | `frag` steigt in einem Schritt und bleibt bis `n` oben — zusammen mit `heap` auswerten (C71). `acc` über 0 in einer Messung, die ohne Anfrage laufen sollte (Startmessung): Die Messung ist gestört, den Start so kennzeichnen |
 | `- update cache tmp geloescht <datei>` | Der erste Durchgang nach einem Start hat eine liegengebliebene Temporärdatei (`upd-releasenote.tmp` oder `upd-wc-list.tmp`) gelöscht; gemessen am Ergebnis — vorher da, danach weg —, nicht am Rückgabewert des Löschens. Das ist ein Flash-Schreiben beim Start, das bis dahin ohne Zeile blieb | nie — eine Temporärdatei bleibt nur liegen, wenn ein Schreibvorgang mittendrin abbrach | jede: Im Protokoll als „Flash-Schreiben beim Start: ja“ vermerken, und im Mitschnitt vor dem Start nachsehen, was den letzten Schreibvorgang unterbrochen hat (Neustart, Absturz, Stromunterbruch) |
 | `- heap erste anfrage free=<n> max=<n>` | Seit dem ESP-Release R1 (I-6): einmal je ESP-Start beim ersten Annehmen einer **lebenden** Verbindung — auch einer, die ein Browser auf Vorrat öffnet und über die nie eine Anfragezeile kommt; eine tote Abholung (`http_accept_dead`) löst sie nicht aus. Inhalt: freier Heap und grösster freier Block in diesem Augenblick | Genau einmal je Start. In der Startmessung (keine Anfrage, bis `heap` erschienen ist, plus 130 s) kommt sie erst mit dem Smoketest danach | Mehr als eine je Start: Der ESP ist unbemerkt neu gestartet — Mitschnitt prüfen. Fehlt sie nach einem Start, obwohl Anfragen kamen. Kam die erste Anfrage **vor** dem Abgleich und liegt `max` schon deutlich unter dem Ruhewert: Zerstückelung vor dem Abgleich (Spec §5.5, N4) |
 | `- flash id=<hex6> vendor=<hex2>` | Seit dem ESP-Release R1 (I-6): einmal je ESP-Start in `setup()`, vor dem WLAN und vor dem ersten Flash-Schreiben: die JEDEC-Kennung des Flash-Chips (3 Byte, hexadezimal) und das Herstellerbyte. **`vendor=85` heisst PUYA:** Für diesen Hersteller legt der Core beim ersten Flash-Schreiben einen 256-Byte-Puffer an und gibt ihn nicht mehr frei | Genau einmal je Start, am selben Gerät immer derselbe Wert. Die Uhr meldet `vendor=c4`, kein PUYA (16.10.2026, L468) — N0 entfällt für sie | `vendor=85`: Kandidat N0 bzw. L0 aus der Spec (§5.5) prüfen — im ersten Schreibschritt ΔFree rund −264 ohne Erholung. Ein anderer Wert als beim vorigen Start; fehlt die Zeile nach einem Start |
