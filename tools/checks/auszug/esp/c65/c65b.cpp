@@ -11,6 +11,8 @@
 #include "have.inc"
 #include "defs.inc"
 #define TCP_MSS 536
+#define strncasecmp_P(a, b, n)  strncasecmp ((a), (b), (n))     /* R2 C70: Kopfname von If-None-Match */
+enum SeekMode { SeekSet = 0, SeekCur = 1, SeekEnd = 2 };
 
 /* ---- Verbindung */
 struct Versuch { size_t ret; unsigned long dauer; bool fin; int snd_danach; };
@@ -38,6 +40,7 @@ struct ClientB
     void setTimeout (unsigned long t) { timeout = t; }
     void flush () {}
     void stop () {}
+    int aborts = 0; void abort () { aborts++; }                       /* R2 C70 (AKC.7): Abbruch mit RST */
     uint8_t status () { return fin ? CLOSED : ESTABLISHED; }          /* E4 I-4 */
     std::vector<size_t> laengen;                                     /* E4 c65w: Laenge jedes write () */
 } http_client;
@@ -53,6 +56,9 @@ struct FileB
     int read (uint8_t * b, size_t n) { size_t k = std::min (n, d->size () - pos); memcpy (b, d->data () + pos, k); pos += k; return (int) k; }
     size_t size () const { return d ? d->size () : 0; }
     void close () { d = nullptr; }
+    /* R2 C70: wie LittleFS.h:434-453 - bei Fehlschlag bleibt die Position, hinter das Ende geht es nicht */
+    bool seek (uint32_t p, SeekMode m) { if (! d || m != SeekSet || p > d->size ()) return false; pos = p; return true; }
+    size_t position () const { return pos; }
 };
 struct FsB
 {
@@ -78,7 +84,13 @@ static void heap_low_snapshot (void) {}
 static void http_flush (void);
 static bool http_fs_file_exists_and_nonempty (const char *);
 #include "flush.inc"
+#include "c70.inc"
 #include "fsfile.inc"
+#ifdef HAVE_FS_APP_ASSET
+#define SENDFS(f, ct, gz)   http_send_fs_file ((f), (ct), (gz), 1)       /* R2 C70: ein App-Asset aus der Weissliste */
+#else
+#define SENDFS(f, ct, gz)   http_send_fs_file ((f), (ct), (gz))
+#endif
 
 /* ---- Hilfen */
 static void neu (void) { http_write_broken = 0; http_client = ClientB (); Serial.lines.clear (); ring.clear (); http_response_len = 0; http_response[0] = 0; }
@@ -135,6 +147,7 @@ int main (void)
 
     /* dieselben vier Lagen fuer http_send_fs_file (): Kopfzeilen gehen hinaus, Block 1 auch, Block 2 kurz */
     std::string inhalt (3000, 'g');
+    inhalt[0] = '\x1f'; inhalt[1] = '\x8b';                          /* R2 C70: gzip-Kennung - der ETag-Weg (seek, Trailer, zweites Lesen) laeuft mit */
     LittleFS.f["/app-app.js.gz"] = inhalt;
     for (auto & L : lagen)
     {
@@ -148,7 +161,7 @@ int main (void)
         for (auto & x : L.plan) http_client.plan.push_back (x);
         ESP.blk_seq = { 7000, 7000, 7000, 1234 };      /* Kopfzeilen-flush, fs-Block 1 (Messpunkt), fs-Block 2 entfaellt (jeder achte), Erhebung */
         ESP.blk_seq = { 7000, 7000, 1234 };
-        uint_fast8_t rtc = http_send_fs_file ("/app-app.js.gz", "application/javascript", 1);
+        uint_fast8_t rtc = SENDFS ("/app-app.js.gz", "application/javascript", 1);
         std::string z = zeile ("- fs write short: ");
         Stand s = stand ();
         size_t w = 0; for (auto & x : L.plan) w += std::min<size_t> (x.ret, 1072);
@@ -166,20 +179,27 @@ int main (void)
         fall ((n + ": write_lost_bytes = nicht ausgelieferte Byte der Datei").c_str (), s.bytes - v.bytes == erw, std::to_string (s.bytes - v.bytes) + " statt " + std::to_string (erw));
         fall ((n + ": Laenge <= 119").c_str (), z.size () <= 119, std::to_string (z.size ()));
         fall ((n + ": Sendezeitgrenze 2000 (M-3)").c_str (), http_client.timeout == 2000, std::to_string (http_client.timeout));
+        fall ((n + ": Abbruch ueber abort (), also RST (R2 C70, AKC.7)").c_str (), http_client.aborts == 1, std::to_string (http_client.aborts));
     }
     {   /* Datei vollstaendig: keine Zeile, kein Zaehler */
         neu (); Stand v = stand ();
-        uint_fast8_t rtc = http_send_fs_file ("/app-app.js.gz", "application/javascript", 1);
+        uint_fast8_t rtc = SENDFS ("/app-app.js.gz", "application/javascript", 1);
         Stand s = stand ();
         fall ("fs vollstaendig: Rueckgabe 1, keine Zeile, keine Zaehler", rtc == 1 && Serial.lines.empty () && s.blocks == v.blocks && s.fsw == v.fsw,
               std::to_string (rtc) + " " + std::to_string (Serial.lines.size ()));
         fall ("fs vollstaendig: alle Byte beim Client", http_client.empfangen.size () > 3000 && http_client.empfangen.compare (http_client.empfangen.size () - 3000, 3000, inhalt) == 0,
               std::to_string (http_client.empfangen.size ()));
+        {   /* R2 C70 (AKC.1, AKC.7, AKC.8): Kopfzeilen mit HTTP/1.1 und ETag in EINEM Schreibvorgang, regulaeres Ende */
+            const std::string & e = http_client.empfangen; size_t k = e.find ("\r\n\r\n");
+            fall ("fs vollstaendig (R2): Kopf HTTP/1.1 mit ETag in einem write ()", e.compare (0, 17, "HTTP/1.1 200 OK\r\n") == 0 && k != std::string::npos &&
+                  e.find ("\r\nETag: \"3000-6767676767676767\"\r\n") < k && ! http_client.laengen.empty () && http_client.laengen[0] == k + 4, e.substr (0, k == std::string::npos ? 80 : k));
+            fall ("fs vollstaendig (R2): kein abort ()", http_client.aborts == 0, std::to_string (http_client.aborts));
+        }
     }
     {   /* Kopfzeilen gehen nicht hinaus: eine Zeile (http write lost), kein Rumpfversuch */
         neu (); Stand v = stand ();
         http_client.plan.push_back ({ 0, 2000, false, 0 });
-        uint_fast8_t rtc = http_send_fs_file ("/app-app.js.gz", "application/javascript", 1);
+        uint_fast8_t rtc = SENDFS ("/app-app.js.gz", "application/javascript", 1);
         Stand s = stand ();
         fall ("fs Kopf verloren: genau eine Zeile, Rueckgabe 2", Serial.lines.size () == 1 && zeilen ("- http write lost") == 1 && rtc == 2,
               std::to_string (Serial.lines.size ()) + " rtc " + std::to_string (rtc));
@@ -197,7 +217,7 @@ int main (void)
         http_client.plan.push_back ({ 1071, 4294967295ul, false, 2147483647 });
 #endif
         ESP.blk_seq = { 1, 1, 4294967295u };
-        http_send_fs_file (name.c_str (), "x", 1);
+        SENDFS (name.c_str (), "x", 1);
         std::string z = zeile ("- fs write short: ");
         fall ("fs: laengste Form <= 119 und vollstaendig", z.size () <= 119 && z.find (" ms=4294967295") != std::string::npos, std::to_string (z.size ()) + ": " + z);
     }

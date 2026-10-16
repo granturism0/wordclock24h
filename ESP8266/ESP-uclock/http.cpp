@@ -252,6 +252,8 @@ static uint16_t     http_write_lost_blocks = 0;
 static uint16_t     http_write_lost_gone   = 0;     // C25/L270: verlorene Bloecke, Gegenstelle hatte schon abgebaut (Tab zu, Abbruch)
 static uint16_t     http_write_lost_failed = 0;     // C25/L270: verlorene Bloecke bei stehender Verbindung - das Geraet bekam nichts los
 static uint16_t     http_fs_write_short    = 0;     // E3 I-2 (C65): Dateiauslieferungen, die mitten in der Datei abbrachen (Teil von write_lost_blocks)
+static uint16_t     http_app_not_modified  = 0;     // R2 C70 (design.md 4.4): App-Assets mit 304 beantwortet, seit dem Start, saettigend
+static uint16_t     http_app_full          = 0;     // R2 C70: App-Assets (Weissliste, .gz) mit 200 und Rumpf, seit dem Start, saettigend
 static uint_fast8_t http_write_broken      = 0;
 
 /* Verbindungen, die angenommen wurden, aber nie eine Anfrage brachten. Zwei
@@ -2262,6 +2264,163 @@ http_content_type (const char * path)
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
+ * Paket 2026-10-15 R2.1 C70 (design.md 4.4, Ent-2 Variante T): ETag und 304 fuer die App-Assets
+ *
+ * Jedes Oeffnen der PWA holte bisher alle Assets vollstaendig, rund 200 KB (C70, L466). Mit ETag und If-None-Match
+ * beantwortet der ESP eine warme Ladung mit 304 ohne Rumpf; die Datei wird dafuer nicht gelesen, nur ihre Enden.
+ *
+ * ETag (Variante T): "<groesse der .gz>-<letzte 8 Byte der .gz als 16 Hexziffern>", Byte in Dateireihenfolge,
+ * Kleinbuchstaben. Die letzten 8 Byte einer gzip-Datei sind CRC-32 (zlib) und Laenge des entpackten Inhalts
+ * (RFC 1952, 2.3.1). Gelesen bei JEDER Antwort aus der Datei selbst: keine Tabelle, nichts zu invalidieren - ein
+ * Hochladen, ein OTA, ein Formatieren aendert die Datei und damit den Wert durch Bau. Beginnt die Datei nicht mit
+ * 1f 8b oder ist sie kuerzer als das kleinste gzip (APP_GZIP_MIN), gibt es KEIN ETag - die sichere Richtung: nie
+ * 304, immer der volle Inhalt. Werkzeuge bilden den erwarteten Wert aus den letzten 8 Byte der Repo-Datei.
+ *
+ * If-None-Match: in der Kopfzeilenschleife von http_server_loop () (nur GET; nur GET erreicht http_app ()) in einen
+ * statischen Puffer von APP_INM_LEN Byte, vor jeder Kopfzeilenschleife geleert. Kopfname ohne Ruecksicht auf
+ * Gross-/Kleinschreibung; der Wert darf eine Komma-Liste sein, W/ wird uebergangen (schwacher Vergleich,
+ * RFC 9110 13.1.2), "*" trifft NIE, und ein Wert, der nicht in den Puffer passt, wird nicht abgelegt und trifft
+ * damit nie. Kein String-Objekt, kein Heap.
+ *
+ * Statuszeile: HTTP/1.1 NUR fuer App-Assets in http_send_fs_file (), 200 und 304 (AKC.7) - Chrome sendet bei
+ * HTTP/1.0 fuer das Dokument kein If-None-Match (Pruefserver, 15.10.2026). Beide senden "Connection: close", der
+ * ESP schliesst danach wie bisher; Keep-Alive entsteht nicht. Die 200 traegt Content-Length gleich der
+ * Dateigroesse, ein Abbruch endet mit RST (abort ()), nie mit FIN. Kein Date-Kopf: ohne verlaessliche Uhr nicht zu
+ * senden (RFC 9110 6.6.1). Legacy, die /api/-Antworten und die Hinweisseiten in http_app () bleiben HTTP/1.0.
+ *
+ * RAM: APP_INM_LEN Byte Puffer und 4 Byte Zaehler (http_app_not_modified, http_app_full, bei den
+ * Auslieferungszaehlern oben) statisch. Stack: APP_ETAG_LEN + 8 Byte in http_send_fs_file ().
+ * Kosten je App-Asset-Antwort: 2 Byte am Anfang lesen, ein seek ans Ende - 8, 8 Byte lesen, ein seek an den Anfang.
+ *-------------------------------------------------------------------------------------------------------------------------------------------
+ */
+#define APP_INM_LEN                                 36              // If-None-Match samt Endnull (design.md 4.4, AKZ.8)
+#define APP_ETAG_LEN                                32              // ETag samt Anfuehrungszeichen und Endnull: hoechstens 2 + 10 + 1 + 16 + 1 = 30
+#define APP_GZIP_MIN                                18              // kleinstes gzip: 10 Byte Kopf, 8 Byte Trailer (RFC 1952)
+
+static char             http_request_if_none_match[APP_INM_LEN];   // "" = kein Kopf, leer oder zu lang
+
+static void
+http_clear_request_if_none_match (void)
+{
+    http_request_if_none_match[0] = '\0';
+}
+
+static void
+http_capture_request_if_none_match (const String& line)
+{
+    const char *    p = line.c_str ();
+    size_t          n;
+
+    if (strncasecmp_P (p, PSTR ("If-None-Match:"), 14))       // Kopfname ohne Ruecksicht auf Gross-/Kleinschreibung, Muster im Flash
+    {
+        return;
+    }
+
+    p += 14;
+
+    while (*p == ' ' || *p == '\t')
+    {
+        p++;
+    }
+
+    n = strlen (p);
+
+    while (n > 0 && (p[n - 1] == ' ' || p[n - 1] == '\t'))
+    {
+        n--;
+    }
+
+    if (n >= APP_INM_LEN)                                       // ueberlang: nicht ablegen, trifft damit nie
+    {
+        n = 0;
+    }
+
+    memcpy (http_request_if_none_match, p, n);
+    http_request_if_none_match[n] = '\0';
+}
+
+/* ETag nach Variante T in etag (mindestens APP_ETAG_LEN Byte), "" ohne gzip-Datei.
+ * Rueckgabe true: fp steht wieder am Dateianfang. false: der seek zurueck an den Anfang scheiterte - dann darf aus fp
+ * nichts ausgeliefert werden, sonst ginge ein Rumpf hinaus, der nicht vom Dateianfang stammt (design.md 4.4).
+ */
+static bool
+http_app_etag (File& fp, char * etag, size_t etag_size)
+{
+    uint8_t     t[8];
+    size_t      size = fp.size ();
+
+    etag[0] = '\0';
+
+    if (size < APP_GZIP_MIN)
+    {
+        return true;                                            // nichts gelesen, fp steht am Anfang
+    }
+
+    if (fp.read (t, 2) == 2 && t[0] == 0x1f && t[1] == 0x8b &&
+        fp.seek ((uint32_t) (size - 8), SeekSet) && fp.read (t, 8) == 8)
+    {
+        snprintf_P (etag, etag_size, PSTR ("\"%lu-%02x%02x%02x%02x%02x%02x%02x%02x\""), (unsigned long) size,
+                    t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]);
+    }
+
+    if (! fp.seek (0, SeekSet))
+    {
+        etag[0] = '\0';
+        return false;
+    }
+
+    return true;
+}
+
+/* Trifft If-None-Match dieser Anfrage das ETag? Ohne ETag nie. */
+static bool
+http_app_if_none_match_hits (const char * etag)
+{
+    const char *    p = http_request_if_none_match;
+    size_t          n = strlen (etag);
+
+    if (! n)
+    {
+        return false;
+    }
+
+    while (*p)
+    {
+        const char *    e;
+        const char *    z;
+
+        while (*p == ' ' || *p == '\t' || *p == ',')
+        {
+            p++;
+        }
+
+        if (p[0] == 'W' && p[1] == '/')                         // schwaches ETag: fuer If-None-Match gleichwertig
+        {
+            p += 2;
+        }
+
+        for (e = p; *e && *e != ','; e++)
+        {
+            ;
+        }
+
+        for (z = e; z > p && (z[-1] == ' ' || z[-1] == '\t'); z--)
+        {
+            ;
+        }
+
+        if ((size_t) (z - p) == n && ! memcmp (p, etag, n))     // "*" ist ein Zeichen lang und trifft nie ein ETag
+        {
+            return true;
+        }
+
+        p = e;
+    }
+
+    return false;
+}
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------
  * http_send_fs_file () - eine Datei aus dem LittleFS ausliefern
  *
  * Rueckgabewert:
@@ -2269,12 +2428,16 @@ http_content_type (const char * path)
  *   1 = vollstaendig gesendet
  *   2 = nach gesendeten Kopfzeilen abgebrochen, Verbindung verbraucht -
  *       der Aufrufer darf KEINE zweite Antwort mehr in diese Verbindung schreiben
+ *
+ * app_asset: die Datei ist ein Eintrag der Weissliste APP_INSTALL_ASSETS (R2 C70). Nur mit app_asset UND
+ * gzip_encoded gehen HTTP/1.1, ETag und 304 hinaus; sonst die Antwort wie bis ESP 3.2.39, HTTP/1.0 ohne ETag.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 static uint_fast8_t
-http_send_fs_file (const char * filename, const char * content_type, uint_fast8_t gzip_encoded)
+http_send_fs_file (const char * filename, const char * content_type, uint_fast8_t gzip_encoded, uint_fast8_t app_asset)
 {
     uint_fast8_t    rtc = 0;
+    uint_fast8_t    cache = (app_asset && gzip_encoded);          // R2 C70: HTTP/1.1, ETag, 304
 
     LittleFS.begin ();
 
@@ -2285,9 +2448,23 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
      */
     if (http_fs_file_exists_and_nonempty (filename))
     {
-        File fp = LittleFS.open (filename, "r");
+        File            fp = LittleFS.open (filename, "r");
+        char            etag[APP_ETAG_LEN];                         // R2 C70: "" = kein ETag
+        uint_fast8_t    not_modified = 0;
 
-        if (fp)
+        etag[0] = '\0';
+
+        if (fp && cache && ! http_app_etag (fp, etag, sizeof (etag)))
+        {
+            /* R2 C70: seek zurueck an den Anfang gescheitert. Nichts ausliefern, was nicht vom Dateianfang stammt;
+             * rtc bleibt 0, der Aufrufer antwortet selbst (404 bzw. Hinweisseite). Nur im Fehlerfall eine Zeile.
+             */
+            Serial.print (F("- fs seek error: "));
+            Serial.println (filename);
+            Serial.flush ();
+            fp.close ();
+        }
+        else if (fp)
         {
             /* Nagle nur fuer die Dateiauslieferung einschalten. Die pauschale Zeile
              * http_client.setNoDelay (1) beim Annehmen der Verbindung bleibt stehen:
@@ -2301,17 +2478,55 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
             http_client.setNoDelay (0);
             http_client.setTimeout (HTTP_FILE_WRITE_TIMEOUT_MS);   // E3 M-3: Dateiauslieferung, gilt auch fuer die Kopfzeilen
 
-            http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
-            http_send (content_type);
+            not_modified = (etag[0] && http_app_if_none_match_hits (etag));
 
-            if (gzip_encoded)
+            if (not_modified)
             {
-                http_send (FS("\r\nContent-Encoding: gzip"));
+                /* R2 C70 (AKC.2): ohne Koerper und ohne Content-Length; die Leseschleife unten laeuft nicht */
+                http_send (FS("HTTP/1.1 304 Not Modified\r\nETag: "));
+                http_send (etag);
+                http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
+
+                if (http_app_not_modified < 0xFFFF)
+                {
+                    http_app_not_modified++;
+                }
+            }
+            else
+            {
+                if (cache)
+                {
+                    http_send (FS("HTTP/1.1 200 OK\r\nContent-Type: "));     // R2 C70 (AKC.7): nur App-Assets als .gz
+
+                    if (http_app_full < 0xFFFF)
+                    {
+                        http_app_full++;
+                    }
+                }
+                else
+                {
+                    http_send (FS("HTTP/1.0 200 OK\r\nContent-Type: "));
+                }
+
+                http_send (content_type);
+
+                if (gzip_encoded)
+                {
+                    http_send (FS("\r\nContent-Encoding: gzip"));
+                }
+
+                http_send (FS("\r\nContent-Length: "));
+                http_send (String (fp.size ()).c_str ());
+
+                if (etag[0])
+                {
+                    http_send (FS("\r\nETag: "));
+                    http_send (etag);
+                }
+
+                http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
             }
 
-            http_send (FS("\r\nContent-Length: "));
-            http_send (String (fp.size ()).c_str ());
-            http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
             http_flush ();
 
             /* Lesepuffer ist bewusst der bereits vorhandene statische Antwortpuffer:
@@ -2337,7 +2552,7 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
                 rtc = 2;
             }
 
-            while (! http_write_broken && fp.available ())
+            while (! not_modified && ! http_write_broken && fp.available ())
             {
                 int len = fp.read ((uint8_t *) http_response, MAX_HTTP_RESPONSE_LEN);
 
@@ -2468,9 +2683,21 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
                 yield ();
             }
 
-            http_client.flush ();
-            fp.close ();
-            http_client.stop ();
+            if (rtc == 2)
+            {
+                /* R2 C70 (AKC.7): Abbruch mit RST, nie regulaer - Content-Length ist zugesagt. Bis ESP 3.2.39 stand
+                 * hier auch im Abbruch stop (): Es sendete FIN, und das abort () am Ende von http_server_loop () fand
+                 * danach keinen pcb mehr (ClientContext.h:58-92, close () setzt _pcb = nullptr).
+                 */
+                fp.close ();
+                http_client.abort ();
+            }
+            else
+            {
+                http_client.flush ();
+                fp.close ();
+                http_client.stop ();
+            }
 
             if (rtc == 0)
             {
@@ -3004,6 +3231,7 @@ http_app (const char * path)
     uint_fast8_t    is_pwa_index = 0;
     uint_fast8_t    gzip_encoded = 0;
     uint_fast8_t    sent = 0;
+    uint_fast8_t    app_asset = 0;                                  // R2 C70: Eintrag der Weissliste APP_INSTALL_ASSETS
     bool            app_complete = false;
     bool            remote_app_available = false;
 
@@ -3016,6 +3244,7 @@ http_app (const char * path)
         }
 
         is_pwa_index = 1;
+        app_asset    = (http_find_app_install_asset ("app/index.html") != 0);
     }
     else if (! strncmp (path, PWA_PREFIX "/", strlen (PWA_PREFIX "/")))
     {
@@ -3029,6 +3258,8 @@ http_app (const char * path)
             http_flush ();
             return 0;
         }
+
+        app_asset = (http_find_app_install_asset (asset_path) != 0);
     }
     else
     {
@@ -3119,7 +3350,7 @@ http_app (const char * path)
 
     if (! is_pwa_index || app_complete)
     {
-        sent = http_send_fs_file (filename, content_type, gzip_encoded);
+        sent = http_send_fs_file (filename, content_type, gzip_encoded, app_asset);
     }
 
     if (sent)
@@ -15242,6 +15473,8 @@ http_api_device_ready ()
     }
     http_json_send_uint_field (FS("tcp_now_more"), (unsigned long) tcp_now.more);
     http_json_send_uint_field (FS("http_accept_dead"), (unsigned long) http_accept_dead);           // R1.1 I-5: seit dem Start
+    http_json_send_uint_field (FS("app_not_modified"), (unsigned long) http_app_not_modified);      // R2 C70: 304 auf App-Assets, seit dem Start
+    http_json_send_uint_field (FS("app_full"), (unsigned long) http_app_full);                      // R2 C70: 200 mit Rumpf auf App-Assets
     http_send (FS("}"));
     http_flush ();
     return 0;
@@ -17258,6 +17491,8 @@ http_server_loop (void)
     }
     else // GET
     {
+        http_clear_request_if_none_match ();                                // R2 C70: je Anfrage; nur GET erreicht http_app ()
+
         while (read_line (sHeaderLine))
         {
             if (sHeaderLine == "")
@@ -17276,6 +17511,10 @@ http_server_loop (void)
             else if (sHeaderLine.startsWith ("Sec-Fetch-Dest:"))
             {
                 http_capture_request_fetch_dest (sHeaderLine);
+            }
+            else
+            {
+                http_capture_request_if_none_match (sHeaderLine);          // R2 C70: prueft den Kopfnamen selbst
             }
         }
 

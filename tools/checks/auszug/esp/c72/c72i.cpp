@@ -83,6 +83,8 @@ static bool http_read_request_line (String & line, unsigned long) { line = Strin
 static bool read_line (String &) { return false; }
 static void http_capture_request_user_agent (const String &) {}
 static void http_capture_request_fetch_dest (const String &) {}
+static void http_clear_request_if_none_match (void) {}             /* R2 C70: Gegenstand von c70e */
+static void http_capture_request_if_none_match (const String &) {}
 static void http_log_request (const String &, const char *, const String &) {}
 static const char * http_get_request_browser_label (void) { return ""; }
 static uint_fast8_t http_api_query_too_long (const char *, size_t) { return 0; }
@@ -308,7 +310,10 @@ int main (void)
             "http_backlog", "api_orphan_skipped",
             "tcp_now_states", "tcp_now_tw", "tcp_now_pending", "tcp_now_unclaimed", "tcp_now_self_port", "tcp_now_list", "tcp_now_more", "http_accept_dead" };
         std::string w; for (auto & k : keys) w += k + " ";
-        fall ("A8 Felder: Bestand unveraendert, I-5 dahinter in der Reihenfolge der Spec", keys == soll, w);
+        std::vector<std::string> r2 = { "app_not_modified", "app_full" };       /* R2 C70 (AKC.4): hinter den I-5-Feldern */
+        bool passt = keys == soll || (keys.size () == soll.size () + r2.size () && std::equal (soll.begin (), soll.end (), keys.begin ()) &&
+                                      std::equal (r2.begin (), r2.end (), keys.begin () + soll.size ()));
+        fall ("A8 Felder: Bestand unveraendert, I-5 dahinter in der Reihenfolge der Spec (ab R2 dahinter app_not_modified, app_full)", passt, w);
         fall ("A8 Antwort endet mit }", ! out.empty () && out.back () == '}', out.substr (out.size () > 20 ? out.size () - 20 : 0));
     }
     /* --- B: http_accept_dead im echten http_server_loop () */

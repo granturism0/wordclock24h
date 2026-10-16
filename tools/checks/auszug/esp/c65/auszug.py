@@ -116,6 +116,9 @@ i4 = bis_funktion(H, '#define HEAP_LOW_PCB_STATES', 'heap_low_snapshot (void)')
 put('i4.inc', cur_req(H) + ''.join(l + '\n' for l in i4.split('\n')[:-1] if not re.match(r'^static const String \* +http_cur_req', l)), 'HAVE_I4')
 # Paket 2026-10-15 R1.1 (I-5): device_ready, http_server_loop () und esp_heap_log () rufen den I-5-Block
 put('i5.inc', bis_funktion(H, '#define TCP_NOW_LIST_MAX', 'http_no_request_timeouts_get (void)'), 'HAVE_I5')
+# Paket 2026-10-15 R2 (C70): If-None-Match, ETag und Vergleich, die http_send_fs_file () ruft; vierter Parameter app_asset
+put('c70.inc', bis_funktion(H, '#define APP_INM_LEN', 'http_app_if_none_match_hits ('), 'HAVE_C70')
+if 'uint_fast8_t gzip_encoded, uint_fast8_t app_asset)' in H: have.append('HAVE_FS_APP_ASSET')
 put('scan.inc', lines(H, r'^#define HTTP_MAX_SCAN_NETWORKS\s') + func(H, 'http_api_network_scan ('), 'HAVE_SCAN')
 if 'HTTP_WRITE_CHUNK' in H: have.append('HAVE_CHUNK')
 if 'update_cache_force' in H: have.append('HAVE_ABGLEICH')            # E4.5a

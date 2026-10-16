@@ -74,6 +74,8 @@ static bool http_read_request_line (String & line, unsigned long) { line = Strin
 static bool read_line (String &) { return false; }
 static void http_capture_request_user_agent (const String &) {}
 static void http_capture_request_fetch_dest (const String &) {}
+static void http_clear_request_if_none_match (void) {}             /* R2 C70: Gegenstand von c70e */
+static void http_capture_request_if_none_match (const String &) {}
 static void http_log_request (const String &, const char *, const String &) {}
 static const char * http_get_request_browser_label (void) { return ""; }
 static uint_fast8_t http_api_query_too_long (const char *, size_t) { return 0; }

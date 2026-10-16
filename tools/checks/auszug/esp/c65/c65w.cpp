@@ -14,6 +14,8 @@
 #include "have.inc"
 #include "defs.inc"
 #define TCP_MSS 536
+#define strncasecmp_P(a, b, n)  strncasecmp ((a), (b), (n))     /* R2 C70: Kopfname von If-None-Match */
+enum SeekMode { SeekSet = 0, SeekCur = 1, SeekEnd = 2 };
 
 /* ---- Verbindung */
 struct Versuch { size_t ret; unsigned long dauer; bool fin; int snd_danach; };
@@ -41,6 +43,7 @@ struct ClientB
     void setTimeout (unsigned long t) { timeout = t; }
     void flush () {}
     void stop () {}
+    int aborts = 0; void abort () { aborts++; }                       /* R2 C70 (AKC.7): Abbruch mit RST */
     uint8_t status () { return fin ? CLOSED : ESTABLISHED; }          /* E4 I-4 */
     std::vector<size_t> laengen;                                     /* E4 c65w: Laenge jedes write () */
 } http_client;
@@ -56,6 +59,9 @@ struct FileB
     int read (uint8_t * b, size_t n) { size_t k = std::min (n, d->size () - pos); memcpy (b, d->data () + pos, k); pos += k; return (int) k; }
     size_t size () const { return d ? d->size () : 0; }
     void close () { d = nullptr; }
+    /* R2 C70: wie LittleFS.h:434-453 - bei Fehlschlag bleibt die Position, hinter das Ende geht es nicht */
+    bool seek (uint32_t p, SeekMode m) { if (! d || m != SeekSet || p > d->size ()) return false; pos = p; return true; }
+    size_t position () const { return pos; }
 };
 struct FsB
 {
@@ -81,7 +87,13 @@ static void heap_low_snapshot (void) {}
 static void http_flush (void);
 static bool http_fs_file_exists_and_nonempty (const char *);
 #include "flush.inc"
+#include "c70.inc"
 #include "fsfile.inc"
+#ifdef HAVE_FS_APP_ASSET
+#define SENDFS(f, ct, gz)   http_send_fs_file ((f), (ct), (gz), 1)       /* R2 C70: ein App-Asset aus der Weissliste */
+#else
+#define SENDFS(f, ct, gz)   http_send_fs_file ((f), (ct), (gz))
+#endif
 
 
 /* ---- Hilfen */
@@ -140,14 +152,17 @@ int main (void)
     }
     /* --- Dateiauslieferung */
     std::string datei = muster (3000);
+    datei[0] = '\x1f'; datei[1] = '\x8b';                            /* R2 C70: gzip-Kennung - der ETag-Weg laeuft mit */
     LittleFS.f["/app-app.js.gz"] = datei;
     {
         neu ();
-        uint_fast8_t rtc = http_send_fs_file ("/app-app.js.gz", "application/javascript", 1);
+        uint_fast8_t rtc = SENDFS ("/app-app.js.gz", "application/javascript", 1);
         size_t kopf = http_client.empfangen.size () - std::min<size_t> (http_client.empfangen.size (), 3000);
         fall ("W fs vollstaendig: nie mehr als 536 je write ()", groesste () <= 536, L ());
         fall ("W fs vollstaendig: 1 + 6 write () (Kopf, 3 Bloecke zu je 2 Stuecken)", http_client.laengen.size () == 7, L ());
         fall ("W fs vollstaendig: Datei unverfaelscht, Rueckgabe 1", rtc == 1 && http_client.empfangen.compare (kopf, 3000, datei) == 0, std::to_string (http_client.empfangen.size ()));
+        fall ("W fs vollstaendig (R2 C70): Kopf HTTP/1.1 mit ETag im ersten write ()", http_client.empfangen.compare (0, 17, "HTTP/1.1 200 OK\r\n") == 0 &&
+              http_client.empfangen.find ("\r\nETag: \"3000-") < kopf && http_client.laengen[0] == kopf, L ());
     }
     struct FR { const char * name; std::vector<Versuch> plan; const char * w; size_t writes; };
     FR fr[] = {
@@ -159,7 +174,7 @@ int main (void)
     {
         neu (); http_client.plan.push_back ({ VOLL, 0, false, 1072 });    /* Kopfzeilen */
         for (auto & x : f.plan) http_client.plan.push_back (x);
-        uint_fast8_t rtc = http_send_fs_file ("/app-app.js.gz", "application/javascript", 1);
+        uint_fast8_t rtc = SENDFS ("/app-app.js.gz", "application/javascript", 1);
         std::string z = zeile ("- fs write short: ");
         std::string n = std::string ("W fs ") + f.name;
         fall ((n + ": n=1072, w=").c_str (), feld (z, "n=") == "1072" && feld (z, "w=") == f.w, z);
