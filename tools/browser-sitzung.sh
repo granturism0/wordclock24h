@@ -4,7 +4,8 @@
 # (/api/device_ready) und die Mac-Seite (netstat, lsof).
 #
 #   ./tools/browser-sitzung.sh safari      Safari auf diesem Mac, per open/osascript bedient
-#   ./tools/browser-sitzung.sh chrome      Chrome auf diesem Mac
+#   ./tools/browser-sitzung.sh chrome      Chrome auf diesem Mac, mit EIGENEM Wegwerfprofil ueber die
+#                                          DevTools-Schnittstelle bedient -- nie das Profil des Nutzers
 #   ./tools/browser-sitzung.sh manuell     ein Geraet des Nutzers (iPhone ...): das Skript nennt
 #                                          jede Phase, der Nutzer bedient, das Skript liest (G9.3)
 #   BROWSER_SITZUNG_HOST=<host>            andere Adresse (Gegenprobe: 192.0.2.1 ist nie erreichbar)
@@ -70,10 +71,34 @@ aus() { printf '%s\n' "$*"; printf '%s\n' "$*" >> "$MIT"; }
 # Abbruch (Strg-C, Signal): sagen, in welcher Phase, und dass der Browser noch laufen kann (Review S9).
 abbruch() {
   aus "=== ABGEBROCHEN in $PHASE um $(date +%H:%M:%S) ==="
+  [ "$ART" = chrome ] && { chrome_weg; aus "    eigenes Chrome beendet, Wegwerfprofil geloescht"; exit 2; }
   [ -n "$PROZ" ] && pgrep -xq "$PROZ" && aus "    $APP laeuft noch -- bei Bedarf selbst beenden"
   exit 2
 }
 trap abbruch INT TERM HUP
+
+# Chrome (16.10.2026): Bis dahin steuerte das Skript das Chrome des NUTZERS per AppleScript und beendete
+# es mit quit. Am selben Tag hat genau dieses Muster bei Safari die gespeicherte Sitzung des Nutzers
+# (rund 40 Tabs) zerstoert -- ein Browser, der beendet wird, ueberschreibt seine letzte Sitzung. Chrome
+# laeuft deshalb wie in tools/ladeprobe.sh mit einem eigenen Profil aus mktemp, sichtbar (ein verborgener
+# Tab soll sich wie im Alltag verhalten), und beendet wird nur DIESER Prozess.
+CHROME=${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
+CDP_PORT=${BROWSER_SITZUNG_CDP_PORT:-9233}
+WORK=""; CHROME_PID=""
+chrome_weg() {
+  [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null && wait "$CHROME_PID" 2>/dev/null
+  CHROME_PID=""
+  case "$WORK" in "${TMPDIR:-/tmp}"*browser-sitzung.*) rm -rf "${WORK:?}" ;; esac
+  WORK=""
+}
+trap '[ "$ART" = chrome ] && chrome_weg' EXIT     # jeder Ausgang raeumt das eigene Chrome weg
+cdp() { curl -s -m 5 "$@"; }
+cdp_tabs() {   # Zahl der Seiten im eigenen Chrome, deren URL die Uhr enthaelt
+  cdp "http://127.0.0.1:$CDP_PORT/json/list" | python3 -c "import json,sys; h=sys.argv[1]; print(sum(1 for t in json.load(sys.stdin) if t.get('type')=='page' and ('//'+h+'/') in t.get('url','')))" "$HOST" 2>/dev/null
+}
+cdp_ids() {    # Kennungen dieser Seiten
+  cdp "http://127.0.0.1:$CDP_PORT/json/list" | python3 -c "import json,sys; h=sys.argv[1]; [print(t['id']) for t in json.load(sys.stdin) if t.get('type')=='page' and ('//'+h+'/') in t.get('url','')]" "$HOST" 2>/dev/null
+}
 
 lesung() {   # $1 = Phase
   local p=$1 dr port rc n
@@ -136,6 +161,7 @@ osa() {   # AppleScript ausfuehren; Fehlschlag zaehlt und erscheint in Konsole U
 }
 
 tabs_mit_host() {   # Zahl der Tabs, deren URL die Uhr enthaelt
+  [ "$ART" = chrome ] && { cdp_tabs; return; }
   osascript -e "tell application \"$APP\" to count (every tab of every window whose URL contains \"$HOST\")" 2>/dev/null \
     | tr -d ' ' | awk -F, '{s=0; for(i=1;i<=NF;i++) s+=$i; print s}'
 }
@@ -168,7 +194,16 @@ else
   # Unmittelbar vor dem Oeffnen nochmals: Hat der Nutzer in S0 selbst den Browser gestartet,
   # wuerde open einen Tab in SEINEM Browser oeffnen und S4 ihn beenden (Review S1).
   if pgrep -xq "$PROZ"; then aus "ABBRUCH vor S1: $APP wurde inzwischen gestartet -- nicht meiner."; exit 2; fi
-  open -a "$APP" "$URL" || { aus "  BEDIENUNG FEHLGESCHLAGEN: open"; FEHL=$((FEHL+1)); }
+  if [ "$ART" = chrome ]; then
+    [ -x "$CHROME" ] || { aus "ABBRUCH: Chrome nicht gefunden: $CHROME"; exit 2; }
+    WORK=$(mktemp -d "${TMPDIR:-/tmp}/browser-sitzung.XXXXXX") || exit 2
+    "$CHROME" --user-data-dir="$WORK/profil" --remote-debugging-port="$CDP_PORT" --no-first-run \
+      --no-default-browser-check --disable-sync --new-window "$URL" > "$WORK/chrome.log" 2>&1 &
+    CHROME_PID=$!
+    aus "    eigenes Chrome PID $CHROME_PID, Profil $WORK/profil, DevTools 127.0.0.1:$CDP_PORT"
+  else
+    open -a "$APP" "$URL" || { aus "  BEDIENUNG FEHLGESCHLAGEN: open"; FEHL=$((FEHL+1)); }
+  fi
   sleep 8
   n=$(tabs_mit_host); aus "    Tabs mit der Uhr: ${n:-?}"
   [ "${n:-0}" -ge 1 ] || { aus "  BEDIENUNG FEHLGESCHLAGEN: PWA-Tab nicht gefunden (Willkommensdialog?)"; FEHL=$((FEHL+1)); }
@@ -179,7 +214,10 @@ PHASE=S2; aus "S2 $(date +%H:%M:%S) neuer Tab about:blank vorn, PWA verborgen"
 case "$ART" in
   manuell) zuruf "Oeffne einen neuen, leeren Tab im Vordergrund. Die Uhr-Seite bleibt offen, aber verborgen." ;;
   safari)  osa 'tell application "Safari" to tell front window to set current tab to (make new tab with properties {URL:"about:blank"})' "neuer Tab" ;;
-  chrome)  osa 'tell application "Google Chrome" to tell front window to make new tab with properties {URL:"about:blank"}' "neuer Tab" ;;
+  chrome)
+    neu=$(cdp -X PUT "http://127.0.0.1:$CDP_PORT/json/new?about:blank" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+    if [ -n "$neu" ] && cdp "http://127.0.0.1:$CDP_PORT/json/activate/$neu" >/dev/null; then aus "    neuer Tab $neu vorn"
+    else aus "  BEDIENUNG FEHLGESCHLAGEN: neuer Tab (DevTools)"; FEHL=$((FEHL+1)); fi ;;
 esac
 warte "$D2"; lesung S2
 
@@ -187,7 +225,11 @@ PHASE=S3; aus "S3 $(date +%H:%M:%S) PWA-Tab geschlossen, Browser laeuft weiter"
 if [ "$ART" = manuell ]; then
   zuruf "Schliesse den Tab mit der Uhr. Den Browser NICHT beenden."
 else
-  osa "tell application \"$APP\" to close (every tab of every window whose URL contains \"$HOST\")" "Tab schliessen"
+  if [ "$ART" = chrome ]; then
+    for id in $(cdp_ids); do cdp "http://127.0.0.1:$CDP_PORT/json/close/$id" >/dev/null || { aus "  BEDIENUNG FEHLGESCHLAGEN: Tab $id schliessen"; FEHL=$((FEHL+1)); }; done
+  else
+    osa "tell application \"$APP\" to close (every tab of every window whose URL contains \"$HOST\")" "Tab schliessen"
+  fi
   n=$(tabs_mit_host); aus "    Tabs mit der Uhr danach: ${n:-?}"
   [ "${n:-1}" -eq 0 ] || { aus "  BEDIENUNG FEHLGESCHLAGEN: PWA-Tab noch offen"; FEHL=$((FEHL+1)); }
 fi
@@ -197,7 +239,8 @@ PHASE=S4; aus "S4 $(date +%H:%M:%S) $APP beendet"
 if [ "$ART" = manuell ]; then
   zuruf "Beende den Browser ganz (auf dem iPhone: aus der App-Uebersicht wischen)."
 else
-  osa "tell application \"$APP\" to quit" "beenden"
+  if [ "$ART" = chrome ]; then chrome_weg; aus "    eigenes Chrome beendet, Wegwerfprofil geloescht"
+  else osa "tell application \"$APP\" to quit" "beenden"; fi
 fi
 warte "$D4"; lesung S4
 
