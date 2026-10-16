@@ -46,6 +46,8 @@ const WARM = Number(process.env.LADEPROBE_WARM ?? 5);
 // fehler); LADEPROBE_ETAG_PFAD nennt einen Pfad, dessen ETag und Leitungsstatus je Laden ausgegeben werden.
 const HAKEN = process.env.LADEPROBE_HAKEN || "";
 const ETAG_PFAD = process.env.LADEPROBE_ETAG_PFAD || "";
+// Probe U (R2b, U1b/U2/U3): je Anfrage eine Zeile "  D <url> <leitung|cache> <status> cc=<Cache-Control> etag=<ETag>".
+const DETAIL = process.env.LADEPROBE_DETAIL === "1";
 // Pfade, die dieses Profil schon einmal geladen hat. Ein 200 auf einen NEUEN Pfad ist kein Verstoss gegen --erwarte-304:
 // Der Browser kann nicht nachfragen, was er nie hatte (G10.1, 16.10.2026: i18n/en.json erst nach dem Sprachwechsel).
 const gesehen = new Set();
@@ -108,7 +110,7 @@ ws.addEventListener("message", e => {
   if (!lauf) return;
   if (m.method === "Page.loadEventFired") lauf.ladeEnde = true;
   if (m.method === "Network.requestWillBeSent" && istApp(p.request.url)) {
-    if (!lauf.anfragen.has(p.requestId)) lauf.anfragen.set(p.requestId, { pfad: pfadVon(p.request.url), status: "?", byte: 0, cache: false, inm: false });
+    if (!lauf.anfragen.has(p.requestId)) lauf.anfragen.set(p.requestId, { pfad: pfadVon(p.request.url), url: p.request.url, status: "?", byte: 0, cache: false, inm: false });
     lauf.letzte = Date.now();
   }
   // If-None-Match steht nur in den tatsaechlich gesendeten Kopfzeilen (Review M4): Ohne sie
@@ -119,6 +121,8 @@ ws.addEventListener("message", e => {
     lauf.extra.set(p.requestId, p.statusCode);
     const h = p.headers || {}; const k = Object.keys(h).find(x => x.toLowerCase() === "etag");
     if (k) lauf.etag.set(p.requestId, h[k]);
+    const c = Object.keys(h).find(x => x.toLowerCase() === "cache-control");
+    if (c) lauf.cc.set(p.requestId, h[c]);
   }
   if (m.method === "Network.requestServedFromCache" && lauf.anfragen.has(p.requestId)) { const a = lauf.anfragen.get(p.requestId); a.cache = true; a.fertig = true; }
   if (m.method === "Network.responseReceived" && lauf.anfragen.has(p.requestId)) {
@@ -161,7 +165,7 @@ async function laden(nr, art, aktion) {
   if (spaet.length) { aus(`    SPAET (ausserhalb eines Fensters, nicht gezaehlt): ${spaet.join(", ")}`); fehl++; spaet = []; }
   try { await geraet("/api/device_ready?heap_low_reset=1"); }
   catch (e) { aus(`${zeit()}  #${nr} ${art}: device_ready nicht erreichbar (${e.message})`); fehl++; return; }
-  lauf = { anfragen: new Map(), extra: new Map(), inm: new Map(), etag: new Map(), letzte: Date.now(), ladeEnde: false };
+  lauf = { anfragen: new Map(), extra: new Map(), inm: new Map(), etag: new Map(), cc: new Map(), letzte: Date.now(), ladeEnde: false };
   const t0 = Date.now();
   await aktion();
   const ruhig = await warteRuhe();
@@ -172,6 +176,7 @@ async function laden(nr, art, aktion) {
     else if (!a.cache && typeof a.status === "number") ohneLeitung++;
     a.inm = lauf.inm.get(id) === true;
     a.etag = lauf.etag.get(id) || "";
+    a.cc = lauf.cc.get(id) || "";
     a.neu = !gesehen.has(a.pfad);
   }
   const liste = [...lauf.anfragen.values()];
@@ -214,6 +219,10 @@ async function laden(nr, art, aktion) {
     if (leitung304.length) { aus(`    FEHL --erwarte-cache: warm: Cache erwartet, 304 erhalten: ${leitung304.map(a => a.pfad).join(", ")}`); fehl++; }
     if (leitung200.length) { aus(`    FEHL --erwarte-cache: warm: Cache erwartet, 200 erhalten: ${leitung200.map(a => a.pfad).join(", ")}`); fehl++; }
     if (unvNicht.length) { aus(`    FEHL --erwarte-cache: warm: unversioniert auf der Leitung mit 304 erwartet: ${unvNicht.map(a => a.pfad + "=" + (a.cache ? "cache" : a.status)).join(", ")}`); fehl++; }
+  }
+  if (DETAIL) for (const a of liste) {
+    let u = a.url || a.pfad; try { const x = new URL(u); u = x.pathname + x.search; } catch {}
+    aus(`  D ${u} ${a.cache ? "cache" : "leitung"} ${a.cache ? "-" : a.status} cc=${a.cc || "-"} etag=${(a.etag || "-").replace(/"/g, "")}`);
   }
   if (ETAG_PFAD) for (const a of liste.filter(x => x.pfad === ETAG_PFAD)) aus(`    ETag ${a.pfad}: ${a.etag || "-"} (${a.cache ? "cache" : a.status})`);
   if (ERWARTE_304 && art !== "kalt") {
