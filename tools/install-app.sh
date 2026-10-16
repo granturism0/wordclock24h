@@ -100,8 +100,17 @@ printf '=== PWA-Installation auf %s ===\n\n' "$HOST"
 printf '  lokal:  %s\n  Geraet: %s\n\n' "$(local_version)" "$(device_version)"
 
 if [ "${1:-}" = "--check" ]; then
-  check_stored
-  exit $?
+  check_stored; rc=$?
+  # R2b (C70 Variante c, AKL.8 i): Traegt das gebaute index.html.gz Marken, muss das ausgelieferte Dokument sie auch
+  # tragen, und jede Marke muss am Geraet mit immutable und gleichem ETag antworten -- sonst haelt ein Browser ein Jahr
+  # lang eine falsche Datei fest (Regel I-L).
+  echo; echo "  Markenpruefung (C70 Variante c):"
+  if [ -s "$D/index.html.gz" ] && gunzip -c "$D/index.html.gz" | grep -q 'wc-asset-tokens" content="i18n/'; then
+    python3 tools/marken-pruefen.py "$HOST" --erwartet || rc=1
+  else
+    python3 tools/marken-pruefen.py "$HOST" || rc=1
+  fi
+  exit $rc
 fi
 
 # Vor dem Hochladen pruefen: Eine leere .gz wuerde einen weissen Bildschirm erzeugen,
