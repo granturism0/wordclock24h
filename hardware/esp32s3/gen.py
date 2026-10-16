@@ -118,6 +118,31 @@ clone("C32", "C12", "100nF")        # Filter am ADC-Eingang
 for r, v in (("C1", "1uF"),):   # R22 bleibt V2-Wert 1 kOhm (LDR-Pfad 1:1, Vorgabe 17.10.2026)
     inst[r]["props"] = [(k, (v if k == "Value" else val)) for k, val in inst[r]["props"]]
 
+# ------------------------------------------------------------------ LCSC-Nummern (Feld "LCSC", wie in V2)
+# Jede Nummer ist an der Quelle geprueft (hardware/komponenten/jlcpcb-bestand.md und die Komponentenblaetter,
+# Pruefdatum 2026-10-17). Nur diese Zeilen aendern oder setzen ein LCSC-Feld; alle uebrigen behalten V2.
+#  - C1: V2 = 100 nF (C49678). BEWUSSTE ABWEICHUNG VON V2: V3 setzt 1 uF (EN-Verzoegerung 10 kOhm + 1 uF nach
+#    Espressif), also C28323 (1 uF 50 V X7R, Basic). C1 liegt nicht im LED-, Power- oder LDR-Pfad (H8 prueft das).
+#  - R23: das Feld trug C17841 (= 82 Ohm, Extended); richtig ist C17520 (2,2 kOhm 0805, Basic).
+#  - C30 ist als Klon von C12 (100 nF, C49678) entstanden; 10 uF = C15850 (25 V X5R, Basic;
+#    Alternative C440198, 50 V).
+#  - U2, USB1, U11: neue Teile, das Feld fehlte (die Bibliothekssymbole haben keins) und wird neu angelegt.
+#  - SW5 ist Klon von SW1 und traegt dessen Nummer (C2909692); R32 (Klon von R12) C17414; C31, C32 (Klone von C12) C49678.
+LCSC_SET = {
+    "C1": "C28323", "R23": "C17520", "C30": "C15850",
+    "U2": "C2913198", "USB1": "C165948", "U11": "C7519",
+    "SW5": "C2909692", "R32": "C17414", "C31": "C49678", "C32": "C49678",
+}
+def set_lcsc(ref, nr):
+    props = inst[ref]["props"]
+    if any(k == "LCSC" for k, _ in props):
+        inst[ref]["props"] = [(k, (nr if k == "LCSC" else v)) for k, v in props]
+    else:
+        props.append(("LCSC", nr))
+    # V2 fuehrt bei manchen Teilen zusaetzlich "LCSC Part"; es darf der Nummer nicht widersprechen
+    inst[ref]["props"] = [(k, (nr if k == "LCSC Part" else v)) for k, v in inst[ref]["props"]]
+for _r, _n in LCSC_SET.items(): set_lcsc(_r, _n)
+
 def setnet(ref, pin, net): conn[(ref, pin)] = net
 def modpin(name, net):
     for n in modname[name]: setnet("U2", n, net)
@@ -371,7 +396,7 @@ notes = [
     "Entwurf V3: Umbau von V2 auf ESP32-S3-WROOM-1, erzeugt aus der V2-Netzliste (kicad-cli).",
     "Entfallen gegenueber V2: STM32F411 (U2), ESP-12F (U4), Quarz X1 samt Lastkondensatoren, VDDA-Filter, SWD-Stecker H3, Umschalter SW4, Boot-Widerstaende des ESP8266.",
     "Neu: ESP32-S3-WROOM-1 (U2), USB-C 16P mit D+/D- (USB1), ESD-Schutz U11, BOOT-Taste SW5 mit Pull-up R32, Abblockung C30/C31, ADC-Filter C32.",
-    "Geaendert: C1 = 1 uF (EN-Verzoegerung), H6 = UART0-Konsole.",
+    "Geaendert: C1 = 1 uF (EN-Verzoegerung, bewusste Abweichung von V2: dort 100 nF, LCSC C28323), H6 = UART0-Konsole.",
     "Unveraendert: Versorgung, 3,3-V-ODER-Schaltung (D2/D3), LED-Pfad (U3, Q1, Q2), LDR-Pfad (R22 = 1 kOhm wie V2), RTC, EEPROM, DS18B20, Taster, Test-Pads.",
     "Noch nicht geprueft: Footprints neuer Teile gegen die Bestueckung, 3,3-V-Reserve des SY8301, Platzierung der Antenne.",
 ]

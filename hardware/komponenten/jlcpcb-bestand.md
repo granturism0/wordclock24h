@@ -36,7 +36,8 @@ Klasse: B = Basic, E = Extended (kein Preferred). Bestand = Stück bei JLCPCB am
 
 | Designator-Gruppe | Wert | LCSC | Klasse | Lagerbestand | Prüfdatum | Anmerkung |
 |---|---|---|---|---|---|---|
-| C1, C12, C15, C16, C17, C19, C21, C24, C25, C29, C4, C6, C7 (13) | 100 nF 50 V X7R 0805 | C49678 | B | 21'260'246 | 2026-10-17 | Yageo CC0805KRX7R9BB104. Gehäuse 0805 passt. |
+| C1, C12, C15, C16, C17, C19, C21, C24, C25, C29, C4, C6, C7 (13) | 100 nF 50 V X7R 0805 | C49678 | B | 21'260'246 | 2026-10-17 | Yageo CC0805KRX7R9BB104. Gehäuse 0805 passt. **Achtung V3:** C1 trägt im V3-Schaltplan den Wert 1 µF, aber LCSC C49678 (= 100 nF); Wert oder Nummer falsch, Designer klärt (1 µF wäre C28323). |
+| C10 | 100 nF 50 V X7R 0805 | C49678 | B | 21'260'007 | 2026-10-17 | Yageo CC0805KRX7R9BB104, **dieselbe Nummer wie C4 u. a.**; Schaltplan-Feld stimmt. **Fehlt in der V2-Stückliste** (Schaltplan: in_bom ja, dnp nein). Bestand bei dieser Abfrage 21'260'007 (Zeile oben 21'260'246 vom früheren Lauf, schwankt). |
 | C18 | 1 µF 50 V X7R 0805 | C28323 | B | 2'020'869 | 2026-10-17 | Samsung CL21B105KBFNNNE. |
 | C2 | 10 nF 50 V X7R 0805 | C1710 | B | 1'653'076 | 2026-10-17 | Samsung CL21B103KBANNNC. |
 | C20, C22 | 10 µF 10 V Tantal TMCP1A106MTRF | C1969735 | E | 33'835 | 2026-10-17 | Vishay, Gehäuse laut Quelle 0805; Footprint `CAP-SMD_L2.0-W1.2` hat dieselben Aussenmasse. Basic-Alternative (○, nur Wert/Gehäuse, Spannungsfestigkeit und Tantal-Eigenschaft nicht verglichen): C15850 (10 µF 25 V X5R 0805, B, 6'588'495) oder C440198 (10 µF 50 V X5R 0805, B, 1'228'503). Der Grund für Tantal in V2 steht nicht in der Stückliste. |
@@ -62,7 +63,8 @@ Klasse: B = Basic, E = Extended (kein Preferred). Bestand = Stück bei JLCPCB am
 | R13 | 0 Ω 0805 | C17477 | B | 6'100'743 | 2026-10-17 | Uni-Royal 0805W8F0000T5E. |
 | R19 | 82 Ω 0805 | C17841 | E | 72'948 | 2026-10-17 | Uni-Royal 0805W8F820JT5E. **Einziger Widerstandswert, der in 0805 nicht Basic ist** (Basic-Suche „82Ω 0805“: 0 Treffer). Nächster Basic-Wert 100 Ω (C17408, wie R24); ob das tragbar ist, hängt von der Funktion ab und ist nicht geprüft. |
 | R21 | 3,3 kΩ 0805 | C26010 | B | 1'923'648 | 2026-10-17 | Uni-Royal 0805W8F3301T5E. |
-| R22 | 1 kΩ 0805 (V2) | C17513 | B | 44'401'810 | 2026-10-17 | Uni-Royal 0805W8F1001T5E. Im Umbau 47 kΩ: siehe „Neue Werte“. |
+| R22 | 1 kΩ 0805 (V2) | C17513 | B | 44'401'810 | 2026-10-17 | Uni-Royal 0805W8F1001T5E. Bleibt im Umbau 1 kΩ (Vorgabe des Nutzers vom 17.10.2026: LDR-Lesung bleibt 100 % kompatibel). |
+| R23 | 2,2 kΩ 0805 | **C17520** | B | 3'678'940 | 2026-10-17 | Uni-Royal 0805W8F2201T5E, ±1 %. **Fehlt in der V2-Stückliste** (Schaltplan: in_bom ja, dnp nein). Das LCSC-Feld von R23 im Schaltplan trägt **C17841 = 82 Ω (R19), falsch**. Gegenprobe: Suche C4190 liefert 2,2 kΩ nur in 0603. |
 | R24 | 100 Ω 0805 | C17408 | B | 8'690'968 | 2026-10-17 | Uni-Royal 0805W8F1000T5E. |
 | R26 | 22,1 kΩ 0805 | C204311 | E | 2'095 | 2026-10-17 | Bourns CR0805-FX-2212ELF; **niedrigster Bestand der Widerstände**. Basic-Nachbarwert 22 kΩ (C17560, B, 1'593'461), 0,45 % kleiner. Ob der Wert ein Teiler ist, ist hier nicht geprüft. |
 | R27, R30, R6 | 510 Ω 0805 | C17734 | B | 2'502'070 | 2026-10-17 | Uni-Royal 0805W8F5100T5E. |
@@ -81,9 +83,10 @@ Klasse: B = Basic, E = Extended (kein Preferred). Bestand = Stück bei JLCPCB am
 
 ## Neue Werte für den Umbau
 
+Bis 17.10.2026 stand hier R22 47 kΩ 0805 (C17713); das entfällt, R22 bleibt 1 kΩ (V2-Wert, Zeile oben), weil die LDR-Lesung nach Vorgabe des Nutzers 100 % kompatibel bleiben muss.
+
 | Wert | LCSC | Klasse | Lagerbestand | Prüfdatum | Anmerkung |
 |---|---|---|---|---|---|
-| R22 47 kΩ 0805 | C17713 | **B** | 1'604'792 | 2026-10-17 | Uni-Royal 0805W8F4702T5E. |
 | C 10 µF 0805 | C15850 (25 V) oder C440198 (50 V, schon als C26 verbaut) | **B** | 6'588'495 / 1'228'503 | 2026-10-17 | Beide X5R ±10 %. Wert fix, Spannungsklasse wählt der Designer. |
 | C 1 µF 0805 | C28323 (50 V X7R) | **B** | 2'020'869 | 2026-10-17 | schon als C18 verbaut. |
 | C 100 nF 0805 | C49678 (50 V X7R) | **B** | 21'260'246 | 2026-10-17 | schon als C1 u. a. verbaut. |
@@ -92,19 +95,19 @@ Klasse: B = Basic, E = Extended (kein Preferred). Bestand = Stück bei JLCPCB am
 
 Alle Werte wurden einzeln gegen die Bibliothek geprüft (siehe Tabelle).
 
-- **Basic:** 0 Ω, 100 Ω, 330 Ω, 510 Ω, 1 k, 3,3 k, 4,7 k, 5,1 k, 10 k, 100 k (und neu 47 k).
+- **Basic:** 0 Ω, 100 Ω, 330 Ω, 510 Ω, 1 k, 3,3 k, 4,7 k, 5,1 k, 10 k, 100 k und 2,2 k (C17520, neu geprüft).
   Kondensatoren: 10 nF, 100 nF, 1 µF, 2,2 µF (C9, entfällt), 10 µF (C26), 22 µF.
 - **Nicht Basic:** 82 Ω (C17841), 22,1 kΩ (C204311), 31,6/32 kΩ (C2930156), 47 µF 10 V (C124129).
   Für 22,1 k und 31,6 k gibt es keinen Basic-Wert mit gleicher Zahl; für 82 Ω keinen in 0805 (Suche „82Ω 0805“: 0 Treffer).
-- 1 MΩ aus der Liste des Auftrags kommt in der Stückliste **nicht vor** (kein Widerstand mit diesem Wert, auch nicht bei den
-  entfallenen). Ebenso fehlt 2,2 kΩ; die 2,2 µF (C9) sind ein Kondensator und entfallen. Die Werteliste im Auftrag und die Stückliste stimmen hier nicht überein;
-  geprüft wurde, was in der Stückliste steht. 1 MΩ und 2,2 kΩ sind **nicht geprüft** (Klasse für 0805 nicht abgefragt).
+- 1 MΩ aus der Liste des Auftrags kommt in der Stückliste **nicht vor** und ist **nicht geprüft**. 2,2 kΩ fehlte in der
+  V2-Stückliste, steht aber im Schaltplan (R23) und ist seit 17.10.2026 geprüft: **C17520, Basic**.
 
 ## Zusammenfassung und Nachzählung
 
-- Zeilen der V2-Stückliste: 50. Nach dem Streichen: **42 Zeilen**, 73 Bauteile. Die Tabelle oben hat 42 Zeilen
-  (je Zeile die Designator-Gruppe der Stückliste); Summe der Mengen 73 = 92 − 19 gestrichene Referenzen.
-- Je Klasse: **Basic 15 Zeilen** (38 Bauteile), **Preferred Extended 0**, **Extended 27 Zeilen**, nicht geprüft 0.
+- Zeilen der V2-Stückliste: 50. Nach dem Streichen: 42 Zeilen, 73 Bauteile. **Dazu R23 und C10** (im Schaltplan, nicht in
+  der Stückliste): die Tabelle oben hat **44 Zeilen**, Summe der Mengen **75** (Stand 17.10.2026).
+- Je Klasse: **Basic 17 Zeilen** (40 Bauteile), **Preferred Extended 0**, **Extended 27 Zeilen**, nicht geprüft 0.
+- **Abgleich mit dem V3-Schaltplan** (`hardware/esp32s3/expected.json`, 97 Referenzen; Stücklisten-Sicht in_bom ja, dnp nein: **83**): Alle 75 Bauteile der Tabelle sind in dieser Sicht. **Ohne Zeile hier bleiben 8:** U2, USB1, U11, SW5, R32, C30, C31, C32 (neue Teile, Zeilen in den Komponentenblättern). **Falsche LCSC-Felder im V3-Schaltplan:** R23 trägt C17841 (richtig C17520), C30 (10 µF) trägt C49678 (richtig C15850 oder C440198), C1 (1 µF) trägt C49678 (richtig C28323).
 - Alle 42 Zeilen sind **lieferbar** (Bestand > 0, kleinster: U7 629, Q2 1'355, R26 2'095, SW1–3 3'938, U1 3'465).
   Keine LCSC-Nummer ist ungültig; keine Zeile ohne Treffer.
 - **Nicht Basic (27 Zeilen):** C20/C22, C23, D2/D3, D4/D5, F1, F2, H6, H4, H5, H7, L2, LED1, LED4/LED5, Q1/Q3, Q2, R19, R26,
@@ -116,4 +119,4 @@ Alle Werte wurden einzeln gegen die Bibliothek geprüft (siehe Tabelle).
 - **Auffälligkeiten der Stückliste:** R29 trägt 32 kΩ, das Teil ist 31,6 kΩ; D2/D3 Footprint SOD-123, Teil SOD-123W;
   U7 ohne Gehäuseangabe in der Quelle; U1 stammt von „HXY MOSFET“; R7 fehlt in der Stückliste.
 - **Was nicht geprüft wurde:** Datenblätter und elektrische Gleichwertigkeit der Alternativen; ob JLCPCB die THT-Teile
-  (H4–H7, U1) bestückt; Passung von U7 zum Footprint; 1 MΩ und 2,2 kΩ (nicht in der Stückliste); die Nachfolge für USB1.
+  (H4–H7, U1) bestückt; Passung von U7 zum Footprint; 1 MΩ (nicht in der Stückliste); die Nachfolge für USB1.
