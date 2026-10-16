@@ -292,6 +292,32 @@ else
   printf '  --    %-34s %s\n' "Verbindungszustaende jetzt (R1)" "ESP ${esp:-?} vor 3.2.38, Felder gibt es noch nicht"
 fi
 
+# ------------------------------------- C70 (Paket 2026-10-15, R2): Asset-Cache mit ETag und 304
+# Ab ESP 3.2.40 traegt jede 200-Antwort auf ein App-Asset ein ETag; ein If-None-Match mit genau diesem
+# Wert ergibt 304 ohne Rumpf, und zwar als HTTP/1.1 -- bei HTTP/1.0 revalidiert Chrome nicht (AKC.7,
+# L468). Ein falsches ETag muss die volle Datei liefern. SMOKE_C70_OVERRIDE=1 prueft auch aeltere
+# Staende (Gegenprobe nach DIR-014: auf 3.2.39 muss der Block fehlschlagen).
+if [ -n "${SMOKE_C70_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.40" "${esp:-0}" | sort -V | head -1)" = "3.2.40" ]; then
+  for path in /app/ /app/app.js /app/styles.css; do
+    et=$(curl -s -m "$TIMEOUT" -D - -o /dev/null -H 'Accept-Encoding: gzip' "$U$path" 2>/dev/null \
+         | tr -d '\r' | grep -i '^etag:' | head -1 | sed 's/^[Ee][Tt][Aa][Gg]: *//')
+    if [ -z "$et" ]; then fail "ETag/304 $path (C70)" "kein ETag in der 200-Antwort"; continue; fi
+    read -r c s v < <(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code} %{size_download} %{http_version}' \
+         -H 'Accept-Encoding: gzip' -H "If-None-Match: $et" "$U$path" 2>/dev/null)
+    read -r c2 s2 < <(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code} %{size_download}' \
+         -H 'Accept-Encoding: gzip' -H 'If-None-Match: "c70-falsch"' "$U$path" 2>/dev/null)
+    if [ "$c" != "304" ] || [ "${s:-1}" != "0" ] || [ "$v" != "1.1" ]; then
+      fail "ETag/304 $path (C70)" "mit passendem ETag: HTTP/$v $c, $s Byte (erwartet HTTP/1.1 304, 0 Byte)"
+    elif [ "$c2" != "200" ] || [ "${s2:-0}" -le 0 ]; then
+      fail "ETag/304 $path (C70)" "mit falschem ETag: $c, $s2 Byte (erwartet 200 mit Rumpf)"
+    else
+      pass "ETag/304 $path (C70)" "ETag $et, 304 als HTTP/1.1 ohne Rumpf, falsches ETag 200"
+    fi
+  done
+else
+  printf '  --    %-34s %s\n' "Asset-Cache ETag/304 (C70)" "ESP ${esp:-?} vor 3.2.40, gibt es noch nicht"
+fi
+
 # --------------------------------------------------- Legacy bleibt erreichbar
 code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' "$U/" 2>/dev/null)
 [ "$code" = "200" ] && pass "Legacy-Oberflaeche" "HTTP 200" || fail "Legacy-Oberflaeche" "HTTP $code"
