@@ -100,6 +100,7 @@ const gehtAnZiel = url => { try { return new URL(url).host === ZIEL_HOST; } catc
 // C70 (R2.5): App-Assets je Anfrage -- Leitungsstatus aus responseReceivedExtraInfo (responseReceived
 // meldet fuer eine 304 die 200 der Cache-Kopie, L468), Herkunft aus dem Cache, uebertragene Byte.
 const assetAntw = new Map();   // requestId -> { pfad, status, cache }
+const gecacht = new Set();      // requestServedFromCache kann VOR responseReceived kommen
 const leitung = new Map();     // requestId -> Statuscode auf der Leitung
 let assetByte = 0;
 
@@ -110,8 +111,12 @@ ws.addEventListener("message", e => {
       !pfadVon(m.params.response.url).startsWith("/api/")) {
     const rs = m.params.response;
     assetAntw.set(m.params.requestId, { pfad: pfadVon(rs.url), status: rs.status,
-      cache: !!(rs.fromDiskCache || rs.fromServiceWorker || rs.fromPrefetchCache) });
+      cache: !!(rs.fromDiskCache || rs.fromMemoryCache || rs.fromServiceWorker || rs.fromPrefetchCache) });
   }
+  // Ein Treffer im Speicher-Cache meldet sich nur ueber requestServedFromCache bzw. fromMemoryCache -- bis R2b zaehlte das
+  // Werkzeug ihn als 200 (16.10.2026: 29 x 200 bei nur 7 Leitungsabrufen laut Geraet; die Ladeprobe zaehlte richtig).
+  if (m.method === "Network.requestServedFromCache" && assetAntw.has(m.params.requestId)) assetAntw.get(m.params.requestId).cache = true;
+  if (m.method === "Network.requestServedFromCache") gecacht.add(m.params.requestId);
   if (m.method === "Network.loadingFinished" && assetAntw.has(m.params.requestId)) assetByte += m.params.encodedDataLength || 0;
   if (m.method === "Page.loadEventFired") ladeEreignisse++;
   if (m.method === "Network.requestWillBeSent" && gehtAnZiel(m.params.request.url)) {
@@ -248,6 +253,8 @@ async function ladeUndWarte(wo, ausloesen) {
 
 const laufStart = Date.now();
 await send("Runtime.enable");
+let zaehlerVor = null;   // Geraetezaehler vor dem Lauf, fuer die Nachzaehlung in Abschnitt 8
+try { zaehlerVor = await (await fetch(`http://${ZIEL_HOST}/api/device_ready`, { signal: AbortSignal.timeout(10000) })).json(); } catch {}
 await send("Network.enable");
 await send("Page.enable");
 await ladeUndWarte("nach dem Laden", () => send("Page.navigate", { url: SOLL }));
@@ -417,6 +424,7 @@ info("Verbindungsaufbau >= 900 ms", `${langsameVerbindungen} von ${verbindungen}
 // Das Soll prueft die Ladeprobe (--erwarte-304); hier steht, was dieser Lauf am Geraet sah.
 const zaehl = { "200": 0, "304": 0, cache: 0, andere: 0 };
 for (const [id, a] of assetAntw) {
+  if (gecacht.has(id)) a.cache = true;
   const s = leitung.get(id);
   if (s === 304) zaehl["304"]++;
   else if (a.cache && s === undefined) zaehl.cache++;
@@ -425,6 +433,15 @@ for (const [id, a] of assetAntw) {
 }
 info("App-Assets je Antwort", `${assetAntw.size} Antworten: 200 ${zaehl["200"]}, 304 ${zaehl["304"]}, Cache ${zaehl.cache}, andere ${zaehl.andere}`);
 info("App-Assets uebertragen", `${assetByte} Byte`);
+// Unabhaengige Nachzaehlung durch das Geraet (L235): Leitungsantworten an /app/ = Δapp_full + Δapp_not_modified.
+try {
+  const dr2 = await (await fetch(`http://${ZIEL_HOST}/api/device_ready`, { signal: AbortSignal.timeout(10000) })).json();
+  if (zaehlerVor && dr2.app_full !== undefined) {
+    const dg = (dr2.app_full - zaehlerVor.app_full) + (dr2.app_not_modified - zaehlerVor.app_not_modified);
+    const lt = zaehl["200"] + zaehl["304"];
+    info("Geraet zaehlt Leitungsantworten", `${dg} (Δapp_full ${dr2.app_full - zaehlerVor.app_full}, Δapp_not_modified ${dr2.app_not_modified - zaehlerVor.app_not_modified})${dg === lt ? "" : ` -- Werkzeug ${lt}: UNEINIG`}`);
+  }
+} catch (e) { info("Geraet zaehlt Leitungsantworten", `nicht lesbar: ${e.message}`); }
 info("Verbindungsfehler", netzfehler.length ? `${netzfehler.length}: ` + netzfehler.slice(0, 3).map(f => `${f.fehler} ${pfadVon(f.url)}`).join(", ") : "keine");
 info("Laufzeit", `${((Date.now() - laufStart) / 1000).toFixed(1)} s`);
 
