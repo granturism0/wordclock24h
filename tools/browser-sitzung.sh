@@ -129,7 +129,7 @@ lesung() {   # $1 = Phase
 import json,sys
 try: d=json.load(sys.stdin)
 except Exception: print("  device_ready: keine JSON-Antwort"); sys.exit(1)
-k=[x for x in d if x in ("free_heap","max_free_block","http_backlog","heap_low_block","heap_low_path","heap_low_ms","heap_low_pcb_states","heap_low_tw","no_request_timeouts","no_request_aborts") or x.startswith("tcp_now") or x in ("app_full","app_not_modified")]
+k=[x for x in d if x in ("free_heap","max_free_block","http_backlog","heap_low_block","heap_low_path","heap_low_ms","heap_low_pcb_states","heap_low_tw","no_request_timeouts","no_request_aborts") or x.startswith("tcp_now") or x in ("app_full","app_not_modified","app_immutable","app_token_miss")]
 for x in k: print("  %s=%s" % (x, json.dumps(d[x])))
 if not any(x.startswith("tcp_now") for x in d): print("  HINWEIS: keine tcp_now_*-Felder (Firmware vor R1) -- Entscheidungsregel nicht anwendbar")
 g=lambda k: d.get(k, -1)
@@ -234,6 +234,24 @@ else
   sleep 8
   n=$(tabs_mit_host); aus "    Tabs mit der Uhr: ${n:-?}"
   [ "${n:-0}" -ge 1 ] || { aus "  BEDIENUNG FEHLGESCHLAGEN: PWA-Tab nicht gefunden (Willkommensdialog?)"; FEHL=$((FEHL+1)); }
+fi
+# G10b (AKG.6): ein Neuladen in S1, 30 s nach dem Oeffnen. Safari: die Adresse des Uhr-Tabs neu setzen (Cmd-R braeuchte die
+# Bedienungshilfen-Freigabe); Chrome: die Seite in einem neuen Tab oeffnen, den alten schliessen. Beides ist ein erneutes
+# Oeffnen, kein Cmd-R -- das echte Neuladen in Chrome prueft die Ladeprobe ("neuladen").
+if [ -n "${BROWSER_SITZUNG_NEULADEN:-}" ] && [ "$D1" -gt 40 ]; then
+  sleep 30; D1=$((D1 - 30))
+  case "$ART" in
+    manuell) zuruf "Lade die Uhr-Seite einmal neu (Safari: nach unten ziehen oder Neuladen-Knopf)." ;;
+    safari)  osa "tell application \"Safari\" to repeat with t in (every tab of every window whose URL contains \"$HOST\")
+                set URL of t to \"$URL\"
+              end repeat" "neu laden" && aus "    $(date +%H:%M:%S) Uhr-Tab neu geladen (Adresse neu gesetzt)" ;;
+    chrome)
+      alt=$(cdp_ids)
+      if cdp -X PUT "http://127.0.0.1:$CDP_PORT/json/new?$URL" >/dev/null; then
+        sleep 5; for id in $alt; do cdp "http://127.0.0.1:$CDP_PORT/json/close/$id" >/dev/null; done
+        aus "    $(date +%H:%M:%S) Uhr-Seite neu geoeffnet, alter Tab geschlossen ($(cdp_tabs) Tab mit der Uhr)"
+      else aus "  BEDIENUNG FEHLGESCHLAGEN: neu laden (DevTools)"; FEHL=$((FEHL+1)); fi ;;
+  esac
 fi
 warte "$D1"; lesung S1
 
