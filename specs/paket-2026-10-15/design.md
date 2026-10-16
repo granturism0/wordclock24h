@@ -1,21 +1,20 @@
 # Design — Paket 2026-10-15 „ESP-Heap unter PWA-Last, zweiter Hebel“ (C70, C71, C72)
 
 **Erstellt:** 2026-10-15, Stand `72cfda7` (Zweig `pwa-decoupling`); Nachträge mit den Entscheiden des Nutzers, den
-Lead-Entscheiden, dem Prüfserver-Befund des Leads zu `HTTP/1.0`, **Nachtrag A.2** (P1–P8), der **Trennmessung C71**
-(L468), **Nachtrag A.3** (P7, P9, P11, P12) und **Nachtrag A.4** (Review R1.7, 16.10.2026). **Status: freigegeben am
-15.10.2026 bis aufs Tor; Nachträge A.2 bis A.4 zur Freigabe.** Was sich ändert und was widerlegt ist: §17. Offen Ent-2
-(vor R2.1), Ent-8, Ent-10, Ent-14, Ent-17 (Tor), Ent-16 (vor R3). Momentaufnahme (DIR-006); der lebende Stand steht in
+Lead-Entscheiden, dem Prüfserver-Befund zu `HTTP/1.0`, **A.2** (P1–P8), der **Trennmessung** (L468), **A.3** (P7, P9,
+P11, P12), **A.4** (Review R1.7, 16.10.2026) und **A.5** (Ursache von C71 am Gerät belegt, L468, 16.10.2026, Commit
+`89ec34c`). **Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 zur Freigabe.** Was sich ändert und
+was widerlegt ist: §17. Offen: Ent-2 (Lead, vor R2.1), **Ent-18** (neu, Nutzer, vor R2), Ent-8, Ent-10, Ent-14 (Tor),
+Ent-17 (faktisch L7, Freigabe offen), Ent-16 (nur mit Ent-18 B). Momentaufnahme (DIR-006); der lebende Stand steht in
 `BEFUNDE.md`.
 
-**Zeilenangaben:** Alle `Datei:Zeile`-Anker beziehen sich auf `72cfda7`. Seit R1.1 liegen die Zeilen in `http.cpp` ab
-rund `:2839` um rund +210 später (Lead, 15.10.2026). **Massgeblich ist die genannte Funktion bzw. das Symbol**; neue
-Anker ab A.3 nennen nur noch diese.
+**Zeilenangaben:** Alle `Datei:Zeile`-Anker beziehen sich auf `72cfda7`. In `http.cpp` liegen sie seit R1 ab rund
+`:2839` um rund +210 später (Lead). **Massgeblich ist die genannte Funktion bzw. das Symbol.**
 
 **Kennzeichen** wie in `requirements.md`: **✔ SW** am Code `72cfda7` bzw. Core 3.1.2 nachgelesen; **✔ B** in
 `BEFUNDE.md`; **✔ L** vom Lead gemessen; **✔ FA** vom `firmware-analyst` am Core belegt; **◐ FA** vom
-`firmware-analyst` als plausibel gemeldet; **? FA** vom `firmware-analyst` ausdrücklich als Spekulation gekennzeichnet;
-**✔ R** / **◐ R** vom `code-reviewer` in R1.7 belegt bzw. als Lesart gemeldet; **◐** abgeleitet; **●** gemeldet, vor
-der Umsetzung zu prüfen.
+`firmware-analyst` als plausibel gemeldet; **? FA** Spekulation; **✔ R** / **◐ R** vom `code-reviewer` in R1.7 belegt
+bzw. als Lesart gemeldet; **◐** abgeleitet; **●** gemeldet, vor der Umsetzung zu prüfen.
 
 ---
 
@@ -30,55 +29,68 @@ der Umsetzung zu prüfen.
 | Nur `http_send_fs_file()` muss auf `HTTP/1.1`; übrige `/app/`-Antworten in `http_app()` bleiben 1.0; kein Keep-Alive | **✔ FA** | `http_send_fs_file()`, `http_app()` |
 | CDP meldet bei `304` in `responseReceived` den Cache-Status `200` | **✔ L** | Leitungsstatus in `responseReceivedExtraInfo.statusCode` |
 | `If-None-Match` wird nicht ausgewertet; Query vor `http_app()` abgetrennt; ESP kennt die installierte App-Version nicht | **✔ SW** | Kopfzeilenschleife in `http_server_loop()`; `APP_VERSION_TXT` |
-| Kein Service Worker über `http://`; `layout-previews.json` mit `no-store` | **✔ SW** | `registerAppServiceWorker()`, `loadLayoutPreviewRowsMap()` in `app.js` |
+| Kein Service Worker über `http://`; `layout-previews.json` mit `no-store` | **✔ SW** | `registerAppServiceWorker()`, `loadLayoutPreviewRowsMap()` |
 | `install-app.sh` und Auto-Installation laden `index.html` zuerst | **✔ SW** | `tools/install-app.sh:36-38`; `APP_INSTALL_ASSETS` |
 | Core-`crc32()` ist CRC-32/MPEG-2, bitweise | **✔ FA** / **✔ SW** | `cores/esp8266/crc32.cpp:26-43` |
 | 31 schreibende LittleFS-Stellen, vollständig; AutoFormat in `LittleFS.begin()` | **✔ FA** | §4.4 |
 | `LittleFS.remove()` vor `LittleFS.begin()` in `http_api_app_file_upload()` wirkungslos; `LittleFS.format()` in `setup()` in `#if 0` | **✔ FA** / **✔ SW** | Nebenbefunde |
-| Nach dem Start fällt `max` von 7'184 auf 4'672 im Fenster des Startabgleichs und bleibt | **✔ B** | L460, L457 |
-| Schreiben im **laufenden Betrieb** hinterlässt nichts — mit und ohne Abruf | **✔ L** | L468 (b), (c) |
-| Start mit `unveraendert` erzeugt keine Zerstückelung | **✔ L** / **✔ B** | V3 in T2, L466; L468 |
-| C71 entsteht nur, wenn beim Start geschrieben wird | **◐** | aus L460, L468, V3 |
-| PUYA-Puffer (0x85) beim ersten Flash-Schreiben als Ursache | **nicht bestätigt** | L468 (b) gültiger Test des PUYA-Zweigs (✔ FA) |
-| Einzige belegte Asymmetrie Start/Betrieb: der erste `ClientContext` des statischen httpclient (`hc=0`) | **✔ FA** | `httpclient.cpp:16`; `httpclient_stop()` gibt den Kontext nicht frei |
-| **Hypothese H-CC:** TIME_WAIT-PCB aus Schritt 4 trennt den freigegebenen Bereich; Best-Fit legt den `ClientContext` aus Schritt 5 hinein | **? FA** | Prüfung G9.6 (vierter Start) |
-| **C75 (neu):** `httpclient()` gibt bei leerer Antwort (`len == 0`) mit offenem `ClientContext` zurück; Aufrufer, die bei `len <= 0` abbrechen, schliessen nicht — darunter der Update-Abgleich (`update_cache_write()`: `len <= 0` ⇒ Zeile `fehlgeschlagen abruf`, Rückkehr ohne `httpclient_stop()`) | **✔ R** / **✔ SW** | `httpclient.cpp:220-228`; Aufrufer in `http.cpp` (Stand Review: `:9105`) und `update_cache_write()` |
-| `ESP.getHeapStats()` liefert `frag`; die Zahl freier Einträge steht nur im privaten `umm_local.h` | **✔ R** | I-6 nutzt `frag=` |
-| `frag = 100·(1 − √Σh²/Σh)` reagiert auf ein zusätzliches kleines Loch neben einem grossen kaum (20'000 + 100 Byte ⇒ 0–1 Punkte) | **✔ R** (gerechnet) | §3.3, §5.5 |
-| `- update cache nach …` misst `tcp=`/`hc` rund 10 ms nach `n` (dazwischen `Serial.flush()`) | **✔ R** (H2) | nur vermerkt |
-| lwIP entfernt TIME_WAIT nach 2·MSL über dieselbe `tmr`, also bei `ruhe_s` > rund 120 — nicht 120 s nach dem Schliessen | **◐ R** (H4, passt zu P4) | §5.5: 130-s-Regel bleibt konservativ |
-| Wetter-Abruf mit eigenem `WiFiClient`, von `hc` nicht erfasst | **✔ SW** | `weather.cpp:16` (`openweather_client`) |
-| Grund der 60 s: STM-Vollabgleich nach `IPADDRESS` liefert Host und Pfad | **✔ FA** (P11) | A79, L421 |
+| Nach dem Start fällt `max` von 7'184 auf 4'672 und bleibt | **✔ B** | L460, L457 |
+| **C71, Ursache belegt (A.5):** `http_api_update_status()` prüft am Ende per `GET` `wc12h-icon.txt` und `wc12h-weather.txt` auf Existenz und ruft bei `len > 0` sofort `httpclient_stop()`, **ohne den Rumpf zu lesen** | **✔ L** | L468 (16.10.2026, `89ec34c`) |
+| `WiFiClient::stop()` ⇒ `ClientContext::close()` lässt `_rx_buf` stehen; frei wird es erst bei Refcount 0 (`unref()` ⇒ `discard_received()`), also beim nächsten `connect()` des statischen Clients | **✔ SW** / **✔ L** | `ClientContext.h:73-92` (`close()` ohne Freigabe), `:115-127` (`unref()`); `httpclient.cpp:16` |
+| Die ungelesene Antwort (Kopf 250 + Rumpf 1'215 Byte) liegt in drei pbufs: 616 + 616 + 472 = **1'704 Byte** | **✔ L** | M3: Kopf 250, `Content-Length` 1215, Rumpf gleich Repo |
+| Ein kalter `update_table_files`, der zu Ende liest und den Client neu verbindet, gibt **exakt +1'704** frei (5'624/4'744 ⇒ 7'328/7'152) | **✔ L** | M1 |
+| G9.6: Start 3 (Schreiben beim Start) zerstückelt **nicht**; Start 4 (ein `update_status`) belegt die 1'704; ein zweiter `update_status` belegt nichts zusätzlich | **✔ L** | L468 |
+| Die Safari-Lücke aus L461 betrug genau 1'704 Byte — sie gehört zu C71, nicht zu C72 | **✔ L** / **✔ B** | L461, L468 |
+| Dasselbe Muster bei der Prüfung auf `app.js.gz` (bis rund 2'464 Byte) und im Zweig `zu-gross` von `update_cache_write()` | **✔ L** (Lead) | `http.cpp` ~2701-2710 (nach R1 verschoben); `update_cache_write()` |
+| Direkte `client.stop()` in den Fehlerwegen von `httpclient()` lassen einen Rumpf (etwa eine 404-Seite) ebenso liegen | **✔ SW** | `httpclient.cpp:216`, `:224` |
+| **C75:** `httpclient()` gibt bei `len == 0` mit offenem Client zurück; Aufrufer, die bei `len <= 0` aufgeben, schliessen nicht | **✔ R** / **✔ SW** | `httpclient.cpp:220-228`; `update_cache_write()` |
+| **Widerlegt (A.5):** H-CC (Platzierung des `ClientContext`) als Ursache; „Schreiben beim Start zerstückelt“ (N1a/N1b); PUYA-Puffer (N0); Vermutung „der Zwischenspeicher hält einen String“ | **✔ L** | Start 3 ohne Zerstückelung; M1 gibt exakt die pbuf-Belegung frei |
+| **Nicht unmittelbar erklärt:** L460 (G8, 14.10.2026) sah den Fall im Startfenster laut Protokoll **ohne** Anfrage | **◐** | §5.5 offener Punkt |
+| Wetter-Abruf mit eigenem `WiFiClient`, von `hc` nicht erfasst und von L7 nicht berührt | **✔ SW** | `weather.cpp:16` (`openweather_client`) |
+| Grund der 60 s nach dem Start: STM-Vollabgleich nach `IPADDRESS` liefert Host und Pfad | **✔ FA** (P11) | A79, L421 |
 | `http_server_begin()` steht in `wifi_connect()` vor `IPADDRESS` | **✔ FA** / **✔ SW** | `wifi.cpp` |
-| Ausser LittleFS schreibt beim Start praktisch nichts Flash; `.tmp`-Löschen und AutoFormat ohne Logzeile | **✔ FA** (P12) | `eeprom_commit()`; `update_cache_poll()`; `LittleFS.begin()` |
-| Safari-Sitzung: `free` −1,7 KB über Minuten; frei erst beim Beenden | **✔ B** / **●** | L461 |
+| Ausser LittleFS schreibt beim Start praktisch nichts Flash; `.tmp`-Löschen und AutoFormat ohne Logzeile | **✔ FA** (P12) | `eeprom_commit()`; `update_cache_poll()` |
+| Safari-Sitzung: `free` −1,7 KB über Minuten; frei erst beim Beenden | **✔ B** / **●** | L461 — die 1'704 Byte sind C71 |
 | `stop()` ⇒ `tcp_close()` ⇒ FIN, `TF_RXCLOSED`; FIN_WAIT_2 läuft rund 20 s nach dem letzten Segment ohne RST ab | **✔ SW** / **◐ FA** (P1) | P1-Probe §5.6 |
 | FIN_WAIT_1, CLOSING, LAST_ACK ohne eigene Frist, nur Wiederholungen bis `TCP_MAXRTX` 12 | **◐ FA** | `lwipopts.h:1258` |
-| `pcb->tmr` je angenommenem Segment, nicht nach `TF_RXCLOSED`, nicht beim Zustandswechsel | **◐ FA** (P4) | §3.1 |
+| `pcb->tmr` je angenommenem Segment, nicht nach `TF_RXCLOSED`, nicht beim Zustandswechsel; TIME_WAIT endet über dieselbe `tmr` | **◐ FA** (P4) / **◐ R** (H4) | §3.1, §5.5 |
 | SYN_RCVD trägt den Listener; ESTABLISHED mit `callback_arg == NULL` möglich (`TF_CLOSEPEND`) | **◐ FA** (P3, P8) | `lwip/tcp.h:255` |
 | Tote `ClientContext` in `_unclaimed`; `!http_client` kehrt ohne Zähler zurück | **◐ FA** / **✔ SW** | `http_server_loop()` |
 | K1 wirkt nur im Teilfall `no_request_timeouts`; bei `aborts` hat der Core schon abgebaut | **✔ FA** (P7) | `ClientContext.h:598-614` |
-| Späte Anfrage auf geschlossene Verbindung bekommt schon heute RST | **◐ FA** (P7) | — |
 | **C74:** Warteschlaufe auf die erste Zeile endet nach dem letzten `delay(1)` ohne erneutes `available()` | **✔ FA** | nicht Teil des Pakets |
-| `MEMP_NUM_TCP_PCB` begrenzt bei `MEMP_MEM_MALLOC` nichts; TIME_WAIT im Core ≤ 6, nach `tcp_tw_limit()` 2 | **✔ FA** (P2) | Kommentar am I-4-Block in R1.1 berichtigt |
+| `ESP.getHeapStats()` liefert `frag`; `fe` nur im privaten `umm_local.h`; `frag` reagiert kaum auf ein kleines Loch | **✔ R** | §3.3 |
+| `tcp=`/`hc` in `- update cache nach` rund 10 ms nach `n` | **✔ R** (H2) | vermerkt |
+| `MEMP_NUM_TCP_PCB` begrenzt bei `MEMP_MEM_MALLOC` nichts; TIME_WAIT im Core ≤ 6, nach `tcp_tw_limit()` 2 | **✔ FA** (P2) | — |
 
 ---
 
-## 2. Zuschnitt, Releases, Reihenfolge (Ent-9: drei Releases)
+## 2. Zuschnitt, Releases, Reihenfolge
 
 | Release | Inhalt | Laufzeit | danach | Schreiber |
 |---|---|---|---|---|
-| **R1** | **I-5** (§3.1, §3.2) und **I-6** (§3.3) | ESP | **G9** ohne Cache, mit **P1-Probe** | `esp-developer` |
+| **R1** | **I-5** (§3.1, §3.2) und **I-6** (§3.3) | ESP | **G9** ohne Cache | `esp-developer` |
+| **R1b** *(nur mit Ent-18 A)* | **L7** samt Fehlerwegen und C75 (§7) — Behebung von C71 | ESP | **G9b** | `esp-developer` |
 | **R2** | **C70** (§4): `ETag` nach Ent-2, `304`, `HTTP/1.1` für App-Assets; PWA-Teil | ESP **und** PWA | **G10** mit Cache, **Tor** | `esp-developer`, `pwa-developer` |
-| **R3** | **Eingriff C72** (§6, Ent-8), **Massnahme C71** (§7, Ent-17); Platz von C71 nach Ent-16 | ESP | **G11** | `esp-developer` |
+| **R3** | **Eingriff C72** (§6, Ent-8); mit Ent-18 B auch **L7** | ESP | **G11** | `esp-developer` |
 
-Instrumente zuerst, dann Ausgangsstand **ohne** Cache, dann Cache und dieselben Messungen **mit** Cache, dann Tor auf
-M1–M5 und N0–N4, dann Eingriff. Jedes Release einzeln mit Commit, Tag und Einspielen. **Mit Ent-16 B** wandert C71 in
-ein eigenes R4 nach G11. R3 findet statt, sobald C72 **oder** C71 einen Eingriff hat.
+**Ent-18 (neu, Nutzer) — wann L7 kommt.** Der Schnitt aus Ent-9/Ent-16 legte die C71-Massnahme in R3, weil die Ursache
+offen war. Jetzt ist sie belegt, und sie trifft **jeden Nutzer nach jedem Start**, sobald `update_status` einmal kalt
+abgefragt wird — das tut die PWA von sich aus.
+
+| | (A) eigenes Release **R1b** vor R2 | (B) wie bisher in **R3** | (C) zusammen mit **R2** |
+|---|---|---|---|
+| Wirkung für Dich | Fehler im Bestand sofort behoben; der K30-Ruhewert 5'120 wird erreichbar | erst nach dem Tor | mit R2 |
+| Messungen danach | C72-Sitzungen und G10 ohne die 1'704 Byte als Störgrösse | jede C72-Sitzung muss den Client vorher freistellen (§5.3); G10 trägt die Belegung mit | G10 mischt die Wirkung von L7 und C70 — gegen die Absicht von Ent-9 |
+| Aufwand | ein OTA mehr; Ladeprobe-Grundlinie auf R1b neu (G9b) | keiner | keiner |
+| Risiko | klein: eine Zeile in `httpclient_stop()`, zwei Fehlerwege, C75; Prüfstand c71e | — | wie A, aber nicht getrennt messbar |
+
+**Empfehlung A.** Ein belegter, kleiner und gut prüfbarer Fehler im Bestand, der jeden Nutzer trifft und die Messungen
+aller folgenden Schritte verfälscht, gehört nicht ans Ende. Die Browser-Sitzungen G9.3–G9.5 laufen dann auf R1b;
+Ent-16 entfällt.
 
 **Abhängigkeiten nach R3b:** Alle ESP-Teile schreibt **ein** `esp-developer` nacheinander. Der PWA-Teil in R2 darf
-parallel laufen. Code für R2 darf entstehen, während G9 läuft; gebaut und eingespielt erst danach. Code für R3 erst
-nach dem Tor.
+parallel laufen. Code für R2 darf entstehen, während G9/G9b laufen; gebaut und eingespielt erst danach. Code für R3
+erst nach dem Tor.
 
 ---
 
@@ -99,9 +111,8 @@ nach dem Tor.
 | `tcp_now_more` | PCBs, die nicht in die Liste passten |
 | `http_accept_dead` | Zähler seit dem Start, sättigend: `accept()` holte einen Kontext aus `_unclaimed`, dessen Gegenstelle schon geschlossen hatte; gezählt **nur**, wenn vor `accept()` `_unclaimed` nicht leer war |
 
-- **`ruhe_s` (◐ FA P4):** `(tcp_ticks − pcb->tmr) × TCP_SLOW_INTERVAL / 1000`; `tmr` wird bei jedem angenommenen Segment
-  gesetzt, aber nicht mehr nach `TF_RXCLOSED` und nicht beim Zustandswechsel — „seit dem letzten empfangenen Segment vor
-  unserem `close()`“. Nach H4 (◐ R) endet TIME_WAIT, wenn `ruhe_s` rund 120 überschreitet.
+- **`ruhe_s` (◐ FA P4):** `(tcp_ticks − pcb->tmr) × TCP_SLOW_INTERVAL / 1000` — „seit dem letzten empfangenen Segment
+  vor unserem `close()`“. Nach H4 (◐ R) endet TIME_WAIT, wenn `ruhe_s` rund 120 überschreitet.
 - **`arg` (◐ FA P3/P8):** 0 = `callback_arg == NULL`; 1 = `ClientContext`; 2 = Listener (SYN_RCVD). ESTABLISHED oder
   CLOSE_WAIT mit `arg` = 0 ist ein vom ESP geschlossener PCB mit `TF_CLOSEPEND`.
 - `nrtx`: Wiederholungen des laufenden Segments. `gegenstelle`: letztes Oktett (Ent-5).
@@ -119,51 +130,41 @@ Zählfunktion in `http.cpp`, aufgerufen aus `esp_heap_log()` in `ESP-uclock.ino`
 
 ### 3.3 I-6 — Startzustand, Heap im Startabgleich, Flash-Kennung (C71)
 
-Je Durchgang von `update_cache_poll()` drei Zeilen, dazu Einzelzeilen. **Stand nach Review R1.7 (A.4):**
+Je Durchgang von `update_cache_poll()` drei Zeilen, dazu Einzelzeilen:
 
-**(a) vor Schritt 1 — Startzustand:**
+**(a) vor Schritt 1** (nach dem Löschen liegengebliebener `.tmp`; `vorher` und `v` enthalten dessen Wirkung):
 
 ```
 - update cache vorher up=<s> free=<n>/<blk> frag=<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<httpclient_connects>
 ```
 
-Die Zeile steht **nach** dem Löschen liegengebliebener `.tmp` im ersten Durchgang (Review: vertretbar) — `vorher` und `v`
-enthalten die Wirkung dieses Gangs; ob er lief, zeigt Zeile (f).
-
-**(b) am Ende oder beim Abbruch — Verlauf, die tragende Zeile:**
+**(b) am Ende oder beim Abbruch — Verlauf:**
 
 ```
 - update cache heap v=<free>/<blk> 1=<free>/<blk> 2=… 3=… 4=… 5=… n=<free>/<blk>
 ```
 
-**Tragende Grösse für C71 ist die Lochsumme `L = free − blk` je Messpunkt** — die Summe aller freien Bereiche ausser dem
-grössten. Eine neue, dauerhafte kleine Belegung mitten im grossen Block zeigt sich als Sprung in `L` bei fast
-unverändertem `free`: `blk` fällt, der abgetrennte Rest zählt zu `L`. An der Heap-Zeile gilt entsprechend
-`L = free − max`.
-
-**(c) unmittelbar nach (b) — Zustand am Ende:**
+**(c) unmittelbar nach (b):**
 
 ```
 - update cache nach frag=<v>/<1>/<2>/<3>/<4>/<5>/<n> tcp=<est>/<fw1>/<fw2>/<cw>/<la>/<tw> hc=<n> acc=<Δ>
 ```
 
-- **`frag`** aus `ESP.getHeapStats()` (`fe` — Zahl freier Einträge — steht nur im privaten `umm_local.h`, ✔ R).
-  **Geringe Empfindlichkeit, benannt:** `frag = 100·(1 − √Σh²/Σh)` bewegt sich bei einem zusätzlichen kleinen Loch
-  neben einem grossen kaum (20'000 + 100 Byte ⇒ 0–1 Punkte). `frag` ist deshalb **nur ergänzend**; keine Regel stützt
-  sich allein darauf.
-- **`tcp=` und `hc` werden rund 10 ms nach `n` gemessen** (dazwischen `Serial.flush()`, H2) — im Messprotokoll vermerkt,
-  nicht geändert.
-- `hc` erfasst den Wetter-Client (`weather.cpp:16`) nicht. `acc`: Δ des Zählers `http_accept_count` über den Durchgang.
+- Tragend für Zerstückelung ist die **Lochsumme `L = free − blk`** je Messpunkt, an der Heap-Zeile `free − max` (A.4).
+- **`frag`** aus `ESP.getHeapStats()` — nur ergänzend, geringe Empfindlichkeit (20'000 + 100 Byte ⇒ 0–1 Punkte).
+- `tcp=`/`hc` in (c) rund 10 ms nach `n` (H2). `hc` erfasst den Wetter-Client nicht. `acc`: Δ von
+  `http_accept_count`.
 
-**(d) `- heap erste anfrage free=<n> max=<n>`** — beim ersten **lebenden** `accept()` nach dem Start, also auch bei einer
-Vorrats-Verbindung ohne Anfrage (Review).
+**(d) `- heap erste anfrage free=<n> max=<n>`** beim ersten lebenden `accept()` nach dem Start, auch bei einer
+Vorrats-Verbindung. **(e) `- flash id=<hex6> vendor=<hex2>`** in `setup()` vor WLAN und `EEPROM.begin()`. **(f)
+`- update cache tmp geloescht <datei>`**; das AutoFormat bleibt ohne Logzeile.
 
-**(e) `- flash id=<hex6> vendor=<hex2>`** einmal in `setup()`, vor WLAN und `EEPROM.begin()`.
+**Nach A.5:** Die Belegung von C71 entsteht in `http_api_update_status()`, **ausserhalb** des Abgleichs; I-6 zeigt sie
+nur mittelbar (`hc`, `free`/`blk` beim nächsten Durchgang). Die Wirkung von L7 wird deshalb um einen kalten
+`update_status` gemessen (§5.5, AKS.4); I-6 bleibt als Instrument für den Startzustand.
 
-**(f) `- update cache tmp geloescht <datei>`** — wenn der erste Durchgang eine liegengebliebene Temporärdatei löscht.
-Das AutoFormat in `LittleFS.begin()` bleibt ohne Logzeile (benannte Restlücke).
-
-Je Zeile ≤ 119 Zeichen, einmal formatiert, Mitschnitt und Ring. Bestehende Zeilen `- update cache <datei> …` unverändert.
+Je Zeile ≤ 119 Zeichen, einmal formatiert, Mitschnitt und Ring. Bestehende Zeilen `- update cache <datei> …`
+unverändert.
 
 ---
 
@@ -229,9 +230,7 @@ Nur die Kopfzeilen in `http_send_fs_file()` und die neue `304` tragen `HTTP/1.1`
 #### Schreibstellen (nur Variante V tragend; ✔ FA vollständig)
 
 Stand `72cfda7`: `http.cpp` 27, `stm32flash.cpp` 3, `ESP-uclock.ino` 1 (in `#if 0`) — **31**; nach R1 verschoben, c70e
-zählt selbst. App-Dateien schreiben oder löschen können: Auto-Installation (`http_try_auto_install_app_files()` ⇒
-`download_file_to_local()`), Legacy `savedwnfil`/`dwntable`, Legacy-Löschen, `http_api_app_file_upload()`,
-`fs_remove`, Formatieren.
+zählt selbst.
 
 #### `If-None-Match`, Antworten, Zähler
 
@@ -265,12 +264,14 @@ HTTP/1.1 304 Not Modified\r\nETag: "<wert>"\r\nCache-Control: no-cache\r\nConnec
 ### 5.1 Ladeprobe (`ladeprobe`, Lead; liegt vor)
 
 Dauerhaftes Profil: kalt, dann fünfmal warm (dreimal `Page.reload` ohne `ignoreCache`, zweimal `Page.navigate`), je
-vorher `heap_low_reset=1`, danach lesen. Je Laden: Leitungsstatus, `If-None-Match` gesendet, `encodedDataLength`,
-`heap_low_block`, `heap_low_path`, I-4, `app_*`. `--erwarte-304`. Keine Haltegrenze.
+vorher `heap_low_reset=1`, danach lesen. Je Laden: Leitungsstatus (`responseReceivedExtraInfo`), `If-None-Match`
+gesendet, `encodedDataLength`, `heap_low_block`, `heap_low_path`, I-4, `app_*`. `--erwarte-304`. Keine Haltegrenze.
+**Mit Ent-18 A** läuft auf R1b eine neue Grundlinie (G9b), damit G10 die Wirkung von C70 ohne die von L7 zeigt.
 
 ### 5.2 Probe U (AKW.3)
 
-`layout-previews.json` um Leerraum ergänzt, `gzip -9`, über `app_file_upload`; danach Original zurück.
+`layout-previews.json` um Leerraum ergänzt, `gzip -9`, über `app_file_upload`; danach Original zurück. Ohne
+Einzelfreigabe (`CLAUDE.md:416`).
 
 ### 5.3 Browser-Sitzung (`browser-sitzung`, Lead)
 
@@ -282,14 +283,33 @@ vorher `heap_low_reset=1`, danach lesen. Je Laden: Leitungsstatus, `If-None-Matc
 | **S3** | PWA-Tab geschlossen, Browser läuft | 300 s |
 | **S4** | Browser beendet | 180 s |
 
-Betriebsarten `osascript` und **`manuell`**. Lesung am Phasenende: `device_ready`, `netstat`, `lsof`; je eigene Lesung
-Port und Ende ihres TIME_WAIT-Fensters (Lesezeit + 120 s — nach H4 ◐ eine obere Schranke). Je Sitzung
-Δ`no_request_timeouts` gegen Δ`no_request_aborts` und Δ`http_accept_dead`.
+**Betriebsarten:** `osascript` (das Skript bedient) und **`manuell`** (das Skript nennt Phase und Handgriff, der Nutzer
+bedient auf seinem Gerät und bestätigt, das Skript liest). In G10 vor S0 einmal öffnen und beenden.
+
+**Lesung am Phasenende:** `device_ready` ohne Parameter, `netstat`, `lsof`. Je eigene Lesung lokaler Port und Ende ihres
+TIME_WAIT-Fensters (Lesezeit + 120 s; nach H4 eine obere Schranke). Je Sitzung Δ`no_request_timeouts` gegen
+Δ`no_request_aborts` und Δ`http_accept_dead` über S1–S3.
+
+**Client freistellen (A.5), vor jeder C72-Sitzung, solange L7 nicht eingespielt ist:** Die PWA fragt beim Öffnen
+`update_status` ab; ist der Abruf kalt, liegt danach bis zum nächsten `connect()` des httpclient eine Antwort von
+1'704 Byte im Heap (C71). Ohne Gegenmassnahme erschiene sie in S2/S3 als „Lücke“ und landete fälschlich in M2 oder M5.
+Deshalb: vor S0 den Client freistellen — ein kalter `update_table_files`, der zu Ende liest, oder ein Durchgang des
+Abgleichs — und je Phasenende `hc` (I-6, `httpclient_connects`) und `update_info_cached` mitprotokollieren (das Feld
+dort lesen, wo es ohnehin anfällt; kein eigener kalter Abruf). Steigt `hc` oder wechselt `update_info_cached` während
+der Sitzung, wird eine Lücke um 1'704 Byte C71 zugerechnet, nicht C72. **Mit L7 entfällt das Freistellen**; es wird
+für den Vergleich mit G9 einmal mitgefahren.
 
 ### 5.4 Entscheidungsregel C72 (AKW.5)
 
-„Lücke“ = `free_heap`(S0) − `free_heap`(Phase). Eigene Lesungen und ihr TIME_WAIT-Fenster zählen nicht. Zugeordnet wird
-auf G10; G9 und die P1-Probe daneben.
+„Lücke“ = `free_heap`(S0) − `free_heap`(Phase), **nach Abzug einer C71-Belegung** (§5.3). Eigene Lesungen und ihr
+TIME_WAIT-Fenster zählen nicht; Heap-Zeilen in einem eigenen Fenster zählen für M2 nicht. Zugeordnet wird auf G10; G9
+und die P1-Probe daneben.
+
+**Was nach A.5 für C72 bleibt:** Die 1'704 Byte aus L461 gehören zu C71. Für C72 bleiben aus L461 nur der Anteil an
+`max` (4'672 ⇒ 3'816), soweit die C71-Belegung ihn nicht erklärt, und die Erholung um +600 um 20:07. **Ob K1 und K2
+danach überhaupt noch einen Gegenstand haben, entscheiden die Browser-Sitzungen G9.3–G9.5** (mit Ent-18 A auf R1b); bis
+dahin bleiben sie Kandidaten. Zeigt keine Sitzung eine Lücke ≥ 500 nach Abzug von C71, gilt M5: Der C72-Eingriff
+entfällt, und C72 wird mit diesem Ergebnis geschlossen oder umformuliert.
 
 | Ergebnis | Bild | Kandidat (Ent-8) |
 |---|---|---|
@@ -297,54 +317,39 @@ auf G10; G9 und die P1-Probe daneben.
 | **M2** — Strom von Vorab-Verbindungen | in S2/S3 steigen `nrt` oder `http_accept_dead` um ≥ 1 je Minute; in ≥ 2 Heap-Zeilen ausserhalb eigener Fenster `fw2`/`tw` > 0; kein PCB aus M1; Lücke ≥ 500; in S4 stehen beide still | **K1 nur, wenn Δ`no_request_timeouts` den Anstieg trägt**; sonst kein K1, Befund, K5 als Zusatz prüfen |
 | **M3** — beides | M1 und M2 | **K2**, dazu K1 unter derselben Bedingung |
 | **M4** — angenommen und hängend | ein PCB mit `arg` = 1, nicht die eigene Lesung, ESTABLISHED oder CLOSE_WAIT, `ruhe_s` ≥ 30 — oder `tcp_now_unclaimed` ≥ 1 in zwei Lesungen hintereinander; SYN_RCVD zählt nicht | **kein Eingriff**; eigener Befund |
-| **M5** — keine Verbindung | Lücke ≥ 500, aber ausser eigenen Einträgen und ≤ 2 TIME_WAIT nichts — oder keine Lücke ≥ 500 | **kein Eingriff** |
+| **M5** — keine Verbindung | Lücke ≥ 500 ohne Einträge ausser eigenen und ≤ 2 TIME_WAIT — **oder keine Lücke ≥ 500 nach Abzug von C71** | **kein Eingriff** |
 
 **Widerlegt die P1-Probe P1**, ist **K2 zwingend**.
 
-### 5.5 Startmessung und Entscheidungsregel C71 (AKM.5, AKS.2) — der entscheidende Schritt für C71
+### 5.5 C71 — Ergebnis und Entscheidungsregel (A.5)
 
-**Was feststeht (✔ L, L468):** Schreiben im laufenden Betrieb hinterlässt nichts; ein Start mit `unveraendert` auch
-nicht. **Was geprüft wird (? FA, H-CC):** ob ein `ClientContext` des httpclient sich beim Start in den vom Schreiben
-freigegebenen Bereich legt, und ob ein vor dem Abgleich angelegter Kontext (`hc` > 0) das verhindert.
+**Belegt (✔ L, L468):**
 
-**Ablauf je Start:** kein Browser; ESP-Neustart über den Weg aus V3 oder `/api/local_esp_restart`; **keine HTTP-Lesung,
-bis `- update cache heap …` erschienen ist, plus 130 s**; Mitschnitt mit allen I-6-Zeilen und Heap-Zeilen; danach
-Smoketest samt Update-Quelle. Vermerke: Flash-Schreiben beim Start (samt `tmp geloescht`), Wetter-Overlay ja/nein,
-**`tcp=`/`hc` in `nach` rund 10 ms nach `n` gemessen (H2)**.
+| Messung | Ergebnis |
+|---|---|
+| G9.6 Start 3 — Schreiben beim Start | **keine** Zerstückelung (Lochsumme `L` unverändert) |
+| G9.6 Start 4 — ein kalter `update_status` | belegt **1'704 Byte** (`free` und `max`) bis zum nächsten `connect()` des httpclient |
+| zweiter `update_status` | belegt nichts zusätzlich |
+| M3 | Kopf 250, `Content-Length` 1215, Rumpf gleich Repo — drei pbufs 616 + 616 + 472 = 1'704 |
+| M1 | ein kalter `update_table_files`, der zu Ende liest und neu verbindet, gibt **exakt +1'704** frei (5'624/4'744 ⇒ 7'328/7'152) |
 
-**Die 130-s-Regel (◐ R, H4):** Nach der Lesart des Reviewers entfernt lwIP einen TIME_WAIT-PCB, wenn
-`tcp_ticks − tmr` 2·`TCP_MSL` = 120 s überschreitet, und `tmr` steht nach `TF_RXCLOSED` still (P4). Jeder PCB, der beim
-Messpunkt `n` in TIME_WAIT liegt, hat sein letztes Segment **vor** `n` empfangen — er ist also spätestens rund 120 s
-nach `n` fort, eher früher. 130 s nach `n` liegt damit hinter jedem solchen Ende, mit 10 s Rand für den 500-ms-Takt
-des Langsam-Timers und die Minutentaktung der Heap-Zeile. **Die Regel stimmt zu H4 und bleibt konservativ;** sie hängt
-an einer Lesart der binären Bibliothek (◐). Deshalb gilt zusätzlich, dass die bewertete Heap-Zeile `tw=0` zeigt.
+**Ergebnisse, neu gefasst:**
 
-**Starts:**
+| Ergebnis | Bild | Stand | Kandidat (Ent-17) |
+|---|---|---|---|
+| **N5** — Belegung nach kaltem `update_status` | Nach einer Existenzprüfung ohne Rumpflesen bleibt die Antwort im `_rx_buf` des statischen httpclient bis zum nächsten `connect()` | **trifft zu** (M1, M3, Start 4) | **L7** |
+| N0 — PUYA-Puffer | — | **nicht zutreffend** (L468 (b)) | — |
+| N1a, N1b — Startzustand, Platzierung (H-CC) | — | **widerlegt** (Start 3 ohne Zerstückelung; M1 gibt exakt die Belegung frei) | — |
+| N2, N3, N4 | — | gegenstandslos | — |
 
-| # | Was | Erwartet |
-|---|---|---|
-| 1, 2 | ohne Änderung | `unveraendert`, keine Zerstückelung (wie V3) |
-| 3 | **erzwungenes Schreiben beim Start** (`/upd-wc-list.txt` vorher per `/api/fs_remove` löschen) | `geschrieben`; nach L460 Zerstückelung |
-| 4 *(empfohlen, Abweichung)* | wie 3, dazu rund 50 s nach dem Start ein kalter `update_status` (`hc` > 0 in `vorher`); als Abweichung von „keine HTTP-Lesung“ gekennzeichnet | keine Zerstückelung ⇒ H-CC gestützt; Zerstückelung trotzdem ⇒ H-CC widerlegt |
+**Offener Punkt (◐):** L460 sah den Fall nach dem OTA von E4 im Startfenster, laut Protokoll **ohne Anfrage**. N5
+erklärt das nur, wenn dort doch ein `update_status` oder ein anderer Abruf ohne Rumpflesen lief — die Prüfung auf
+`app.js.gz` oder der Zweig `zu-gross` in `update_cache_write()`. Der Lead prüft den Mitschnitt von L457/L460 darauf und
+trägt das Ergebnis ins Messprotokoll. Die Wirkung von L7 belegt AKS.4 unabhängig davon.
 
-**Auswertung (A.4):** Tragend ist die **Lochsumme `L = free − blk`** aus `- update cache heap` (`v` und `n`) und an der
-bewerteten Heap-Zeile (`free − max`). **„Zerstückelt“** heisst: an der Heap-Zeile ≥ 130 s nach `n` mit `tw=0` ist
-`max` um ≥ 1'000 tiefer als `blk` bei `v`, **und** `L` ist um ≥ 1'000 höher als bei `v`, bei einem `free`, das bis auf
-höchstens 300 Byte zu `v` zurückgekehrt ist. `frag` wird daneben berichtet, trägt aber keine Entscheidung (geringe
-Empfindlichkeit, §3.3).
-
-**Durchgänge mit offenem Client (C75):** Endet ein Schritt mit leerer Antwort oder `fehlgeschlagen abruf`, bleibt der
-`ClientContext` des httpclient offen, und der Durchgang misst mit offenem Client. Ein solcher Start wird im
-Messprotokoll gekennzeichnet und **nicht** allein für N1a/N1b herangezogen; im Zweifel wird er wiederholt.
-
-| Ergebnis | Bild | Kandidat (Ent-17) |
-|---|---|---|
-| **N0** — PUYA-Puffer (bedingt) | nur wenn `vendor=85`: im ersten Schreibschritt ΔFree ≈ −264 ohne Erholung | **L0** |
-| **N1a** — Startzustand, H-CC gestützt | Start 3 „zerstückelt“ (`hc=0` in `vorher`), Start 4 **nicht** (`hc` > 0); der Sprung in `L` liegt bei Schritt 4 oder 5 | **L7** (mit C75) nach P9b |
-| **N1b** — H-CC widerlegt oder nicht geprüft | Start 3 **und** 4 „zerstückelt“, bzw. Start 4 nicht gefahren | **L6** |
-| **N2** — auch ohne Schreiben | Start 1 oder 2 „zerstückelt“ — widerspricht V3 | **L2** (mit Vorbedingung, §7) |
-| **N3** — auch im laufenden Betrieb | widerspräche L468 (c) | **L4b** |
-| **N4** — nicht im Abgleich | `L` bei `v` schon hoch (oder `erste anfrage` klein), oder kein Start „zerstückelt“ | **keine Massnahme** |
+**Messung der Wirkung von L7 (AKS.4):** wie Start 4 und M1 — ESP in Ruhe, Heap-Zeile lesen, **einen** kalten
+`update_status`, danach keine HTTP-Lesung, bis eine Heap-Zeile ≥ 130 s danach mit `tw=0` vorliegt (◐ H4); `free` und
+`max` vorher und nachher.
 
 ### 5.6 P1-Probe (AKM.7)
 
@@ -355,7 +360,7 @@ widerlegt, K2 zwingend.**
 
 ---
 
-## 6. Eingriffskandidaten C72 (R3, Ent-8)
+## 6. Eingriffskandidaten C72 (R3, Ent-8) — Kandidaten, bis G9.3–G9.5 entschieden haben
 
 | | Mechanismus | Wirkung (◐ bis G11) | Risiko | Speicher |
 |---|---|---|---|---|
@@ -369,57 +374,78 @@ widerlegt, K2 zwingend.**
 
 ---
 
-## 7. Kandidaten C71 (R3 nach Ent-16 A, Ent-17)
+## 7. Massnahme C71 — L7 (Ent-17 faktisch entschieden; Release nach Ent-18)
 
-| | Mechanismus | Wirkung | Risiko | Speicher | Stand |
-|---|---|---|---|---|---|
-| **L7** — `ClientContext` des httpclient nach jedem Abruf freigeben, **samt C75** | in `httpclient_stop()` nach `client.stop()` den Kontext freigeben (`client = WiFiClient()`); **dazu C75:** jeder Weg, der nach `httpclient()` bei `len <= 0` aufgibt — `httpclient()` selbst bei leerer Antwort oder die Aufrufer, darunter `update_cache_write()` —, ruft `httpclient_stop()` | unter H-CC: das Loch schliesst sich wieder, `blk` bleibt am Stück; kein Durchgang endet mehr mit offenem Client | ◐: unter H-CC neu zu bewerten (**P9b**); jeder Abruf legt einen frischen Kontext an. C75 allein ist ohne Risiko — ein geschlossener Client nach einer leeren Antwort ist der gewollte Zustand | 0 | **Kandidat bei N1a**, erst nach P9b |
-| **L6** — Abgleich nach dem Start verzögern | `UPDATE_CACHE_START_MS` von 60 s auf 300 s; „5 s nach der letzten Anfrage“ bleibt | der Abgleich trifft einen gesetzten Heap (L468 (c)) | (1) Notes bis 300 s leer, wenn die Datei ungültig ist; (2) eine ungültige Liste holt `update_status` 5 min lang live in der Anfrage (Muster L449); (3) `refresh=1` und Quellenwechsel wirken 300 s nicht; (4) nach einem OTA über die PWA trifft der Abgleich einen Heap mit C72-Resten. **Unter H-CC wirkt L6 nur, wenn vor 300 s schon ein `ClientContext` angelegt wurde** | 0 | **Kandidat bei N1b** |
-| **L2** — Abgleich vor dem ersten Netzverkehr | — | — | **in dieser Form nicht umsetzbar:** `http_server_begin()` steht in `wifi_connect()` vor `IPADDRESS`, es gäbe nur `quelle-leer`; echte Vorbedingung: Host und Pfad auf dem ESP, oder Vollabgleich vor `http_server_begin()` | 0 | nur mit Vorbedingung, eigener Nachtrag |
-| **L0** — PUYA-Puffer früh anlegen (Ab-1) | nur bei `vendor=85` | Puffer unten | Wahl des Worts | 0 | **bedingt** |
-| **L4b** — nie zwei `File` gleichzeitig | in `update_cache_write()` | — | E4.5a-Vergleich umzustellen | 0 | nur für N3 |
-| **L1**, **L3**, **L4a**, **L5** | — | — | — | — | **verworfen** (A.2) |
+**Begründung (A.5):** Ein Abruf, dessen Rumpf nicht gelesen wird, lässt die Antwort im `_rx_buf` des `ClientContext`
+liegen, denn `WiFiClient::stop()` ⇒ `close()` gibt sie nicht frei (`ClientContext.h:73-92`); erst Refcount 0 ruft
+`discard_received()` (`:115-127`). Der statische httpclient (`httpclient.cpp:16`) hält den Kontext bis zum nächsten
+`connect()`. **Belegt:** 1'704 Byte nach jedem kalten `update_status` (M1, M3, Start 4). Die Platzierung des
+56-Byte-Kontexts (früher H-CC) ist nur noch **Nebenwirkung** — mit L7 ist er nach jedem Abruf ohnehin frei.
 
-**Nachzuziehen bei L6:** `TESTPLAN-PWA.md:798`, `:809`, `:959` (`doc-writer`) und `c65n.cpp:52-54`, `:81`, `:87`, `:214`
-(Lead), Stand `72cfda7`.
+**L7 besteht aus drei Teilen:**
 
-**C75 ohne L7:** Wählt Ent-17 nicht L7, bleibt C75 ein eigener Befund in `BEFUNDE.md` (vom Lead eingetragen); dieses
-Paket behebt ihn dann nicht.
+| Teil | Was | Deckt ab |
+|---|---|---|
+| **L7a** | `httpclient_stop()`: nach `client.stop()` den Kontext freigeben (`client = WiFiClient()`) — Refcount 0, `discard_received()` | **zentral** jede Prüfung ohne Rumpflesen: `update_status` (`wc12h-icon.txt`, `wc12h-weather.txt`), die Prüfung auf `app.js.gz` (bis rund 2'464 Byte), den Zweig `zu-gross` in `update_cache_write()` — ohne Änderung an diesen Aufrufern |
+| **L7b** | die direkten `client.stop()` in den Fehlerwegen von `httpclient()` (`httpclient.cpp:216` keine Antwort, `:224` Status ≠ 200) über `httpclient_stop()` führen | den Rumpf einer Fehlerseite (etwa 404), der sonst liegen bliebe |
+| **L7c = C75** | `httpclient()` bei `len == 0` und jeder Aufrufer, der bei `len <= 0` aufgibt (darunter `update_cache_write()`), schliesst über `httpclient_stop()` | jeden Abruf, der heute mit offenem Client endet |
 
-**Empfehlung:** N1a ⇒ L7 (mit C75, nach P9b); N1b ⇒ L6 mit den vier Risiken. Ohne vierten Start bleibt nur N1b.
+**Risiko (◐):** Nach der Freigabe darf kein Code mehr auf den alten Kontext zugreifen (c71e prüft das, und dass jeder
+weitere Abruf funktioniert). Jeder Abruf legt einen frischen Kontext an (rund 56 Byte). RAM 0.
+
+**Option, nicht Ersatz: `HEAD` statt `GET` für Existenzprüfungen.**
+
+| | Bewertung |
+|---|---|
+| Wirkung | kein Rumpf, also nichts im `_rx_buf` nach dem Kopf; rund 1,2 KB weniger Übertragung je Prüfung |
+| Was es nicht deckt | Fehlerseiten (`:216`, `:224`), `len <= 0` (C75), den Zweig `zu-gross`, jeden künftigen Aufrufer, der den Rumpf nicht liest — **L7 bleibt nötig** |
+| Aufwand und Risiko | `httpclient()` kennt nur `GET`; eine Methode als Parameter; ob der Update-Server `HEAD` mit gleichem Status beantwortet, ist ◐ (am Server zu prüfen); ein Aufrufer, der nach `HEAD` doch liest, wartete bis zur Frist |
+| Empfehlung | **nicht in diesem Paket**; als spätere Verbesserung benannt |
+
+**Verworfen mit Beleg (A.5):**
+
+| Kandidat | Warum nicht |
+|---|---|
+| **L6** (Abgleich nach 300 s) | Start 3 zerstückelt nicht; die Ursache liegt nicht im Zeitpunkt des Abgleichs (M1) |
+| **L0** (PUYA-Puffer früh anlegen) | L468 (b); N0 nicht zutreffend |
+| **L2** (Abgleich vor `http_server_begin()`) | nicht umsetzbar (P11) und ohne Bezug zur Ursache |
+| **L4b**, **L1**, **L3**, **L4a**, **L5** | ohne Bezug zur Ursache bzw. schon in A.2 verworfen |
+| Vermutung „der Zwischenspeicher hält einen String“ | widerlegt: M1 gibt exakt die pbuf-Belegung der ungelesenen Antwort frei |
+
+Mit dem Wegfall von L6 ist an `TESTPLAN-PWA.md` (Startfrist 60 s) und c65n nichts nachzuziehen.
 
 ---
 
 ## 8. Prüfstände
 
 Ablage `tools/checks/auszug/esp/c72/`, `…/c71/`, `…/c70/`, PWA neben b48; in S16. Fallzahl gegen das, was es geben
-müsste (L235); einmal gegen den Vorgängerstand fehlgeschlagen; je Massnahme eine Sabotage (DIR-014).
+müsste (L235); einmal gegen den Vorgängerstand fehlgeschlagen; je Massnahme eine Sabotage (DIR-014). Attrappen bilden
+die Core-Semantik nach.
 
 | Prüfstand | Release | Gegenstand | Fälle (Auszug) | Sabotage ⇒ FEHL |
 |---|---|---|---|---|
 | **c72i** | R1 | I-5 | Attrappen `tcp_active_pcbs` (alle 11 Zustände; `callback_arg` NULL, `ClientContext`, Listener; ESTABLISHED mit NULL), `tcp_tw_pcbs`, `tcp_ticks`, `_unclaimed`; `arg` 0/1/2; Liste ≤ 8 + `tcp_now_more`; `http_accept_dead` nur bei nicht leerem `_unclaimed`; kein `http_send` im Listengang; Heap-Zeile ≤ 119, Mitschnitt = Ring | Ausgabe in der Schleife; Kappung entfernt; SYN_RCVD als `ClientContext`; toter Abholversuch ohne Zähler; leerer Durchlauf gezählt; nur `Serial` |
-| **c71i** | R1 | I-6 | `vorher` einmal vor Schritt 1 (nach dem `.tmp`-Gang) mit `up`, `free/blk`, `frag`, `tcp=`, `hc`; `heap` mit `free`/`blk` je Schritt; `nach` mit `frag` je Messpunkt, `tcp=`, `hc`, `acc`; Durchgang mit 5, 3, 0 Schritten; `-`; Werte nach `LittleFS.end()`; `tmp geloescht`; `erste anfrage` einmal beim ersten lebenden `accept()`; `flash id` vor `EEPROM.begin()`; je ≤ 119 | Schritt ohne Wert; nur `blk`; `vorher` nach Schritt 1; `nach` ohne `hc`; `acc` nicht als Δ; `tmp geloescht` fehlt; nur `Serial` |
-| **c70e** | R2 | C70 (a) | `HTTP/1.1 200` + `ETag`; `304` ohne Körper und `Content-Length`; `W/`, Liste, `*`, überlang; leere Datei nie `304`; Index ohne `app_complete`; ausserhalb der Weissliste `HTTP/1.0` ohne `ETag`; Körperlänge = `Content-Length`; `seek` scheitert. **T:** zwei `.gz` gleicher Grösse, anderer Inhalt ⇒ andere `ETag`; abgeschnitten; ohne `1f 8b`. **V:** CRC-32/MPEG-2; Invalidierung an allen Stellen. **Statisch:** `HTTP/1.1` an genau zwei Stellen mit `Connection: close` | `ETag` nur aus Grösse; `304` ohne Grössenprüfung; mit Körper; ohne `Connection: close`; `HTTP/1.1` in `/api/`; V: Invalidierung entfernt, CRC mit zlib |
+| **c71i** | R1 | I-6 | `vorher` einmal vor Schritt 1 (nach dem `.tmp`-Gang) mit `up`, `free/blk`, `frag`, `tcp=`, `hc`; `heap` mit `free`/`blk` je Schritt; `nach` mit `frag` je Messpunkt, `tcp=`, `hc`, `acc`; 5, 3, 0 Schritte; `-`; Werte nach `LittleFS.end()`; `tmp geloescht`; `erste anfrage` beim ersten lebenden `accept()`; `flash id` vor `EEPROM.begin()`; je ≤ 119 | Schritt ohne Wert; nur `blk`; `vorher` nach Schritt 1; `nach` ohne `hc`; `acc` nicht als Δ; `tmp geloescht` fehlt; nur `Serial` |
+| **c71e** | **R1b** bzw. R3 (Ent-18) | **L7** | Attrappe `ClientContext` mit Refcount und `_rx_buf` — Semantik wie der Core: `close()` gibt `_rx_buf` **nicht** frei, Refcount 0 ruft `discard_received()`. **(1) Existenzprüfung mit ungelesenem Rumpf** (Kopf 250 + 1'215 Byte in drei pbufs) ⇒ nach `httpclient_stop()` Refcount 0, `discard_received()` gelaufen, Heap-Attrappe wieder auf dem Stand vorher; **(2) Fehlerweg „keine Antwort“** (`httpclient.cpp:216`) und **(3) Status 404 mit Rumpf** (`:224`) ⇒ ebenso frei; **(4) `len == 0`** (C75) ⇒ geschlossen und frei; **(5) Zweig `zu-gross`** in `update_cache_write()` ⇒ frei; **(6)** ein weiterer Abruf nach der Freigabe funktioniert, kein Zugriff auf den alten Kontext; **(7)** ein Abruf, der zu Ende liest, verhält sich wie vorher | **„nur `stop()`“** (ohne Freigabe des Kontexts) ⇒ FEHL in (1); Fehlerweg mit direktem `client.stop()` ⇒ FEHL in (3); `len == 0` offen ⇒ FEHL in (4) |
+| **c70e** | R2 | C70 (a) | `HTTP/1.1 200` + `ETag`; Treffer ⇒ `HTTP/1.1 304` ohne Körper und `Content-Length`; Fehltreffer; `W/`, Liste, `*`, überlang, Kopfname klein; leere Datei nie `304`; Index ohne `app_complete` ⇒ Installationsseite (`HTTP/1.0`); ausserhalb der Weissliste `HTTP/1.0` ohne `ETag`; Körperlänge = `Content-Length`; `seek` scheitert. **T:** zwei `.gz` gleicher Grösse, anderer Inhalt ⇒ andere `ETag`; abgeschnitten; ohne `1f 8b`. **V:** CRC-32/MPEG-2; Invalidierung an allen Stellen. **Statisch:** `HTTP/1.1` an genau zwei Stellen mit `Connection: close` | `ETag` nur aus Grösse; `304` ohne Grössenprüfung; mit Körper; ohne `Connection: close`; `HTTP/1.1` in `/api/`; V: Invalidierung entfernt, CRC mit zlib |
 | **c70p** | R2 | PWA | `"no-cache"` in `loadLayoutPreviewRowsMap`; Sprachdatei mit `?v=` | `"no-store"` |
 | **c65b, c65w, LittleFS-Attrappe** | R2 | Bestand | Kopfzeilen in einem Schreibvorgang mit `HTTP/1.1` und `ETag`; `seek`, Trailer- bzw. zweites Lesen | wie bisher |
 | **c72e** | R3 | Eingriff C72 | K1 `abort()` nur im Teilfall Timeout; K2 nur `callback_arg == NULL` + Zustand + `ruhe_s` > Frist; SYN_RCVD, `ClientContext`, TIME_WAIT, LISTEN unberührt; ein Gang je Sekunde; Neubeginn nach Abbau; K5 Grenze 1 | K1 `stop()` bzw. auch im Teilfall Abbruch; K2 PCB mit `callback_arg` ≠ NULL bzw. SYN_RCVD abgebaut, Frist entfernt; K5 Grenze 2 |
-| **c71e** | R3 | Massnahme C71 | **L7:** `httpclient_stop()` gibt den Kontext frei, der nächste Abruf funktioniert, kein Zugriff auf den freigegebenen Kontext; **C75:** nach einer leeren Antwort (`len == 0`) und nach `len <= 0` in `update_cache_write()` ist der Client geschlossen; **L6:** erster Durchgang nicht vor 300 s, 5-s-Bedingung bleibt, c65n nachgezogen; **L0/L4b:** wie A.2 | L7: Kontext nicht freigegeben; C75: leere Antwort lässt den Client offen; L6: Frist 60 s |
 
 ---
 
 ## 9. Werkzeuge (Lead)
 
-- **`ladeprobe`** — liegt vor; Leitungsstatus.
+- **`ladeprobe`** — liegt vor; Leitungsstatus; mit Ent-18 A neue Grundlinie auf R1b.
 - **`browser-sitzung`** — `osascript` und `manuell`; je eigene Lesung Port und TIME_WAIT-Ende; je Sitzung
-  Δ`no_request_timeouts`, Δ`no_request_aborts`, Δ`http_accept_dead`.
+  Δ`no_request_timeouts`, Δ`no_request_aborts`, Δ`http_accept_dead`; **vor S0 den Client freistellen und je Phase
+  `hc` und `update_info_cached` protokollieren, solange L7 nicht eingespielt ist**.
 - **P1-Probe** — Python-Skript nach §5.6.
+- **Messung AKS.4** — kalter `update_status`, danach Heap-Zeilen bis ≥ 130 s mit `tw=0`; `free`/`max` vorher/nachher.
 - **`check-pwa`** (R2) — INFO `304` je Laden, Byte je Laden, je Lauf `ERR_CONNECTION_RESET` und `ERR_EMPTY_RESPONSE`.
 - **`smoke-device.sh`** — ab R1 I-5-Felder, ab R2 `app_*`.
 - **`watch-log.sh`** — ab R1 Heap-Zeile mit Zusatz und die I-6-Zeilen als Hinweis; mit V `- app etag`.
-- **Auswertung C71** — rechnet `L = free − blk` je Messpunkt aus `- update cache heap` und `free − max` aus den
-  Heap-Zeilen; `frag` nur daneben.
 - **R2:** `tools/**` nach Prüfungen auf `HTTP/1.0` durchsuchen; c65b, c65w, LittleFS-Attrappe nachziehen.
-- **R3 mit L6:** c65n nachziehen.
 
 ---
 
@@ -430,11 +456,11 @@ müsste (L235); einmal gegen den Vorgängerstand fehlgeschlagen; je Massnahme ei
 | I-5 samt `http_accept_dead` | R1 | ~2 |
 | Heap-Zeile | R1 | 0 |
 | I-6 (Schrittwerte, `frag`, `http_accept_count`, Merker) | R1 | ~50 |
+| L7 (a–c) | R1b bzw. R3 | 0 |
 | `If-None-Match`-Puffer | R2 | 36 |
 | Zähler `app_*` | R2 | 4 (T) / 6 (V) |
 | `ETag`-Tabelle | R2 | 0 (T) / 104 (V) |
 | K2 | R3 | ~4 |
-| C71 L7 (mit C75)/L6 | R3 | 0 |
 | **Summe** | | **rund 100 (T) / 205 (V)** — Grenze 250 (Ent-11) |
 
 ---
@@ -443,32 +469,35 @@ müsste (L235); einmal gegen den Vorgängerstand fehlgeschlagen; je Massnahme ei
 
 **R1** — ESP. Rückweg: ESP 3.2.37 aus `wordclock-release-2026-10-14-180012.zip` (L457).
 
-**R2** — ESP und PWA, Firmware zuerst (DIR-002). Alle vier Paarungen sicher. Ablauf: Wache; OTA; Smoketest samt
-Update-Quelle; `install-app.sh --check`; `install-app.sh`; `--check`; `check-pwa.sh`. Rückweg: ESP auf R1, PWA bleibt.
+**R1b** (Ent-18 A) — ESP. Rückweg auf R1 aus dessen ZIP; keine Paarungsfrage (die PWA ist nicht betroffen).
 
-**R3** — ESP. Rückweg auf R2; mit Ent-16 A nimmt er C71 **und** C72 zurück.
+**R2** — ESP und PWA, Firmware zuerst (DIR-002). Alle Paarungen sicher. Ablauf: Wache; OTA; Smoketest samt
+Update-Quelle; `install-app.sh --check`; `install-app.sh`; `--check`; `check-pwa.sh`. Rückweg: ESP auf den Vorstand,
+PWA bleibt.
+
+**R3** — ESP. Rückweg auf R2; mit Ent-18 B nimmt er L7 **und** den C72-Eingriff zurück.
 
 Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor** eingespielt wird.
 
 ---
 
-## 12. Prüfpunkte (`firmware-analyst`, ergänzt um den Review R1.7)
+## 12. Prüfpunkte (`firmware-analyst`, Review R1.7, Messungen L468)
 
 | P | Frage | Stand |
 |---|---|---|
 | **P1** | FIN_WAIT_2 nach `tcp_close()`? | **◐ FA:** ja, rund 20 s, ohne RST — P1-Probe |
 | **P2** | `MEMP_NUM_TCP_PCB` bei `MEMP_MEM_MALLOC`? | **✔ FA:** begrenzt nichts |
 | **P3** | `tcp_abort()` ohne `callback_arg` | **◐ FA:** SYN_RCVD trägt den Listener; K2 nur `NULL` |
-| **P4** | `tmr` | **◐ FA:** §3.1; dazu **H4 (◐ R):** TIME_WAIT endet über dieselbe `tmr` bei `ruhe_s` > rund 120 |
+| **P4** | `tmr` | **◐ FA:** §3.1; dazu H4 (◐ R) |
 | **P5** | `crc32()` | **✔ FA:** CRC-32/MPEG-2 |
 | **P6** | Schreibstellen | **✔ FA:** 31; AutoFormat; Nebenbefunde |
 | **P7** | `stop()`/`abort()` im Zweig „keine Anfrage“ | **✔ FA:** K1 nur bei `no_request_timeouts`; C74 |
 | **P8** | Tote `ClientContext` | **◐ FA:** I-5 ergänzt |
-| **P9** | C71: was beim Start lebt | **offen, H-CC (? FA)**; Prüfung G9.6; tragende Grösse `L = free − blk` (A.4) |
-| **P9b** | Schliesst L7 das Loch, oder legt sich der nächste Kontext wieder hinein? | **offen**, vor Ent-17 |
+| **P9** | C71: was bindet den Block? | **beantwortet (✔ L, A.5):** die ungelesene Antwort im `_rx_buf` des statischen httpclient (N5) |
+| **P9b** | Platzierung eines frischen Kontexts unter L7 | **nicht mehr tragend** — mit L7 ist der Kontext nach jedem Abruf frei |
 | **P10** | LittleFS-Puffer | **◐ FA:** L1, L3 verworfen |
-| **P11** | 60 s nach Start | **✔ FA:** STM-Vollabgleich; L2 nicht in der gedachten Form |
-| **P12** | Flash-Schreiber beim Start | **✔ FA:** ausser LittleFS praktisch nichts; I-6 (f) |
+| **P11** | 60 s nach Start | **✔ FA** |
+| **P12** | Flash-Schreiber beim Start | **✔ FA** |
 
 ---
 
@@ -476,34 +505,36 @@ Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor
 
 **Proper architecture** — Legacy parallel? Wetter-Endpunkte? Restore-Bedingung? Richtige Schicht?
 
-> **Legacy** bleibt parallel, unverändert und bei `HTTP/1.0`; C70 setzt nur in `http_send_fs_file()` an. **Wetter:**
-> unberührt — L7 und C75 betreffen nur den httpclient des Update-Servers, nicht `openweather_client`; K2 lässt laufende
-> ausgehende Abrufe in Ruhe. **Restore-Bedingung:** STM unberührt. **`.gz` und Grösse > 0:** bleibt. **Schicht:** C70 in
-> der Auslieferung; C71 dort, wo die Startmessung die Ursache zeigt — bei H-CC am Lebenszyklus des `ClientContext`
-> (L7), sonst am Zeitpunkt (L6); C72 erst gemessen, dann im ESP.
+> **Legacy** bleibt parallel, unverändert und bei `HTTP/1.0`; C70 setzt nur in `http_send_fs_file()` an. **Wetter:** L7
+> betrifft nur den httpclient (`httpclient.cpp`), nicht `openweather_client`; `/api/weather_get_now` und
+> `/api/weather_get_forecast` bleiben unberührt; K2 lässt laufende ausgehende Abrufe in Ruhe. **Restore-Bedingung:** STM
+> unberührt. **`.gz` und Grösse > 0:** bleibt. **Schicht:** L7 setzt dort an, wo die Ursache liegt — im Lebenszyklus
+> des Clients (`httpclient_stop()`), zentral für alle Aufrufer, statt jede Prüfung einzeln zum Rumpflesen zu zwingen.
+> C70 in der Auslieferung; C72 erst gemessen, dann im ESP.
 
 **Scalable systems** — STM-Kommandos? UART? Watchdog? Hauptloop?
 
-> **STM-Kommandos:** keine. **UART:** Heap-Zeile + rund 38 Byte je Minute; drei I-6-Zeilen je Durchgang, zwei je Start,
-> `tmp geloescht` nur im Ausnahmefall. **Hauptloop:** T kostet je Asset-Antwort ein `seek` (◐ ms); jede `304`
-> Millisekunden statt rund einer Sekunde; K2 einmal je Sekunde; unter L6 holt `update_status` eine ungültige Liste
-> 5 min lang live in der Anfrage. L7 kostet je Abruf eine Anforderung und Freigabe von rund 56 Byte. **Watchdog:** keine
+> **STM-Kommandos:** keine. **UART:** Heap-Zeile + rund 38 Byte je Minute; I-6-Zeilen je Durchgang; L7 fügt keine
+> Zeile hinzu. **Hauptloop:** L7 kostet je Abruf eine Freigabe und beim nächsten eine Anforderung von rund 56 Byte —
+> vernachlässigbar; Rumpflesen an jeder Prüfstelle hätte je Prüfung 1,2 KB Übertragung gekostet. T kostet je
+> Asset-Antwort ein `seek`; jede `304` Millisekunden statt rund einer Sekunde; K2 einmal je Sekunde. **Watchdog:** keine
 > Schleife ohne Grenze.
 
 **Secure by design** — `innerHTML`? Fremddaten? Credentials?
 
-> `If-None-Match` begrenzt, nur verglichen. Logzeilen nennen Zahlen, Dateinamen, Flash-Kennung. Kein neuer Endpunkt.
-> K1/K2 senden RST nur an Verbindungen ohne Anfrage bzw. vom ESP geschlossene. L6, L7 und C75 ändern nichts an der
-> Quelle des Abgleichs.
+> L7 ändert keine Ausgabe und keinen Endpunkt. Inhalte vom Update-Server bleiben nicht vertrauenswürdig; **L7 härtet**
+> zusätzlich: Ein (etwa fremd konfigurierter) Update-Host, der grosse Rümpfe schickt, kann den Heap nach einer Prüfung
+> nicht mehr dauerhaft binden. `If-None-Match` begrenzt, nur verglichen. K1/K2 senden RST nur an Verbindungen ohne
+> Anfrage bzw. vom ESP geschlossene.
 
 **Stable & reliable** — Fehler ausgewertet? Stille Verwerfungen? Zustand nach Abbruch? Flags?
 
-> **Veralteter Cache:** mit T durch Bau ausgeschlossen. **`HTTP/1.1`:** `Connection: close`, exaktes `Content-Length`.
-> **K1:** kein neues Fenster; AKE.3 gegen die Grundlinie R2. **C75:** ein Abruf mit leerer Antwort hinterlässt heute
-> einen offenen Client — mit L7 nicht mehr. **Messung ohne Selbsttäuschung:** C71 wird an einer Grösse entschieden, die
-> den Befund trägt (`L = free − blk`), nicht an einer, die ihn kaum sieht (`frag`); „erholt sich nicht“ erst nach
-> TIME_WAIT (130-s-Regel, ◐ H4, plus `tw=0`); Durchgänge mit offenem Client gekennzeichnet; H2 vermerkt; die Abweichung
-> im vierten Start ist gekennzeichnet; das AutoFormat bleibt als benannte Lücke.
+> **Zustand nach Abbruch:** Heute hinterlässt jeder abgebrochene oder nicht zu Ende gelesene Abruf (Fehlerseite, leere
+> Antwort, `zu-gross`, Existenzprüfung) eine gebundene Antwort bis zum nächsten Abruf; mit L7 ist der Zustand nach jedem
+> Weg definiert: Client geschlossen, Kontext frei. **Veralteter Cache:** mit T durch Bau ausgeschlossen. **`HTTP/1.1`:**
+> `Connection: close`, exaktes `Content-Length`. **Messung ohne Selbsttäuschung:** Die frühere Hypothese wurde am Gerät
+> widerlegt und verworfen; die C71-Belegung wird aus den C72-Sitzungen herausgerechnet, sonst würde sie dort als C72
+> gezählt; der offene Punkt L460 ist benannt; „erholt sich nicht“ erst nach TIME_WAIT (◐ H4, `tw=0`).
 
 ---
 
@@ -511,26 +542,24 @@ Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor
 
 | Alternative | Warum nicht |
 |---|---|
-| `ETag` bei `HTTP/1.0`; `HTTP/1.1` für alle | greift in Chrome nicht bzw. Keep-Alive-Risiko |
-| `Last-Modified` | Rückfallebene nur für Safari |
-| `ETag` aus Grösse allein / App-Version; CRC je Anfrage über die ganze Datei; `ETag`-Dateien | Kollision, unbekannt, zu teuer, zusätzliche Schreibvorgänge |
-| `max-age` ohne Versionierung; Variante (b) jetzt | „sofort wirksam“ verletzt bzw. veralteter Cache |
-| `fe` (Zahl freier Einträge) aus `umm_local.h` | privater Kopf (✔ R); `L = free − blk` trägt dieselbe Aussage aus öffentlichen Werten |
-| `frag` als tragende Grösse für C71 | zu unempfindlich für ein kleines Loch neben einem grossen (A.4) |
-| `device_ready` im Sekundentakt; HTTP-Lesungen in der Startmessung (ausser Start 4, gekennzeichnet) | verändern das Gemessene |
-| K1 bei M2, wenn nur `aborts` steigen | dort hat der Core schon abgebaut (P7) |
-| K3, K4; L1, L3, L4a, L5 | §6, §7 |
-| L0 als Hauptkandidat | L468 (b) gültiger Test |
-| L2 in der Form „vor `http_server_begin()`“ | ergäbe nur `quelle-leer` (P11) |
-| C72-Eingriff oder C71-Massnahme ohne Messung; C71 in R2 | Mechanismus nicht belegt bzw. Cache nicht getrennt messbar |
+| L6, L0, L2, L4b, L1, L3, L4a, L5 | §7 |
+| H-CC als Ursache; „Zwischenspeicher hält String“ | widerlegt (Start 3, M1) |
+| Jede Existenzprüfung den Rumpf lesen lassen | dezentral; jeder künftige Aufrufer müsste es wissen; L7 deckt zentral ab |
+| `HEAD` statt `GET` als Ersatz für L7 | deckt Fehlerwege, `len <= 0` und `zu-gross` nicht (§7) |
+| L7 zusammen mit R2 (Ent-18 C) | vermischt die Wirkung von L7 und C70 in G10 |
+| C72-Sitzung ohne Freistellen des Clients (vor L7) | die 1'704 Byte erschienen als C72-Lücke |
+| `ETag` bei `HTTP/1.0`; `HTTP/1.1` für alle; `Last-Modified`; (b) jetzt | §4 |
+| `fe` aus `umm_local.h`; `frag` als tragende Grösse | privater Kopf bzw. zu unempfindlich (A.4) |
+| `device_ready` im Sekundentakt; HTTP-Lesungen in Startmessungen (ausser gekennzeichnet) | verändern das Gemessene |
+| K1 bei M2, wenn nur `aborts` steigen; K3; K4 | §6 |
 
 ---
 
 ## 15. Versionsfolgen
 
-- [ ] ESP `version.h` — **R1**, **R2**, **R3** (falls)
-- [ ] `APP_VERSION` und `CACHE_NAME` — **R2**
-- [ ] STM — **nicht**
+- [ ] ESP `version.h` — R1 (eingespielt), **R1b** (Ent-18 A), R2, R3 (falls)
+- [ ] `APP_VERSION` und `CACHE_NAME` — R2
+- [ ] STM — nicht
 
 Nur der `release-engineer` (R4). Die Nummern bestimmt der Lead.
 
@@ -540,41 +569,44 @@ Nur der `release-engineer` (R4). Die Nummern bestimmt der Lead.
 
 | Datei | Änderung | Agent |
 |---|---|---|
-| `ESP8266/ESP-uclock/http.cpp` (UTF-8, eine CRLF-Zeile) | R1: I-5, Kommentar am I-4-Block, Zählfunktion, I-6, `http_accept_count`. R2: `If-None-Match`, `ETag`, `HTTP/1.1` in `http_send_fs_file()` und `304`, Zähler. R3: K1/K2/K5; C71 L6 (`UPDATE_CACHE_START_MS`) bzw. mit L7 der C75-Teil in `update_cache_write()` und den übrigen Aufrufern | `esp-developer` |
-| `ESP8266/ESP-uclock/httpclient.cpp` | R3 mit L7: `httpclient_stop()` gibt den Kontext frei; C75: leere Antwort schliesst | `esp-developer` |
-| `ESP8266/ESP-uclock/ESP-uclock.ino` (gemischte Zeilenenden) | R1: `esp_heap_log()`, I-6 (e) in `setup()`; R3: K2-Aufruf | `esp-developer` |
-| `ESP8266/ESP-uclock/stm32flash.cpp` (UTF-8) | R2 nur mit V | `esp-developer` |
-| `ESP8266/ESP-uclock/base.h` | Prototypen | `esp-developer` |
+| `ESP8266/ESP-uclock/httpclient.cpp` | **L7a** `httpclient_stop()` gibt den Kontext frei; **L7b** Fehlerwege über `httpclient_stop()`; **L7c** `len == 0` schliesst — Kodierung und Zeilenende vorher feststellen | `esp-developer` |
+| `ESP8266/ESP-uclock/http.cpp` (UTF-8, eine CRLF-Zeile) | R1: I-5, I-6; L7c an Aufrufern mit `len <= 0` (darunter `update_cache_write()`); R2: `If-None-Match`, `ETag`, `HTTP/1.1` in `http_send_fs_file()` und `304`, Zähler; R3: K1/K2/K5 | `esp-developer` |
+| `ESP8266/ESP-uclock/ESP-uclock.ino` (gemischte Zeilenenden) | R1: `esp_heap_log()`, I-6 (e); R3: K2-Aufruf | `esp-developer` |
+| `ESP8266/ESP-uclock/stm32flash.cpp`, `base.h` | R2 nur mit V; Prototypen | `esp-developer` |
 | `ESP8266/ESP-uclock/data/app/app.js` | R2: `loadLayoutPreviewRowsMap()` | `pwa-developer` |
-| `tools/**`, Prüfstände (dazu c65n bei L6) | §8, §9 | Lead |
-| Versionsdateien | R1, R2, R3 | `release-engineer` |
-| `TESTPLAN-PWA.md`, `BEFUNDE.md` | Felder, Zeilen, Lesart (`L = free − blk`, `frag` nur ergänzend); bei L6 die drei Stellen mit „rund 60 s“; Träger; Nebenbefunde | `doc-writer` |
+| `tools/**`, Prüfstände | §8, §9 | Lead |
+| Versionsdateien | R1b, R2, R3 | `release-engineer` |
+| `TESTPLAN-PWA.md`, `BEFUNDE.md` | Lesart nach A.5; Freistellen des Clients vor C72-Sitzungen (bis L7); Träger an C71, C72, C75 | `doc-writer` |
 | `CHANGELOG.md` | je Release | Lead |
 
 ---
 
-## 17. Nachträge A.2, L468, A.3 und A.4 — was sich ändert, was widerlegt ist
+## 17. Nachträge — was sich ändert, was widerlegt ist
 
 **A.2 (P1–P8):** `ruhe_s` berichtigt; `arg` 0/1/2; M1 über FIN_WAIT_1/CLOSING/LAST_ACK mit `nrtx`; M2 ohne eigene
-TIME_WAIT-Fenster; M4 ohne SYN_RCVD; Kommentar am I-4-Block falsch; Ent-2 offen (Variante T); Bestand 31; L1, L3, L4a,
-L5 verworfen; P1-Probe, `tcp_now_unclaimed`, `http_accept_dead`, `manuell`, AKC.8.
+TIME_WAIT-Fenster; M4 ohne SYN_RCVD; Kommentar am I-4-Block; Ent-2 offen (T); Bestand 31; P1-Probe,
+`tcp_now_unclaimed`, `http_accept_dead`, `manuell`, AKC.8.
 
-**L468 (Trennmessung):** K-a/N0 nicht bestätigt; nur Schreiben beim Start zerstückelt; L6.
+**L468, Trennmessung (15.10.2026):** K-a/N0 nicht bestätigt; Schreiben im laufenden Betrieb ohne Spur.
 
-**A.3 (P7, P9, P11, P12):** K1 nur bei `no_request_timeouts`, AKE.3 gegen Grundlinie R2, M2 ⇒ K1 nur mit Δ`timeouts`;
-H-CC (? FA), vierter Start, N1a/N1b, L7 (= Ab-2), P9b; L6 mit vier Risiken; L2 nicht umsetzbar; 130-s-Regel; I-6 um
-`nach`, `acc`, `tmp geloescht` ergänzt; C74; Anker über Funktionsnamen.
+**A.3 (P7, P9, P11, P12):** K1 nur bei `no_request_timeouts`; AKE.3 gegen Grundlinie R2; H-CC als Hypothese, vierter
+Start; L6 mit vier Risiken; L2 nicht umsetzbar; 130-s-Regel; I-6 um `nach`, `acc`, `tmp geloescht` ergänzt; C74.
 
-**A.4 (Review R1.7, 16.10.2026):**
+**A.4 (Review R1.7):** `frag` statt `fe`; tragend `L = free − blk`; H2; H4 (130-s-Regel konservativ); C75 in L7;
+`vorher` nach dem `.tmp`-Gang; `erste anfrage` beim ersten lebenden `accept()`.
 
-| Stelle (Stand vor A.4) | Neu |
+**A.5 (16.10.2026, L468, `89ec34c`) — Ursache von C71 belegt:**
+
+| Stelle (Stand vor A.5) | Neu |
 |---|---|
-| I-6 `fe=` (Zahl freier Einträge) | **`frag=`** aus `ESP.getHeapStats()` — `fe` steht nur im privaten `umm_local.h` |
-| N1a „`fe` steigt um ≥ 1 und bleibt“ | **nicht auswertbar** — ersetzt durch die Lochsumme **`L = free − blk`** aus `- update cache heap` und `free − max` aus der Heap-Zeile; „zerstückelt“ als `max` ≥ 1'000 tiefer als `blk` bei `v`, `L` ≥ 1'000 höher, `free` ±300 zurück; `frag` nur ergänzend |
-| `nach` misst `tcp=`/`hc` „bei `n`“ | rund 10 ms nach `n` (H2) — vermerkt, nicht geändert |
-| 130-s-Regel als feste Grösse | **◐ (H4):** TIME_WAIT endet über `tmr`, spätestens rund 120 s nach dem letzten Segment vor `n`; die Regel ist dazu konservativ, `tw=0` bleibt Bedingung |
-| L7 | **mit C75:** `httpclient_stop()` auch bei `len <= 0` (`httpclient()`, `update_cache_write()`, weitere Aufrufer); G9.6 kennzeichnet Durchgänge mit offenem Client |
-| `- update cache vorher` „vor Schritt 1“ | steht **nach** dem `.tmp`-Gang; `v` enthält dessen Wirkung |
-| `- heap erste anfrage` „erster Anfrage-Eingang“ | beim ersten **lebenden** `accept()`, auch bei einer Vorrats-Verbindung |
-
-**Ausstehend:** P9 (H-CC durch G9.6), P9b (L7).
+| §5.5 N0, N1a, N1b, N2–N4 | **N5** „Belegung nach kaltem `update_status`“ trifft zu (M1, M3, Start 4); N0 nicht zutreffend; N1a/N1b widerlegt; N2–N4 gegenstandslos |
+| H-CC als Ursache von C71 | **widerlegt**; Platzierung nur Nebenwirkung |
+| Vermutung „Zwischenspeicher hält String“ | **widerlegt** |
+| §7 L7 „Kontext freigeben, nach P9b“ | **L7 = L7a + L7b (Fehlerwege `:216`/`:224`) + L7c (C75)**; Begründung die belegte Belegung von 1'704 Byte; deckt `update_status`, `app.js.gz`-Prüfung und `zu-gross` zentral ab; `HEAD` als Option bewertet, nicht Ersatz |
+| §7 L6, L0, L2, L4b | **verworfen** mit Beleg Start 3 und M1; nichts in `TESTPLAN-PWA.md`/c65n nachzuziehen |
+| Ent-17 offen bis zum Tor | **faktisch entschieden: L7**, vorbehaltlich Deiner Freigabe |
+| §8 c71e | Existenzprüfung mit ungelesenem Rumpf, Fehlerwege, `len == 0`, `zu-gross`; Sabotage „nur `stop()`“ |
+| §5.3/§5.4 C72 | 1'704 Byte aus L461 gehören zu C71; Client vor jeder C72-Sitzung freistellen, `hc` und `update_info_cached` protokollieren; Lücke nach Abzug von C71; K1/K2 bleiben Kandidaten, bis G9.3–G9.5 entscheiden |
+| §2 Releaseschnitt | **Ent-18 neu:** L7 als eigenes Release **R1b vor R2** (Empfehlung A) |
+| P9, P9b | P9 beantwortet; P9b nicht mehr tragend |
+| — | **offen (◐):** L460 sah den Fall ohne Anfrage; der Lead prüft den damaligen Mitschnitt |

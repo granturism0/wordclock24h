@@ -1,13 +1,15 @@
 # Tasks — Paket 2026-10-15 „ESP-Heap unter PWA-Last, zweiter Hebel“ (C70, C71, C72)
 
 **Erstellt:** 2026-10-15, Stand `72cfda7`; nachgeführt mit den Entscheiden des Nutzers, den Lead-Entscheiden, dem
-Prüfserver-Befund zu `HTTP/1.0`, **Nachtrag A.2**, der **Trennmessung C71** (L468), **Nachtrag A.3** und **Nachtrag
-A.4** (Review R1.7, 16.10.2026). Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
-**Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.4 zur Freigabe** — offen Ent-2 (Lead, vor R2.1),
-Ent-8, Ent-10, Ent-14, Ent-17 (Tor, G10.6), Ent-16 (vor R3). Anforderungen: `requirements.md`; Design: `design.md` (§17).
+Prüfserver-Befund zu `HTTP/1.0`, den Nachträgen **A.2**, **A.3**, **A.4** (Review R1.7), der **Trennmessung** und
+**A.5** (Ursache von C71 belegt, L468, 16.10.2026, `89ec34c`). Momentaufnahme (DIR-006); der lebende Stand steht in
+`BEFUNDE.md`.
+**Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 zur Freigabe** — offen Ent-2 (Lead, vor R2.1),
+**Ent-18** (neu, Nutzer, vor R2), Ent-8, Ent-10, Ent-14 (Tor), Ent-17 (faktisch L7, Freigabe offen), Ent-16 (nur mit
+Ent-18 B). Anforderungen: `requirements.md`; Design: `design.md` (§17).
 
-**Anker:** Zeilenangaben beziehen sich auf `72cfda7`; seit R1.1 liegen sie in `http.cpp` ab rund `:2839` um rund +210
-später. Massgeblich sind die genannten Funktionen und Symbole.
+**Anker:** Zeilenangaben beziehen sich auf `72cfda7`; in `http.cpp` seit R1 ab rund `:2839` um rund +210 später.
+Massgeblich sind Funktionen und Symbole.
 
 **Pro Task genau ein schreibender Agent** (R3, R4). Nach jedem Task läuft `./tools/guardrails.sh`; erst bei Exit 0
 geht die Schreibberechtigung weiter. Wo „Nutzer“ steht, ist eine Handlung oder ein Entscheid von Dir gemeint, kein
@@ -15,29 +17,25 @@ Schreibzugriff.
 
 **Die Spalte „Hängt ab von“ ist verbindlich, auch wo die Dateien disjunkt sind** (R3b):
 
-1. **Drei Releases, jedes mit eigener Messung (Ent-9):** R1 ⇒ G9 (ohne Cache) ⇒ R2 ⇒ G10 (mit Cache) ⇒ Tor ⇒ R3 ⇒
-   G11. Code für R2 darf entstehen, während G9 läuft; **gebaut und eingespielt** wird R2 erst nach G9.9. Code für R3
-   entsteht erst nach dem Tor (G10.6).
-2. **Analyse vor Code:** A.1 ist bis auf P9 (H-CC, wird in G9.6 geprüft) und P9b (L7) erledigt. P9b muss vor Ent-17
-   vorliegen, falls G9.6 N1a ergibt.
+1. **Releases, jedes mit eigener Messung:** R1 ⇒ G9 ⇒ **(Ent-18 A: R1b ⇒ G9b)** ⇒ R2 ⇒ G10 ⇒ Tor ⇒ R3 ⇒ G11. Code
+   für das jeweils nächste Release darf entstehen, während gemessen wird; **gebaut und eingespielt** wird erst nach dem
+   Ende der Messung davor.
+2. **Mit Ent-18 A** laufen die C72-Browser-Sitzungen (G9.3–G9.5) erst auf R1b — als G9b.3–G9b.5. **Mit Ent-18 B**
+   laufen sie auf R1, mit Freistellen des Clients vor jeder Sitzung, und L7 geht in R3.
 3. **Ein Schreiber je Datei, nacheinander:** Alle ESP-Tasks eines Releases schreibt **ein** `esp-developer`
-   nacheinander; nach jedem misst der Lead „Globale Variablen“ (AKZ.8). Der PWA-Teil R2.3 darf parallel zu R2.1 laufen;
-   R2.4 wartet auf beide.
-4. **Eine Messung zur Zeit:** Während G9, G10, G11 kein OTA, kein Upload ausser Probe U, kein zweiter Browser.
-   **Keine Haltegrenze** (Ent-7): Neustarts und Exceptions sind Ergebnisse — sofort ins Messprotokoll, Update-Quelle
-   prüfen (DIR-009), weiter. Zu jedem Ruhe- und Tiefstwert der Vermerk **„Flash-Schreiben seit Start / beim Start“**
-   und „Wetter-Overlay ja/nein“.
+   nacheinander; nach jedem misst der Lead „Globale Variablen“ (AKZ.8). Der PWA-Teil R2.3 darf parallel zu R2.1 laufen.
+4. **Eine Messung zur Zeit:** Während G9, G9b, G10, G11 kein OTA, kein Upload ausser Probe U, kein zweiter Browser.
+   **Keine Haltegrenze** (Ent-7). Zu jedem Ruhe- und Tiefstwert die Vermerke (Flash-Schreiben, Wetter-Overlay,
+   **kalter `update_status` seit dem Start und `hc`**).
 5. **Firmware zuerst** (DIR-002): in R2 erst ESP-OTA, dann `install-app.sh`.
-6. **C71 nach Ent-16:** Mit **A** (Empfehlung) wie unten in R3; mit **B** gehen R3.3, R3.4 und die C71-Teile von R3.5,
-   R3.6, R3.9, G11.2 in ein eigenes R4 nach G11.
 
 **Messwerte sofort (L424):** Jeder messende Task hängt sein Ergebnis **vor dem nächsten Task** an das
 Messprotokoll in `BEFUNDE.md` an. Messzeilen schreibt der Lead, Befundnachführungen der `doc-writer` — nie
 gleichzeitig (R3).
 
 **Einspielen:** Du spielst jedes Release selbst ein; der Lead liefert die fertigen Zeilen samt Reihenfolge und Rückweg
-(AKZ.5). Jeder Gerätelauf mit `./tools/watch-log.sh`, vorher gestartet, `--pruefe` am Ende (DIR-013); auf später
-geplante Läufe mit `caffeinate` (DIR-020). Schreibende Schritte ohne Einzelfreigabe (`CLAUDE.md:416`).
+(AKZ.5). Jeder Gerätelauf mit `./tools/watch-log.sh`, `--pruefe` am Ende (DIR-013); auf später geplante Läufe mit
+`caffeinate` (DIR-020). Schreibende Schritte ohne Einzelfreigabe (`CLAUDE.md:416`).
 
 **Werkzeugvorbehalt:** `firmware-analyst` und `code-reviewer` haben kein `Bash`. Prüfstände baut der Umsetzer im
 Scratchpad, der Lead legt sie unter `tools/checks/auszug/` ab und fährt die Gegenproben (DIR-014). Vor jedem Patch
@@ -51,18 +49,19 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| 0.1 | **Messprotokoll, Ausgangswerte ohne Last:** Entscheide, Prüfserver-Befund zu `HTTP/1.0`/`HTTP/1.1`, Ergebnisse aus A.1 (A.2, A.3); Grössen der 13 App-Dateien; RAM/Programm Build E4; Kodierung und Zeilenende von `http.cpp`, `httpclient.cpp`, `stm32flash.cpp`, `ESP-uclock.ino`, `base.h`, `app.js`; `netstat`, `lsof`, `osascript` vorhanden | Lead | Freigabe | **AKZ.1** | ☐ | — |
-| 0.2 | **Werkzeug `ladeprobe`** (liegt vor) vervollständigen: `If-None-Match` je Anfrage, `--erwarte-304`, Vermerk „Flash-Schreiben seit Start“; Gegenproben Vorschau ⇒ FEHL, Prüfserver `HTTP/1.1` ⇒ OK, Prüfserver `HTTP/1.0` ⇒ FEHL | Lead | Freigabe | **AKZ.2 (i)** | ☐ | — |
-| 0.3 | **Werkzeug `browser-sitzung`** nach `design.md` §5.3 mit den Betriebsarten `osascript` und **`manuell`**; je eigene Lesung lokaler Port und TIME_WAIT-Ende; je Sitzung Δ`no_request_timeouts`, Δ`no_request_aborts`, Δ`http_accept_dead`; Gegenprobe Uhr nicht erreichbar ⇒ Exit ≠ 0. Dazu das **Skript der P1-Probe** (§5.6) und die **Auswertung der Lochsumme** `L = free − blk` für die Startmessung (§5.5). macOS-Erlaubnis zur Automation einmal durch Dich | Lead | Freigabe | **AKZ.2 (ii), (vii)** | ☐ | — |
-| 0.4 | **Review der Werkzeuge** 0.2 und 0.3: Kommt jede Meldung an? Leitungsstatus? Eigene TIME_WAIT-Fenster, Δ-Auswertung und Lochsumme ausgegeben? | `code-reviewer` | 0.2, 0.3 | DIR-014, L235 | — | ☐ |
-| 0.5 | **Trennmessung C71 auf 3.2.37** — **erledigt** 15.10.2026 22:40–22:46: (b) erstes Flash-Schreiben ohne Abruf, (c) Schreiben mit Abruf; beide ohne bleibende Spur; K-a nicht bestätigt | Lead | — | **AKZ.9** ☑ (L468) | — | — |
+| 0.1 | **Messprotokoll, Ausgangswerte ohne Last** | Lead | Freigabe | **AKZ.1** | ☐ | — |
+| 0.2 | **Werkzeug `ladeprobe`** vervollständigen; Gegenproben | Lead | Freigabe | **AKZ.2 (i)** | ☐ | — |
+| 0.3 | **Werkzeug `browser-sitzung`** (`osascript`, `manuell`; Port und TIME_WAIT-Ende; Δ`timeouts`/Δ`aborts`/Δ`accept_dead`; **Freistellen des Clients vor S0 und Protokoll von `hc` und `update_info_cached`, solange L7 nicht eingespielt ist**); Skript der P1-Probe; Auswertung der Lochsumme; **Messung AKS.4** (kalter `update_status`, Heap-Zeilen bis ≥ 130 s mit `tw=0`) | Lead | Freigabe | **AKZ.2 (ii), (vii)** | ☐ | — |
+| 0.4 | **Review der Werkzeuge** 0.2 und 0.3 | `code-reviewer` | 0.2, 0.3 | DIR-014, L235 | — | ☐ |
+| 0.5 | **Trennmessung C71 auf 3.2.37** — **erledigt** | Lead | — | **AKZ.9** ☑ (L468) | — | — |
 
 ## Schritt A — Analyse (lesend)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| A.1 | **P1–P12** — **erledigt** bis auf **P9** (H-CC; Bestätigung durch G9.6) und **P9b** (schliesst L7 das Loch, oder legt sich der nächste Kontext wieder hinein?); P9b vor G10.6, falls G9.6 N1a ergibt; der Lead trägt jedes Ergebnis ins Messprotokoll | `firmware-analyst` | Freigabe | Bericht P1–P12, P9b | — | — |
-| A.2 | **Nachträge zur Spec** — **erledigt**: A.2, Trennmessung L468, A.3 (15.10.2026), A.4 (16.10.2026, Review R1.7) (`design.md` §17); Dir mit dem C71-Teil, AKC.7 und Ent-16 vorgelegt | `spec-writer` | A.1, 0.5, R1.7 | Nachträge freigegeben | — | — |
+| A.1 | **P1–P12** — **erledigt**; P9 durch die Messungen des Leads beantwortet (A.5: ungelesene Antwort im `_rx_buf` des statischen httpclient), P9b nicht mehr tragend | `firmware-analyst` | Freigabe | Bericht P1–P12 | — | — |
+| A.2 | **Nachträge zur Spec** — **erledigt**: A.2, Trennmessung, A.3 (15.10.2026), A.4, A.5 (16.10.2026) (`design.md` §17); Dir mit dem C71-Teil, AKC.7, Ent-17 und **Ent-18** vorgelegt | `spec-writer` | A.1, 0.5, R1.7, G9.6 | Nachträge freigegeben | — | — |
+| A.3 | **L460 nachprüfen (◐):** im Mitschnitt von L457/L460 (14.10.2026, nach dem OTA auf E4) einen Abruf ohne Rumpflesen suchen — `update_status`, Prüfung auf `app.js.gz`, Zweig `zu-gross` —, der den damaligen Fall ohne Anfrage erklärt; Ergebnis ins Messprotokoll | Lead | — | Messprotokoll | — | — |
 
 ---
 
@@ -70,37 +69,61 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| R1.1 | **I-5** nach `design.md` §3.1 in `http_api_device_ready()` und `http_server_loop()`: Felder `tcp_now_*` samt `tcp_now_unclaimed`, `arg` 0/1/2, `ruhe_s`, Zähler `http_accept_dead`; Listen vor dem ersten `http_send()` in den Stackpuffer; Kommentar am I-4-Block nach P2; Zählfunktion, Prototyp in `base.h`; Heap-Zeile in `esp_heap_log()` mit `tcp=`/`nrt=`. **Prüfstand c72i** | `esp-developer` | 0.1, A.2 (Freigabe A.2/A.3) | **AKI.1**, **AKI.2** am Prüfstand | ☐ | — |
-| R1.2 | ESP-Teil bauen, „Globale Variablen“ und Programmgrösse sofort ins Messprotokoll | Lead | R1.1 | **AKZ.8** | — | — |
-| R1.3 | **I-6** nach `design.md` §3.3 in `update_cache_poll()`, `http_server_loop()` und `setup()`: `- update cache vorher up= free= frag= tcp= hc=` (nach dem `.tmp`-Gang); `- update cache heap v=… 1=…5=… n=…`; `- update cache nach frag=… tcp=… hc=… acc=…` mit Zähler `http_accept_count`; `- heap erste anfrage …` beim ersten lebenden `accept()`; `- flash id=… vendor=…` vor WLAN und `EEPROM.begin()`; `- update cache tmp geloescht <datei>`. **`frag` statt `fe`** (A.4: `fe` nur im privaten `umm_local.h`). **Prüfstand c71i** | `esp-developer` | R1.2 | **AKI.3** am Prüfstand | ☐ | — |
-| R1.4 | ESP-Teil bauen, „Globale Variablen“ sofort ins Messprotokoll | Lead | R1.3 | **AKZ.8** | — | — |
-| R1.5 | Prüfstände c72i, c71i ablegen, in S16; Gegenproben gegen 3.2.37; Sabotagen; Fallzahlen; c65-Prüfstände grün | Lead | R1.4 | **AKI.1–AKI.4**, **AKZ.7** | ☐ | — |
-| R1.6 | **Werkzeuge:** `smoke-device.sh` mit den I-5-Feldern (Gegenprobe `SMOKE_DR_OVERRIDE`); `watch-log.sh` Heap-Zeile mit Zusatz und die I-6-Zeilen als Hinweis (Gegenprobe `WATCHLOG_QUELLE`) | Lead | R1.5 | **AKZ.2 (iii), (iv)** | ☐ | — |
-| R1.7 | **Review R1** — Befunde H2, H4, S2 (C75) und `frag` statt `fe` als Nachtrag A.4 eingearbeitet; weiter: kein `yield()` im Listengang; `arg` unterscheidet Listener und `ClientContext`; `http_accept_dead` zählt keine leeren Durchläufe; I-6 vollständig; Kodierung und Zeilenenden | `code-reviewer` | R1.6 | Checkliste | — | ☐ |
+| R1.1 | **I-5** nach `design.md` §3.1. **Prüfstand c72i** | `esp-developer` | 0.1, A.2 | **AKI.1**, **AKI.2** | ☐ | — |
+| R1.2 | ESP-Teil bauen, RAM sofort ins Messprotokoll | Lead | R1.1 | **AKZ.8** | — | — |
+| R1.3 | **I-6** nach `design.md` §3.3 (`frag` statt `fe`). **Prüfstand c71i** | `esp-developer` | R1.2 | **AKI.3** | ☐ | — |
+| R1.4 | ESP-Teil bauen, RAM sofort ins Messprotokoll | Lead | R1.3 | **AKZ.8** | — | — |
+| R1.5 | Prüfstände c72i, c71i ablegen, in S16; Gegenproben gegen 3.2.37; Sabotagen; Fallzahlen; c65 grün | Lead | R1.4 | **AKI.1–AKI.4**, **AKZ.7** | ☐ | — |
+| R1.6 | **Werkzeuge:** `smoke-device.sh` mit den I-5-Feldern; `watch-log.sh` mit Heap-Zeile und I-6-Zeilen; je Gegenprobe | Lead | R1.5 | **AKZ.2 (iii), (iv)** | ☐ | — |
+| R1.7 | **Review R1** — Befunde als Nachtrag A.4 eingearbeitet | `code-reviewer` | R1.6 | Checkliste | — | ☐ |
 | R1.8 | ESP-Version anheben | `release-engineer` | R1.7 | S4 | ☐ | — |
-| R1.9 | `CHANGELOG.md`-Eintrag R1; **AKZ.4** gegen das Tag von E4; `git status` (R2); `--full`; RAM; sofort ins Messprotokoll | Lead | R1.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
-| R1.10 | `TESTPLAN-PWA.md`: I-5-Felder samt `arg`, `ruhe_s`, `tcp_now_unclaimed`, `http_accept_dead`; Heap-Zeile mit `tcp=`/`nrt=`; die I-6-Zeilen mit Lesart — **tragend `L = free − blk`, `frag` nur ergänzend, `tcp=`/`hc` in `nach` rund 10 ms nach `n`**; Ladeprobe, Browser-Sitzung (beide Betriebsarten), P1-Probe; K30 für T3. `BEFUNDE.md`: Träger „Release R1“ an C65, C70, C71, C72; C71 um L468 und H-CC nachführen; Nebenbefunde aus A.1 als eigene Zeilen. **Nicht gleichzeitig mit einer Messzeile** (R3) | `doc-writer` | R1.9 | S9, S10, S11 | ☐ | — |
-| R1.11 | **Einspielzeilen:** ESP-OTA, Smoketest, `install-app.sh --check`, `check-pwa.sh`; **Rückweg** (ESP 3.2.37 aus `wordclock-release-2026-10-14-180012.zip`) — benannt, **bevor** eingespielt wird | Lead | R1.9 | **AKZ.5** | — | — |
-| R1.12 | Build, ZIP, Rollout, **Commit + Tag + Push** (DIR-011) | Lead | R1.10, R1.11 | **AKZ.5** | ☐ | — |
-| R1.13 | **Einspielen:** Wache läuft; Du spielst ein; danach prüft der Lead Smoketest samt Update-Quelle und neuen Feldern, `--check`, `check-pwa.sh`, die Zeile `- flash id`; ob der Abgleich nach dem OTA beim Start schrieb; sofort ins Messprotokoll | Lead (Einspielen: Nutzer) | R1.12 | **AKM.1** | — | — |
+| R1.9 | `CHANGELOG.md`; **AKZ.4**; `git status`; `--full`; RAM | Lead | R1.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
+| R1.10 | `TESTPLAN-PWA.md` und `BEFUNDE.md` nach R1 (I-5, I-6, Lesart `L = free − blk`, Werkzeuge, K30; Träger; Nebenbefunde). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R1.9 | S9, S10, S11 | ☐ | — |
+| R1.11 | **Einspielzeilen** samt Rückweg | Lead | R1.9 | **AKZ.5** | — | — |
+| R1.12 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R1.10, R1.11 | **AKZ.5** | ☐ | — |
+| R1.13 | **Einspielen** (Nutzer); Smoketest, `--check`, `check-pwa.sh`, `- flash id` | Lead (Einspielen: Nutzer) | R1.12 | **AKM.1** | — | — |
 
 ---
 
 ## Schritt G9 — Ausgangsstand ohne Cache (auf R1)
 
-Der Lead kündigt Beginn und Ende an; jede Phase wird **ausgewertet, bevor** die nächste beginnt.
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| G9.1 | **Ladeprobe ohne Cache:** drei Läufe | Lead | R1.13 | **AKM.2** | — | — |
+| G9.2 | **P1-Probe** | Lead | G9.1 | **AKM.7** | — | — |
+| G9.3–G9.5 | **Browser-Sitzungen** Safari (`osascript`), Safari beim Nutzer (`manuell`), Chrome — **nur mit Ent-18 B hier**, dann mit Freistellen des Clients vor S0 und Protokoll von `hc`/`update_info_cached`; **mit Ent-18 A als G9b.3–G9b.5 auf R1b** | Lead (Bedienung G9.4: Nutzer) | G9.2, **Ent-18** | **AKM.3**, **AKM.4** | — | — |
+| G9.6 | **Startmessung C71** — **gefahren** 16.10.2026: Start 3 ohne Zerstückelung, Start 4 bindet 1'704 Byte; Messungen M1, M3; **Ergebnis N5** (L468). Abnahme mit vollständigem Protokoll | Lead | G9.2 | **AKM.5** | — | — |
+| G9.7 | **Gesundheit G9**, `watch-log.sh --pruefe` | Lead | G9.6 | **AKM.6** | — | — |
+| G9.8 | **Zuordnung C71 (N5) ins Messprotokoll**; mit Ent-18 B auch vorläufige Zuordnung M1–M5 | Lead | G9.7 | AKW.5 (Vorlauf) | — | — |
+| G9.9 | **C71 nachführen** mit Ursache, Messungen M1/M3, Start 3/4 und der Zuordnung der L461-Lücke zu C71; C72 um „1'704 Byte aus L461 gehören zu C71“ ergänzen. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G9.8 | S10, S11 | ☐ | — |
+| G9.10 | **Ent-18 und Ent-17 vorlegen:** L7 als eigenes Release R1b vor R2 (Empfehlung A) und Freigabe von L7; Du entscheidest | Lead (Entscheid: Nutzer) | G9.9 | Ent-17, Ent-18 | — | — |
+
+---
+
+## Schritt R1b — Release: L7, Behebung von C71 (nur mit Ent-18 A)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| G9.1 | **Ladeprobe ohne Cache:** drei Läufe (je 1 kalt, 5 warm), einer in Englisch | Lead | R1.13 | **AKM.2** | — | — |
-| G9.2 | **P1-Probe** nach `design.md` §5.6: FIN_WAIT_2 nach 10 s da, nach 25 s weg? | Lead | G9.1 | **AKM.7** | — | — |
-| G9.3 | **Browser-Sitzung Safari**, `osascript`, S0–S4; Δ`timeouts` gegen Δ`aborts` | Lead | G9.2 | **AKM.3** (Teil Lead) | — | — |
-| G9.4 | **Browser-Sitzung Safari auf Deinem Gerät**, `manuell`: das Skript nennt Phase und Handgriff, Du bedienst und bestätigst, das Skript liest die ESP-Seite | Lead (Bedienung: Nutzer) | G9.3 | **AKM.3** (Teil Nutzer) | — | — |
-| G9.5 | **Browser-Sitzung Chrome**, `osascript`, mindestens 300 s Ruhe nach G9.4; Δ`timeouts` gegen Δ`aborts` | Lead | G9.4 | **AKM.4** | — | — |
-| G9.6 | **Startmessung C71 — der entscheidende Schritt:** ESP-Starts ohne Browser nach `design.md` §5.5, **keine HTTP-Lesung, bis `- update cache heap …` erschienen ist, plus 130 s** (◐ H4): Starts 1, 2 ohne Änderung; Start 3 mit erzwungenem Schreiben beim Start; **Start 4 (empfohlen)** wie 3 mit kaltem `update_status` rund 50 s nach dem Start — als Abweichung gekennzeichnet. **Auswertung an der Lochsumme `L = free − blk`** (an der Heap-Zeile ≥ 130 s nach `n` mit `tw=0`: `max` ≥ 1'000 unter `blk` bei `v`, `L` ≥ 1'000 höher, `free` ±300); `frag` nur berichtet. Im Messprotokoll: H2 (`tcp=`/`hc` in `nach` rund 10 ms nach `n`); **ein Start mit leerer Antwort oder `fehlgeschlagen abruf` misst mit offenem Client (C75)** — gekennzeichnet, nicht allein für N1a/N1b, im Zweifel wiederholt. Danach je Smoketest samt Update-Quelle; Zuordnung N0/N1a/N1b/N2/N3/N4 | Lead | G9.5 | **AKM.5** | — | — |
-| G9.7 | **Gesundheit G9**, `watch-log.sh --pruefe`; jeder Neustart als Ergebnis | Lead | G9.6 | **AKM.6** | — | — |
-| G9.8 | **Vorläufige Zuordnung** M1–M5 (auf G9 und P1-Probe, samt Δ`timeouts`/Δ`aborts`) und N0–N4, sofort ins Messprotokoll | Lead | G9.7 | AKW.5 (Vorlauf) | — | — |
-| G9.9 | **C71, C72 nachführen** mit Messbild, P1-Probe und vorläufigen Zuordnungen. **Nicht gleichzeitig mit einer Messzeile** (R3) | `doc-writer` | G9.8 | S10, S11 | ☐ | — |
+| R1b.1 | **L7** nach `design.md` §7: **L7a** `httpclient_stop()` gibt nach `client.stop()` den Kontext frei (`client = WiFiClient()`); **L7b** die direkten `client.stop()` in den Fehlerwegen von `httpclient()` (keine Antwort, Status ≠ 200) über `httpclient_stop()`; **L7c = C75** `httpclient()` bei `len == 0` und jeder Aufrufer, der bei `len <= 0` aufgibt (darunter `update_cache_write()`), schliesst über `httpclient_stop()`. Kodierung und Zeilenende von `httpclient.cpp` vorher feststellen. Im Bericht: Liste aller Aufrufer von `httpclient()` mit ihrem Weg bei `len <= 0` und bei ungelesenem Rumpf. **Prüfstand c71e** | `esp-developer` | **G9.10 (Ent-18 A)**, R1.13 | **AKS.1** am Prüfstand | ☐ | — |
+| R1b.2 | Bauen, RAM sofort ins Messprotokoll | Lead | R1b.1 | **AKZ.8** | — | — |
+| R1b.3 | c71e ablegen, in S16; Gegenprobe gegen R1; **Sabotage „nur `stop()`“ ⇒ FEHL**, „Fehlerweg mit direktem `client.stop()`“ und „`len == 0` offen“ ⇒ FEHL; Fallzahlen; c65m, c65n grün | Lead | R1b.2 | **AKS.1**, **AKZ.7** | ☐ | — |
+| R1b.4 | **Review R1b:** kein Zugriff auf den freigegebenen Kontext; jeder Abruf danach funktioniert; jeder Aufrufer schliesst bei `len <= 0`; Fehlerwege; Wetter-Client unberührt; Kodierung und Zeilenenden | `code-reviewer` | R1b.3 | Checkliste | — | ☐ |
+| R1b.5 | ESP-Version anheben | `release-engineer` | R1b.4 | S4 | ☐ | — |
+| R1b.6 | `CHANGELOG.md`-Eintrag R1b; **AKZ.4** gegen das Tag von R1; `git status`; `--full`; RAM | Lead | R1b.5 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
+| R1b.7 | `TESTPLAN-PWA.md`: Freistellen des Clients vor C72-Sitzungen entfällt (nur noch zum Vergleich); Messung AKS.4. `BEFUNDE.md`: Träger „Release R1b“ an C71 und C75. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R1b.6 | S9, S10, S11 | ☐ | — |
+| R1b.8 | **Einspielzeilen** samt Rückweg (ESP auf R1); Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R1b.7 | **AKZ.5** | ☐ | — |
+| R1b.9 | **Einspielen** (Nutzer); Smoketest samt Update-Quelle, `--check`, `check-pwa.sh` | Lead (Einspielen: Nutzer) | R1b.8 | **AKZ.5** | — | — |
+
+## Schritt G9b — Wirkung von L7 und Browser-Sitzungen (auf R1b, nur mit Ent-18 A)
+
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| G9b.1 | **Messung AKS.4:** dreimal ein kalter `update_status`, je Heap-Zeile ≥ 130 s danach mit `tw=0`; `free` und `max` höchstens 300 Byte unter vorher | Lead | R1b.9 | **AKS.4** | — | — |
+| G9b.2 | **Ruhewert nach Start und Last:** drei ESP-Starts (einer mit Schreiben beim Start), danach `check-pwa.sh` und Ladeprobe; Regression des Zwischenspeichers und aller Abrufe | Lead | G9b.1 | **AKS.2**, **AKS.3** | — | — |
+| G9b.3 | **Neue Ladeprobe-Grundlinie** (drei Läufe wie AKM.2) für AKW.2 | Lead | G9b.2 | **AKS.4** (Grundlinie) | — | — |
+| G9b.4 | **Browser-Sitzung Safari** (`osascript`), dazu einmal **Safari auf Deinem Gerät** (`manuell`), dann **Chrome**; einmal zusätzlich mit Freistellen des Clients zum Vergleich mit G9 | Lead (Bedienung: Nutzer für `manuell`) | G9b.3 | **AKM.3**, **AKM.4** | — | — |
+| G9b.5 | **Gesundheit**, `--pruefe`; vorläufige Zuordnung M1–M5 — **entscheidet, ob K1/K2 noch einen Gegenstand haben**; sofort ins Messprotokoll | Lead | G9b.4 | **AKM.6**, AKW.5 (Vorlauf) | — | — |
+| G9b.6 | **C71, C72, C75 nachführen** (Wirkung von L7, vorläufige C72-Zuordnung). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G9b.5 | S10, S11 | ☐ | — |
 
 ---
 
@@ -108,21 +131,21 @@ Der Lead kündigt Beginn und Ende an; jede Phase wird **ausgewertet, bevor** die
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| R2.0 | **Ent-2 entscheiden** (Variante T oder V, `design.md` §4.4) und ins Messprotokoll | Lead | A.2 | Ent-2 | — | — |
-| R2.1 | **C70, ESP** nach `design.md` §4.4 und Ent-2: `If-None-Match` in der Kopfzeilenschleife von `http_server_loop()`; `ETag` nach **T** bzw. **V**; `HTTP/1.1` **nur** in `http_send_fs_file()` und in der `304`, beide mit `Connection: close`, `200` mit exaktem `Content-Length`, `304` ohne Körper und ohne `Content-Length`; `304` mit Grössenprüfung und `app_complete`; Zähler `app_*`. Im Bericht: alle Statuszeilen `HTTP/1.1` (Soll zwei); bei V alle Schreibstellen mit Invalidierung. **Prüfstand c70e** | `esp-developer` | **R1.13**, **R2.0** | **AKC.1–AKC.5**, **AKC.7** am Prüfstand | ☐ | — |
-| R2.2 | ESP-Teil bauen, „Globale Variablen“ sofort ins Messprotokoll | Lead | R2.1 | **AKZ.8** | — | — |
-| R2.3 | **C70, PWA:** `loadLayoutPreviewRowsMap()` mit `cache: "no-cache"`, sonst nichts. **Prüfstand c70p** | `pwa-developer` | R1.13 | **AKC.6** | ☐ | — |
-| R2.4a | **Bestehende Prüfstände nachziehen:** c65b, c65w und die LittleFS-Attrappe; Fallzahl vorher/nachher | Lead | R2.2 | **AKC.8** | ☐ | — |
-| R2.4 | Prüfstände c70e, c70p ablegen, in S16; Gegenproben gegen R1 bzw. PWA 1.4.100; Sabotagen; Fallzahlen | Lead | R2.4a, R2.3 | **AKC.1–AKC.7**, **AKZ.7** | ☐ | — |
-| R2.5 | **Werkzeuge:** `check-pwa` INFO „`/app/` 304 je Laden“ aus `responseReceivedExtraInfo.statusCode`, „Byte je Laden“ und je Lauf `net::ERR_CONNECTION_RESET`/`net::ERR_EMPTY_RESPONSE`; `smoke-device.sh` mit `app_*`; mit V `watch-log.sh` `- app etag`; je Gegenprobe | Lead | R2.4 | **AKZ.2 (iii), (v)**, bei V **(vi)** | ☐ | — |
-| R2.6 | `tools/**` nach Prüfungen auf `HTTP/1.0` bei App-Assets durchsuchen und nachziehen | Lead | R2.5 | `design.md` §9 | ☐ | — |
-| R2.7 | **Review R2:** `HTTP/1.1` an genau zwei Stellen mit `Connection: close`; `Content-Length` exakt; `304` nie ohne Grössenprüfung; T: Trailer, `1f 8b`, `seek` zurück; V: jede Schreibstelle invalidiert, CRC-32/MPEG-2; Legacy und `/api/*` weiter 1.0; `If-None-Match`-Puffer geleert und begrenzt | `code-reviewer` | R2.6 | Checkliste | — | ☐ |
-| R2.8 | ESP-Version, `APP_VERSION` und `CACHE_NAME` anheben | `release-engineer` | R2.7 | S4 zeigt beide | ☐ | — |
-| R2.9 | `CHANGELOG.md`-Eintrag R2; **AKZ.4** gegen das Tag von R1; `git status`; `--full`; RAM; `app.js.gz` vorher/nachher | Lead | R2.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
-| R2.10 | `TESTPLAN-PWA.md`: `app_*`, `304` als Normalfall, `HTTP/1.1` für App-Assets, `ETag`-Variante, Probe U, Zählung der Verbindungsfehler. `BEFUNDE.md`: Träger „Release R2“ an C70. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R2.9 | S9, S10, S11 | ☐ | — |
-| R2.11 | **Einspielzeilen:** **erst** ESP-OTA, Smoketest, `--check`, **dann** `install-app.sh`, `--check`, `check-pwa.sh`; Rückweg (ESP auf R1, PWA bleibt) — **bevor** eingespielt wird | Lead | R2.9 | **AKZ.5** | — | — |
-| R2.12 | Build, ZIP, Rollout, **ein** Commit + Tag + Push | Lead | R2.10, R2.11, **G9.9** | **AKZ.5** | ☐ | — |
-| R2.13 | **Einspielen** nach R2.11; danach prüft der Lead Smoketest, `--check`, `check-pwa.sh`, beide Versionen; ob der Abgleich nach dem OTA beim Start schrieb | Lead (Einspielen: Nutzer) | R2.12 | **AKW.1** | — | — |
+| R2.0 | **Ent-2 entscheiden** (T oder V) | Lead | A.2 | Ent-2 | — | — |
+| R2.1 | **C70, ESP** nach `design.md` §4.4 und Ent-2. **Prüfstand c70e** | `esp-developer` | R1.13 bzw. **R1b.9**, R2.0 | **AKC.1–AKC.5**, **AKC.7** | ☐ | — |
+| R2.2 | ESP-Teil bauen, RAM | Lead | R2.1 | **AKZ.8** | — | — |
+| R2.3 | **C70, PWA:** `loadLayoutPreviewRowsMap()` mit `"no-cache"`. **Prüfstand c70p** | `pwa-developer` | R1.13 | **AKC.6** | ☐ | — |
+| R2.4a | c65b, c65w, LittleFS-Attrappe nachziehen | Lead | R2.2 | **AKC.8** | ☐ | — |
+| R2.4 | c70e, c70p ablegen, in S16; Gegenproben; Sabotagen; Fallzahlen | Lead | R2.4a, R2.3 | **AKC.1–AKC.7**, **AKZ.7** | ☐ | — |
+| R2.5 | **Werkzeuge:** `check-pwa` (`304`, Byte, Verbindungsfehler); `smoke-device.sh` mit `app_*`; mit V `- app etag` | Lead | R2.4 | **AKZ.2 (iii), (v)** | ☐ | — |
+| R2.6 | `tools/**` nach Prüfungen auf `HTTP/1.0` durchsuchen | Lead | R2.5 | `design.md` §9 | ☐ | — |
+| R2.7 | **Review R2** | `code-reviewer` | R2.6 | Checkliste | — | ☐ |
+| R2.8 | ESP-Version, `APP_VERSION`, `CACHE_NAME` | `release-engineer` | R2.7 | S4 | ☐ | — |
+| R2.9 | `CHANGELOG.md`; **AKZ.4**; `git status`; `--full`; RAM; `app.js.gz` | Lead | R2.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
+| R2.10 | `TESTPLAN-PWA.md`, `BEFUNDE.md` nach R2. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R2.9 | S9, S10, S11 | ☐ | — |
+| R2.11 | **Einspielzeilen:** erst OTA, dann `install-app.sh`; Rückweg | Lead | R2.9 | **AKZ.5** | — | — |
+| R2.12 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R2.10, R2.11, **G9.9** bzw. **G9b.6** | **AKZ.5** | ☐ | — |
+| R2.13 | **Einspielen** (Nutzer) | Lead (Einspielen: Nutzer) | R2.12 | **AKW.1** | — | — |
 
 ---
 
@@ -130,41 +153,41 @@ Der Lead kündigt Beginn und Ende an; jede Phase wird **ausgewertet, bevor** die
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| G10.1 | **Ladeprobe mit Cache:** drei Läufe, `--erwarte-304`; Gegenüberstellung mit G9.1; Mehrdauer je Anfrage (T) bzw. Dauer `- app etag` (V) | Lead | R2.13 | **AKW.2**, **AKC.4** | — | — |
-| G10.2 | **Probe U** nach `design.md` §5.2 | Lead | G10.1 | **AKW.3** | — | — |
-| G10.3 | **Browser-Sitzungen mit Cache:** Safari und Chrome (`osascript`), vor S0 je einmal öffnen und beenden; `app_full`/`app_not_modified` je Phase, Δ`timeouts`/Δ`aborts`; Gegenüberstellung mit G9 | Lead | G10.2 | **AKW.4** | — | — |
-| G10.3a | **Grundlinie der Verbindungsfehler:** drei `check-pwa.sh` auf R2, je Lauf `net::ERR_CONNECTION_RESET`, `net::ERR_EMPTY_RESPONSE`, Δ`write_lost_failed` | Lead | G10.3 | **AKW.6** (Grundlinie) | — | — |
-| G10.4 | **Auswertung:** C72 einem von M1–M5, C71 einem von N0–N4 (G9.6, AKZ.9, P9, P9b); Gesundheit G10, `--pruefe`; sofort ins Messprotokoll | Lead | G10.3a, A.1 (P9b, falls N1a) | **AKW.5** (Teil 1), **AKW.6** | — | — |
-| G10.5 | **C71, C72 nachführen** mit den Zuordnungen. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G10.4 | S10, S11 | ☐ | — |
-| G10.6 | **Tor:** Der Lead legt **Ent-8** (bei widerlegtem P1: K2 zwingend; K1 nur mit Δ`timeouts`), **Ent-10**, **Ent-14**, **Ent-17** (N1a ⇒ L7 mit C75, N1b ⇒ L6 samt seinen vier Nebenwirkungen) einzeln vor, dazu **Ent-16**, falls offen; Du entscheidest. Ergibt das Tor weder für C72 noch für C71 einen Eingriff: R3 und G11 entfallen, weiter mit T3 | Lead (Entscheid: Nutzer) | G10.5 | **AKW.5** (Teil 2) | — | — |
-| G10.7 | **C70 — weiter oder anhalten:** AKW.2 warm unter 1'072 oder Safari fragt nicht nach ⇒ der Lead legt Dir Variante (c) bzw. `Last-Modified` am Prüfserver vor | Lead (Entscheid: Nutzer) | G10.1, G10.3 | **AKW.2**, **AKW.4** | — | — |
+| G10.1 | **Ladeprobe mit Cache**, Gegenüberstellung mit der Grundlinie (G9.1 bzw. G9b.3) | Lead | R2.13 | **AKW.2**, **AKC.4** | — | — |
+| G10.2 | **Probe U** | Lead | G10.1 | **AKW.3** | — | — |
+| G10.3 | **Browser-Sitzungen mit Cache** (ohne L7 mit Freistellen des Clients) | Lead | G10.2 | **AKW.4** | — | — |
+| G10.3a | **Grundlinie der Verbindungsfehler:** drei `check-pwa.sh` | Lead | G10.3 | **AKW.6** | — | — |
+| G10.4 | **Auswertung:** C72 einem von M1–M5, **Lücke nach Abzug einer C71-Belegung**; Gesundheit | Lead | G10.3a | **AKW.5** (Teil 1), **AKW.6** | — | — |
+| G10.5 | **C72 nachführen. Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G10.4 | S10, S11 | ☐ | — |
+| G10.6 | **Tor:** Ent-8, Ent-10, Ent-14 einzeln vorlegen; mit Ent-18 B dazu die Freigabe von Ent-17 und Ent-16. Ergibt das Tor keinen Eingriff (und ist L7 schon in R1b): R3 und G11 entfallen | Lead (Entscheid: Nutzer) | G10.5 | **AKW.5** (Teil 2) | — | — |
+| G10.7 | **C70 — weiter oder anhalten** (Variante (c) bzw. `Last-Modified`) | Lead (Entscheid: Nutzer) | G10.1, G10.3 | **AKW.2**, **AKW.4** | — | — |
 
 ---
 
-## Schritt R3 — Release: Eingriff C72 und Massnahme C71 (nach dem Tor)
+## Schritt R3 — Release: Eingriff C72 (mit Ent-18 B auch L7)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| R3.0 | **Nachtrag**, nur wenn Ent-8 oder Ent-17 etwas wählt, das `design.md` §6/§7 nicht festlegt (etwa L2 mit eigener Vorbedingung) | `spec-writer` | G10.6 | Nachtrag freigegeben | — | — |
-| R3.1 | **C72 — Eingriff** nach Ent-8 und `design.md` §6: **K1** nur im Teilfall `no_request_timeouts`; **K2** nur `callback_arg == NULL`, Gang neu nach jedem Abbau, Zähler `tcp_reaped`; **K5**. **Prüfstand c72e**. Entfällt ohne Eingriff | `esp-developer` | **G10.6** (R3.0) | **AKE.1** | ☐ | — |
-| R3.2 | Bauen, „Globale Variablen“ sofort ins Messprotokoll | Lead | R3.1 | **AKZ.8** | — | — |
-| R3.3 | **C71 — Massnahme** nach Ent-17 und `design.md` §7: **L7 mit C75** (`httpclient_stop()` gibt den `ClientContext` frei, `client = WiFiClient()`; jeder Weg, der nach `httpclient()` bei `len <= 0` aufgibt — `httpclient()` selbst bei leerer Antwort, `update_cache_write()`, die übrigen Aufrufer —, ruft `httpclient_stop()`; Kodierung und Zeilenende von `httpclient.cpp` vorher feststellen) oder **L6** (`UPDATE_CACHE_START_MS` auf 300 s), sonst L0, L4b. Im Bericht: Liste aller Aufrufer von `httpclient()` mit ihrem Weg bei `len <= 0`. **Prüfstand c71e**. Entfällt bei N4 oder ohne Massnahme | `esp-developer` | R3.2 (bzw. G10.6) | **AKS.1** | ☐ | — |
-| R3.4 | Bauen, „Globale Variablen“ sofort ins Messprotokoll | Lead | R3.3 | **AKZ.8** | — | — |
-| R3.5 | c72e, c71e ablegen, in S16; Gegenproben gegen R2; Sabotagen; Fallzahlen; c65m, c65n grün — mit L6 c65n auf die Startfrist nachziehen | Lead | R3.4 | **AKE.1**, **AKS.1**, **AKZ.7** | ☐ | — |
-| R3.6 | **Review R3:** K1 nur im Teilfall Timeout; K2 nie `ClientContext` oder Listener; keine Abgabe im Gang; ausgehende Abrufe unberührt; C71: L7 — kein Zugriff auf den freigegebenen Kontext, jeder Abruf danach funktioniert, **jeder Aufrufer schliesst bei `len <= 0` (C75)**; L6 — nur die Startfrist, nie die Quelle | `code-reviewer` | R3.5 | Checkliste | — | ☐ |
+| R3.0 | **Nachtrag**, nur wenn Ent-8 etwas wählt, das `design.md` §6 nicht festlegt | `spec-writer` | G10.6 | Nachtrag freigegeben | — | — |
+| R3.1 | **C72 — Eingriff** nach Ent-8 (K1 nur Teilfall Timeout; K2 nur `callback_arg == NULL`; K5). **Prüfstand c72e**. Entfällt ohne Eingriff | `esp-developer` | **G10.6** (R3.0) | **AKE.1** | ☐ | — |
+| R3.2 | Bauen, RAM | Lead | R3.1 | **AKZ.8** | — | — |
+| R3.3 | **Nur mit Ent-18 B: L7** wie R1b.1. **Prüfstand c71e** | `esp-developer` | R3.2 | **AKS.1** | ☐ | — |
+| R3.4 | Bauen, RAM | Lead | R3.3 | **AKZ.8** | — | — |
+| R3.5 | c72e (und c71e) ablegen, in S16; Gegenproben gegen R2; Sabotagen; Fallzahlen | Lead | R3.4 | **AKE.1**, (**AKS.1**), **AKZ.7** | ☐ | — |
+| R3.6 | **Review R3** | `code-reviewer` | R3.5 | Checkliste | — | ☐ |
 | R3.7 | ESP-Version anheben | `release-engineer` | R3.6 | S4 | ☐ | — |
-| R3.8 | `CHANGELOG.md`-Eintrag R3; **AKZ.4** gegen das Tag von R2; `git status`; `--full`; RAM | Lead | R3.7 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
-| R3.9 | `TESTPLAN-PWA.md`: Eingriff, `tcp_reaped`, geändertes Startverhalten — mit L6 die drei Stellen mit „rund 60 s“ (`TESTPLAN-PWA.md:798`, `:809`, `:959`) und die vier Nebenwirkungen; `BEFUNDE.md`: Träger „Release R3“ an C71, C72, mit L7 auch an C75. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R3.8 | S9, S10, S11 | ☐ | — |
-| R3.10 | Einspielzeilen samt Rückweg (Stand R2; nimmt C71 und C72 zurück); Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R3.9 | **AKZ.5** | ☐ | — |
-| R3.11 | **Einspielen:** Wache läuft; Du spielst ein; der Lead prüft Smoketest, `--check`, `check-pwa.sh` | Lead (Einspielen: Nutzer) | R3.10 | **AKZ.5** | — | — |
+| R3.8 | `CHANGELOG.md`; **AKZ.4**; `git status`; `--full`; RAM | Lead | R3.7 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
+| R3.9 | `TESTPLAN-PWA.md`, `BEFUNDE.md` nach R3. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R3.8 | S9, S10, S11 | ☐ | — |
+| R3.10 | Einspielzeilen samt Rückweg; Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R3.9 | **AKZ.5** | ☐ | — |
+| R3.11 | **Einspielen** (Nutzer) | Lead (Einspielen: Nutzer) | R3.10 | **AKZ.5** | — | — |
 
 ## Schritt G11 — Wirkung (auf R3)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| G11.1 | **C72 — Browser-Sitzungen** Safari und Chrome wie G10.3 | Lead | R3.11 | **AKE.2** | — | — |
-| G11.2 | **C71 — drei ESP-Starts** wie G9.6 (einer mit Schreiben beim Start; keine HTTP-Lesung bis `- update cache heap` + 130 s; Auswertung an `L = free − blk`); danach Ruhewert 150 s nach `check-pwa.sh` und nach einer Ladeprobe; Zwischenspeicher-Zeilen und `*.tmp` prüfen | Lead | G11.1 | **AKS.2**, **AKS.3** | — | — |
-| G11.3 | **Regression gegen die Grundlinie R2 (G10.3a):** drei `check-pwa.sh`, `ERR_CONNECTION_RESET` und `ERR_EMPTY_RESPONSE` nicht mehr als in R2; Ladeprobe warm; Smoketest; Δ`write_lost_failed` | Lead | G11.2 | **AKE.3** | — | — |
+| G11.1 | **C72 — Browser-Sitzungen** wie G10.3 | Lead | R3.11 | **AKE.2** | — | — |
+| G11.2 | **Nur mit Ent-18 B: C71** wie G9b.1 und G9b.2 | Lead | G11.1 | **AKS.2–AKS.4** | — | — |
+| G11.3 | **Regression gegen die Grundlinie R2** | Lead | G11.2 | **AKE.3** | — | — |
 
 ---
 
@@ -172,21 +195,22 @@ Der Lead kündigt Beginn und Ende an; jede Phase wird **ausgewertet, bevor** die
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| T3 | `pwa-tester` Phasen 0–4 und 9; **K30** (Ent-12): Ruhewert `max` < 5'120 oder `low=` < 1'072 ⇒ anhalten; bei jedem Halt I-4- und I-5-Felder ohne Parameter in den Bericht; Uhr exklusiv, Beginn und Ende angekündigt | `pwa-tester` | **G11.3**, oder **G10.6** ohne R3; R1.10, R2.10 (R3.9) | **AKZ.6** | — | — |
+| T3 | `pwa-tester` Phasen 0–4 und 9; **K30** (Ent-12): Ruhewert `max` < 5'120 oder `low=` < 1'072 ⇒ anhalten | `pwa-tester` | **G11.3**, oder **G10.6** ohne R3 | **AKZ.6** | — | — |
 
 ## Schritt Z — Doku
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** — C70 (AKW.2–AKW.4), C71 (AKS.2 oder N4), C72 (AKE.2 oder M4/M5), C75 (mit L7, AKS.3), Beitrag zu C65 | `doc-writer` | T3 | S10, S11 | ☐ | — |
+| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** — C70 (AKW.2–AKW.4), C71 und C75 (AKS.1–AKS.4), C72 (AKE.2 oder M4/M5), Beitrag zu C65 | `doc-writer` | T3 | S10, S11 | ☐ | — |
 | Z.2 | Spec-Endstand: jedes Kriterium mit Beleg oder Grund | `spec-writer` | Z.1 | jedes AK belegt oder begründet | — | — |
 
 ---
 
 ## Abschluss
 
-- [ ] Alle Tasks erledigt; R3, G11 und einzelne R3-Tasks entfallen nur mit dem Entscheid am Tor
+- [ ] Alle Tasks erledigt; R1b/G9b nur mit Ent-18 A; R3, G11 und einzelne Tasks entfallen nur mit dem Entscheid, der
+      sie ausschliesst
 - [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
-- [ ] Alle 40 Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468)
-- [ ] Drei Releases (R1, R2, R3 nach dem Tor; R4 nur mit Ent-16 B), je Flash-Umfang und Reihenfolge benannt, je
-      committet, getaggt, gepusht und eingespielt
+- [ ] Alle 41 Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468)
+- [ ] Releases (R1, mit Ent-18 A R1b, R2, R3 nach dem Tor), je Flash-Umfang und Reihenfolge benannt, je committet,
+      getaggt, gepusht und eingespielt
