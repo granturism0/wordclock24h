@@ -54,6 +54,9 @@ uint16_t httpclient_connects_get (void) { return 0; }
 
 #define TCP_MSS 536
 #include "zaehler.inc"
+#if __has_include ("c72r2b.inc")
+#include "c72r2b.inc"                                                   /* R2b: C72_R2B_ZAEHLER, wenn zaehler.inc die R2b-Zaehler fuehrt */
+#endif
 #ifndef HAVE_FS_WRITE_SHORT
 static uint16_t http_fs_write_short = 0;
 #endif
@@ -311,9 +314,20 @@ int main (void)
             "tcp_now_states", "tcp_now_tw", "tcp_now_pending", "tcp_now_unclaimed", "tcp_now_self_port", "tcp_now_list", "tcp_now_more", "http_accept_dead" };
         std::string w; for (auto & k : keys) w += k + " ";
         std::vector<std::string> r2 = { "app_not_modified", "app_full" };       /* R2 C70 (AKC.4): hinter den I-5-Feldern */
-        bool passt = keys == soll || (keys.size () == soll.size () + r2.size () && std::equal (soll.begin (), soll.end (), keys.begin ()) &&
-                                      std::equal (r2.begin (), r2.end (), keys.begin () + soll.size ()));
-        fall ("A8 Felder: Bestand unveraendert, I-5 dahinter in der Reihenfolge der Spec (ab R2 dahinter app_not_modified, app_full)", passt, w);
+        std::vector<std::string> r2b = { "app_not_modified", "app_full", "app_immutable", "app_token_miss" };   /* R2b C70 (c) (AKL.2): hinter app_full */
+        auto mit = [&] (const std::vector<std::string> & z) { return keys.size () == soll.size () + z.size () && std::equal (soll.begin (), soll.end (), keys.begin ()) &&
+                                                                     std::equal (z.begin (), z.end (), keys.begin () + soll.size ()); };
+        bool passt = keys == soll || mit (r2) || mit (r2b);
+        fall ("A8 Felder: Bestand unveraendert, I-5 dahinter in der Reihenfolge der Spec (ab R2 app_not_modified, app_full; ab R2b dahinter app_immutable, app_token_miss)", passt, w);
+#ifdef C72_R2B_ZAEHLER
+        /* A9 (R2b): jedes Feld gibt SEINEN Zaehler aus - verschiedene Werte, damit eine Vertauschung auffaellt */
+        http_app_not_modified = 31; http_app_full = 32; http_app_immutable = 33; http_app_token_miss = 34;
+        leeren (); std::map<std::string, std::string> m9 = dr ();
+        fall ("A9 app_not_modified/app_full/app_immutable/app_token_miss geben ihren Zaehler aus",
+              m9["app_not_modified"] == "31" && m9["app_full"] == "32" && m9["app_immutable"] == "33" && m9["app_token_miss"] == "34",
+              m9["app_not_modified"] + " " + m9["app_full"] + " " + m9["app_immutable"] + " " + m9["app_token_miss"]);
+        http_app_not_modified = 0; http_app_full = 0; http_app_immutable = 0; http_app_token_miss = 0;
+#endif
         fall ("A8 Antwort endet mit }", ! out.empty () && out.back () == '}', out.substr (out.size () > 20 ? out.size () - 20 : 0));
     }
     /* --- B: http_accept_dead im echten http_server_loop () */

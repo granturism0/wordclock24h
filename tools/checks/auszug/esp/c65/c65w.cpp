@@ -87,6 +87,8 @@ static void heap_low_snapshot (void) {}
 static void http_flush (void);
 static bool http_fs_file_exists_and_nonempty (const char *);
 #include "flush.inc"
+/* R2b C70 (c): http_send_fs_file () liest die Marke h ueber http_get_param (); hier nie eine Marke - Verhalten wie R2 */
+static char * http_get_param (const char *) { static char leer[] = ""; return leer; }
 #include "c70.inc"
 #include "fsfile.inc"
 #ifdef HAVE_FS_APP_ASSET

@@ -254,6 +254,8 @@ static uint16_t     http_write_lost_failed = 0;     // C25/L270: verlorene Bloec
 static uint16_t     http_fs_write_short    = 0;     // E3 I-2 (C65): Dateiauslieferungen, die mitten in der Datei abbrachen (Teil von write_lost_blocks)
 static uint16_t     http_app_not_modified  = 0;     // R2 C70 (design.md 4.4): App-Assets mit 304 beantwortet, seit dem Start, saettigend
 static uint16_t     http_app_full          = 0;     // R2 C70: App-Assets (Weissliste, .gz) mit 200 und Rumpf, seit dem Start, saettigend
+static uint16_t     http_app_immutable     = 0;     // R2b C70 (c) (design.md 18.6): App-Assets mit immutable beantwortet, 200 und 304, saettigend
+static uint16_t     http_app_token_miss    = 0;     // R2b C70 (c): App-Assets mit nicht leerem h OHNE immutable (Dokument, sw.js eingeschlossen), saettigend
 static uint_fast8_t http_write_broken      = 0;
 
 /* Verbindungen, die angenommen wurden, aber nie eine Anfrage brachten. Zwei
@@ -2291,11 +2293,26 @@ http_content_type (const char * path)
  * RAM: APP_INM_LEN Byte Puffer und 4 Byte Zaehler (http_app_not_modified, http_app_full, bei den
  * Auslieferungszaehlern oben) statisch. Stack: APP_ETAG_LEN + 8 Byte in http_send_fs_file ().
  * Kosten je App-Asset-Antwort: 2 Byte am Anfang lesen, ein seek ans Ende - 8, 8 Byte lesen, ein seek an den Anfang.
+ *
+ * R2b C70 Variante (c) (design.md 18.3-18.6, AKL.1, AKL.2): versionierte URLs "<pfad>?v=<APP_VERSION>&h=<marke>".
+ * Die Antwort traegt "Cache-Control: public, max-age=31536000, immutable" GENAU DANN, wenn (i) h nicht leer ist,
+ * (ii) h zeichengleich mit dem ETag DIESER Antwort ohne die Anfuehrungszeichen ist, (iii) sie im Zweig HTTP/1.1 mit
+ * ETag laeuft und (iv) es weder das Dokument (/app, /app/, /app/index.html) noch /app/sw.js ist - sonst no-cache wie in
+ * R2. Fuer 200 und 304 dieselbe Entscheidung: eine 304 aktualisiert die gespeicherten Kopfzeilen im Browser.
+ * Regel I-L: Eine URL, die je mit immutable beantwortet wurde, bezeichnet fuer immer genau diese Bytes - der Browser
+ * fragt sie nicht mehr nach, kein Rueckweg am ESP heilt einen falschen Eintrag. Deshalb entscheidet der Vergleich mit
+ * dem ETag, das aus derselben geoeffneten Datei gerechnet ist, aus der der Rumpf kommt; Version, Upload-Reihenfolge
+ * und Upload-Weg spielen keine Rolle. v wertet der ESP nicht aus. Der Wert von h wird nur verglichen, nie gespeichert
+ * und nie ausgegeben; keine Logzeile je Anfrage (UART). Dokument und sw.js schliesst http_app () selbst aus, nicht
+ * erst das Werkzeug: Nur dort wird app_asset auf APP_ASSET_VERSIONED gehoben. Zaehler http_app_immutable und
+ * http_app_token_miss (4 Byte) bei den Auslieferungszaehlern oben; Zweig HTTP/1.0 zaehlt nicht.
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 #define APP_INM_LEN                                 36              // If-None-Match samt Endnull (design.md 4.4, AKZ.8)
 #define APP_ETAG_LEN                                32              // ETag samt Anfuehrungszeichen und Endnull: hoechstens 2 + 10 + 1 + 16 + 1 = 30
 #define APP_GZIP_MIN                                18              // kleinstes gzip: 10 Byte Kopf, 8 Byte Trailer (RFC 1952)
+#define APP_ASSET_LISTED                            1               // app_asset: Eintrag der Weissliste - HTTP/1.1, ETag, 304, nie immutable
+#define APP_ASSET_VERSIONED                         2               // app_asset: dazu versioniert (design.md 18.4) - immutable bei treffender Marke h
 
 static char             http_request_if_none_match[APP_INM_LEN];   // "" = kein Kopf, leer oder zu lang
 
@@ -2372,6 +2389,18 @@ http_app_etag (File& fp, char * etag, size_t etag_size)
     return true;
 }
 
+/* R2b C70 (c), design.md 18.6: Ist die Marke h zeichengleich mit dem ETag ohne die Anfuehrungszeichen? Ohne ETag oder
+ * mit leerer Marke nie. Kein Praefix, keine Laenge allein: strlen (h) + 2 == strlen (etag), dann die Zeichen dazwischen.
+ * Kein Heap, kein String; token wird nur gelesen.
+ */
+static bool
+http_app_token_hits (const char * token, const char * etag)
+{
+    size_t  n = strlen (token);
+
+    return n > 0 && strlen (etag) == n + 2 && etag[0] == '"' && etag[n + 1] == '"' && ! memcmp (etag + 1, token, n);
+}
+
 /* Trifft If-None-Match dieser Anfrage das ETag? Ohne ETag nie. */
 static bool
 http_app_if_none_match_hits (const char * etag)
@@ -2431,6 +2460,8 @@ http_app_if_none_match_hits (const char * etag)
  *
  * app_asset: die Datei ist ein Eintrag der Weissliste APP_INSTALL_ASSETS (R2 C70). Nur mit app_asset UND
  * gzip_encoded gehen HTTP/1.1, ETag und 304 hinaus; sonst die Antwort wie bis ESP 3.2.39, HTTP/1.0 ohne ETag.
+ * Nur mit app_asset == APP_ASSET_VERSIONED (R2b, nie Dokument oder sw.js) und einer Marke h, die das ETag dieser
+ * Antwort trifft, steht dort immutable statt no-cache - fuer 200 und 304 gleich (design.md 18.6).
  *-------------------------------------------------------------------------------------------------------------------------------------------
  */
 static uint_fast8_t
@@ -2451,6 +2482,7 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
         File            fp = LittleFS.open (filename, "r");
         char            etag[APP_ETAG_LEN];                         // R2 C70: "" = kein ETag
         uint_fast8_t    not_modified = 0;
+        uint_fast8_t    immutable    = 0;                           // R2b C70 (c): Cache-Control lang statt no-cache
 
         etag[0] = '\0';
 
@@ -2480,12 +2512,38 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
 
             not_modified = (etag[0] && http_app_if_none_match_hits (etag));
 
+            /* R2b C70 (c), design.md 18.6: EINE Entscheidung fuer 200 und 304, nur im Zweig HTTP/1.1. Ohne ETag (keine
+             * gzip-Datei, unter APP_GZIP_MIN) trifft keine Marke. Gezaehlt wird jede Antwort mit nicht leerem h.
+             */
+            if (cache)
+            {
+                const char *    token = http_get_param ("h");          // nie NULL (C20); nur verglichen, nie ausgegeben
+
+                if (*token)
+                {
+                    immutable = (app_asset == APP_ASSET_VERSIONED && http_app_token_hits (token, etag));
+
+                    if (immutable)
+                    {
+                        if (http_app_immutable < 0xFFFF)
+                        {
+                            http_app_immutable++;
+                        }
+                    }
+                    else if (http_app_token_miss < 0xFFFF)
+                    {
+                        http_app_token_miss++;
+                    }
+                }
+            }
+
             if (not_modified)
             {
                 /* R2 C70 (AKC.2): ohne Koerper und ohne Content-Length; die Leseschleife unten laeuft nicht */
                 http_send (FS("HTTP/1.1 304 Not Modified\r\nETag: "));
                 http_send (etag);
-                http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
+                http_send (immutable ? FS("\r\nCache-Control: public, max-age=31536000, immutable\r\nConnection: close\r\n\r\n")
+                                     : FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
 
                 if (http_app_not_modified < 0xFFFF)
                 {
@@ -2524,7 +2582,8 @@ http_send_fs_file (const char * filename, const char * content_type, uint_fast8_
                     http_send (etag);
                 }
 
-                http_send (FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
+                http_send (immutable ? FS("\r\nCache-Control: public, max-age=31536000, immutable\r\nConnection: close\r\n\r\n")
+                                     : FS("\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"));
             }
 
             http_flush ();
@@ -3260,6 +3319,16 @@ http_app (const char * path)
         }
 
         app_asset = (http_find_app_install_asset (asset_path) != 0);
+
+        /* R2b C70 (c), design.md 18.4: Nur hier wird ein Weisslisteneintrag auf APP_ASSET_VERSIONED gehoben - nie das
+         * Dokument (auch nicht als /app/index.html; /app und /app/ oben bleiben APP_ASSET_LISTED) und nie sw.js. Ueber
+         * das Dokument kommt jede neue Marke und jede Korrektur an, ein Service Worker darf nie lange gecacht werden.
+         * Der ESP schliesst beide selbst aus, unabhaengig von h und vom Werkzeug.
+         */
+        if (app_asset && strcmp (asset_path, "app/index.html") && strcmp (asset_path, "app/sw.js"))
+        {
+            app_asset = APP_ASSET_VERSIONED;
+        }
     }
     else
     {
@@ -15475,6 +15544,8 @@ http_api_device_ready ()
     http_json_send_uint_field (FS("http_accept_dead"), (unsigned long) http_accept_dead);           // R1.1 I-5: seit dem Start
     http_json_send_uint_field (FS("app_not_modified"), (unsigned long) http_app_not_modified);      // R2 C70: 304 auf App-Assets, seit dem Start
     http_json_send_uint_field (FS("app_full"), (unsigned long) http_app_full);                      // R2 C70: 200 mit Rumpf auf App-Assets
+    http_json_send_uint_field (FS("app_immutable"), (unsigned long) http_app_immutable);            // R2b C70 (c): 200 und 304 mit immutable
+    http_json_send_uint_field (FS("app_token_miss"), (unsigned long) http_app_token_miss);          // R2b C70 (c): Marke h ohne immutable
     http_send (FS("}"));
     http_flush ();
     return 0;

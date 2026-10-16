@@ -28,3 +28,8 @@ open(os.path.join(ziel, 'server_class.inc'), 'w').write(cls)
 i5 = von_bis('#define TCP_NOW_LIST_MAX', 'http_no_request_timeouts_get (void)')
 open(os.path.join(ziel, 'i5.inc'), 'w').write(i5)
 open(os.path.join(ziel, 'c72have.inc'), 'w').write('#define C72_HAVE_I5 1\n' if i5.strip() else '')
+
+# R2b C70 (c) (AKL.2): fuehrt zaehler.inc die Zaehler app_immutable und app_token_miss, prueft c72i A9 ihre Ausgabe
+import re as _re_r2b
+_zi = open(os.path.join(sys.argv[2], 'zaehler.inc')).read() if os.path.exists(os.path.join(sys.argv[2], 'zaehler.inc')) else ''
+open(os.path.join(sys.argv[2], 'c72r2b.inc'), 'w').write('#define C72_R2B_ZAEHLER 1\n' if _re_r2b.search(r'^static uint16_t +http_app_immutable\b', _zi, _re_r2b.M) and _re_r2b.search(r'^static uint16_t +http_app_token_miss\b', _zi, _re_r2b.M) else '')

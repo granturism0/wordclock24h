@@ -107,6 +107,10 @@ static void heap_low_snapshot (void) {}
 static void http_flush (void);
 static bool http_fs_file_exists_and_nonempty (const char *);
 #include "flush.inc"
+/* R2b C70 (c): http_send_fs_file () liest die Marke h ueber http_get_param () - der Stub steht deshalb vor dem Auszug.
+ * Er liefert fuer jeden Namen param_action, in c70e immer leer: keine Marke, Verhalten wie R2 (AKL.3). */
+static char param_action[16] = "";
+static char * http_get_param (const char *) { return param_action; }
 #include "c70.inc"
 #ifndef C70_HAVE_BLOCK
 static void http_clear_request_if_none_match (void) {}             /* Vorstand: liest If-None-Match nicht */
@@ -119,9 +123,7 @@ static void http_capture_request_if_none_match (const String &) {}
 #define SENDFS(f, ct, gz, app)  http_send_fs_file ((f), (ct), (gz))
 #endif
 
-/* ---- Stubs fuer http_app () */
-static char param_action[16] = "";
-static char * http_get_param (const char *) { return param_action; }
+/* ---- Stubs fuer http_app () (http_get_param () steht vor dem Auszug, R2b) */
 static int  fern_gefragt = 0;
 static bool http_remote_app_files_available (char * v, size_t n) { fern_gefragt++; if (n) v[0] = 0; return false; }
 static bool http_try_auto_install_app_files (void) { return false; }

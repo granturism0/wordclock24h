@@ -29,18 +29,22 @@ S = [
 #define http_fs_file_exists_and_nonempty(f) LittleFS.exists (f)
     /* Nicht LittleFS.exists(): Eine 0-Byte-Datei existiert und wuerde mit 200 OK''', 1)]),
   ('Connection: close in der 304 entfernt', [(H, '''                http_send (etag);
-                http_send (FS("\\r\\nCache-Control: no-cache\\r\\nConnection: close\\r\\n\\r\\n"));
+                http_send (immutable ? FS("\\r\\nCache-Control: public, max-age=31536000, immutable\\r\\nConnection: close\\r\\n\\r\\n")
+                                     : FS("\\r\\nCache-Control: no-cache\\r\\nConnection: close\\r\\n\\r\\n"));
 
                 if (http_app_not_modified < 0xFFFF)''', '''                http_send (etag);
-                http_send (FS("\\r\\nCache-Control: no-cache\\r\\n\\r\\n"));
+                http_send (immutable ? FS("\\r\\nCache-Control: public, max-age=31536000, immutable\\r\\n\\r\\n")
+                                     : FS("\\r\\nCache-Control: no-cache\\r\\n\\r\\n"));
 
                 if (http_app_not_modified < 0xFFFF)''', 1)]),
   ('Connection: close in der 200 entfernt', [(H, '''                }
 
-                http_send (FS("\\r\\nCache-Control: no-cache\\r\\nConnection: close\\r\\n\\r\\n"));
+                http_send (immutable ? FS("\\r\\nCache-Control: public, max-age=31536000, immutable\\r\\nConnection: close\\r\\n\\r\\n")
+                                     : FS("\\r\\nCache-Control: no-cache\\r\\nConnection: close\\r\\n\\r\\n"));
             }''', '''                }
 
-                http_send (FS("\\r\\nCache-Control: no-cache\\r\\n\\r\\n"));
+                http_send (immutable ? FS("\\r\\nCache-Control: public, max-age=31536000, immutable\\r\\n\\r\\n")
+                                     : FS("\\r\\nCache-Control: no-cache\\r\\n\\r\\n"));
             }''', 1)]),
   ('HTTP/1.1 in einer /api/-Antwort (device_ready)', [(H, '''    http_flush ();
     return 0;

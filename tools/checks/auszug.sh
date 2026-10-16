@@ -107,6 +107,7 @@ LAUF=(
   "C71 I-6 Heap und Startzustand im Abgleich, tmp geloescht, erste Anfrage, Flash-Kennung (ESP)|esp/c71/run.sh $E neu"
   "C71e L7 httpclient gibt den Kontext auf jedem Weg frei (ESP)|esp/c71e/run.sh $E neu"
   "C70 ETag/304 fuer App-Assets, HTTP/1.1 nur dort (ESP)|esp/c70e/run.sh $E neu"
+  "C70 (c) immutable nur bei treffender Marke, Dokument und sw.js nie, Zaehler (ESP)|esp/c70c/run.sh $E neu"
   "C72 I-5 laufende Verbindungszustaende, tote Abholungen, Heap-Zeile tcp=/nrt= (ESP)|esp/c72/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
