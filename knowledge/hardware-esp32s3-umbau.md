@@ -36,7 +36,7 @@ Rahmen auch ohne jene Datei lesbar ist:
 | 3 | **Ein** USB-C-Anschluss genügt: Flashen, Konsole und JTAG | `USB1` wechselt von 6 auf 16 Pole mit Datenleitungen und ESD-Schutz (Spec E3, E9b) |
 | 4 | **LDR und LEDs bleiben auf dem LED-Board**, dasselbe Board wird weiterverwendet | Das LED-Board wird nicht geändert (Spec E10) |
 | 5 | LED-Ansteuerung, Schalten der LED-Versorgung und LDR-Lesung bleiben **pin- und funktionskompatibel** zu V2 | Prüfung H8 (siehe 5) |
-| 6 | Der LDR hat einen **analogen** Eingang | Teilerwiderstand `R22` ändert sich, Kalibrierung wird neu gemessen (Spec E9a) |
+| 6 | Der LDR hat einen **analogen** Eingang | `R22` **bleibt 1 kΩ**, weil die LDR-Lesung nach Vorgabe des Nutzers 100 % kompatibel bleiben muss; die Lesung ist funktional gleichwertig, nicht zählergleich, und braucht eine einmalige Nachkalibrierung (`hardware/komponenten/esp32s3-wroom-1.md` §6.3). Bis 17.10.2026 stand hier „`R22` ändert sich, Kalibrierung wird neu gemessen“. Das stimmt nicht mehr, weil der Nutzer die Kompatibilität festgelegt hat |
 | 7 | Das **Leiterplattenformat bleibt 1:1** | Umriss, Befestigungslöcher, Lage der Stecker und Taster wie V2 (Spec E12); Prüfung H7 |
 | 8 | Fertigung und Bestückung bei **JLCPCB**; jedes Teil dort erhältlich, **wenn möglich aus dem Standard-Katalog (Basic)** | Skill `jlcpcb-bauteile`; Prüfung H4 |
 | 9 | Schaltplan und Layout in **KiCad** | Skill `kicad-schema` |
@@ -182,8 +182,13 @@ Was aus der Hardware-Arbeit offen ist, steht als Befund mit Beleg und in der ToD
 
 Ausserdem, am 17.10.2026 in der Spec und den Blättern gelesen und noch nicht als Befund geführt, weil es
 zur laufenden Spec gehört: die Freigabe der Spec (Task 0.6), die Aussenmasse des 16-poligen USB-C-Steckers
-gegen den 6-poligen im Gehäuse, die Wahl der Paarung für `R22` (47 kΩ gegen 10 kΩ) und ein Testaufbau am
-DevKit (Spec F8). Dazu meldete Prüfung H8 an diesem Tag ein zusätzliches Teil (`C32`) am Netz `LDR`, das
+gegen den 6-poligen im Gehäuse und ein Testaufbau am DevKit (Spec F8). Bis 17.10.2026 stand hier auch
+„die Wahl der Paarung für `R22` (47 kΩ gegen 10 kΩ)“. Das stimmt nicht mehr, weil `R22` 1 kΩ bleibt
+(Vorgabe 6; `hardware/komponenten/esp32s3-wroom-1.md` §6.3).
+Neu seit dem Abgleich vom 17.10.2026 und nicht als Befund geführt: die Konsole `H6` könnte in V3
+gegenüber V2 vertauscht sein (OP-35, ○; Netzname `TX_UART` hängt in V2 am STM-Empfang PA10, V3 ordnet
+nach dem Namen `TXD0` zu), und das LCSC-Feld von `R23` trägt in der V2-Stückliste die Nummer von `R19`
+(C17841, OP-06). Beides in `hardware/dokumentation/offene-punkte.md`. Dazu meldete Prüfung H8 an diesem Tag ein zusätzliches Teil (`C32`) am Netz `LDR`, das
 ohne Eintrag und Freigabe des Nutzers in `hardware-led-schnittstelle.ausnahmen` nicht stehen darf. Diese
 Punkte stehen in `specs/esp32s3-port/` und `hardware/dokumentation/offene-punkte.md`; wer einen schliesst,
 trägt den Beleg dort ein. Wird einer zum Mangel am Bestand oder am Werkzeug, bekommt er hier in

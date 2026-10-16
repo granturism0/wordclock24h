@@ -26,7 +26,7 @@ Die Analyse der Einzelteile (mit Datenblattseiten) steht in `hardware/komponente
 | U2 | **STM32F411CEU6** (QFN-48) | Hauptrechner, 84 MHz aus 25-MHz-Quarz |
 | U4 | **ESP-12F** | WLAN, fest auf der Platine |
 | U3 | **SN74AHCT1G125** | **Pegelwandler 3,3 V → 5 V** für die LED-Datenleitung |
-| U5 | **DS3231MZ** | Echtzeituhr mit TCXO, Pufferbatterie U7 (CR2032) |
+| U5 | **DS3231MZ** | Echtzeituhr mit MEMS-Resonator (DS3231M, ±5 ppm; Bis 17.10.2026 stand hier „mit TCXO“. Das stimmt nicht mehr, weil „MZ“ die Variante DS3231M ist, nicht der DS3231 mit Quarz — `hardware/komponenten/ds3231mz.md`), Pufferbatterie U7 (CR2032) |
 | U6 | **AT24C32M** | **EEPROM am I2C**, 4 KByte — der STM32F411 hat keins |
 | U1 | **DS18B20** | Temperatursensor, 1-Wire |
 | U9 | TPS2121 | Power-Mux zwischen USB-C und externer 5-V-Einspeisung |
@@ -428,9 +428,22 @@ Stückliste und Teil (Einzelheiten in `hardware/komponenten/jlcpcb-bestand.md`):
   Grenzen des ESP32-S3 (`hardware/komponenten/sy8301abc.md`).
 - **`D2`, `D3`** (und `D1`) heissen in der Stückliste Footprint `SOD-123`, das Teil PMEG2010ER
   (C82288) ist `SOD-123W`. Der **Schaltplan** trägt den richtigen Footprint
-  (`Nexperia_CFP3_SOD-123W`); der Widerspruch liegt nur in der Stückliste.
+  (`Nexperia_CFP3_SOD-123W`). Bis 17.10.2026 stand hier „der Widerspruch liegt nur in der
+  Stückliste“. Das stimmt nicht mehr, weil das **V2-Layout** für `D1`–`D3` den Footprint
+  `EasyEDA:SOD-123_L2.8-W1.8-LS3.7-RD` trägt, also den der Stückliste und nicht den des
+  Schaltplans; das bestellte Teil ist `SOD-123W` (`hardware/dokumentation/wissensstand.md`, e2).
 - **`Q2`** ist in der Stückliste „MMBF170“ mit C130879 — das ist der Nachbau von Shikues, nicht
   der bekannte Typ von Diodes; die Schwellenspannung weicht ab (`BEFUNDE.md`, L488).
+
+Zwei weitere Auffälligkeiten aus dem Abgleich vom 17.10.2026 (`hardware/dokumentation/offene-punkte.md`):
+
+- **Das LCSC-Feld von `R23`** trägt in der V2-Stückliste die Nummer C17841 — das ist der
+  82-Ω-Widerstand von `R19`, `R23` hat 2,2 kΩ. Die richtige Nummer ist nicht geprüft (OP-06).
+  Die Stückliste ist ohnehin unvollständig (siehe oben).
+- **Die Konsole `H6` könnte in V3 gegenüber V2 vertauscht sein** (OP-35, ○ nicht belegt): In V2
+  hängt das Netz `TX_UART` am STM-Empfang PA10, V3 ordnet nach dem Namen zu (`TXD0` an
+  `TX_UART`), legt also einen Sendeausgang dorthin, wo in V2 ein Empfangseingang lag. Wie der
+  vorhandene Konsolenadapter verdrahtet ist, ist nicht belegt (`hardware/dokumentation/wissensstand.md`, a3).
 
 Die fehlenden Teile führt `BEFUNDE.md` als L485, die Widersprüche von `R29`, `D1`–`D3` als L487 und `Q2` als L488.
 
