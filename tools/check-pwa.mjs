@@ -97,8 +97,22 @@ const netzlog = z => { if (NETZLOG) appendFileSync(NETZLOG, `${String(Date.now()
 const pfadVon = url => { try { return new URL(url).pathname; } catch { return url.split("?")[0]; } };
 const gehtAnZiel = url => { try { return new URL(url).host === ZIEL_HOST; } catch { return false; } };
 
+// C70 (R2.5): App-Assets je Anfrage -- Leitungsstatus aus responseReceivedExtraInfo (responseReceived
+// meldet fuer eine 304 die 200 der Cache-Kopie, L468), Herkunft aus dem Cache, uebertragene Byte.
+const assetAntw = new Map();   // requestId -> { pfad, status, cache }
+const leitung = new Map();     // requestId -> Statuscode auf der Leitung
+let assetByte = 0;
+
 ws.addEventListener("message", e => {
   const m = JSON.parse(e.data);
+  if (m.method === "Network.responseReceivedExtraInfo") leitung.set(m.params.requestId, m.params.statusCode);
+  if (m.method === "Network.responseReceived" && gehtAnZiel(m.params.response.url) &&
+      !pfadVon(m.params.response.url).startsWith("/api/")) {
+    const rs = m.params.response;
+    assetAntw.set(m.params.requestId, { pfad: pfadVon(rs.url), status: rs.status,
+      cache: !!(rs.fromDiskCache || rs.fromServiceWorker || rs.fromPrefetchCache) });
+  }
+  if (m.method === "Network.loadingFinished" && assetAntw.has(m.params.requestId)) assetByte += m.params.encodedDataLength || 0;
   if (m.method === "Page.loadEventFired") ladeEreignisse++;
   if (m.method === "Network.requestWillBeSent" && gehtAnZiel(m.params.request.url)) {
     const id = m.params.requestId;
@@ -398,6 +412,20 @@ info("/api/ gleichzeitig, danach", `hoechstens ${apiMax.danach}`);
 info("Abrufe je Endpunkt", ZAEHLEN.map(n => `${n} ${anzahl[n]}`).join(", "));
 info("als Takt nicht abgewartet", taktPfade.size ? [...taktPfade].join(", ") : "keiner");
 info("Verbindungsaufbau >= 900 ms", `${langsameVerbindungen} von ${verbindungen} neuen Verbindungen (laengster ${Math.round(langsamsteMs)} ms)`);
+// ----------------------------------------- 8. Asset-Cache (C70, R2.5) -- nur Ausgabe
+// Ab ESP mit ETag sollte jedes Laden nach dem ersten die Assets mit 304 oder aus dem Cache holen.
+// Das Soll prueft die Ladeprobe (--erwarte-304); hier steht, was dieser Lauf am Geraet sah.
+const zaehl = { "200": 0, "304": 0, cache: 0, andere: 0 };
+for (const [id, a] of assetAntw) {
+  const s = leitung.get(id);
+  if (s === 304) zaehl["304"]++;
+  else if (a.cache && s === undefined) zaehl.cache++;
+  else if ((s ?? a.status) === 200) zaehl["200"]++;
+  else zaehl.andere++;
+}
+info("App-Assets je Antwort", `${assetAntw.size} Antworten: 200 ${zaehl["200"]}, 304 ${zaehl["304"]}, Cache ${zaehl.cache}, andere ${zaehl.andere}`);
+info("App-Assets uebertragen", `${assetByte} Byte`);
+info("Verbindungsfehler", netzfehler.length ? `${netzfehler.length}: ` + netzfehler.slice(0, 3).map(f => `${f.fehler} ${pfadVon(f.url)}`).join(", ") : "keine");
 info("Laufzeit", `${((Date.now() - laufStart) / 1000).toFixed(1)} s`);
 
 ws.close();
