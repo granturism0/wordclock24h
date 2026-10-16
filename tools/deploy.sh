@@ -74,6 +74,9 @@ for i in icon-192.svg icon-512.svg icon-192.png icon-512.png icon-180.png icon-m
   [ -s "$APP/icons/$i.gz" ] || fail "fehlt oder leer: icons/$i.gz"
 done
 echo "  ok  alle .gz vorhanden, nicht leer, nicht veraltet"
+# R2b (C70 Variante c): Die Marken im gebauten Dokument muessen zu den .gz passen, die gleich ausgerollt werden. Sonst
+# naehme der ESP sie nicht an (Verhalten (a)) -- sicher, aber nicht gewollt. Prueft den Inhalt, nicht die Dateizeit.
+python3 tools/marken-pruefen.py --lokal "$APP" || fail "Marken in index.html.gz passen nicht zu den .gz -- erst 'make app-gz'"
 
 # --------------------------------------------------------------- Versionen
 echo

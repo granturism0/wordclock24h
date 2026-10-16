@@ -2,6 +2,8 @@
 """Markenpruefung am Geraet (Paket 2026-10-15, Nachtrag A.6, R2b.8; AKL.8 (i)).
 
 Aufruf:  tools/marken-pruefen.py <host> [--dokument <datei>] [--erwartet]
+         tools/marken-pruefen.py --lokal <data/app>   vor dem Rollout (deploy.sh): jede Marke im gebauten index.html.gz
+                                                      gegen die Marke der lokalen .gz -- "Marke veraltet" ist ein Fehler
   liest das ausgelieferte Dokument /app/ (oder mit --dokument eine lokale Datei -- fuer Gegenproben), sammelt jeden
   versionierten Verweis (?v=...&h=...) und jeden Eintrag aus <meta name="wc-asset-tokens">, fragt jede dieser URLs am
   Geraet ab und verlangt: Antwort 200, Cache-Control mit immutable, ETag gleich "<marke>".
@@ -10,7 +12,7 @@ Exit 0 alles passt, 1 mindestens eine Abweichung, 2 Werkzeugfehler. Jede Abweich
   "Marke passt nicht", "kein immutable", "Meta-Eintrag fehlt", "nicht erreichbar".
 Liest nur.
 """
-import gzip, html, re, sys, urllib.request
+import gzip, html, os, re, sys, urllib.request
 
 MARKE = re.compile(r"^[0-9]+-[0-9a-f]{16}$")
 
@@ -24,8 +26,32 @@ def hole(url, kopf=False):
         return r.status, r.headers, b
 
 
+def lokal(app):
+    """Gebautes index.html.gz gegen die lokalen .gz: dieselbe Formel wie tools/app-marken.py / http_app_etag ()."""
+    p = os.path.join(app, "index.html.gz")
+    if not os.path.isfile(p) or not os.path.getsize(p):
+        print(f"  FEHL  {p} fehlt oder ist leer"); return 1
+    dok = gzip.decompress(open(p, "rb").read()).decode("utf-8", "replace")
+    paare = [(html.unescape(u).split("?")[0][len("/app/"):], dict(x.split("=", 1) for x in html.unescape(u).split("?", 1)[1].split("&") if "=" in x).get("h", ""))
+             for u in re.findall(r'(?:href|src)="(/app/[^"?]+\?[^"]*)"', dok)]
+    meta = re.findall(r'<meta name="wc-asset-tokens" content="([^"]*)"', dok)
+    if meta and meta[0]: paare += [tuple(e.split("=", 1)) for e in meta[0].split(";")]
+    if not paare:
+        print("  --    index.html.gz ohne Marken (Stand vor R2b) -- nichts zu pruefen"); return 0
+    fehl = 0
+    for pfad, m in paare:
+        gzf = os.path.join(app, pfad + ".gz")
+        if not os.path.isfile(gzf): print(f"  FEHL  {pfad}: {gzf} fehlt"); fehl += 1; continue
+        b = open(gzf, "rb").read(); ist = "%d-%s" % (len(b), b[-8:].hex())
+        if ist != m: print(f"  FEHL  {pfad}: Marke veraltet (im Dokument {m}, .gz {ist}) -- erst 'make app-gz'"); fehl += 1
+    print(f"  Marken im gebauten Dokument: {len(paare)} geprueft, {fehl} veraltet")
+    return 1 if fehl else 0
+
+
 def main():
     a = sys.argv[1:]
+    if a[:1] == ["--lokal"] and len(a) == 2:
+        sys.exit(lokal(a[1]))
     if not a:
         print(__doc__.split("\n\n")[1], file=sys.stderr); sys.exit(2)
     host = a[0]; dok = None; erwartet = "--erwartet" in a
