@@ -23,7 +23,20 @@ APP_DIR ?= ESP8266/ESP-uclock/data/app
 # ist jede zusaetzliche Sprache eine eigene i18n/<code>.json. Eine feste Liste muesste
 # bei jeder neuen Sprache angefasst werden -- und wer sie vergisst, merkt es erst am
 # Geraet, weil die Datei dann ungepackt bleibt und der ESP nur .gz ausliefert.
+#
+# index.html bleibt in der Liste, obwohl app-gz sie nicht mehr direkt packt: clean-app-gz
+# raeumt ueber diese Liste auf, und sie ist die eine Aufzaehlung der App-Quellen. app-gz
+# nimmt sie per filter-out heraus und erzeugt index.html.gz aus der Kopie mit den
+# Inhaltsmarken (siehe unten).
 GZIP_SOURCES ?= $(APP_DIR)/app.js $(APP_DIR)/styles.css $(APP_DIR)/index.html $(APP_DIR)/sw.js $(APP_DIR)/manifest.webmanifest $(APP_DIR)/layout-previews.json $(wildcard $(APP_DIR)/i18n/*.json) $(APP_DIR)/icons/icon-192.svg $(APP_DIR)/icons/icon-512.svg $(APP_DIR)/icons/icon-192.png $(APP_DIR)/icons/icon-512.png $(APP_DIR)/icons/icon-180.png $(APP_DIR)/icons/icon-mask.png
+# Inhaltsmarken fuer das Dokument (Paket 2026-10-15, Nachtrag A.6, design.md 18.7, AKL.4).
+# Das Werkzeug schreibt eine KOPIE von index.html mit ?v=<APP_VERSION>&h=<marke> in den
+# sechs Verweisen und gefuelltem Meta-Element wc-asset-tokens; die Quelle bleibt
+# unberuehrt. Die Kopie liegt im Build-Verzeichnis, nicht unter data/app, damit sie
+# weder ins LittleFS noch ins Release-ZIP geraten kann.
+APP_MARKEN ?= tools/app-marken.py
+APP_INDEX_KOPIE ?= $(ESP_BUILD_DIR)/index-marken.html
+APP_INDEX_GZ = $(APP_DIR)/index.html.gz
 RELEASE_DIR ?= build/releases
 # Sekundengenau statt minutengenau: Das Release-Ziel macht ein "rm -f" auf diesen
 # Namen. Zwei Builds in derselben Minute haben sich vorher KOMMENTARLOS
@@ -105,12 +118,40 @@ say-versions: stm-version-file esp-version-file app-version-file
 	@printf '\n  STM-Firmware: %s\n  ESP-Firmware: %s\n  PWA:          %s\n\n' \
 		"$$(cat $(STM_VERSION_FILE))" "$$(cat $(ESP_VERSION_FILE))" "$$(cat $(APP_VERSION_FILE))"
 
+# Ablauf E2 (design.md 18.7):
+#   1. alle Quellen ausser index.html packen wie bisher. Scheitert ein gzip, bricht das
+#      Ziel ab -- frueher lief die Schleife weiter, und das Werkzeug rechnete dann eine
+#      Marke aus der .gz des VORIGEN Laufs (AKL.4: "im selben Lauf erzeugt").
+#   2. das Werkzeug: Marken aus den eben erzeugten .gz, Kopie von index.html. Exit != 0
+#      bricht make ab, und es entsteht KEINE neue index.html.gz.
+#   3. index.html.gz aus der Kopie, mit -n (ohne Name und Zeitstempel), ueber eine
+#      Zwischendatei im selben Verzeichnis. Umbenannt wird erst, wenn gzip geklappt hat,
+#      Kopie und Zwischendatei groesser als 0 Byte sind und gzip -t die Zwischendatei
+#      lesen kann -- nie eine leere oder halbe .gz (White-Screen). Danach wird die Kopie
+#      entfernt.
 app-gz:
-	@for f in $(GZIP_SOURCES); do \
+	@for f in $(filter-out $(APP_DIR)/index.html,$(GZIP_SOURCES)); do \
 		if [ -f "$$f" ]; then \
-			gzip -9 -k -f "$$f" && echo "  gzip $$f -> $$f.gz"; \
+			gzip -9 -k -f "$$f" || { echo "  ABBRUCH: gzip $$f gescheitert" >&2; exit 1; }; \
+			echo "  gzip $$f -> $$f.gz"; \
 		fi; \
 	done
+	@mkdir -p $(ESP_BUILD_DIR)
+	@rm -f "$(APP_INDEX_KOPIE)" "$(APP_INDEX_KOPIE).tmp" "$(APP_INDEX_GZ).tmp"
+	$(APP_MARKEN) $(APP_DIR) $(APP_INDEX_KOPIE)
+	@tmp="$(APP_INDEX_GZ).tmp"; \
+	if [ ! -s "$(APP_INDEX_KOPIE)" ]; then \
+		rm -f "$(APP_INDEX_KOPIE)"; echo "  ABBRUCH: Kopie $(APP_INDEX_KOPIE) fehlt oder ist leer, index.html.gz unveraendert" >&2; exit 1; \
+	fi; \
+	if ! gzip -9 -n -c "$(APP_INDEX_KOPIE)" > "$$tmp"; then \
+		rm -f "$$tmp" "$(APP_INDEX_KOPIE)"; echo "  ABBRUCH: gzip der Kopie $(APP_INDEX_KOPIE) gescheitert, index.html.gz unveraendert" >&2; exit 1; \
+	fi; \
+	if [ ! -s "$$tmp" ] || ! gzip -t "$$tmp"; then \
+		rm -f "$$tmp" "$(APP_INDEX_KOPIE)"; echo "  ABBRUCH: $$tmp leer oder unlesbar, index.html.gz unveraendert" >&2; exit 1; \
+	fi; \
+	mv -f "$$tmp" "$(APP_INDEX_GZ)" || { rm -f "$$tmp"; echo "  ABBRUCH: Umbenennen nach $(APP_INDEX_GZ) gescheitert" >&2; exit 1; }; \
+	rm -f "$(APP_INDEX_KOPIE)"; \
+	echo "  gzip $(APP_INDEX_KOPIE) -> $(APP_INDEX_GZ) ($$(wc -c < "$(APP_INDEX_GZ)" | tr -d ' ') Byte)"
 
 clean-app-gz:
 	@for f in $(GZIP_SOURCES); do \
