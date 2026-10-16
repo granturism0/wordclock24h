@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-10-16 ESP 3.2.41 und PWA 1.4.102: Unveränderte App-Dateien werden gar nicht mehr nachgefragt (Paket 2026-10-15, R2b; C70 Variante c)
+
+ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-16-145745.zip`, Tag `release/3.2.34-3.2.41-1.4.102`.
+
+**Einspielen — Reihenfolge zwingend: erst der ESP (OTA), dann die App** (`install-app.sh` bzw. in der App Wartung →
+App-Dateien laden). Danach `install-app.sh --check`: Es prüft jetzt auch, dass jede Datei, die das Dokument mit Marke
+nennt, vom Gerät mit „für ein Jahr gültig“ beantwortet wird.
+
+**Rückweg:** ESP auf 3.2.40 und App auf 1.4.101. Wichtig: Ein Zurückspielen des ESP verhindert nur **neue**
+Langzeit-Einträge; was ein Browser schon für ein Jahr behalten hat, bleibt dort. Der Rückweg dafür ist eine **neue, noch
+nie benutzte** App-Version, denn sie erneuert alle Datei-Adressen.
+
+- **Was sich ändert** (C70, Variante c): Mit R2 fragte der Browser bei jedem Öffnen jede App-Datei nach und bekam
+  „unverändert“ (304) — schnell, aber je Datei eine Verbindung zum ESP. Jetzt nennt das Dokument jede Datei mit Version
+  und einer **Inhaltsmarke** (`?v=1.4.102&h=…`), und der ESP erlaubt dem Browser, sie ein Jahr lang zu behalten. Beim
+  warmen Öffnen gehen nur noch zwei Anfragen über die Leitung: das Dokument und die Layout-Vorschauen, beide mit 304.
+- **Sicher durch Bau:** Der ESP gibt die Langzeit-Erlaubnis nur, wenn die Marke in der Adresse genau zur ausgelieferten
+  Datei passt. Das Dokument selbst und der Service Worker bekommen sie nie. Wird eine Datei auf dem Gerät ersetzt, passt
+  die alte Marke nicht mehr, und der Browser fragt wie bisher nach — ein falscher Langzeit-Eintrag kann so nicht
+  entstehen.
+- **Layout-Vorschauen bleiben ausgenommen** (Dein Entscheid): Ersetzt Du `layout-previews.json` einzeln, wirkt das wie
+  bisher beim nächsten Laden.
+- Die Marken setzt der Build (`make app-gz`) in eine Kopie des Dokuments; er bricht ab, wenn eine Datei fehlt, leer ist
+  oder etwas nicht zusammenpasst, und erzeugt dann kein neues Dokument. Rollout und `install-app.sh` prüfen vorher, dass
+  die Marken zu den Dateien passen.
+- Neu in `/api/device_ready`: `app_immutable` (mit Langzeit-Erlaubnis beantwortet) und `app_token_miss` (Marke da, aber
+  nicht passend — es gilt dann das Verhalten von R2).
+- **Speicher:** statisch unverändert gegen R2 (im Paket +80 von 250), Programm +608 Byte.
+- **Geprüft:** Prüfstände c70c (339 Fälle, 26 Sabotagen) und c70p (225 Fälle, 23 Sabotagen), beide gegen den Stand davor
+  rot; Markenwerkzeug mit 14 Gegenproben; `make` bricht bei einem Werkzeugfehler ab und lässt das Dokument unverändert.
+  S16 82/82, Review bestanden.
+
 ## 2026-10-16 ESP 3.2.40 und PWA 1.4.101: App lädt beim zweiten Öffnen fast nichts mehr (Paket 2026-10-15, R2; C70)
 
 ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-16-113409.zip`, Tag `release/3.2.34-3.2.40-1.4.101`.
