@@ -63,5 +63,5 @@ trägt nur die fünf.
 
 V2 baut mit 0805-Widerständen und -Kondensatoren. Bleib dabei, wo es geht: Gleiche Gehäuse und Werte
 halten die Zahl der verschiedenen Nummern klein, und jede zusätzliche Nummer ist eine weitere
-Bestellposition. Neue Werte für den Umbau (47 kΩ für R22, ein 10-µF- und ein 1-µF-Kondensator) sind
+Bestellposition. Neue Werte für den Umbau (ein 10-µF-Kondensator am Modul und ein 1-µF-Kondensator für EN; R22 bleibt 1 kΩ wie in V2, weil die LDR-Lesung 100 % kompatibel bleiben muss) sind
 **erst gewählt, wenn die Prüfung sie als Basic ausweist**.
