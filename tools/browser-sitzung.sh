@@ -84,7 +84,7 @@ trap abbruch INT TERM HUP
 # Tab soll sich wie im Alltag verhalten), und beendet wird nur DIESER Prozess.
 CHROME=${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
 CDP_PORT=${BROWSER_SITZUNG_CDP_PORT:-9233}
-WORK=""; CHROME_PID=""
+WORK=""; CHROME_PID=""; PROFIL=""
 chrome_weg() {
   [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null && wait "$CHROME_PID" 2>/dev/null
   CHROME_PID=""
@@ -92,6 +92,16 @@ chrome_weg() {
   WORK=""
 }
 trap '[ "$ART" = chrome ] && chrome_weg' EXIT     # jeder Ausgang raeumt das eigene Chrome weg
+chrome_start() {   # $1 URL; legt das Wegwerfprofil an, falls es noch keins gibt (Vorwaermen nutzt dasselbe)
+  [ -x "$CHROME" ] || { aus "ABBRUCH: Chrome nicht gefunden: $CHROME"; exit 2; }
+  [ -n "$WORK" ] || WORK=$(mktemp -d "${TMPDIR:-/tmp}/browser-sitzung.XXXXXX") || exit 2
+  PROFIL="$WORK/profil"
+  "$CHROME" --user-data-dir="$WORK/profil" --remote-debugging-port="$CDP_PORT" --no-first-run \
+    --no-default-browser-check --disable-sync --new-window "$1" > "$WORK/chrome.log" 2>&1 &
+  CHROME_PID=$!
+  aus "    eigenes Chrome PID $CHROME_PID, Profil $WORK/profil, DevTools 127.0.0.1:$CDP_PORT"
+}
+chrome_halt() { [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null && wait "$CHROME_PID" 2>/dev/null; CHROME_PID=""; }   # Profil bleibt
 cdp() { curl -s -m 5 "$@"; }
 cdp_tabs() {   # Zahl der Seiten im eigenen Chrome, deren URL die Uhr enthaelt
   cdp "http://127.0.0.1:$CDP_PORT/json/list" | python3 -c "import json,sys; h=sys.argv[1]; print(sum(1 for t in json.load(sys.stdin) if t.get('type')=='page' and ('//'+h+'/') in t.get('url','')))" "$HOST" 2>/dev/null
@@ -119,7 +129,7 @@ lesung() {   # $1 = Phase
 import json,sys
 try: d=json.load(sys.stdin)
 except Exception: print("  device_ready: keine JSON-Antwort"); sys.exit(1)
-k=[x for x in d if x in ("free_heap","max_free_block","http_backlog","heap_low_block","heap_low_path","heap_low_ms","heap_low_pcb_states","heap_low_tw","no_request_timeouts","no_request_aborts") or x.startswith("tcp_now")]
+k=[x for x in d if x in ("free_heap","max_free_block","http_backlog","heap_low_block","heap_low_path","heap_low_ms","heap_low_pcb_states","heap_low_tw","no_request_timeouts","no_request_aborts") or x.startswith("tcp_now") or x in ("app_full","app_not_modified")]
 for x in k: print("  %s=%s" % (x, json.dumps(d[x])))
 if not any(x.startswith("tcp_now") for x in d): print("  HINWEIS: keine tcp_now_*-Felder (Firmware vor R1) -- Entscheidungsregel nicht anwendbar")
 g=lambda k: d.get(k, -1)
@@ -176,7 +186,15 @@ zuruf() {   # manuell: Anweisung an den Nutzer, Bestaetigung per Eingabetaste
 if ! curl -s -m 5 -o /dev/null "http://$HOST/api/device_ready"; then
   echo "ABBRUCH: Uhr unter $HOST nicht erreichbar." >&2; exit 2
 fi
-if [ -n "$PROZ" ] && pgrep -xq "$PROZ"; then
+KOPFLOS=""
+if [ "$ART" = chrome ]; then
+  # Ein SICHTBARES Chrome ist das des Nutzers -- abbrechen. Kopflose Chrome sind Pruefstaende mit Wegwerfprofil
+  # (c65q, check-pwa, Ladeprobe); sie werden vermerkt, denn sie koennten die Uhr ansprechen.
+  for pid in $(pgrep -x "Google Chrome"); do
+    if ps -o command= -p "$pid" | grep -q -- "--headless"; then KOPFLOS="$KOPFLOS $pid"
+    else echo "ABBRUCH: Google Chrome laeuft bereits sichtbar (PID $pid). Das Skript beendet keinen Browser des Nutzers -- bitte zuerst selbst beenden." >&2; exit 2; fi
+  done
+elif [ -n "$PROZ" ] && pgrep -xq "$PROZ"; then
   echo "ABBRUCH: $APP laeuft bereits. Das Skript beendet keinen Browser, den der Nutzer offen hat -- bitte zuerst selbst beenden." >&2
   exit 2
 fi
@@ -184,6 +202,19 @@ touch "$(git rev-parse --git-dir)/geraet-gemessen" 2>/dev/null || true
 
 aus "=== Browser-Sitzung $APP gegen $URL — $(date '+%Y-%m-%d %H:%M:%S') — Dauer S0..S4: $D0 $D1 $D2 $D3 $D4 s ==="
 aus "    Mitschrift: $MIT"
+[ -n "$KOPFLOS" ] && aus "    WARNUNG: kopfloses Chrome laeuft (PID$KOPFLOS) -- Pruefstand? Spricht es die Uhr an, ist die Messung nicht exklusiv"
+
+# G10 (AKW.4): Vorwaermen -- der Browser oeffnet die PWA einmal und wird beendet, damit S1 mit gefuelltem Cache
+# beginnt und nachfragen kann (304). Chrome behaelt dabei sein Wegwerfprofil; Safari wird nur per quit beendet.
+if [ -n "${BROWSER_SITZUNG_VORWAERMEN:-}" ] && [ "$ART" != manuell ]; then
+  PHASE=V; aus "V  $(date +%H:%M:%S) Vorwaermen: $APP oeffnet die PWA einmal und wird beendet"
+  if [ "$ART" = chrome ]; then chrome_start "$URL"; sleep 20; chrome_halt
+  else open -a "$APP" "$URL" || { aus "  BEDIENUNG FEHLGESCHLAGEN: open (Vorwaermen)"; FEHL=$((FEHL+1)); }
+       sleep 20; osa "tell application \"$APP\" to quit" "beenden (Vorwaermen)"; sleep 5
+  fi
+  if [ "$ART" = chrome ]; then pgrep -f -- "--user-data-dir=$PROFIL" >/dev/null && { aus "  BEDIENUNG FEHLGESCHLAGEN: eigenes Chrome laeuft nach dem Vorwaermen noch"; FEHL=$((FEHL+1)); }
+  else pgrep -xq "$PROZ" && { aus "  BEDIENUNG FEHLGESCHLAGEN: $APP laeuft nach dem Vorwaermen noch"; FEHL=$((FEHL+1)); }; fi
+fi
 
 PHASE=S0; aus "S0 Ruhe, kein Browser"; warte "$D0"; lesung S0
 
@@ -193,14 +224,10 @@ if [ "$ART" = manuell ]; then
 else
   # Unmittelbar vor dem Oeffnen nochmals: Hat der Nutzer in S0 selbst den Browser gestartet,
   # wuerde open einen Tab in SEINEM Browser oeffnen und S4 ihn beenden (Review S1).
-  if pgrep -xq "$PROZ"; then aus "ABBRUCH vor S1: $APP wurde inzwischen gestartet -- nicht meiner."; exit 2; fi
+  # Chrome laeuft mit eigenem Profil und eigenem Prozess -- ein fremdes Chrome (Pruefstand) beruehrt die Bedienung nicht.
+  if [ "$ART" != chrome ] && pgrep -xq "$PROZ"; then aus "ABBRUCH vor S1: $APP wurde inzwischen gestartet -- nicht meiner."; exit 2; fi
   if [ "$ART" = chrome ]; then
-    [ -x "$CHROME" ] || { aus "ABBRUCH: Chrome nicht gefunden: $CHROME"; exit 2; }
-    WORK=$(mktemp -d "${TMPDIR:-/tmp}/browser-sitzung.XXXXXX") || exit 2
-    "$CHROME" --user-data-dir="$WORK/profil" --remote-debugging-port="$CDP_PORT" --no-first-run \
-      --no-default-browser-check --disable-sync --new-window "$URL" > "$WORK/chrome.log" 2>&1 &
-    CHROME_PID=$!
-    aus "    eigenes Chrome PID $CHROME_PID, Profil $WORK/profil, DevTools 127.0.0.1:$CDP_PORT"
+    chrome_start "$URL"
   else
     open -a "$APP" "$URL" || { aus "  BEDIENUNG FEHLGESCHLAGEN: open"; FEHL=$((FEHL+1)); }
   fi
@@ -244,7 +271,10 @@ else
 fi
 warte "$D4"; lesung S4
 
-if [ -n "$PROZ" ] && pgrep -xq "$PROZ"; then aus "  WARNUNG: $APP laeuft nach S4 noch"; FEHL=$((FEHL+1)); fi
+# Chrome: nur das EIGENE Profil zaehlt -- Pruefstaende (c65q, check-pwa, Ladeprobe) starten eigene kopflose Chrome.
+if [ "$ART" = chrome ]; then
+  [ -n "$PROFIL" ] && pgrep -f -- "--user-data-dir=$PROFIL" >/dev/null && { aus "  WARNUNG: eigenes Chrome laeuft nach S4 noch"; FEHL=$((FEHL+1)); }
+elif [ -n "$PROZ" ] && pgrep -xq "$PROZ"; then aus "  WARNUNG: $APP laeuft nach S4 noch"; FEHL=$((FEHL+1)); fi
 aus "--- Zusammenfassung je Phase (Lesung am Phasenende; Δ gegen S0):$ZEILE_PHASE"
 aus "    M2 setzt voraus, dass Δtimeouts den Anstieg traegt; Δtimeouts ~ 0 => K1 fuer L461 wirkungslos (A.3)."
 aus "=== Ende $(date +%H:%M:%S): ${FEHL} Fehlschlag/-schlaege ==="
