@@ -29,6 +29,7 @@
 // SCHREIBT AM GERAET NUR den Ruecksetzer der Tiefstwert-Messung (device_ready?heap_low_reset=1).
 
 import { appendFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const PORT = process.env.CDP_PORT;
 const SOLL = process.env.GERAET_URL;          // http://<host>/app/
@@ -38,6 +39,13 @@ const ENGLISCH = process.env.ENGLISCH === "1";
 const MITSCHRIFT = process.env.LADEPROBE_MITSCHRIFT || "";
 const AUSNAHME = process.env.LADEPROBE_AUSNAHME || "";
 const WARM = Number(process.env.LADEPROBE_WARM ?? 5);
+// G10 (Probe U, AKW.3): LADEPROBE_HAKEN wird vor jedem warmen Laden mit dessen Nummer aufgerufen (Exit != 0 = Werkzeug-
+// fehler); LADEPROBE_ETAG_PFAD nennt einen Pfad, dessen ETag und Leitungsstatus je Laden ausgegeben werden.
+const HAKEN = process.env.LADEPROBE_HAKEN || "";
+const ETAG_PFAD = process.env.LADEPROBE_ETAG_PFAD || "";
+// Pfade, die dieses Profil schon einmal geladen hat. Ein 200 auf einen NEUEN Pfad ist kein Verstoss gegen --erwarte-304:
+// Der Browser kann nicht nachfragen, was er nie hatte (G10.1, 16.10.2026: i18n/en.json erst nach dem Sprachwechsel).
+const gesehen = new Set();
 const RUHE_MS = 1500, MAX_MS = 30000, NACHLAUF_MS = 1500;
 const I4 = ["heap_low_block", "heap_low_free", "heap_low_path", "heap_low_req_path", "heap_low_ms",
             "heap_low_accepts_pending", "heap_low_backlog", "heap_low_pcb_states", "heap_low_tw",
@@ -103,7 +111,11 @@ ws.addEventListener("message", e => {
   // laesst sich eine 200 nicht zuordnen -- hat der Browser nicht gefragt (HTTP/1.0, L468),
   // oder hat der Server die Frage uebergangen?
   if (m.method === "Network.requestWillBeSentExtraInfo") lauf.inm.set(p.requestId, Object.keys(p.headers || {}).some(k => k.toLowerCase() === "if-none-match"));
-  if (m.method === "Network.responseReceivedExtraInfo") lauf.extra.set(p.requestId, p.statusCode);
+  if (m.method === "Network.responseReceivedExtraInfo") {
+    lauf.extra.set(p.requestId, p.statusCode);
+    const h = p.headers || {}; const k = Object.keys(h).find(x => x.toLowerCase() === "etag");
+    if (k) lauf.etag.set(p.requestId, h[k]);
+  }
   if (m.method === "Network.requestServedFromCache" && lauf.anfragen.has(p.requestId)) { const a = lauf.anfragen.get(p.requestId); a.cache = true; a.fertig = true; }
   if (m.method === "Network.responseReceived" && lauf.anfragen.has(p.requestId)) {
     const a = lauf.anfragen.get(p.requestId);
@@ -145,7 +157,7 @@ async function laden(nr, art, aktion) {
   if (spaet.length) { aus(`    SPAET (ausserhalb eines Fensters, nicht gezaehlt): ${spaet.join(", ")}`); fehl++; spaet = []; }
   try { await geraet("/api/device_ready?heap_low_reset=1"); }
   catch (e) { aus(`${zeit()}  #${nr} ${art}: device_ready nicht erreichbar (${e.message})`); fehl++; return; }
-  lauf = { anfragen: new Map(), extra: new Map(), inm: new Map(), letzte: Date.now(), ladeEnde: false };
+  lauf = { anfragen: new Map(), extra: new Map(), inm: new Map(), etag: new Map(), letzte: Date.now(), ladeEnde: false };
   const t0 = Date.now();
   await aktion();
   const ruhig = await warteRuhe();
@@ -155,9 +167,12 @@ async function laden(nr, art, aktion) {
     if (lauf.extra.has(id) && typeof a.status === "number") a.status = lauf.extra.get(id);
     else if (!a.cache && typeof a.status === "number") ohneLeitung++;
     a.inm = lauf.inm.get(id) === true;
+    a.etag = lauf.etag.get(id) || "";
+    a.neu = !gesehen.has(a.pfad);
   }
   const liste = [...lauf.anfragen.values()];
   lauf = null;
+  for (const a of liste) gesehen.add(a.pfad);
   let dr = {};
   try { dr = await geraet("/api/device_ready"); } catch (e) { aus(`  device_ready danach nicht lesbar: ${e.message}`); fehl++; }
   const n200 = liste.filter(a => a.status === 200 && !a.cache);
@@ -177,8 +192,11 @@ async function laden(nr, art, aktion) {
   if (!ruhig) fehl++;
   // Unabhaengige Nachzaehlung ab R2 (L235): die Zaehler des ESP neben die eigene Zahl.
   if (dr.app_full !== undefined && dr.app_not_modified !== undefined) aus(`    Geraetezaehler (seit Start): app_full=${dr.app_full} app_not_modified=${dr.app_not_modified}`);
+  if (ETAG_PFAD) for (const a of liste.filter(x => x.pfad === ETAG_PFAD)) aus(`    ETag ${a.pfad}: ${a.etag || "-"} (${a.cache ? "cache" : a.status})`);
   if (ERWARTE_304 && art !== "kalt") {
-    const falsch = n200.filter(a => a.pfad !== AUSNAHME);
+    const erstmals = n200.filter(a => a.neu);
+    if (erstmals.length) aus(`    erstmals in diesem Profil, 200 ohne Vorgaenger: ${erstmals.map(a => a.pfad).join(", ")} (kein Verstoss)`);
+    const falsch = n200.filter(a => a.pfad !== AUSNAHME && !a.neu);
     if (falsch.length) { aus(`    FEHL --erwarte-304: warm: 304 erwartet, 200 erhalten: ${falsch.map(a => a.pfad + (a.inm ? " (mit INM)" : " (ohne INM)")).join(", ")}`); fehl++; }
   }
 }
@@ -196,6 +214,11 @@ if (ENGLISCH) {
   aus(`    Sprache auf Englisch gesetzt (wirkt ab dem naechsten Laden)`);
 }
 for (let i = 1; i <= WARM; i++) {
+  if (HAKEN) {
+    try { execFileSync(HAKEN, [String(i)], { stdio: ["ignore", "inherit", "inherit"], timeout: 120000 }); }
+    catch (e) { werkzeugfehler(`Haken vor warm #${i}: ${e.message}`); }
+    aus(`    Haken vor warm #${i} ausgefuehrt`);
+  }
   // Abwechselnd Neuladen (Browser validiert) und erneutes Oeffnen (das "zweite Oeffnen").
   if (i % 2 === 1) await laden(i, "neuladen", () => send("Page.reload", { ignoreCache: false }));
   else await laden(i, "oeffnen", async () => {
