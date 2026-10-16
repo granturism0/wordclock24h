@@ -110,7 +110,7 @@ LAUF=(
   "C72 I-5 laufende Verbindungszustaende, tote Abholungen, Heap-Zeile tcp=/nrt= (ESP)|esp/c72/run.sh $E neu"
   "C55/C44 PWA entscheidet wie der ESP (PWA)|pwa/regeln/run.sh $E neu"
   "C35 Hauptmodul holt update_status und update_table_files hoechstens alle 5 min (PWA)|pwa/c35/run.sh $E neu"
-  "C70 PWA holt layout-previews.json mit no-cache, Sprachdatei mit ?v= (PWA)|pwa/c70p/run.sh $E neu"
+  "C70 PWA holt layout-previews.json mit no-cache, Sprachdatei mit ?v= und Marke aus wc-asset-tokens (PWA)|pwa/c70p/run.sh $E neu"
   "L411 Start in jedem Modul ohne ReferenceError (PWA)|pwa/tdz/run.sh $E neu"
   "C6b/C46/B55 Schluessel ueber network_secrets, Query-Grenze, LDR-Meldungen, Mock (PWA)|pwa/ep/run.sh $E neu"
   "B48 Fehlerzeile am Feld, Vorschau und headless Chrome (PWA)|pwa/b48/run.sh $E neu"

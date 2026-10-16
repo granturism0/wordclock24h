@@ -1734,14 +1734,67 @@ function sanitizeLanguageTable(payload) {
   return table;
 }
 
+// Inhaltsmarken für die Laufzeitabrufe (C70 Variante (c), design.md §18.7). Der Build schreibt
+// sie ins ausgelieferte Dokument: <meta name="wc-asset-tokens" content="i18n/en.json=<marke>;…">.
+// In der Quelle ist das Element leer; dann bleibt es bei der Form ohne Marke, die der ESP mit
+// "no-cache" beantwortet. Eine Marke wird nur nach dem Muster übernommen (AKL.6), denn sie geht
+// in die URL, und nur mit ihr darf der ESP einen Langzeit-Eintrag erlauben. Kommt ein Pfad
+// zweimal vor, bekommt er keine Marke -- die sichere Richtung. Gelesen wird das Element einmal.
+// layout-previews.json bekommt nie eine Marke (Ent-20 B): loadLayoutPreviewRowsMap() fragt hier
+// gar nicht nach.
+const APP_ASSET_TOKEN_PATTERN = /^[0-9]+-[0-9a-f]{16}$/;
+let appAssetTokens = null;
+
+function getAppAssetTokens() {
+  if (appAssetTokens) {
+    return appAssetTokens;
+  }
+
+  const tokens = Object.create(null);
+  const seen = Object.create(null);
+  const meta = typeof document !== "undefined" && typeof document.querySelector === "function"
+    ? document.querySelector('meta[name="wc-asset-tokens"]')
+    : null;
+  const content = meta && typeof meta.getAttribute === "function" ? String(meta.getAttribute("content") || "") : "";
+
+  content.split(";").forEach((entry) => {
+    const trimmed = entry.trim();
+    const separator = trimmed.indexOf("=");
+
+    if (separator <= 0) {
+      return;
+    }
+
+    const path = trimmed.slice(0, separator).trim();
+    const token = trimmed.slice(separator + 1).trim();
+
+    if (seen[path]) {
+      delete tokens[path];
+      return;
+    }
+
+    seen[path] = true;
+
+    if (APP_ASSET_TOKEN_PATTERN.test(token)) {
+      tokens[path] = token;
+    }
+  });
+
+  appAssetTokens = tokens;
+  return appAssetTokens;
+}
+
 async function ensureLanguageTable(code) {
   if (loadedLanguageTables[code]) {
     return loadedLanguageTables[code];
   }
 
-  // "?v=" gegen alte Stände im Service-Worker-Cache. Das Gleichheitszeichen ist
+  // "?v=" gegen alte Stände im Service-Worker-Cache, "&h=" die Inhaltsmarke aus dem Dokument
+  // (C70 (c)); ohne gültige Marke nur "?v=". Das Gleichheitszeichen ist bei jedem Parameter
   // Pflicht: Ein Parameter ohne "=" lässt den ESP abstürzen (CLAUDE.md, R5).
-  const url = "/app/i18n/" + encodeURIComponent(code) + ".json?v=" + encodeURIComponent(APP_VERSION);
+  const token = getAppAssetTokens()["i18n/" + code + ".json"];
+  const url = "/app/i18n/" + encodeURIComponent(code) + ".json?v=" + encodeURIComponent(APP_VERSION) +
+    (token ? "&h=" + token : "");
   const response = await fetchWithTimeout(url, { cache: "default" }, LANGUAGE_FETCH_TIMEOUT_MS);
 
   if (response.status === 404) {
