@@ -322,6 +322,47 @@ else
   printf '  --    %-34s %s\n' "Asset-Cache ETag/304 (C70)" "ESP ${esp:-?} vor 3.2.40, gibt es noch nicht"
 fi
 
+# ------------------------------------- C70 Variante (c) (Paket 2026-10-15, R2b; AKL.8 ii): immutable nur bei Marke
+# Ab ESP 3.2.41: Eine URL mit ?h=<marke> bekommt Cache-Control immutable genau dann, wenn die Marke dem ETag dieser
+# Antwort entspricht und das Asset weder das Dokument noch sw.js ist. Die Marke bildet der Test selbst aus dem ETag des
+# Geraets -- so prueft er den ESP unabhaengig davon, ob das ausgelieferte Dokument schon Marken traegt. Zaehlregel
+# (http.cpp, http_app_token_miss): jede Antwort mit nicht leerem h ohne immutable ist ein Fehltreffer, Dokument und
+# sw.js eingeschlossen -- also Δapp_immutable 1 und Δapp_token_miss 3. Nur lesend.
+# SMOKE_C70C_OVERRIDE=1 prueft auch aeltere Staende (Gegenprobe nach DIR-014: auf 3.2.40 muss der Block fehlschlagen).
+if [ -n "${SMOKE_C70C_OVERRIDE:-}" ] || [ "$(printf '%s\n%s\n' "3.2.41" "${esp:-0}" | sort -V | head -1)" = "3.2.41" ]; then
+  et_von() { curl -s -m "$TIMEOUT" -D - -o /dev/null -H 'Accept-Encoding: gzip' "$U$1" 2>/dev/null | tr -d '\r' | grep -i '^etag:' | head -1 | sed 's/^[Ee][Tt][Aa][Gg]: *//; s/"//g'; }
+  cc_von() { curl -s -m "$TIMEOUT" -D - -o /dev/null -H 'Accept-Encoding: gzip' "$U$1" 2>/dev/null | tr -d '\r' | grep -i '^cache-control:' | head -1 | sed 's/^[^:]*: *//'; }
+  zaehler() { curl -s -m "$TIMEOUT" "$U/api/device_ready" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("app_immutable","-"), d.get("app_token_miss","-"))' 2>/dev/null; }
+  m_js=$(et_von /app/app.js); m_doc=$(et_von /app/); m_sw=$(et_von /app/sw.js)
+  if [ -z "$m_js" ] || [ -z "$m_doc" ] || [ -z "$m_sw" ]; then
+    fail "immutable nur bei Marke (C70c)" "kein ETag fuer app.js, /app/ oder sw.js"
+  else
+    read -r i0 t0 <<<"$(zaehler)"
+    c1=$(cc_von "/app/app.js?v=smoke&h=$m_js"); c2=$(cc_von "/app/app.js?v=smoke&h=0-0000000000000000")
+    c3=$(cc_von "/app/app.js?v=smoke"); c4=$(cc_von "/app/?v=smoke&h=$m_doc"); c5=$(cc_von "/app/sw.js?v=smoke&h=$m_sw")
+    read -r i1 t1 <<<"$(zaehler)"
+    falsch=""
+    case "$c1" in *immutable*) ;; *) falsch="$falsch app.js+Marke:'$c1'";; esac
+    for x in "app.js+falsch:$c2" "app.js-ohne-h:$c3" "Dokument+Marke:$c4" "sw.js+Marke:$c5"; do
+      case "${x#*:}" in *immutable*) falsch="$falsch ${x%%:*}:immutable";; *no-cache*) ;; *) falsch="$falsch ${x%%:*}:'${x#*:}'";; esac
+    done
+    # Nur mit vier Zahlen rechnen: Auf einem Stand ohne die Zaehler liefert device_ready "-", und $(( - - - )) braeche
+    # in Bash den GANZEN Block ab, ohne fail -- der Smoketest meldete dann still "bestanden" (beim Bau am 16.10.2026
+    # genau so gesehen, DIR-014).
+    zahlen=1; for z in "$i0" "$t0" "$i1" "$t1"; do case "$z" in ''|*[!0-9]*) zahlen=0;; esac; done
+    if [ "$zahlen" = 1 ]; then
+      di=$((i1 - i0)); dt=$((t1 - t0))
+      [ "$di" = "1" ] && [ "$dt" = "3" ] || falsch="$falsch Δimmutable=$di/Δtoken_miss=$dt(soll 1/3)"
+    else
+      falsch="$falsch device_ready-ohne-app_immutable/app_token_miss"
+    fi
+    if [ -z "$falsch" ]; then pass "immutable nur bei Marke (C70c)" "app.js mit Marke immutable; falsch, ohne h, Dokument, sw.js no-cache; Δ 1/3"
+    else fail "immutable nur bei Marke (C70c)" "$falsch"; fi
+  fi
+else
+  printf '  --    %-34s %s\n' "immutable nur bei Marke (C70c)" "ESP ${esp:-?} vor 3.2.41, gibt es noch nicht"
+fi
+
 # --------------------------------------------------- Legacy bleibt erreichbar
 code=$(curl -s -m "$TIMEOUT" -o /dev/null -w '%{http_code}' "$U/" 2>/dev/null)
 [ "$code" = "200" ] && pass "Legacy-Oberflaeche" "HTTP 200" || fail "Legacy-Oberflaeche" "HTTP $code"
