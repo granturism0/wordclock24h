@@ -25,5 +25,5 @@
   "netze_5v": ["VCC_5V", "USB_5V_INPUT", "USB_5V_PROT", "ALT_5V_INPUT", "ALT_5V_PROT", "TO_VCC_RGB_5V"],
   "adc_signal": "LDR",
   "adc1_pins": ["IO1", "IO2", "IO3", "IO4", "IO5", "IO6", "IO7", "IO8", "IO9", "IO10"],
-  "pinbelegung": {}
+  "pinbelegung": {"LDR": "IO1", "DS18B20": "IO2", "WS2812_BUS": "IO5", "WS2812_POWER": "IO6", "TSOP": "IO7", "SDA_DS3231": "IO8", "SCL_DS3231": "IO9", "DCF77": "IO15", "USER": "IO16", "WPS": "IO17", "LED_STM": "IO18"}
 }
