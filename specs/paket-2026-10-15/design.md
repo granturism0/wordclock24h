@@ -2,17 +2,19 @@
 
 **Erstellt:** 2026-10-15, Stand `72cfda7` (Zweig `pwa-decoupling`); Nachträge mit den Entscheiden des Nutzers, den
 Lead-Entscheiden, dem Prüfserver-Befund zu `HTTP/1.0`, **A.2** (P1–P8), der **Trennmessung** (L468), **A.3** (P7, P9,
-P11, P12), **A.4** (Review R1.7, 16.10.2026) und **A.5** (Ursache von C71 am Gerät belegt, L468, 16.10.2026, Commit
-`89ec34c`). **Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 zur Freigabe.** Was sich ändert und
-was widerlegt ist: §17. Offen: Ent-2 (Lead, vor R2.1), **Ent-18** (neu, Nutzer, vor R2), Ent-8, Ent-10, Ent-14 (Tor),
-Ent-17 (faktisch L7, Freigabe offen), Ent-16 (nur mit Ent-18 B). Momentaufnahme (DIR-006); der lebende Stand steht in
+P11, P12), **A.4** (Review R1.7, 16.10.2026), **A.5** (Ursache von C71 am Gerät belegt, L468, 16.10.2026, Commit
+`89ec34c`) und **A.6** (C70 Variante (c), nach dem Tor G10.6/G10.7, 16.10.2026, Stand `2d97259`). **Status: freigegeben
+am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 umgesetzt (R1, R1b, R2 eingespielt, L468); Nachtrag A.6 zur
+Freigabe.** Was sich ändert und was widerlegt ist: §17; der Entwurf zu (c): §18. Offen für A.6: **Ent-19**, **Ent-20**
+(Nutzer), **Ent-21** bis **Ent-23** (Lead), alle vor R2b.1. Entschieden seit A.5: Ent-2 (T), Ent-17 (L7), Ent-18 (A),
+Ent-8 (kein Eingriff; Ent-10, Ent-14 entfallen), G10.7 ((c)). Momentaufnahme (DIR-006); der lebende Stand steht in
 `BEFUNDE.md`.
 
-**Zeilenangaben:** Alle `Datei:Zeile`-Anker beziehen sich auf `72cfda7`. In `http.cpp` liegen sie seit R1 ab rund
-`:2839` um rund +210 später (Lead). **Massgeblich ist die genannte Funktion bzw. das Symbol.**
+**Zeilenangaben:** Alle `Datei:Zeile`-Anker beziehen sich auf `72cfda7`, die in §18 auf `2d97259`. In `http.cpp` liegen
+sie seit R1 ab rund `:2839` um rund +210 später (Lead). **Massgeblich ist die genannte Funktion bzw. das Symbol.**
 
-**Kennzeichen** wie in `requirements.md`: **✔ SW** am Code `72cfda7` bzw. Core 3.1.2 nachgelesen; **✔ B** in
-`BEFUNDE.md`; **✔ L** vom Lead gemessen; **✔ FA** vom `firmware-analyst` am Core belegt; **◐ FA** vom
+**Kennzeichen** wie in `requirements.md`: **✔ SW** am Code `72cfda7` (in §18 `2d97259`) bzw. Core 3.1.2 nachgelesen;
+**✔ B** in `BEFUNDE.md`; **✔ L** vom Lead gemessen; **✔ FA** vom `firmware-analyst` am Core belegt; **◐ FA** vom
 `firmware-analyst` als plausibel gemeldet; **? FA** Spekulation; **✔ R** / **◐ R** vom `code-reviewer` in R1.7 belegt
 bzw. als Lesart gemeldet; **◐** abgeleitet; **●** gemeldet, vor der Umsetzung zu prüfen.
 
@@ -61,6 +63,8 @@ bzw. als Lesart gemeldet; **◐** abgeleitet; **●** gemeldet, vor der Umsetzun
 | `ESP.getHeapStats()` liefert `frag`; `fe` nur im privaten `umm_local.h`; `frag` reagiert kaum auf ein kleines Loch | **✔ R** | §3.3 |
 | `tcp=`/`hc` in `- update cache nach` rund 10 ms nach `n` | **✔ R** (H2) | vermerkt |
 | `MEMP_NUM_TCP_PCB` begrenzt bei `MEMP_MEM_MALLOC` nichts; TIME_WAIT im Core ≤ 6, nach `tcp_tw_limit()` 2 | **✔ FA** (P2) | — |
+| **A.6:** Auf R2 warm 626–835 Byte je Laden, aber 6–8 Anfragen, alle `304`; jede kostet eine TCP-Verbindung und ein `accept` | **✔ B** / **✔ SW** | L468 G10.1; AKC.7 (`Connection: close`) |
+| **A.6:** Die Befunde am Code zu versionierten URLs | **✔ SW** | §18.2 |
 
 ---
 
@@ -71,11 +75,12 @@ bzw. als Lesart gemeldet; **◐** abgeleitet; **●** gemeldet, vor der Umsetzun
 | **R1** | **I-5** (§3.1, §3.2) und **I-6** (§3.3) | ESP | **G9** ohne Cache | `esp-developer` |
 | **R1b** *(nur mit Ent-18 A)* | **L7** samt Fehlerwegen und C75 (§7) — Behebung von C71 | ESP | **G9b** | `esp-developer` |
 | **R2** | **C70** (§4): `ETag` nach Ent-2, `304`, `HTTP/1.1` für App-Assets; PWA-Teil | ESP **und** PWA | **G10** mit Cache, **Tor** | `esp-developer`, `pwa-developer` |
-| **R3** | **Eingriff C72** (§6, Ent-8); mit Ent-18 B auch **L7** | ESP | **G11** | `esp-developer` |
+| **R2b** *(A.6)* | **C70 Variante (c)** (§18): `immutable` nur bei treffender Inhaltsmarke; Build schreibt die Verweise; PWA-Teil | ESP **und** PWA **und** Build | **G10b**, danach T3 | `esp-developer`, `pwa-developer`, `ui-developer`, `release-engineer`, Lead (Werkzeug) |
+| ~~**R3**~~ | ~~**Eingriff C72** (§6, Ent-8); mit Ent-18 B auch **L7**~~ — **entfallen** (Ent-8 = kein Eingriff, 16.10.2026) | — | — | — |
 
 **Ent-18 (neu, Nutzer) — wann L7 kommt.** Der Schnitt aus Ent-9/Ent-16 legte die C71-Massnahme in R3, weil die Ursache
 offen war. Jetzt ist sie belegt, und sie trifft **jeden Nutzer nach jedem Start**, sobald `update_status` einmal kalt
-abgefragt wird — das tut die PWA von sich aus.
+abgefragt wird — das tut die PWA von sich aus. *Entschieden am 16.10.2026: A (L468).*
 
 | | (A) eigenes Release **R1b** vor R2 | (B) wie bisher in **R3** | (C) zusammen mit **R2** |
 |---|---|---|---|
@@ -90,7 +95,9 @@ Ent-16 entfällt.
 
 **Abhängigkeiten nach R3b:** Alle ESP-Teile schreibt **ein** `esp-developer` nacheinander. Der PWA-Teil in R2 darf
 parallel laufen. Code für R2 darf entstehen, während G9/G9b laufen; gebaut und eingespielt erst danach. Code für R3
-erst nach dem Tor.
+erst nach dem Tor. **R2b (A.6):** ESP-Teil, Werkzeug, Markup und PWA-Teil dürfen parallel entstehen — vier Dateien,
+vier Schreiber, verbunden nur durch den Vertrag in §18.7 (Name `wc-asset-tokens`, Format der Einträge, Parameter `h`).
+Das `Makefile` folgt dem Werkzeug. Gebaut wird einmal, vom Lead, bei stillem Baum (R1, R2).
 
 ---
 
@@ -173,7 +180,7 @@ unverändert.
 ### 4.1 Varianten
 
 **(a)** `ETag`, `If-None-Match` ⇒ `304`, `no-cache` bleibt — **entschieden**. **(b)** versionierte URLs mit langem
-`max-age`. **(c)** beides — nur nach G10.7.
+`max-age`. **(c)** beides — nur nach G10.7. **G10.7 am 16.10.2026: (c) entschieden** (L468) — Entwurf in §18.
 
 ### 4.2 Was beim zweiten Öffnen noch über die Leitung geht
 
@@ -186,6 +193,9 @@ N ≈ 7 `/app/`-Anfragen je Öffnen (◐). Kopf `200` rund 190 Byte, `304` rund 
 | (b) | `index.html.gz` + nicht versionierte Referenzen | 2–4 |
 | (c) | ≈ 0,3–0,5 KB | 1–4 |
 
+*A.6:* Gemessen auf R2 (✔ B, G10.1) 626–835 Byte bei 6–8 Verbindungen. Soll für (c) nach §18: **eine** Verbindung je
+warmem Laden (das Dokument).
+
 ### 4.3 Bewertung der Varianten (Grundlage von Ent-1)
 
 | | (a) | (b) | (c) |
@@ -195,9 +205,15 @@ N ≈ 7 `/app/`-Anfragen je Öffnen (◐). Kopf `200` rund 190 Byte, `304` rund 
 | **Dateien** | `http.cpp`, eine Zeile `app.js` | `index.html`, `sw.js`, `http.cpp`, `Makefile` | alle |
 | **Legacy** | unberührt (`HTTP/1.0`) | unberührt | unberührt |
 
+*A.6:* Beide Einwände gegen (b)/(c) gelten für eine Marke aus `APP_VERSION`. Mit der **Inhaltsmarke**, die der ESP gegen
+das `ETag` prüft, ist „korrekt nach Update“ wieder **durch Bau** erfüllt (§18.3), und eine fünfte Versionsstelle entsteht
+nicht, weil der Build die Marken erzeugt und `APP_VERSION` aus `app.js` liest (§18.7).
+
 ### 4.4 Umsetzung
 
 #### `ETag`-Quelle (Ent-2, offen)
+
+*Entschieden am 16.10.2026: T (L468).*
 
 | | **T — gzip-Trailer** (Lead-Empfehlung) | **V — Voll-CRC** |
 |---|---|---|
@@ -255,7 +271,8 @@ HTTP/1.1 304 Not Modified\r\nETag: "<wert>"\r\nCache-Control: no-cache\r\nConnec
 
 ### 4.6 PWA-Teil (Ent-3: immer)
 
-`loadLayoutPreviewRowsMap()`: `"no-store"` ⇒ `"no-cache"`. Firmware zuerst, dann PWA.
+`loadLayoutPreviewRowsMap()`: `"no-store"` ⇒ `"no-cache"`. Firmware zuerst, dann PWA. *A.6:* in R2b ⇒ `"default"`
+(§18.7).
 
 ---
 
@@ -267,11 +284,12 @@ Dauerhaftes Profil: kalt, dann fünfmal warm (dreimal `Page.reload` ohne `ignore
 vorher `heap_low_reset=1`, danach lesen. Je Laden: Leitungsstatus (`responseReceivedExtraInfo`), `If-None-Match`
 gesendet, `encodedDataLength`, `heap_low_block`, `heap_low_path`, I-4, `app_*`. `--erwarte-304`. Keine Haltegrenze.
 **Mit Ent-18 A** läuft auf R1b eine neue Grundlinie (G9b), damit G10 die Wirkung von C70 ohne die von L7 zeigt.
+**Ab R2b** dazu `--erwarte-cache` (§18.8).
 
 ### 5.2 Probe U (AKW.3)
 
 `layout-previews.json` um Leerraum ergänzt, `gzip -9`, über `app_file_upload`; danach Original zurück. Ohne
-Einzelfreigabe (`CLAUDE.md:416`).
+Einzelfreigabe (`CLAUDE.md:416`). **Ab R2b** die Abläufe U1–U3 (§18.8).
 
 ### 5.3 Browser-Sitzung (`browser-sitzung`, Lead)
 
@@ -309,7 +327,8 @@ und die P1-Probe daneben.
 `max` (4'672 ⇒ 3'816), soweit die C71-Belegung ihn nicht erklärt, und die Erholung um +600 um 20:07. **Ob K1 und K2
 danach überhaupt noch einen Gegenstand haben, entscheiden die Browser-Sitzungen G9.3–G9.5** (mit Ent-18 A auf R1b); bis
 dahin bleiben sie Kandidaten. Zeigt keine Sitzung eine Lücke ≥ 500 nach Abzug von C71, gilt M5: Der C72-Eingriff
-entfällt, und C72 wird mit diesem Ergebnis geschlossen oder umformuliert.
+entfällt, und C72 wird mit diesem Ergebnis geschlossen oder umformuliert. **Ergebnis auf R1b und R2: M5 (✔ B, L468);
+Ent-8 kein Eingriff.**
 
 | Ergebnis | Bild | Kandidat (Ent-8) |
 |---|---|---|
@@ -361,6 +380,8 @@ widerlegt, K2 zwingend.**
 ---
 
 ## 6. Eingriffskandidaten C72 (R3, Ent-8) — Kandidaten, bis G9.3–G9.5 entschieden haben
+
+*Ent-8 am 16.10.2026: kein Eingriff — keiner der Kandidaten wird umgesetzt (L468). Der Abschnitt bleibt als Begründung.*
 
 | | Mechanismus | Wirkung (◐ bis G11) | Risiko | Speicher |
 |---|---|---|---|---|
@@ -430,7 +451,9 @@ die Core-Semantik nach.
 | **c70e** | R2 | C70 (a) | `HTTP/1.1 200` + `ETag`; Treffer ⇒ `HTTP/1.1 304` ohne Körper und `Content-Length`; Fehltreffer; `W/`, Liste, `*`, überlang, Kopfname klein; leere Datei nie `304`; Index ohne `app_complete` ⇒ Installationsseite (`HTTP/1.0`); ausserhalb der Weissliste `HTTP/1.0` ohne `ETag`; Körperlänge = `Content-Length`; `seek` scheitert. **T:** zwei `.gz` gleicher Grösse, anderer Inhalt ⇒ andere `ETag`; abgeschnitten; ohne `1f 8b`. **V:** CRC-32/MPEG-2; Invalidierung an allen Stellen. **Statisch:** `HTTP/1.1` an genau zwei Stellen mit `Connection: close` | `ETag` nur aus Grösse; `304` ohne Grössenprüfung; mit Körper; ohne `Connection: close`; `HTTP/1.1` in `/api/`; V: Invalidierung entfernt, CRC mit zlib |
 | **c70p** | R2 | PWA | `"no-cache"` in `loadLayoutPreviewRowsMap`; Sprachdatei mit `?v=` | `"no-store"` |
 | **c65b, c65w, LittleFS-Attrappe** | R2 | Bestand | Kopfzeilen in einem Schreibvorgang mit `HTTP/1.1` und `ETag`; `seek`, Trailer- bzw. zweites Lesen | wie bisher |
-| **c72e** | R3 | Eingriff C72 | K1 `abort()` nur im Teilfall Timeout; K2 nur `callback_arg == NULL` + Zustand + `ruhe_s` > Frist; SYN_RCVD, `ClientContext`, TIME_WAIT, LISTEN unberührt; ein Gang je Sekunde; Neubeginn nach Abbau; K5 Grenze 1 | K1 `stop()` bzw. auch im Teilfall Abbruch; K2 PCB mit `callback_arg` ≠ NULL bzw. SYN_RCVD abgebaut, Frist entfernt; K5 Grenze 2 |
+| **c70c** *(A.6)* | **R2b** | C70 (c), ESP | die Fälle aus AKL.1 und AKL.2: Treffer bei `200` und bei `304`; falsche, verschobene, Präfix-, gequotete, leere, fehlende Marke; Dokument (`/app`, `/app/`, `/app/index.html`) und `sw.js` mit eigener Marke; ohne gzip-Kopf, < 18 Byte, ausserhalb der Weissliste; zwei `.gz` gleicher Grösse; beide Zähler je Fall; ohne `h` Kopf und Rumpf gleich R2; `h` nie im Kopf | `immutable` ohne Vergleich; Vergleich über Länge bzw. Präfix; Dokument bzw. `sw.js` nicht ausgenommen; `304` bei Treffer mit `no-cache`; `immutable` im Zweig `HTTP/1.0`; `h` ausgegeben; Zähler fehlt in einem Zweig |
+| **c70p** *(A.6 nachgezogen)* | **R2b** | C70 (c), PWA | Marke aus `wc-asset-tokens` nur nach Muster; beide Abrufe mit `?v=…&h=…` bzw. ohne Marke mit `?v=…`; `cache: "default"`; jede Query nur `name=wert` | `"no-cache"`; `"no-store"`; Marke ohne Musterprüfung; Parameter ohne `=` |
+| **c72e** | R3 — **entfallen** (Ent-8) | Eingriff C72 | K1 `abort()` nur im Teilfall Timeout; K2 nur `callback_arg == NULL` + Zustand + `ruhe_s` > Frist; SYN_RCVD, `ClientContext`, TIME_WAIT, LISTEN unberührt; ein Gang je Sekunde; Neubeginn nach Abbau; K5 Grenze 1 | K1 `stop()` bzw. auch im Teilfall Abbruch; K2 PCB mit `callback_arg` ≠ NULL bzw. SYN_RCVD abgebaut, Frist entfernt; K5 Grenze 2 |
 
 ---
 
@@ -446,6 +469,8 @@ die Core-Semantik nach.
 - **`smoke-device.sh`** — ab R1 I-5-Felder, ab R2 `app_*`.
 - **`watch-log.sh`** — ab R1 Heap-Zeile mit Zusatz und die I-6-Zeilen als Hinweis; mit V `- app etag`.
 - **R2:** `tools/**` nach Prüfungen auf `HTTP/1.0` durchsuchen; c65b, c65w, LittleFS-Attrappe nachziehen.
+- **R2b (A.6):** Werkzeug für die Inhaltsmarken, `install-app.sh --check` mit Markenprüfung, Smoketest-Block C70c,
+  `ladeprobe --erwarte-cache`, `probe-u.sh` U1–U3, `check-pwa` INFO „aus dem Cache“ — §18.7, §18.8.
 
 ---
 
@@ -460,8 +485,11 @@ die Core-Semantik nach.
 | `If-None-Match`-Puffer | R2 | 36 |
 | Zähler `app_*` | R2 | 4 (T) / 6 (V) |
 | `ETag`-Tabelle | R2 | 0 (T) / 104 (V) |
-| K2 | R3 | ~4 |
+| K2 | R3 — entfallen | ~4 |
+| Zähler `app_immutable`, `app_token_miss` *(A.6)* | R2b | 4 |
 | **Summe** | | **rund 100 (T) / 205 (V)** — Grenze 250 (Ent-11) |
+
+**Gemessen (✔ B, L468):** R1 +32, R1b 0, R2 +48 — **+80** nach R2. Mit R2b gerechnet **+84**; Grenze 250.
 
 ---
 
@@ -475,7 +503,9 @@ die Core-Semantik nach.
 Update-Quelle; `install-app.sh --check`; `install-app.sh`; `--check`; `check-pwa.sh`. Rückweg: ESP auf den Vorstand,
 PWA bleibt.
 
-**R3** — ESP. Rückweg auf R2; mit Ent-18 B nimmt er L7 **und** den C72-Eingriff zurück.
+**R2b** (A.6) — ESP und PWA, Firmware zuerst (DIR-002). Paarungen und Rückweg in §18.11.
+
+**R3** — ESP. Rückweg auf R2; mit Ent-18 B nimmt er L7 **und** den C72-Eingriff zurück. — **entfallen** (Ent-8).
 
 Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor** eingespielt wird.
 
@@ -502,6 +532,8 @@ Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor
 ---
 
 ## 13. Prüfung gegen die Architektur-Checkliste
+
+*Für A.6 (C70 Variante (c)) beantwortet §18.10 die vier Punkte eigens.*
 
 **Proper architecture** — Legacy parallel? Wetter-Endpunkte? Restore-Bedingung? Richtige Schicht?
 
@@ -552,13 +584,19 @@ Du spielst jedes Release ein; der Lead liefert die Zeilen samt Rückweg, **bevor
 | `fe` aus `umm_local.h`; `frag` als tragende Grösse | privater Kopf bzw. zu unempfindlich (A.4) |
 | `device_ready` im Sekundentakt; HTTP-Lesungen in Startmessungen (ausser gekennzeichnet) | verändern das Gemessene |
 | K1 bei M2, wenn nur `aborts` steigen; K3; K4 | §6 |
+| *A.6:* Versionsmarke nur aus `APP_VERSION` | ESP kann sie nicht prüfen; falsche Langzeit-Einträge (§18.3) |
+| *A.6:* Versionsbestandteil im Pfad | §18.5 |
+| *A.6:* installierte App-Version auf dem ESP ablegen | nicht nötig; die Inhaltsmarke entscheidet allein, und eine abgelegte Version deckte Probe U nicht (§18.6) |
+| *A.6:* Dokument zuletzt hochladen statt Markenprüfung | deckt Einzel-Uploads, die PWA-eigene Upload-Seite und `/fs` nicht; die Markenprüfung deckt alle Wege |
+| *A.6:* `immutable` auch für das Dokument oder `sw.js` | nähme den einzigen Weg, über den eine Korrektur ankommt (§18.9) |
 
 ---
 
 ## 15. Versionsfolgen
 
-- [ ] ESP `version.h` — R1 (eingespielt), **R1b** (Ent-18 A), R2, R3 (falls)
-- [ ] `APP_VERSION` und `CACHE_NAME` — R2
+- [ ] ESP `version.h` — R1 (eingespielt), **R1b** (Ent-18 A, eingespielt), R2 (eingespielt), **R2b** (A.6); R3
+      entfallen
+- [ ] `APP_VERSION` und `CACHE_NAME` — R2 (eingespielt), **R2b**
 - [ ] STM — nicht
 
 Nur der `release-engineer` (R4). Die Nummern bestimmt der Lead.
@@ -570,13 +608,15 @@ Nur der `release-engineer` (R4). Die Nummern bestimmt der Lead.
 | Datei | Änderung | Agent |
 |---|---|---|
 | `ESP8266/ESP-uclock/httpclient.cpp` | **L7a** `httpclient_stop()` gibt den Kontext frei; **L7b** Fehlerwege über `httpclient_stop()`; **L7c** `len == 0` schliesst — Kodierung und Zeilenende vorher feststellen | `esp-developer` |
-| `ESP8266/ESP-uclock/http.cpp` (UTF-8, eine CRLF-Zeile) | R1: I-5, I-6; L7c an Aufrufern mit `len <= 0` (darunter `update_cache_write()`); R2: `If-None-Match`, `ETag`, `HTTP/1.1` in `http_send_fs_file()` und `304`, Zähler; R3: K1/K2/K5 | `esp-developer` |
-| `ESP8266/ESP-uclock/ESP-uclock.ino` (gemischte Zeilenenden) | R1: `esp_heap_log()`, I-6 (e); R3: K2-Aufruf | `esp-developer` |
-| `ESP8266/ESP-uclock/stm32flash.cpp`, `base.h` | R2 nur mit V; Prototypen | `esp-developer` |
-| `ESP8266/ESP-uclock/data/app/app.js` | R2: `loadLayoutPreviewRowsMap()` | `pwa-developer` |
-| `tools/**`, Prüfstände | §8, §9 | Lead |
-| Versionsdateien | R1b, R2, R3 | `release-engineer` |
-| `TESTPLAN-PWA.md`, `BEFUNDE.md` | Lesart nach A.5; Freistellen des Clients vor C72-Sitzungen (bis L7); Träger an C71, C72, C75 | `doc-writer` |
+| `ESP8266/ESP-uclock/http.cpp` (UTF-8, eine CRLF-Zeile) | R1: I-5, I-6; L7c an Aufrufern mit `len <= 0` (darunter `update_cache_write()`); R2: `If-None-Match`, `ETag`, `HTTP/1.1` in `http_send_fs_file()` und `304`, Zähler; **R2b:** `immutable` nach §18.6 in `http_app()`/`http_send_fs_file()`, Zähler `app_immutable`, `app_token_miss`; R3: entfallen | `esp-developer` |
+| `ESP8266/ESP-uclock/ESP-uclock.ino` (gemischte Zeilenenden) | R1: `esp_heap_log()`, I-6 (e); R3: entfallen | `esp-developer` |
+| `ESP8266/ESP-uclock/stm32flash.cpp`, `base.h` | R2 nur mit V; Prototypen; R2b gegebenenfalls Prototyp | `esp-developer` |
+| `ESP8266/ESP-uclock/data/app/app.js` | R2: `loadLayoutPreviewRowsMap()`; **R2b:** Marken aus `wc-asset-tokens`, `loadLayoutPreviewRowsMap()` und `ensureLanguageTable()` | `pwa-developer` |
+| `ESP8266/ESP-uclock/data/app/index.html` | **R2b:** ein leeres Meta-Element `wc-asset-tokens` (Ent-21 E2) | `ui-developer` |
+| `Makefile` | **R2b:** `app-gz` — `index.html.gz` aus der umgeschriebenen Kopie | `release-engineer` |
+| `tools/**`, Prüfstände | §8, §9; **R2b:** Werkzeug für die Inhaltsmarken, §18.8 | Lead |
+| Versionsdateien | R1b, R2, **R2b** | `release-engineer` |
+| `TESTPLAN-PWA.md`, `BEFUNDE.md` | Lesart nach A.5; Freistellen des Clients vor C72-Sitzungen (bis L7); Träger an C71, C72, C75; **R2b:** 5b (`app_immutable`, `app_token_miss`), Ladeprobe `--erwarte-cache`, Probe U1–U3, Rückweg für Browser, Träger an C70 | `doc-writer` |
 | `CHANGELOG.md` | je Release | Lead |
 
 ---
@@ -610,3 +650,330 @@ Start; L6 mit vier Risiken; L2 nicht umsetzbar; 130-s-Regel; I-6 um `nach`, `acc
 | §2 Releaseschnitt | **Ent-18 neu:** L7 als eigenes Release **R1b vor R2** (Empfehlung A) |
 | P9, P9b | P9 beantwortet; P9b nicht mehr tragend |
 | — | **offen (◐):** L460 sah den Fall ohne Anfrage; der Lead prüft den damaligen Mitschnitt |
+
+**A.6 (16.10.2026, nach dem Tor G10.6/G10.7, Stand `2d97259`) — C70 Variante (c):**
+
+| Stelle (Stand vor A.6) | Neu |
+|---|---|
+| Ent-2, Ent-17, Ent-18 offen | **entschieden** (L468): T, L7, A |
+| Ent-8, Ent-10, Ent-14 offen bis zum Tor | **Ent-8 kein Eingriff** (M5); Ent-10, Ent-14 entfallen; **R3 und G11 entfallen**; §6 bleibt als Begründung |
+| §4.1 (c) „nur nach G10.7“ | **G10.7: (c) entschieden**; Entwurf §18; Release **R2b**, Messung **G10b**, beide vor T3 |
+| §4.3 Einwände gegen (b)/(c) | gelten für eine Marke aus `APP_VERSION`; mit der vom ESP geprüften **Inhaltsmarke** ausgeräumt (§18.3) |
+| §4.6 `"no-cache"` | in R2b `"default"` — `"no-cache"` erzwänge jede Nachfrage (§18.7) |
+| AKC.1 „`Cache-Control: no-cache` unverändert“ | gilt ab R2b nur ohne Treffer nach AKL.1 |
+| AKZ.4 „keine Änderung an `index.html`“ | in R2b ein leeres Meta-Element (Ent-21 E2), sonst unverändert; der Build schreibt eine Kopie um |
+| Ziel 1 „eine neu hochgeladene App-Datei sofort“ | für versionierte Dateien: ein ganzer Stand sofort, eine einzeln ersetzte Datei mit dem nächsten Dokument (**Ent-20**) |
+| — | **neu:** Ent-19 (Form der Marke, Nutzer), Ent-20 (Zusage Einzeldatei, Nutzer), Ent-21 (Ort der Ersetzung), Ent-22 (Manifest), Ent-23 (`max-age`), alle drei Lead |
+| — | **neu:** AKL.1–AKL.9 (R2b), AKG.1–AKG.7 (G10b); Prüfstand c70c, c70p nachgezogen; RAM +4 |
+
+---
+
+## 18. C70 Variante (c) — versionierte URLs mit Langzeit-Cache (Nachtrag A.6)
+
+### 18.1 Ausgangslage und Entscheid
+
+**Entscheid des Nutzers am Tor G10.7 (✔ B, L468):** C70 geht mit (c) weiter. Zum `ETag`/`304` aus R2 (Variante (a),
+ESP 3.2.40, PWA 1.4.101) kommen versionierte URLs mit langem `max-age`, damit ein unverändertes Asset beim warmen Laden
+**gar nicht mehr** über die Leitung nachgefragt wird. Ent-8 lautet „kein Eingriff“; R3 und G11 entfallen. Das neue
+Release heisst **R2b** und kommt vor T3. Die Empfehlung des Leads war, bei (a) anzuhalten.
+
+**Messlage nach (a) (✔ B, G10.1):** warm 626–835 Byte je Laden, alles `304`, dazu 6–8 Anfragen. Jede Nachfrage kostet
+eine TCP-Verbindung und ein `accept` auf dem ESP (`Connection: close`, AKC.7). Heap und Verbindungen sind der knappe
+Punkt (C65) — das ist der Hebel von (c).
+
+### 18.2 Befund am Code (✔ SW, Stand `2d97259`)
+
+| Aussage | Status | Fundstelle |
+|---|---|---|
+| Der GET-Zweig trennt die Anfragezeile am ersten `?`: `sPath` ohne Query geht an `http()`, die Query als `sParam` | **✔ SW** | `http_server_loop()`, `http.cpp:17523-17545` |
+| `http()` weist eine zu lange Query nur unter `/api/` ab (C46); für `/app/` kürzt es still auf 255 Zeichen und setzt die Parameter | **✔ SW** | `http()`, `http.cpp:16527-16537`; `http_api_query_too_long()` `:16428` |
+| `http_app()` bildet `asset_path` = `app/<pfad>` aus dem Pfad **ohne** Query; `http_find_stored_app_asset_filename()` und `http_find_app_install_asset()` vergleichen exakt (`strcmp`) — die Query erreicht die Weissliste nie | **✔ SW** | `http_app()`, `http.cpp:3225-3263`; `http_find_app_install_asset()` `:2970-2988` |
+| Ein Parameter ohne `=` bekommt `value = NULL`; `normalize_http_parameters()` prüft auf `NULL` (seit ESP 3.2.3) | **✔ SW** | `http_set_params()` `:3457-3504`, `normalize_http_parameters()` `:3427` |
+| `http_get_param()` liefert nie `NULL` (C20); höchstens 16 Parameter | **✔ SW** | `:3509`; `MAX_HTTP_PARAMS` `:153` |
+| In `http_app()` wird nur `action` gelesen; `h` und `v` kollidieren mit keinem Parameter im Pfad `/app/` | **✔ SW** | `http_app()` `:3299` |
+| Das `ETag` nach T wird je Antwort in `http_app_etag()` aus derselben geöffneten Datei gerechnet, aus der danach der Rumpf kommt; ohne gzip-Kopf oder unter 18 Byte kein `ETag` | **✔ SW** | `http_app_etag()` `:2347-2373`; `http_send_fs_file()` `:2437-2457` |
+| `200` und `304` senden heute beide fest `Cache-Control: no-cache`; `HTTP/1.1` nur bei `app_asset && gzip_encoded` | **✔ SW** | `http_send_fs_file()` `:2440`, `:2483-2509` |
+| `index.html` verweist sechsmal auf Assets: Manifest, `icon-192.svg`, `icon-192.png`, `icon-180.png` (apple-touch), `styles.css`, `app.js` | **✔ SW** | `data/app/index.html:23-30`, `:908` |
+| `styles.css` lädt nichts nach (kein `url(`, kein `@import`); das Manifest nennt vier Icons, die beim Laden der Seite nicht geholt werden (◐) | **✔ SW** / **◐** | `styles.css`; `manifest.webmanifest:15-40` |
+| `app.js` holt zur Laufzeit `layout-previews.json` (`cache: "no-cache"`) und `i18n/<code>.json?v=<APP_VERSION>` (`cache: "default"`); der Kommentar dort nennt das `=` schon als Pflicht | **✔ SW** | `app.js:1331`, `:11655`; `ensureLanguageTable()` `:1742-1745` |
+| Ein `fetch` mit `cache: "no-cache"` fragt immer nach, auch bei frischem Eintrag | **◐** | Fetch-Standard; in G10b sichtbar |
+| `sw.js` hält einen Vorab-Cache mit URLs **ohne** Query und vergleicht ohne `ignoreSearch`; über `http://` gibt es keinen Service Worker | **✔ SW** | `sw.js:13-26`, `:181-202`; §1 |
+| `make app-gz` packt jede Quelle aus `GZIP_SOURCES` mit `gzip -9 -k -f` an Ort und Stelle, `index.html` eingeschlossen; die `.gz` sind nicht versioniert (`.gitignore`) | **✔ SW** | `Makefile:26`, `:108-113` |
+| `deploy.sh` verlangt jede `.gz` vorhanden, nicht leer und **nicht älter** als ihre Quelle | **✔ SW** | `tools/deploy.sh:69-71` |
+| `install-app.sh` lädt `index.html` **als erste** Datei hoch, dann die übrigen einzeln, mit einer Sekunde Abstand | **✔ SW** | `tools/install-app.sh:38-42`, `:116-125` |
+| Der ESP kennt die installierte App-Version nicht | **✔ SW** | §1; `APP_VERSION_TXT` ist die Server-Version |
+| `probe-u.sh` rechnet das erwartete `ETag` mit derselben Formel wie der ESP | **✔ SW** | `tools/probe-u.sh:25-27` |
+| Chrome prüft beim Neuladen nur das Dokument nach und nimmt frische Unterressourcen aus dem Cache; Safari beachtet `immutable` | **◐** | Herstellerangaben; erst G10b belegt es für dieses Gerät |
+
+### 18.3 Kernfrage: Wann ist ein Langzeit-Eintrag richtig? — Regel I-L
+
+**Regel I-L:** Eine URL, die je mit `immutable` beantwortet wurde, bezeichnet für immer genau die Bytes, die dabei
+geliefert wurden. Denn der Browser fragt sie bis zum Ablauf von `max-age` nicht mehr nach, und **ein ESP-Rückweg heilt
+einen solchen Eintrag nicht** — der Browser fragt ja nicht.
+
+**Warum eine Marke aus `APP_VERSION` das nicht leistet (✔ SW, §18.2):**
+
+| Fall | Was geschähe mit `?v=<APP_VERSION>` und `immutable` |
+|---|---|
+| **Upload-Fenster:** `install-app.sh` lädt `index.html` zuerst | Ein Browser lädt zwischen den Uploads: Das neue Dokument nennt `app.js?v=NEU`, auf dem Gerät liegt noch die alte `app.js` ⇒ die **alte** Datei liegt ein Jahr lang unter der neuen URL. Genau der Einwand aus §4.3 |
+| **Probe U / Einzel-Upload bei gleicher Version** | Eine ersetzte Datei kommt unter **derselben** URL. Browser mit Eintrag behalten die alte, Browser ohne Eintrag frieren die neue ein — und eine spätere Korrektur bei gleicher Version erreicht keinen von beiden |
+| **Upload in der PWA oder unter `/fs`** | wie Probe U |
+
+**Daraus folgt der Entwurf:** Die URL trägt eine **Inhaltsmarke** `h` — den `ETag`-Wert nach Variante T ohne
+Anführungszeichen, also Grösse der `.gz` und ihr gzip-Trailer (CRC-32 und Länge des entpackten Inhalts) —, und **der ESP
+sendet `immutable` nur, wenn `h` gleich dem `ETag` ist, das er für genau diese Antwort aus genau dieser Datei gerechnet
+hat.** Dann gilt I-L durch Bau: Unter `h=X` kann mit `immutable` nur ein Inhalt mit `ETag` X hinausgehen. Die
+Reihenfolge des Uploads, die Version und der Weg des Uploads spielen keine Rolle mehr.
+
+**Was bleibt (◐):** (1) Zwei verschiedene Inhalte mit gleicher `.gz`-Grösse, gleicher entpackter Länge **und** gleichem
+CRC-32 — Wahrscheinlichkeit rund 2⁻³² je Änderung. (2) Eine Änderung nur am Kopf, etwa am `Content-Type` aus
+`http_content_type()` (Hinweis H4 aus Review R2.7): Der Rumpf und damit die Marke bleiben gleich, ein Browser behält den
+alten Kopf. (3) Eine Quelle, die beim Packen halb geschrieben war (R2): Ihre `.gz` und ihre Marke passen zueinander, die
+kaputte Datei würde also unter ihrer Marke festgehalten. Alle drei fängt der Rückweg über das Dokument ab — (3) schon
+mit dem nächsten richtigen Stand, (1) und (2) über die Version (§18.9, Ent-19 C).
+
+### 18.4 Welche URLs (Punkt 1)
+
+| URL | versioniert | Begründung |
+|---|---|---|
+| `/app`, `/app/`, `/app/index.html` | **nie** — `no-cache` mit `ETag`, auch wenn eine Marke mitkommt | Über das Dokument kommt jede neue Marke und jede Korrektur an. Der ESP schliesst es **selbst** aus, nicht nur das Werkzeug (AKL.1 (iv)) |
+| `/app/sw.js` | **nie** — Registrierungs-URL bleibt `/app/sw.js` | Ein Service Worker darf nie lange gecacht werden; eine neue URL legte eine zweite Registrierung an. Der ESP schliesst ihn aus |
+| `styles.css`, `app.js`, `icons/icon-192.svg`, `icons/icon-192.png`, `icons/icon-180.png` | **ja** — Verweise im Dokument | beim Laden geholt (G10.1) |
+| `manifest.webmanifest` | **ja** (Ent-22) | Chrome holt es beim Neuladen (G9.1) |
+| `layout-previews.json`, jede Datei unter `i18n/` | **ja** — Laufzeitabrufe in `app.js`, Marke aus dem Meta-Element | beim Laden bzw. beim Sprachwechsel geholt |
+| Icons **im Manifest** (`icon-192.png`, `icon-512.png`, `icon-mask.png`, `icon-512.svg`) | nein — bleiben bei (a) | beim Laden der Seite nicht geholt (◐). `icon-192.png` steht dann zweimal im Cache des Browsers, mit und ohne Marke — harmlos |
+| Legacy, `/api/*`, Installations- und Hinweisseiten, alles ausserhalb der Weissliste | nein, unverändert | AKL.3 |
+
+### 18.5 Form der Marke (Punkt 2) — Ent-19
+
+| | **(A)** `?v=<APP_VERSION>` | **(B)** `?h=<marke>` | **(C)** `?v=<APP_VERSION>&h=<marke>` | **(D)** Pfad `/app/<marke>/app.js` |
+|---|---|---|---|---|
+| ESP prüft den Inhalt | **nein** | ja | ja | ja |
+| Regel I-L | **verletzt** (§18.3) | gilt | gilt | gilt |
+| Unveränderte Datei über einen PWA-Release hinweg | neu geholt | **bleibt im Cache** | neu geholt (≈ 200 KB je Release und Browser) | bleibt |
+| Rückweg für einen falschen Eintrag | — | nur über eine Inhaltsänderung genau dieser Datei | **jede neue `APP_VERSION`** | wie B |
+| Aufwand ESP | — | ein Vergleich | ein Vergleich | Pfad zerlegen; berührt Abflachung (`app_asset_filename()`), Weissliste, Upload, Installation |
+| Bewertung | verworfen | möglich | **empfohlen** | verworfen |
+
+**Empfehlung C** (Entscheid beim Nutzer, `requirements.md` Ent-19): `h` trägt die Korrektheit, `v` den Rückweg. Die
+Version kommt aus `const APP_VERSION` in `app.js` — der einzigen Quelle; `CACHE_NAME` gehört dazu und steigt wie bisher
+mit ihr (R4).
+
+**Invarianten der Query:**
+
+- **Jeder Parameter mit `=`.** Ein Parameter ohne `=` hat den ESP früher abgestürzt; das ist seit 3.2.3 behoben, steht
+  aber in der Gefahrenliste (`CLAUDE.md`). Das Werkzeug (AKL.4) und `app.js` (AKL.6) erzeugen nur `name=wert`.
+- **Zeichen** nur `[0-9a-z.=&-]` — nichts, was `normalize_http_parameters()` umdeutet (`%`, `+`).
+- **Länge:** `v=` + Version (z. B. 7) + `&h=` + Marke (höchstens 10 + 1 + 16 = 27) ≈ 40 Zeichen; Grenze im Werkzeug
+  **64**, weit unter 255 (C46; für `/app/` würde `http()` still kürzen, §18.2).
+- **Nur `.gz`, Grösse > 0:** unverändert — `immutable` gibt es nur in dem Zweig, der das schon verlangt (§18.6).
+- Die Query wird vor `http_app()` abgetrennt, die Weissliste vergleicht weiter exakt (✔ SW) — an beidem ändert R2b
+  nichts.
+
+### 18.6 ESP (Punkt 3)
+
+**Entscheidungstabelle** für eine Antwort auf ein App-Asset (`http_app()` ⇒ `http_send_fs_file()`):
+
+| Fall | `Cache-Control` | Zähler |
+|---|---|---|
+| Zweig `HTTP/1.0` (ausserhalb der Weissliste, keine `.gz`) | wie heute, `h` ohne Wirkung | — |
+| Zweig `HTTP/1.1` ohne `ETag` (keine gzip-Datei, < 18 Byte) | `no-cache` | `app_token_miss`, wenn `h` gesetzt |
+| `h` fehlt oder leer | `no-cache` (wie R2) | — |
+| `h` gesetzt, ≠ `ETag` | `no-cache` | `app_token_miss` |
+| `h` = `ETag`, aber Dokument (`/app`, `/app/`, `app/index.html`) oder `app/sw.js` | `no-cache` | `app_token_miss` |
+| `h` = `ETag`, alles andere | **`public, max-age=31536000, immutable`** (Ent-23) | `app_immutable` |
+
+- **`200` und `304` gleich.** Eine `304` aktualisiert die gespeicherten Kopfzeilen im Browser (◐ RFC 9111 §4.3.4); eine
+  `304` mit `no-cache` nach einem Treffer würde den Eintrag zurückstufen, eine mit `immutable` ohne Treffer ihn falsch
+  hochstufen. Darum entscheidet dieselbe Tabelle.
+- **Vergleich ohne Heap:** `strlen(h) + 2 == strlen(etag)`, `etag[0] == '"'`, `memcmp(etag + 1, h, strlen(h)) == 0`;
+  `h` über `http_get_param("h")` (nie `NULL`). Der Wert von `h` wird **nie** ausgegeben — der ESP sendet sein eigenes
+  `ETag`, keine Spiegelung der Anfrage.
+- **Abweichende oder fehlende Version:** `v` wertet der ESP **nicht** aus — er kennt die installierte Version nicht und
+  braucht sie nicht. Eine abweichende `v` mit treffender Marke bekommt `immutable` (der Inhalt ist bestätigt; die URL ist
+  nur eine andere). Eine fehlende `v` ebenso — das ist die Form von Ent-19 B.
+- **Wechsel der App-Version:** Das neue Dokument nennt neue URLs (neue `v`, neue Marken geänderter Dateien). Der Browser
+  hat sie nicht ⇒ Abruf ⇒ Treffer ⇒ `immutable`. Alte Einträge liegen ungenannt im Cache, bis der Browser sie verdrängt.
+- **Probe U (Datei ersetzt, Version gleich):** Das Dokument nennt die alte Marke, die Datei hat ein neues `ETag` ⇒ kein
+  Treffer ⇒ `no-cache`. Der neue Inhalt wird **nie** unter der alten Marke festgeschrieben (AKG.3).
+- **Upload-Fenster (Dokument zuerst):** Das neue Dokument nennt die neue Marke, die Datei ist noch alt ⇒ kein Treffer ⇒
+  `no-cache` mit dem alten `ETag`. Beim nächsten Laden fragt der Browser nach; nach dem Upload trifft die Marke, es kommt
+  `200` mit `immutable` (AKG.4).
+- **Das `ETag` bleibt Rückfall:** jede Antwort trägt es wie in R2; ohne Marke verhält sich R2b genau wie R2 (AKL.3).
+- **Kosten:** ein Vergleich von höchstens 29 Zeichen je Antwort, kein zusätzliches Lesen — das `ETag` ist schon
+  gerechnet. 4 Byte RAM für die Zähler. Keine Logzeile je Anfrage (UART).
+
+### 18.7 Build, Markup und PWA (Punkt 4) — Ent-21
+
+**Wer was schreibt (R3):**
+
+| Teil | Datei | Agent |
+|---|---|---|
+| Entscheidung `immutable`, Zähler | `http.cpp` | `esp-developer` |
+| Werkzeug: Marken rechnen, Kopie umschreiben, Meta-Element füllen, prüfen | `tools/` (Name bestimmt der Lead) | Lead |
+| Aufruf im Build | `Makefile`, Ziel `app-gz` | `release-engineer` |
+| leeres Meta-Element | `data/app/index.html` | `ui-developer` |
+| Marken lesen, Laufzeitabrufe | `data/app/app.js` | `pwa-developer` |
+| `CACHE_NAME`, `APP_VERSION`, ESP-Version | Versionsdateien | `release-engineer` (R4) |
+
+**Ablauf in `make app-gz` (Ent-21 E2):**
+
+1. Alle Quellen aus `GZIP_SOURCES` **ausser** `index.html` packen wie heute.
+2. Das Werkzeug liest `APP_VERSION` aus `app.js` (dieselbe Zeile wie `app-version-file`), rechnet für jedes
+   versionierte Asset die Inhaltsmarke aus seiner eben erzeugten `.gz` (Formel von `http_app_etag()`), schreibt eine
+   **Kopie** von `index.html`, in der die sechs bekannten Verweise `?v=<APP_VERSION>&h=<marke>` tragen und das
+   Meta-Element gefüllt ist, und prüft alle Abbruchgründe aus AKL.4.
+3. Erst bei Exit 0 entsteht `index.html.gz` aus der Kopie (`gzip -9 -n`), über eine Zwischendatei, die erst nach
+   Erfolg umbenannt wird — **nie** eine leere oder halbe `.gz`. Die Kopie wird entfernt.
+
+**Vertrag zwischen Werkzeug und `app.js`:** `<meta name="wc-asset-tokens" content="<pfad>=<marke>;<pfad>=<marke>…">`,
+`<pfad>` relativ zu `/app/` (`layout-previews.json`, `i18n/en.json`). `app.js` liest es einmal, nimmt nur Einträge, deren
+Marke `^[0-9]+-[0-9a-f]{16}$` entspricht, und baut daraus `?v=<APP_VERSION>&h=<marke>`; ohne gültigen Eintrag
+`?v=<APP_VERSION>` — die heutige Form der Sprachdatei, die der ESP mit `no-cache` beantwortet. Beide Abrufe mit
+`cache: "default"`.
+
+**Was dabei sicher bleibt:** Die Quelle `index.html` hat ein leeres Meta-Element und Verweise ohne Query; die
+PWA-Vorschau lädt sie unverändert. Fehlt im ausgelieferten Dokument eine Marke — etwa weil jemand die Quelle ungepackt
+hochlädt —, gilt Verhalten (a), nie ein falscher Eintrag. `install-app.sh --check` meldet das beim Namen (AKL.8 (i)).
+
+**E1 (Alternative):** Platzhalter in den sechs Verweisen der Quelle, etwa `?v=__WCV__&h=__WCH_styles.css__` (nur
+`[A-Za-z0-9_.-]`, kein `&`, `=`, `#`, Leerzeichen oder Anführungszeichen im Platzhalter selbst), vom `ui-developer`
+gepflegt. Nachteil: Die Vorschau fragt mit Platzhaltern an; jeder neue Verweis braucht einen Platzhalter, und einen
+vergessenen sieht man nicht. E2 zählt statt dessen die Verweise (genau 6) und bricht bei einer Abweichung ab.
+
+**Single Source of Truth:** `APP_VERSION` in `app.js`. Im Dokument steht sie nur abgeleitet, im gepackten Fabrikat,
+nicht in einer Quelle — eine **fünfte Versionsstelle** entsteht nicht, S4 bleibt bei vier. `CACHE_NAME` steigt wie
+bisher mit `APP_VERSION`.
+
+**R2 (Arbeitsverzeichnis still) gilt erst recht:** `app-gz` erzeugt jetzt eine Datei aus mehreren Quellen. Ist eine
+Quelle beim Packen halb geschrieben, passen ihre `.gz` und ihre Marke **zueinander** — der ESP erkennt das nicht, und
+ein Browser hielte die kaputte Datei unter dieser Marke fest. Geheilt wird es erst mit dem nächsten richtig gepackten
+Stand, dessen Dokument eine andere Marke nennt (§18.9). Bis dahin wäre es derselbe Weisschirm wie heute, nur in den
+Browsern, die in diesem Fenster geladen haben, auch nach einem erneuten Hochladen derselben Fassung. Vor `app-gz` sind
+deshalb alle Editier-Tasks abgeschlossen und `git status` geprüft — wie bisher.
+
+**`deploy.sh`:** Die Prüfung „`.gz` nicht älter als die Quelle“ hält, weil `index.html.gz` nach der Quelle entsteht
+(◐, R2b.8 prüft es).
+
+### 18.8 Messung G10b (Punkt 5)
+
+**Instrumente, zwei unabhängige (L235):** (1) CDP in `ladeprobe`: **Leitung** = Antwort mit
+`responseReceivedExtraInfo` (Leitungsstatus), **Cache** = ohne, von CDP als aus dem Speicher- bzw. Plattencache bedient
+gemeldet. (2) Die Gerätezähler `app_full`, `app_not_modified`, `app_immutable`, `app_token_miss` je Fenster. Beide
+müssen dasselbe zählen: Leitungsanfragen an `/app/` = Δ`app_full` + Δ`app_not_modified`.
+
+**Neues Soll für das warme Laden (Chrome, AKG.2):** genau **eine** Leitungsanfrage an `/app/` — das Dokument mit `304`;
+**null** an versionierte Assets; Δ`app_not_modified` = 1, Δ`app_full` = 0.
+
+**Probe U — drei Abläufe (`probe-u.sh`, Lead):**
+
+| Ablauf | Schritt | Erwartet |
+|---|---|---|
+| **U1** Datei ersetzt, Version und Dokument gleich (AKG.3) | `layout-previews.json` ersetzen | direkter Abruf mit **alter** Marke: `200`, neues `ETag`, **`no-cache`**, Δ`app_token_miss` +1; frisches Profil: neuer Inhalt; warmer Browser: weiter aus dem Cache |
+| | Original zurück | direkter Abruf: `immutable`, ursprüngliches `ETag` |
+| **U2** neuer Inhalt mit neuer Marke, Dokument zuerst (AKG.4) | vor #2 Dokument mit neuer Marke | #2: Dokument `200`; Datei mit neuer Marke `200`, **alter** Inhalt, `no-cache` (Fenster) |
+| | vor #3 die Datei | #3: Dokument `304`; Datei `200`, neues `ETag`, `immutable` |
+| | — | #4: alles ausser dem Dokument aus dem Cache |
+| | vor #5 beide Originale | #5: Dokument `200`; Datei mit ursprünglicher Marke **aus dem Cache** |
+| **U3** Versionswechsel als Rückweg (AKG.5) | Dokument mit anderer `v` | nächstes Laden: **jede** versionierte URL `200` mit `immutable`; folgendes: alles aus dem Cache; Original zurück ⇒ ursprüngliche URLs aus dem Cache |
+
+Die Dokumente für U2 und U3 erzeugt das Werkzeug aus R2b.3 (gleicher Code wie im Build, andere Eingaben). Nach jedem
+Ablauf `install-app.sh --check` ohne Abweichung.
+
+**Safari und iPhone (AKG.6):** wie G10.3 bzw. G9b.4, mit Vorwärmen; zusätzlich je ein Neuladen in S1. Kein CDP — nur
+die Gerätezähler. Gemessen und berichtet; eine Nachfrage trotz `immutable` ist ein Befund.
+
+**Gegenproben und Sabotagen (DIR-014), jede mit angekommener Meldung:**
+
+| Instrument | Gegenprobe ⇒ erwartet |
+|---|---|
+| `ladeprobe --erwarte-cache` | gegen R2 (kein `immutable`) ⇒ Exit ≠ 0, „warm: Cache erwartet, 304 erhalten“; Prüfserver mit `immutable` ⇒ OK |
+| `probe-u.sh` U1–U3 | ohne Upload ⇒ FEHL je Ablauf; gegen einen Prüfserver, der `immutable` auch bei falscher Marke sendet ⇒ U1 FEHL |
+| `install-app.sh --check` | Dokument mit verfälschter Marke (Attrappe) ⇒ FEHL mit Dateiname |
+| `smoke-device.sh` C70c | gegen 3.2.40 bzw. `SMOKE_DR_OVERRIDE` ⇒ FEHLT |
+| Werkzeug Inhaltsmarken | je Abbruchgrund aus AKL.4 ⇒ Exit ≠ 0 mit Meldung, keine neue `index.html.gz` |
+| c70c, c70p | Sabotagen aus §8 ⇒ je FEHL; gegen R2 bzw. 1.4.101 ⇒ FEHL |
+
+### 18.9 Risiken und Rückweg (Punkt 6)
+
+| Risiko | Ausschluss | Wenn es doch eintritt |
+|---|---|---|
+| **`immutable` auf einem Inhalt, den die Marke nicht bezeichnet** (Upload-Fenster, Probe U, Einzel-Upload) | **durch Bau:** `immutable` nur bei `h` = `ETag` dieser Antwort (§18.6); c70c, AKG.3, AKG.4 | — |
+| **Dokument oder `sw.js` mit `immutable`** — nähme den einzigen Weg, über den eine Korrektur ankommt | der ESP schliesst beide **selbst** aus, unabhängig von `h` und vom Werkzeug; c70c-Sabotage; Smoketest C70c | ESP-Korrektur; ein so gecachtes Dokument liefe bis `max-age` — deshalb doppelt gesichert |
+| Quelle beim Packen halb geschrieben (R2) — Marke und kaputte `.gz` passen zueinander | R2: stiller Baum vor `app-gz`, wie bisher | mit dem nächsten richtig gepackten Stand geheilt; dazwischen in den betroffenen Browsern fest (§18.7) |
+| Nur der Kopf ändert sich (H4, etwa `Content-Type`) | in R2b ändert sich kein Kopf eines App-Assets (AKL.3); **Regel für später:** jede Änderung am Kopf eines App-Assets kommt mit einer neuen `APP_VERSION` | Rückweg Version (C) |
+| CRC-32-Kollision bei gleichen Grössen | ◐ rund 2⁻³² je Änderung | Rückweg Version (C) |
+| Marke aus einer anderen `.gz` als der hochgeladenen | kein Treffer ⇒ `no-cache` (sichere Richtung); sichtbar als `app_token_miss` und in `install-app.sh --check` | neu bauen und hochladen |
+| Meta-Element oder Verweis ohne Marke | Verhalten (a), sichere Richtung; Zählprüfung im Werkzeug, `--check` | — |
+| Manifest-URL ändert sich mit jeder Version | über `http://` in Chrome nicht installierbar (◐); Kennung über `id`/`start_url` (●) | Ent-22 „nein“ |
+| Service Worker in einem sicheren Kontext: Vorab-Cache trifft versionierte URLs nicht | ◐ harmlos — der Abruf geht ins Netz bzw. in den HTTP-Cache; über `http://` gegenstandslos | — |
+| Verdrängung aus dem Browser-Cache | harmlos: erneuter Abruf, Treffer, `immutable` | — |
+| RAM | +4 Byte; Paket +84 von 250 | — |
+
+**Rückwege, und was sie können:**
+
+| Weg | Wirkung auf neue Antworten | Wirkung auf **vorhandene** Einträge im Browser |
+|---|---|---|
+| **PWA-Release mit neuer `APP_VERSION`** (Ent-19 C) | neue URLs für **alle** versionierten Assets | **umgeht jeden** Eintrag — das Dokument ist `no-cache` und nennt nur noch neue URLs. **Der Rückweg, der immer bleibt** |
+| Inhaltsänderung genau der betroffenen Datei (Ent-19 B) | neue Marke für diese Datei | umgeht den Eintrag dieser Datei |
+| ESP zurück auf R2 (3.2.40) | kein neues `immutable` mehr | **keine** — vorhandene Einträge bleiben bis `max-age`. Das gehört in die Einspielzeilen (AKZ.5) |
+| Im Browser: Website-Daten löschen; am Desktop hartes Neuladen | — | löscht bzw. ersetzt die Einträge dieses einen Browsers |
+
+### 18.10 Prüfung gegen die Architektur-Checkliste (A.6)
+
+**Proper architecture** — Legacy parallel? Wetter-Endpunkte? Restore-Bedingung? Nur `.gz`? Richtige Schicht?
+
+> **Legacy** bleibt parallel und unverändert: `HTTP/1.0`, ohne `ETag`, ohne `immutable`; `h` wirkt nur im Zweig
+> `HTTP/1.1` der App-Assets (AKL.3). **Wetter:** `/api/weather_get_now` und `/api/weather_get_forecast` unberührt, kein
+> Rückbau. **Restore-Bedingung:** STM unberührt. **Nur `.gz`, Grösse > 0:** `immutable` gibt es ausschliesslich in dem
+> Zweig, der Weissliste, `.gz`, Grösse > 0 und gzip-Kopf schon verlangt; der Build hinterlässt nie eine leere
+> `index.html.gz` (AKL.4). **Schicht:** Die Kosten (Verbindung und `accept` je Nachfrage, C65) entstehen am ESP, lassen
+> sich aber nur im Cache des Browsers vermeiden. Deshalb entscheidet der ESP, **ob** ein Eintrag lange gelten darf
+> (Markenprüfung), der Build erzeugt die Marken, und die PWA baut nur URLs. `app.js` umgeht kein ESP-Problem.
+
+**Scalable systems** — STM-Kommandos? UART? Watchdog? Polling? Hauptloop? Hartkodierte Grenzen?
+
+> **STM-Kommandos:** keine. **UART:** keine zusätzliche Zeile; `http_log_request()` protokolliert ohne Query. **Watchdog,
+> Hauptloop:** je Antwort ein Vergleich von höchstens 29 Zeichen, keine Schleife; ein warmes Laden sinkt von 6–8 auf
+> **ein** `accept` — weniger PCBs, `ClientContext` und TIME_WAIT, also weniger Last als heute. **Polling:** unverändert,
+> `/api/*` ist nicht betroffen. **Grenzen:** Die Zahl der Verweise (6) prüft das Werkzeug — ein neuer Verweis lässt den
+> Build scheitern, statt still unversioniert zu bleiben. Eine neue Sprache kommt über das Verzeichnis `i18n/` mit, wie im
+> `Makefile` (`wildcard`). Zwei Parameter von 16; Query ≤ 64 von 255.
+
+**Secure by design** — `innerHTML`? Fremddaten? Credentials? Neue schreibende Endpunkte?
+
+> Kein `innerHTML`; das Meta-Element wird nur gelesen und jede Marke gegen ein festes Muster geprüft. `h` ist Fremdeingabe
+> aus dem LAN: nur verglichen, nie gespeichert, nie ausgegeben (keine Kopfspiegelung, AKL.1). Keine Credentials, kein
+> neuer Endpunkt. **`immutable` verlängert einen Angriff nicht:** Wer über das ungeschützte `app_file_upload` (C61) eine
+> fremde Datei hochlädt, bekommt ohne passendes Dokument kein `immutable`; mit eigenem Dokument wird seine Datei zwar
+> eingefroren, aber nur unter **ihrer** Marke — sobald das richtige Dokument zurückliegt, nennt es sie nicht mehr. Das
+> Dokument selbst ist nie `immutable`.
+
+**Stable & reliable** — Fehler ausgewertet? Leere `catch`? Stille Verwerfungen? Zustand nach Abbruch? Flags?
+
+> **Build:** Jeder Abbruchgrund endet mit Exit ≠ 0 und Meldung; es gibt keinen stillen Rückfall auf ein Dokument ohne
+> Marken (AKL.4). **Laufzeit:** Der Rückfall auf (a) ist gewollt still, aber **gezählt** (`app_token_miss`) und von
+> `install-app.sh --check` beim Namen gemeldet. **`app.js`:** Ein ungültiger Meta-Eintrag führt zur URL ohne `h`, nicht in
+> einen leeren `catch`; c70p prüft beides. **Zustand nach Abbruch:** Ein abgebrochener Upload hinterlässt das
+> Upload-Fenster — durch die Markenprüfung sicher (AKG.4). **Flags:** keine. **Rückfall:** Das `ETag` bleibt in jeder
+> Antwort.
+
+### 18.11 Releases, Einspielen, Rückweg R2b
+
+**R2b** — ESP und PWA, **Firmware zuerst** (DIR-002). Ablauf: Wache; OTA; Smoketest samt Update-Quelle und Block C70c;
+`install-app.sh --check`; `install-app.sh`; `--check` samt Markenprüfung; `check-pwa.sh`.
+
+**Paarungen, alle sicher (✔ SW):**
+
+| ESP | PWA | Verhalten |
+|---|---|---|
+| R2b | R2b | (c) |
+| R2b | 1.4.101 | keine Marke in den URLs ⇒ `no-cache` ⇒ wie R2 |
+| 3.2.40 | R2b | `h` und `v` ohne Wirkung (nur `action` wird gelesen) ⇒ `no-cache` ⇒ wie R2 |
+
+**Rückweg:** ESP auf R2 aus dessen ZIP; PWA auf 1.4.101 mit `install-app.sh` vom Tag von R2. **Die Einspielzeilen sagen
+ausdrücklich:** Der ESP-Rückweg stoppt neue `immutable`, heilt aber keine Einträge, die Browser schon haben; die sind nach
+I-L richtig. Für einen Eintrag, der dennoch falsch wäre, ist der Rückweg ein PWA-Release mit neuer `APP_VERSION`
+(§18.9).
+
+**Versionen (R4):** ESP-Version, `APP_VERSION` und `CACHE_NAME` steigen; die Nummern bestimmt der Lead.

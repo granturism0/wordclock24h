@@ -1,15 +1,17 @@
 # Tasks — Paket 2026-10-15 „ESP-Heap unter PWA-Last, zweiter Hebel“ (C70, C71, C72)
 
 **Erstellt:** 2026-10-15, Stand `72cfda7`; nachgeführt mit den Entscheiden des Nutzers, den Lead-Entscheiden, dem
-Prüfserver-Befund zu `HTTP/1.0`, den Nachträgen **A.2**, **A.3**, **A.4** (Review R1.7), der **Trennmessung** und
-**A.5** (Ursache von C71 belegt, L468, 16.10.2026, `89ec34c`). Momentaufnahme (DIR-006); der lebende Stand steht in
-`BEFUNDE.md`.
-**Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 zur Freigabe** — offen Ent-2 (Lead, vor R2.1),
-**Ent-18** (neu, Nutzer, vor R2), Ent-8, Ent-10, Ent-14 (Tor), Ent-17 (faktisch L7, Freigabe offen), Ent-16 (nur mit
-Ent-18 B). Anforderungen: `requirements.md`; Design: `design.md` (§17).
+Prüfserver-Befund zu `HTTP/1.0`, den Nachträgen **A.2**, **A.3**, **A.4** (Review R1.7), der **Trennmessung**, **A.5**
+(Ursache von C71 belegt, L468, 16.10.2026, `89ec34c`) und **A.6** (C70 Variante (c), nach dem Tor G10.6/G10.7,
+16.10.2026, Stand `2d97259`). Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
+**Status: freigegeben am 15.10.2026 bis aufs Tor; Nachträge A.2 bis A.5 umgesetzt (R1, R1b, R2 eingespielt, L468);
+Nachtrag A.6 zur Freigabe** — offen **Ent-19**, **Ent-20** (Nutzer), **Ent-21** bis **Ent-23** (Lead), alle vor R2b.1.
+Entschieden am 16.10.2026: Ent-2 (T), Ent-17 (L7), Ent-18 (A), **Ent-8 kein Eingriff** (Ent-10, Ent-14 entfallen; **R3
+und G11 entfallen**), **G10.7: (c)** (⇒ R2b, G10b vor T3). Anforderungen: `requirements.md`; Design: `design.md` (§17,
+§18).
 
-**Anker:** Zeilenangaben beziehen sich auf `72cfda7`; in `http.cpp` seit R1 ab rund `:2839` um rund +210 später.
-Massgeblich sind Funktionen und Symbole.
+**Anker:** Zeilenangaben beziehen sich auf `72cfda7`, die aus A.6 auf `2d97259`; in `http.cpp` seit R1 ab rund `:2839`
+um rund +210 später. Massgeblich sind Funktionen und Symbole.
 
 **Pro Task genau ein schreibender Agent** (R3, R4). Nach jedem Task läuft `./tools/guardrails.sh`; erst bei Exit 0
 geht die Schreibberechtigung weiter. Wo „Nutzer“ steht, ist eine Handlung oder ein Entscheid von Dir gemeint, kein
@@ -17,17 +19,22 @@ Schreibzugriff.
 
 **Die Spalte „Hängt ab von“ ist verbindlich, auch wo die Dateien disjunkt sind** (R3b):
 
-1. **Releases, jedes mit eigener Messung:** R1 ⇒ G9 ⇒ **(Ent-18 A: R1b ⇒ G9b)** ⇒ R2 ⇒ G10 ⇒ Tor ⇒ R3 ⇒ G11. Code
-   für das jeweils nächste Release darf entstehen, während gemessen wird; **gebaut und eingespielt** wird erst nach dem
-   Ende der Messung davor.
+1. **Releases, jedes mit eigener Messung:** R1 ⇒ G9 ⇒ **(Ent-18 A: R1b ⇒ G9b)** ⇒ R2 ⇒ G10 ⇒ Tor ⇒ ~~R3 ⇒ G11~~
+   **(entfallen, Ent-8)** ⇒ **R2b ⇒ G10b** (A.6) ⇒ T3. Code für das jeweils nächste Release darf entstehen, während
+   gemessen wird; **gebaut und eingespielt** wird erst nach dem Ende der Messung davor.
 2. **Mit Ent-18 A** laufen die C72-Browser-Sitzungen (G9.3–G9.5) erst auf R1b — als G9b.3–G9b.5. **Mit Ent-18 B**
    laufen sie auf R1, mit Freistellen des Clients vor jeder Sitzung, und L7 geht in R3.
 3. **Ein Schreiber je Datei, nacheinander:** Alle ESP-Tasks eines Releases schreibt **ein** `esp-developer`
    nacheinander; nach jedem misst der Lead „Globale Variablen“ (AKZ.8). Der PWA-Teil R2.3 darf parallel zu R2.1 laufen.
-4. **Eine Messung zur Zeit:** Während G9, G9b, G10, G11 kein OTA, kein Upload ausser Probe U, kein zweiter Browser.
-   **Keine Haltegrenze** (Ent-7). Zu jedem Ruhe- und Tiefstwert die Vermerke (Flash-Schreiben, Wetter-Overlay,
-   **kalter `update_status` seit dem Start und `hc`**).
-5. **Firmware zuerst** (DIR-002): in R2 erst ESP-OTA, dann `install-app.sh`.
+   **In R2b** dürfen R2b.1 (`esp-developer`), R2b.3 (Lead, Werkzeug), R2b.5 (`ui-developer`) und R2b.6
+   (`pwa-developer`) parallel laufen — vier Dateien, keine Abhängigkeit untereinander ausser dem Vertrag aus
+   `design.md` §18.7, den die Spec festlegt. R2b.4 (`Makefile`) erst nach R2b.3.
+4. **Eine Messung zur Zeit:** Während G9, G9b, G10, G10b, G11 kein OTA, kein Upload ausser Probe U, kein zweiter
+   Browser. **Keine Haltegrenze** (Ent-7). Zu jedem Ruhe- und Tiefstwert die Vermerke (Flash-Schreiben,
+   Wetter-Overlay, **kalter `update_status` seit dem Start und `hc`**).
+5. **Firmware zuerst** (DIR-002): in R2 und in R2b erst ESP-OTA, dann `install-app.sh`.
+6. **`make app-gz` nur bei stillem Baum** (R2) — in R2b erzeugt es `index.html.gz` aus mehreren Quellen
+   (`design.md` §18.7).
 
 **Messwerte sofort (L424):** Jeder messende Task hängt sein Ergebnis **vor dem nächsten Task** an das
 Messprotokoll in `BEFUNDE.md` an. Messzeilen schreibt der Lead, Befundnachführungen der `doc-writer` — nie
@@ -62,6 +69,7 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | A.1 | **P1–P12** — **erledigt**; P9 durch die Messungen des Leads beantwortet (A.5: ungelesene Antwort im `_rx_buf` des statischen httpclient), P9b nicht mehr tragend | `firmware-analyst` | Freigabe | Bericht P1–P12 | — | — |
 | A.2 | **Nachträge zur Spec** — **erledigt**: A.2, Trennmessung, A.3 (15.10.2026), A.4, A.5 (16.10.2026) (`design.md` §17); Dir mit dem C71-Teil, AKC.7, Ent-17 und **Ent-18** vorgelegt | `spec-writer` | A.1, 0.5, R1.7, G9.6 | Nachträge freigegeben | — | — |
 | A.3 | **L460 nachprüfen (◐):** im Mitschnitt von L457/L460 (14.10.2026, nach dem OTA auf E4) einen Abruf ohne Rumpflesen suchen — `update_status`, Prüfung auf `app.js.gz`, Zweig `zu-gross` —, der den damaligen Fall ohne Anfrage erklärt; Ergebnis ins Messprotokoll | Lead | — | Messprotokoll | — | — |
+| A.4 | **Nachtrag A.6** (C70 Variante (c)) — geschrieben, liegt zur Freigabe vor (`design.md` §18, `requirements.md` AKL, AKG, Ent-19 bis Ent-23) | `spec-writer` | G10.7 | Nachtrag freigegeben (R2b.0) | — | — |
 
 ---
 
@@ -159,12 +167,52 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | G10.3a | **Grundlinie der Verbindungsfehler:** drei `check-pwa.sh` | Lead | G10.3 | **AKW.6** | — | — |
 | G10.4 | **Auswertung:** C72 einem von M1–M5, **Lücke nach Abzug einer C71-Belegung**; Gesundheit | Lead | G10.3a | **AKW.5** (Teil 1), **AKW.6** | — | — |
 | G10.5 | **C72 nachführen. Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G10.4 | S10, S11 | ☐ | — |
-| G10.6 | **Tor:** Ent-8, Ent-10, Ent-14 einzeln vorlegen; mit Ent-18 B dazu die Freigabe von Ent-17 und Ent-16. Ergibt das Tor keinen Eingriff (und ist L7 schon in R1b): R3 und G11 entfallen | Lead (Entscheid: Nutzer) | G10.5 | **AKW.5** (Teil 2) | — | — |
-| G10.7 | **C70 — weiter oder anhalten** (Variante (c) bzw. `Last-Modified`) | Lead (Entscheid: Nutzer) | G10.1, G10.3 | **AKW.2**, **AKW.4** | — | — |
+| G10.6 | **Tor:** Ent-8, Ent-10, Ent-14 einzeln vorlegen; mit Ent-18 B dazu die Freigabe von Ent-17 und Ent-16. Ergibt das Tor keinen Eingriff (und ist L7 schon in R1b): R3 und G11 entfallen. **Entschieden 16.10.2026: Ent-8 kein Eingriff; Ent-10, Ent-14 entfallen; R3 und G11 entfallen** (L468) | Lead (Entscheid: Nutzer) | G10.5 | **AKW.5** (Teil 2) | — | — |
+| G10.7 | **C70 — weiter oder anhalten** (Variante (c) bzw. `Last-Modified`). **Entschieden 16.10.2026: weiter mit (c)** ⇒ Nachtrag A.6, R2b, G10b | Lead (Entscheid: Nutzer) | G10.1, G10.3 | **AKW.2**, **AKW.4** | — | — |
 
 ---
 
-## Schritt R3 — Release: Eingriff C72 (mit Ent-18 B auch L7)
+## Schritt R2b — Release: C70 Variante (c), versionierte URLs (Nachtrag A.6)
+
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| R2b.0 | **A.6 vorlegen; Ent-19 (Form der Marke) und Ent-20 (Zusage Einzeldatei) entscheiden; A.6 freigeben** | Lead (Entscheid und Freigabe: Nutzer) | A.4 | Ent-19, Ent-20, Freigabe A.6 | — | — |
+| R2b.0a | **Ent-21 (Ort der Ersetzung), Ent-22 (Manifest), Ent-23 (`max-age`) entscheiden** | Lead | R2b.0 | Ent-21, Ent-22, Ent-23 | — | — |
+| R2b.0b | **Nachzug der Spec** (AKL, AKG, `design.md` §18) — **nur** wenn ein Entscheid aus R2b.0 oder R2b.0a von der Empfehlung abweicht; sonst entfällt der Task | `spec-writer` | R2b.0a | Nachzug freigegeben | — | — |
+| R2b.1 | **ESP:** `immutable` nach `design.md` §18.6 — `h` gegen das `ETag` dieser Antwort, Dokument und `sw.js` ausgenommen, `200` und `304` gleich, `h` nie ausgegeben; Zähler `app_immutable`, `app_token_miss` in `device_ready`. Kodierung und Zeilenende von `http.cpp` vorher feststellen. **Prüfstand c70c** im Scratchpad | `esp-developer` | R2b.0b, G10.7 | **AKL.1–AKL.3** am Prüfstand | ☐ | — |
+| R2b.2 | ESP-Teil bauen, RAM sofort ins Messprotokoll | Lead | R2b.1 | **AKZ.8**, **AKL.9** (RAM) | — | — |
+| R2b.3 | **Werkzeug Inhaltsmarken** unter `tools/`: Marken aus den `.gz` (Formel `http_app_etag()`), sechs Verweise in einer Kopie von `index.html` umschreiben, Meta-Element `wc-asset-tokens` füllen, alle Abbruchgründe aus AKL.4, Query-Prüfung aus AKL.5; dazu Eingaben für die Probe-Dokumente U2/U3 (andere Marke, andere `v`). Je Abbruchgrund eine Gegenprobe | Lead | R2b.0b | **AKL.4**, **AKL.5** | ☐ | — |
+| R2b.4 | **`Makefile`, Ziel `app-gz`:** erst alle `.gz` ausser `index.html`, dann das Werkzeug aus R2b.3, dann `index.html.gz` aus der Kopie über eine Zwischendatei — nie eine leere `.gz`; Abbruch bei Exit ≠ 0; `clean-app-gz` unverändert. Kein Bau (R1) — den Lauf fährt der Lead in R2b.8 | `release-engineer` | R2b.3 | **AKL.4** | ☐ | — |
+| R2b.5 | **Markup:** `<meta name="wc-asset-tokens" content="">` im `<head>` von `index.html`, sonst nichts (Ent-21 E2; mit E1 die Platzhalter nach `design.md` §18.7). Kodierung und Zeilenende vorher feststellen | `ui-developer` | R2b.0b | **AKL.7** | ☐ | — |
+| R2b.6 | **PWA:** Meta-Element einmal lesen, Marken nach Muster prüfen; `layout-previews.json` und Sprachdateien mit `?v=<APP_VERSION>&h=<marke>` bzw. ohne gültige Marke `?v=<APP_VERSION>`, beide `cache: "default"`. **Prüfstand c70p nachziehen** | `pwa-developer` | R2b.0b | **AKL.5**, **AKL.6** | ☐ | — |
+| R2b.7 | c70c, c70p ablegen, in S16; Gegenprobe gegen R2 bzw. 1.4.101; Sabotagen; Fallzahlen; c70e, c65b, c65w grün | Lead | R2b.2, R2b.6 | **AKL.1–AKL.3**, **AKL.5**, **AKL.6**, **AKZ.7** | ☐ | — |
+| R2b.8 | **Werkzeuge:** `make app-gz` bei stillem Baum (R2) und Ergebnis prüfen (Fallzahl, Marken gegen die `.gz`); `install-app.sh --check` mit Markenprüfung; `smoke-device.sh` Block C70c; `ladeprobe --erwarte-cache`; `probe-u.sh` U1–U3; `check-pwa` INFO „aus dem Cache“; PWA-Vorschau mit der Quelle (AKL.7); `deploy.sh` mit dem neuen `app-gz` (`-nt`-Prüfung); je Gegenprobe | Lead | R2b.4, R2b.5, R2b.7 | **AKL.7** (Vorschau), **AKL.8**, **AKZ.2 (viii)** | ☐ | — |
+| R2b.9 | **Review R2b** gegen `design.md` §18.10: Dokument und `sw.js` nie `immutable`; `immutable` nur bei Treffer, bei `200` und `304`; `h` nie ausgegeben; Vergleich ohne Heap; Werkzeug ohne stillen Rückfall; jede Query mit `=`; Kodierung und Zeilenenden | `code-reviewer` | R2b.8 | Checkliste | — | ☐ |
+| R2b.10 | ESP-Version, `APP_VERSION`, `CACHE_NAME` | `release-engineer` | R2b.9 | S4 | ☐ | — |
+| R2b.11 | `CHANGELOG.md`; **AKL.9** gegen das Tag von R2; `git status`; `--full`; RAM; `app.js.gz` | Lead | R2b.10 | **AKL.9**, **AKZ.7**, **AKZ.8** | ☐ | — |
+| R2b.12 | `TESTPLAN-PWA.md` (5b: `app_immutable`, `app_token_miss`; Ladeprobe `--erwarte-cache`; Probe U1–U3; Rückweg für Browser; Regel „Kopfänderung an einem App-Asset nur mit neuer `APP_VERSION`“), `BEFUNDE.md` (C70: Träger R2b). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R2b.11 | S9, S10, S11 | ☐ | — |
+| R2b.13 | **Einspielzeilen:** erst OTA, dann `install-app.sh`; Rückweg (ESP auf R2, PWA auf 1.4.101) samt dem Satz, dass der ESP-Rückweg keine Einträge im Browser heilt und der Rückweg dafür eine neue `APP_VERSION` ist | Lead | R2b.11 | **AKZ.5** | — | — |
+| R2b.14 | Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R2b.12, R2b.13 | **AKZ.5** | ☐ | — |
+| R2b.15 | **Einspielen** (Nutzer); Smoketest samt Update-Quelle und C70c, `--check` mit Markenprüfung, `check-pwa.sh` | Lead (Einspielen: Nutzer) | R2b.14 | **AKG.1** | — | — |
+
+## Schritt G10b — Wirkung von (c) (auf R2b)
+
+| # | Task | Agent | Hängt ab von | Abnahme | G | R |
+|---|---|---|---|---|---|---|
+| G10b.1 | **Ladeprobe Chrome `--erwarte-cache`**, drei Läufe, der dritte englisch; Gegenüberstellung mit G10.1 und G9b.3 | Lead | R2b.15 | **AKG.2** | — | — |
+| G10b.2 | **Probe U1** — Datei ersetzt, Version und Dokument gleich | Lead | G10b.1 | **AKG.3** | — | — |
+| G10b.3 | **Probe U2** — neuer Inhalt mit neuer Marke, Dokument zuerst | Lead | G10b.2 | **AKG.4** | — | — |
+| G10b.4 | **Probe U3** — Versionswechsel als Rückweg (mit Ent-19 B statt dessen Rückweg über eine Inhaltsänderung) | Lead | G10b.3 | **AKG.5** | — | — |
+| G10b.5 | **Browser-Sitzungen:** Chrome (`osascript`), Safari auf dem Mac (`osascript`), Safari auf **Deinem iPhone** (`manuell`), je mit Vorwärmen und einem Neuladen in S1 | Lead (Bedienung iPhone: Nutzer) | G10b.4 | **AKG.6** | — | — |
+| G10b.6 | **Gesundheit und Grundlinie:** drei `check-pwa.sh`, Ruhewert 150 s danach, `watch-log.sh --pruefe` | Lead | G10b.5 | **AKG.7** | — | — |
+| G10b.7 | **C70 nachführen** (Wirkung von (c), Safari-Ergebnis). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | G10b.6 | S10, S11 | ☐ | — |
+
+---
+
+## Schritt R3 — Release: Eingriff C72 (mit Ent-18 B auch L7) — **entfallen**
+
+**Entfallen mit Ent-8 = kein Eingriff** (Nutzer, 16.10.2026, Tor G10.6; Zuordnung M5 auf G9b und G10, L468). L7 kam mit
+Ent-18 A in R1b. Die Tasks bleiben zur Nachvollziehbarkeit stehen; keiner von ihnen wird ausgeführt, R3.0 eingeschlossen.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
@@ -181,7 +229,9 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | R3.10 | Einspielzeilen samt Rückweg; Build, ZIP, Rollout, **Commit + Tag + Push** | Lead | R3.9 | **AKZ.5** | ☐ | — |
 | R3.11 | **Einspielen** (Nutzer) | Lead (Einspielen: Nutzer) | R3.10 | **AKZ.5** | — | — |
 
-## Schritt G11 — Wirkung (auf R3)
+## Schritt G11 — Wirkung (auf R3) — **entfallen**
+
+**Entfallen mit R3** (Ent-8). AKE.2 und AKE.3 gelten im Endstand als „entfallen“ mit diesem Grund.
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
@@ -195,22 +245,23 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| T3 | `pwa-tester` Phasen 0–4 und 9; **K30** (Ent-12): Ruhewert `max` < 5'120 oder `low=` < 1'072 ⇒ anhalten | `pwa-tester` | **G11.3**, oder **G10.6** ohne R3 | **AKZ.6** | — | — |
+| T3 | `pwa-tester` Phasen 0–4 und 9 auf dem Endstand **R2b**; **K30** (Ent-12): Ruhewert `max` < 5'120 oder `low=` < 1'072 ⇒ anhalten | `pwa-tester` | **G10b.7** (A.6; vorher: G11.3 oder G10.6 ohne R3) | **AKZ.6** | — | — |
 
 ## Schritt Z — Doku
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** — C70 (AKW.2–AKW.4), C71 und C75 (AKS.1–AKS.4), C72 (AKE.2 oder M4/M5), Beitrag zu C65 | `doc-writer` | T3 | S10, S11 | ☐ | — |
+| Z.1 | `BEFUNDE.md`: Schliessungen **nur mit Beleg** — C70 (AKW.2–AKW.4 und **AKG.2–AKG.6**), C71 und C75 (AKS.1–AKS.4), C72 (M5 auf G9b und G10, Ent-8 — AKE.* entfallen), Beitrag zu C65 | `doc-writer` | T3 | S10, S11 | ☐ | — |
 | Z.2 | Spec-Endstand: jedes Kriterium mit Beleg oder Grund | `spec-writer` | Z.1 | jedes AK belegt oder begründet | — | — |
 
 ---
 
 ## Abschluss
 
-- [ ] Alle Tasks erledigt; R1b/G9b nur mit Ent-18 A; R3, G11 und einzelne Tasks entfallen nur mit dem Entscheid, der
-      sie ausschliesst
+- [ ] Alle Tasks erledigt; R1b/G9b nur mit Ent-18 A; **R3 und G11 entfallen** (Ent-8); R2b.0b nur bei abweichendem
+      Entscheid; einzelne Tasks entfallen nur mit dem Entscheid, der sie ausschliesst
 - [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
-- [ ] Alle 41 Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468)
-- [ ] Releases (R1, mit Ent-18 A R1b, R2, R3 nach dem Tor), je Flash-Umfang und Reihenfolge benannt, je committet,
-      getaggt, gepusht und eingespielt
+- [ ] Alle **57** Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468; AKE.1–AKE.3
+      entfallen mit Ent-8)
+- [ ] Releases (R1, R1b, R2, **R2b**), je Flash-Umfang und Reihenfolge benannt, je committet, getaggt, gepusht und
+      eingespielt
