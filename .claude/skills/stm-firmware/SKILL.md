@@ -55,15 +55,21 @@ schon durch den naechsten Patch — bei F1 ist sie durch den eigenen Eingriff vo
 
 **Jeder Pfad, der länger als 20 s blockiert, ist ein garantierter IWDG-Reset.**
 
-| Pfad | Stelle | Dauer |
+| Pfad | Stelle | Stand 17.10.2026 |
 |---|---|---|
-| `display_test()` | `display.c:6082-6113` | **21 s / 45 s** — RGBW: 15 × `delay_sec(3)` |
-| `remote_ir_learn()` | `remote-ir.c:117` | **unbegrenzt** — `while (1)` auf Tastendruck, zwanzigmal |
-| `display_set_ticker(do_wait=1)` | `display.c:4802-4809` | 0,4 s bis **144 s** |
-| `var_send_buf()` Warten auf Quittung | `vars.c:60-65` | unbegrenzt |
-| `sk6812_refresh()` DMA-Wait | `sk6812.c:453-474` | unbegrenzt |
-| `tables.complete`-Warteschleife | `display.c:4173` | unbegrenzt, bei **jedem** Moduswechsel |
-| `eeprom_waitstates()` | `eeprom.c:38-57` | ~16 ms je Zyklus, gemessen ~24 ms mit I2C (L358); seit C3 ein Zyklus je geänderter Seite |
+| `display_test()` | `display.c:6371-6375`, `:6400-6404` | **behoben:** 30 × `delay_msec(100)` mit `watchdog_reload()`; die 45-s-Blockade gibt es nicht mehr |
+| `remote_ir_learn()` | `remote-ir.c:88-175` | **behoben:** Zeitlimit und `watchdog_reload()` (`:150`); Abbruch mit Logzeile (`:175`) |
+| `display_set_ticker(do_wait=1)` | `display.c:4802-4809` (alte Fundstelle) | 0,4 s bis **144 s**; in dieser Runde **nicht neu geprüft** |
+| `var_send_buf()` Warten auf Quittung | `vars.c:670-700`, `:785` | **begrenzt:** `VAR_SEND_TIMEOUT_SEC` und Reload nach Quittung im 30-s-Budget |
+| `sk6812_refresh()` DMA-Wait | `sk6812.c:470-496` | **weiter unbegrenzt**, ohne Timeout und ohne Reload; eine Logzeile nur beim Warten (`:485`) |
+| `tables.complete`-Warteschleife | `display.c:4310-4348` | **begrenzt:** 15 s gesamt, 3 s ohne Fortschritt, `watchdog_reload()` bei `:4325` |
+| `eeprom_waitstates()` | `eeprom.c:63-81` | Spin auf `eeprom_ms_tick` (16 Ticks) ohne Reload und ohne Timeout; ~16 ms je Zyklus, gemessen ~24 ms mit I2C (L358); seit C3 ein Zyklus je geänderter Seite |
+
+Die Spalte „Stand“ ist am 17.10.2026 am Code nachgeprüft (Quelle: `REVIEW-2026-10-17-hardware-naht.md`,
+Abschnitt 0). **Bis dahin stand hier „21 s / 45 s“, „unbegrenzt“ für Lernen, Quittung und Tabellen — das stimmt
+nicht mehr, weil die Pfade inzwischen den Watchdog bedienen.** Ein Skill, der eine Blockade behauptet, die es nicht
+mehr gibt, schickt die nächste Analyse auf eine tote Spur. Den verbindlichen Bestand der `watchdog_reload()`-Stellen
+führt Guardrail S7.
 
 `delay_sec()` → `delay_msec()` ist reiner Busy-Wait auf SysTick, ohne Reload
 (`delay.c:61-80`).
@@ -72,29 +78,32 @@ Beim IP-Adress-Ticker in der Startsequenz (`main.c:2705-2712`) ergeben 20 Zeiche
 Deceleration ≥ 8 über 22 s ⇒ Reset **genau während der IP-Anzeige**. Das passt
 quantitativ auf die Beobachtung „Hänger exakt bei Anzeige von IP".
 
-## `debug_log_*` übersetzt zu nichts
+## `debug_log_*` übersetzt im Standardbau zu nichts
 
-`debug_log_printf` hängt an `#ifdef DEBUG`, und `DEBUG` wird in `src/**`,
-`CMakeLists.txt` und `cmake/**` **nirgends** definiert. Alle 164 `debug_log_*`-Aufrufe
-sind wirkungslos — am ELF gegengeprüft.
+`debug_log_printf` hängt an `#ifdef DEBUG` (`log/log.h:23-31`). **Im Standardbau ist `DEBUG` nicht gesetzt**, alle
+`debug_log_*`-Aufrufe sind dort wirkungslos — am ELF gegengeprüft. Seit dem 03.10.2026 lässt sich `DEBUG` über die
+CMake-Option `WORDCLOCK_DEBUG` für einen **Diagnosebau** setzen (`CMakeLists.txt:18-26`); der Weg über
+`-DTGT_COMPILE_DEFINITIONS=DEBUG` wirkt nicht (die Variable wird beim Parsen überschrieben, am Fabrikat gemessen
+byteidentisch).
 
-**Folge für die Instrumentierung:** Jede Empfehlung „nimm `debug_log_printf`" ist
-gegenstandslos. Wer messen will, braucht `log_printf` mit Zustandswechsel-Filter (so
-gelöst bei `icon_freeze` in `main.c:3171`) oder einen Zähler, der einmal pro Minute
-ausgegeben wird — **nie** in der ISR.
+**Folge für die Instrumentierung:** Im Fabrikat sind `debug_log_*` stumm. Wer im Standardbau messen will, braucht
+`log_printf` mit Zustandswechsel-Filter (so gelöst bei `icon_freeze` in `main.c`) oder einen Zähler, der einmal pro
+Minute ausgegeben wird — **nie** in der ISR.
 
-## Logging im heissen Pfad blockiert
+## Logging im heissen Pfad
 
-`sk6812.c:476` und `:495` sind **`log_printf`, nicht `debug_log_printf`** — also
-unbedingt, bei jedem Refresh, zusammen ~103 Zeichen. Über `log_vprintf` mit
-blockierendem `esp8266_uart_flush()` sind das gerechnet ~8,9 ms pro Refresh. Bei einem
-Ticker mit 21 Hz ergibt das rund 187 ms Logblockade pro Sekunde.
+**Behoben (17.10.2026 nachgeprüft):** Die zwei unbedingten `log_printf` je Refresh in `sk6812.c` sind weg. Es gibt zwei
+saturierende Zähler (`sk6812.c:139-140`, `:465-468`, `:478-483`) und eine Logzeile nur noch beim Warten (`:485`).
+`esp8266_get_message()` beginnt nur noch mit `log_flush()` (`esp8266.c:423`); der blockierende
+`esp8266_uart_flush()` ist entfernt (Begründung `:425-432`).
 
-Verschärfend: `esp8266_get_message()` beginnt mit `log_flush()` und
-`esp8266_uart_flush()` (`esp8266.c:202-203`). **Der STM liest kein Zeichen vom ESP,
-solange Logausgabe aussteht.** Damit ist die Logmenge direkt an die Empfangslatenz
-gekoppelt — und der RX-Ring ist 256 Byte und verwirft bei Überlauf **still**
-(`uart-driver.h:698`, `if` ohne `else`).
+**Was bleibt:** `log_printf` blockiert bei vollem TX-Ring, spiegelt jede Zeile zusätzlich auf die ESP-UART
+(`log.c:44-45`) und nutzt einen statischen 256-Byte-Puffer (nicht reentrant, `log.c:35`). `log_flush` spinnt bis TX
+leer ist. `dcf77_tick` ruft `log_message` **aus der ISR** (`dcf77.c:255`, `:259`, `:305`). Der RX-Ring der ESP-Brücke
+ist 1024 Byte und verwirft bei Überlauf still, mit Zähler (`uart-driver.h:835-838`).
+
+**Bis 17.10.2026 stand hier** gerechnet ~8,9 ms Logblockade je Refresh und `esp8266_uart_flush()` in
+`esp8266_get_message()`. Beides gilt nicht mehr.
 
 ## Die Wetter-Ticker-Restore-Bedingung nicht vereinfachen
 
