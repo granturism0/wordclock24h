@@ -68,6 +68,10 @@ Fehler, die ihn **zerstören oder unbrauchbar** machen, vor den kosmetischen.
 9. **Gegenprobe Deiner eigenen Prüfung (DIR-014)**: Eine Prüfung, die nie angeschlagen hat, ist
    keine. Belege mindestens einmal, dass Dein Vergleich einen eingebauten Fehler findet.
 
+## Lesbarkeit des Schaltplans (Vorgabe vom 17.10.2026)
+
+Prüf nach `hardware/komponenten/schaltplan-gestaltung.md` und Skill `kicad-schaltplan-lesbarkeit`: Drähte im Block statt Label-Stummel, keine sichtbaren `Net-(…)`-Namen, Versorgung am Bauteil, Blöcke mit Rahmen und Titel, Hinweistexte für Jumper und DNP, keine überlappenden Texte. Sieh den Plan **als Bild** an (`kicad-cli sch export svg/pdf`, Vorschau mit `qlmanage -t`), nicht nur die Zahlen von H9. Ein nicht lesbarer Plan ist ein Befund der Schwere «unbrauchbar».
+
 ## Das Gutachten
 
 Je Befund: **Schwere** (zerstört / unbrauchbar / Qualität), **Stelle** (Bauteil, Pin, Netz),

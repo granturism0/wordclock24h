@@ -92,6 +92,7 @@ Wissen verloren geht.
 | `kicad-schema` | KiCad bei der WordClock: `kicad-cli`, Netzlistenexport, ERC, Vergleich nach Pin-Mengen, V2-Netzliste als Wahrheit | automatisch bei Arbeit an `hardware/**` |
 | `jlcpcb-bauteile` | Bauteilwahl und Stückliste für JLCPCB, Standard-Katalog (Basic) zuerst, LCSC-Nummer je Zeile geprüft | automatisch bei Arbeit an `hardware/**` |
 | `kicad-layout` | PCB-Layout der S3-Platine: Arbeitsweise, feste Orte, JLCPCB-Regeln, Verweis auf die belegten Blätter; startet erst nach Freigabe des Schemas | automatisch bei Arbeit an `hardware/esp32s3/**` |
+| `kicad-schaltplan-lesbarkeit` | Wie ein lesbarer Schaltplan aussieht (Stil des V2-Plans, prüfbare Schwellen H9); verhindert Pläne aus lauter Netz-Referenzen | automatisch bei Arbeit an `hardware/esp32s3/**` |
 | `/doku-nachfuehren` | CHANGELOG, READMEs, Befundkatalog, DIR-006, DIR-018 | bei Bedarf |
 | `stm-firmware` | belegtes Detailwissen zur STM-Firmware und zur Platine | automatisch bei Arbeit an `src/**` |
 

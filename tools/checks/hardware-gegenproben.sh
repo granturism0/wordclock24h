@@ -167,5 +167,10 @@ probe "P17 Pin der LED-Versorgung umgehaengt"            1 "R19 Pin 1 liegt an" 
 probe "P18 zusaetzliches Teil am LDR-Netz"               0 "HOCH      H8 Netz LDR"  env HW_NETLIST="$T/h8_zusatz.xml" $H --nur H8
 probe "P19 Gate-Pull-down R20 faellt weg"                1 "R20 Pin 1 liegt an"     env HW_NETLIST="$T/h8_fehlt.xml" $H --nur H8
 
+# H9 Lesbarkeit: der verworfene Stummel-Entwurf (Commit aa5ff3c) muss durchfallen, der V2-Plan des Nutzers bestehen
+git show aa5ff3c:hardware/esp32s3/WordClock-ESP32S3-V3.kicad_sch > "$T/stummel.kicad_sch" 2>/dev/null
+probe "P20 Stummel-Plan (verworfener Entwurf)"           1 "KRITISCH  H9"           env HW_SCH="$T/stummel.kicad_sch" $H --nur H9
+probe "P21 V2-Plan des Nutzers besteht H9 (Gegenrichtung)" 0 "OK  H9 Lesbarkeit"    env HW_SCH="$V2/WordClock-USB C - STM32F411 - V2.kicad_sch" $H --nur H9
+
 printf '      %d Proben bestanden, %d fehlgeschlagen\n' "$ok" "$schlecht"
 [ "$schlecht" -eq 0 ] || exit 1

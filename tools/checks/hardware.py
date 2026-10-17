@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guardrail S19: Hardware-Entwurf der ESP32-S3-Platine (hardware/esp32s3/).
 
-Acht Pruefungen, alle statisch gegen die Dateien und gegen kicad-cli, keine mit dem Geraet:
+Neun Pruefungen, alle statisch gegen die Dateien und gegen kicad-cli, keine mit dem Geraet:
 
   H1  ERC: keine Fehler, und keine Meldungsart ueber der Baseline (hardware-erc.baseline)
   H2  Netzliste des Schaltplans == Soll-Netzliste (hardware/esp32s3/vergleich.py, nach Pin-Mengen)
@@ -13,6 +13,7 @@ Acht Pruefungen, alle statisch gegen die Dateien und gegen kicad-cli, keine mit 
   H6  V2-Referenz: der gespeicherte Export stimmt noch mit dem V2-Schaltplan ueberein
   H7  Leiterplattenformat 1:1 (sobald ein Layout existiert) und DRC (nicht schlechter als V2)
   H8  LED-/Power-/LDR-Schnittstelle zum LED-Board bauteil- und pinweise gleich V2 (Vorgabe 17.10.2026)
+  H9  Lesbarkeit des Schaltplans: Draehte statt lauter Label-Stummel, keine sichtbaren Net-(...) (17.10.2026)
 
 Jede Pruefung nennt, WIE VIELE Dinge sie betrachtet hat. Eine Pruefung, die nichts sieht, meldet
 sonst OK (DIR-014, BEFUNDE L235). Die Umgebungsvariablen HW_SCH, HW_NETLIST, HW_BOM, HW_PCB, HW_KOMP
@@ -354,7 +355,24 @@ def h8():
     if not errs:
         ok("H8 LED-Board-Schnittstelle: %d Bauteile und %d Netze gegen V2 verglichen, Werte und Pinanschluesse gleich (%d Ausnahmen eingetragen)" % (geprueft, len(LED_NETZE), len(ausn)))
 
-CHECKS = {"H1": h1, "H2": h2, "H3": h3, "H4": h4, "H5": h5, "H6": h6, "H7": h7, "H8": h8}
+# ------------------------------------------------------------------------------------------ H9
+def h9():
+    """Lesbarkeit des Schaltplans (Vorgabe des Nutzers 17.10.2026: kein Plan aus lauter Netz-Referenzen).
+    Schwellen aus dem V2-Plan abgeleitet (V2: Stummelanteil 0,30, 4,12 Draehte je Bauteil, 0 Net-Labels)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import hardware_lesbarkeit as hl
+    if not os.path.exists(SCH): return crit("H9: Schaltplan fehlt: %s" % SCH)
+    m = hl.auswerten(SCH)
+    if m["bauteile"] == 0 or m["komp"] == 0: return crit("H9: der Schaltplan enthaelt keine Bauteile oder Draehte -- Pruefung sieht nichts")
+    bad = 0
+    if m["netlabels"] > 0: crit("H9 %d sichtbare automatische Netznamen 'Net-(...)' im Plan (erlaubt: 0)" % m["netlabels"]); bad += 1
+    if m["stubanteil"] > 0.40: crit("H9 Label-Stummel-Anteil %.2f (%d von %d Drahtgruppen), erlaubt hoechstens 0,40 (V2: 0,30)" % (m["stubanteil"], m["stubs"], m["komp"])); bad += 1
+    if m["draehte_je_bauteil"] < 3.5: crit("H9 nur %.2f Draehte je Bauteil, mindestens 3,5 (V2: 4,12) -- der Plan besteht aus Stummeln, nicht aus Verbindungen" % m["draehte_je_bauteil"]); bad += 1
+    if not bad:
+        ok("H9 Lesbarkeit: %d Bauteile, %d Draehte in %d Gruppen, Stummelanteil %.2f, %.2f Draehte je Bauteil, %d Junctions, 0 'Net-(' im Plan" %
+           (m["bauteile"], m["draehte"], m["komp"], m["stubanteil"], m["draehte_je_bauteil"], m["junctions"]))
+
+CHECKS = {"H1": h1, "H2": h2, "H3": h3, "H4": h4, "H5": h5, "H6": h6, "H7": h7, "H8": h8, "H9": h9}
 if __name__ == "__main__":
     sel = list(CHECKS)
     if "--nur" in sys.argv: sel = sys.argv[sys.argv.index("--nur") + 1].split(",")

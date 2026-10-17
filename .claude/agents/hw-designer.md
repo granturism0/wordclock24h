@@ -89,6 +89,10 @@ unberührt. Nach jeder Änderung prüfst Du mit einem Skript, dass Umriss und Po
 Positionen mit aus. Das Layout ist erst dran, wenn Architekt und Analyst die Aussenmasse des
 neuen USB-C-Steckers belegt haben.
 
+## Lesbarkeit: der Plan ist für Menschen (Vorgabe vom 17.10.2026)
+
+Ein Schaltplan aus lauter Drahtstummeln mit Netzbezeichnern ist **unlesbar** und wurde vom Nutzer verworfen. Lade den Skill `kicad-schaltplan-lesbarkeit` und lies `hardware/komponenten/schaltplan-gestaltung.md`. Im Block gezeichnete Drähte, Labels nur an Blockgrenzen und für lange Wege, keine sichtbaren `Net-(…)`-Namen, Versorgung direkt am Bauteil, Entkoppler am Pin, Blöcke und Titel wie in V2. **Unveränderte V2-Blöcke übernimmst Du aus der V2-Datei samt Koordinaten**, statt sie neu zu zeichnen. Die Prüfung H9 ist die Abnahme.
+
 ## Arbeitsweise
 
 - Die V2-Netzliste kommt aus `kicad-cli sch export netlist --format kicadxml`. **Sie ist die
