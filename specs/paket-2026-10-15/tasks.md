@@ -9,7 +9,8 @@ Entscheide Ent-19 bis Ent-23 gefallen, A.6 freigegeben (16.10.2026).** Entschied
 (L7), Ent-18 (A), **Ent-8 kein Eingriff** (Ent-10, Ent-14 entfallen; **R3 und G11 entfallen**), **G10.7: (c)** (⇒ R2b,
 G10b vor T3), **Ent-19 C** (`?v=<APP_VERSION>&h=<marke>`), **Ent-20 B** (`layout-previews.json` unversioniert),
 **Ent-21 E2**, **Ent-22 ja** (Manifest versioniert), **Ent-23 1 Jahr**. Anforderungen: `requirements.md`; Design:
-`design.md` (§17, §18).
+`design.md` (§17, §18). **Endstand 17.10.2026 (Z.2):** je Task im Abschnitt „Endstand 17.10.2026“ am Ende dieser Datei,
+je Akzeptanzkriterium in `endstand.md`.
 
 **Anker:** Zeilenangaben beziehen sich auf `72cfda7`, die aus A.6 auf `2d97259`; in `http.cpp` seit R1 ab rund `:2839`
 um rund +210 später. Massgeblich sind Funktionen und Symbole.
@@ -84,7 +85,7 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | R1.4 | ESP-Teil bauen, RAM sofort ins Messprotokoll | Lead | R1.3 | **AKZ.8** | — | — |
 | R1.5 | Prüfstände c72i, c71i ablegen, in S16; Gegenproben gegen 3.2.37; Sabotagen; Fallzahlen; c65 grün | Lead | R1.4 | **AKI.1–AKI.4**, **AKZ.7** | ☐ | — |
 | R1.6 | **Werkzeuge:** `smoke-device.sh` mit den I-5-Feldern; `watch-log.sh` mit Heap-Zeile und I-6-Zeilen; je Gegenprobe | Lead | R1.5 | **AKZ.2 (iii), (iv)** | ☐ | — |
-| R1.7 | **Review R1** — Befunde als Nachtrag A.4 eingearbeitet | `code-reviewer` | R1.6 | Checkliste | — | ☐ |
+| R1.7 | **Review R1** — Befunde als Nachtrag A.4 eingearbeitet | `code-reviewer` | R1.6 | Checkliste | — | ☑ |
 | R1.8 | ESP-Version anheben | `release-engineer` | R1.7 | S4 | ☐ | — |
 | R1.9 | `CHANGELOG.md`; **AKZ.4**; `git status`; `--full`; RAM | Lead | R1.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
 | R1.10 | `TESTPLAN-PWA.md` und `BEFUNDE.md` nach R1 (I-5, I-6, Lesart `L = free − blk`, Werkzeuge, K30; Träger; Nebenbefunde). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R1.9 | S9, S10, S11 | ☐ | — |
@@ -148,7 +149,7 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | R2.4 | c70e, c70p ablegen, in S16; Gegenproben; Sabotagen; Fallzahlen | Lead | R2.4a, R2.3 | **AKC.1–AKC.7**, **AKZ.7** | ☐ | — |
 | R2.5 | **Werkzeuge:** `check-pwa` (`304`, Byte, Verbindungsfehler); `smoke-device.sh` mit `app_*`; mit V `- app etag` | Lead | R2.4 | **AKZ.2 (iii), (v)** | ☐ | — |
 | R2.6 | `tools/**` nach Prüfungen auf `HTTP/1.0` durchsuchen | Lead | R2.5 | `design.md` §9 | ☐ | — |
-| R2.7 | **Review R2** | `code-reviewer` | R2.6 | Checkliste | — | ☐ |
+| R2.7 | **Review R2** | `code-reviewer` | R2.6 | Checkliste | — | ☑ |
 | R2.8 | ESP-Version, `APP_VERSION`, `CACHE_NAME` | `release-engineer` | R2.7 | S4 | ☐ | — |
 | R2.9 | `CHANGELOG.md`; **AKZ.4**; `git status`; `--full`; RAM; `app.js.gz` | Lead | R2.8 | **AKZ.4**, **AKZ.7**, **AKZ.8** | ☐ | — |
 | R2.10 | `TESTPLAN-PWA.md`, `BEFUNDE.md` nach R2. **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R2.9 | S9, S10, S11 | ☐ | — |
@@ -188,7 +189,7 @@ Kodierung **und** Zeilenende feststellen (AKZ.3).
 | R2b.6 | **PWA:** Meta-Element einmal lesen, Marken nach Muster prüfen; die Sprachdateien in `ensureLanguageTable()` mit `?v=<APP_VERSION>&h=<marke>` bzw. ohne gültige Marke `?v=<APP_VERSION>`, weiter `cache: "default"`. **`loadLayoutPreviewRowsMap()` nicht anfassen** (Ent-20 B: ohne Query, `cache: "no-cache"`). **Prüfstand c70p nachziehen** | `pwa-developer` | R2b.0b | **AKL.5**, **AKL.6** | ☐ | — |
 | R2b.7 | c70c, c70p ablegen, in S16; Gegenprobe gegen R2 bzw. 1.4.101; Sabotagen; Fallzahlen; c70e, c65b, c65w grün | Lead | R2b.2, R2b.6 | **AKL.1–AKL.3**, **AKL.5**, **AKL.6**, **AKZ.7** | ☐ | — |
 | R2b.8 | **Werkzeuge:** `make app-gz` bei stillem Baum (R2) und Ergebnis prüfen (Fallzahl, Marken gegen die `.gz`, keine Marke für `layout-previews.json`); `install-app.sh --check` mit Markenprüfung; `smoke-device.sh` Block C70c; `ladeprobe --erwarte-cache` (Dokument und `layout-previews.json` auf der Leitung erwartet); `probe-u.sh` U1a, U1b, U2, U3; `check-pwa` INFO „aus dem Cache“; PWA-Vorschau mit der Quelle (AKL.7); `deploy.sh` mit dem neuen `app-gz` (`-nt`-Prüfung); je Gegenprobe | Lead | R2b.4, R2b.5, R2b.7 | **AKL.7** (Vorschau), **AKL.8**, **AKZ.2 (viii)** | ☐ | — |
-| R2b.9 | **Review R2b** gegen `design.md` §18.10: Dokument und `sw.js` nie `immutable`; `immutable` nur bei Treffer, bei `200` und `304`; `h` nie ausgegeben; Vergleich ohne Heap; `layout-previews.json` ohne Marke und weiter `"no-cache"`; Werkzeug ohne stillen Rückfall; jede Query mit `=`; Kodierung und Zeilenenden | `code-reviewer` | R2b.8 | Checkliste | — | ☐ |
+| R2b.9 | **Review R2b** gegen `design.md` §18.10: Dokument und `sw.js` nie `immutable`; `immutable` nur bei Treffer, bei `200` und `304`; `h` nie ausgegeben; Vergleich ohne Heap; `layout-previews.json` ohne Marke und weiter `"no-cache"`; Werkzeug ohne stillen Rückfall; jede Query mit `=`; Kodierung und Zeilenenden | `code-reviewer` | R2b.8 | Checkliste | — | ☑ |
 | R2b.10 | ESP-Version, `APP_VERSION`, `CACHE_NAME` | `release-engineer` | R2b.9 | S4 | ☐ | — |
 | R2b.11 | `CHANGELOG.md`; **AKL.9** gegen das Tag von R2; `git status`; `--full`; RAM; `app.js.gz` | Lead | R2b.10 | **AKL.9**, **AKZ.7**, **AKZ.8** | ☐ | — |
 | R2b.12 | `TESTPLAN-PWA.md` (5b: `app_immutable`, `app_token_miss`; Ladeprobe `--erwarte-cache`; Probe U1a/U1b/U2/U3; `layout-previews.json` bleibt bei (a); Rückweg für Browser; Regel „Kopfänderung an einem App-Asset nur mit neuer `APP_VERSION`“), `BEFUNDE.md` (C70: Träger R2b). **Nicht gleichzeitig mit einer Messzeile** | `doc-writer` | R2b.11 | S9, S10, S11 | ☐ | — |
@@ -260,9 +261,132 @@ Ent-18 A in R1b. Die Tasks bleiben zur Nachvollziehbarkeit stehen; keiner von ih
 ## Abschluss
 
 - [ ] Alle Tasks erledigt; R1b/G9b nur mit Ent-18 A; **R3 und G11 entfallen** (Ent-8); einzelne Tasks entfallen nur mit
-      dem Entscheid, der sie ausschliesst
-- [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll
-- [ ] Alle **57** Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468; AKE.1–AKE.3
-      entfallen mit Ent-8)
+      dem Entscheid, der sie ausschliesst — *Endstand 17.10.2026:* ohne Beleg 0.4, A.3, G9.7, R2.6; mit offenem Teil
+      die Tasks, die im Endstand unten „Teil offen“ tragen
+- [ ] `./tools/guardrails.sh --full` mit Exit 0 vor jedem Release, Ergebnis im Messprotokoll — *Endstand:* nur vor R1
+      im Protokoll (L468); vor R1b, R2 und R2b nicht ausgewiesen (AKZ.7)
+- [x] Alle **57** Akzeptanzkriterien aus `requirements.md` erfüllt oder mit Grund offen (AKZ.9 erfüllt, L468; AKE.1–AKE.3
+      entfallen mit Ent-8) — *Endstand (Z.2):* 34 belegt, 3 entfallen, 20 offen, jedes mit Beleg bzw. dem, was fehlt
+      (`endstand.md`); keines gemessen und verfehlt
 - [ ] Releases (R1, R1b, R2, **R2b**), je Flash-Umfang und Reihenfolge benannt, je committet, getaggt, gepusht und
-      eingespielt
+      eingespielt — *Endstand:* je ZIP, Tag (lokal) und Einspielen belegt; Push und der Rückweg für R1, R1b, R2 nicht
+      ausgewiesen (AKZ.5)
+
+---
+
+## Endstand 17.10.2026
+
+**Z.2, `spec-writer`, Stand `ccdd88b`.** Endstand je Task mit Beleg oder Grund; den Endstand jedes Kriteriums trägt
+`endstand.md` (dieser Ordner). Quelle ist `BEFUNDE.md` in diesem Stand, vor allem das Messprotokoll L468 und T3 (L493),
+dazu `CHANGELOG.md` und `TESTPLAN-PWA.md`.
+
+**Zu den Spalten oben:** **R** ist nachgezogen, wo ein Review belegt ist — R1.7 (Nachtrag A.4), R2.7 (`CHANGELOG.md`
+3.2.40 „ohne Einwände“; Hinweise L479–L481), R2b.9 (bestanden, SOLL-1 bis SOLL-3 in `cf2d03b`). **R1b.4** bleibt ☐:
+Das Review lief (Hinweise L476, L477), eine Freigabe steht nicht im Protokoll. **0.4** bleibt ☐: kein Beleg. **G** bleibt
+überall ☐, weil das Messprotokoll keinen Guardrail-Lauf je Task ausweist (AKZ.7) — die S16-Zahlen je Release stehen in
+der Tabelle unten.
+
+**Endstände der Tasks:** **erledigt** (mit Beleg), **Teil offen** (erledigt, ein verlangter Teil ohne Beleg),
+**offen** (ohne Beleg), **entfallen** (mit Entscheid).
+
+| # | Endstand | Beleg bzw. was fehlt |
+|---|---|---|
+| 0.1 | Teil offen | L468, 0.1; Grösse jeder der 13 Dateien und `httpclient.cpp` fehlen (AKZ.1) |
+| 0.2 | Teil offen | Ladeprobe im Einsatz ab 0.4 (L468); Prüfserver-Gegenprobe 22:21–22:23; Fehlalarm-Korrektur `db47c92` mit Gegenprobe; das Review 0.4 fehlt (AKZ.2 (i)) |
+| 0.3 | Teil offen | `browser-sitzung` in G9b.4, G10.3, G10b.5; P1-Probe `tools/p1-probe.py` mit Attrappen 2/1/0; Messung AKS.4 in G9b.1; Gegenprobe „Uhr nicht erreichbar“ fehlt (AKZ.2 (ii)) |
+| 0.4 | offen | kein Beleg für ein Review der Werkzeuge |
+| 0.5 | erledigt | L468, Trennmessung (AKZ.9) |
+| A.1 | erledigt | Bericht P1–P12 in `design.md` §12 |
+| A.2 | erledigt | Nachträge A.2 bis A.5 in `design.md` §17 |
+| A.3 | offen | im Protokoll nicht ausgeführt; seit L7 ohne Folge (Ruhewert nach dem Start 7'152, G9b.2) |
+| A.4 | erledigt | A.6 freigegeben 16.10.2026 |
+| R1.1 | erledigt | Commit `6231f86`, c72i (AKI.1, AKI.2) |
+| R1.2 | erledigt | L468: statisches RAM 69'060, ±0 gegen E4 |
+| R1.3 | erledigt | Commit `3643464`, c71i (AKI.3) |
+| R1.4 | erledigt | L468: 69'092, +32 gegen E4 |
+| R1.5 | erledigt | c72i 17 und c71i 20 Sabotagen, je gegen den Vorstand FEHL; S16 78/78 |
+| R1.6 | Teil offen | Smoketest mit Gegenprobe `SMOKE_DR_OVERRIDE` (L468); Gegenprobe der Logwache fehlt (AKZ.2 (iv)) |
+| R1.7 | erledigt | Nachtrag A.4 |
+| R1.8 | erledigt | ESP 3.2.38 |
+| R1.9 | Teil offen | `CHANGELOG.md` 3.2.38; `--full` 0 Kritisch (L468); AKZ.4 nicht belegt |
+| R1.10 | erledigt | `TESTPLAN-PWA.md` (I-5-Felder, Lochsumme); `BEFUNDE.md` (L472; Träger an C71, C72) |
+| R1.11 | Teil offen | Einspielzeile „nur der ESP (OTA)“ im `CHANGELOG.md` 3.2.38; Rückweg nicht ausgewiesen (AKZ.5) |
+| R1.12 | Teil offen | ZIP `…-2026-10-16-010338.zip`, Tag `release/3.2.34-3.2.38-1.4.100` (lokal); Release-Commit und Push nicht ausgewiesen |
+| R1.13 | erledigt | AKM.1 |
+| G9.1 | erledigt | AKM.2 |
+| G9.2 | erledigt | AKM.7 |
+| G9.3–G9.5 | entfallen | Ent-18 A: gefahren als G9b.4 auf R1b |
+| G9.6 | erledigt | AKM.5 |
+| G9.7 | offen | Gesundheit des G9-Fensters nicht protokolliert (AKM.6) |
+| G9.8 | erledigt | Zuordnung N5 in L468 |
+| G9.9 | erledigt | C71 mit Ursache, M1/M3, Start 3/4 und der Lücke aus L461 nachgeführt (C71, C72, L461) |
+| G9.10 | erledigt | Ent-17 und Ent-18 A am 16.10.2026 (L468) |
+| R1b.1 | erledigt | Commit `cb01fcd`, c71e (AKS.1); Aufruferliste im Bericht nicht im Repository |
+| R1b.2 | erledigt | statisch 0, Programm 534'480 (`CHANGELOG.md` 3.2.39; L468 nur als Paketsumme) |
+| R1b.3 | erledigt | c71e in S16 79/79, 10 von 10 Sabotagen, gegen `e362d28` FEHL |
+| R1b.4 | Teil offen | Review lief (L476, L477); Freigabe nicht protokolliert |
+| R1b.5 | erledigt | ESP 3.2.39 |
+| R1b.6 | Teil offen | `CHANGELOG.md` 3.2.39; AKZ.4 und `--full` nicht belegt |
+| R1b.7 | erledigt | `TESTPLAN-PWA.md` (Freistellen entfällt, Messung AKS.4); Träger R1b an C71 und C75 |
+| R1b.8 | Teil offen | ZIP `…-080958.zip`, Tag, Commit `d4c5cee`; Rückweg und Push nicht ausgewiesen |
+| R1b.9 | erledigt | L468: 08:14, Smoketest 34/0, `--check` vollständig, `check-pwa` 9/0 |
+| G9b.1 | erledigt | AKS.4, 3/3 |
+| G9b.2 | Teil offen | AKS.2 erledigt; AKS.3 ohne „keine `*.tmp`“ und `update_table_files` |
+| G9b.3 | erledigt | Grundlinie 200'724–223'176 Byte |
+| G9b.4 | Teil offen | AKM.3, AKM.4 erledigt; der eine Vergleichslauf mit Freistellen des Clients ist nicht ausgewiesen |
+| G9b.5 | erledigt | `--pruefe` 10:47, Zuordnung M5 vorläufig |
+| G9b.6 | erledigt | C71, C72, C75 mit „Stand G9b“ nachgeführt |
+| R2.0 | erledigt | Ent-2 T (L468) |
+| R2.1 | erledigt | Commit `aea887c`, c70e |
+| R2.2 | erledigt | 69'140, +48; Paketsumme +80 (L468) |
+| R2.3 | erledigt | Commit `8cf4b07`, c70p |
+| R2.4a | Teil offen | nachgezogen, grün; Fallzahl gegen vorher fehlt (AKC.8) |
+| R2.4 | erledigt | c70e 27 und c70p 7 Sabotagen, gegen den Vorstand rot; S16 81/81 |
+| R2.5 | Teil offen | `check-pwa` `9774642`; Smoketest-Block C70 (`28e63fe`, `3824291`); Gegenproben nicht protokolliert (AKZ.2 (iii), (v)) |
+| R2.6 | offen | kein Beleg |
+| R2.7 | erledigt | Review R2.7; Hinweise L479–L481, H1, H4 |
+| R2.8 | erledigt | ESP 3.2.40, PWA 1.4.101 |
+| R2.9 | Teil offen | `CHANGELOG.md` 3.2.40; RAM; AKZ.4 und `--full` nicht belegt |
+| R2.10 | erledigt | `TESTPLAN-PWA.md` 5b (`app_not_modified`, `app_full`); C70 „Stand R2“ |
+| R2.11 | Teil offen | Reihenfolge „erst OTA, dann App“ im `CHANGELOG.md`; Rückweg nicht ausgewiesen |
+| R2.12 | Teil offen | ZIP `…-113409.zip`, Tag, Commit `820a232`; Push nicht ausgewiesen |
+| R2.13 | erledigt | AKW.1 |
+| G10.1 | Teil offen | AKW.2 erledigt; der Teil AKC.4 (Mehrdauer je Anfrage) fehlt |
+| G10.2 | erledigt | AKW.3 |
+| G10.3 | erledigt | AKW.4 |
+| G10.3a | erledigt | AKW.6 |
+| G10.4 | erledigt | AKW.5 Teil 1, Gesundheit |
+| G10.5 | erledigt | `99cfc6f` |
+| G10.6 | erledigt | Ent-8 kein Eingriff, 16.10.2026 |
+| G10.7 | erledigt | weiter mit (c), 16.10.2026 |
+| R2b.0, R2b.0a, R2b.0b | erledigt | Entscheide und Nachzug am 16.10.2026 |
+| R2b.1 | erledigt | Commit `ffd1184`, c70c |
+| R2b.2 | erledigt | 69'136, ±0 gegen R2; Programm +608 |
+| R2b.3 | erledigt | `tools/app-marken.py` (`9b9698a`), 14 Gegenproben |
+| R2b.4 | erledigt | `Makefile` `057f83d` |
+| R2b.5 | erledigt | `d590c99` |
+| R2b.6 | erledigt | `28281a3` |
+| R2b.7 | erledigt | c70c 339/26, c70p 225/23, gegen den Stand davor rot; S16 82/82 |
+| R2b.8 | Teil offen | Werkzeuge `8524d61`, `373ba2d`, `cbc80ec`, `89acb14`, `cee7087`, `5c6622f`; Gegenproben (AKL.8) und Vorschau (AKL.7) nicht protokolliert |
+| R2b.9 | erledigt | bestanden, SOLL-1 bis SOLL-3 in `cf2d03b`; Hinweise L483, L484 |
+| R2b.10 | erledigt | ESP 3.2.41, PWA 1.4.102 |
+| R2b.11 | Teil offen | `CHANGELOG.md` 3.2.41; RAM; Dateiliste gegen R2 (AKL.9) und `--full` nicht belegt |
+| R2b.12 | erledigt | `TESTPLAN-PWA.md` 5b und Probe U1a bis U3, Regel zur Kopfänderung; C70 „Stand R2b“ |
+| R2b.13 | erledigt | `CHANGELOG.md` 3.2.41: Reihenfolge, Rückweg, Satz zum Browser-Rückweg |
+| R2b.14 | Teil offen | ZIP `…-145745.zip`, Tag, Commit `5f1491e`; Push nicht ausgewiesen |
+| R2b.15 | erledigt | AKG.1 |
+| G10b.1 | Teil offen | AKG.2 ohne Pfadabgleich gegen G10.1 |
+| G10b.2 | Teil offen | AKG.3 ohne Gegenprobe ohne Upload |
+| G10b.3 | Teil offen | AKG.4 ohne Gegenprobe ohne Upload |
+| G10b.4 | Teil offen | AKG.5 ohne Gegenprobe ohne Upload |
+| G10b.5 | Teil offen | AKG.6 ohne Manifest-Vermerk für Safari am Mac |
+| G10b.6 | erledigt | AKG.7 |
+| G10b.7 | erledigt | C70 „Stand G10b“ |
+| R3.0–R3.11 | entfallen | Ent-8 kein Eingriff (16.10.2026) |
+| G11.1–G11.3 | entfallen | mit R3 (Ent-8) |
+| T3 | erledigt | L493, AKZ.6; Phasen 5–8 bleiben beim Nutzer |
+| Z.1 | erledigt | Commit `ccdd88b`: C70, C71, C75 erledigt, C72 ohne Eingriff geschlossen, C65 offen |
+| Z.2 | erledigt | diese Tabelle und `endstand.md` |
+
+**Zählung der Tasks** (Sammelzeilen einzeln: G9.3–G9.5 als 3, R2b.0 bis R2b.0b als 3, R3.0–R3.11 als 12, G11.1–G11.3
+als 3): **113 Tasks — 65 erledigt, 26 Teil offen, 4 offen (0.4, A.3, G9.7, R2.6), 18 entfallen.**
