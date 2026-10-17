@@ -38,8 +38,9 @@ STM32 — und damit der Ort, an dem der grösste Stabilitätshebel liegt.
 ## Was du bei jeder Änderung prüfst
 
 - **Jede unbedingte Debugausgabe pro HTTP-Request geht auf die STM-UART.** Deren
-  RX-Ring ist **256 Byte** und verwirft bei Überlauf **still** (`uart-driver.h:698`,
-  kein `else`-Zweig). Neue Ausgaben pro Request sind kritisch
+  RX-Ring der ESP-Brücke fasst **1'024 Byte** (`src/esp8266/esp8266-uart.c:86`; die oft genannten 256 Byte gelten
+  nur für die Log-UART, `src/log/log-uart.c:68`) und verwirft bei Überlauf **still** (`src/uart/uart-driver.h`, kein
+  `else`-Zweig). Neue Ausgaben pro Request sind kritisch — berichtigt 17.10.2026 nach dem Bericht zu Task 1.1 (C80)
 - Wie viele **STM-Kommandos** erzeugt ein Aufruf deines Endpunkts? `/api/overlay_set`
   erzeugt acht, `/api/overlay_delete` bis zu `8×n`
 - Warteschleifen auf eine STM-Quittung brauchen eine Abbruchbedingung
