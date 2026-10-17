@@ -9,11 +9,12 @@ spec = importlib.util.spec_from_file_location('startprobe', os.path.join(R, 'too
 sp = importlib.util.module_from_spec(spec); spec.loader.exec_module(sp)
 tf = D.datetime(2026, 10, 18, 3, 0, 0).astimezone()
 s = lambda sek: tf + D.timedelta(seconds=sek)
+# Topfnamen und Aufteilung wie die Firmware (heapkarte.cpp, hk_topfnamen): wif srv ota | upd udp ntp | var ovr hlg | stm sys
 GUT = [(s(61), '- heap topf kopf t0=8000 w=60000 n=8572 free0=7840 free1=7144 us=37'),
        (s(62), '- heap topf 1/4 wif=16/16@6993 srv=-192/800@1995 ota=0/0@-'),
-       (s(63), '- heap topf 2/4 ntp=0/0@- udp=0/0@- wet=0/0@-'),
-       (s(64), '- heap topf 3/4 cac=0/0@- log=0/0@- stm=0/0@-'),
-       (s(65), '- heap topf 4/4 sys=-520/520@5005 brk=0/0@-'),
+       (s(63), '- heap topf 2/4 upd=0/0@- udp=0/0@- ntp=0/0@-'),
+       (s(64), '- heap topf 3/4 var=0/0@- ovr=0/0@- hlg=0/0@-'),
+       (s(65), '- heap topf 4/4 stm=0/0@- sys=-520/520@5005'),
        (s(66), '- heap karte S ent=3/2 fsum=7840 gross=229+7104 zweit=129+296 davor=166+56 danach=- ms=110'),
        (s(67), '- heap karte X ent=3/2 fsum=7144 gross=229+6848 zweit=129+296 davor=166+504 danach=1085+4032 ms=5005'),
        (s(68), '- heap marken X tcp=6:10/- lst=2 wet=38 dhcp=34 eep=42 udp=14/18,22/26,30/-'),
