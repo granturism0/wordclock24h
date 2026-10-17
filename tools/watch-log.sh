@@ -281,6 +281,9 @@ while :; do
   [ -n "$neu_k" ] && printf '%s\n' "$neu_k" >> "$GESEHEN_K"
   exc=$(printf '%s' "$neu_k" | grep -ac 'Exception (29)')
   rst=$(printf '%s' "$neu_k" | grep -ac 'rst cause')
+  # L497 (Nachtrag 17.10.2026 09:50): Ein ESP-Neustart setzt http_write_lost_failed auf 0. Kommt danach ohne
+  # Zwischenzeile ein Verlust mit fail=1, ist das ein Anstieg 0 -> 1 -- nicht "unveraendert" gegen den Stand davor.
+  [ "$rst" -gt 0 ] && wfail_vorher=0
   wdt=$(printf '%s' "$neu_k" | grep -aci 'wdt reset')
 
   # NUR aus der letzten diag-Zeile lesen, nicht aus dem ganzen Mitschnitt.
