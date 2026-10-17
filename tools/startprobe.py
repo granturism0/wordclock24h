@@ -2,7 +2,7 @@
 """Startprobe zu C80 (BEFUNDE L499; Spec specs/paket-2026-10-17-c80, AKV.1): Haengt die bleibende Heap-Zerstueckelung
 am fruehen Verkehr nach dem Start?
 
-Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>]      z. B. ABE  oder  E8,E12,R  (Reihenfolge = Lauffolge)
+Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>] [--folge-ab <s>]   z. B. ABE  oder  E8,E12,R  (Reihenfolge = Lauffolge)
   A = local_esp_restart, sofort abfragen     B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
   D = OTA auf dasselbe Abbild, sofort        C = OTA auf dasselbe Abbild, ruhig bis +30 s
   E = local_esp_restart; bis zur Startzeile NUR den Mitschnitt lesen, keine Verbindung zur Uhr; danach genau EINE
@@ -13,7 +13,8 @@ Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>]      z. B. ABE  oder  E8,
 "Sofort" (A, D): device_ready alle 0,3 s, bis das Geraet einmal NICHT antwortet (alte Firmware weg) und danach
 antwortet; mitgeschrieben werden die Zahl der Versuche und aus dem Rumpf der ersten Antwort http_accept_dead,
 tcp_now_pending, tcp_now_unclaimed, tcp_now_list.
-Danach in allen Armen ab +30 s dieselbe Folge smoke-device.sh, check-pwa.sh; Ruhewert ist die erste Heap-Zeile
+Danach in allen Armen ab +30 s (--folge-ab, Stufe 2 der Spec C80: 150 nach Ent-C5) dieselbe Folge smoke-device.sh,
+check-pwa.sh; Ruhewert ist die erste Heap-Zeile
 >= 150 s danach mit tcp=0/0/0/0/0/0. Gemessen 17.10.2026 auf ESP 3.2.41: A und D max 6'600, B und C 7'104 (3/3).
 
 Exit 0 alle Laeufe vollstaendig (und mit --abnahme: kein Lauf unter dem Soll); 1 ein Lauf unvollstaendig, ungueltig
@@ -120,7 +121,7 @@ def lauf(nr, arm):
     logsh('mark', f'startprobe: Lauf {nr} Arm {arm}')
     t0 = jetzt()
     log(f'== Lauf {nr}, Arm {arm} ({"OTA" if ota else "Neustart"}, '
-        f'{"sofort" if sofort else ("RST-Verbindung" if rst else "eine Anfrage") + " nach der Startzeile" + (f" +{verzug} s" if verzug else "") if einmal else "ab +30 s"})')
+        f'{"sofort" if sofort else ("RST-Verbindung" if rst else "eine Anfrage") + " nach der Startzeile" + (f" +{verzug} s" if verzug else "") if einmal else f"ab +{FOLGE_AB} s"})')
     threading.Thread(target=get, args=('/api/remote_esp_update' if ota else '/api/local_esp_restart', 30),
                      daemon=True).start()
     if sofort:
@@ -145,7 +146,8 @@ def lauf(nr, arm):
                 e['fehlt'].append('Rumpf der ersten Antwort nicht lesbar')
     tf = None
     while tf is None and (jetzt() - t0).total_seconds() < FRIST:
-        time.sleep(2)
+        # Arm E/R: schneller nachsehen, damit die eine Anfrage sicher unter 3,2 s nach der Startzeile liegt (N2)
+        time.sleep(0.5 if einmal else 2)
         z = [ts(l) for l in suche('(FIRMWARE ') if ts(l) and ts(l) > t0]
         if z:
             tf = z[0]
@@ -164,10 +166,12 @@ def lauf(nr, arm):
         e['eine_anfrage_s'] = round((jetzt() - tf).total_seconds(), 1)
         if not ok:
             e['fehlt'].append('Verbindung fuer den RST-Abbruch' if rst else 'Antwort auf die eine Anfrage')
-        grenze = (verzug + 3) if verzug else 5.9
-        if e['eine_anfrage_s'] > grenze:
+        grenze = (verzug + 3) if verzug else 3.2   # N2: Arm E gilt nur mit der Anfrage bis 3,2 s (vorher 5,9 s)
+        if e['eine_anfrage_s'] < 0:
+            e['ungueltig'] = f'eine Anfrage {e["eine_anfrage_s"]} s VOR der Startzeile'
+        elif e['eine_anfrage_s'] > grenze:
             e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze {grenze} s)'
-    while (jetzt() - tf).total_seconds() < 30:
+    while (jetzt() - tf).total_seconds() < FOLGE_AB:
         time.sleep(1)
     if einmal:
         # AKV.2: vom Werkzeug geprueft -- zwischen dem Neustart (rst cause) und der Startzeile keine Anfrage an die Uhr,
@@ -209,6 +213,15 @@ def main():
     global HOST
     a = sys.argv[1:]
     soll = None
+    global FOLGE_AB
+    if '--folge-ab' in a:
+        i = a.index('--folge-ab')
+        try:
+            FOLGE_AB = int(a[i + 1])
+        except (IndexError, ValueError):
+            print(__doc__.split('\n\n')[1], file=sys.stderr)
+            return 2
+        del a[i:i + 2]
     if '--abnahme' in a:
         i = a.index('--abnahme')
         try:
@@ -225,7 +238,7 @@ def main():
         print(__doc__.split('\n\n')[1], file=sys.stderr)
         return 2
     HOST = host_lesen()
-    log(f'=== Startprobe {a[0]}' + (f' --abnahme {soll}' if soll is not None else '') + f', Mitschrift {MITSCHRIFT}')
+    log(f'=== Startprobe {a[0]}' + (f' --abnahme {soll}' if soll is not None else '') + f', Folge ab +{FOLGE_AB} s, Mitschrift {MITSCHRIFT}')
     erg = [lauf(n + 1, arm) for n, arm in enumerate(arme)]
     logsh('mark', 'startprobe: Ende')
     fehl = 0
@@ -246,5 +259,6 @@ def main():
 
 
 HOST = None
+FOLGE_AB = 30
 if __name__ == '__main__':
     sys.exit(main())
