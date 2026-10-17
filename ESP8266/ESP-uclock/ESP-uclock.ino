@@ -66,6 +66,7 @@
 #include "tables.h"
 #include "eepromdata.h"
 #include "version.h"
+#include "heapkarte.h"                                                  // C80: Messinstrument hinter ESP_HEAP_MAP, befristet
 
 
 /* C8 (Paket 2026-10-13, design.md 7, Ent-10): 260 = "LOG " (4) + die laengste Logzeile des STM (255 Zeichen) + Nullbyte.
@@ -618,6 +619,10 @@ static uint32_t       esp_uart_overruns = 0;
 #define ESP_HEAP_LOG                1                                       // 0 = aus. Rueckbau zu L175, siehe oben
 #define ESP_HEAP_LOG_INTERVAL       60000UL                                 // msec
 
+#if ESP_HEAP_MAP && ! ESP_HEAP_LOG                                          // C80 (AKI.7): die Karte m haengt an der Heap-Zeile
+#error "ESP_HEAP_MAP 1 (heapkarte.h) braucht ESP_HEAP_LOG 1"
+#endif
+
 #if ESP_HEAP_LOG
 // Lokaler Prototyp, zwingend: arduino-cli erzeugt fuer jede .ino-Funktion ohne eigenen
 // Prototyp selbst einen - und zwar OHNE static (ESP-uclock.ino.cpp). "extern deklariert,
@@ -657,6 +662,9 @@ esp_heap_log (void)
         char            tcp[32];
         unsigned long   heap_free = (unsigned long) ESP.getFreeHeap ();
         unsigned long   heap_max  = (unsigned long) ESP.getMaxFreeBlockSize ();
+#if ESP_HEAP_MAP
+        heapkarte_heapzeile ();                                             // C80: Karte m im selben Fenster ohne CPU-Abgabe
+#endif                                                                      // wie free=/max= - gross = max, fsum = free (AKI.3)
         unsigned long   heap_low  = (unsigned long) heap_low_line_take ();
 
         if (heap_max < heap_low)
@@ -1540,20 +1548,41 @@ var_sync_check (void)
 
 /*----------------------------------------------------------------------------------------------------------------------------------------
  * main loop
+ *
+ * C80 (specs/paket-2026-10-17-c80, design.md 4.3 N2): Jeder Aufruf bzw. Block liegt in genau einem Topf zwischen
+ * HEAPKARTE_VOR () und HEAPKARTE_NACH (); die Zeit zwischen zwei Durchlaeufen ist der Topf sys. Gemessen wird nur im
+ * Startfenster W (60 s ab dem ersten Durchlauf), danach kostet jeder Messpunkt einen Bittest. Reihenfolge und Aufrufe
+ * sind unveraendert. Zwischen NACH und dem naechsten VOR steht nichts: Ein Aufruf dort laege in keinem Topf und risse
+ * die Summenprobe. Mit ESP_HEAP_MAP 0 (heapkarte.h) sind alle Makros leer. Rueckbau nach Stufe 3 (Ent-C4).
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 void
 loop() 
 {
+    HEAPKARTE_ANFANG ();                                                    // C80: sys abschliessen, Karten S/F/X/T pruefen
     wifi_check_if_started ();
+    HEAPKARTE_NACH (HK_TOPF_WIF);
+    HEAPKARTE_VOR ();
     http_server_loop ();
+    HEAPKARTE_NACH (HK_TOPF_SRV);
+    HEAPKARTE_VOR ();
     http_ota_restart_poll ();                                               // Rueckfall-Neustart nach lokalem Upload (Review E.6)
+    HEAPKARTE_NACH (HK_TOPF_OTA);
+    HEAPKARTE_VOR ();
     update_cache_poll ();                                                   // E3 (C65): Release Notes und wc-list.txt ins LittleFS, nie in einer Anfrage
+    HEAPKARTE_NACH (HK_TOPF_UPD);
+    HEAPKARTE_VOR ();
     udp_server_loop ();
+    HEAPKARTE_NACH (HK_TOPF_UDP);
+    HEAPKARTE_VOR ();
     ntp_poll_time ();                                                       // poll NTP
+    HEAPKARTE_NACH (HK_TOPF_NTP);
 
+    HEAPKARTE_VOR ();
     var_sync_check ();                                                  // Weg B (L231, L255): Vollabgleich nachfordern, falls er ausblieb
+    HEAPKARTE_NACH (HK_TOPF_VAR);
 
+    HEAPKARTE_VOR ();
     if (Serial.hasOverrun () && esp_uart_overruns < 0xFFFFFFFFUL)           // E.3: zuerst abfragen (loescht das
     {                                                                       // Merkmal), dann saettigend zaehlen
         static unsigned long    ovr_last    = 0;                            // L408: Drosselung der Zeile "- ovr #"
@@ -1574,12 +1603,18 @@ loop()
             stm32_log_append (line);                                        // Mitschnitt UND /api/stm32_log (L185)
         }
     }
+    HEAPKARTE_NACH (HK_TOPF_OVR);
 
 #if ESP_HEAP_LOG
+    HEAPKARTE_VOR ();
     esp_heap_log ();                                                    // NACH der Ueberlaufabfrage (L408): ovr= zeigt den aktuellen Stand
+    HEAPKARTE_AUSGABE ();                                                   // C80: nie in W, hoechstens eine Zeile je Sekunde,
+    HEAPKARTE_NACH (HK_TOPF_HLG);                                           // nie im Durchlauf einer Heap-Zeile
 #endif
 
+    HEAPKARTE_VOR ();
     stm_bridge_poll ();                                                     // B55: der Rumpf steht unveraendert darunter
+    HEAPKARTE_NACH (HK_TOPF_STM);
 }
 
 /*----------------------------------------------------------------------------------------------------------------------------------------

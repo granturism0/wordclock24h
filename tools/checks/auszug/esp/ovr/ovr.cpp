@@ -26,6 +26,12 @@ static uint32_t heap_low_line_take (void) { return 4294967295u; }   /* E3 I-1: k
 static size_t tcp_now_tcp_field (char * b, size_t n) { return n ? (size_t) snprintf (b, n, "tcp=0/0/0/0/0/0") : 0; }
 static uint16_t http_no_request_timeouts_get (void) { return 0; }
 #define HEAP_ZUSATZ " tcp=0/0/0/0/0/0 nrt=0"
+/* C80 (Paket 2026-10-17-c80, Release I): loop () traegt die Messpunkte des Instruments (heapkarte.h). Hier ohne
+ * Wirkung, wie mit ESP_HEAP_MAP 0 - Gegenstand dieses Pruefstands ist ovr=. */
+#define HEAPKARTE_ANFANG()          do { } while (0)
+#define HEAPKARTE_VOR()             do { } while (0)
+#define HEAPKARTE_NACH(t)           do { } while (0)
+#define HEAPKARTE_AUSGABE()         do { } while (0)
 #include "ovr_var.inc"
 #include "ovr_heap.inc"
 static void poll (void)

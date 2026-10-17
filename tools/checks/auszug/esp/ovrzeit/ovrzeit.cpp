@@ -27,6 +27,12 @@ static size_t tcp_now_tcp_field (char * b, size_t n) { return n ? (size_t) snpri
 static uint16_t http_no_request_timeouts_get (void) { return 0; }
 #define HEAP_ZUSATZ " tcp=0/0/0/0/0/0 nrt=0"
 static void var_sync_check (void) {}
+/* C80 (Paket 2026-10-17-c80, Release I): loop () traegt die Messpunkte des Instruments (heapkarte.h). Hier ohne
+ * Wirkung, wie mit ESP_HEAP_MAP 0 - Gegenstand dieses Pruefstands ist ovr=. */
+#define HEAPKARTE_ANFANG()          do { } while (0)
+#define HEAPKARTE_VOR()             do { } while (0)
+#define HEAPKARTE_NACH(t)           do { } while (0)
+#define HEAPKARTE_AUSGABE()         do { } while (0)
 #include "z_var.inc"
 #include "z_heap.inc"
 static int fails = 0, faelle = 0;

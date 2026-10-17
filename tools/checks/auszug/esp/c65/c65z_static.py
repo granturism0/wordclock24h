@@ -17,7 +17,9 @@ for f in dateien:
         if re.search(r'#\s*include\s*[<"]lwip/priv/tcp_priv\.h[>"]', l): priv.append(f)
 print(f"c65z statisch ({bez}): {len(dateien)} Dateien, {len(aufrufe)} Aufrufe von tcp_tw_limit (): " + ', '.join(f"{a}:{b + 1}" for a, b in aufrufe) + f"; tcp_priv.h in {priv}")
 if len(aufrufe) != 2: fails.append(f"erwartet genau 2 Aufrufe, gefunden {len(aufrufe)}")
-if priv != ['http.cpp']: fails.append(f"privater lwIP-Kopf nicht genau in http.cpp: {priv}")
+# C80 (Paket 2026-10-17-c80, design.md 9 N2): das befristete Instrument heapkarte.cpp liest die Listen ebenfalls -
+# Ausnahme von Ent-32 bis zum Rueckbau (Ent-C4); danach wieder genau http.cpp
+if sorted(priv) not in (['http.cpp'], ['heapkarte.cpp', 'http.cpp']): fails.append(f"privater lwIP-Kopf nicht genau in http.cpp: {priv}")
 H = code('http.cpp')
 def body(L, kopf):
     i = next((k for k, l in enumerate(L) if l.startswith(kopf)), None)

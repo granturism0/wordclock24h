@@ -27,6 +27,7 @@
 #include "stm32flash.h"
 #include "tables.h"
 #include "eepromdata.h"
+#include "heapkarte.h"                                                      // C80: ESP_HEAP_MAP, http_accept_count_get ()
 
 #define WCLOCK24H   1
 
@@ -819,6 +820,18 @@ http_no_request_timeouts_get (void)                                     // R1.1 
 {
     return http_no_request_timeouts;
 }
+
+#if ESP_HEAP_MAP
+/* C80 (specs/paket-2026-10-17-c80, design.md 4.4 N2): Karte F braucht den Annahmezaehler - "ein Durchlauf ohne neue
+ * Annahme nach der ersten" laesst sich damit direkt pruefen. Nur lesend; der Server bleibt, wie er ist. Rueckbau mit
+ * dem Instrument (heapkarte.h).
+ */
+uint16_t
+http_accept_count_get (void)
+{
+    return http_accept_count;
+}
+#endif
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------
  * display flags:

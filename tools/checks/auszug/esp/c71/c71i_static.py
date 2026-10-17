@@ -80,7 +80,7 @@ for f in ('update_cache_i6_put (', 'update_cache_heap_mark (', 'update_cache_vor
     i6 += body(Hs, f)
 chk('S5 kein String in den I-6-Funktionen', i6 and not any(re.search(r'\bString\b', l) for l in i6))
 chk('S5 keine I-6-Zeile enthaelt "fehlgeschlagen"', not any('fehlgeschlagen' in l for l in i6))
-chk('S5 kein #include des privaten Kopfs umm_local.h', not any(re.search(r'^\s*#\s*include\s*[<"][^>"]*umm_local\.h', roh(f), re.M) for f in os.listdir(q) if f.endswith(('.cpp', '.h', '.ino'))))
+chk('S5 kein #include des privaten Kopfs umm_local.h', not any(re.search(r'^\s*#\s*include\s*[<"][^>"]*umm_local\.h', roh(f), re.M) for f in os.listdir(q) if f.endswith(('.cpp', '.h', '.ino')) and f != 'heapkarte.cpp'))   # C80: Ent-C1 = A, befristet
 chk('S6 update_cache_heap_mark (): ESP.getHeapStats (blk und frag aus einem Gang)', any(re.search(r'ESP\.getHeapStats\s*\(', l) for l in body(H, 'update_cache_heap_mark (')))
 sl = body(H, 'http_server_loop (void)')
 a = idx(sl, r'heap_low_note\s*\(\s*HEAP_LOW_PATH_ACCEPT\s*\)')
