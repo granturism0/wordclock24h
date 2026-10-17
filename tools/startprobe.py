@@ -2,7 +2,7 @@
 """Startprobe zu C80 (BEFUNDE L499; Spec specs/paket-2026-10-17-c80, AKV.1): Haengt die bleibende Heap-Zerstueckelung
 am fruehen Verkehr nach dem Start?
 
-Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>] [--folge-ab <s>]   z. B. ABE  oder  E8,E12,R  (Reihenfolge = Lauffolge)
+Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>] [--folge-ab <s>] [--instrument]   z. B. ABE  oder  E8,E12,R
   A = local_esp_restart, sofort abfragen     B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
   D = OTA auf dasselbe Abbild, sofort        C = OTA auf dasselbe Abbild, ruhig bis +30 s
   E = local_esp_restart; bis zur Startzeile NUR den Mitschnitt lesen, keine Verbindung zur Uhr; danach genau EINE
@@ -16,6 +16,12 @@ tcp_now_pending, tcp_now_unclaimed, tcp_now_list.
 Danach in allen Armen ab +30 s (--folge-ab, Stufe 2 der Spec C80: 150 nach Ent-C5) dieselbe Folge smoke-device.sh,
 check-pwa.sh; Ruhewert ist die erste Heap-Zeile
 >= 150 s danach mit tcp=0/0/0/0/0/0. Gemessen 17.10.2026 auf ESP 3.2.41: A und D max 6'600, B und C 7'104 (3/3).
+
+--instrument (ab Release I der Spec C80, AKI.10/AKI.13/AKM.2 N2): sammelt je Lauf die Zeilen "- heap topf/karte/
+marken" in die Mitschrift und prueft das Zaehlsoll (1 x topf kopf, 4 x topf, 1 x karte S, je 0/1 x F, X, T, genau 1 x
+marken, je Heap-Zeile nach W 1 x karte m), dass vor dem Ende von W keine Zeile kommt, kein abbruch=, die Summenprobe
+(Summe der Nettowerte = free1 - free0) und -- bei --folge-ab >= 100 -- dass jede Zeile auch ueber /api/stm32_log
+textgleich ankommt (Ring 32 Zeilen, gelesen 5 s vor der Folge). Fehlt eine, endet das Werkzeug mit Exit 1.
 
 Exit 0 alle Laeufe vollstaendig (und mit --abnahme: kein Lauf unter dem Soll); 1 ein Lauf unvollstaendig, ungueltig
 oder unter dem Soll -- die Meldung nennt Lauf und Grund; 2 Aufruf- oder Werkzeugfehler.
@@ -111,6 +117,63 @@ def rst_verbindung():
         s.close()
 
 
+W_MS = 60000                 # Startfenster W der Firmware (Ent-C5 = A)
+RX_INSTR = re.compile(r'- heap (topf|karte|marken)\b.*')
+
+
+def instrument_zeilen(tf, bis):
+    """Zeilen des Instruments aus dem Mitschnitt zwischen Startzeile und bis, ohne die Klammern der ESP-Zeilen."""
+    z = logsh('since', tf.strftime('%Y-%m-%dT%H:%M'), 12000)
+    out = []
+    for l in z:
+        x = ts(l)
+        if x and tf <= x <= bis:
+            m = RX_INSTR.search(l)
+            if m:
+                out.append((x, m.group(0).rstrip(')').rstrip()))
+    return out
+
+
+def instrument_pruefen(e, tf, zeilen, heapzeilen, ring, bis):
+    """AKI.10/AKI.13 N2 am Lauf: Zaehlsoll, Ende von W, abbruch=, Summenprobe, Ring. Traegt Fehler in e['fehlt'] ein."""
+    txt = [s for _, s in zeilen]
+    e['instrument'] = txt
+    w_ende = tf + D.timedelta(milliseconds=W_MS)
+    zu_frueh = [s for x, s in zeilen if x < w_ende]
+    if zu_frueh:
+        e['fehlt'].append(f'{len(zu_frueh)} Zeile(n) des Instruments vor dem Ende von W, z. B. {zu_frueh[0][:60]!r}')
+    def zahl(rx):
+        return sum(1 for s in txt if re.match(rx, s))
+    for name, rx, soll in (('topf kopf', r'- heap topf kopf ', (1,)), ('topf i/4', r'- heap topf \d/4 ', (4,)),
+                           ('karte S', r'- heap karte S ', (1,)), ('karte F', r'- heap karte F ', (0, 1)),
+                           ('karte X', r'- heap karte X ', (0, 1)), ('karte T', r'- heap karte T ', (0, 1)),
+                           ('marken', r'- heap marken [XW] ', (1,))):
+        n = zahl(rx)
+        if n not in soll:
+            e['fehlt'].append(f'Zaehlsoll {name}: {n} (Soll {"/".join(map(str, soll))})')
+    e['nicht_eingetreten'] = [k for k in 'FXT' if zahl(rf'- heap karte {k} ') == 0]
+    # je Heap-Zeile ab dem Ende von W (die Zeile am Rand eingeschlossen) eine Karte m; das Fenster haengt am Ende des
+    # Laufs, nicht an der letzten Zeile des Instruments -- sonst sieht die Pruefung eine fehlende letzte Karte nicht
+    hz = [x for x in heapzeilen if w_ende - D.timedelta(seconds=1) <= x <= bis - D.timedelta(seconds=15)]
+    nm = sum(1 for x, s in zeilen if s.startswith('- heap karte m ') and x > w_ende)
+    if nm < len(hz):
+        e['fehlt'].append(f'karte m: {nm} fuer {len(hz)} Heap-Zeile(n) nach W')
+    ab = [s for s in txt if 'abbruch=' in s]
+    if ab:
+        e['fehlt'].append(f'abbruch= im Betrieb: {ab[0][:80]!r}')
+    kopf = [re.search(r'free0=(\d+) free1=(\d+)', s) for s in txt if s.startswith('- heap topf kopf ')]
+    netto = [int(v) for s in txt if re.match(r'- heap topf \d/4 ', s) for v in re.findall(r'\w+=(-?\d+)/\d+@', s)]
+    if kopf and kopf[0]:
+        soll = int(kopf[0].group(2)) - int(kopf[0].group(1))
+        e['summenprobe'] = f'{sum(netto)} gegen free1-free0 {soll}'
+        if sum(netto) != soll:
+            e['fehlt'].append(f'Summenprobe reisst: Summe der Toepfe {sum(netto)}, free1 - free0 = {soll}')
+    if ring is not None:
+        fehlt_ring = [s for s in txt if s not in ring]
+        if fehlt_ring:
+            e['fehlt'].append(f'{len(fehlt_ring)} Zeile(n) nicht textgleich ueber /api/stm32_log, z. B. {fehlt_ring[0][:60]!r}')
+
+
 def lauf(nr, arm):
     verzug = int(arm[1:]) if len(arm) > 1 else None
     arm0 = arm[0]
@@ -171,6 +234,17 @@ def lauf(nr, arm):
             e['ungueltig'] = f'eine Anfrage {e["eine_anfrage_s"]} s VOR der Startzeile'
         elif e['eine_anfrage_s'] > grenze:
             e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze {grenze} s)'
+    ring = None
+    if INSTRUMENT and FOLGE_AB >= 100:
+        while (jetzt() - tf).total_seconds() < FOLGE_AB - 5:
+            time.sleep(1)
+        r = get('/api/stm32_log', 10)
+        try:
+            ring = json.loads(r)['lines'] if r else None
+        except Exception:
+            ring = None
+        if ring is None:
+            e['fehlt'].append('/api/stm32_log fuer den Vergleich nicht lesbar')
     while (jetzt() - tf).total_seconds() < FOLGE_AB:
         time.sleep(1)
     if einmal:
@@ -206,6 +280,12 @@ def lauf(nr, arm):
         e['free'], e['max'], e['tcp'] = rw
     else:
         e['fehlt'].append('Ruhewert (Heap-Zeile >= 150 s danach mit tcp=0)')
+    if INSTRUMENT:
+        time.sleep(15)          # die Karte m zur letzten Heap-Zeile folgt rund 10 s danach
+        bis = jetzt()
+        zeilen = instrument_zeilen(tf, bis)
+        heap = [ts(l) for l in logsh('since', tf.strftime('%Y-%m-%dT%H:%M'), 12000) if ts(l) and RX.match(l) and tf <= ts(l) <= bis]
+        instrument_pruefen(e, tf, zeilen, heap, ring, bis)
     return e
 
 
@@ -213,7 +293,10 @@ def main():
     global HOST
     a = sys.argv[1:]
     soll = None
-    global FOLGE_AB
+    global FOLGE_AB, INSTRUMENT
+    if '--instrument' in a:
+        INSTRUMENT = True
+        a.remove('--instrument')
     if '--folge-ab' in a:
         i = a.index('--folge-ab')
         try:
@@ -244,7 +327,9 @@ def main():
     fehl = 0
     log('=== Ergebnis')
     for e in erg:
-        log('  ' + json.dumps({k: v for k, v in e.items() if k != 'fehlt'}, ensure_ascii=False))
+        log('  ' + json.dumps({k: v for k, v in e.items() if k not in ('fehlt', 'instrument')}, ensure_ascii=False))
+        for s in e.get('instrument', []):
+            log(f'    | {s}')
         for f in e['fehlt']:
             log(f'  FEHLT Lauf {e["lauf"]} Arm {e["arm"]}: {f}')
             fehl += 1
@@ -260,5 +345,6 @@ def main():
 
 HOST = None
 FOLGE_AB = 30
+INSTRUMENT = False
 if __name__ == '__main__':
     sys.exit(main())

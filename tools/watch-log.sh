@@ -188,7 +188,7 @@ letzte_a=""
 # Ereigniszeilen (Wetter, EEPROM, Abweisung) stehen einzeln im Mitschnitt, nicht als
 # Zaehler. Jede wird genau einmal gemeldet: Was beim Start schon im Fenster steht, ist
 # Grundlinie; danach merkt sich die Wache jede gemeldete Zeile samt Zeitstempel.
-EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #|- fs write short:|- fs (seek|read) error:|- update liste zu gross|- update cache .* fehlgeschlagen|- scan n=|- http write lost '
+EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx verloren|ds18xx erkannt|DS18xxx temperature: ungueltig|time: ungueltig|time: sprung|time: zeitzone ungueltig|cmd: set time to|night: (start|sprung) (aus|ein)|spiel: [0-9]+ Zeilen verworfen|ldr: (minimum|maximum) abgewiesen|i2c: frist abgelaufen|- var ignoriert #|- ntp verworfen #|- ota: Rueckfall-Neustart|- heap free=[0-9]+ max=[0-9]+ ovr=[0-9]+|- ovr #[0-9]+ t=[0-9]+|icon: verworfen, display aus|icon_freeze: ENTER|- abgewiesen: |- rpc keine Antwort #|- rpc Antwort verstuemmelt #|- fs write short:|- fs (seek|read) error:|- update liste zu gross|- update cache .* fehlgeschlagen|- scan n=|- http write lost |- heap karte .*abbruch='
 # Mit WATCHLOG_QUELLE (Gegenprobe) eigene Zustandsdateien: Sonst ueberschreibt ein Probelauf
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
@@ -360,6 +360,12 @@ while :; do
           # A80 (Paket 2026-10-13): ein Icon kam bei ausgeschaltetem Display und wurde verworfen,
           # statt bis zum Einschalten vorgemerkt zu bleiben. Erwartet im Nachtfenster -- Hinweis.
           printf '  %s  Hinweis: Icon verworfen, Display aus   <%s>\n' "$stamp" "$z" ;;
+        *"- heap karte "*"abbruch="*)
+          # C80 (Paket 2026-10-17-c80, AKI.11): Der Blockgang des Instruments hat abgebrochen (bs/nb/ord/it/sum) --
+          # die Karte ist ungueltig, und der Haufen sah anders aus als erwartet. Gewoehnliche topf-/karte-/marken-
+          # Zeilen stehen nicht im Muster und loesen nichts aus.
+          printf '  %s  *** Warnung: Heap-Karte abgebrochen (C80-Instrument) ***   <%s>\n' "$stamp" "$z"
+          alarm=1 ;;
         *"- fs seek error:"*|*"- fs read error:"*)
           # C79 (L481): App-Datei im LittleFS nicht lesbar -- der Browser bekommt 404/Hinweisseite (seek) bzw.
           # eine abgebrochene Auslieferung (read). Steht nur auf Serial, nicht im Ring und in keinem Zaehler.
