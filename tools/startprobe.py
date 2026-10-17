@@ -2,11 +2,14 @@
 """Startprobe zu C80 (BEFUNDE L499; Spec specs/paket-2026-10-17-c80, AKV.1): Haengt die bleibende Heap-Zerstueckelung
 am fruehen Verkehr nach dem Start?
 
-Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>]      z. B. ABE  (Reihenfolge = Lauffolge)
+Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>]      z. B. ABE  oder  E8,E12,R  (Reihenfolge = Lauffolge)
   A = local_esp_restart, sofort abfragen     B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
   D = OTA auf dasselbe Abbild, sofort        C = OTA auf dasselbe Abbild, ruhig bis +30 s
   E = local_esp_restart; bis zur Startzeile NUR den Mitschnitt lesen, keine Verbindung zur Uhr; danach genau EINE
-      device_ready-Anfrage (Abstand zur Startzeile ueber 5,9 s => Lauf ungueltig)
+      device_ready-Anfrage (Abstand zur Startzeile ueber 5,9 s => Lauf ungueltig). E<n> (z. B. E12): die eine Anfrage
+      erst <n> s nach der Startzeile (ungueltig ab <n>+3 s) -- grenzt den Zeitpunkt der Hintergrundbelegung ein (V.3)
+  R = wie E, aber statt der Anfrage nach 2 s nur eine Verbindung aufbauen und per RST abbrechen (SO_LINGER 0), ohne
+      Daten: auf der Uhr bleibt kein PCB in TIME_WAIT (Probe des Verdraengungsmodells aus V.3)
 "Sofort" (A, D): device_ready alle 0,3 s, bis das Geraet einmal NICHT antwortet (alte Firmware weg) und danach
 antwortet; mitgeschrieben werden die Zahl der Versuche und aus dem Rumpf der ersten Antwort http_accept_dead,
 tcp_now_pending, tcp_now_unclaimed, tcp_now_list.
@@ -91,13 +94,32 @@ def ruhe(nach, sek):
     return None
 
 
+def rst_verbindung():
+    import socket, struct
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(3)
+    try:
+        h, _, port = HOST.partition(':')
+        s.connect((h, int(port or 80)))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+        return True
+    except Exception:
+        return False
+    finally:
+        s.close()
+
+
 def lauf(nr, arm):
-    ota, sofort, einmal = arm in 'CD', arm in 'AD', arm == 'E'
+    verzug = int(arm[1:]) if len(arm) > 1 else None
+    arm0 = arm[0]
+    ota, sofort, einmal, rst = arm0 in 'CD', arm0 in 'AD', arm0 in 'ER', arm0 == 'R'
+    if rst and verzug is None:
+        verzug = 2
     e = {'lauf': nr, 'arm': arm, 'fehlt': []}
     logsh('mark', f'startprobe: Lauf {nr} Arm {arm}')
     t0 = jetzt()
     log(f'== Lauf {nr}, Arm {arm} ({"OTA" if ota else "Neustart"}, '
-        f'{"sofort" if sofort else "eine Anfrage nach der Startzeile" if einmal else "ab +30 s"})')
+        f'{"sofort" if sofort else ("RST-Verbindung" if rst else "eine Anfrage") + " nach der Startzeile" + (f" +{verzug} s" if verzug else "") if einmal else "ab +30 s"})')
     threading.Thread(target=get, args=('/api/remote_esp_update' if ota else '/api/local_esp_restart', 30),
                      daemon=True).start()
     if sofort:
@@ -131,12 +153,19 @@ def lauf(nr, arm):
         return e
     e['start'] = tf.strftime('%H:%M:%S')
     if einmal:
-        r = get('/api/device_ready', 5)
+        if verzug:
+            while (jetzt() - tf).total_seconds() < verzug:
+                time.sleep(0.1)
+        if rst:
+            ok = rst_verbindung()
+        else:
+            ok = get('/api/device_ready', 5) is not None
         e['eine_anfrage_s'] = round((jetzt() - tf).total_seconds(), 1)
-        if r is None:
-            e['fehlt'].append('Antwort auf die eine Anfrage')
-        if e['eine_anfrage_s'] > 5.9:
-            e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze 5,9 s)'
+        if not ok:
+            e['fehlt'].append('Verbindung fuer den RST-Abbruch' if rst else 'Antwort auf die eine Anfrage')
+        grenze = (verzug + 3) if verzug else 5.9
+        if e['eine_anfrage_s'] > grenze:
+            e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze {grenze} s)'
     while (jetzt() - tf).total_seconds() < 30:
         time.sleep(1)
     if einmal:
@@ -151,9 +180,10 @@ def lauf(nr, arm):
             vor = sum(1 for x in req if rst[0] < x < tf)
             nach = sum(1 for x in req if tf <= x <= tf + D.timedelta(seconds=29))
             e['anfragen_vor_start'], e['anfragen_bis_30s'] = vor, nach
-            if vor or nach != 1:
+            soll_nach = 0 if rst else 1          # R schickt keine Daten, also keine Zeile "- request"
+            if vor or nach != soll_nach:
                 e['ungueltig'] = (e.get('ungueltig', '') + f' Anfragen zwischen Neustart und Startzeile {vor} (Soll 0), '
-                                  f'danach bis +29 s {nach} (Soll 1)').strip()
+                                  f'danach bis +29 s {nach} (Soll {soll_nach})').strip()
     for c in (['./tools/smoke-device.sh'], ['./tools/check-pwa.sh']):
         p = subprocess.run(c, capture_output=True, text=True, cwd=R)
         log(f'  {c[0]}: Exit {p.returncode}')
@@ -183,12 +213,16 @@ def main():
             print(__doc__.split('\n\n')[1], file=sys.stderr)
             return 2
         del a[i:i + 2]
-    if len(a) != 1 or not a[0] or not set(a[0]) <= set('ABCDE'):
+    if len(a) != 1 or not a[0]:
+        print(__doc__.split('\n\n')[1], file=sys.stderr)
+        return 2
+    arme = a[0].split(',') if (',' in a[0] or re.search(r'\d', a[0])) else list(a[0])
+    if not all(re.fullmatch(r'[ABCD]|[ER]\d*', x) for x in arme):
         print(__doc__.split('\n\n')[1], file=sys.stderr)
         return 2
     HOST = host_lesen()
     log(f'=== Startprobe {a[0]}' + (f' --abnahme {soll}' if soll is not None else '') + f', Mitschrift {MITSCHRIFT}')
-    erg = [lauf(n + 1, arm) for n, arm in enumerate(a[0])]
+    erg = [lauf(n + 1, arm) for n, arm in enumerate(arme)]
     logsh('mark', 'startprobe: Ende')
     fehl = 0
     log('=== Ergebnis')
