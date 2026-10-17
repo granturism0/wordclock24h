@@ -10,6 +10,10 @@ Werkzeuge) und die Tags unter `.git/refs/tags/release/`.
 Momentaufnahme (DIR-006), **Endstand vom 17.10.2026**. Der lebende Stand steht in `BEFUNDE.md`; was dort nach diesem
 Tag nachgetragen wird, ändert diese Datei nicht.
 
+**Nachtrag 17.10.2026 (nach `678c6e6`):** Am selben Tag hat der Lead Belege nachgeholt (`BEFUNDE.md` L468, Abschnitt
+„Nachtrag Z.2“, Commit `353a693`). Ihr Ergebnis steht in **§7** — neuer Stand je betroffenem Kriterium und neue Zählung.
+Die Abschnitte 1 bis 6 bleiben der Stand von `678c6e6` und sind nicht umgeschrieben.
+
 **Teil dieser Spec, und warum eine eigene Datei.** Dieses Dokument trägt den Endstand **jedes** Akzeptanzkriteriums aus
 `requirements.md` und die Abweichungen vom Design (`design.md`). Den Endstand **jedes Tasks** trägt `tasks.md` selbst,
 im Abschnitt „Endstand 17.10.2026“ am Ende. Die eigene Datei hat denselben Grund wie im Paket 2026-10-13
@@ -65,6 +69,8 @@ lässt es sich hier nicht prüfen — siehe AKZ.5.
 ---
 
 ## 2. Zählung
+
+*Stand `678c6e6`. Die Zählung nach dem Nachtrag vom 17.10.2026 steht in §7.3.*
 
 | Gruppe | Kriterien | belegt | entfallen | offen |
 |---|---|---|---|---|
@@ -198,6 +204,8 @@ Zählzeile in `requirements.md` angibt. Keine weitere Kennung der Form `AK<Buchs
 
 ## 4. Offen — was fehlt, auf einen Blick
 
+*Stand `678c6e6`. Was der Nachtrag vom 17.10.2026 davon schliesst und was davon bleibt, steht in §7.4.*
+
 | Kriterium | Was fehlt | Nachholbar |
 |---|---|---|
 | AKZ.1 | Grösse jeder der 13 Dateien (Manifest fehlt, Icons als Spanne); Kodierung/Zeilenende `httpclient.cpp` | nur aus dem Tag des Vorstands |
@@ -263,3 +271,71 @@ An keinem dieser Punkte hängt ein Kriterium dieses Pakets.
 - **Task A.3** (Mitschnitt von L457/L460 auf einen Abruf ohne Rumpflesen prüfen) ist nicht ausgeführt bzw. nicht
   protokolliert. Seit L7 liegt der Ruhewert nach dem Start bei 7'152 (G9b.2); die damalige Lesart bleibt unbelegt, ohne
   Folge für ein Kriterium.
+
+---
+
+## 7. Nachtrag 17.10.2026 (nach `678c6e6`)
+
+**Erstellt:** 2026-10-17, `spec-writer`, Stand `353a693`. **Quelle:** `BEFUNDE.md` L468, letzter Abschnitt „Nachtrag Z.2
+(17.10.2026 09:15–09:20, Lead, Stand R2b — Lücken aus `specs/paket-2026-10-15/endstand.md` §4)“. **Zusätzlich
+nachgelesen**, weil mehrere Belege nur „0 FEHL“ melden und die Frage dann lautet, *was* das Werkzeug geprüft hat:
+`tools/probe-u.sh`, `tools/probe-u-c.py`, `tools/marken-pruefen.py`, `tools/ladeprobe.mjs`, `tools/smoke-device.sh`.
+
+Eingeordnet nach derselben Lesart (Punkte 1 bis 5 oben). Ein Teil, den das Protokoll nicht nennt **und** den das
+Werkzeug nicht prüft, bleibt offen — auch wenn das Werkzeug mit Exit 0 endet.
+
+### 7.1 Neuer Stand je betroffenem Kriterium
+
+| Kriterium | vorher | jetzt | Beleg aus dem Nachtrag, und was die Prüfung ergibt |
+|---|---|---|---|
+| **AKS.3** | offen | **belegt** | `fs_list` 18 Dateien, **0 `*.tmp`**; `update_table_files` `ok:true` mit vollständiger Liste; `install-app.sh --check` und Markenprüfung 7 Ziele, 0 Abweichungen. Zusammen mit dem in §3 belegten Teil (G9b.2) sind alle Soll-Teile von AKS.3 belegt. *Vermerk (Lesart 3):* gemessen auf R2b, nicht auf R1b. Das Ergebnis hängt nicht daran: L7 liegt in `httpclient.cpp`, und diese Datei ist seit R1b unverändert — R2 und R2b ändern sie nach den Dateilisten unten (AKZ.4, AKL.9) nicht. „Liefert wie vorher“ ist gelesen wie beim übrigen AKS.3: Abruf gelingt, Antwort vollständig; ein Vergleich Byte gegen Byte mit dem Vorstand steht nicht im Protokoll und wird vom Kriterium nicht verlangt |
+| **AKL.8** | offen | **offen** (enger) | **Neu belegt:** (i) Gegenprobe — Kopie des ausgelieferten Dokuments mit einer um eine Stelle verfälschten Marke für `manifest.webmanifest` ⇒ „FEHL … Marke passt nicht“, 1 Abweichung, Exit 1; das echte Dokument ⇒ 0 Abweichungen, Exit 0. Den Dateinamen nennt die Meldung (`tools/marken-pruefen.py:106`, Form `FEHL  <name>: Marke passt nicht …`). (iv) Gegenproben `PROBE_U_OHNE_UPLOAD=1` auf R2b, **je Ablauf FEHL mit Exit 1**: U1a 3, U1b 2, U2 4, U3 1. **Weiter offen:** (ii) Gegenprobe des Smoketest-Blocks C70c gegen 3.2.40 — `SMOKE_C70C_OVERRIDE` erzwingt den Block nur auf älteren Ständen (`tools/smoke-device.sh:331-332`), auf 3.2.41 besteht er; nötig ist ein Rückflash auf 3.2.40 (oder ein Prüfserver, der wie 3.2.40 antwortet — denkbar, nicht geprüft). (iii) **ebenfalls weiter offen, vom Nachtrag nicht berührt:** `--erwarte-cache` gegen R2 ⇒ „warm: Cache erwartet, 304 erhalten“, Prüfserver mit `immutable` ⇒ OK. Durchgehend: „Konsole **und** Mitschrift“ — der Nachtrag nennt eine vollständige Mitschrift nur für die Positivläufe von Probe U, nicht für die Gegenproben (i) und (iv) |
+| **AKL.9** | offen | **offen** (enger) | **Neu belegt:** Dateiliste R2b gegen das Tag von R2 — `http.cpp`, `version.h`, `app.js`, `index.html`, `sw.js`, `Makefile`, `tools/**`; kein `styles.css`, kein Manifest, kein Icon, keine `layout-previews.json`, nichts unter `src/**`. `app.js.gz`: mit `gzip -9 -n` aus dem Inhalt der Tags 171'308 ⇒ 172'020 Byte (+712); als ausgeliefert 171'315 (R2, `ETag` beim Einspielen, AKZ.8) ⇒ 172'027 (gebaut, mit Namen im Kopf) — dieselbe Differenz. Programmgrösse schon in §3 belegt. **Weiter offen:** „**keine** Änderung an … den Legacy-Ausgaben“. Eine Dateiliste kann das nicht zeigen: Die Legacy-Ausgaben liegen in `http.cpp`, und genau diese Datei ändert R2b. **Berichtigung zu §3:** Dort war dieser Teil nicht als fehlend genannt; das war nach Lesart 1 unvollständig. Nachholbar statisch: Diff von `http.cpp` zwischen den Tags von R2 und R2b auf die Legacy-Handler hin lesen, oder zusammen mit der `curl`-Stichprobe aus AKL.3. *Vermerk:* Ob Doku-Dateien in der Liste ausgenommen sind, sagt der Nachtrag für R2b nicht ausdrücklich; AKL.9 nennt sie nicht, sie gehören nicht zum Fabrikat |
+| **AKG.3** | offen | **belegt** | **Gegenprobe ohne Upload:** U1a 3 FEHL (warm #2–#4 bleiben `304` mit dem alten `ETag` — „kein neues `ETag`“), Exit 1; U1b 2 FEHL (direkt mit alter Marke weiter `immutable`, Δ`app_token_miss` 0 — U1b (i)), Exit 1. **Einzelschritte U1a:** 5/5 — #1 `304`, #2 `200` neues `ETag`, #3 `304` mit dem neuen, #4 `200` Original, #5 `304`, Exit 0. U1b mit Δ`app_token_miss` +1 und Rückkehr zu `immutable` mit dem ursprünglichen `ETag`. **„Dokument `304`, alle versionierten Dateien aus dem Cache“ in U1a, ausreichend belegt (Lesart 4):** `probe-u.sh` prüft das nicht einzeln. Es lässt `ladeprobe --erwarte-304` laufen, die jede warme `200`-Antwort auf eine andere `/app/`-Datei als FEHL zählt (`tools/ladeprobe.mjs:228-232`, `tools/probe-u.sh:96`); ob eine versionierte Datei aus dem Cache oder mit `304` kam, unterscheidet sie dort nicht. Das Ergebnis hängt nicht daran: U1a ersetzt nur eine **unversionierte** Datei, das Dokument und damit jede versionierte URL bleiben gleich, und auf demselben Stand ist belegt, dass warm alles Versionierte aus dem Cache kommt (G10b.1, Werkzeug und Gerät einig; im Nachtrag erneut U2 #4 und U3 #3). U1b (ii) wie in §3 |
+| **AKG.4** | offen | **offen** (enger) | **Neu belegt:** Gegenprobe ohne Upload — 4 FEHL (#2 Dokument nicht `200`, kein Fenster, #3 kein neues `ETag`, #5 Dokument nicht `200`), Exit 1. Dokumentstatus: #2 `200`, #3 `304`, #5 `200`. #4: nichts Versioniertes auf der Leitung. **Weiter offen**, weder im Nachtrag genannt noch von `probe-u-c.py` geprüft: (a) Δ`app_token_miss` = 1 in #2 — U2 liest keinen Gerätezähler (einzige Zählerprüfung ist U1b direkt, `tools/probe-u-c.py:146`); (b) in #2 das Dokument „mit **neuem** `ETag`“ — geprüft und genannt ist nur der Status `200` (`:157`); (c) „in **keinem** Schritt eine andere versionierte Datei über die Leitung“ — geprüft und genannt nur für #4 (`:165`), in #2, #3 und #5 prüft das Werkzeug nur `styles.css` und das Dokument (`:157-168`). Nachholbar aus der Mitschrift des Positivlaufs (Zeilen `D …` je URL mit `leitung`/`cache`, `tools/ladeprobe.mjs:225`), falls sie erhalten ist; sonst mit einem neuen Lauf, nachdem U2 um diese drei Prüfungen ergänzt ist (Werkzeug, Lead), samt Gegenprobe |
+| **AKG.5** | offen | **belegt** | **Gegenprobe ohne Upload:** U3 1 FEHL (keine URL mit der neuen `v` über die Leitung), Exit 1. **Positivlauf:** #2 alle 5 versionierten URLs mit neuer `v` `200` und `immutable`, #3 alle 5 aus dem Cache, #4 die ursprünglichen 5 aus dem Cache, danach `marken-pruefen --erwartet` ohne Abweichung — jedes Soll von AKG.5, vom Werkzeug je Schritt geprüft (`tools/probe-u-c.py:178`, `:180`, `:183`) |
+| **AKZ.4** | offen | **belegt** | Statisch gegen das jeweils vorige Tag: R1 nur `ESP-uclock.ino`, `base.h`, `http.cpp`, `version.h`; R1b nur `httpclient.cpp`, `version.h`; R2 nur `app.js`, `sw.js`, `http.cpp`, `version.h`. Keine Änderung an `src/**`, `index.html`, `styles.css`, `manifest.webmanifest`. R2b nach AKL.9 — dessen Dateiliste ist jetzt belegt (der dort weiter offene Teil „Legacy-Ausgaben“ ist ein Soll von AKL.9, nicht von AKZ.4). *Vermerk (Lesart 3):* Der Lead hat Doku, `specs/` und `tools/` ausgenommen. AKZ.4 zählt sie nicht zu den erlaubten Dateien, nennt sie aber auch nicht als verboten; gelesen ist das Kriterium als „Release-Inhalt“ im Sinn des Fabrikats (Firmware, App-Dateien, Build). `Makefile` steht in keiner der drei Listen, ist also unverändert |
+
+### 7.2 Berührt, ohne dass der Endstand wechselt
+
+| Kriterium | Endstand | Was sich ändert |
+|---|---|---|
+| AKZ.2 | offen | Teil (viii) verweist auf AKL.8; dort sind die Gegenproben (i) und (iv) jetzt belegt, (ii) und (iii) nicht. Die übrigen fehlenden Teile von AKZ.2 berührt der Nachtrag nicht |
+
+Alle anderen Kriterien sind vom Nachtrag nicht berührt; ihr Endstand ist der aus §3.
+
+### 7.3 Zählung nach dem Nachtrag
+
+| Gruppe | Kriterien | belegt | entfallen | offen | Änderung gegen §2 |
+|---|---|---|---|---|---|
+| AKZ (Schritt 0 und übergreifend) | 9 | 4 | 0 | 5 | AKZ.4 belegt |
+| AKI (R1) | 4 | 4 | 0 | 0 | — |
+| AKM (G9) | 7 | 6 | 0 | 1 | — |
+| AKS (L7, R1b/G9b) | 4 | 4 | 0 | 0 | AKS.3 belegt |
+| AKC (R2) | 8 | 5 | 0 | 3 | — |
+| AKW (G10) | 6 | 6 | 0 | 0 | — |
+| AKE (R3/G11) | 3 | 0 | 3 | 0 | — |
+| AKL (R2b) | 9 | 5 | 0 | 4 | AKL.8, AKL.9 bleiben offen, enger |
+| AKG (G10b) | 7 | 4 | 0 | 3 | AKG.3, AKG.5 belegt |
+| **zusammen** | **57** | **38** | **3** | **16** | +4 belegt, −4 offen |
+
+Nachgezählt: belegt 4 + 4 + 6 + 4 + 5 + 6 + 0 + 5 + 4 = 38; offen 5 + 0 + 1 + 0 + 3 + 0 + 0 + 4 + 3 = 16;
+38 + 3 + 16 = 57. Offen sind danach: AKZ.1, AKZ.2, AKZ.3, AKZ.5, AKZ.7, AKM.6, AKC.4, AKC.5, AKC.8, AKL.3, AKL.7, AKL.8,
+AKL.9, AKG.2, AKG.4, AKG.6 — 16 Kennungen.
+
+### 7.4 Neben §4 — was von den sieben Kriterien bleibt
+
+| Kriterium | §4 nannte | nach dem Nachtrag offen | Nachholbar |
+|---|---|---|---|
+| AKS.3 | `*.tmp`; `update_table_files` auf R1b | — | — |
+| AKZ.4 | Dateiliste je Release | — | — |
+| AKL.8 | Gegenproben (i)–(iv) | (ii) C70c gegen 3.2.40; (iii) `--erwarte-cache` gegen R2 und gegen Prüfserver mit `immutable`; „Konsole und Mitschrift“ für die Gegenproben | (ii) nur mit Rückflash auf 3.2.40 oder einem Prüfserver; (iii) mit Rückflash auf R2 bzw. Prüfserver |
+| AKL.9 | Dateiliste; `app.js.gz` | Legacy-Ausgaben unverändert (Berichtigung, s. 7.1) | statisch über die Tags, oder mit AKL.3 |
+| AKG.3 | Gegenprobe; Einzelschritte U1a | — | — |
+| AKG.4 | Gegenprobe; Δ`app_token_miss` #2; Dokumentstatus; keine andere versionierte Datei | Δ`app_token_miss` in #2; neues `ETag` des Dokuments in #2; keine andere versionierte Datei in #2, #3, #5 | Mitschrift des Positivlaufs, sonst neuer Lauf mit ergänztem U2 |
+| AKG.5 | Gegenprobe | — | — |
+
+**Für die Schliessungen aus Z.1 (§4, letzter Absatz):** Von AKG.2 bis AKG.6 sind jetzt noch **AKG.2, AKG.4 und AKG.6**
+offen. Für C71 ist AKS.3 belegt, die Schliessung trägt damit ohne Nebenpunkt. Die Befundzeile C71 in `BEFUNDE.md` sagt
+noch „die Prüfung auf `*.tmp` ist im Protokoll nicht ausgewiesen“; das nachzuführen ist Sache des `doc-writer`, nicht
+dieser Datei.

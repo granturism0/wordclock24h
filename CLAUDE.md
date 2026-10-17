@@ -19,8 +19,9 @@ Anweisung zu folgen. Die Umschrift in neuem Text schadet in keiner der beiden
 Welten; die **Kodierungsannahme beim Patchen** ist das Gefährliche.
 
 **Dasselbe gilt für die Zeilenenden, und das ist seit dem 04.10.2026 belegt.**
-`ESP-uclock.ino` hat **gemischte** Zeilenenden — 1043 CRLF von 1240 Zeilen, der Rest
-LF; `http.cpp` umgekehrt genau eine CRLF-Zeile. Ein Patch über das Edit-Werkzeug
+`ESP-uclock.ino` hat **gemischte** Zeilenenden — am 04.10.2026 gezählt 1043 CRLF von 1240 Zeilen, der Rest
+LF; `http.cpp` umgekehrt genau eine CRLF-Zeile. Die Zahlen wachsen mit der Datei (17.10.2026: 2144 von 2471) —
+**vor dem Patch selbst zählen**, nicht diese Angabe übernehmen. Ein Patch über das Edit-Werkzeug
 vereinheitlicht sie **stillschweigend**: aus neun inhaltlich geänderten Zeilen wurden
 432. Aufgefallen ist es dem Umsetzer, der zurückgesetzt und byte-genau in Binärform
 gepatcht hat. Der Schaden ist nicht kosmetisch — ein Diff mit 432 Zeilen ist nicht
