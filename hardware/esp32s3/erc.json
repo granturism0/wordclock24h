@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/erc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-10-17T01:50:34",
+    "date": "2026-10-17T09:34:21",
     "ignored_checks": [
         {
             "description": "Global label only appears once in the schematic",
@@ -29,72 +29,26 @@
     "sheets": [
         {
             "path": "/",
-            "uuid_path": "/444453c1-9323-4c73-b58b-7cde04f637f1",
+            "uuid_path": "/2ec74699-7017-425e-87c3-e62447ce57e9",
             "violations": [
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW3 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.3302,
-                                "y": 1.7018
-                            },
-                            "uuid": "14f203da-8975-46cb-90f6-9481fdd502d4"
-                        },
-                        {
-                            "description": "Symbol SW3 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.4318,
-                                "y": 1.7018
-                            },
-                            "uuid": "3ca217bf-ee09-417a-b51b-2df2da08236e"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW3 Pin 3 [3, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.3302,
-                                "y": 1.7526
-                            },
-                            "uuid": "d5a3ab2c-7453-4e70-a3df-8b066d1ec21c"
-                        },
-                        {
-                            "description": "Symbol #PWR048 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 0.3048,
-                                "y": 1.7526
-                            },
-                            "uuid": "d41e95db-5982-4503-adbe-2db000305feb"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
                 {
                     "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
                     "items": [
                         {
                             "description": "Symbol SW1 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 0.3302,
-                                "y": 2.413
+                                "x": 0.3175,
+                                "y": 1.4605
                             },
-                            "uuid": "6c988928-6b53-49e0-b65c-79e203dad494"
+                            "uuid": "9e43e585-ac3b-41cd-aadb-1ca8ea5a6b1d"
                         },
                         {
                             "description": "Symbol U2 Pin 10 [IO17, Bidirektional, Linie]",
                             "pos": {
-                                "x": 2.3622,
-                                "y": 1.8796
+                                "x": 1.5494,
+                                "y": 1.3462
                             },
-                            "uuid": "f96d1872-daf2-4449-8669-42315b76bd80"
+                            "uuid": "7ccd4820-a68d-4696-97ef-709c576c1cfd"
                         }
                     ],
                     "severity": "warning",
@@ -106,37 +60,22 @@
                         {
                             "description": "Symbol SW1 Pin 3 [3, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 0.3302,
-                                "y": 2.4638
+                                "x": 0.3175,
+                                "y": 1.5113
                             },
-                            "uuid": "5168b3ea-c90b-4d89-8179-4575994a8b98"
+                            "uuid": "bf26e9cc-489b-4b63-a455-e92fae7b440c"
                         },
                         {
-                            "description": "Symbol #PWR036 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR01 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
                                 "x": 0.3048,
-                                "y": 2.4638
+                                "y": 1.524
                             },
-                            "uuid": "cf895144-1438-4023-ad50-4eea05dfa3b3"
+                            "uuid": "750c1507-3d29-458a-9220-53d8d7a40021"
                         }
                     ],
                     "severity": "warning",
                     "type": "pin_to_pin"
-                },
-                {
-                    "description": "Symbol \"SolderJumper_2_Open\" stimmt nicht mit Kopie in Bibliothek \"Jumper\" überein",
-                    "items": [
-                        {
-                            "description": "Symbol JP3 [SolderJumper_2_Open]",
-                            "pos": {
-                                "x": 0.4064,
-                                "y": 1.397
-                            },
-                            "uuid": "ed13efcc-320a-4613-a176-df21c2155f1e"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "lib_symbol_mismatch"
                 },
                 {
                     "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
@@ -144,18 +83,18 @@
                         {
                             "description": "Symbol SW2 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 0.4064,
-                                "y": 2.5908
+                                "x": 0.3175,
+                                "y": 1.6256
                             },
-                            "uuid": "9d31ca0a-ac08-4195-bc64-1999727e96d2"
+                            "uuid": "d14e8033-1ac0-4424-91de-b405af982053"
                         },
                         {
                             "description": "Symbol R1 Pin 2 [Passiv, Linie]",
                             "pos": {
-                                "x": 0.3683,
-                                "y": 2.7686
+                                "x": 0.3048,
+                                "y": 1.6256
                             },
-                            "uuid": "7df2f1bf-194d-4da9-9a0a-07bb591f22c4"
+                            "uuid": "6be0741f-7973-4ce7-8541-d960c2d43c98"
                         }
                     ],
                     "severity": "warning",
@@ -167,616 +106,41 @@
                         {
                             "description": "Symbol SW2 Pin 3 [3, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 0.4064,
-                                "y": 2.6416
+                                "x": 0.3175,
+                                "y": 1.6764
                             },
-                            "uuid": "302013d6-3536-4d13-a783-0c703ed8e5d2"
+                            "uuid": "ab107dc8-a54e-48ae-b5ce-6417f0e14776"
                         },
                         {
-                            "description": "Symbol #PWR017 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR02 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 0.381,
-                                "y": 2.6416
+                                "x": 0.3048,
+                                "y": 1.6891
                             },
-                            "uuid": "ce6a56ea-7f9e-4c25-bbe4-745cb2d85f83"
+                            "uuid": "5489438e-9872-4bff-b207-5918d7377816"
                         }
                     ],
                     "severity": "warning",
                     "type": "pin_to_pin"
                 },
                 {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW3 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.4318,
-                                "y": 1.7018
-                            },
-                            "uuid": "3ca217bf-ee09-417a-b51b-2df2da08236e"
-                        },
-                        {
-                            "description": "Symbol R12 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 0.5842,
-                                "y": 1.8161
-                            },
-                            "uuid": "305f083c-cf22-471d-8daf-ae600319ed61"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol L2 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.8636,
-                                "y": 1.4097
-                            },
-                            "uuid": "c2de5111-3f3c-4405-ac8a-5ec64f5bbb1c"
-                        },
-                        {
-                            "description": "Symbol C25 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 0.9779,
-                                "y": 1.27
-                            },
-                            "uuid": "e865b94b-073a-4e74-9e85-7f66ffccbd88"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol L2 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 0.9652,
-                                "y": 1.4097
-                            },
-                            "uuid": "a0f31418-0453-4537-9f18-b7dde589125f"
-                        },
-                        {
-                            "description": "Symbol D2 Pin 2 [A, Passiv, Linie]",
-                            "pos": {
-                                "x": 2.0193,
-                                "y": 1.27
-                            },
-                            "uuid": "b12e5915-394c-4d63-bcf3-4c712346bf7d"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 7 [IN1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 0.9652
-                            },
-                            "uuid": "1712fedc-f346-44f9-9868-64b07a35db9c"
-                        },
-                        {
-                            "description": "Symbol C20 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 2.1336,
-                                "y": 0.4699
-                            },
-                            "uuid": "c55cdbd9-7bbf-4095-84a2-2ff2dbd69a86"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 6 [PR1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 0.9906
-                            },
-                            "uuid": "2f177cf1-5b1f-4759-b13a-3128a8516c02"
-                        },
-                        {
-                            "description": "Symbol U9 Pin 7 [IN1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 0.9652
-                            },
-                            "uuid": "1712fedc-f346-44f9-9868-64b07a35db9c"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 2 [IN2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 1.016
-                            },
-                            "uuid": "5772b8e2-9f16-4550-961f-99b7717735b5"
-                        },
-                        {
-                            "description": "Symbol C21 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 2.3622,
-                                "y": 0.4699
-                            },
-                            "uuid": "8e72bda8-3633-4540-900d-801e7c6408b8"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 3 [CP2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 1.0414
-                            },
-                            "uuid": "6e78cd4a-a3d1-4268-b774-0fd0f70c6a61"
-                        },
-                        {
-                            "description": "Symbol #PWR091 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.524,
-                                "y": 1.0414
-                            },
-                            "uuid": "541fb4c2-c24b-4d6e-8dab-cc0f66617152"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 5 [OV1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 1.0668
-                            },
-                            "uuid": "6028399c-b052-4554-b969-f277af2f6891"
-                        },
-                        {
-                            "description": "Symbol #PWR092 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.524,
-                                "y": 1.0668
-                            },
-                            "uuid": "4203ea6c-e9fb-47d8-9936-d6ce63860cb5"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 4 [OV2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.5494,
-                                "y": 1.0922
-                            },
-                            "uuid": "d60bbf65-32f5-4f46-9cdf-6e965704bd4b"
-                        },
-                        {
-                            "description": "Symbol #PWR093 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.524,
-                                "y": 1.0922
-                            },
-                            "uuid": "c62e837a-f2a6-48ff-9c42-03849b1885f3"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 1 [OUT, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.7272,
-                                "y": 0.9652
-                            },
-                            "uuid": "a64c9ed6-680c-4a35-ab4a-d57b78160529"
-                        },
-                        {
-                            "description": "Symbol #PWR094 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.7526,
-                                "y": 0.9652
-                            },
-                            "uuid": "e91f8531-e1da-44ec-8656-7bdac6ae3766"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 8 [OUT, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.7272,
-                                "y": 0.9906
-                            },
-                            "uuid": "d3b18456-eb2a-4fee-9209-365e654594e1"
-                        },
-                        {
-                            "description": "Symbol #PWR095 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.7526,
-                                "y": 0.9906
-                            },
-                            "uuid": "8836293e-0ca5-4d0c-ac13-f086b83596ba"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 10 [ILM, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.7272,
-                                "y": 1.0414
-                            },
-                            "uuid": "932e3673-5dac-49b2-8b3b-15c3e65df78f"
-                        },
-                        {
-                            "description": "Symbol R26 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 1.1684,
-                                "y": 0.4953
-                            },
-                            "uuid": "e2296ef1-b50f-4ad1-b1a8-186531602ee6"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 11 [SS, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.7272,
-                                "y": 1.0668
-                            },
-                            "uuid": "d2ed3f10-20fa-4331-8026-e14e6cd8631e"
-                        },
-                        {
-                            "description": "Symbol C24 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 2.7686,
-                                "y": 0.4699
-                            },
-                            "uuid": "0825895f-f418-43ad-9453-cdd2a354c4ea"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U9 Pin 12 [GND, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 1.7272,
-                                "y": 1.0922
-                            },
-                            "uuid": "208cc706-a1f9-42c6-871c-9d0c36a3a237"
-                        },
-                        {
-                            "description": "Symbol #PWR096 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 1.7526,
-                                "y": 1.0922
-                            },
-                            "uuid": "3d46bdec-cf7e-43c4-910a-57ee99fd8245"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW5 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.1844,
-                                "y": 2.8194
-                            },
-                            "uuid": "117b21c9-a908-4133-bebc-0b203e5f2986"
-                        },
-                        {
-                            "description": "Symbol SW5 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.286,
-                                "y": 2.8194
-                            },
-                            "uuid": "14c42c49-4256-499b-8257-71e098dc7c2f"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW5 Pin 3 [3, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.1844,
-                                "y": 2.8702
-                            },
-                            "uuid": "274653d5-4168-48d5-b3ff-c8e699117a53"
-                        },
-                        {
-                            "description": "Symbol #PWR114 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 2.159,
-                                "y": 2.8702
-                            },
-                            "uuid": "4d6ac19f-83c9-48ff-a218-ae1ce4d7ad70"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol SW5 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.286,
-                                "y": 2.8194
-                            },
-                            "uuid": "14c42c49-4256-499b-8257-71e098dc7c2f"
-                        },
-                        {
-                            "description": "Symbol U2 Pin 27 [IO0, Bidirektional, Linie]",
-                            "pos": {
-                                "x": 2.0574,
-                                "y": 1.8796
-                            },
-                            "uuid": "5690fdf5-2b51-41db-b254-c4f635516dab"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol D4 Pin 1 [K, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.413,
-                                "y": 1.2573
-                            },
-                            "uuid": "db68d48b-e7c7-4139-90e4-4178e96e1cdf"
-                        },
-                        {
-                            "description": "Symbol F1 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 3.3274,
-                                "y": 1.2573
-                            },
-                            "uuid": "136fecb3-4b3c-48c2-a32b-def10253366e"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol D4 Pin 2 [A, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.5146,
-                                "y": 1.2573
-                            },
-                            "uuid": "1afffae0-d021-45d6-81af-079e46e2de2b"
-                        },
-                        {
-                            "description": "Symbol #PWR009 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 2.54,
-                                "y": 1.2573
-                            },
-                            "uuid": "5b0d89af-e8ff-479a-abb2-340755b5f3c7"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 1 [BS, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.7686,
-                                "y": 0.9652
-                            },
-                            "uuid": "c6a56030-6e9f-43b7-9b41-655d4eaae13c"
-                        },
-                        {
-                            "description": "Symbol C25 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 0.9017,
-                                "y": 1.27
-                            },
-                            "uuid": "f172101e-4433-487b-9a52-e9a5f0dadc04"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 5 [IN, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.7686,
-                                "y": 0.9906
-                            },
-                            "uuid": "64d91b67-5233-42e2-96cc-e5be71260237"
-                        },
-                        {
-                            "description": "Symbol #PWR078 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 2.7432,
-                                "y": 0.9906
-                            },
-                            "uuid": "bdf8e6eb-ea8a-45e9-b694-a95668519103"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 4 [EN, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.7686,
-                                "y": 1.016
-                            },
-                            "uuid": "cf97050e-b6a5-4406-bb8e-114589eaf40e"
-                        },
-                        {
-                            "description": "Symbol #PWR079 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 2.7432,
-                                "y": 1.016
-                            },
-                            "uuid": "e0446368-088f-4626-99c1-6e28c6460b00"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "description": "Pins vom Typ Unbestimmt und Stromausgang sind verbunden",
                     "items": [
                         {
                             "description": "Symbol D5 Pin 1 [K, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 2.8702,
-                                "y": 1.2573
+                                "x": 0.3937,
+                                "y": 0.6223
                             },
-                            "uuid": "5c4685fd-a0ba-46bf-b9f0-c4275106f1bb"
+                            "uuid": "828948fa-28c5-41ae-88b9-a828b86df08a"
                         },
                         {
-                            "description": "Symbol F2 Pin 1 [1, Unbestimmt, Linie]",
+                            "description": "Symbol #FLG03 Pin 1 [Stromausgang, Linie]",
                             "pos": {
-                                "x": 3.8354,
-                                "y": 1.2573
+                                "x": 0.4318,
+                                "y": 0.6096
                             },
-                            "uuid": "e75daa05-cd5c-4931-9a01-8354b6ccecbe"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 6 [LX, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.9464,
-                                "y": 0.9652
-                            },
-                            "uuid": "3e5bc96c-711f-4a3a-b011-4ac166b61ba9"
-                        },
-                        {
-                            "description": "Symbol C25 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 0.9779,
-                                "y": 1.27
-                            },
-                            "uuid": "e865b94b-073a-4e74-9e85-7f66ffccbd88"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 3 [FB, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.9464,
-                                "y": 0.9906
-                            },
-                            "uuid": "cf9735b4-756d-44b6-885d-cea0578d17b4"
-                        },
-                        {
-                            "description": "Symbol R29 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 1.7526,
-                                "y": 0.4953
-                            },
-                            "uuid": "458c8b45-76a4-41b0-8323-0d5a8ccc1897"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U10 Pin 2 [GND, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 2.9464,
-                                "y": 1.016
-                            },
-                            "uuid": "83ce9bfb-1c3e-47f9-9601-7518fc78ef48"
-                        },
-                        {
-                            "description": "Symbol #PWR080 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 2.9718,
-                                "y": 1.016
-                            },
-                            "uuid": "f8d6fd97-22e5-49cc-aa1a-2368ea319a15"
+                            "uuid": "dceceda8-c9ae-4a0d-84ff-080ca6fc3e04"
                         }
                     ],
                     "severity": "warning",
@@ -788,18 +152,18 @@
                         {
                             "description": "Symbol D5 Pin 2 [A, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 2.9718,
-                                "y": 1.2573
+                                "x": 0.3937,
+                                "y": 0.7239
                             },
-                            "uuid": "e80c1def-43d7-423f-8241-70dd487400ee"
+                            "uuid": "314934ee-e6fe-4ecf-9705-5a7b0a8c8b15"
                         },
                         {
-                            "description": "Symbol #PWR070 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR08 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 2.9972,
-                                "y": 1.2573
+                                "x": 0.3937,
+                                "y": 0.7493
                             },
-                            "uuid": "e2652d58-2b3b-4d76-ae02-18c7c7c867d9"
+                            "uuid": "55d66ce3-366b-4685-802c-f5cc7e721271"
                         }
                     ],
                     "severity": "warning",
@@ -809,20 +173,20 @@
                     "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
                     "items": [
                         {
-                            "description": "Symbol F1 Pin 1 [1, Unbestimmt, Linie]",
+                            "description": "Symbol SW3 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.3274,
-                                "y": 1.2573
+                                "x": 0.4318,
+                                "y": 1.1938
                             },
-                            "uuid": "136fecb3-4b3c-48c2-a32b-def10253366e"
+                            "uuid": "d2c9742c-084b-4bc5-b9d0-cd77521dcf50"
                         },
                         {
-                            "description": "Symbol TP1 Pin 1 [1, Passiv, Linie]",
+                            "description": "Symbol C1 Pin 1 [Passiv, Linie]",
                             "pos": {
-                                "x": 4.1402,
-                                "y": 0.381
+                                "x": 0.3429,
+                                "y": 1.1811
                             },
-                            "uuid": "b51fcafd-eb1e-4c8e-b819-c8171144e999"
+                            "uuid": "7a4e9e41-7f1b-4a2e-8d05-639638b6ec69"
                         }
                     ],
                     "severity": "warning",
@@ -832,20 +196,20 @@
                     "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
                     "items": [
                         {
-                            "description": "Symbol F1 Pin 2 [2, Unbestimmt, Linie]",
+                            "description": "Symbol SW3 Pin 3 [3, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.429,
-                                "y": 1.2573
+                                "x": 0.4318,
+                                "y": 1.2446
                             },
-                            "uuid": "06019b53-6355-4856-8963-6b3df505e38a"
+                            "uuid": "acf83bd7-3bc3-474e-9711-42b5bf3acc34"
                         },
                         {
-                            "description": "Symbol C4 Pin 1 [Passiv, Linie]",
+                            "description": "Symbol C1 Pin 2 [Passiv, Linie]",
                             "pos": {
-                                "x": 2.9464,
-                                "y": 0.4699
+                                "x": 0.3429,
+                                "y": 1.2573
                             },
-                            "uuid": "f4efc4de-f444-4e36-9b2d-d4aac8f0f9b6"
+                            "uuid": "c3d0c22e-25fd-4e97-bd4b-b72bd7da8f36"
                         }
                     ],
                     "severity": "warning",
@@ -857,33 +221,378 @@
                         {
                             "description": "Symbol F2 [1812L300_24GR]",
                             "pos": {
-                                "x": 3.8354,
-                                "y": 1.2446
+                                "x": 0.4445,
+                                "y": 0.5969
                             },
-                            "uuid": "f0197473-4413-4cef-b45a-5e8911f97370"
+                            "uuid": "b5ae032f-9dce-4d9e-ba62-f6abeec17b89"
                         }
                     ],
                     "severity": "warning",
                     "type": "lib_symbol_mismatch"
                 },
                 {
-                    "description": "Pins vom Typ Unbestimmt und Eingang sind verbunden",
+                    "description": "Pins vom Typ Unbestimmt und Stromausgang sind verbunden",
                     "items": [
                         {
                             "description": "Symbol F2 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.8354,
-                                "y": 1.2573
+                                "x": 0.4445,
+                                "y": 0.6096
                             },
-                            "uuid": "e75daa05-cd5c-4931-9a01-8354b6ccecbe"
+                            "uuid": "7bf38ede-0e46-496d-ac4e-05c17c2f0123"
                         },
                         {
-                            "description": "Symbol H1 Pin 1 [1, Eingang, Linie]",
+                            "description": "Symbol #FLG03 Pin 1 [Stromausgang, Linie]",
                             "pos": {
-                                "x": 3.937,
+                                "x": 0.4318,
+                                "y": 0.6096
+                            },
+                            "uuid": "dceceda8-c9ae-4a0d-84ff-080ca6fc3e04"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol SW3 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.5334,
+                                "y": 1.1938
+                            },
+                            "uuid": "4cce6733-0cb4-42b6-854c-5d883f4fd37a"
+                        },
+                        {
+                            "description": "Symbol C1 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 0.3429,
+                                "y": 1.1811
+                            },
+                            "uuid": "7a4e9e41-7f1b-4a2e-8d05-639638b6ec69"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol F2 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.5461,
+                                "y": 0.6096
+                            },
+                            "uuid": "2f9f776e-2fe5-4f5a-aff3-bc3a31798563"
+                        },
+                        {
+                            "description": "Symbol TP5 Pin 1 [1, Passiv, Linie]",
+                            "pos": {
+                                "x": 0.5588,
+                                "y": 0.6096
+                            },
+                            "uuid": "53fda79d-72c9-40fc-9586-72eff4fd7687"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol D4 Pin 1 [K, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.5969,
+                                "y": 0.3556
+                            },
+                            "uuid": "b49dd3bd-6779-4627-858a-53b093910629"
+                        },
+                        {
+                            "description": "Symbol #PWR010 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 0.5969,
+                                "y": 0.254
+                            },
+                            "uuid": "3da0aeed-5034-4db5-8509-890773805d1f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol D4 Pin 2 [A, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.5969,
+                                "y": 0.4572
+                            },
+                            "uuid": "fd6ede24-cbad-4dcf-a232-799fd50adfdb"
+                        },
+                        {
+                            "description": "Symbol R4 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.4445
+                            },
+                            "uuid": "69678081-e983-4e0d-b652-34725d544782"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol F1 Pin 1 [1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.6858,
+                                "y": 0.2667
+                            },
+                            "uuid": "9ba29c30-01d3-44f8-8a99-6b1581715e6a"
+                        },
+                        {
+                            "description": "Symbol TP1 Pin 1 [1, Passiv, Linie]",
+                            "pos": {
+                                "x": 0.6858,
+                                "y": 0.2667
+                            },
+                            "uuid": "2f0f12cf-b391-4f8c-b319-ace8afaf813e"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol F1 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.7874,
+                                "y": 0.2667
+                            },
+                            "uuid": "8bcd911c-1ea6-4b93-97ac-1d235d0c27ab"
+                        },
+                        {
+                            "description": "Symbol TP4 Pin 1 [1, Passiv, Linie]",
+                            "pos": {
+                                "x": 0.8128,
+                                "y": 0.2667
+                            },
+                            "uuid": "f23ccac8-c734-4525-8319-628060798cbe"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol SW5 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.8509,
+                                "y": 1.3462
+                            },
+                            "uuid": "30c54d02-0a81-4054-8655-6ab9b4f59644"
+                        },
+                        {
+                            "description": "Symbol R32 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.0414,
+                                "y": 1.3081
+                            },
+                            "uuid": "e826a0ea-e92b-4b59-adc6-0df215b610a9"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol SW5 Pin 1 [1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.9525,
+                                "y": 1.3462
+                            },
+                            "uuid": "39b822a5-75d5-4e1c-9824-c2a8ea0a6264"
+                        },
+                        {
+                            "description": "Symbol R32 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.0414,
+                                "y": 1.3081
+                            },
+                            "uuid": "e826a0ea-e92b-4b59-adc6-0df215b610a9"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol SW5 Pin 3 [3, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 0.9525,
+                                "y": 1.397
+                            },
+                            "uuid": "d5d92298-2329-4768-829a-5cbafcb3c67f"
+                        },
+                        {
+                            "description": "Symbol #PWR207 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 0.9525,
+                                "y": 1.4224
+                            },
+                            "uuid": "0accfac9-b27c-457c-8c1c-dfe580318988"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 7 [IN1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
                                 "y": 0.4064
                             },
-                            "uuid": "d08d7133-f4cf-40fd-a1e2-0874488bb9e9"
+                            "uuid": "503aae01-a25e-4439-ad96-f4026680076c"
+                        },
+                        {
+                            "description": "Symbol JP3 Pin 2 [B, Passiv, Linie]",
+                            "pos": {
+                                "x": 1.1684,
+                                "y": 0.2667
+                            },
+                            "uuid": "16b837c3-131e-4c7b-a91f-31fbb52d6678"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 6 [PR1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.4318
+                            },
+                            "uuid": "32beb14a-49fb-4ac2-907b-f0e73491827a"
+                        },
+                        {
+                            "description": "Symbol U9 Pin 7 [IN1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.4064
+                            },
+                            "uuid": "503aae01-a25e-4439-ad96-f4026680076c"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromausgang sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 2 [IN2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.4572
+                            },
+                            "uuid": "ad83277c-300f-4be6-8fb6-21b4bce92154"
+                        },
+                        {
+                            "description": "Symbol #FLG201 Pin 1 [Stromausgang, Linie]",
+                            "pos": {
+                                "x": 0.9144,
+                                "y": 0.6096
+                            },
+                            "uuid": "06fec788-3cb5-4aba-baf1-633115b1c8ad"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 3 [CP2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.4826
+                            },
+                            "uuid": "d4763066-74b2-4990-9d80-5912e5c78dcb"
+                        },
+                        {
+                            "description": "Symbol U9 Pin 5 [OV1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.508
+                            },
+                            "uuid": "f1c941b5-3555-4cee-a86a-e238cdb95187"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 5 [OV1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.508
+                            },
+                            "uuid": "f1c941b5-3555-4cee-a86a-e238cdb95187"
+                        },
+                        {
+                            "description": "Symbol #PWR059 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 1.0922,
+                                "y": 0.5461
+                            },
+                            "uuid": "aa8b2a6c-a919-4053-ad1c-6d9c43b7541b"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 4 [OV2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.5334
+                            },
+                            "uuid": "cfe4f1c5-370b-4aa7-b32f-4b93807d09ab"
+                        },
+                        {
+                            "description": "Symbol U9 Pin 5 [OV1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.508
+                            },
+                            "uuid": "f1c941b5-3555-4cee-a86a-e238cdb95187"
                         }
                     ],
                     "severity": "warning",
@@ -893,35 +602,311 @@
                     "description": "Symbol \"SolderJumper_2_Open\" stimmt nicht mit Kopie in Bibliothek \"Jumper\" überein",
                     "items": [
                         {
-                            "description": "Symbol JP2 [SolderJumper_2_Open]",
+                            "description": "Symbol JP3 [SolderJumper_2_Open]",
                             "pos": {
-                                "x": 3.8608,
-                                "y": 2.5654
+                                "x": 1.2065,
+                                "y": 0.2667
                             },
-                            "uuid": "1f40b846-f290-44c3-84fe-74505dada713"
+                            "uuid": "2101d9da-5168-48b7-87e6-9e5acc70704c"
                         }
                     ],
                     "severity": "warning",
                     "type": "lib_symbol_mismatch"
                 },
                 {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 1 [OUT, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.2954,
+                                "y": 0.4064
+                            },
+                            "uuid": "958f4ac6-1062-4c31-94a5-cff43d9c53ed"
+                        },
+                        {
+                            "description": "Symbol U9 Pin 8 [OUT, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.2954,
+                                "y": 0.4318
+                            },
+                            "uuid": "b20d059f-6e7c-4276-b5a6-a29aaa4175b4"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
                     "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
                     "items": [
                         {
-                            "description": "Symbol F2 Pin 2 [2, Unbestimmt, Linie]",
+                            "description": "Symbol U9 Pin 8 [OUT, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.937,
-                                "y": 1.2573
+                                "x": 1.2954,
+                                "y": 0.4318
                             },
-                            "uuid": "f9b59d70-34dc-4a77-87bf-020ee0d96bb1"
+                            "uuid": "b20d059f-6e7c-4276-b5a6-a29aaa4175b4"
                         },
                         {
-                            "description": "Symbol TP5 Pin 1 [1, Passiv, Linie]",
+                            "description": "Symbol JP3 Pin 1 [A, Passiv, Linie]",
                             "pos": {
-                                "x": 3.7084,
+                                "x": 1.2446,
+                                "y": 0.2667
+                            },
+                            "uuid": "68539434-53fa-4eae-8e0f-509372081a67"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 10 [ILM, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.2954,
+                                "y": 0.4826
+                            },
+                            "uuid": "edb8ce6d-4f00-40bd-a83a-1f26447d9bba"
+                        },
+                        {
+                            "description": "Symbol R26 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.4351,
+                                "y": 0.5461
+                            },
+                            "uuid": "fd92a707-6d81-4eae-bc67-3458144e9af6"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 11 [SS, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.2954,
+                                "y": 0.508
+                            },
+                            "uuid": "a68f2902-ed83-48f3-95b7-7eca7d7eaffe"
+                        },
+                        {
+                            "description": "Symbol C24 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.3462,
+                                "y": 0.5461
+                            },
+                            "uuid": "86f1bd5c-7450-4290-813a-aa2063b44cec"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 12 [GND, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.2954,
+                                "y": 0.5334
+                            },
+                            "uuid": "cd3041bf-ed00-40b0-89b5-c07825a4ed62"
+                        },
+                        {
+                            "description": "Symbol C24 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.3462,
+                                "y": 0.6223
+                            },
+                            "uuid": "6409ca31-da0d-4e2c-a324-dab72453c0f8"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 1 [BS, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.778,
                                 "y": 0.381
                             },
-                            "uuid": "469b7b16-84db-4639-8e94-d90cfb8570d7"
+                            "uuid": "76e09be0-8ff3-43d4-a88d-ecbb576cc183"
+                        },
+                        {
+                            "description": "Symbol C25 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.8288,
+                                "y": 0.2794
+                            },
+                            "uuid": "5ce3b115-d226-4eae-bffe-1db1b1a11462"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 5 [IN, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.4064
+                            },
+                            "uuid": "9c80f688-cf40-4be6-b581-640df68737d3"
+                        },
+                        {
+                            "description": "Symbol C26 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.7399,
+                                "y": 0.4445
+                            },
+                            "uuid": "f1557538-2238-4ae8-ab72-744c8463aa89"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 4 [EN, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.4318
+                            },
+                            "uuid": "3d38c9ae-5d86-4aa2-b419-59c65ac4e639"
+                        },
+                        {
+                            "description": "Symbol U10 Pin 5 [IN, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.4064
+                            },
+                            "uuid": "9c80f688-cf40-4be6-b581-640df68737d3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 6 [LX, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.9558,
+                                "y": 0.381
+                            },
+                            "uuid": "e4cb7b33-0bb7-4600-9269-6e5254f76a16"
+                        },
+                        {
+                            "description": "Symbol C25 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 1.905,
+                                "y": 0.2794
+                            },
+                            "uuid": "ee6d3831-324f-4517-a7ad-396060265463"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 3 [FB, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.9558,
+                                "y": 0.4064
+                            },
+                            "uuid": "a567e158-330a-40ff-a396-9f1737581244"
+                        },
+                        {
+                            "description": "Symbol R28 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 2.0193,
+                                "y": 0.5461
+                            },
+                            "uuid": "83b647fd-8c31-4516-9274-f3649338a3ce"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U10 Pin 2 [GND, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.9558,
+                                "y": 0.4318
+                            },
+                            "uuid": "3a0a35cd-50e0-4814-9cf3-c741a57e98ef"
+                        },
+                        {
+                            "description": "Symbol C29 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 2.0447,
+                                "y": 0.4572
+                            },
+                            "uuid": "58934b14-46f4-4b39-8383-0679106b4d07"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol L2 Pin 1 [1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.9812,
+                                "y": 0.3429
+                            },
+                            "uuid": "4d8c2971-f138-4ca7-a818-f70b22125265"
+                        },
+                        {
+                            "description": "Symbol U10 Pin 6 [LX, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 1.9558,
+                                "y": 0.381
+                            },
+                            "uuid": "e4cb7b33-0bb7-4600-9269-6e5254f76a16"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol L2 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 2.0828,
+                                "y": 0.3429
+                            },
+                            "uuid": "2ca7756a-d8a3-4d42-9ab5-ee160eaa52ab"
+                        },
+                        {
+                            "description": "Symbol C29 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 2.0447,
+                                "y": 0.381
+                            },
+                            "uuid": "714b19ec-35bf-4e7f-b8aa-e4e233e1fbfc"
                         }
                     ],
                     "severity": "warning",
@@ -933,18 +918,18 @@
                         {
                             "description": "Symbol U6 Pin 1 [E0, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.937,
-                                "y": 2.9718
+                                "x": 2.2606,
+                                "y": 2.4384
                             },
-                            "uuid": "f31b8047-a82d-4a8e-a109-610df1e0301a"
+                            "uuid": "927a5366-5f66-4d8b-88f1-0082354a530c"
                         },
                         {
                             "description": "Symbol RN1 Pin 7 [7, Passiv, Linie]",
                             "pos": {
-                                "x": 3.6576,
-                                "y": 3.5814
+                                "x": 2.1209,
+                                "y": 2.4257
                             },
-                            "uuid": "137e18eb-1c28-42d9-baa9-88c6b55a4d18"
+                            "uuid": "9ab43ed2-b463-44b4-b634-f90bf5febbe2"
                         }
                     ],
                     "severity": "warning",
@@ -956,18 +941,18 @@
                         {
                             "description": "Symbol U6 Pin 2 [E1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.937,
-                                "y": 2.9972
+                                "x": 2.2606,
+                                "y": 2.4638
                             },
-                            "uuid": "3a00baf6-943f-4e9f-ab33-0ab87ff927b9"
+                            "uuid": "8c549f90-c978-4095-be8f-a0afd8c66062"
                         },
                         {
                             "description": "Symbol RN1 Pin 6 [6, Passiv, Linie]",
                             "pos": {
-                                "x": 3.6576,
-                                "y": 3.6068
+                                "x": 2.0955,
+                                "y": 2.4257
                             },
-                            "uuid": "078712c2-8a23-4a57-9013-9957ca8116da"
+                            "uuid": "6905a956-af23-4af7-8beb-d792bcce2d02"
                         }
                     ],
                     "severity": "warning",
@@ -979,18 +964,18 @@
                         {
                             "description": "Symbol U6 Pin 3 [E2, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 3.937,
-                                "y": 3.0226
+                                "x": 2.2606,
+                                "y": 2.4892
                             },
-                            "uuid": "ea9d6828-2b2a-46ec-b4e9-8967ea8e3b14"
+                            "uuid": "e0132ee0-ca8e-4df0-9389-10c342f85ec5"
                         },
                         {
                             "description": "Symbol RN1 Pin 5 [5, Passiv, Linie]",
                             "pos": {
-                                "x": 3.6576,
-                                "y": 3.6322
+                                "x": 2.0701,
+                                "y": 2.4257
                             },
-                            "uuid": "d0f03f26-9f23-4f55-a4bc-7068047ade17"
+                            "uuid": "3c2f7045-c7b5-4d2b-b9b2-98b843855187"
                         }
                     ],
                     "severity": "warning",
@@ -1002,18 +987,18 @@
                         {
                             "description": "Symbol U6 Pin 8 [VCC, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.0259,
-                                "y": 2.921
+                                "x": 2.3495,
+                                "y": 2.3876
                             },
-                            "uuid": "49a02500-2087-405a-9fcd-a055bf9d9e1e"
+                            "uuid": "6ec2a8e4-f23d-4180-ac96-21ae996c4d20"
                         },
                         {
-                            "description": "Symbol #PWR100 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR045 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 4.0259,
-                                "y": 2.8956
+                                "x": 2.3495,
+                                "y": 2.3749
                             },
-                            "uuid": "4b488702-c25e-48c8-bd69-d24309609727"
+                            "uuid": "a54a160a-0986-4126-94b3-99201a0d900b"
                         }
                     ],
                     "severity": "warning",
@@ -1025,64 +1010,64 @@
                         {
                             "description": "Symbol U6 Pin 4 [GND, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.0259,
-                                "y": 3.0734
+                                "x": 2.3495,
+                                "y": 2.54
                             },
-                            "uuid": "909f21cd-c87e-49f8-a1e2-f34c197d261d"
+                            "uuid": "3519be98-6c57-4135-8f87-7abe34de96f5"
                         },
                         {
-                            "description": "Symbol #PWR102 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR046 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 4.0259,
-                                "y": 3.0988
+                                "x": 2.3495,
+                                "y": 2.5527
                             },
-                            "uuid": "435eeb44-9ea7-49c1-bd79-e8fda042e564"
+                            "uuid": "b31d47ea-3279-4766-860e-7985a9b386d2"
                         }
                     ],
                     "severity": "warning",
                     "type": "pin_to_pin"
                 },
                 {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
                     "items": [
                         {
                             "description": "Symbol U6 Pin 5 [SDA, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.1148,
-                                "y": 2.9718
+                                "x": 2.4384,
+                                "y": 2.4384
                             },
-                            "uuid": "b67beb0b-bdeb-43bf-a10b-9894cba9ad7e"
+                            "uuid": "1c4d7887-18b9-435c-a4d1-3904135b429a"
                         },
                         {
-                            "description": "Symbol RN2 Pin 8 [8, Passiv, Linie]",
+                            "description": "Symbol U5 Pin 7 [SDA, Bidirektional, Linie]",
                             "pos": {
-                                "x": 4.2418,
-                                "y": 3.556
+                                "x": 2.2225,
+                                "y": 2.1082
                             },
-                            "uuid": "eee581b4-7a08-4d19-9254-10828a4b53b7"
+                            "uuid": "7cf1303b-efbf-4679-8f65-979e1c0201c2"
                         }
                     ],
                     "severity": "warning",
                     "type": "pin_to_pin"
                 },
                 {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "description": "Pins vom Typ Unbestimmt und Eingang sind verbunden",
                     "items": [
                         {
                             "description": "Symbol U6 Pin 6 [SCL, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.1148,
-                                "y": 2.9972
+                                "x": 2.4384,
+                                "y": 2.4638
                             },
-                            "uuid": "d7c528a9-7150-413c-bcb6-a9af1c184311"
+                            "uuid": "73bcc56a-a40b-43cf-8d47-cfb46bf32fe4"
                         },
                         {
-                            "description": "Symbol RN2 Pin 7 [7, Passiv, Linie]",
+                            "description": "Symbol U5 Pin 8 [SCL, Eingang, Linie]",
                             "pos": {
-                                "x": 4.2418,
-                                "y": 3.5814
+                                "x": 2.2225,
+                                "y": 2.0828
                             },
-                            "uuid": "f33d54a3-7e04-4087-9c87-126e2a1627ef"
+                            "uuid": "ddb45653-9872-4b26-94eb-2ba58bf215f8"
                         }
                     ],
                     "severity": "warning",
@@ -1094,344 +1079,37 @@
                         {
                             "description": "Symbol U6 Pin 7 [WCB, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.1148,
-                                "y": 3.0226
-                            },
-                            "uuid": "f8f5f937-96aa-49a2-822d-4a6e9f12f879"
-                        },
-                        {
-                            "description": "Symbol #PWR101 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.1402,
-                                "y": 3.0226
-                            },
-                            "uuid": "e45d14a1-2f77-4688-a36d-85408984cf3e"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U3 Pin 2 [A, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 1.7272
-                            },
-                            "uuid": "3ee47fb4-23b3-4e26-9106-6df278a4370d"
-                        },
-                        {
-                            "description": "Symbol U2 Pin 5 [IO5, Bidirektional, Linie]",
-                            "pos": {
-                                "x": 2.0574,
-                                "y": 2.0066
-                            },
-                            "uuid": "6c3ad9a4-6363-4f7d-9c2d-5239ffae2b4e"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U3 Pin 1 [~{OE}, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 1.7526
-                            },
-                            "uuid": "3c6c8a5f-253e-456f-8c78-8e58f5741942"
-                        },
-                        {
-                            "description": "Symbol #PWR040 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8514,
-                                "y": 1.7526
-                            },
-                            "uuid": "109b464c-e831-4ff0-9571-9044ee2a14e1"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U3 Pin 3 [GND, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 1.778
-                            },
-                            "uuid": "d53b852e-a95e-4e7e-a792-84b705940317"
-                        },
-                        {
-                            "description": "Symbol #PWR041 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8514,
-                                "y": 1.778
-                            },
-                            "uuid": "87e728a3-477d-4da4-bbc1-7d550a222ad9"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H6 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 2.5146
-                            },
-                            "uuid": "527c5199-a485-442c-b40b-3cf3045f4ee2"
-                        },
-                        {
-                            "description": "Symbol D3 Pin 2 [A, Passiv, Linie]",
-                            "pos": {
-                                "x": 5.2959,
+                                "x": 2.4384,
                                 "y": 2.4892
                             },
-                            "uuid": "fda15179-298a-49bc-934e-7d93589605a2"
+                            "uuid": "5117a275-79bc-4a7d-88cb-332e6a3744c6"
+                        },
+                        {
+                            "description": "Symbol #PWR046 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 2.3495,
+                                "y": 2.5527
+                            },
+                            "uuid": "b31d47ea-3279-4766-860e-7985a9b386d2"
                         }
                     ],
                     "severity": "warning",
                     "type": "pin_to_pin"
                 },
                 {
-                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
+                    "description": "Symbol \"SolderJumper_2_Open\" stimmt nicht mit Kopie in Bibliothek \"Jumper\" überein",
                     "items": [
                         {
-                            "description": "Symbol H6 Pin 2 [2, Unbestimmt, Linie]",
+                            "description": "Symbol JP2 [SolderJumper_2_Open]",
                             "pos": {
-                                "x": 4.8768,
-                                "y": 2.54
+                                "x": 2.6289,
+                                "y": 1.2065
                             },
-                            "uuid": "c020239f-ecad-4bd4-aab0-ab7a34582790"
-                        },
-                        {
-                            "description": "Symbol U2 Pin 36 [RXD0, Bidirektional, Linie]",
-                            "pos": {
-                                "x": 2.3622,
-                                "y": 1.8542
-                            },
-                            "uuid": "34407b2c-2bc2-4420-be11-8e55e4448298"
+                            "uuid": "77e2b8d1-1b92-4bf4-bcf2-a246dce2742c"
                         }
                     ],
                     "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H6 Pin 3 [3, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 2.5654
-                            },
-                            "uuid": "a7545d5e-f3b5-4689-9709-8664091b7f82"
-                        },
-                        {
-                            "description": "Symbol R33 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 4.9403,
-                                "y": 2.7178
-                            },
-                            "uuid": "cacc12b7-2d52-46fa-8eab-92d35e11650b"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H6 Pin 4 [4, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 2.5908
-                            },
-                            "uuid": "56b86840-442b-4616-a71c-d8a4f3a9e18a"
-                        },
-                        {
-                            "description": "Symbol #PWR089 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8514,
-                                "y": 2.5908
-                            },
-                            "uuid": "8ddce277-19cf-4b30-ae4e-ef1763d91db8"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 1 [1, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.048
-                            },
-                            "uuid": "1f9f5bff-39f5-451a-a031-27a90613a9ed"
-                        },
-                        {
-                            "description": "Symbol H7 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.0734
-                            },
-                            "uuid": "38b99540-2f94-400e-af0b-8fffc627c006"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 2 [2, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.0734
-                            },
-                            "uuid": "38b99540-2f94-400e-af0b-8fffc627c006"
-                        },
-                        {
-                            "description": "Symbol R13 Pin 2 [Passiv, Linie]",
-                            "pos": {
-                                "x": 4.9657,
-                                "y": 1.9304
-                            },
-                            "uuid": "5beafb10-3326-45aa-a7f5-bbba9efe148f"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 3 [3, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.0988
-                            },
-                            "uuid": "01d98a61-1cd2-4d3e-9e50-715f41f11b5d"
-                        },
-                        {
-                            "description": "Symbol #PWR072 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 3.0988
-                            },
-                            "uuid": "2a50b272-dc41-4e59-9b59-9cc2d8a93111"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 4 [4, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.1242
-                            },
-                            "uuid": "755d0ec6-0f9b-4249-ad10-ffdce1722d69"
-                        },
-                        {
-                            "description": "Symbol R31 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 5.4102,
-                                "y": 2.0447
-                            },
-                            "uuid": "84e27488-ab28-4251-92eb-959257b7eef2"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 5 [5, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.1496
-                            },
-                            "uuid": "a94a5ac2-25cd-4d24-a76d-af5f2f454cd6"
-                        },
-                        {
-                            "description": "Symbol C32 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 5.1054,
-                                "y": 3.0353
-                            },
-                            "uuid": "aaae88b6-46d8-44a7-8c1a-01954c0b4847"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 6 [6, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.175
-                            },
-                            "uuid": "b60f5730-6d67-4db3-a072-5d442382f80e"
-                        },
-                        {
-                            "description": "Symbol #PWR073 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 3.175
-                            },
-                            "uuid": "d5459666-6f1c-40ee-927c-cd9c9a76fed5"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol H7 Pin 7 [7, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 4.9022,
-                                "y": 3.2004
-                            },
-                            "uuid": "4c8a017b-e619-40b0-bce2-3ad0ec85b138"
-                        },
-                        {
-                            "description": "Symbol #PWR074 Pin 1 [Stromversorgung, Linie]",
-                            "pos": {
-                                "x": 4.8768,
-                                "y": 3.2004
-                            },
-                            "uuid": "a63a5659-d0eb-43a5-b60c-402282efb3ce"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
+                    "type": "lib_symbol_mismatch"
                 },
                 {
                     "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
@@ -1439,18 +1117,18 @@
                         {
                             "description": "Symbol H4 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.9022,
-                                "y": 3.3528
+                                "x": 2.9718,
+                                "y": 2.0574
                             },
-                            "uuid": "c1e7538e-aae8-435f-a717-03f1b07c0d5a"
+                            "uuid": "e4f98a2d-2fd9-4a49-9237-69cdfb0a26b5"
                         },
                         {
-                            "description": "Symbol H7 Pin 2 [2, Unbestimmt, Linie]",
+                            "description": "Symbol H7 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.9022,
-                                "y": 3.0734
+                                "x": 3.3401,
+                                "y": 2.0701
                             },
-                            "uuid": "38b99540-2f94-400e-af0b-8fffc627c006"
+                            "uuid": "1a123785-b402-4880-aea1-49f354aa01ab"
                         }
                     ],
                     "severity": "warning",
@@ -1462,18 +1140,18 @@
                         {
                             "description": "Symbol H4 Pin 2 [2, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.9022,
-                                "y": 3.3782
+                                "x": 2.9718,
+                                "y": 2.0828
                             },
-                            "uuid": "0f8ee76f-5e10-479e-a8f6-7acffdab0ee5"
+                            "uuid": "c9f0c1d3-51f2-4851-a47b-1569d676a89b"
                         },
                         {
                             "description": "Symbol H7 Pin 4 [4, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.9022,
-                                "y": 3.1242
+                                "x": 3.3401,
+                                "y": 2.1463
                             },
-                            "uuid": "755d0ec6-0f9b-4249-ad10-ffdce1722d69"
+                            "uuid": "77968b00-f8ee-4580-a86a-df92d9903ebb"
                         }
                     ],
                     "severity": "warning",
@@ -1485,64 +1163,18 @@
                         {
                             "description": "Symbol H4 Pin 3 [3, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 4.9022,
-                                "y": 3.4036
+                                "x": 2.9718,
+                                "y": 2.1082
                             },
-                            "uuid": "669223b9-4321-47dd-a80e-af146f8042cd"
+                            "uuid": "5f392321-c6c5-4490-bf3c-ccec33322611"
                         },
                         {
-                            "description": "Symbol #PWR054 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR037 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 4.8768,
-                                "y": 3.4036
+                                "x": 2.9591,
+                                "y": 2.1209
                             },
-                            "uuid": "4f67cb11-a0df-4d39-87ba-27ed59147905"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U3 Pin 5 [VCC, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 5.0546,
-                                "y": 1.7272
-                            },
-                            "uuid": "abf0ad77-c856-43f0-a769-fbbd34983136"
-                        },
-                        {
-                            "description": "Symbol R13 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 4.8895,
-                                "y": 1.9304
-                            },
-                            "uuid": "eae834e9-66c6-4dc4-b933-746616ed24a1"
-                        }
-                    ],
-                    "severity": "warning",
-                    "type": "pin_to_pin"
-                },
-                {
-                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
-                    "items": [
-                        {
-                            "description": "Symbol U3 Pin 4 [Y, Unbestimmt, Linie]",
-                            "pos": {
-                                "x": 5.0546,
-                                "y": 1.778
-                            },
-                            "uuid": "29fa044c-9fa3-4514-9f35-7d8efef632d0"
-                        },
-                        {
-                            "description": "Symbol R11 Pin 1 [Passiv, Linie]",
-                            "pos": {
-                                "x": 5.4483,
-                                "y": 1.7272
-                            },
-                            "uuid": "5605c609-9fb2-4770-b9ca-36fa45273a17"
+                            "uuid": "b0c76a4b-6823-4813-a3d1-ebc52d8bfa78"
                         }
                     ],
                     "severity": "warning",
@@ -1554,18 +1186,18 @@
                         {
                             "description": "Symbol H5 Pin 1 [1, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 5.2578,
-                                "y": 3.3528
+                                "x": 2.9718,
+                                "y": 2.2606
                             },
-                            "uuid": "39d4e32c-8f09-43f9-8dfb-af644fdd2bf7"
+                            "uuid": "5246f09e-6985-45e6-ac55-1182a9ce1ba3"
                         },
                         {
-                            "description": "Symbol #PWR049 Pin 1 [Stromversorgung, Linie]",
+                            "description": "Symbol #PWR038 Pin 1 [Stromversorgung, Linie]",
                             "pos": {
-                                "x": 5.2324,
-                                "y": 3.3528
+                                "x": 2.9591,
+                                "y": 2.2479
                             },
-                            "uuid": "40ce8875-4db5-4f92-a8b9-99f37607dd68"
+                            "uuid": "2e470ff5-6817-48e9-8315-fb63c4925554"
                         }
                     ],
                     "severity": "warning",
@@ -1577,18 +1209,386 @@
                         {
                             "description": "Symbol H5 Pin 2 [2, Unbestimmt, Linie]",
                             "pos": {
-                                "x": 5.2578,
-                                "y": 3.3782
+                                "x": 2.9718,
+                                "y": 2.286
                             },
-                            "uuid": "dd1b2a24-e740-475e-85b2-66989cd9d12a"
+                            "uuid": "b082b62a-b40b-4f9d-b56d-5f15a14761a3"
+                        },
+                        {
+                            "description": "Symbol C32 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.2258,
+                                "y": 2.1717
+                            },
+                            "uuid": "4ee04dcc-3d99-4cbb-aa04-ba6ec48129d3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 2 [A, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.048,
+                                "y": 1.2319
+                            },
+                            "uuid": "b05c3d70-ffa7-4240-96d1-9d34f52e261d"
+                        },
+                        {
+                            "description": "Symbol U2 Pin 5 [IO5, Bidirektional, Linie]",
+                            "pos": {
+                                "x": 1.2446,
+                                "y": 1.4732
+                            },
+                            "uuid": "b06daf1d-2739-4380-94f5-18ce7682fa49"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 1 [~{OE}, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.048,
+                                "y": 1.2573
+                            },
+                            "uuid": "f3dbf740-3883-4121-8c49-49ab97196c55"
+                        },
+                        {
+                            "description": "Symbol U3 Pin 3 [GND, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.048,
+                                "y": 1.2827
+                            },
+                            "uuid": "b656d750-57ea-43d3-86b5-0b90f4befecc"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 3 [GND, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.048,
+                                "y": 1.2827
+                            },
+                            "uuid": "b656d750-57ea-43d3-86b5-0b90f4befecc"
+                        },
+                        {
+                            "description": "Symbol #PWR024 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 3.0226,
+                                "y": 1.3081
+                            },
+                            "uuid": "60c73f66-66f4-4e6d-a76d-0caafbce3f18"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 5 [VCC, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2258,
+                                "y": 1.2319
+                            },
+                            "uuid": "efae753a-83cb-457f-9c84-acea8c6ade2f"
+                        },
+                        {
+                            "description": "Symbol R13 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.143
+                            },
+                            "uuid": "0edb69e0-798b-4b1b-afaa-6b515f19e35f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 4 [Y, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2258,
+                                "y": 1.2827
+                            },
+                            "uuid": "842e3002-2fcd-4e08-a130-886701b55824"
+                        },
+                        {
+                            "description": "Symbol R11 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.3208
+                            },
+                            "uuid": "e33bcaca-a36b-46ee-ac03-c6104d98c22f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H6 Pin 1 [1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.8034
+                            },
+                            "uuid": "474ee396-c499-4a5b-94a1-cbe6643d21f8"
+                        },
+                        {
+                            "description": "Symbol D3 Pin 2 [A, Passiv, Linie]",
+                            "pos": {
+                                "x": 3.2512,
+                                "y": 1.778
+                            },
+                            "uuid": "41bf1137-3e8f-41f5-8491-463508d85331"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Bidirektional sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H6 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.8288
+                            },
+                            "uuid": "8b11c25d-11d9-42e3-89ce-f96c796a1026"
+                        },
+                        {
+                            "description": "Symbol U2 Pin 36 [RXD0, Bidirektional, Linie]",
+                            "pos": {
+                                "x": 1.5494,
+                                "y": 1.3208
+                            },
+                            "uuid": "c10db95d-0675-4b47-8cac-faf266a7f92e"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H6 Pin 3 [3, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.8542
+                            },
+                            "uuid": "69e7bf79-6abb-47b6-878f-4a5528372862"
+                        },
+                        {
+                            "description": "Symbol R33 Pin 2 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.1623,
+                                "y": 1.8542
+                            },
+                            "uuid": "53ade73a-011c-4bf8-9971-395eb58fe03f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H6 Pin 4 [4, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.2639,
+                                "y": 1.8796
+                            },
+                            "uuid": "f47e2d42-6030-4333-b897-a84e4fd03e9b"
+                        },
+                        {
+                            "description": "Symbol #PWR042 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 3.2512,
+                                "y": 1.905
+                            },
+                            "uuid": "4102841a-a7e6-4b21-b8ad-5ef8d8a4b5fc"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 1 [1, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.0701
+                            },
+                            "uuid": "1a123785-b402-4880-aea1-49f354aa01ab"
+                        },
+                        {
+                            "description": "Symbol H7 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.0955
+                            },
+                            "uuid": "df0d19e0-3a3b-4c16-b498-9bc49ebcaac0"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 2 [2, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.0955
+                            },
+                            "uuid": "df0d19e0-3a3b-4c16-b498-9bc49ebcaac0"
+                        },
+                        {
+                            "description": "Symbol C6 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.3528,
+                                "y": 1.1557
+                            },
+                            "uuid": "b74f1951-f648-45e9-af3a-074159cb35f4"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 3 [3, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.1209
+                            },
+                            "uuid": "0e732cd9-41e4-455b-a71c-59a247834164"
+                        },
+                        {
+                            "description": "Symbol #PWR048 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 3.2766,
+                                "y": 2.1082
+                            },
+                            "uuid": "258d64d1-326e-4ede-9e21-457ee79364a2"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 4 [4, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.1463
+                            },
+                            "uuid": "77968b00-f8ee-4580-a86a-df92d9903ebb"
+                        },
+                        {
+                            "description": "Symbol R31 Pin 1 [Passiv, Linie]",
+                            "pos": {
+                                "x": 3.3528,
+                                "y": 1.3335
+                            },
+                            "uuid": "8c2c7d81-47ae-4dee-92e7-f54c9124a1e3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Passiv sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 5 [5, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.1717
+                            },
+                            "uuid": "8fd448e7-ce0e-4d4c-b87d-2e9e33ee12c9"
                         },
                         {
                             "description": "Symbol R22 Pin 2 [Passiv, Linie]",
                             "pos": {
-                                "x": 5.2832,
-                                "y": 3.0353
+                                "x": 3.2766,
+                                "y": 2.1844
                             },
-                            "uuid": "623ed209-da70-46b4-a184-2a244f1077b7"
+                            "uuid": "c8e4f3a2-5e60-44ef-80ee-88cae63b91d6"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Unbestimmt sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 6 [6, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.1971
+                            },
+                            "uuid": "cd02ee76-76b0-461a-b220-fe14438f3b8c"
+                        },
+                        {
+                            "description": "Symbol H7 Pin 7 [7, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.2225
+                            },
+                            "uuid": "b38b4fe3-3e3d-4374-8c15-7fcecf5d23c5"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "description": "Pins vom Typ Unbestimmt und Stromversorgung sind verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol H7 Pin 7 [7, Unbestimmt, Linie]",
+                            "pos": {
+                                "x": 3.3401,
+                                "y": 2.2225
+                            },
+                            "uuid": "b38b4fe3-3e3d-4374-8c15-7fcecf5d23c5"
+                        },
+                        {
+                            "description": "Symbol #PWR050 Pin 1 [Stromversorgung, Linie]",
+                            "pos": {
+                                "x": 3.3274,
+                                "y": 2.2733
+                            },
+                            "uuid": "15f0015a-9bcd-4b20-b50f-611b7eb87e05"
                         }
                     ],
                     "severity": "warning",
