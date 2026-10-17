@@ -39,7 +39,7 @@
 #   - fs write short:      Asset abgebrochen ausgeliefert (C65/E3) -- Alarm: der Browser bekommt eine
 #                           verstuemmelte Datei, bei app.js ein halb geladenes Skript
 #   - scan n=...           WLAN-Scan mit Heap vor/nach (E4) -- Hinweis
-#   - http write lost ... fail=n   Antwort abgebrochen (C49/E3) -- Alarm bei fail > 0 (E38, L463)
+#   - http write lost ... fail=n   Antwort abgebrochen (C49/E3) -- Alarm, wenn der Zaehler fail gestiegen ist (E38, L463, L497)
 #   low= in der Heap-Zeile Tiefstwert des groessten Blocks unter 1072 (K30) -- Alarm (E38, L466)
 #   - update liste zu gross / - update cache ... fehlgeschlagen   Zwischenspeicher des ESP fuer
 #                           Tabellenliste, Release Notes, wc-list.txt (E3, M-1) -- Hinweis
@@ -148,6 +148,7 @@ HOLE_TMP=""
 trap '[ -n "$HOLE_PID" ] && { pkill -P "$HOLE_PID" 2>/dev/null; kill "$HOLE_PID" 2>/dev/null; }; [ -n "$HOLE_TMP" ] && rm -f "${HOLE_TMP:?}"; exit' TERM INT HUP
 HOLE_OUT=""
 HOLE_HAENGT=0
+HOLE_DAUER=0   # L498: Dauer des letzten Abrufs in s -- die Aussetzermeldung nennt sie
 hole() {
   local tmp pid n=0
   tmp=$(mktemp "${TMPDIR:-/tmp}/watchlog.XXXXXX") || { HOLE_OUT=""; HOLE_HAENGT=1; return 2; }
@@ -166,6 +167,7 @@ hole() {
     sleep 0.1; n=$((n + 1))
   done
   wait "$pid" 2>/dev/null
+  HOLE_DAUER=$((n / 10))
   HOLE_PID=""
   HOLE_OUT=$(cat "$tmp")
   rm -f "${tmp:?}"
@@ -191,6 +193,11 @@ EREIGNIS_MUSTER='- weather fc=|(^|[^A-Za-z])eep a=[0-9]|cmd abgewiesen|ds18xx ve
 # die Grundlinie einer parallel laufenden Geraetewache, und die meldet alte Zeilen neu (L410).
 GESEHEN="$(git rev-parse --git-dir 2>/dev/null)/watch-log.gesehen$WL_SFX"
 printf '%s\n' "$basis_roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
+# L497 (N4 aus T3): fail= in "http write lost" ist der Zaehler http_write_lost_failed seit dem ESP-Start,
+# nicht die Zahl dieses Verlusts. Gemeldet wird nur ein ANSTIEG gegenueber der vorigen Zeile. Ohne
+# vorige Zeile (leer) gilt wie bisher fail > 0; faellt der Zaehler (ESP neu gestartet), zaehlt er ab 0.
+fail_aus() { printf '%s\n' "$1" | grep -a -- '- http write lost ' | grep -aoE 'fail=[0-9]+' | tail -1 | cut -d= -f2; }
+wfail_vorher=$(fail_aus "$basis_roh")
 # Neustarts, Exceptions und Watchdog-Resets werden ebenso an der ZEILE erkannt, nicht als
 # Zahl im Fenster (BEFUNDE L475). Bis zum 16.10.2026 verglich die Wache die Anzahl der
 # Treffer in den letzten 3000 Zeilen mit der Grundlinie. Das Fenster gleitet aber: Faellt
@@ -236,8 +243,10 @@ while :; do
   runde=$((runde+1))
   jetzt_s=$(date +%s)
   if [ -n "$vorige_runde" ] && [ $((jetzt_s - vorige_runde)) -gt "$SELBST_GRENZE" ]; then
-    printf '  %s  *** Wache hat %s s ausgesetzt (Grenze %s s) *** -- Mac im Ruhezustand, Prozess gestoppt? Dieses Fenster ist NICHT beobachtet\n' \
-      "$(date '+%H:%M:%S')" "$((jetzt_s - vorige_runde))" "$SELBST_GRENZE"
+    # L498: Am 17.10.2026 setzte die Wache zweimal aus (47 s, 58 s), am Netzteil und mit caffeinate --
+    # die Vermutung "Ruhezustand" war falsch. Die Dauer des letzten Abrufs grenzt die Ursache ein.
+    printf '  %s  *** Wache hat %s s ausgesetzt (Grenze %s s, letzter Abruf %s s) *** -- Ruhezustand, Prozess gestoppt oder Abruf langsam? Dieses Fenster ist NICHT beobachtet\n' \
+      "$(date '+%H:%M:%S')" "$((jetzt_s - vorige_runde))" "$SELBST_GRENZE" "$HOLE_DAUER"
     selbst_alarm=1
   fi
   vorige_runde=$jetzt_s
@@ -260,6 +269,7 @@ while :; do
     basis_wdt=$(printf '%s' "$roh" | grep -aci 'wdt reset')
     printf '%s\n' "$roh" | grep -aE -e "$EREIGNIS_MUSTER" > "$GESEHEN" || true
     printf '%s\n' "$roh" | grep -aiE -e "$KRIT_MUSTER" > "$GESEHEN_K" || true
+    wfail_vorher=$(fail_aus "$roh")
     basis_fehlt=0
     printf '  %s  Grundlinie nachgeholt: %s Exceptions, %s Neustarts, %s Watchdog-Resets im Fenster\n' \
       "$(date '+%H:%M:%S')" "$basis_exc" "$basis_rst" "$basis_wdt"
@@ -360,11 +370,18 @@ while :; do
         *"- http write lost "*" fail="*)
           # E38 (L463): Eine Antwort ging verloren. fail > 0 ist laut TESTPLAN 5b immer ein Befund;
           # snd=0 heisst "Gegenstelle quittiert nicht", snd voll und blk klein heisst Heap.
+          # L497: fail= ist ein Zaehler seit dem ESP-Start -- Alarm nur bei Anstieg (siehe fail_aus).
           wfail=$(printf '%s' "$z" | grep -aoE 'fail=[0-9]+' | head -1 | cut -d= -f2)
-          if [ "${wfail:-0}" -gt 0 ] 2>/dev/null; then
-            printf '  %s  *** Antwort verloren (http write lost, fail=%s) ***   <%s>\n' "$stamp" "$wfail" "$z"
+          case "$wfail" in ''|*[!0-9]*) wfail=0 ;; esac
+          wbasis=${wfail_vorher:-0}
+          [ "$wfail" -lt "$wbasis" ] && wbasis=0   # Zaehler zurueckgesetzt: ESP neu gestartet
+          if [ "$wfail" -gt "$wbasis" ]; then
+            printf '  %s  *** Antwort verloren (http write lost, fail %s -> %s) ***   <%s>\n' "$stamp" "$wbasis" "$wfail" "$z"
             alarm=1
-          fi ;;
+          else
+            printf '  %s  Hinweis: Antwort verloren, Gegenstelle weg -- kein neuer Schreibfehler (fail=%s)   <%s>\n' "$stamp" "$wfail" "$z"
+          fi
+          wfail_vorher=$wfail ;;
         *"- scan n="*)
           # E4 (C65): WLAN-Scan mit Heap vor/nach Scan und nach dem Flush -- gewollt (beim Oeffnen des
           # Netzwerkmoduls oder per Knopf), deshalb Hinweis. Mehr als einer je Minute waere ein Befund.
