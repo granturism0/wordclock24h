@@ -1,76 +1,212 @@
 #!/usr/bin/env python3
-"""Startprobe zu C80 (BEFUNDE L499): Haengt die bleibende Heap-Zerstueckelung am fruehen Verkehr nach dem Start?
+"""Startprobe zu C80 (BEFUNDE L499; Spec specs/paket-2026-10-17-c80, AKV.1): Haengt die bleibende Heap-Zerstueckelung
+am fruehen Verkehr nach dem Start?
 
-Aufruf:  tools/startprobe.py <arme>      z. B. ABDCBA (Reihenfolge = Lauffolge)
-  A = local_esp_restart, sofort abfragen    B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
-  D = OTA auf dasselbe Abbild, sofort       C = OTA auf dasselbe Abbild, ruhig bis +30 s
-"Sofort": device_ready alle 0,3 s, bis das Geraet einmal NICHT antwortet (alte Firmware weg) und danach antwortet.
+Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>]      z. B. ABE  (Reihenfolge = Lauffolge)
+  A = local_esp_restart, sofort abfragen     B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
+  D = OTA auf dasselbe Abbild, sofort        C = OTA auf dasselbe Abbild, ruhig bis +30 s
+  E = local_esp_restart; bis zur Startzeile NUR den Mitschnitt lesen, keine Verbindung zur Uhr; danach genau EINE
+      device_ready-Anfrage (Abstand zur Startzeile ueber 5,9 s => Lauf ungueltig)
+"Sofort" (A, D): device_ready alle 0,3 s, bis das Geraet einmal NICHT antwortet (alte Firmware weg) und danach
+antwortet; mitgeschrieben werden die Zahl der Versuche und aus dem Rumpf der ersten Antwort http_accept_dead,
+tcp_now_pending, tcp_now_unclaimed, tcp_now_list.
 Danach in allen Armen ab +30 s dieselbe Folge smoke-device.sh, check-pwa.sh; Ruhewert ist die erste Heap-Zeile
 >= 150 s danach mit tcp=0/0/0/0/0/0. Gemessen 17.10.2026 auf ESP 3.2.41: A und D max 6'600, B und C 7'104 (3/3).
 
-SCHREIBT AM GERAET: startet den ESP neu bzw. loest ein OTA aus, je Arm einmal. Logwache parallel (DIR-013).
-Zwei Fallen, die das Werkzeug umgeht: local_esp_restart antwortet nicht und blockiert bis zur Frist (deshalb im
+Exit 0 alle Laeufe vollstaendig (und mit --abnahme: kein Lauf unter dem Soll); 1 ein Lauf unvollstaendig, ungueltig
+oder unter dem Soll -- die Meldung nennt Lauf und Grund; 2 Aufruf- oder Werkzeugfehler.
+Jede Meldung geht auf die Konsole UND in die Mitschrift (STARTPROBE_MITSCHRIFT, sonst .git/startprobe.log).
+
+SCHREIBT AM GERAET: startet den ESP neu bzw. loest ein OTA aus, je Lauf einmal. Logwache parallel (DIR-013).
+Gegenproben ohne Geraet (DIR-014): STARTPROBE_LOG ersetzt tools/logger/log.sh (Attrappe, antwortet auf tail/grep/mark),
+STARTPROBE_HOST die Geraeteadresse, STARTPROBE_FRIST die Wartezeit auf die Startzeile (Standard 420 s).
+Zwei Fallen, die das Werkzeug umgeht: local_esp_restart antwortet nicht und blockierte bis zur Frist (deshalb im
 eigenen Faden), und Abfragezeilen schieben die Startzeile aus einem kurzen tail (deshalb log.sh grep).
 """
-import re, subprocess, time, datetime as D, urllib.request, sys, threading
-R=subprocess.run(['git','-C',__import__('os').path.dirname(__import__('os').path.abspath(__file__)),'rev-parse','--show-toplevel'],capture_output=True,text=True).stdout.strip()
-host=[re.match(r'\s*DEVICE_HOST=["\']?([^"\'\s]+)',z).group(1) for z in open(R+'/tools/device.conf') if re.match(r'\s*DEVICE_HOST=',z)][0]
-RX=re.compile(r'^(\S+)\s+\(- heap free=(\d+) max=(\d+) .*tcp=([\d/]+)')
-def log(s): print(time.strftime('%H:%M:%S'),s,flush=True)
-def roh(n=1500): return subprocess.run([R+'/tools/logger/log.sh','tail',str(n)],capture_output=True,text=True,cwd=R).stdout.splitlines()
+import json, os, re, subprocess, sys, threading, time, datetime as D, urllib.request
+
+R = subprocess.run(['git', '-C', os.path.dirname(os.path.abspath(__file__)), 'rev-parse', '--show-toplevel'],
+                   capture_output=True, text=True).stdout.strip()
+GITDIR = subprocess.run(['git', '-C', R, 'rev-parse', '--absolute-git-dir'], capture_output=True, text=True).stdout.strip()
+LOGSH = os.environ.get('STARTPROBE_LOG') or R + '/tools/logger/log.sh'
+MITSCHRIFT = os.environ.get('STARTPROBE_MITSCHRIFT') or GITDIR + '/startprobe.log'
+FRIST = int(os.environ.get('STARTPROBE_FRIST', '420'))
+RX = re.compile(r'^(\S+)\s+\(- heap free=(\d+) max=(\d+) .*tcp=([\d/]+)')
+FELDER = ('http_accept_dead', 'tcp_now_pending', 'tcp_now_unclaimed', 'tcp_now_list')
+
+
+def host_lesen():
+    if os.environ.get('STARTPROBE_HOST'):
+        return os.environ['STARTPROBE_HOST']
+    for z in open(R + '/tools/device.conf'):
+        m = re.match(r'\s*DEVICE_HOST=["\']?([^"\'\s]+)', z)
+        if m:
+            return m.group(1)
+    raise SystemExit('DEVICE_HOST fehlt (tools/device.conf)')
+
+
+def log(s):
+    z = time.strftime('%H:%M:%S') + ' ' + s
+    print(z, flush=True)
+    with open(MITSCHRIFT, 'a') as f:
+        f.write(z + '\n')
+
+
+def logsh(*a):
+    return subprocess.run([LOGSH, *map(str, a)], capture_output=True, text=True, cwd=R).stdout.splitlines()
+
+
 def ts(l):
-    try: return D.datetime.fromisoformat(l.split()[0])
-    except Exception: return None
-def jetzt(): return D.datetime.now().astimezone()
-def suche(m,n=400):
+    try:
+        return D.datetime.fromisoformat(l.split()[0])
+    except Exception:
+        return None
+
+
+def suche(m, n=400):
     # gezielt im Mitschnitt statt im Ende: Abfragezeilen schoben die Startzeile aus tail 400
-    return sorted(subprocess.run([R+'/tools/logger/log.sh','grep',m,str(n)],capture_output=True,text=True,cwd=R).stdout.splitlines())
-def mark(s): subprocess.run([R+'/tools/logger/log.sh','mark',s],capture_output=True,cwd=R)
-def get(p,t=2):
-    try: return urllib.request.urlopen(f'http://{host}{p}',timeout=t).read()
-    except Exception: return None
-def ruhe(nach,sek):
-    tend=time.time()+700
-    while time.time()<tend:
-        z=[l for l in roh(400) if ts(l) and RX.match(l) and (ts(l)-nach).total_seconds()>=sek and RX.match(l).group(4)=='0/0/0/0/0/0']
-        if z: m=RX.match(z[0]); return int(m.group(2)),int(m.group(3)),z[0].strip()
+    return sorted(logsh('grep', m, n))
+
+
+def jetzt():
+    return D.datetime.now().astimezone()
+
+
+def get(p, t=2):
+    try:
+        return urllib.request.urlopen(f'http://{HOST}{p}', timeout=t).read()
+    except Exception:
+        return None
+
+
+def ruhe(nach, sek):
+    tend = time.time() + 700
+    while time.time() < tend:
+        z = [l for l in logsh('tail', 400) if ts(l) and RX.match(l) and (ts(l) - nach).total_seconds() >= sek
+             and RX.match(l).group(4) == '0/0/0/0/0/0']
+        if z:
+            m = RX.match(z[0])
+            return int(m.group(2)), int(m.group(3)), m.group(4)
         time.sleep(20)
-    return None,None,'kein Ruhewert'
-def lauf(arm):
-    ota=arm in 'CD'; sofort=arm in 'AD'
-    mark(f'startprobe: Arm {arm} ({"OTA" if ota else "Neustart"}, {"sofort" if sofort else "ab +30 s"})')
-    t0=jetzt(); log(f'== Arm {arm}')
-    # Ausloeser im eigenen Faden: local_esp_restart antwortet nicht (Neustart vor der Antwort) und blockierte
-    # sonst bis zur Frist -- die Abfrage im Arm 'sofort' begann dann erst 22 s nach dem Start (09:23:08).
-    threading.Thread(target=get,args=('/api/remote_esp_update' if ota else '/api/local_esp_restart',30),daemon=True).start()
-    erste=None
+    return None
+
+
+def lauf(nr, arm):
+    ota, sofort, einmal = arm in 'CD', arm in 'AD', arm == 'E'
+    e = {'lauf': nr, 'arm': arm, 'fehlt': []}
+    logsh('mark', f'startprobe: Lauf {nr} Arm {arm}')
+    t0 = jetzt()
+    log(f'== Lauf {nr}, Arm {arm} ({"OTA" if ota else "Neustart"}, '
+        f'{"sofort" if sofort else "eine Anfrage nach der Startzeile" if einmal else "ab +30 s"})')
+    threading.Thread(target=get, args=('/api/remote_esp_update' if ota else '/api/local_esp_restart', 30),
+                     daemon=True).start()
     if sofort:
-        # erst warten, bis das Geraet NICHT antwortet (alte Firmware weg), dann bis zur ersten Antwort der neuen
-        weg=False
-        while (jetzt()-t0).total_seconds()<400:
-            ok=get('/api/device_ready',1) is not None
-            if not ok: weg=True
-            elif weg: erste=jetzt(); break
+        weg, versuche, rumpf = False, 0, None
+        while (jetzt() - t0).total_seconds() < FRIST:
+            versuche += 1
+            r = get('/api/device_ready', 1)
+            if r is None:
+                weg = True
+            elif weg:
+                rumpf = r
+                break
             time.sleep(0.3)
-        log(f'  sofort: alte Firmware weg={weg}, erste Antwort {erste.strftime("%H:%M:%S.%f")[:-3] if erste else "-"}')
-    tf=None
-    while tf is None and (jetzt()-t0).total_seconds()<420:
-        time.sleep(2); z=[ts(l) for l in suche('(FIRMWARE ') if ts(l) and ts(l)>t0]
-        if z: tf=z[0]
-    if tf is None: log('ABBRUCH: kein Start im Mitschnitt'); return None
-    while (jetzt()-tf).total_seconds()<30: time.sleep(1)
-    ea=[l for l in suche('heap erste anfrage') if ts(l) and ts(l)>tf][:1]
-    eas=f"{(ts(ea[0])-tf).total_seconds():.1f} s, {ea[0].split('(',1)[-1].rstrip(')')}" if ea else 'keine'
-    log(f'  Start {tf.strftime("%H:%M:%S")}, erste Anfrage: {eas}')
-    for c in (['./tools/smoke-device.sh'],['./tools/check-pwa.sh']):
-        p=subprocess.run(c,capture_output=True,text=True,cwd=R); log(f'  {c[0]}: Exit {p.returncode}')
-    f,m,l=ruhe(jetzt(),150); log(f'  Ruhewert: {l}')
-    return (arm,eas,m)
-erg=[]
-if len(sys.argv)!=2 or not set(sys.argv[1])<=set('ABCD'):
-    print(__doc__.split('\n\n')[1],file=sys.stderr); sys.exit(2)
-for arm in sys.argv[1]:
-    erg.append(lauf(arm))
-log('ERGEBNIS')
-for e in erg: log(f'  {e}')
-mark('startprobe: Ende')
+        e['versuche'] = versuche
+        if rumpf is None:
+            e['fehlt'].append('erste Antwort der neuen Firmware' + ('' if weg else ' (alte Firmware nie weg)'))
+        else:
+            try:
+                d = json.loads(rumpf)
+                e['erste_antwort'] = {k: d.get(k) for k in FELDER}
+            except Exception:
+                e['fehlt'].append('Rumpf der ersten Antwort nicht lesbar')
+    tf = None
+    while tf is None and (jetzt() - t0).total_seconds() < FRIST:
+        time.sleep(2)
+        z = [ts(l) for l in suche('(FIRMWARE ') if ts(l) and ts(l) > t0]
+        if z:
+            tf = z[0]
+    if tf is None:
+        e['fehlt'].append(f'Startzeile (FIRMWARE ...) binnen {FRIST} s')
+        return e
+    e['start'] = tf.strftime('%H:%M:%S')
+    if einmal:
+        r = get('/api/device_ready', 5)
+        e['eine_anfrage_s'] = round((jetzt() - tf).total_seconds(), 1)
+        if r is None:
+            e['fehlt'].append('Antwort auf die eine Anfrage')
+        if e['eine_anfrage_s'] > 5.9:
+            e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze 5,9 s)'
+    while (jetzt() - tf).total_seconds() < 30:
+        time.sleep(1)
+    if einmal:
+        # AKV.2: vom Werkzeug geprueft -- zwischen dem Neustart (rst cause) und der Startzeile keine Anfrage an die Uhr,
+        # danach bis +29 s genau eine. Gezaehlt wird jede Anfrage, auch fremde: Ein Browser im Netz macht den Lauf ungueltig.
+        z = logsh('since', t0.strftime('%Y-%m-%dT%H:%M'), 6000)
+        rst = [ts(l) for l in z if ts(l) and ts(l) > t0 and 'rst cause' in l][:1]
+        req = [ts(l) for l in z if ts(l) and '- request ' in l]
+        if not rst:
+            e['fehlt'].append('Zeile rst cause nach dem Ausloeser')
+        else:
+            vor = sum(1 for x in req if rst[0] < x < tf)
+            nach = sum(1 for x in req if tf <= x <= tf + D.timedelta(seconds=29))
+            e['anfragen_vor_start'], e['anfragen_bis_30s'] = vor, nach
+            if vor or nach != 1:
+                e['ungueltig'] = (e.get('ungueltig', '') + f' Anfragen zwischen Neustart und Startzeile {vor} (Soll 0), '
+                                  f'danach bis +29 s {nach} (Soll 1)').strip()
+    for c in (['./tools/smoke-device.sh'], ['./tools/check-pwa.sh']):
+        p = subprocess.run(c, capture_output=True, text=True, cwd=R)
+        log(f'  {c[0]}: Exit {p.returncode}')
+    ea = [l for l in suche('heap erste anfrage') if ts(l) and ts(l) > tf][:1]
+    if ea:
+        e['erste_anfrage_s'] = round((ts(ea[0]) - tf).total_seconds(), 1)
+        e['erste_anfrage'] = ea[0].split('(', 1)[-1].rstrip(')')
+    else:
+        e['fehlt'].append('Zeile "- heap erste anfrage"')
+    rw = ruhe(jetzt(), 150)
+    if rw:
+        e['free'], e['max'], e['tcp'] = rw
+    else:
+        e['fehlt'].append('Ruhewert (Heap-Zeile >= 150 s danach mit tcp=0)')
+    return e
+
+
+def main():
+    global HOST
+    a = sys.argv[1:]
+    soll = None
+    if '--abnahme' in a:
+        i = a.index('--abnahme')
+        try:
+            soll = int(a[i + 1])
+        except (IndexError, ValueError):
+            print(__doc__.split('\n\n')[1], file=sys.stderr)
+            return 2
+        del a[i:i + 2]
+    if len(a) != 1 or not a[0] or not set(a[0]) <= set('ABCDE'):
+        print(__doc__.split('\n\n')[1], file=sys.stderr)
+        return 2
+    HOST = host_lesen()
+    log(f'=== Startprobe {a[0]}' + (f' --abnahme {soll}' if soll is not None else '') + f', Mitschrift {MITSCHRIFT}')
+    erg = [lauf(n + 1, arm) for n, arm in enumerate(a[0])]
+    logsh('mark', 'startprobe: Ende')
+    fehl = 0
+    log('=== Ergebnis')
+    for e in erg:
+        log('  ' + json.dumps({k: v for k, v in e.items() if k != 'fehlt'}, ensure_ascii=False))
+        for f in e['fehlt']:
+            log(f'  FEHLT Lauf {e["lauf"]} Arm {e["arm"]}: {f}')
+            fehl += 1
+        if e.get('ungueltig'):
+            log(f'  UNGUELTIG Lauf {e["lauf"]} Arm {e["arm"]}: {e["ungueltig"]}')
+            fehl += 1
+        if soll is not None and e.get('max') is not None and e['max'] < soll:
+            log(f'  FEHL  Lauf {e["lauf"]} Arm {e["arm"]}: max {e["max"]} unter dem Soll {soll}')
+            fehl += 1
+    log(f'=== {len(erg)} Laeufe, {fehl} Abweichung(en)')
+    return 1 if fehl else 0
+
+
+HOST = None
+if __name__ == '__main__':
+    sys.exit(main())
