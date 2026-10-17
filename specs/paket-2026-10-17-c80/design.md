@@ -3,6 +3,12 @@
 **Erstellt:** 2026-10-17, `spec-writer`, Stand `353a693`. Anforderungen: `requirements.md`; Tasks: `tasks.md`.
 Kennzeichen und Kennungen wie in `requirements.md`. Momentaufnahme (DIR-006).
 
+**Nachtrag N1** (17.10.2026, Stand `6b3cbe9`): Freigabe; Ent-C1 = A, Ent-C2 ≤ 320 Byte, Ent-C4 bestätigt. Das Ergebnis der
+Vorprobe V.2 (`BEFUNDE.md` L500) steht in §1, §2.2–§2.4, §3.4 und §5.4; die Ergebnisse des Machbarkeitsberichts 1.1 des
+`esp-developer` in §4.2–§4.10, §8, §9 und §12. Jede Änderung trägt die Marke **N1**, der Text davor bleibt stehen.
+Kennzeichen **✔ ED** / **◐ ED** wie in `requirements.md`. Die Lesart der Vorprobe durch den `firmware-analyst` (V.3) steht
+noch aus; die Stellen, die auf sie warten, tragen **[offen: V.3]**, ihr Platz ist §3.5.
+
 Diese Spec legt **Messungen** fest, keine Abhilfe. Sie nennt Kandidaten nur, um zu begründen, *was* das Instrument sehen
 muss. Ob einer davon zutrifft, entscheidet Stufe 2.
 
@@ -21,6 +27,10 @@ muss. Ob einer davon zutrifft, entscheidet Stufe 2.
 | Auf Dateiebene gibt es kein `String` | ✔ FA, ✔ SW | L468 (C71); Suche nach `^String`/`static String` in `ESP8266/ESP-uclock/` ohne Treffer |
 | 504 Byte = 63 Blöcke zu 8 Byte — Grössenordnung einer Verbindung (PCB, `ClientContext`, Empfangspuffer) | ◐ | nur gerechnet, nicht zugeordnet |
 | Welche Belegung den Block teilt, und wann sie entsteht | **offen** | Gegenstand dieser Spec |
+| **N1:** Eine einzige Anfrage 1,9 / 3,2 / 1,9 s nach der Startzeile, **ohne jede Verbindung davor** (Arm E) ⇒ `max` 6'600 · 6'600 · 6'432; Arm A 6'600 × 3, Arm B 7'104 × 3 | ✔ L | L500 (Vorprobe V.2) |
+| **N1:** In der ersten Antwort von Arm A `http_accept_dead`, `tcp_now_pending`, `tcp_now_unclaimed` je 0, in `tcp_now_list` nur die eigene Verbindung | ✔ L | L500 |
+| **N1:** In Arm B fällt der Haufen bis +30 s auch ohne Anfrage (`- heap erste anfrage` bei +30 s `free=6896 max=6568` gegen `7360/6896` bei +2 bis +4 s); der Ruhewert bleibt 7'104 | ✔ L | L500 |
+| **N1:** Ein Haufen, 1'590 Blöcke zu 8 Byte; freie Einträge nie benachbart; `max=` und `free=` sind Blockzahlen × 8 | ✔ ED, teils ✔ SW | Bericht 1.1; §4.2 N1 |
 
 ---
 
@@ -67,6 +77,24 @@ Startzeile kommt — zu einem Zeitpunkt, an dem `ntp_setup()` und `udp_server_se
 die Felder `http_accept_dead`/`tcp_now_unclaimed` in der ersten Antwort (Vorprobe, AKV.1) — und mit einem Arm, der vor der
 Startzeile nichts sendet (Arm E).
 
+**Nachtrag N1 (17.10.2026) — was die Vorprobe V.2 an §2.2 ändert (✔ L, L500):**
+
+1. **Zu Punkt 3:** Die erwarteten Aufbauten während `setup()` haben sich in der Form, die K2 braucht, nicht gezeigt. In
+   der ersten Antwort von Arm A waren jedes Mal `http_accept_dead`, `tcp_now_pending` und `tcp_now_unclaimed` 0, in
+   `tcp_now_list` nur die eigene Verbindung — beim ersten Abholen wartete keine weitere Verbindung.
+2. **Arm E** öffnet bis zur Startzeile keine Verbindung (vom Werkzeug im Mitschnitt geprüft) und ist trotzdem
+   zerstückelt: 6'600 · 6'600 · 6'432.
+3. **Folge:** K2 in der Form des Analysten (L499) — eine während `setup()` aufgebaute Verbindung, über die sich die
+   UDP-Kontexte legen — ist **in strenger Form widerlegt**: Der Schaden entsteht auch ohne sie. Der Satz „K2 bleibt
+   Kandidat“ oben ist **überholt**. Folgerung des Leads (L500): Der Schaden entsteht durch eine Anfrage in den ersten
+   Sekunden **nach** dem Ende von `setup()`.
+4. **Zum Ende von `setup()` (◐, `spec-writer`):** In Arm A stand `- heap erste anfrage` 0,3–0,6 s nach der Startzeile im
+   Mitschnitt; die Zeile entsteht in `loop()` (Punkt 1). `setup()` war in diesen Läufen also spätestens 0,3–0,6 s nach der
+   Startzeile beendet — gemessen an den Zeitstempeln des Mitschnitts, nicht am Gerät. Bei vergleichbarer Dauer von
+   `setup()` kam die Anfrage in Arm E (1,9–3,2 s) nach dessen Ende. Gemessen wird das erst mit `ms` bei s8 (Q4).
+5. **Was im Fenster nach `setup()` belegt wird** — dazu gehört die Beobachtung, dass der Haufen in Arm B bis +30 s auch
+   ohne Anfrage fällt (§1 N1) — **und welche Lesart das stützt, liefert V.3** **[offen: V.3]** (§3.5).
+
 ### 2.3 Drei Lesarten
 
 | Lesart | Inhalt | Was dafür spräche | Was dagegen spräche |
@@ -79,16 +107,26 @@ Startzeile nichts sendet (Arm E).
 schon beendet war. Wann `setup()` relativ zur Startzeile endet, ist nicht gemessen — M2 liefert es mit `ms` bei s8. Wie
 die Werkzeuge in M0 angefragt haben, steht im Protokoll nicht; der Fall ist ein Hinweis, kein Gegenbeleg.
 
+**Nachtrag N1 (L500):**
+
+- **L-a:** Die Spalte „Was dagegen spräche“ ist eingetreten — Arm E ist zerstückelt. **L-a trägt nicht mehr** (✔ L).
+- **L-a′:** setzt einen Aufbau während `setup()` voraus. In Arm E gab es keinen, und in Arm A wartete beim ersten Abholen
+  keine Verbindung. Als Erklärung für Arm E **trägt L-a′ nicht** (◐ — hängt am Ende von `setup()` nach §2.2 N1 Punkt 4).
+- **L-b:** Die Spalte „Was dafür spräche“ ist zur Hälfte eingetreten (Arm E zerstückelt, Anfrage nach dem Ende von
+  `setup()`, ◐). Welche Belegung es ist, ist offen.
+- Ob L-b in dieser Form genügt oder V.2 eine Lesart verlangt, die die Tabelle nicht kennt, entscheidet V.3
+  **[offen: V.3]**.
+
 ### 2.4 Kandidaten
 
 | | Kandidat | Herkunft | Einschätzung |
 |---|---|---|---|
 | K1 | Kontext des Wetter-Clients bleibt bis zum nächsten Abruf (`weather.cpp:16`, `WiFiClient openweather_client`; C77) | ◐ FA | Läuft in den Armen A und B gleich; kann den Unterschied nur im Zusammenspiel mit der frühen Verbindung erklären. Laut L499 lag vor der ersten Anfrage der schlechten Starts kein Wetterabruf |
-| K2 | Früher Aufbau während `setup()` unter den UDP-Kontexten | ◐ FA | = L-a; §2.2 |
+| K2 | Früher Aufbau während `setup()` unter den UDP-Kontexten | ◐ FA | = L-a; §2.2. **N1: in strenger Form widerlegt (L500, §2.2 N1)** |
 | K3 | Spät aufgebautes WLAN | ? FA | In A und B gleich; WLAN steht zwingend vor der ersten Antwort |
 | K4 | Interne Belegungen von SDK/lwIP | ? FA | Zusammengefasst mit K6 |
 | K5 | Legacy `/network` ohne `scanDelete()` | ? FA | In keinem Arm aufgerufen |
-| K6 | Einmalige Belegungen der ersten Sekunden — Schritte nach der Startzeile, erste Antworten des STM, erster NTP-Abgleich, SDK/lwIP (DHCP, ARP) —, die sich über eine gerade lebende frühe Verbindung legen | ◐ spec-writer | = L-a′ bzw. L-b; welche Belegungen das sind, ist nicht bekannt |
+| K6 | Einmalige Belegungen der ersten Sekunden — Schritte nach der Startzeile, erste Antworten des STM, erster NTP-Abgleich, SDK/lwIP (DHCP, ARP) —, die sich über eine gerade lebende frühe Verbindung legen | ◐ spec-writer | = L-a′ bzw. L-b; welche Belegungen das sind, ist nicht bekannt. **N1: der Teil „nach `setup()`“ (= L-b) bleibt; dass im Fenster bis +30 s im Hintergrund belegt wird, ist in Arm B gemessen (L500). Welche Belegungen, offen [offen: V.3]** |
 
 **Statisch ausgeschlossen als Quelle einer Belegung (✔ SW):** das Nachführen des Backlogs — `tcp_backlog_set()` ändert
 nur ein Feld des Listen-PCB (`http.cpp:42`, `:63`, `:466-476`); `String` auf Dateiebene (§1). **Kein Kandidat für sich,
@@ -122,6 +160,8 @@ Grundlage ist `vier-arme.py` aus L499. Ergänzt um:
 - **Exit-Codes und `--abnahme`** nach AKV.1. Heute gibt `ruhe()` bei fehlendem Ruhewert nur den Text „kein Ruhewert“
   zurück, und das Werkzeug endet trotzdem mit 0 — genau die Gattung aus DIR-014.
 
+**N1:** Umgesetzt als `tools/startprobe.py` (Commit `f012309`). Stand der Gegenproben: `requirements.md` AKV.1 N1.
+
 ### 3.3 Reihenfolge
 
 Neun Läufe, jeder Arm in jeder Dreiergruppe einmal und an jeder Stelle einmal: **A B E · E A B · B E A**. So fällt ein
@@ -136,6 +176,26 @@ Drift über die Zeit (Temperatur, WLAN, Server) nicht auf einen Arm.
 | gemischt | keine | M2 wie geplant; Befund ins Messprotokoll |
 
 In keinem Fall ändert die Vorprobe den Umfang von Stufe 1; sie legt fest, worauf die Auswertung in Stufe 2 schaut.
+
+**Nachtrag N1 — Ergebnis (✔ L, L500):** Eingetreten ist die **zweite Zeile: E zerstückelt wie A** (E 6'600 · 6'600 ·
+6'432, A 6'600 × 3, B 7'104 × 3), und in der ersten Antwort von Arm A waren `http_accept_dead` und `tcp_now_unclaimed`
+je 0. **Was an dieser Tabelle nicht mehr trägt:**
+
+- **„L-a′ oder L-b“** — L-a′ trägt für Arm E nicht (§2.3 N1); gestützt ist L-b.
+- **„Schwerpunkt s4–s8“** — Das Raster s0–s8 liegt **ganz in `setup()`**; nach L500 entsteht der Schaden **nach**
+  `setup()`. **s0–s8 allein treffen den Schaden nicht.** Sie bleiben als Grundlinie nützlich (Lage vor der Anfrage, `ms`
+  bei s8 für Q4), sind aber nicht mehr der Schwerpunkt. Von den Ereignissen liegt `S` vor dem Schaden; `F` liegt nach der
+  ersten Anfrage; `U` und die `m`-Karten danach.
+- **„In keinem Fall ändert die Vorprobe den Umfang von Stufe 1“** — Dieser Satz steht ab N1 **unter Vorbehalt**. Ob
+  Stufe 1 Erfassungspunkte im Fenster nach `setup()` braucht und ob s0–s8 in dieser Form bleiben, legt ein Nachtrag nach
+  V.3 fest (Task V.4), **bevor** Task 1.3 beginnt **[offen: V.3]**.
+
+### 3.5 Lesart der Vorprobe (V.3) — **[offen: V.3]**
+
+*Platzhalter, N1.* Hier wird die Lesart des `firmware-analyst` zu L500 eingetragen, sobald sie vorliegt: welche Lesart
+gestützt ist, was im Fenster nach `setup()` belegt wird (auch die Hintergrundbelegung bis +30 s in Arm B), welche Annahme
+aus §2 nicht trägt, Hinweise für Stufe 2 und — falls nötig — Änderungen am Umfang von Stufe 1 (dann als Nachtrag N2,
+Task V.4). Bis dahin gilt §3.4 mit dem Vorbehalt aus N1. Der `spec-writer` greift ihr nicht vor.
 
 ---
 
@@ -185,12 +245,40 @@ Bericht 1.1). **Wächter**, je mit einem Grund statt Werten (`abbruch=<grund>`):
 | `nb` | ein Folgeindex ≥ Blockzahl |
 | `ord` | ein Folgeindex nicht grösser als der aktuelle (Zyklus oder Beschädigung) |
 | `it` | mehr Schritte als Blöcke |
+| `sum` (**N1**) | Summe der Längen aller Einträge, belegt und frei, in Blöcken ≠ Blockzahl − 2 (Kopf der Freiliste und Endwächter nicht mitgezählt) |
 
 Die Sperre wird auf **jedem** Weg gelöst, auch bei `abbruch=`.
 
 **Zugriff auf Blockfeld und Blockzahl:** nach Ent-C1 (§4.9). Der Kontext des Haufens (`umm_heap_context_t`,
 `umm_malloc_cfg.h:156`) ist erst in `umm_local.h` ausgeführt (Felder `heap` und `numblocks`, `umm_local.h:65`, `:73`,
 ✔ SW); die Form der Blöcke steht in `umm_malloc.cpp` (◐ FA, im Bericht 1.1 mit Fundstelle zu belegen).
+
+**Nachtrag N1 — Ergebnisse des Berichts 1.1 (Ent-C1 = A):**
+
+- **Haufen:** genau einer (DRAM), `UMM_NUM_HEAPS == 1`; 1'590 Blöcke zu 8 Byte, `_heap_start` 0x3FFF8E50 bis 0x3FFFC000,
+  12'720 Byte (✔ ED). Kontext `umm_heap_context_t` 52 Byte, `heap` am Anfang, `numblocks` an Versatz 48
+  (`umm_local.h:64-75`, ✔ ED; Aufbau der Struktur ✔ SW).
+- **Blockform** — steht nur in `umm_malloc.cpp:104-120` und ist deshalb nachzubilden (✔ ED, ✔ SW): je Block ein Kopf
+  `next`/`prev` zu je 16 Bit, danach 4 Byte Nutzlast bzw. die Verkettung der Freiliste. In `next` ist **Bit 15 das
+  Frei-Bit** (`UMM_FREELIST_MASK` 0x8000), **Bits 0–14 der Index** des Folgeblocks (`UMM_BLOCKNO_MASK` 0x7FFF). Block 0
+  ist der Kopf der Freiliste, der letzte Block der **Endwächter mit `next == 0`**. Ein Eintrag mit n Blöcken fasst
+  8n − 4 Byte Nutzlast. Zeiger → Block über `(ptr − heap) / 8` (`umm_malloc.cpp:629`, ✔ SW).
+- **Freie Nachbarn:** gibt es nicht — `umm_free()` legt in beide Richtungen zusammen (`umm_malloc.cpp:638-646`, ✔ ED,
+  ✔ SW). Das **◐ FA oben ist damit belegt.**
+- **Gegenwerte (✔ ED):** `max=` = grösster freier Eintrag in Blöcken × 8; `free=` = `stats.free_blocks` × 8. Daraus folgt:
+  Gibt die Karte ihre Längen in **Blöcken × 8** aus und wird sie im **selben Fenster ohne CPU-Abgabe** erfasst wie die
+  Werte der Heap-Zeile — in `esp_heap_log()` vor `Serial.println`/`flush` (`ESP-uclock.ino:658-678`) —, gilt
+  **`gross` = `max` und `fsum` = `free` exakt** (AKI.3 N1). Alle Längen der Zeile (`fsum`, `gross`, `zweit`, `davor`,
+  `danach`) stehen deshalb in Blöcken × 8, nicht als 8n − 4. Die Angabe „in Byte“ oben meint ab N1 genau das.
+- **Selbstprüfung `sum`** (neue Zeile in der Wächtertabelle): deckt einen falsch nachgebildeten Gang auch dort auf, wo
+  `gross`/`fsum` zufällig stimmen.
+- **Sperre:** wie `umm_info()` — `xt_rsil(15)` zum Sperren, `xt_wsr_ps` zum Freigeben (✔ ED). **Aufbau:** eine reine
+  Gangfunktion über `(const void*, uint16_t)` ohne Sperre; ein Wrapper sperrt, ruft sie auf und gibt **ohne Verzweigung**
+  frei. **Kein RAII** — sonst liesse sich die Sabotage „Sperre auf dem `abbruch`-Weg nicht gelöst“ (§4.8) nicht mehr
+  herstellen, und ihre Gegenprobe wäre leer.
+- **Gangdauer:** geschätzt 70–200 µs, theoretisch bis rund 1 ms (◐ ED). Gemessen wird `us=` (AKI.9).
+- **Längste Form** mit Blockindizes ≤ 1'589 und Längen ≤ 12'720: rund 106 Zeichen (◐ spec-writer gerechnet), unter 119.
+- **Absicherung der Übersetzung:** §4.7 N1.
 
 ### 4.3 M2 — Startschritte
 
@@ -220,6 +308,24 @@ Erreichbarkeit im Bericht 1.1), `p` = TCP-PCBs ausserhalb LISTEN und TIME_WAIT (
 
 `us` ist die Dauer des Blockgangs bei s8 in Mikrosekunden (AKI.9). Längste Form rund 85 Zeichen.
 
+**Nachtrag N1:**
+
+- **s2 heisst nicht immer „der Server lauscht“** (✔ ED): Scheitert `wifi_connect()`, startet der Server später aus
+  `loop()` (`wifi.cpp:91-108`). Jede `start`-Zeile trägt deshalb den Merker **`srv=<0|1>`**:
+
+  ```
+  - heap start s<n> ms=<n> free=<n> gross=<blk>+<byte> ent=<n> u=<n> p=<n> srv=<0|1>        (s8 zusätzlich: us=<n>)
+  ```
+
+  Längste Form rund 92 Zeichen.
+- **`u`:** `_unclaimed` ist über `WcHttpServer` allein nicht erreichbar; es braucht eine **neue exportierte Funktion in
+  `http.cpp`**, die die Zahl der Einträge zurückgibt (✔ ED).
+- **Takt der Ausgabe:** Die erste Heap-Zeile kommt im ersten `loop()`-Durchlauf (✔ ED); die `start`-Zeilen erscheinen
+  frühestens ab dem zweiten (AKI.1 (e)).
+- **Vorbehalt aus V.2 (§3.4 N1):** s0–s8 liegen ganz in `setup()`, der Schaden entsteht danach (L500). M2 bleibt bis zum
+  Nachtrag nach V.3 im bisherigen Umfang; der Satz oben „weil L-a′ genau dort liegt“ trägt nach §2.3 N1 nicht mehr als
+  Begründung für s5–s7 — sie liefern weiterhin die Grundlinie vor der ersten Anfrage. **[offen: V.3]**
+
 ### 4.4 M3 — Ereigniskarten
 
 | Anlass | erfasst | warum |
@@ -229,6 +335,11 @@ Erreichbarkeit im Bericht 1.1), `p` = TCP-PCBs ausserhalb LISTEN und TIME_WAIT (
 | `U` | nach der Zeile `- update cache nach` | Lage nach dem ersten Abgleich (N6: `frag=10` statt 4 beim Abgleich, L493) |
 
 Je Start genau einmal; ein Ereignis, das nicht eintritt, hinterlässt keine Zeile (AKI.5).
+
+**Nachtrag N1:** `F` braucht einen Merker aus `http.cpp` — `http_first_request_logged` ist dort `static` (`http.cpp:680`,
+✔ SW, ✔ ED); er wird über eine neue exportierte Funktion in `http.cpp` lesbar. Nach L500 liegt der Schaden im Fenster um
+die erste Anfrage; `S` zeigt die Lage davor, `F` die danach. Ob eine weitere Karte im Fenster zwischen `S` und der ersten
+Anfrage gebraucht wird, entscheidet der Nachtrag nach V.3 **[offen: V.3]**.
 
 ### 4.5 M4 — Wegmarken
 
@@ -251,6 +362,33 @@ steht so im Bericht und in der Auswertung, nicht als Gleichsetzung.
 
 Höchstens acht Einträge je Zeile; was darüber hinausgeht, zählt `+<n>` am Ende. Längste Form ≤ 119.
 
+**Nachtrag N1 — Korrektur nach dem Bericht 1.1 (✔ ED):** Der Absatz oben über die Kontexte ist **falsch** und überholt:
+`UdpContext` und `ClientContext` sind **genau** erreichbar, ohne Eingriff in den Core. Die Näherung „PCB für seinen
+Kontext“ entfällt. Die vier ● der Tabelle oben sind bestätigt. Liste ab N1:
+
+| Feld | Objekt | Weg (✔ ED) | Grösse Byte / Blöcke (✔ ED) |
+|---|---|---|---|
+| `lst` | Listen-PCB des Servers an Port 80 | `tcp_listen_pcbs` oder `WcHttpServer::_listen_pcb` | 36 / 5 |
+| `udp` | jedes UDP-PCB **und sein `UdpContext`** | Liste `udp_pcbs`; Kontext genau über `pcb->recv_arg` | PCB 40 / 6; Kontext 76 / 10 |
+| `tcp` | jedes TCP-PCB mit Zustand, **ohne Gegenstelle**, **und sein `ClientContext`** | Listen wie `tcp_now`; Kontext genau über `pcb->callback_arg` | PCB 184 / 24; Kontext 52 / 7 |
+| `wet` | `ClientContext` des Wetter-Clients (`weather.cpp:16`) | Zugriffsglied in einer Unterklasse von `WiFiClient` (Zeiger auf Glied); **`weather.cpp` bleibt unverändert** | 52 / 7 |
+| `dhcp` | DHCP-Daten der Station | `netif_dhcp_data` | 52 / 7 |
+| `eep` | Puffer von `EEPROM` | **`getConstDataPtr()`** — nicht `getDataPtr()`, das `_dirty` setzt und damit den Zustand von `EEPROM` ändert | im Bericht nicht genannt |
+| — | Kopf eines `pbuf` | keine Wegmarke; Grösse als Hilfe bei der Zuordnung über die Länge (§5.4) | 16 / 3 |
+
+**Zeile ab N1** (◐ spec-writer, Form; der `esp-developer` setzt sie so um oder meldet, warum nicht):
+
+```
+- heap marken <anlass> lst=<blk> wet=<blk> dhcp=<blk> eep=<blk> udp=<pcb>/<ctx>,… tcp=<pcb>:<zustand>/<ctx>,…
+```
+
+- Gibt es ein Objekt nicht (etwa keinen Wetter-Kontext oder ein UDP-PCB ohne `UdpContext`), steht `-` an seiner Stelle.
+- Die festen Felder kommen zuerst; danach die Listen `udp` und `tcp`, bis die Zeile 119 Zeichen erreicht. Was nicht mehr
+  passt, zählt `+<n>` am Ende. Die Regel „höchstens acht Einträge“ oben ist damit durch die Längengrenze ersetzt.
+- Rechnung (◐): feste Felder und je zwei Einträge `udp` und `tcp` mit vierstelligen Indizes rund 106 Zeichen; ein
+  dritter `tcp`-Eintrag passt knapp, ein vierter nicht.
+- Für TCP-PCBs weiterhin nur Index und Zustand, keine Gegenstelle (AKI.1 (g)).
+
 ### 4.6 Kosten (gerechnet, ◐)
 
 | Posten | Byte BSS | Brücke |
@@ -267,6 +405,14 @@ formuliert (AKM.1, AKA.3, AKA.4). **Ent-C2:** Grenze ≤ 320 Byte, darüber anha
 Ein Blockgang läuft bis zur Blockzahl, mit gesperrten Unterbrechungen; die Dauer wird gemessen (`us=`), nicht geschätzt.
 Über 1'000 µs ⇒ vorlegen (◐ Vorschlag). Ein Gang je Minute im Betrieb, elf je Start.
 
+**Nachtrag N1 (Bericht 1.1, ◐ ED gerechnet):** BSS **rund 290 Byte** statt 258 — alle Felder in einer Struktur gefasst
+(Ausrichtung), die TCP-Wegmarke mit 3 Byte statt 2 (Index und Zustand). Das liegt **unter Ent-C2 (≤ 320, bestätigt), aber
+knapp**: 30 Byte Luft. **Programm** 1,5–2,5 KB. **Gangdauer** geschätzt 70–200 µs, theoretisch bis rund 1 ms — die
+Schwelle 1'000 µs bleibt. **Zu prüfen in Task 1.3:** Die Zeilenform aus §4.5 N1 (Kontext je PCB, `wet`, `eep`) kann mehr
+Felder brauchen, als die Rechnung des Berichts enthält; der `esp-developer` rechnet BSS für die endgültige Form nach.
+Ebenso, wenn der Nachtrag nach V.3 den Umfang ändert. In beiden Fällen gilt: über 320 ⇒ anhalten und vorlegen, **bevor**
+gebaut wird (AKI.9).
+
 ### 4.7 Schalter und Rückbau
 
 `#define ESP_HEAP_MAP 1` neben `ESP_HEAP_LOG` (`ESP-uclock.ino:618`). Mit 0 entfällt alles, auch das BSS. Ein
@@ -277,6 +423,18 @@ Ein Blockgang läuft bis zur Blockzahl, mit gesperrten Unterbrechungen; die Daue
 Abnahme von Stufe 3 gehen M2–M4 heraus; M1 geht heraus oder steht auf 0. Der Kommentarblock nennt das wörtlich, nach dem
 Muster von `ESP_HEAP_LOG` (`:579-582`: „WEG DAMIT, sobald …“). `BEFUNDE.md` führt den Rückbau ab Release I als offenen
 Punkt (AKZ.7) — eine Aufgabe ohne Eintrag erinnert niemanden (CLAUDE.md zu E4).
+
+**Nachtrag N1 — Mittel der Bindung an Core 3.1.2 (Bericht 1.1):**
+
+- Blockgang, Karte und Wegmarken in einer **eigenen Übersetzungseinheit** (z. B. `heapkarte.cpp` / `.h`, CRLF wie die
+  übrigen Moduldateien, §4.10).
+- `umm_local.h` als **letzter** Include, danach `#undef memcpy`, `#undef memmove`, `#undef memset` (so im Bericht 1.1).
+- `#error`, wenn `ARDUINO_ESP8266_RELEASE_3_1_2` nicht definiert ist.
+- `static_assert(sizeof(umm_heap_context_t) == 52)`, `static_assert(offsetof(umm_heap_context_t, numblocks) == 48)`,
+  Prüfung `UMM_NUM_HEAPS == 1` zur Übersetzungszeit.
+- Blockgrösse 8 zur Laufzeit (Wächter `bs`, §4.2).
+
+Bestätigt am 17.10.2026 (Ent-C4): Der Rückbau bleibt im nächsten ESP-Release nach der Abnahme von Stufe 3.
 
 ### 4.8 Prüfstand c80i
 
@@ -299,6 +457,22 @@ Gegenproben (Werkzeugvorbehalt wie im Paket 2026-10-15).
 `snprintf`; Ausgabe in `setup()`; zwei Zeilen im selben Durchlauf; `davor`/`danach` vertauscht; Sperre auf dem
 `abbruch`-Weg nicht gelöst; Gleichstand zugunsten des grösseren Index. **Gegen 3.2.41 ⇒ FEHL.**
 
+**Nachtrag N1 — zusätzliche Fälle:**
+
+9. Blockform nach §4.2 N1 an synthetischen Haufen: Frei-Bit in Bit 15, Endwächter mit `next == 0`, Block 0 als Kopf; Zeiger
+   → Block über `(ptr − heap) / 8`;
+10. Gleichheit an synthetischen Haufen mit bekannter Belegung: Länge `gross` = grösster freier Eintrag × 8, `fsum` =
+    Summe der freien Blöcke × 8 (AKI.3 N1);
+11. beschädigter Haufen mit falscher Summe ⇒ `abbruch=sum`, Sperre gelöst;
+12. statisch: `#error` auf `ARDUINO_ESP8266_RELEASE_3_1_2`, die beiden `static_assert`, die Prüfung `UMM_NUM_HEAPS == 1`,
+    `umm_local.h` als letzter Include mit den drei `#undef`; `EEPROM` nur über `getConstDataPtr()`; Sperre ohne
+    Verzweigung und ohne RAII;
+13. Zeile `marken` nach §4.5 N1: `-` für fehlende Objekte; `+<n>` bei Überlänge, Zeile dann ≤ 119;
+14. Zeile `start` mit `srv=` (§4.3 N1).
+
+**Zusätzliche Sabotagen (N1), jede ⇒ FEHL:** Längen als 8n − 4 statt Blöcke × 8; Wächter `sum` entfernt;
+`getDataPtr()` statt `getConstDataPtr()`; `#error`-Bindung entfernt; `srv=` fehlt.
+
 ### 4.9 Ent-C1 — Weg für Karte und Wegmarken
 
 | Option | Inhalt | sieht | Preis |
@@ -309,6 +483,27 @@ Gegenproben (Werkzeugvorbehalt wie im Paket 2026-10-15).
 
 R1.3 im Paket 2026-10-15 hat `frag=` ausdrücklich ohne privaten Kopf gebaut (L468). A weicht davon ab — deshalb die
 Rückfrage an Dich. Für A spricht: Nur so lässt sich `davor`/`danach` bestimmen, und davon hängt Frage F2 ab.
+
+**Nachtrag N1 — entschieden am 17.10.2026: A** (Dein Entscheid nach dem Machbarkeitsbericht 1.1). Die Abweichung von R1.3
+gilt damit ausdrücklich, und nur für dieses befristete Instrument; sie endet mit dem Rückbau (Ent-C4). Die Mittel der
+Bindung an Core 3.1.2 stehen in §4.7 N1, die Blockform in §4.2 N1.
+
+### 4.10 Kodierung und Zeilenende der Zieldateien (N1)
+
+*Neu mit N1.* Festgestellt im Bericht 1.1 am Stand `353a693` (✔ ED). **Vor jedem Patch erneut festzustellen** (AKZ.1);
+die Tabelle ersetzt das nicht.
+
+| Datei | Kodierung | Zeilenende |
+|---|---|---|
+| `ESP-uclock.ino` | reines ASCII | **gemischt**: 2'144 CRLF / 327 LF, in 15 Abschnitten wechselnd; `setup()` (Zeilen 251–350) CRLF, `esp_heap_log()` und `loop()` CRLF |
+| `http.cpp` | UTF-8, 37 Nicht-ASCII-Byte | 1 CRLF-Zeile (967) / 17'650 LF |
+| `base.h` | im Bericht nicht genannt | Zeilen 1–27 CRLF, 28–57 LF |
+| `base.cpp`, `wifi.cpp`, `weather.cpp`, `ntp.cpp`, `udpsrv.cpp`, `eepromdata.cpp` | im Bericht nicht genannt | nur CRLF |
+| neue Datei (z. B. `heapkarte.cpp` / `.h`) | ASCII | CRLF wie die übrigen Moduldateien |
+
+**Gepatcht wird byte-genau je Abschnitt**, mit dem Zeilenende des Abschnitts — nicht über ein Werkzeug, das die Datei
+vereinheitlicht (CLAUDE.md, 04.10.2026). `wifi.cpp` und `weather.cpp` stehen in der Tabelle, weil der Bericht sie geprüft
+hat; geändert werden sie nicht (§9).
 
 ---
 
@@ -337,6 +532,10 @@ Minute gehört dazu.
 | **F4** | Gleiche Zahl belegter Einträge in Ruhe, A gegen B? | `ent` am Ruhewert |
 | **F5** | Arm E wie A oder wie B? In A: `u` und `p` je Schritt s2–s8 | Ruhewerte E; `start`-Zeilen A |
 
+**N1:** F5 ist auf 3.2.41 beantwortet — E wie A (L500); in Stufe 2 wird sie unter dem Instrument wiederholt. Für F3 gilt
+nach §3.4 N1: Der erste Abweichungspunkt wird nach L500 frühestens bei `F` erwartet (◐); weicht `gross` schon bei s0–s8
+oder `S` ab, widerspricht das L500 und gehört als Befund ins Messprotokoll.
+
 ### 5.4 Zuordnung
 
 | Zuordnung | Bedingung | Folge |
@@ -349,6 +548,11 @@ Minute gehört dazu.
 Jede Aussage der Zuordnung trägt ein Kennzeichen (✔ belegt an Zahl und Lauf, ◐ abgeleitet). „Ein PCB als Näherung für
 seinen Kontext“ (§4.5) bleibt ◐.
 
+**Nachtrag N1:** (1) Z1 setzt „E sauber“ voraus; auf 3.2.41 war E zerstückelt (L500). Z1 ist damit nur erreichbar, wenn
+sich E unter Release I anders verhält — das wäre selbst ein Befund. Zu erwarten sind Z2 oder Z3. (2) Der letzte Satz oben
+ist überholt: Mit §4.5 N1 sind die Kontexte **genau** verortet; „PCB als Näherung“ kommt nicht mehr vor. (3) Ob V.3 die
+Bedingung von Z2 schärft (etwa für die Hintergrundbelegung bis +30 s), bleibt offen **[offen: V.3]**.
+
 ---
 
 ## 6. Stufe 3 — Abhilfe
@@ -360,6 +564,10 @@ Deiner Freigabe des Nachtrags beginnt der `esp-developer`.
 **Diese Spec legt keine Abhilfe fest.** L499 nennt als Beispiel die Reihenfolge in `setup()`; ob sie trägt, hängt am
 Trenner. Eine Abhilfe ohne Beleg hat in diesem Projekt schon einmal eine plausible, aber falsche Lesart gebaut — H-CC zu
 C71, widerlegt in L468.
+
+**N1:** Das Beispiel aus L499 — die Reihenfolge in `setup()` — war auf K2 gemünzt, und K2 trägt in strenger Form nicht
+mehr (L500). Ob eine Umstellung in `setup()` trotzdem etwas bewirkt, bleibt eine Frage an den Trenner, nicht an K2. Das
+bestätigt die Regel dieses Abschnitts.
 
 **Abnahme (fest, unabhängig von der Option):** AKA.2–AKA.7. Bezug für die Schwellen ist ΔRAM(A) — der Zuwachs „Globale
 Variablen“ von Release A gegen 3.2.41, Instrument eingeschlossen. Zusätzlich gilt in jeder Reihe der Vergleich mit den
@@ -394,6 +602,11 @@ erst in Stufe 2 bzw. in der Abnahme.
 > (AKZ.2). Die Auslieferung als `.gz` bleibt. **Schicht:** Die Ursache liegt im Haufen des ESP, also wird dort gemessen
 > und — nach dem Beleg — behoben. Ausdrücklich nicht in den Werkzeugen (keine Ablaufregel, Dein Entscheid) und nicht in
 > `app.js`.
+>
+> **N1:** Die Bindung an innere Einzelheiten von Core 3.1.2 (Ent-C1 = A) ist auf eine eigene Übersetzungseinheit begrenzt
+> und bricht die Übersetzung bei jedem anderen Core ab (§4.7 N1) — ein stilles Weiterlaufen mit falscher Blockform ist
+> ausgeschlossen. Die Wegmarken **lesen nur**: `EEPROM` über `getConstDataPtr()`, der Wetter-Client über ein
+> Zugriffsglied, ohne `weather.cpp` zu ändern.
 
 **Scalable systems** — STM-Kommandos? Byte je Minute auf der UART? Unter 20 s Watchdog? Blockade des Hauptloops?
 
@@ -404,6 +617,10 @@ erst in Stufe 2 bzw. in der Abnahme.
 > Der Blockgang ist auf die Blockzahl begrenzt (Wächter `it`) und kann nicht hängen bleiben. **Blockade:** je Gang
 > gesperrte Unterbrechungen, gemessen als `us=`; über 1'000 µs wird vorgelegt (AKI.9). Im Betrieb ein Gang je Minute,
 > beim Start elf. Die PWA pollt nicht anders als heute.
+>
+> **N1:** Gangdauer geschätzt 70–200 µs, theoretisch bis rund 1 ms bei 1'590 Blöcken (Bericht 1.1) — unter der Schwelle,
+> gemessen wird trotzdem. Die `start`-Zeilen werden mit `srv=` rund 7 Zeichen länger; an der Last auf der Brücke ändert
+> das nichts Wesentliches.
 
 **Secure by design** — Fremddaten? Credentials in Logausgaben?
 
@@ -411,6 +628,9 @@ erst in Stufe 2 bzw. in der Abnahme.
 > kein Geheimnis** (AKI.1 (g); für TCP-PCBs nur Index und Zustand, AKI.6). `/api/stm32_log` ist im LAN lesbar; die
 > Inhalte verraten nichts, was ein Angreifer nutzen könnte (der ESP8266 hat keine Adressraum-Zufallsverteilung, die
 > Indizes schützen nichts). Kein neuer Endpunkt, keine Konfiguration.
+>
+> **N1:** Die Wegmarken `eep` und `dhcp` nennen nur den **Blockindex** ihres Objekts, nie dessen Inhalt — keine Adresse,
+> kein Byte aus dem `EEPROM`-Puffer.
 
 **Stable & reliable** — Fehler ausgewertet? Stille Verwerfungen? Zustand nach Abbruch? Flags auf jedem Pfad aufgelöst?
 
@@ -421,6 +641,11 @@ erst in Stufe 2 bzw. in der Abnahme.
 > nicht ein, bleibt der Platz leer, und das Werkzeug meldet es als „nicht eingetreten“, nicht als Fehler (AKI.5). Ein
 > Neustart setzt alles zurück (BSS). **Werkzeug:** fehlender Start, fehlende Anfrage oder fehlender Ruhewert ⇒ Exit ≠ 0
 > mit Meldung (AKV.1) — heute endet es mit 0.
+>
+> **N1:** Die Selbstprüfung ist jetzt **exakt** (Gleichheit, AKI.3 N1) und um `sum` ergänzt — ein falsch nachgebildeter
+> Gang kann nicht unbemerkt plausible Zahlen liefern. Die Sperre gibt der Wrapper ohne Verzweigung frei; der Weg „nicht
+> gelöst“ bleibt als Sabotage herstellbar. `getDataPtr()` ist ausgeschlossen, weil es `_dirty` setzen und damit den
+> Zustand ändern würde, den es nur lesen soll.
 
 ---
 
@@ -439,6 +664,18 @@ erst in Stufe 2 bzw. in der Abnahme.
 
 `wifi.cpp` wird **nicht** geändert: s2 wird nach der Rückkehr aus `wifi_connect()` in `setup()` erfasst.
 
+**Nachtrag N1 (Bericht 1.1):**
+
+- `http.cpp`: zwei **neue exportierte Funktionen** — Zahl der Einträge in `_unclaimed` (für `u`) und der Merker der ersten
+  Anfrage (für `F`, weil `http_first_request_logged` `static` ist). Beides nur lesend.
+- Neue Übersetzungseinheit: zusätzlich die Bindungsmittel aus §4.7 N1 und die Unterklasse mit dem Zugriffsglied für den
+  Wetter-Client; CRLF.
+- **`weather.cpp` wird nicht geändert** — der Kontext des Wetter-Clients wird über das Zugriffsglied gelesen.
+- `ntp.cpp`, `udpsrv.cpp`, `eepromdata.cpp` werden nach dem Weg aus §4.5 N1 nicht gebraucht (UDP über `udp_pcbs`,
+  `EEPROM` über das globale Objekt); ob `base.h` eine Deklaration bekommt, steht im Taskbericht 1.3 mit Kodierung und
+  Zeilenende (§4.10).
+- `tools/startprobe.py` ist das Werkzeug der Arme (Commit `f012309`).
+
 ---
 
 ## 10. Verworfene Alternativen
@@ -452,6 +689,8 @@ erst in Stufe 2 bzw. in der Abnahme.
 | Heap-Zeile erweitern | Werkzeuge lesen sie (`ESP-uclock.ino:642`); sie hat schon 105 von 119 Zeichen |
 | Startschritte direkt in `setup()` ausgeben | Zeilen in der Startphase treffen den STM während CAP/FIRMWARE (`ESP-uclock.ino:266-283`) und kämen im Stoss |
 | Zweite UART des ESP (nur Senden) für einen vollständigen Abzug | ob der Pin auf der Platine erreichbar ist, ist nicht geprüft (●); ausserhalb dieser Spec |
+| **N1:** Sperre über RAII (Objekt, dessen Destruktor freigibt) | macht die Sabotage „Sperre nicht gelöst“ unherstellbar und damit ihre Gegenprobe leer (Bericht 1.1) |
+| **N1:** `EEPROM.getDataPtr()` für die Wegmarke | setzt `_dirty` — eine Messung, die den gemessenen Zustand ändert |
 
 ---
 
@@ -477,3 +716,16 @@ Nur der `release-engineer` führt das aus, im Auftrag des Leads (R4).
 | Q5 | Lässt `Serial.flush()` in `setup()` lwIP tatsächlich Aufbauten annehmen? (`uart.cpp:569-570` ruft `esp_yield()`, ◐) | M2, `u` je Schritt | Stufe 2 |
 | Q6 | Sind die Wegmarken aus §4.5 ohne Eingriff in den Core erreichbar? | Bericht 1.1 | vor Task 1.3 |
 | Q7 | Stört ein Blockgang mit gesperrten Unterbrechungen den Betrieb messbar? | AKI.9 (`us=`), AKM.5 | Stufe 2 |
+
+**Nachtrag N1 — Stand am 17.10.2026:**
+
+| | Stand |
+|---|---|
+| Q1 | **beantwortet: A** (Du, nach dem Bericht 1.1; §4.9 N1) |
+| Q2 | **beantwortet: ≤ 320 Byte** (Lead); gerechnet rund 290 (§4.6 N1) |
+| Q3 | offen — Stufe 2 |
+| Q4 | **teilweise (◐):** In Arm A stand `- heap erste anfrage` 0,3–0,6 s nach der Startzeile; `setup()` war also spätestens dann beendet (§2.2 N1 Punkt 4). Gemessen wird es mit `ms` bei s8 |
+| Q5 | **an Gewicht verloren:** Für den Schaden ist ein Aufbau während `setup()` nach L500 nicht nötig. Die Frage bleibt für die Lesart von `u` je Schritt offen |
+| Q6 | **beantwortet: ja**, alle, dazu die Kontexte genau (§4.5 N1) |
+| Q7 | offen — AKI.9, AKM.5 |
+| **Q8** (neu) | **Was belegt der ESP im Fenster nach `setup()`, und braucht Stufe 1 dort Erfassungspunkte?** — `firmware-analyst` (V.3), danach `spec-writer` (Nachtrag N2, Task V.4, falls nötig); **vor Task 1.3** **[offen: V.3]** |

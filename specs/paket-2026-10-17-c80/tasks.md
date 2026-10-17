@@ -1,8 +1,13 @@
 # Tasks — Paket 2026-10-17 „C80: bleibende Heap-Zerstückelung nach frühem Verkehr — Firmware-Ursache“
 
 **Erstellt:** 2026-10-17, `spec-writer`, Stand `353a693`. Anforderungen: `requirements.md`; Design: `design.md`.
-**Status: Entwurf, zur Freigabe.** Offen vor dem Start: Deine Freigabe; Ent-C2 (Lead, bei der Freigabe). Offen vor Task
-1.3: Ent-C1. Offen vor Stufe 3: Ent-C3. Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
+**Status: freigegeben am 17.10.2026 (Task 0.1); Ent-C1 = A, Ent-C2 ≤ 320 Byte, Ent-C4 bestätigt.** **Nachtrag N1**
+(17.10.2026, Stand `6b3cbe9`): Stand der Tasks 0.1, V.1, V.2, 1.1 und 1.2 nachgeführt; V.3 läuft. Neu ist Task **V.4**
+(Nachtrag N2, nur wenn V.3 den Umfang von Stufe 1 ändert). Offen vor Task 1.3: **V.3** und gegebenenfalls **V.4**
+**[offen: V.3]**. Offen vor Stufe 3: Ent-C3. Momentaufnahme (DIR-006); der lebende Stand steht in `BEFUNDE.md`.
+
+*Stand bei Erstellung, überholt durch N1:* **Status: Entwurf, zur Freigabe.** Offen vor dem Start: Deine Freigabe; Ent-C2
+(Lead, bei der Freigabe). Offen vor Task 1.3: Ent-C1. Offen vor Stufe 3: Ent-C3.
 
 **Pro Task genau ein schreibender Agent** (R3, R4). Nach jedem schreibenden Task läuft `./tools/guardrails.sh`; erst bei
 Exit 0 geht die Schreibberechtigung weiter. Wo „Nutzer“ steht, ist eine Handlung oder ein Entscheid von Dir gemeint, kein
@@ -13,10 +18,12 @@ Schreibzugriff.
 1. **Reihenfolge der Stufen:** V ⇒ 1 ⇒ 2 ⇒ 3 ⇒ R ⇒ Z. Code für das nächste Release darf entstehen, während gemessen
    wird; **gebaut und eingespielt** wird erst nach dem Ende der Messung davor.
 2. **Parallel erlaubt:** V.1/V.2 (Lead, Gerät) und 1.1 (`esp-developer`, nur lesend, ohne Gerät) — verschiedene Agenten,
-   keine Abhängigkeit. **Nicht parallel:** 1.3 wartet auf V.3 **und** 1.2.
+   keine Abhängigkeit. **Nicht parallel:** 1.3 wartet auf V.3 **und** 1.2. **N1:** und auf V.4, falls V.3 einen Nachtrag
+   zum Umfang verlangt.
 3. **Ein Schreiber je Datei:** Alle ESP-Tasks eines Releases schreibt **ein** `esp-developer`, nacheinander.
 4. **Eine Messung zur Zeit (R5):** Während V.2, 2.1 und 3.8 kein OTA ausser dem Auslöser der Arme, kein Upload, kein
-   Browser an der Uhr, kein zweites Werkzeug. Beginn und Ende kündigt der Lead an.
+   Browser an der Uhr, kein zweites Werkzeug. Beginn und Ende kündigt der Lead an. **N1:** In V.2 hat in Lauf 5 ein
+   Safari-Tab aus der wiederhergestellten Sitzung des Nutzers die Uhr angefragt (L500; `requirements.md` AKV.4 N1).
 5. **Schleife:** Ergibt Stufe 2 Z3 oder Z4, folgt ein Nachtrag zum Instrument (`spec-writer`), ein Release I′ nach dem
    Ablauf 1.3–1.11 und eine neue Stufe 2 — **keine** Abhilfe.
 
@@ -36,7 +43,8 @@ Scratchpad; der Lead legt sie unter `tools/checks/auszug/esp/` ab und fährt die
 
 **Vor jedem Patch** Kodierung **und** Zeilenende der Datei feststellen und im Taskbericht nennen (AKZ.1, DIR-015) —
 `ESP-uclock.ino` hat gemischte Zeilenenden, `http.cpp` ist UTF-8 mit einer CRLF-Zeile; ein Patch über das Edit-Werkzeug
-vereinheitlicht Zeilenenden still (CLAUDE.md, 04.10.2026).
+vereinheitlicht Zeilenenden still (CLAUDE.md, 04.10.2026). **N1:** Stand des Berichts 1.1 in `design.md` §4.10 —
+`ESP-uclock.ino` wechselt das Zeilenende in 15 Abschnitten; gepatcht wird byte-genau je Abschnitt.
 
 **Spalten:** **G** = Guardrails nach dem Task mit Exit 0, **R** = Review bestanden.
 
@@ -46,23 +54,24 @@ vereinheitlicht Zeilenenden still (CLAUDE.md, 04.10.2026).
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| 0.1 | Spec freigeben; Ent-C2 bestätigen; Ent-C4 bestätigen oder ändern | Nutzer (Ent-C2: Lead) | — | Freigabe | — | — |
+| 0.1 | Spec freigeben; Ent-C2 bestätigen; Ent-C4 bestätigen oder ändern — **N1: erledigt 17.10.2026**: Spec freigegeben, Ent-C4 bestätigt (Du), Ent-C2 ≤ 320 Byte bestätigt (Lead) | Nutzer (Ent-C2: Lead) | — | Freigabe ☑ | — | — |
 
 ## Stufe V — Vorprobe ohne Build (ESP 3.2.41)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| V.1 | **Werkzeug der Arme** aus dem Scratchpad nach `tools/` übernehmen; Arm E, Mitschrift der ersten Antwort, Exit-Codes, `--abnahme` (`design.md` §3.2); Gegenproben (a), (c) | Lead | 0.1 | **AKV.1** (ohne (b)) | ☐ | — |
-| V.2 | **Vorprobe am Gerät:** neun Läufe A B E · E A B · B E A; Logwache; Ergebnis ins Messprotokoll; Gegenprobe (b) aus AKV.1 mit `--abnahme 7104` | Lead | V.1 | **AKV.1 (b)**, **AKV.2–AKV.4**, AKZ.6, AKZ.8 | — | — |
-| V.3 | **Lesart der Vorprobe** nach `design.md` §3.4; Hinweise für Stufe 2; ob eine Annahme aus §2 nicht trägt | `firmware-analyst` | V.2 | Bericht | — | — |
+| V.1 | **Werkzeug der Arme** aus dem Scratchpad nach `tools/` übernehmen; Arm E, Mitschrift der ersten Antwort, Exit-Codes, `--abnahme` (`design.md` §3.2); Gegenproben (a), (c) — **N1: Werkzeug erledigt** als `tools/startprobe.py` (Commit `f012309`); Beleg der Gegenproben (a) und (c) steht nicht im Messprotokoll — vom Lead nachzutragen | Lead | 0.1 | **AKV.1** (ohne (b)) — N1: teilweise | ☐ | — |
+| V.2 | **Vorprobe am Gerät:** neun Läufe A B E · E A B · B E A; Logwache; Ergebnis ins Messprotokoll; Gegenprobe (b) aus AKV.1 mit `--abnahme 7104` — **N1: gelaufen 17.10.2026 16:35–17:14**, Ergebnis L500 (Commit `6b3cbe9`): A 6'600 × 3, E 6'600 · 6'600 · 6'432, B 7'104 × 3; Gegenprobe (b) eingelöst. Nachzutragen: `--pruefe` am Ende und Ankündigung von Beginn und Ende; Lauf 5 mit fremdem Verursacher, gekennzeichnet | Lead | V.1 | **AKV.1 (b)**, **AKV.2–AKV.4**, AKZ.6, AKZ.8 — N1: AKV.1 (b), AKV.2, AKV.3 erfüllt; AKV.4, AKZ.6 teilweise | — | — |
+| V.3 | **Lesart der Vorprobe** nach `design.md` §3.4; Hinweise für Stufe 2; ob eine Annahme aus §2 nicht trägt — **N1: läuft.** Ergebnis nach `design.md` §3.5. Zu beantworten ausserdem: Q8 (`design.md` §12 N1) — was im Fenster nach `setup()` belegt wird (auch die Hintergrundbelegung bis +30 s in Arm B) und ob Stufe 1 dort Erfassungspunkte braucht **[offen: V.3]** | `firmware-analyst` | V.2 | Bericht | — | — |
+| **V.4** (N1) | **Nachtrag N2 zum Umfang von Stufe 1** — nur wenn V.3 ihn verlangt (zusätzliche Erfassungspunkte nach `setup()`, Änderung an M2/M3); mit Wirkung auf AKI.4, AKI.5, AKI.9, AKI.10 und `design.md` §4.3, §4.4, §4.6. Verlangt V.3 nichts, entfällt V.4 mit Vermerk | `spec-writer` | V.3 | Nachtrag freigegeben (Nutzer) oder Vermerk „entfällt“ | — | — |
 
 ## Stufe 1 — Instrument (Release I, nur ESP)
 
 | # | Task | Agent | Hängt ab von | Abnahme | G | R |
 |---|---|---|---|---|---|---|
-| 1.1 | **Machbarkeitsbericht, nur lesend:** Zugriff auf Blockfeld, Blockzahl und Blockform (Core 3.1.2, mit Fundstellen); Mittel der Sperre; Beziehung `gross`↔`max=` und `fsum`↔`free=`; Erreichbarkeit jeder Wegmarke aus §4.5 und von `_unclaimed` über `WcHttpServer`; Gangdauer geschätzt; Kodierung und Zeilenende jeder Zieldatei; Platz im BSS gerechnet | `esp-developer` | 0.1 | Bericht | — | — |
-| 1.2 | **Ent-C1** vorlegen (Rückfrage an Dich mit den Optionen aus `design.md` §4.9 und dem Bericht 1.1); Entscheid ins Messprotokoll | Lead, Entscheid Nutzer | 1.1 | Ent-C1 | — | — |
-| 1.3 | **M1–M4** nach `design.md` §4 und Ent-C1, hinter `ESP_HEAP_MAP`; **Prüfstand c80i** im Scratchpad | `esp-developer` | 1.2, **V.3** | **AKI.1–AKI.7**, AKZ.1 | ☐ | — |
+| 1.1 | **Machbarkeitsbericht, nur lesend:** Zugriff auf Blockfeld, Blockzahl und Blockform (Core 3.1.2, mit Fundstellen); Mittel der Sperre; Beziehung `gross`↔`max=` und `fsum`↔`free=`; Erreichbarkeit jeder Wegmarke aus §4.5 und von `_unclaimed` über `WcHttpServer`; Gangdauer geschätzt; Kodierung und Zeilenende jeder Zieldatei; Platz im BSS gerechnet — **N1: erledigt 17.10.2026**; Ergebnisse in `design.md` §4.2–§4.10 (Marke N1). Der Bericht selbst liegt nicht im Repository | `esp-developer` | 0.1 | Bericht ☑ | — | — |
+| 1.2 | **Ent-C1** vorlegen (Rückfrage an Dich mit den Optionen aus `design.md` §4.9 und dem Bericht 1.1); Entscheid ins Messprotokoll — **N1: entschieden 17.10.2026: A.** Eintrag ins Messprotokoll steht aus (in `BEFUNDE.md` am Stand `6b3cbe9` nicht gefunden) — vom Lead nachzutragen | Lead, Entscheid Nutzer | 1.1 | Ent-C1 ☑ | — | — |
+| 1.3 | **M1–M4** nach `design.md` §4 und Ent-C1, hinter `ESP_HEAP_MAP`; **Prüfstand c80i** im Scratchpad. **N1:** einschliesslich der Präzisierungen mit Marke N1 in `design.md` §4.2–§4.10 (Blöcke × 8, Wächter `sum`, Sperre ohne Verzweigung, `srv=`, exportierte Funktionen in `http.cpp`, Wegmarken mit Kontexten, Bindungsmittel); BSS für die endgültige Zeilenform nachrechnen (`design.md` §4.6 N1) | `esp-developer` | 1.2, **V.3**; **N1:** und V.4, falls nicht entfallen | **AKI.1–AKI.7**, AKZ.1 | ☐ | — |
 | 1.4 | ESP bauen; „Globale Variablen“ (ΔRAM(I)) und Programmgrösse sofort ins Messprotokoll; über Ent-C2 ⇒ anhalten und vorlegen | Lead | 1.3 | **AKI.9** (RAM) | — | — |
 | 1.5 | **c80i** unter `tools/checks/auszug/esp/c80i/` ablegen, in S16; Gegenprobe gegen 3.2.41; jede Sabotage; Fallzahl nachgezählt | Lead | 1.4 | **AKI.8**, AKZ.5 | ☐ | — |
 | 1.6 | **Werkzeuge:** Logwache meldet `abbruch=`; Werkzeug der Arme sammelt `start`/`karte`/`marken` je Lauf und meldet fehlende Zeilen; Prüfung, dass `watch-log.sh`, `smoke-device.sh`, `mess-stabilitaet.sh` ihre Werte unverändert lesen; je Gegenprobe | Lead | 1.5 | **AKI.11**, AKM.2 (Werkzeugteil) | ☐ | — |
@@ -130,3 +139,6 @@ dann ein eigener Task darin.
 - [ ] `./tools/guardrails.sh --full` vor jedem Release mit Exit 0
 - [ ] Alle Akzeptanzkriterien aus `requirements.md` belegt, entfallen mit Grund oder offen mit dem, was fehlt (`endstand.md`)
 - [ ] Je Release ZIP gebaut, getaggt, gepusht; Flash-Umfang benannt: **nur ESP**
+
+**N1 — offen für den Lead aus Stufe V** (damit es nicht untergeht): Beleg der Gegenproben (a) und (c) zu AKV.1;
+`--pruefe`-Ergebnis und Ankündigung zu V.2 (AKV.4); Ent-C1 = A ins Messprotokoll (Task 1.2).
