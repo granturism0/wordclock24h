@@ -22,7 +22,8 @@ Jede Meldung geht auf die Konsole UND in die Mitschrift (STARTPROBE_MITSCHRIFT, 
 
 SCHREIBT AM GERAET: startet den ESP neu bzw. loest ein OTA aus, je Lauf einmal. Logwache parallel (DIR-013).
 Gegenproben ohne Geraet (DIR-014): STARTPROBE_LOG ersetzt tools/logger/log.sh (Attrappe, antwortet auf tail/grep/mark),
-STARTPROBE_HOST die Geraeteadresse, STARTPROBE_FRIST die Wartezeit auf die Startzeile (Standard 420 s).
+STARTPROBE_HOST die Geraeteadresse, STARTPROBE_FRIST die Wartezeit auf die Startzeile (Standard 420 s),
+STARTPROBE_OHNE_FOLGE=1 laesst Smoketest und check-pwa weg (sie sprechen sonst das echte Geraet an).
 Zwei Fallen, die das Werkzeug umgeht: local_esp_restart antwortet nicht und blockierte bis zur Frist (deshalb im
 eigenen Faden), und Abfragezeilen schieben die Startzeile aus einem kurzen tail (deshalb log.sh grep).
 """
@@ -172,19 +173,22 @@ def lauf(nr, arm):
         # AKV.2: vom Werkzeug geprueft -- zwischen dem Neustart (rst cause) und der Startzeile keine Anfrage an die Uhr,
         # danach bis +29 s genau eine. Gezaehlt wird jede Anfrage, auch fremde: Ein Browser im Netz macht den Lauf ungueltig.
         z = logsh('since', t0.strftime('%Y-%m-%dT%H:%M'), 6000)
-        rst = [ts(l) for l in z if ts(l) and ts(l) > t0 and 'rst cause' in l][:1]
+        # Name nicht 'rst': der bezeichnet den Arm R -- die Wiederverwendung machte jeden E-Lauf zum Soll 0 (L501)
+        rst_z = [ts(l) for l in z if ts(l) and ts(l) > t0 and 'rst cause' in l][:1]
         req = [ts(l) for l in z if ts(l) and '- request ' in l]
-        if not rst:
+        if not rst_z:
             e['fehlt'].append('Zeile rst cause nach dem Ausloeser')
         else:
-            vor = sum(1 for x in req if rst[0] < x < tf)
+            vor = sum(1 for x in req if rst_z[0] < x < tf)
             nach = sum(1 for x in req if tf <= x <= tf + D.timedelta(seconds=29))
             e['anfragen_vor_start'], e['anfragen_bis_30s'] = vor, nach
             soll_nach = 0 if rst else 1          # R schickt keine Daten, also keine Zeile "- request"
             if vor or nach != soll_nach:
                 e['ungueltig'] = (e.get('ungueltig', '') + f' Anfragen zwischen Neustart und Startzeile {vor} (Soll 0), '
                                   f'danach bis +29 s {nach} (Soll {soll_nach})').strip()
-    for c in (['./tools/smoke-device.sh'], ['./tools/check-pwa.sh']):
+    # STARTPROBE_OHNE_FOLGE=1 nur fuer Gegenproben mit Attrappen: Smoketest und check-pwa lesen tools/device.conf
+    # und wuerden sonst das echte Geraet ansprechen.
+    for c in ([] if os.environ.get('STARTPROBE_OHNE_FOLGE') else (['./tools/smoke-device.sh'], ['./tools/check-pwa.sh'])):
         p = subprocess.run(c, capture_output=True, text=True, cwd=R)
         log(f'  {c[0]}: Exit {p.returncode}')
     ea = [l for l in suche('heap erste anfrage') if ts(l) and ts(l) > tf][:1]
