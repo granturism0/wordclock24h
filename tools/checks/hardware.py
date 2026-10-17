@@ -202,9 +202,10 @@ def h5():
     need = [("Quelle", r"(?im)^#+.*quell"), ("Fertigung bei JLCPCB", r"(?im)^#+.*fertigung bei jlcpcb"), ("Folgerung", r"(?im)^#+.*folgerung")]
     seite = re.compile(r"S\.|Seite|Abschnitt|Kap\.|Tab\.|Abb\.|Fig\.|Table|Sec\.|p\.\s*\d")
     bad = 0; haken = 0; ohne = 0; ohne_zeilen = []
+    wissen = ("layout-regeln.md", "jlcpcb-fertigung.md", "kicad-layout-werkzeug.md", "kicad-regeln-und-footprints.md")   # Wissensblaetter, keine Bauteile: Pflichtabschnitte gelten nicht, der Seitenbeleg schon
     for f in files:
         t = open(f, encoding="utf-8").read(); n = os.path.basename(f)
-        for name, rx in need:
+        for name, rx in ([] if n in wissen else need):
             if not re.search(rx, t): crit("H5 %s: Pflichtabschnitt fehlt: %s" % (n, name)); bad += 1
         for line in t.splitlines():
             if "✔" in line and not line.startswith("✔ im Datenblatt gelesen"):    # Legendenzeile ausnehmen
