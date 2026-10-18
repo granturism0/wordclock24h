@@ -18,7 +18,8 @@ Aufruf: c80i_static.py <ESP-Quellverzeichnis> [bezeichnung]. Liest Code ohne Kom
   B9  Ausgabe nur aus loop (): HEAPKARTE_AUSGABE und HEAPKARTE_ANFANG je genau einmal in der .ino; kein anderer Aufruf
       einer heapkarte_-Funktion in der .ino ausser heapkarte_heapzeile () (einmal)
   B10 Schalter: ESP_HEAP_MAP 1 in heapkarte.h, #else mit vier leeren Makros; in der .ino #error bei ESP_HEAP_MAP && !
-      ESP_HEAP_LOG
+      ESP_HEAP_LOG. Review 1.7 S1: HEAPKARTE_VOR () auch im aktiven Zweig leer (liest nicht); K5: ESP.getFreeHeap ()
+      genau einmal in heapkarte.h (NACH) und einmal in heapkarte.cpp (heapkarte_anfang ()), zehnmal NACH in loop ()
   B11 ueberholt (N2): keine Zeile "- heap start", keine Karte U; hk_marken_erfassen () genau einmal aufgerufen
   B12 http.cpp: heapkarte.h eingebunden; http_accept_count_get () liefert http_accept_count, in #if ESP_HEAP_MAP;
       HTTP_TW_LIMIT 2 und tcp_tw_limit () unveraendert
@@ -150,6 +151,11 @@ chk('B10 ESP_HEAP_MAP 1 in heapkarte.h', re.search(r'^#define ESP_HEAP_MAP\s+1\b
 els = hj.split('#else')[-1] if '#else' in hj else ''
 chk('B10 #else mit vier leeren Makros', all(re.search(r'#define ' + mm + r'\s+do \{ \} while \(0\)', els) for mm in (r'HEAPKARTE_ANFANG\(\)', r'HEAPKARTE_VOR\(\)', r'HEAPKARTE_NACH\(t\)', r'HEAPKARTE_AUSGABE\(\)')))
 chk('B10 #error bei ESP_HEAP_MAP && ! ESP_HEAP_LOG in der .ino', re.search(r'#if ESP_HEAP_MAP && ! ESP_HEAP_LOG\s*\n\s*#error', ij) is not None)
+aktiv = hj.split('#else')[0] if '#else' in hj else hj
+chk('B10 S1: HEAPKARTE_VOR () im aktiven Zweig leer (liest nicht)', re.search(r'#define HEAPKARTE_VOR\(\)\s+do \{ \} while \(0\)', aktiv) is not None)
+chk('B10 K5: getFreeHeap einmal in heapkarte.h, einmal in heapkarte.cpp, zehnmal NACH in loop ()',
+    len(re.findall(r'\bgetFreeHeap\b', hj)) == 1 and len(re.findall(r'\bgetFreeHeap\b', cj)) == 1
+    and sum(l.strip().startswith('HEAPKARTE_NACH (') for l in funktion(I, 'loop()')) == 10)
 # B11
 alles = Hr + Cr + Ir + Pr
 chk('B11 keine Zeile "- heap start", keine Karte U', '- heap start' not in alles and "'U'" not in cj + ij and 'karte U' not in alles)

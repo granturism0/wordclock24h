@@ -12,7 +12,7 @@
  * Serial.flush () die CPU ab und verfaelschte die Toepfe), danach hoechstens eine Zeile je Sekunde.
  *
  * KOSTEN: "Globale Variablen" +304 Byte (eine Struktur, HK_ZUSTAND, unten per static_assert festgenagelt; Grenze Ent-C2
- * 320). In W 22 Aufrufe von ESP.getFreeHeap () (O(1)) je Durchlauf; je Start hoechstens vier Blockgaenge mit gesperrten
+ * 320). In W 11 Aufrufe von ESP.getFreeHeap () (O(1)) je Durchlauf; je Start hoechstens vier Blockgaenge mit gesperrten
  * Unterbrechungen (gemessen als us=), danach einer je Minute zur Heap-Zeile. Bruecke: je Start 8 bis 11 Zeilen nach W,
  * im Betrieb eine Kartenzeile je Minute. Keine STM-Kommandos (Praefix "- ").
  *
@@ -152,7 +152,7 @@ typedef struct
     uint32_t        t0;                                                     // millis () am Anfang des ersten Durchlaufs
     uint32_t        n;                                                      // Durchlaeufe in W
     uint32_t        takt;                                                   // millis () der letzten Zeile (auch Heap-Zeile)
-    uint16_t        letzter;                                                // free "vorher" des laufenden Topfs
+    uint16_t        letzter;                                                // free beim vorigen Lesen (NACH bzw. Anfang)
     uint16_t        free0;                                                  // free am Anfang des ersten Durchlaufs = free(S)
     uint16_t        free1;                                                  // free am Anfang des ersten Durchlaufs nach W
     uint16_t        us;                                                     // laengster Blockgang seit dem Start
@@ -187,11 +187,16 @@ extern void                 heapkarte_heapzeile (void);                     // a
 extern void                 heapkarte_ausgabe (void);
 extern uint16_t             http_accept_count_get (void);                   // http.cpp: Annahmezaehler fuer Karte F
 
-/* Messpunkte in loop (). VOR liest free unmittelbar vor einem Topf, NACH unmittelbar danach und bucht ihn. Zwischen
- * NACH und dem naechsten VOR liegt nichts - wer dort einen Aufruf einfuegt, reisst die Summenprobe (AKI.4 N2 (e)).
+/* Messpunkte in loop (). NACH liest free unmittelbar nach einem Topf und bucht ihn gegen letzter - den Wert, den das
+ * vorige NACH bzw. der Anfang des Durchlaufs (hk_anfang ()) gelesen hat. Jeder Topf reicht lueckenlos an den naechsten
+ * weiter; die Summenprobe ist damit von der Bauart her exakt (11 Lesestellen je Durchlauf: 1 Anfang + 10 NACH).
+ * VOR LIEST NICHT (Review 1.7 S1): Ein zweites Lesen ueberschriebe letzter, und eine Belegung aus einer Unterbrechung
+ * zwischen NACH und VOR (umm_malloc_cfg.h:303-308, free_blocks_isr_min) fiele in keinen Topf. VOR bleibt als leerer
+ * Marker stehen, damit die Struktur in loop () und der Rueckbau gleich bleiben. Wer zwischen NACH und VOR einen Aufruf
+ * einfuegt, verfaelscht die Zuordnung: er zaehlt zum naechsten Topf (AKI.4 N2 (e)).
  */
 #define HEAPKARTE_ANFANG()          do { if ((heapkarte.merker & (HK_M_GESTARTET | HK_M_W | HK_M_LAEUFT)) != HK_M_GESTARTET) heapkarte_anfang (); } while (0)
-#define HEAPKARTE_VOR()             do { if (heapkarte.merker & HK_M_W) heapkarte.letzter = (uint16_t) ESP.getFreeHeap (); } while (0)
+#define HEAPKARTE_VOR()             do { } while (0)                       // Marker, liest nicht (S1)
 #define HEAPKARTE_NACH(t)           do { if (heapkarte.merker & HK_M_W) hk_nach (&heapkarte, (t), (uint16_t) ESP.getFreeHeap ()); } while (0)
 #define HEAPKARTE_AUSGABE()         do { if (heapkarte.offen) heapkarte_ausgabe (); } while (0)
 

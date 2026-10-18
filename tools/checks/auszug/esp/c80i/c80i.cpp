@@ -9,6 +9,10 @@
  * esp_heap_log () statische Lokale tragen. Typbreiten: Das Instrument rechnet nur mit festen Breiten (uint16_t,
  * uint32_t, int32_t); millis () ist hier uint32_t wie auf dem Geraet.
  * Exit 0 alles OK, 1 mindestens ein FEHLER, 2 KAPUTT.
+ *
+ * Review 1.7: S1 - VOR liest nicht, jeder Topf bucht lueckenlos gegen das vorige Lesen; die Attrappe stellt eine Belegung
+ * aus einer Unterbrechung UNMITTELBAR NACH einem Lesen her (Szenario Unterbrechung). K5 - genau 11 Lesestellen je
+ * Durchlauf in W (+1 mit Heap-Zeile). K2 - die Wegmarken enden an kreisfoermigen lwIP-Listen.
  */
 #include <stdint.h>
 #include <stddef.h>
@@ -86,9 +90,10 @@ static void sim_heap_bauen (void)
 static umm_heap_context_t * umm_get_current_heap (void) { sim_heap_bauen (); return &sim_ctx; }
 static size_t umm_block_size (void) { return (size_t) sim_bs; }
 
+static void sim_isr_nach_lesen (void);
 struct SimEsp
 {
-    uint32_t getFreeHeap (void) { sim_getfree_aufrufe++; return fake_free; }
+    uint32_t getFreeHeap (void) { sim_getfree_aufrufe++; uint32_t v = fake_free; sim_isr_nach_lesen (); return v; }
     uint32_t getMaxFreeBlockSize (void) { uint32_t G = sim_G (); return (G > 37 ? G : 37) * 8; }
 } ESP;
 
@@ -149,10 +154,25 @@ static void sim_buchen (int t, int32_t d, uint32_t ms)
     wahr_netto[t] += d;
     if (d < 0 && (uint32_t) -d > wahr_rueck[t]) { wahr_rueck[t] = (uint32_t) -d; wahr_ms[t] = ms; }
 }
+/* S1 (Review 1.7): Belegung aus einer Unterbrechung (umm_malloc_cfg.h:303-308) UNMITTELBAR NACH einem Lesen von free.
+ * Scharf gemacht in wifi_check_if_started (); sie trifft nach dem naechsten Lesen ein - das ist NACH (wif) - und liegt
+ * damit in der Luecke vor dem naechsten Lesen. Lueckenlos gebucht gehoert sie zum naechsten Topf (srv). Liest VOR
+ * erneut, faellt sie in keinen Topf: Die Summenprobe reisst. */
+static int32_t  sim_isr = 0;
+static int      sim_isr_lauernd = 0, sim_isr_gefeuert = 0;
+static int32_t  sim_isr_offen[HK_TOEPFE];
+static void sim_isr_nach_lesen (void)
+{
+    if (! sim_isr_lauernd) return;
+    sim_isr_lauernd = 0; sim_isr_gefeuert++;
+    fake_free = (uint32_t) ((int32_t) fake_free + sim_isr);
+    sim_isr_offen[HK_TOPF_SRV] += sim_isr; sim_isr = 0;
+}
 static void sim_delta (int t)
 {
     int32_t d = sim_skript[t]; sim_skript[t] = 0;
     fake_free = (uint32_t) ((int32_t) fake_free + d);
+    d += sim_isr_offen[t]; sim_isr_offen[t] = 0;                          // je Durchlauf ein Wert je Topf, wie das Instrument
     if (sim_in_w) sim_buchen (t, d, sim_ms - sim_t0);
 }
 static uint32_t esp_uart_overruns = 0;
@@ -167,7 +187,7 @@ static uint16_t http_no_request_timeouts_get (void) { return 0; }
  */
 static int sim_anfrage = 0, sim_frei_naechster = 0;
 static tcp_pcb * sim_pcb_req = 0;
-static void wifi_check_if_started (void) { sim_delta (HK_TOPF_WIF); }
+static void wifi_check_if_started (void) { sim_delta (HK_TOPF_WIF); if (sim_isr) sim_isr_lauernd = 1; }
 static void http_server_loop (void)
 {
     if (sim_frei_naechster)
@@ -473,12 +493,15 @@ static void fall_ereignisse (void)
     {
         f = (uint16_t) (f - 8); hk_anfang (&z, 1000 + ms, f, 0, 0, 0);        // sys -8
         if (! (z.merker & HK_M_W)) break;
-        for (int t = 0; t < 10; t++) { z.letzter = f; f = (uint16_t) (f + (t == 3 ? 8 : 0)); hk_nach (&z, (uint8_t) t, f); }
+        for (int t = 0; t < 10; t++)                                        // S1: kein Lesen vor dem Topf; -8 in der Luecke vor ntp,
+                                                                            // upd +16 gleicht sys und Luecke aus (kein 16-Bit-Unterlauf)
+        { if (t == HK_TOPF_NTP) f = (uint16_t) (f - 8); f = (uint16_t) (f + (t == 3 ? 16 : 0)); hk_nach (&z, (uint8_t) t, f); }
     }
     int64_t s = 0; for (int t = 0; t < HK_TOEPFE; t++) s += z.topf[t].netto;
     summe_soll = (int64_t) z.free1 - z.free0;
-    chk (s == summe_soll && z.topf[HK_TOPF_SYS].netto == -8 * (int32_t) z.n && z.topf[HK_TOPF_UPD].netto == 8 * ((int32_t) z.n - 1) && z.n == 8572,
-         "Fall 15 Summenprobe an einer Folge", "Summe %lld, free1-free0 %lld, sys %d, upd %d, n %u", (long long) s, (long long) summe_soll, z.topf[HK_TOPF_SYS].netto, z.topf[HK_TOPF_UPD].netto, z.n);
+    chk (s == summe_soll && z.topf[HK_TOPF_SYS].netto == -8 * (int32_t) z.n && z.topf[HK_TOPF_UPD].netto == 16 * ((int32_t) z.n - 1) && z.n == 8572
+         && z.topf[HK_TOPF_NTP].netto == -8 * ((int32_t) z.n - 1),
+         "Fall 15 Summenprobe an einer Folge", "Summe %lld, free1-free0 %lld, sys %d, upd %d, ntp %d, n %u", (long long) s, (long long) summe_soll, z.topf[HK_TOPF_SYS].netto, z.topf[HK_TOPF_UPD].netto, z.topf[HK_TOPF_NTP].netto, z.n);
     HK_ZUSTAND alt = z; hk_anfang (&z, 1000 + 70000, 100, 0, 0, 0);
     chk (memcmp (z.topf, alt.topf, sizeof z.topf) == 0 && z.n == alt.n && z.free1 == alt.free1, "Fall 16 nach W keine Messung mehr", "Toepfe/n/free1 nach W veraendert");
     /* Takt (Fall 20, rein) */
@@ -493,8 +516,25 @@ static void fall_ereignisse (void)
          "Fall 20 eine Zeile je Sekunde, ab der Heap-Zeile gezaehlt", "Takt falsch");
 }
 
+/* ---------------------------------------------------------------- K2 (Review 1.7): Wegmarken an kreisfoermigen Listen */
+static void fall_kreis (void)
+{
+    static tcp_pcb t1, t2; static udp_pcb u1; static tcp_pcb_listen l1; static netif n1;
+    alarm (3);                                                              // haengt eine Schleife, endet das Kind mit Signal 14
+    t1.next = &t2; t2.next = &t1; t1.state = t2.state = 4; t1.callback_arg = t2.callback_arg = 0;
+    u1.next = &u1; u1.recv_arg = 0; l1.next = &l1; l1.local_port = 8080; n1.next = &n1; n1.dhcp = 0;
+    tcp_active_pcbs = &t1; tcp_tw_pcbs = &t2; udp_pcbs = &u1; tcp_listen_pcbs.listen_pcbs = &l1; netif_list = &n1;
+    hk_marken_erfassen (&heapkarte.marken, 'W');
+    HK_MARKEN & m = heapkarte.marken;
+    chk (m.tcp_n == 255 && m.udp_n == 255 && m.lst == HK_NIX && m.dhcp == HK_NIX && m.tcp_pcb[0] == HK_FREMD && m.tcp_zst[0] == 4,
+         "K2 kreisfoermige Listen", "tcp_n %u udp_n %u lst %u dhcp %u (soll 255/255/-/-)", m.tcp_n, m.udp_n, m.lst, m.dhcp);
+    tcp_active_pcbs = 0;                                                    // nur TIME_WAIT kreisfoermig: eigener Lauf
+    hk_marken_erfassen (&heapkarte.marken, 'W');
+    chk (m.tcp_n == 255, "K2 kreisfoermige TIME_WAIT-Liste", "tcp_n %u (soll 255)", m.tcp_n);
+}
+
 /* ---------------------------------------------------------------- Szenarien: echte loop () ueber 200 s */
-struct Szenario { const char * name; long anfrage_ms; long hinter_ms; int32_t hinter; long tw_ab_ms; bool x_soll, f_soll, t_soll; };
+struct Szenario { const char * name; long anfrage_ms; long hinter_ms; int32_t hinter; long tw_ab_ms; bool x_soll, f_soll, t_soll; int32_t isr; long isr_ms; };
 static tcp_pcb * obj_tcp (uint16_t b) { return (tcp_pcb *) (sim_mem + 8 * b); }
 static void objekte_anlegen (void)
 {
@@ -521,6 +561,7 @@ static void szenario (const Szenario & sz)
     uint32_t n_w = 0, free1 = 0, x_ms = 0, f_ms = 0, t_ms = 0; bool x_war = false, f_war = false, t_war = false, req_lauf_gesehen = false;
     uint32_t req_lauf = 0; int32_t sys_naechster = 0; uint32_t lauf_vorher_in_w = 0;
     uint32_t rnd = 12345;
+    int lesen_falsch = 0, lesen_n = 0, lesen_nh = 0; uint32_t lesen_lauf = 0;     // K5: Lesestellen von free je Durchlauf in W
     for (sim_lauf = 1; sim_ms < 8000 + 200000; sim_lauf++)
     {
         uint32_t ms = sim_ms - sim_t0;
@@ -550,16 +591,22 @@ static void szenario (const Szenario & sz)
         if (sz.hinter_ms >= 0 && ms <= (uint32_t) sz.hinter_ms && ms + schritt > (uint32_t) sz.hinter_ms) sys_naechster += sz.hinter;
         if (sz.anfrage_ms >= 0 && ms <= (uint32_t) sz.anfrage_ms && ms + schritt > (uint32_t) sz.anfrage_ms) { sim_anfrage = 1; req_lauf = sim_lauf; req_lauf_gesehen = true; }
         if (sz.tw_ab_ms >= 0 && ms <= (uint32_t) sz.tw_ab_ms && ms + schritt > (uint32_t) sz.tw_ab_ms) { tcp_tw_pcbs = 0; if (ms < 180000 && ! t_war) { t_war = true; t_ms = ms; } }
+        if (sz.isr && ms <= (uint32_t) sz.isr_ms && ms + schritt > (uint32_t) sz.isr_ms) sim_isr = sz.isr;
         size_t s0 = sim_serial.size ();
+        int g0 = sim_getfree_aufrufe;
         sim_loop ();
         /* je Durchlauf: hoechstens eine Zeile des Instruments, keine im Durchlauf der Heap-Zeile, keine in W */
         int ni = 0, nh = 0;
         for (size_t i = s0; i < sim_serial.size (); i++) { ni += ist_instr (sim_serial[i].text); nh += ist_heap (sim_serial[i].text); }
         if (ni) chk (ni == 1 && ! nh && ! sim_in_w, N, "Fall 20 Durchlauf %u (ms %u): %d Zeilen des Instruments, %d Heap-Zeilen, in W %d", sim_lauf, ms, ni, nh, sim_in_w);
+        if (sim_in_w && sim_getfree_aufrufe - g0 != 11 + nh && ! lesen_falsch++) { lesen_lauf = sim_lauf; lesen_n = sim_getfree_aufrufe - g0; lesen_nh = nh; }
         if (ni > 1 || (ni && sim_in_w)) break;
         lauf_vorher_in_w = sim_in_w;
         sim_ms += schritt;
     }
+    chk (lesen_falsch == 0, N, "K5 in %d Durchlaeufen in W nicht 11 Lesestellen von free (+1 mit Heap-Zeile); erster: Durchlauf %u mit %d, Heap-Zeilen %d",
+         lesen_falsch, lesen_lauf, lesen_n, lesen_nh);
+    chk (! sz.isr || sim_isr_gefeuert == 1, N, "S1 Attrappe: Unterbrechung %d mal eingetreten (soll 1) - die Probe sieht ihren Gegenstand nicht", sim_isr_gefeuert);
     if (getenv ("C80I_ZEIGEN"))
         for (auto & z : sim_serial) if (! z.text.compare (0, 7, "- heap ")) printf ("    [%s +%6u ms] %3zu %s\n", N, z.ms - sim_t0, z.text.size (), z.text.c_str ());
     /* beide Wege, gleicher Text, gleiche Reihenfolge */
@@ -656,7 +703,7 @@ int main (void)
     struct { const char * name; void (* fn) (void); } G[] = {
         { "Blockgang (Faelle 1-5, 9, 10)", fall_gang }, { "beschaedigte Haufen (Faelle 6, 11)", fall_kaputt },
         { "Zeilenformen (Faelle 7, 13, 21)", fall_zeilen }, { "Toepfe (Fall 15)", fall_toepfe },
-        { "Ereignisse und Takt (Faelle 15-20, 22)", fall_ereignisse } };
+        { "Ereignisse und Takt (Faelle 15-20, 22)", fall_ereignisse }, { "Wegmarken an kreisfoermigen Listen (K2)", fall_kreis } };
     for (auto & g : G)
     {
         fflush (stdout);
@@ -668,11 +715,13 @@ int main (void)
     }
     static const Szenario SZ[] = {
         /* Arm E nach Ent-C5 = A: eine Anfrage nach 2 s, Hintergrundbelegung 504 bei 5 s, TIME_WAIT laeuft nach 120 s ab */
-        { "Szenario E", 2000, 5000, -504, 122000, true, true, true },
+        { "Szenario E", 2000, 5000, -504, 122000, true, true, true, 0, -1 },
         /* Arm B: keine Anfrage in W, Hintergrundbelegung bei 5 s, erste Anfrage bei 150 s (F nach W, T ausserhalb 180 s) */
-        { "Szenario B", 150000, 5000, -504, 270000, true, true, false },
+        { "Szenario B", 150000, 5000, -504, 270000, true, true, false, 0, -1 },
         /* kein X: Hintergrundbelegung klein - Wegmarken am Ende von W (Anlass W) */
-        { "Szenario ohne X", -1, 5000, -200, -1, false, false, false },
+        { "Szenario ohne X", -1, 5000, -200, -1, false, false, false, 0, -1 },
+        /* S1: wie Arm E, dazu 96 Byte aus einer Unterbrechung bei 3 s, unmittelbar nach NACH (wif) - gehoert zu srv */
+        { "Szenario Unterbrechung (S1)", 2000, 5000, -504, 122000, true, true, true, -96, 3000 },
     };
     for (auto & sz : SZ)
     {

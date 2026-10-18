@@ -264,7 +264,9 @@ hk_topf_buchen (HK_TOPF * t, int32_t delta, uint16_t ms)
     }
 }
 
-/* M2: unmittelbar nach einem Topf. frei ist der Wert NACH dem Aufruf, z->letzter der Wert davor. */
+/* M2: unmittelbar nach einem Topf. frei ist der Wert NACH dem Aufruf, z->letzter der Wert beim vorigen Lesen (voriges
+ * NACH bzw. hk_anfang ()) - lueckenlos, es gibt kein eigenes Lesen davor (Review 1.7 S1).
+ */
 void
 hk_nach (HK_ZUSTAND * z, uint8_t topf, uint16_t frei)
 {
@@ -772,11 +774,13 @@ hk_karte_erfassen (HK_KARTE * k)
 /* M4: Wegmarken, nur lesend, ohne CPU-Abgabe (die lwIP-Listen aendern sich nur, wenn loop () abgibt). tcp: aktive, dann
  * TIME_WAIT - bei X ist tcp_active_pcbs leer, es sind also genau die PCBs in tcp_tw_pcbs (wie http.cpp:745). Ein PCB in
  * TIME_WAIT hat keinen ClientContext mehr (callback_arg NULL), ctx steht dann "-". Keine Gegenstelle (AKI.1 (g)).
+ * Jede Liste hoechstens 0xFF Schritte wie die Zaehlschleifen in heapkarte_anfang (): Eine kreisfoermige Liste haengt
+ * nicht (Review 1.7 K2). tcp_n und udp_n saettigen bei 0xFF und sind zugleich die Grenze.
  */
 static void
 hk_marken_tcp (HK_MARKEN * m, const struct tcp_pcb * pcb, const void * heap, uint16_t nb)
 {
-    for (; pcb; pcb = pcb->next)
+    for (; pcb && m->tcp_n < 0xFF; pcb = pcb->next)
     {
         if (m->tcp_n < HK_MARKEN_TCP)
         {
@@ -785,10 +789,7 @@ hk_marken_tcp (HK_MARKEN * m, const struct tcp_pcb * pcb, const void * heap, uin
             m->tcp_zst[m->tcp_n] = (uint8_t) pcb->state;
         }
 
-        if (m->tcp_n < 0xFF)
-        {
-            m->tcp_n++;
-        }
+        m->tcp_n++;
     }
 }
 
@@ -823,7 +824,7 @@ hk_marken_erfassen (HK_MARKEN * m, char anlass)
     hk_marken_tcp (m, tcp_active_pcbs, h, nb);
     hk_marken_tcp (m, tcp_tw_pcbs, h, nb);
 
-    for (u = udp_pcbs; u; u = u->next)
+    for (u = udp_pcbs; u && m->udp_n < 0xFF; u = u->next)
     {
         if (m->udp_n < HK_MARKEN_UDP)
         {
@@ -831,13 +832,10 @@ hk_marken_erfassen (HK_MARKEN * m, char anlass)
             m->udp_ctx[m->udp_n] = hk_index (u->recv_arg, h, nb);           // UdpContext (WiFiUdp), genau
         }
 
-        if (m->udp_n < 0xFF)
-        {
-            m->udp_n++;
-        }
+        m->udp_n++;
     }
 
-    for (l = tcp_listen_pcbs.listen_pcbs; l; l = l->next)
+    for (l = tcp_listen_pcbs.listen_pcbs, i = 0; l && i < 0xFF; l = l->next, i++)
     {
         if (l->local_port == 80)
         {
@@ -846,7 +844,7 @@ hk_marken_erfassen (HK_MARKEN * m, char anlass)
         }
     }
 
-    for (n = netif_list; n; n = n->next)
+    for (n = netif_list, i = 0; n && i < 0xFF; n = n->next, i++)
     {
         if (netif_dhcp_data (n))
         {

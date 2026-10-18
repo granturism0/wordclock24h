@@ -1552,8 +1552,8 @@ var_sync_check (void)
  * C80 (specs/paket-2026-10-17-c80, design.md 4.3 N2): Jeder Aufruf bzw. Block liegt in genau einem Topf zwischen
  * HEAPKARTE_VOR () und HEAPKARTE_NACH (); die Zeit zwischen zwei Durchlaeufen ist der Topf sys. Gemessen wird nur im
  * Startfenster W (60 s ab dem ersten Durchlauf), danach kostet jeder Messpunkt einen Bittest. Reihenfolge und Aufrufe
- * sind unveraendert. Zwischen NACH und dem naechsten VOR steht nichts: Ein Aufruf dort laege in keinem Topf und risse
- * die Summenprobe. Mit ESP_HEAP_MAP 0 (heapkarte.h) sind alle Makros leer. Rueckbau nach Stufe 3 (Ent-C4).
+ * sind unveraendert. Zwischen NACH und dem naechsten VOR steht nichts: VOR liest nicht (Review 1.7 S1), ein Aufruf
+ * dort zaehlte zum naechsten Topf. Mit ESP_HEAP_MAP 0 (heapkarte.h) sind alle Makros leer. Rueckbau nach Stufe 3.
  *----------------------------------------------------------------------------------------------------------------------------------------
  */
 void
