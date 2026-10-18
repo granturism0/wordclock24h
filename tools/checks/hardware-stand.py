@@ -10,8 +10,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 V2DIR = os.environ.get("HW_V2", os.path.expanduser("~/Documents/WordClock-USB C - STM32F411 - V2"))
 dateien = []
 for basis in (os.path.join(ROOT, "hardware"),):
-    for d, _, fs in os.walk(basis):
-        dateien += [os.path.join(d, f) for f in fs]
+    for d, ds, fs in os.walk(basis):
+        # Sperrdateien (~*.lck) und Sicherungsordner von KiCad sind kein Inhalt: Sonst loeste jedes Oeffnen und
+        # Schliessen eines Projekts im KiCad-Fenster einen Lauf aus.
+        ds[:] = [x for x in ds if not x.endswith("-backups")]
+        dateien += [os.path.join(d, f) for f in fs if not (f.startswith("~") or f.endswith(".lck"))]
 dateien += glob.glob(os.path.join(ROOT, "tools", "checks", "hardware*"))
 dateien += glob.glob(os.path.join(V2DIR, "*.kicad_*"))
 h = hashlib.sha256()
