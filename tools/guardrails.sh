@@ -582,12 +582,12 @@ fi
 # Beide Stufen starten kicad-cli mehrfach; bei jedem Guardrail-Lauf ging KiCad auf, auch wenn nur PWA, ESP
 # oder Werkzeug geaendert waren. Gefahren werden sie, wenn sich der Fingerabdruck ihrer Eingaben (hardware/**,
 # tools/checks/hardware*, V2-Referenz -- tools/checks/hardware-stand.py) gegen den letzten BESTANDENEN Lauf
-# geaendert hat, und immer mit --hardware oder --full. Sonst "nicht betroffen", und die Hoch-Findings des letzten
+# geaendert hat, und immer mit --hardware (nicht mit --full: das gilt den Compile-Smoke-Tests). Sonst "nicht betroffen", und die Hoch-Findings des letzten
 # Laufs werden weiter mitgezaehlt und gezeigt -- die Bilanz soll durch das Auslassen nicht besser aussehen.
 HWSTAND="$(git rev-parse --git-dir 2>/dev/null)/guardrails-hardware.stand"
 hwfp=$(python3 ./tools/checks/hardware-stand.py 2>/dev/null | cut -d' ' -f1)
 hwalt=$( [ -s "$HWSTAND" ] && head -1 "$HWSTAND" | cut -d' ' -f1 )
-if [ "$FULL" -eq 1 ] || [ "$HWFORCE" -eq 1 ] || [ -z "$hwfp" ] || [ "$hwfp" != "$hwalt" ]; then
+if [ "$HWFORCE" -eq 1 ] || [ -z "$hwfp" ] || [ "$hwfp" != "$hwalt" ]; then
 # ------------------------------------------ S19 Hardware-Entwurf (ESP32-S3-Umbau)
 # Acht Pruefungen H1-H8 in tools/checks/hardware.py: ERC gegen Baseline, Netzliste gegen Soll,
 # Pinregeln am Modul, Stueckliste mit LCSC-Nummern, Komponentenblaetter, V2-Referenz,
