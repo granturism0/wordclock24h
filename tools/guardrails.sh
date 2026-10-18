@@ -3,6 +3,7 @@
 #
 #   ./tools/guardrails.sh          schnelle Stufe, laeuft nach JEDEM Task (Sekunden)
 #   ./tools/guardrails.sh --full   zusaetzlich die Compile-Smoke-Tests (Minuten)
+#   ./tools/guardrails.sh --hardware   S19/S20 (KiCad) auch ohne Aenderung an hardware/ fahren
 #
 # Exit 0 = keine Kritisch-Findings, Task darf abgeschlossen werden.
 # Exit 1 = mindestens ein Kritisch-Finding, Task blockiert.
@@ -23,7 +24,10 @@ GREP="grep -a"
 
 APP="ESP8266/ESP-uclock/data/app"
 FULL=0
-[ "${1:-}" = "--full" ] && FULL=1
+HWFORCE=0
+for _a in "$@"; do
+  case "$_a" in --full) FULL=1 ;; --hardware) HWFORCE=1 ;; esac
+done
 
 CRIT=0
 WARN=0
@@ -574,6 +578,16 @@ else
   crit "deutsche UI-Texte ausserhalb der Tabellen (oder Werkzeugfehler) -- in die Tabellen oder mit Grund in i18n-kandidaten.ausnahmen"
 fi
 
+# ------------------------------------------ S19/S20 nur bei Aenderung (Wunsch des Nutzers, 18.10.2026)
+# Beide Stufen starten kicad-cli mehrfach; bei jedem Guardrail-Lauf ging KiCad auf, auch wenn nur PWA, ESP
+# oder Werkzeug geaendert waren. Gefahren werden sie, wenn sich der Fingerabdruck ihrer Eingaben (hardware/**,
+# tools/checks/hardware*, V2-Referenz -- tools/checks/hardware-stand.py) gegen den letzten BESTANDENEN Lauf
+# geaendert hat, und immer mit --hardware oder --full. Sonst "nicht betroffen", und die Hoch-Findings des letzten
+# Laufs werden weiter mitgezaehlt und gezeigt -- die Bilanz soll durch das Auslassen nicht besser aussehen.
+HWSTAND="$(git rev-parse --git-dir 2>/dev/null)/guardrails-hardware.stand"
+hwfp=$(python3 ./tools/checks/hardware-stand.py 2>/dev/null | cut -d' ' -f1)
+hwalt=$( [ -s "$HWSTAND" ] && head -1 "$HWSTAND" | cut -d' ' -f1 )
+if [ "$FULL" -eq 1 ] || [ "$HWFORCE" -eq 1 ] || [ -z "$hwfp" ] || [ "$hwfp" != "$hwalt" ]; then
 # ------------------------------------------ S19 Hardware-Entwurf (ESP32-S3-Umbau)
 # Acht Pruefungen H1-H8 in tools/checks/hardware.py: ERC gegen Baseline, Netzliste gegen Soll,
 # Pinregeln am Modul, Stueckliste mit LCSC-Nummern, Komponentenblaetter, V2-Referenz,
@@ -589,7 +603,20 @@ s19w=$(printf '%s\n' "$s19" | grep -c '^  HOCH'); WARN=$((WARN+s19w))
 # Jede Pruefung aus S19 wird gegen eine KOPIE mit hergestellter Verletzung gefahren und muss
 # anschlagen; wo es eine Gegenrichtung gibt, muss die unveraenderte Kopie bestehen.
 step S20 "Hardware-Gegenproben in beide Richtungen"
-./tools/checks/hardware-gegenproben.sh || CRIT=$((CRIT+1))
+./tools/checks/hardware-gegenproben.sh; s20rc=$?
+[ "$s20rc" -eq 0 ] || CRIT=$((CRIT+1))
+if [ "$s19rc" -eq 0 ] && [ "$s20rc" -eq 0 ] && [ -n "$hwfp" ]; then
+  { printf '%s %s %s\n' "$hwfp" "$s19w" "$(date '+%Y-%m-%d %H:%M')"; printf '%s\n' "$s19" | grep '^  HOCH'; } > "$HWSTAND.tmp" && mv -f "$HWSTAND.tmp" "$HWSTAND"
+fi
+else
+  hww=$(head -1 "$HWSTAND" | cut -d' ' -f2); hwzeit=$(head -1 "$HWSTAND" | cut -d' ' -f3-)
+  step S19 "Hardware-Entwurf ESP32-S3 (H1-H8)"
+  echo "  --  nicht betroffen: hardware/, tools/checks/hardware* und V2-Referenz unveraendert seit dem letzten bestandenen Lauf ($hwzeit) -- erzwingen mit --hardware"
+  sed -n '2,$p' "$HWSTAND" | sed 's/^  HOCH/  HOCH (letzter Lauf)/'
+  WARN=$((WARN+${hww:-0}))
+  step S20 "Hardware-Gegenproben in beide Richtungen"
+  echo "  --  nicht betroffen (wie S19)"
+fi
 
 # -------------------------------------------------------------------- Fazit
 printf '\n=== Ergebnis: %d Pruefung(en) mit Kritisch-Findings, %d Hoch-Findings ===\n' "$CRIT" "$WARN"
