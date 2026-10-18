@@ -34,7 +34,15 @@ bad += pruefe('Summenprobe verletzt', [(x, z.replace('sys=-520', 'sys=-500')) fo
 bad += pruefe('Zeile vor dem Ende von W', [(s(30), GUT[0][1])] + GUT[1:], None, 'vor dem Ende von W')
 bad += pruefe('abbruch=', GUT + [(s(80), '- heap karte m abbruch=ord')], None, 'abbruch=')
 bad += pruefe('Zeile fehlt im Ring', GUT, ring_von(GUT)[:-1], 'nicht textgleich')
+bad += pruefe('mittlere Zeile im Ring anders', GUT, [x if i != 4 else x + ' ' for i, x in enumerate(ring_von(GUT))], 'nicht textgleich')
+sp.RING_AB = None
+e = {'fehlt': []}; sp.instrument_pruefen(e, tf, GUT, HEAP, ring_von(GUT)[5:], s(200))
+if e['fehlt'] or 'aus dem Ring gefallen' not in e.get('ring_hinweis', ''): print(f'  FALSCH aelteste aus dem Ring gefallen (ohne --ring-ab): {e}'); bad += 1
+else: print(f'  ok    aelteste aus dem Ring gefallen (ohne --ring-ab): Hinweis "{e["ring_hinweis"]}"')
+sp.RING_AB = 76
+bad += pruefe('aelteste aus dem Ring gefallen (mit --ring-ab)', GUT, ring_von(GUT)[5:], 'aus dem Ring gefallen')
+sp.RING_AB = None
 bad += pruefe('karte m fehlt', [z for z in GUT if 'karte m' not in z[1]], None, 'karte m')
 bad += pruefe('letzte karte m fehlt', [z for z in GUT if z[0] != s(130)], None, 'karte m')
 bad += pruefe('zwei marken', GUT + [(s(69), '- heap marken W tcp=- lst=2')], None, 'Zaehlsoll marken')
-print(f'  Gegenprobe Startprobe: 9 Faelle, {bad} falsch'); sys.exit(1 if bad else 0)
+print(f'  Gegenprobe Startprobe: 12 Faelle, {bad} falsch'); sys.exit(1 if bad else 0)

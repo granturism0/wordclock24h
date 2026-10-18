@@ -2,7 +2,7 @@
 """Startprobe zu C80 (BEFUNDE L499; Spec specs/paket-2026-10-17-c80, AKV.1): Haengt die bleibende Heap-Zerstueckelung
 am fruehen Verkehr nach dem Start?
 
-Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>] [--folge-ab <s>] [--instrument]   z. B. ABE  oder  E8,E12,R
+Aufruf:  tools/startprobe.py <arme> [--abnahme <soll>] [--folge-ab <s>] [--instrument [--ring-ab <s>]]   z. B. ABE
   A = local_esp_restart, sofort abfragen     B = local_esp_restart, ruhig bis +30 s nach (FIRMWARE ...)
   D = OTA auf dasselbe Abbild, sofort        C = OTA auf dasselbe Abbild, ruhig bis +30 s
   E = local_esp_restart; bis zur Startzeile NUR den Mitschnitt lesen, keine Verbindung zur Uhr; danach genau EINE
@@ -21,7 +21,9 @@ check-pwa.sh; Ruhewert ist die erste Heap-Zeile
 marken" in die Mitschrift und prueft das Zaehlsoll (1 x topf kopf, 4 x topf, 1 x karte S, je 0/1 x F, X, T, genau 1 x
 marken, je Heap-Zeile nach W 1 x karte m), dass vor dem Ende von W keine Zeile kommt, kein abbruch=, die Summenprobe
 (Summe der Nettowerte = free1 - free0) und -- bei --folge-ab >= 100 -- dass jede Zeile auch ueber /api/stm32_log
-textgleich ankommt (Ring 32 Zeilen, gelesen 5 s vor der Folge). Fehlt eine, endet das Werkzeug mit Exit 1.
+textgleich ankommt (Ring 32 Zeilen, gelesen 5 s vor der Folge; fallen dabei nur die aeltesten Zeilen heraus, ist das ein
+Hinweis). --ring-ab <s> liest den Ring schon bei +<s> s (eine Anfrage, die F ausloest) und verlangt dann ALLE Zeilen --
+fuer den einmaligen vollstaendigen Nachweis. Fehlt eine, endet das Werkzeug mit Exit 1.
 
 Exit 0 alle Laeufe vollstaendig (und mit --abnahme: kein Lauf unter dem Soll); 1 ein Lauf unvollstaendig, ungueltig
 oder unter dem Soll -- die Meldung nennt Lauf und Grund; 2 Aufruf- oder Werkzeugfehler.
@@ -169,9 +171,20 @@ def instrument_pruefen(e, tf, zeilen, heapzeilen, ring, bis):
         if sum(netto) != soll:
             e['fehlt'].append(f'Summenprobe reisst: Summe der Toepfe {sum(netto)}, free1 - free0 = {soll}')
     if ring is not None:
-        fehlt_ring = [s for s in txt if s not in ring]
-        if fehlt_ring:
-            e['fehlt'].append(f'{len(fehlt_ring)} Zeile(n) nicht textgleich ueber /api/stm32_log, z. B. {fehlt_ring[0][:60]!r}')
+        # Der Ring fasst 32 Zeilen. Fehlen nur die AELTESTEN Zeilen des Instruments, sind sie herausgefallen (Hinweis);
+        # fehlt eine Zeile, die juenger ist als die aelteste noch vorhandene, ist das eine echte Abweichung (Fehler).
+        # Mit --ring-ab (frueher gelesen) gilt auch das Herausfallen als Fehler -- dann soll der Nachweis vollstaendig sein.
+        da = [i for i, s in enumerate(txt) if s in ring]
+        erste = da[0] if da else len(txt)
+        gefallen = [s for s in txt[:erste]]
+        abweichend = [s for s in txt[erste:] if s not in ring]
+        if abweichend:
+            e['fehlt'].append(f'{len(abweichend)} Zeile(n) nicht textgleich ueber /api/stm32_log, z. B. {abweichend[0][:60]!r}')
+        if gefallen:
+            if RING_AB is not None:
+                e['fehlt'].append(f'{len(gefallen)} Zeile(n) schon aus dem Ring gefallen, obwohl bei +{RING_AB} s gelesen, z. B. {gefallen[0][:50]!r}')
+            else:
+                e['ring_hinweis'] = f'{len(gefallen)} aelteste Zeile(n) aus dem Ring gefallen (32 Zeilen), {len(da)} textgleich'
 
 
 def lauf(nr, arm):
@@ -235,8 +248,8 @@ def lauf(nr, arm):
         elif e['eine_anfrage_s'] > grenze:
             e['ungueltig'] = f'eine Anfrage erst {e["eine_anfrage_s"]} s nach der Startzeile (Grenze {grenze} s)'
     ring = None
-    if INSTRUMENT and FOLGE_AB >= 100:
-        while (jetzt() - tf).total_seconds() < FOLGE_AB - 5:
+    if INSTRUMENT and (RING_AB is not None or FOLGE_AB >= 100):
+        while (jetzt() - tf).total_seconds() < (RING_AB if RING_AB is not None else FOLGE_AB - 5):
             time.sleep(1)
         r = get('/api/stm32_log', 10)
         try:
@@ -293,7 +306,15 @@ def main():
     global HOST
     a = sys.argv[1:]
     soll = None
-    global FOLGE_AB, INSTRUMENT
+    global FOLGE_AB, INSTRUMENT, RING_AB
+    if '--ring-ab' in a:
+        i = a.index('--ring-ab')
+        try:
+            RING_AB = int(a[i + 1])
+        except (IndexError, ValueError):
+            print(__doc__.split('\n\n')[1], file=sys.stderr)
+            return 2
+        del a[i:i + 2]
     if '--instrument' in a:
         INSTRUMENT = True
         a.remove('--instrument')
@@ -346,5 +367,6 @@ def main():
 HOST = None
 FOLGE_AB = 30
 INSTRUMENT = False
+RING_AB = None
 if __name__ == '__main__':
     sys.exit(main())
