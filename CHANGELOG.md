@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-18 ESP 3.2.42: Befristetes Messinstrument für den Heap nach dem Start (Paket 2026-10-17-c80, Release I; C80)
+
+Nur der ESP, STM (3.2.34) und App (1.4.102) unverändert. `wordclock-release-2026-10-18-023105.zip`, Tag
+`release/3.2.34-3.2.42-1.4.102`.
+
+**Einspielen:** ESP per OTA. Die App bleibt, danach trotzdem `install-app.sh --check` (DIR-017).
+**Rückweg:** ESP auf 3.2.41 (dasselbe Verhalten ohne Instrument).
+
+- **Wozu:** Nach einem Start bleibt der Heap des ESP dauerhaft zerstückelt, wenn in den ersten Sekunden eine Anfrage
+  kommt (C80, `BEFUNDE.md` L499–L501): Eine Belegung von rund 504 Byte zwischen +3 und +8 s landet dann mitten im
+  grössten freien Block. Wer belegt, ist offen — dieses Release misst es, es behebt noch nichts.
+- **Was es ausgibt:** In den ersten 60 s nach dem Start bucht es jede Änderung des freien Speichers auf den Aufruf in
+  `loop()`, der sie verursacht hat (Töpfe, samt SDK/lwIP als „sys“), und hält Heap-Karten fest: beim Start (S), nach der
+  ersten Anfrage (F), beim ersten grossen Rückgang ohne Verbindung (X) und wenn der Rest einer frühen Verbindung weg ist
+  (T); dazu Wegmarken bekannter Objekte. Ausgegeben wird erst nach den 60 s, eine Zeile je Sekunde, als `- heap topf …`,
+  `- heap karte …`, `- heap marken …` im Mitschnitt und im Logring; danach je Heap-Zeile eine Karte `m`.
+- **Kosten:** statisch +308 Byte RAM (Grenze 320), der Heap ist damit um so viel kleiner; Programm rund +5 KB. Mit dem
+  Schalter `ESP_HEAP_MAP 0` ist der Code wie 3.2.41. Rückbau nach der Abhilfe (eigenes Release).
+- **Sicher durch Bau:** Die Karte liest den Heap unter derselben Sperre wie der Core selbst (`umm_info`), ohne zu
+  schreiben; jeder Weg löst die Sperre; ein beschädigter Heap bricht den Gang mit `abbruch=` ab, statt zu hängen. Gebunden
+  an Core 3.1.2 — eine andere Core-Version bricht die Übersetzung ab.
+- **Geprüft:** Prüfstand c80i (35 statische Prüfungen, Szenarien über 200 s mit der echten `loop()`, eine nachgestellte
+  Belegung aus einer Unterbrechung; 48 Sabotagen, alle schlagen an; gegen 3.2.41 rot), S16 83/83, Review bestanden;
+  die bestehende Heap-Zeile ist Byte für Byte unverändert.
+
 ## 2026-10-16 ESP 3.2.41 und PWA 1.4.102: Unveränderte App-Dateien werden gar nicht mehr nachgefragt (Paket 2026-10-15, R2b; C70 Variante c)
 
 ESP und App zusammen, STM (3.2.34) unverändert. `wordclock-release-2026-10-16-145745.zip`, Tag `release/3.2.34-3.2.41-1.4.102`.
